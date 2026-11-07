@@ -10,6 +10,12 @@ Experiments live in `experiments/<name>/`:
 
 - [Notary comparison](experiments/notary/README.md): synthetic notary authority,
   named-output lineage, seal liveness and observation consistency checks.
+- [UTXO creation-age analysis](experiments/utxo-age/README.md): a bounded
+  Namecoin snapshot-v2 decoder, synthetic fixtures and an optional offline
+  native serialization reference. Real-chain measurements remain unavailable
+  pending the validated-chain evidence adapter and separate authorization.
+  Pinned native reference materials retain the upstream license reproduced
+  in the experiment's `COPYING.namecoin`.
 
 The notary experiment includes Python standard-library-only offline controls.
 Run these only in an offline namespace with read-only source and tools, an empty

@@ -1,0 +1,22 @@
+{
+  "base_hash": "3045dd01912fba8216e013cb6120157c17bacb9894c565132cf80d1e960bd06d",
+  "chainstate_after": "3045dd01912fba8216e013cb6120157c17bacb9894c565132cf80d1e960bd06d",
+  "chainstate_before": "3045dd01912fba8216e013cb6120157c17bacb9894c565132cf80d1e960bd06d",
+  "dump_sha256": "9e4a7af98d343af304ebdddbf9fdfc23a6b6ef8de8747956b379a97065f1ea13",
+  "dump_txoutset_hash": "2c251ef04bbb407462e8c6ddc1a928ab4376a87bb2e1a4708fb90be3707d5b5f",
+  "fixture": true,
+  "headers_sha256": "57dd0f64af6c273a808ab1eb588ce191dd863c676a84dc308be7b6eb6f7984ab",
+  "height": 5,
+  "native_atoms": {
+    "coins": 2100011224456810,
+    "names": 2100110101000001,
+    "total": 4200121325456811
+  },
+  "native_bestblock": "3045dd01912fba8216e013cb6120157c17bacb9894c565132cf80d1e960bd06d",
+  "native_height": 5,
+  "native_transactions": 18,
+  "native_txouts": 18,
+  "schema": "namecoin-age-fixture/1",
+  "tip_after": "3045dd01912fba8216e013cb6120157c17bacb9894c565132cf80d1e960bd06d",
+  "tip_before": "3045dd01912fba8216e013cb6120157c17bacb9894c565132cf80d1e960bd06d"
+}
