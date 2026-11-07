@@ -59,6 +59,7 @@ jobs:
             --ro-bind "$python_root" /tools/python --ro-bind "$go_root" /tools/go \
             --bind "$scratch" /work --chdir /source \
             --setenv PATH /tools/python/bin:/tools/go/bin:/usr/bin:/bin \
+            --setenv LD_LIBRARY_PATH /tools/python/lib \
             --setenv HOME /work/home --setenv TMPDIR /work/tmp \
             --setenv XDG_CACHE_HOME /work/cache --setenv GOCACHE /work/cache/go-build \
             --setenv GOPATH /work/gopath --setenv GOROOT /tools/go \
