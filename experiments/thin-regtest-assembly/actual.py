@@ -4,7 +4,7 @@ The supervisor brokers public reads. Private actor files are only mounted into
 that actor's restricted root; this is filesystem custody, not distinct OS UIDs.
 """
 import base64, ctypes, datetime, hashlib, json, os, pathlib, resource, select
-import signal, subprocess, sys, time, traceback
+import signal, subprocess, sys, time, traceback, tempfile
 from decimal import Decimal
 
 sys.path.insert(0, '/src/experiments/fullnode-trusts')
@@ -66,13 +66,17 @@ def actor(role,args,**kw):
 def finish(p,item):
  item['exit']=p.returncode;item['end']=stamp()
 def run(role,args,limit=1<<20):
- p,item=actor(role,args,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
- try: out,err=p.communicate(timeout=15)
- except subprocess.TimeoutExpired:
-  if p.poll() is None and birth(p.pid)==item['birth']:os.killpg(p.pid,signal.SIGKILL)
-  out,err=p.communicate();finish(p,item);raise RuntimeError('actor timeout')
- finish(p,item)
- assert len(out)<=limit and len(err)<=8192,'actor output bound'
+ # Disk-backed capped child output avoids an unbounded communicate buffer.
+ with tempfile.TemporaryFile(dir='/private/tmp') as stdout,tempfile.TemporaryFile(dir='/private/tmp') as stderr:
+  p,item=actor(role,args,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr)
+  try:p.wait(timeout=15)
+  except BaseException:
+   if p.poll() is None and birth(p.pid)==item['birth']:os.killpg(p.pid,signal.SIGKILL)
+   p.wait(timeout=3);finish(p,item);raise
+  finish(p,item)
+  assert stdout.tell()<=limit and stderr.tell()<=8192,'actor output bound'
+  stdout.seek(0);stderr.seek(0)
+  out=stdout.read(limit+1);err=stderr.read(8193)
  if p.returncode:
   # Inputs and diagnostic outputs stay private unless a known public RPC error.
   (P('/private')/'last-error').write_bytes(err)
@@ -137,6 +141,9 @@ def bridge(mode,policy,binding,request='request.json'):
  observation=datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
  save('bridge.json',{'Mode':mode,'Policy':policy,'Binding':binding,'Certificate':'/private/public/certificate.json','Request':'/private/public/'+request,'At':observation})
  p,item=actor('verifier',['/bin/labcompose','/public/bridge.json'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+ def alarm(signum,frame):raise TimeoutError('hard bridge deadline')
+ previous=signal.signal(signal.SIGALRM,alarm)
+ signal.setitimer(signal.ITIMER_REAL,20)
  end=min(time.monotonic()+20,time.monotonic()+max(0,deadline-time.time()));answer=None
  try:
   for _ in range(260):
@@ -158,6 +165,7 @@ def bridge(mode,policy,binding,request='request.json'):
   p.stdin.close();p.wait(timeout=3);finish(p,item);assert p.returncode==0
   return answer
  finally:
+  signal.setitimer(signal.ITIMER_REAL,0);signal.signal(signal.SIGALRM,previous)
   if p.poll() is None:
    if birth(p.pid)==item['birth']:os.killpg(p.pid,signal.SIGKILL)
    p.wait(timeout=3);finish(p,item)
