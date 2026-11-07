@@ -1,0 +1,14 @@
+# TOML options from pinned ncdns/server/server.go. Runtime-only keys, never export.
+[ncdns]
+bind="@NCDNS_IP@:5391"
+namecoinrpcaddress="@VALIDATOR_IP@:18443"
+namecoinrpccookiepath="/lab/dns-only-auth/validator.cookie"
+namecoinrpctimeout=1500
+cachemaxentries=100
+publickey="../dnskeys/Kbit.key"
+privatekey="../dnskeys/Kbit.private"
+zonepublickey="../dnskeys/Zbit.key"
+zoneprivatekey="../dnskeys/Zbit.private"
+httplistenaddr=""
+# cachemaxentries=0 DOES NOT disable caching: groupcache treats zero as unlimited.
+# Required: reviewed freshness gate and coordinated ncdns restart/cache invalidation.

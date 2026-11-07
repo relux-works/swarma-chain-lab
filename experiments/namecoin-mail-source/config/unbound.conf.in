@@ -1,0 +1,34 @@
+# Per-MTA protected validating resolver; NOT an insecure-bit configuration.
+server:
+  interface: 127.0.0.1
+  port: 53
+  username: ""
+  chroot: ""
+  directory: "/lab/resolver"
+  pidfile: "/lab/resolver/unbound.pid"
+  use-syslog: no
+  logfile: ""
+  do-daemonize: no
+  do-ip6: no
+  access-control: 127.0.0.0/8 allow
+  do-not-query-localhost: no
+  module-config: "validator iterator"
+  trust-anchor-file: "/lab/resolver/bit.key"
+  val-permissive-mode: no
+  harden-dnssec-stripped: yes
+  ignore-cd-flag: yes
+  serve-expired: no
+  prefetch: no
+  cache-min-ttl: 0
+  cache-max-ttl: 600
+  cache-max-negative-ttl: 30
+  private-domain: "bit."
+  # Deny every other namespace. The more-specific transparent bit zone permits stub lookup.
+  local-zone: "." refuse
+  local-zone: "bit." transparent
+  verbosity: 1
+stub-zone:
+  name: "bit."
+  stub-addr: @NCDNS_IP@@5391
+  stub-prime: no
+  stub-first: no

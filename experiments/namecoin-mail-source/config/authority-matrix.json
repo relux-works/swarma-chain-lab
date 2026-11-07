@@ -1,0 +1,12 @@
+{
+  "addresses_are_isolated_documentation_examples": true,
+  "controller": {"ip":"192.0.2.1","wallets":["alice-owner","bob-owner","miner"],"reachable_from_mail_or_dns":false},
+  "validator": {"ip":"192.0.2.2","wallet":false,"peers":["controller"],"rpc":{"dnsro":["name_show"],"recordro":["getblockchaininfo","getblockhash","getblockheader","name_show","getrawtransaction"]}},
+  "ncdns":{"ip":"192.0.2.3","ports":[5391],"allowed_rpc":"validator only","owns":"disposable local DNSSEC signing keys; no name-owner or MTA keys"},
+  "recorder":{"ip":"192.0.2.4","owns":"append-only nonsecret observations","reads":"validator read-only RPC, DNS and redacted fixture MTA logs","submission_control":false},
+  "A":{"ip":"192.0.2.10","domain":"alice.bit","recipient":"alice@alice.bit","owns":"provider-A disposable TLS key, A queue/mailbox"},
+  "B":{"ip":"192.0.2.20","domain":"bob.bit","recipient":"bob@bob.bit","owns":"provider-B disposable TLS key, B queue/mailbox"},
+  "Bprime":{"ip":"192.0.2.30","domain":"bob.bit","recipient":"bob@bob.bit","owns":"provider-Bprime disposable TLS key, empty independent queue/mailbox"},
+  "network_policy":"separate namespace and storage per authority, explicit point-to-point allowlists; mail 25 among A/B/Bprime, each local resolver to ncdns 5391, ncdns to validator RPC, validator-controller chain 18444; recorder read-only paths; no other edges or public route",
+  "storage_policy":"no shared queues, mailboxes, provider keys, owner wallets or writable source; runtime HOME/TMP/cache private 0700; distinct UID/GID maps, no host homes, sockets, keys or foreign caches"
+}

@@ -1,0 +1,40 @@
+[
+  {
+    "case": "alice",
+    "name": "d/alice",
+    "apex": "alice.bit.",
+    "bytes": 158,
+    "sha256": "7e6effaae83d737b28850d92eaa969948b41947f6c2a4426eae68b7e933676fb",
+    "association": "synthetic public bytes; no actual TLS key"
+  },
+  {
+    "case": "bob-before",
+    "name": "d/bob",
+    "apex": "bob.bit.",
+    "bytes": 156,
+    "sha256": "8f18d64822d2e771cc22c93b5bbd9e1d7224bef88dface1835280d3e6f3fbc9d",
+    "association": "synthetic public bytes; no actual TLS key"
+  },
+  {
+    "case": "bob-after",
+    "name": "d/bob",
+    "apex": "bob.bit.",
+    "bytes": 158,
+    "sha256": "f8d10464a613c1d29c94b6c915c2df136a354568fafb3b8c478e55324ed29656",
+    "association": "synthetic public bytes; no actual TLS key"
+  },
+  {
+    "case": "ifa-srv",
+    "name": "d/bob",
+    "apex": "bob.bit.",
+    "bytes": 68,
+    "expected_mx_count": 0
+  },
+  {
+    "case": "legacy-service",
+    "name": "d/bob",
+    "apex": "bob.bit.",
+    "bytes": 51,
+    "expected_rr_count": 0
+  }
+]

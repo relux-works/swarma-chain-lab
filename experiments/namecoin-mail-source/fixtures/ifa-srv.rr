@@ -1,0 +1,1 @@
+_smtp._tcp.bob.bit. 600 IN SRV 10 0 25 mx.bob.bit.

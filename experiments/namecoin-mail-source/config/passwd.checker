@@ -1,0 +1,6 @@
+root:x:0:0:namespace root:/nonexistent:/bin/false
+postfix:x:100:100:fixture Postfix:/nonexistent:/bin/false
+postdrop:x:101:101:fixture postdrop:/nonexistent:/bin/false
+labmail:x:2000:2000:fixture mailbox:/nonexistent:/bin/false
+labsubmit:x:3000:3000:fixture submitter:/nonexistent:/bin/false
+nobody:x:65534:65534:unprivileged default:/nonexistent:/bin/false

@@ -1,0 +1,104 @@
+{
+  "components": [
+    {
+      "name": "Postfix",
+      "version": "3.11.7",
+      "source": "https://postfix.cs.utah.edu/source/official/postfix-3.11.7.tar.gz",
+      "license": "EPL-2.0 OR IPL-1.0",
+      "filename": "postfix-3.11.7.tar.gz",
+      "sha256": "a2f3242345753448072177fae83c322a403c9263696996406201145dab8e8625",
+      "bytes": 5293599,
+      "verification": "release signature verified with publisher key fetched from same official source; independent identity trust not asserted",
+      "signer_fingerprint": "622C7C012254C186677469C50C0B590E80CA15A7"
+    },
+    {
+      "name": "Unbound",
+      "version": "1.26.2",
+      "source": "https://nlnetlabs.nl/downloads/unbound/unbound-1.26.2.tar.gz",
+      "license": "BSD-3-Clause",
+      "filename": "unbound-1.26.2.tar.gz",
+      "sha256": "d8ee7aa6bbb3ff1be7d9e57637d0d0ec2f18273a8efff1a0afe2c665858b96f7",
+      "bytes": 6949796,
+      "verification": "SHA256 matches canonical publisher HTTPS digest"
+    },
+    {
+      "name": "OpenSSL",
+      "version": "3.5.5",
+      "source": "https://www.openssl.org/source/old/3.5/openssl-3.5.5.tar.gz",
+      "license": "Apache-2.0",
+      "filename": "openssl-3.5.5.tar.gz",
+      "sha256": "b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89",
+      "bytes": 53104821,
+      "verification": "SHA256 matches canonical publisher HTTPS digest; probe links installed distribution build of same upstream version, not a rebuild of this source"
+    },
+    {
+      "name": "LMDB",
+      "version": "0.9.31",
+      "source": "https://github.com/LMDB/lmdb/tree/ce201088de95d26fc0da36ba805bf2ddc2ba74ff",
+      "license": "OLDAP-2.8",
+      "filename": "lmdb-0.9.31.tar.gz",
+      "sha256": "dd70a8c67807b3b8532b3e987b0a4e998962ecc28643e1af5ec77696b081c9b0",
+      "bytes": 145208,
+      "verification": "canonical repository tag LMDB_0.9.31 resolves to recorded commit; locally computed acquired archive SHA256",
+      "commit": "ce201088de95d26fc0da36ba805bf2ddc2ba74ff",
+      "tag_object": "69a327f74e3d185f08b8bc6e53653b77d6455a44"
+    },
+    {
+      "name": "Expat",
+      "version": "2.7.3",
+      "source": "https://github.com/libexpat/libexpat/releases/download/R_2_7_3/expat-2.7.3.tar.xz",
+      "license": "MIT",
+      "filename": "expat-2.7.3.tar.xz",
+      "sha256": "71df8f40706a7bb0a80a5367079ea75d91da4f8c65c58ec59bcdfbf7decdab9f",
+      "bytes": 504744,
+      "verification": "SHA256 matches canonical GitHub publisher release-asset digest"
+    },
+    {
+      "name": "GNU m4",
+      "version": "1.4.20",
+      "source": "https://ftp.gnu.org/gnu/m4/m4-1.4.20.tar.xz",
+      "license": "GPL-3.0-or-later",
+      "filename": "m4-1.4.20.tar.xz",
+      "sha256": "e236ea3a1ccf5f6c270b1c4bb60726f371fa49459a8eaaebc90b216b328daf2b",
+      "bytes": 2044756,
+      "verification": "canonical publisher HTTPS acquisition; locally computed acquired archive SHA256; release signature not verified",
+      "role": "build only; private Clang 21 GNU17 build succeeded; two GCC 15/glibc 2.43 attempts failed with gnulib header conflicts; source version unchanged"
+    },
+    {
+      "name": "ncdns",
+      "version": "development snapshot 327931abb0e0619f6bd75ad37c5c4b1dbc9c7bd4",
+      "source": "https://github.com/namecoin/ncdns/tree/327931abb0e0619f6bd75ad37c5c4b1dbc9c7bd4",
+      "commit": "327931abb0e0619f6bd75ad37c5c4b1dbc9c7bd4",
+      "license": "GPL-3.0-or-later",
+      "lockfiles": {
+        "go.mod": "9a9ddedec18f28fdcb97a4709184992ab46c2f0aab2d18e14e47128c0a18346d",
+        "go.sum": "5029b244276a501639d23ee4415d5ad4c7236b5f6b7c38924217026c2c2afbc6"
+      },
+      "canonical_module_hashes": "ncdns.go.sum; offline check validates all zip/go.mod hashes against lock and canonical HTTPS sumdb lookup records",
+      "upgrades": false,
+      "filename": "ncdns-snapshot.tar.gz",
+      "sha256": "7418d9e101c26c1728d50bbf8e07ec7d98c8273d68da34b58d19cd2d1cf24a2c",
+      "archive_note": "locally generated git archive of exact canonical commit, gzip -n; no upstream release signature claimed"
+    },
+    {
+      "name": "Namecoin Core",
+      "version": "28.0.0",
+      "source": "https://github.com/namecoin/namecoin-core/tree/a08218ef2d44b81c53d25c399898e59271f4b642",
+      "commit": "a08218ef2d44b81c53d25c399898e59271f4b642",
+      "license": "MIT",
+      "binary_archive_sha256": "6f12031926f0999b8507e073648cc2b4488d452531301a2244a562a92f2f7860",
+      "verification": "existing lab selection retained; source subset freshly acquired and hashed here; binary archive signature not reverified in this phase"
+    },
+    {
+      "name": "IFA proposals",
+      "version": "44e3edda038c245b9d926623ecd828f0197f24bf",
+      "source": "https://github.com/ifa-wg/proposals/blob/44e3edda038c245b9d926623ecd828f0197f24bf/ifa-0001.md",
+      "license": "CC0-1.0",
+      "sha256": "a3bb2b0d278ef70f613a1537b966b0d576c8f7c2ceeede4a7ca7f0080f6cb97f",
+      "role": "specification reference; actual code discrepancy documented"
+    }
+  ],
+  "runtime_admission": "not granted",
+  "new_dependency_upgrade": false,
+  "source_pins_are_not_a_security_or_license_compatibility_qualification": true
+}

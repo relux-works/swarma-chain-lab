@@ -1,0 +1,22 @@
+# Walletless backend. Only closed-world regtest. No external peers or DNS seeds.
+regtest=1
+server=1
+disablewallet=1
+allowexpired=0
+dnsseed=0
+fixedseeds=0
+discover=0
+listenonion=0
+upnp=0
+natpmp=0
+[regtest]
+bind=@VALIDATOR_IP@:18444
+connect=@CONTROLLER_IP@:18444
+rpcbind=@VALIDATOR_IP@:18443
+rpcallowip=@NCDNS_IP@/32
+rpcallowip=@RECORDER_IP@/32
+rpcwhitelistdefault=1
+rpcwhitelist=dnsro:name_show
+rpcwhitelist=recordro:getblockchaininfo,getblockhash,getblockheader,name_show,getrawtransaction
+# Provision only disposable per-role credentials in the private runtime image.
+# rpcauth records are injected there; never copy a controller cookie here.
