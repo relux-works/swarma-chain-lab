@@ -1,0 +1,10 @@
+{
+  "module": "relux.works/swarma-chain-lab/experiments/sealwatch",
+  "language_version": "go1.26.0",
+  "external_modules": [],
+  "canonical_h1": "not applicable: standard library only; no external dependencies acquired or upgraded",
+  "base_chainlab": "c3483b343f2509d643c8d309f4bc8099097c6310",
+  "keyvault_reference": "dffe3ac5c86e2e8869efc3b869d35f845e1bd71a",
+  "adopts_unreviewed_verifier_branch": false,
+  "adopts_separate_policy_delta": false
+}
