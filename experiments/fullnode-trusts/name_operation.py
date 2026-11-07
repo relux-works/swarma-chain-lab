@@ -4,7 +4,7 @@ These mainnet constants apply only to name_firstupdate/name_update. Regtest
 requires its own explicit parameters. Source review and exact raw admission
 remain external gates; a constant supplies neither execution authority.
 """
-from decimal import Decimal
+from money import coins
 from transaction import build_signed
 
 MAINNET_COMPANION_NAME_VSIZE_CAP = 1024
@@ -26,5 +26,5 @@ def build_companion_name_signed(rpc, check_network, role, inputs, outputs, *,
         raise ValueError('unsupported chain')
     return build_signed(rpc, check_network, role, inputs, outputs,
                         rate_sat_vb=MAINNET_COMPANION_NAME_RATE_SAT_VB,
-                        vsize_cap=cap, fee_cap=Decimal(fee)/100000000,
+                        vsize_cap=cap, fee_cap=coins(fee),
                         name_op=name_op)

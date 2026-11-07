@@ -16,6 +16,7 @@ from decimal import Decimal
 
 from protocol import GENESIS, READ_METHODS, canon
 from transaction import build_signed
+from money import satoshis, coins, total_satoshis, validate_outputs
 from t1b import SIZES, VSIZE_CAPS, payload, script, budget
 
 SAT = Decimal(100000000)
@@ -46,10 +47,7 @@ def sha(data):
 
 
 def sat(value):
-    amount = Decimal(str(value)) * SAT
-    if not amount.is_finite() or amount != amount.to_integral_value():
-        raise ValueError('nonintegral monetary value')
-    return int(amount)
+    return satoshis(value)
 
 
 def digest(value):
@@ -420,12 +418,23 @@ class Collector:
             raise Stop('REQUIRED_INPUT_MISSING')
         if intent.exact_input and points != {(intent.exact_input['txid'], intent.exact_input['vout'])}:
             raise Stop('SEAL_INPUT_CHANGED')
-        total_in = sum(sat(self.call(self.read, 'getrawtransaction', v['txid'], True)['vout'][v['vout']]['value']) for v in vin)
+        input_values = []
         for v in vin:
+            prev = self.call(self.read, 'getrawtransaction', v['txid'], True)['vout'][v['vout']]
+            value_sat = sat(prev['value'])
+            input_values.append(prev['value'])
             coin = self.call(self.read, 'gettxout', v['txid'], v['vout'], True)
-            if coin is None or coin.get('confirmations', 0) < 1:
+            if (not isinstance(coin, dict) or type(coin.get('confirmations')) is not int
+                    or coin['confirmations'] < 1):
                 raise Stop('CONFIRMED_UNSPENT_INPUT_REQUIRED')
-        fee = total_in - sum(sat(v['value']) for v in outputs)
+            try:
+                coin_value_sat = sat(coin.get('value'))
+            except ValueError:
+                raise Stop('PREVOUT_VALUE_SCHEMA') from None
+            if coin_value_sat != value_sat:
+                raise Stop('PREVOUT_VALUE_MISMATCH')
+        total_in = total_satoshis(input_values)
+        fee = total_in - total_satoshis(v['value'] for v in outputs)
         if not 0 <= fee <= self.fee_cap(intent.operation):
             raise Stop('SIGNED_FEE_BOUND')
         if len(outputs) != len(intent.outputs) + (0 if intent.exact_input else 1):
@@ -514,6 +523,7 @@ class Collector:
         policy = self.policy()
         if intent.exact_input:
             # Seal revoke returns its single input less exactly 50000 sat.
+            validate_outputs(intent.outputs)
             self.network()
             raw = self.rpc_for_builder('createrawtransaction', list(intent.inputs), list(intent.outputs))
             signed = self.rpc_for_builder('signrawtransactionwithwallet', raw, wallet=intent.role)
@@ -524,7 +534,7 @@ class Collector:
             raw = build_signed(self.rpc_for_builder, self.network, intent.role,
                 list(intent.inputs), list(intent.outputs), rate_sat_vb=FIXED_FEE_SAT_VB,
                 vsize_cap=self.size_cap(intent.operation),
-                fee_cap=Decimal(self.fee_cap(intent.operation))/SAT, name_op=intent.name_op)
+                fee_cap=coins(self.fee_cap(intent.operation)), name_op=intent.name_op)
         decoded, fee = self.inspect(raw, intent)
         if self.clock() - self.step_start >= PREPARATION_S:
             raise Stop('PREPARATION_DEADLINE')

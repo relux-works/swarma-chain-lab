@@ -1,6 +1,7 @@
 """Bounded JSON numeric transport with no Decimal to binary-float conversion."""
 import json
 from decimal import Decimal
+from money import satoshis, coins
 
 def dumps(value):
     def encode(v, depth=0):
@@ -18,15 +19,3 @@ def dumps(value):
             return '{' + ','.join(json.dumps(k)+':'+encode(x, depth+1) for k,x in sorted(v.items())) + '}'
         raise ValueError('unsupported JSON value; binary floats refused')
     return encode(value)
-
-def satoshis(value):
-    if type(value) not in (int, Decimal) or not Decimal(value).is_finite():
-        raise ValueError('exact decimal amount required')
-    amount = Decimal(value)
-    if len(amount.as_tuple().digits) > 24 or abs(amount.as_tuple().exponent) > 24:
-        raise ValueError('monetary numeric bound')
-    numerator, denominator = amount.as_integer_ratio()
-    scaled, remainder = divmod(numerator * 100000000, denominator)
-    if remainder or not 0 <= scaled <= 21000000*100000000:
-        raise ValueError('satoshi range or precision')
-    return scaled

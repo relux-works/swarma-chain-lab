@@ -12,7 +12,7 @@ import seal_anchor as adapter
 from transaction import build_signed
 from name_operation import build_companion_name_signed
 from funding import T1_SIZES
-from exact_json import dumps as exact_dumps, satoshis
+from exact_json import dumps as exact_dumps, satoshis, coins
 
 P=pathlib.Path
 PUBLIC=P('/private/public')
@@ -92,7 +92,7 @@ def rpc(method,*args,wallet=None):
  if wallet:argv+=['-rpcwallet='+wallet]
  argv+=[method]
  for a in args:
-  argv.append(exact_dumps(a) if isinstance(a,(dict,list,bool)) else str(a))
+  argv.append(a if isinstance(a,str) else exact_dumps(a))
  out,_=run('node',argv,8<<20)
  if not out.strip():return None
  try:return json.loads(out,parse_float=Decimal)
@@ -131,7 +131,7 @@ def builder(role,address,inputs,outputs,*,name_op=None,cap=None,fee_cap=None):
   assert name_op['op']=='name_new' and cap is None and fee_cap is None
   cap=T1_SIZES['A_name_new'];fee_cap=cap*200
  assert type(cap) is int and type(fee_cap) is int
- return build_signed(broker,network,role,inputs,outputs,rate_sat_vb=200,vsize_cap=cap,fee_cap=Decimal(fee_cap)/100000000,name_op=name_op)
+ return build_signed(broker,network,role,inputs,outputs,rate_sat_vb=200,vsize_cap=cap,fee_cap=coins(fee_cap),name_op=name_op)
 def send(raw):
  decoded=rpc('decoderawtransaction',raw)
  txid=mutation('sendrawtransaction',raw)

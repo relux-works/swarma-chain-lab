@@ -7,7 +7,7 @@ Only ordinary legacy P2PKH templates are supported; other shapes fail closed.
 import hashlib
 import json
 from dataclasses import dataclass
-from decimal import Decimal
+from money import coins
 
 from funding import OWNER_CAP_SAT, NAME_LOCK_SAT, SEAL_SAT
 from mainnet import Collector, Intent, Stop, null_data, sat
@@ -18,7 +18,6 @@ RESERVED_SAT = 87_500_000
 RATE_SAT_VB = 200
 OPERATIONS = {'seal': 'A_seal_funding', 'anchor': 'A_grant_anchor',
               'revoke': 'A_seal_revoke'}
-SAT = Decimal(100_000_000)
 
 
 def require(value, reason):
@@ -129,10 +128,10 @@ class Plan:
     def intent(self):
         p = self.public()
         outputs = ([{'data': p['certificate_sha256']}] if p['kind'] == 'anchor' else
-                   [{p['issuer']['address']: Decimal(p['output_sat']) / SAT}])
+                   [{p['issuer']['address']: coins(p['output_sat'])}])
         u = p['input']
         exact = ({'txid': u['txid'], 'vout': u['vout'], 'script': u['script'],
-                  'value': str(Decimal(u['value_sat']) / SAT)} if p['kind'] == 'revoke' else None)
+                  'value': str(coins(u['value_sat']))} if p['kind'] == 'revoke' else None)
         return Intent(OPERATIONS[p['kind']], 'A',
                       ({'txid': u['txid'], 'vout': u['vout']},), tuple(outputs), exact_input=exact)
 
@@ -229,7 +228,7 @@ def decode_legacy(raw_hex, issuer):
         sp = {'hex': script}
         if script == issuer['script']:
             sp['address'] = issuer['address']
-        outputs.append({'n': n, 'value': Decimal(value) / SAT, 'scriptPubKey': sp})
+        outputs.append({'n': n, 'value': coins(value), 'scriptPubKey': sp})
     number(4)
     require(offset == len(raw), 'TRAILING_TRANSACTION_BYTES')
     return {'txid': hashlib.sha256(hashlib.sha256(raw).digest()).digest()[::-1].hex(),
@@ -253,7 +252,12 @@ class _Evidence:
             require(args[0] in self.prevouts, 'GETRAWTRANSACTION_PREVOUT_UNAVAILABLE_TXINDEX_REQUIRED')
             return self.prevouts[args[0]]
         if method == 'gettxout':
-            return {'confirmations': 1}  # shape-only; no claim of live unspentness
+            # Cached evidence supplies the value schema only. This is still
+            # structural inspection, never a live confirmation/unspent proof.
+            require(args[0] in self.prevouts, 'PUBLIC_PREVOUT_UNAVAILABLE')
+            outputs = self.prevouts[args[0]]['vout']
+            require(type(args[1]) is int and 0 <= args[1] < len(outputs), 'PREVOUT_INDEX')
+            return {'confirmations': 1, 'value': outputs[args[1]]['value']}
         raise Stop('OFFLINE_METHOD_DENIED')
 
     def rpc_for_builder(self, method, address, *, wallet):
