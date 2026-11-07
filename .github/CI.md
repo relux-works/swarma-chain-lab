@@ -46,6 +46,11 @@ anonymous stdio pipes; it executes no product or verifier algorithm. The relay
 is compiled offline using only Go's standard library and a fresh private cache.
 The original verifier environment, source visibility, namespace, descriptor,
 capability-object and denied-method assertions remain unchanged. The launcher
+mounts fresh mode-0700 verifier HOME/TMP/cache directories read-only: zero
+writable private bytes, within the historical 16-MiB ceiling. This avoids the
+unsupported `--size` option in the pinned bubblewrap 0.6.1 without upgrading it.
+The verifier needs no filesystem writes; its original startup assertions pass.
+The launcher
 checks the historical and verifier hashes before compilation/execution. Four
 fresh verifier slots cover the complete existing discovery suite; exhaustion is
 a hard error. The relay has an immutable 110-second cutoff and 2101-request /

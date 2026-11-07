@@ -40,5 +40,8 @@ Tests use pinned CPython/Go from CI. The verifier preserves its original
 `/usr/bin/python3 -I -B` invocation and strict environment; that interpreter and
 system libraries belong to the declared Ubuntu runner image, which is not a
 bit-reproducible build input. No third-party language module is acquired.
+The pinned bubblewrap 0.6.1 lacks `--size`. Fresh verifier HOME/TMP/cache
+directories are mode 0700 and mounted read-only, allowing zero private writes
+within the historical 16-MiB ceiling. The unchanged verifier needs no writes.
 These controls establish offline source behavior only, with no node, wallet,
 provider, runtime admission, spending, replay protection or deployment claim.

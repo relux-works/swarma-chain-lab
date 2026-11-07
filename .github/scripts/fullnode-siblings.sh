@@ -16,6 +16,13 @@ done
 for name in tests verifier-{0..3}; do
   mkfifo -m 600 "$scratch/channels/$name.in" "$scratch/channels/$name.out" "$scratch/channels/$name.exit"
 done
+for n in {0..3}; do
+  # The pinned 0.6.1 launcher has no --size option. The verifier writes no
+  # files, so fresh read-only private dirs enforce zero writable bytes,
+  # within the historical 16-MiB ceiling, without a dependency upgrade.
+  mkdir -m 700 "$scratch/verifier-$n"
+  mkdir -m 700 "$scratch/verifier-$n/home" "$scratch/verifier-$n/tmp" "$scratch/verifier-$n/cache"
+done
 pids=()
 cleanup() {
   for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done
@@ -69,10 +76,7 @@ for n in {0..3}; do
     "${common[@]}" --dir /src \
       --ro-bind "$source_root/experiments/fullnode-trusts/protocol.py" /src/protocol.py \
       --ro-bind "$source_root/experiments/fullnode-trusts/pipe_verify.py" /src/pipe_verify.py \
-      --size 16777216 --tmpfs /private \
-      --dir /private/home --chmod 0700 /private/home \
-      --dir /private/tmp --chmod 0700 /private/tmp \
-      --dir /private/cache --chmod 0700 /private/cache \
+      --ro-bind "$scratch/verifier-$n" /private \
       --setenv HOME /private/home --setenv TMPDIR /private/tmp --setenv XDG_CACHE_HOME /private/cache \
       --chdir /private /usr/bin/python3 -I -B -c '
 import json, sys, traceback
