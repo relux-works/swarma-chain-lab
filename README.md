@@ -16,6 +16,11 @@ Experiments live in `experiments/<name>/`:
   pending the validated-chain evidence adapter and separate authorization.
   Pinned native reference materials retain the upstream license reproduced
   in the experiment's `COPYING.namecoin`.
+- [Namecoin Electrum laboratory](experiments/namecoin-electrum-local/README.md):
+  pinned server preparation and a closed regtest research harness. The retained
+  Part A evidence applies to its original runtime source; the checkpoint-height
+  correction has offline replay evidence only. This composition requires fresh
+  independent review and does not qualify a new runtime or Part B.
 
 The notary experiment includes Python standard-library-only offline controls.
 Run these only in an offline namespace with read-only source and tools, an empty

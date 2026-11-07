@@ -1,0 +1,24 @@
+{
+  "header_proof": {
+    "header": "040101000f3755501935c21970c525f7bcfe72cde945232412b0e446a13e4a0bac5d82a1e85da6db03d83cb34240fe58aac93597c722700d3d1b4038599274eb4beb13f43db3ee6affff7f2000000000",
+    "branch": [
+      "d1e629f88034f13bddae38dd6ae250a7c600ad5b43a6bc77c163369e1ecbea32",
+      "f28162ca0647debb92ca1ea17cf729b344df4137f838bf8757ff3f5635380393",
+      "d5888712ad349f656e881102d90c6d3766bb7f00c56dd86438f55272697077f1",
+      "6398f5f8fe526ae84eb6defba8e7d6f9c9120bd5e4b74763184a235368427ce1",
+      "55d682991a66dec405d720e16b8bd5fbaf2d81595f0e9c07802d98d45050f7ca",
+      "f746eef23a5d03be7b68ce9df7383d2643118ffdaf795d10d2bd02842e1ce9a9",
+      "6311dd03537dd6aa225190fbb55178d75ad51b0593e24430a4c8308b0c75cb7c",
+      "96f415688233a4eb025114f0ea58979b1b16b78deb33388d0044700699f37280"
+    ],
+    "root": "04cbf0e8277b2a56f2ed2114f7cdd5be8692d06dcc2ade368c969a538c9c5335"
+  },
+  "anchor": {
+    "height": 222,
+    "root": "04cbf0e8277b2a56f2ed2114f7cdd5be8692d06dcc2ade368c969a538c9c5335",
+    "trust": "out-of-band local fully validating Core oracle; not self-authenticated by server"
+  },
+  "valid_height": 222,
+  "invalid_height": 223,
+  "actual_tip_hash": "d1e629f88034f13bddae38dd6ae250a7c600ad5b43a6bc77c163369e1ecbea32"
+}

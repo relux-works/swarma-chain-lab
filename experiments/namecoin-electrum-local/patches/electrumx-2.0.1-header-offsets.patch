@@ -1,0 +1,17 @@
+--- a/src/electrumx/server/session.py
++++ b/src/electrumx/server/session.py
+@@ -2025,3 +2025,7 @@
+-        height = 0
+-        while cursor < len(headers):
+-            next_cursor = self.db.header_offset(height + 1)
++        # read_headers returns a buffer relative to start_height, whereas
++        # header_offset returns an absolute offset in the header file.
++        start_offset = self.db.header_offset(start_height) if count else 0
++        for height in range(start_height, start_height + count):
++            next_cursor = self.db.header_offset(height + 1) - start_offset
++            if not cursor < next_cursor <= len(headers):
++                raise self.db.DBError('inconsistent header data')
+@@ -2031 +2035,2 @@
+-            height += 1
++        if cursor != len(headers):
++            raise self.db.DBError('inconsistent header data')

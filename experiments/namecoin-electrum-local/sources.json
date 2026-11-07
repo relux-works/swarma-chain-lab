@@ -1,0 +1,40 @@
+{
+  "electrumx": {
+    "repository": "https://github.com/spesmilo/electrumx",
+    "tag": "2.0.1",
+    "commit": "39d477f31727ff95ce99694f6d8cb4a4cd7bd633",
+    "tag_signature_primary_fingerprint": "4AD64339DFA05E20B3F6AD51E7B748CDAF5E5ED9",
+    "tag_signature_subkey_fingerprint": "6D7A2116DA909E00AC21108BB33B5F232C6271E9",
+    "license": "MIT"
+  },
+  "leveldb": {
+    "repository": "https://github.com/google/leveldb",
+    "tag": "1.23",
+    "commit": "99b3c03b3284f5886f9ef9a4ef703d57373e61be",
+    "license": "BSD-3-Clause",
+    "snappy": false,
+    "crc32c_external": false,
+    "signature_verified": false
+  },
+  "namecoin_core": {
+    "repository": "https://github.com/namecoin/namecoin-core",
+    "tag": "nc28.0",
+    "commit": "a08218ef2d44b81c53d25c399898e59271f4b642",
+    "license": "MIT",
+    "execution": "NOT_RUN_SOURCE_INSPECTION_ONLY"
+  },
+  "archives": [
+    {
+      "filename": "leveldb-1.23.tar.gz",
+      "sha256": "9a37f8a6174f09bd622bc723b55881dc541cd50747cbd08831c2a82d620f6d76",
+      "bytes": 242925
+    },
+    {
+      "filename": "electrumx-2.0.1-git.tar.gz",
+      "sha256": "faefbc54d1de2f66542a86ae034efecc99e042f7af756de94d5732601dfbde51",
+      "bytes": 677457
+    }
+  ],
+  "canonical_go_h1": "NOT_APPLICABLE_NO_GO_MODULES",
+  "dependency_upgrade": false
+}

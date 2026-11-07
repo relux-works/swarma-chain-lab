@@ -1,0 +1,14 @@
+{
+  "upstream_version": "2.0.1",
+  "upstream_commit": "39d477f31727ff95ce99694f6d8cb4a4cd7bd633",
+  "base_candidate_commit": "97cce72f2915c9da24351690e6216c3d0e45f252",
+  "patch_file": "patches/electrumx-2.0.1-header-offsets.patch",
+  "patch_sha256": "bb504c218edc2179ecee22facac4da96d28ee92bd4d30c6fc6ef2556948ed6ed",
+  "source_file": "src/electrumx/server/session.py",
+  "original_source_sha256": "22710c5453483e22e626be02265a81589c6e4d6c4462c5fba07926ec80bf694a",
+  "patched_source_sha256": "c34c6deaab9847e1694ce3940906a584fccd2e5932864431cc4adbbcfa1d63a6",
+  "version_changed": false,
+  "dependencies_changed": false,
+  "review_status": "FRESH_INDEPENDENT_EXACT_HEAD_REVIEW_REQUIRED",
+  "activation_status": "NOT_QUALIFIED"
+}
