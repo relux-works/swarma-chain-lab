@@ -1,0 +1,68 @@
+name: Offline experiment checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    name: ${{ matrix.suite }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [fullnode-trusts, notary, utxo-age, thin-regtest-assembly, sealwatch]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        with:
+          python-version: '3.14.4'
+          check-latest: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Install namespace launcher
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends --no-upgrade bubblewrap=0.6.1-1ubuntu0.3
+          test "$(dpkg-query -W -f='${Version}' bubblewrap)" = 0.6.1-1ubuntu0.3
+      - name: Run offline with read-only source and tools
+        env:
+          SUITE: ${{ matrix.suite }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          scratch=$(mktemp -d "$RUNNER_TEMP/offline.XXXXXXXX")
+          trap 'rm -rf -- "$scratch"' EXIT
+          mkdir -m 700 "$scratch/home" "$scratch/tmp" "$scratch/cache" "$scratch/gopath"
+          python_root=$(dirname "$(dirname "$(command -v python3)")")
+          go_root=$(go env GOROOT)
+          ulimit -t 240
+          ulimit -f 262144
+          ulimit -n 256
+          timeout --signal=TERM --kill-after=10s 360s \
+            bwrap --unshare-all --clearenv --new-session --die-with-parent --cap-drop ALL \
+            --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib \
+            --symlink usr/lib64 /lib64 --proc /proc --dev /dev --dir /etc --dir /home \
+            --ro-bind "$GITHUB_WORKSPACE" /source \
+            --ro-bind "$python_root" /tools/python --ro-bind "$go_root" /tools/go \
+            --bind "$scratch" /work --chdir /source \
+            --setenv PATH /tools/python/bin:/tools/go/bin:/usr/bin:/bin \
+            --setenv HOME /work/home --setenv TMPDIR /work/tmp \
+            --setenv XDG_CACHE_HOME /work/cache --setenv GOCACHE /work/cache/go-build \
+            --setenv GOPATH /work/gopath --setenv GOROOT /tools/go \
+            --setenv GOPROXY off --setenv GOSUMDB off --setenv GOTOOLCHAIN local \
+            --setenv CGO_ENABLED 0 --setenv PYTHONDONTWRITEBYTECODE 1 \
+            --setenv PIP_NO_INDEX 1 --setenv LC_ALL C.UTF-8 \
+            /bin/bash /source/.github/scripts/offline-checks.sh "$SUITE"
