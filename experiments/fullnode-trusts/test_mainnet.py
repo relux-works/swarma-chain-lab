@@ -3,10 +3,16 @@
 The in-memory RPC schema double exercises the main-network guard with public
 constants. Its generated transactions are the zero-prevout serialization
 fixtures, not signed transactions or observations of any chain.
+
+The original structural controls explicitly disable observation scheduling
+and its feasibility check in the TEST DOUBLE, to retain exact-raw admission,
+stop-first and serialization coverage independently of timing. test_boundaries exercises the actual scheduler,
+preparation and fail-closed phase contract with no such override. Structural success is not runtime feasibility.
 """
 import copy
 import hashlib
 import json
+import math
 import unittest
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -100,7 +106,7 @@ class SyntheticRPC:
 
 
 class Tests(unittest.TestCase):
-    def setup_control(self, **admission_delta):
+    def setup_control(self, *, enforce_observation_contract=False, observer_destination='127.0.0.1', **admission_delta):
         self.clock = Clock()
         self.rpc = SyntheticRPC(self.clock)
         self.journal, self.gates = [], []
@@ -122,20 +128,25 @@ class Tests(unittest.TestCase):
             return {'status': self.peer_status, 'txid': binding['txid'],
                     'raw_sha256': binding['raw_sha256'], 'kind': 'SYNTHETIC_OFFLINE_CONTROL',
                     'evidence_kind': 'remote_mempool', 'observer_label': 'synthetic',
-                    'observed_at_utc': datetime.fromtimestamp(self.clock(), timezone.utc).isoformat()}
+                    # Do not round the synthetic observation into the fake clock's future.
+                    'observed_at_utc': datetime.fromtimestamp(math.floor(self.clock()*1000000)/1000000, timezone.utc).isoformat()}
 
         source = {'head': '1'*40, 'tree': '2'*40}
         admission = {'started_monotonic': 1000, 'deadline_monotonic': 22600,
                      'deadline_utc_epoch': 22600, 'funding_address': 'SYNTHETIC_NEW_ADDRESS',
-                     'requested_funding_sat': 6966200, 'recomputed_required_sat': 6966200}
+                     'requested_funding_sat': 6866200, 'recomputed_required_sat': 6866200}
         admission.update(admission_delta)
-        self.c = m.Collector(m.Capability(self.rpc, m.OBSERVE), m.Capability(self.rpc, m.BUILD),
+        self.c = m.Collector(m.Capability(self.rpc, m.OBSERVE, destination=observer_destination), m.Capability(self.rpc, m.BUILD),
               {r: m.Capability(self.rpc, m.WALLET, wallet='synthetic-new-' + r) for r in ('A', 'B')},
               m.Capability(self.rpc, m.BROADCAST), peer, gate, journal, source=source,
               admission=admission, clock=self.clock, wall=self.clock, pause=self.clock.pause)
         # Isolated collector control at T1b boundary; this does not attest T1
         # execution or use a fake-mainnet report. Workflow sequence is separate.
         self.c.index = 10
+        if not enforce_observation_contract:
+            # TEST ONLY: never a product option or runtime admission override.
+            self.c.observation_slot = lambda cap, method: None
+            self.c.require_preparation_capacity = lambda intent: None
         return self.c
 
     def intent(self, n=80):
@@ -157,9 +168,9 @@ class Tests(unittest.TestCase):
 
     def test_conditional_model_and_no_cap_filling(self):
         self.assertEqual(t1b.budget()['owner_cap_sat'], 100000000)
-        self.assertEqual(t1b.budget()['all_in_required_sat'], 6966200)
+        self.assertEqual(t1b.budget()['all_in_required_sat'], 6866200)
         for delta in ({'requested_funding_sat': 100000000, 'recomputed_required_sat': 100000000},
-                      {'requested_funding_sat': 6966201}, {'deadline_monotonic': 22601},
+                      {'requested_funding_sat': 6866201}, {'deadline_monotonic': 22601},
                       {'deadline_monotonic': float('nan')}, {'started_monotonic': 1001},
                       {'funding_address': ''}):
             with self.subTest(delta=delta), self.assertRaises(m.Stop):
@@ -229,7 +240,7 @@ class Tests(unittest.TestCase):
         self.setup_control()
         old = self.c.gates
         def slow_gate(kind, binding):
-            if kind == 'Meta_each_exact_raw_transaction': self.clock.now += 61
+            if kind == 'Meta_each_exact_raw_transaction': self.clock.now += 181
             return old(kind, binding)
         self.c.gates = slow_gate
         with self.assertRaisesRegex(m.Stop, 'PREPARATION_DEADLINE'):

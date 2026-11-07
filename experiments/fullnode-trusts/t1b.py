@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 from protocol import canon
 from transaction import build_signed
+from funding import funding_model, T1_FEE_CAPS
 
 SIZES = (80, 100, 200, 520, 1000, 4000, 10000)
 RATE_SAT_VB = 200  # inherited bounded assumption, never a live quote
@@ -98,12 +99,14 @@ def construct_fixture(n):
 
 
 def budget():
-    t1 = 708000  # sum of existing T1 ten operation caps, not bootstrap
+    t1 = sum(T1_FEE_CAPS.values())  # existing ten operations, not bootstrap
     t1b = sum(VSIZE_CAPS.values()) * RATE_SAT_VB
     transfer = 230 * RATE_SAT_VB  # bounded funder's fee, now inside total
     fees = t1 + t1b + transfer
     margin = (fees + 9) // 10
-    total = 2000000 + 200000 + 100000 + fees + margin
+    model = funding_model((VSIZE_CAPS[n] * RATE_SAT_VB for n in SIZES),
+                          final_reserve_sat=100000, funder_fee_cap_sat=transfer)
+    total = model['all_in_required_sat']
     return {'unit': 'satoshi_of_NMC', 'assumed_sat_per_vbyte': RATE_SAT_VB,
             'live_estimator_quote': None, 't1_operations': 10, 't1_fee_caps_sat': t1,
             't1b_max_operations': 7, 't1b_vsize_caps': VSIZE_CAPS,
@@ -111,7 +114,11 @@ def budget():
             'funding_transfer_fee_cap_sat': transfer, 'all_fee_caps_sat': fees,
             'fee_margin_percent': 10, 'fee_margin_sat': margin,
             'two_names_locked_sat': 2000000, 'two_seals_initially_locked_sat': 200000,
+            'final_live_seal_sat': 100000, 'revoked_seal_fee_sat': 50000,
+            'revoked_seal_returned_change_sat': 50000,
             'spendable_change_reserve_sat': 100000,
+            'cashflow_model': model,
+            'recipient_required_sat': model['recipient_required_sat'],
             'all_in_required_sat': total, 'all_in_required_nmc': f'{Decimal(total)/SAT:.8f}',
             'owner_cap_sat': 100000000, 'headroom_sat': 100000000 - total,
             'status': 'CONDITIONAL_MODEL_NOT_ACTUAL_ESTIMATE',

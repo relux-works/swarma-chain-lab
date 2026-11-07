@@ -5,28 +5,10 @@ the separately admitted new experimental wallets. No owner wallet is read.
 Grant and request domains/schema are the existing closed-regtest protocol.
 """
 from decimal import Decimal
-from protocol import GENESIS, H, canon, verify as protocol_verify
+from protocol import GENESIS, H, canon
 from mainnet import Intent, Stop, T1_ORDER, SAT, json_safe
 from t1b import SIZES, payload
-
-
-class ReadOnlyView:
-    config = {'network': 'main'}
-
-    def __init__(self, collector):
-        self.collector = collector
-
-    def call(self, method, *params):
-        # Do not widen the protocol verifier's reviewed read capability.
-        from protocol import READ_METHODS
-        if method not in READ_METHODS:
-            raise Stop('VERIFIER_METHOD_DENIED')
-        return self.collector.call(self.collector.read, method, *params)
-
-    def check_network(self):
-        if self.config != {'network': 'main'}:
-            raise ValueError('wrong verifier capability network')
-        self.collector.network()
+from verifier_process import verify_public
 
 
 class Workflow:
@@ -46,7 +28,6 @@ class Workflow:
             raise Stop('DISTINCT_NEW_IDENTITIES_REQUIRED')
         self.c._gate('new_experimental_identities', {'source': self.c.source, 'identities': self.ids})
         self.reservations, self.seals, self.fixtures, self.requests = {}, {}, {}, {}
-        self.verifier = ReadOnlyView(collector)
         self.c.after_broadcast = self.mempool_revoke_control
 
     def identity(self, role):
@@ -142,12 +123,20 @@ class Workflow:
                        'request': request, 'request_signature': self.requests[issuer][1]})
 
     def verify(self, issuer, grantee, label, expected, *, fixture=None, request=None, signature=None,
-               reason=None, view=None):
+               reason=None, network='main'):
         self.c.network()
         original_request, original_signature = self.requests[issuer]
-        result = protocol_verify(view or self.verifier, fixture or self.fixtures[issuer],
-            request or original_request, signature if signature is not None else original_signature,
-            self.identity(issuer), self.identity(grantee))
+        # Only JSON public data crosses exec into the isolated verifier. The
+        # broker callback stays in this process; it is never pickled or forked
+        # into a Python verifier that could retain Collector references.
+        result = verify_public({'network': network,
+            'fixture': fixture if fixture is not None else self.fixtures[issuer],
+            'request': request if request is not None else original_request,
+            'signature': signature if signature is not None else original_signature,
+            'pins': {'issuer': self.identity(issuer), 'grantee': self.identity(grantee)}},
+            lambda method, *params: self.c.call(self.c.read, method, *params),
+            timeout_s=min(self.c.deadline - self.c.clock(), self.c.deadline_wall - self.c.wall()))
+        self.c.bounds()
         self.c.record({'event': 'T1_CONTROL', 'label': label, 'result': result, 'expected': expected})
         if result['decision'] != expected or reason is not None and result['reason'] != reason:
             raise Stop('T1_CONTROL_FAILED_' + label)
@@ -182,9 +171,7 @@ class Workflow:
                     signature=self.sign('B', 'swarma-chain-lab/request-v0:', req), reason='REQUEST_SCOPE')
         fixture = dict(self.fixtures['A'], grant=dict(self.fixtures['A']['grant'], resource='synthetic/other'))
         self.verify('A', 'B', 'tampered_grant', 'refuse', fixture=fixture, reason='ISSUER_SIGNATURE')
-        wrong = ReadOnlyView(self.c)
-        wrong.config = {'network': 'regtest'}
-        self.verify('A', 'B', 'wrong_network_capability', 'refuse', view=wrong, reason='UNAVAILABLE_OR_MALFORMED')
+        self.verify('A', 'B', 'wrong_network_capability', 'refuse', network='regtest', reason='UNAVAILABLE_OR_MALFORMED')
         self.c._gate('core_controls_before_revoke', {'source': self.c.source,
                      'fixtures_sha256': H(self.fixtures), 'operations': list(T1_ORDER)})
 
@@ -221,6 +208,7 @@ class Workflow:
             self.verify('A', 'B', 'one_block_revoke_refuse', 'refuse', reason='SEAL_SPENT_INCLUDING_MEMPOOL')
             self.verify('B', 'A', 'other_grant_still_valid', 'admit')
             self.expiry_controls()
+            self.c.begin_t1b()
             self.c._gate('T1_core_passes_before_T1b', {'source': self.c.source,
                          'fixtures_sha256': H(self.fixtures), 'T1_results': json_safe(self.c.rows)})
             for n in SIZES:

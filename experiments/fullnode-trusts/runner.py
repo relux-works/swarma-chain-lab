@@ -49,11 +49,12 @@ def sandbox(kind, core=None, deadline=None, network=None):
             '--die-with-parent', '--cap-drop', 'ALL', '--ro-bind', '/usr', '/usr',
             '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib',
             '--symlink', 'usr/lib64', '/lib64', '--proc', '/proc', '--dev', '/dev',
-            '--dir', '/etc', '--dir', '/home', '--ro-bind', str(SOURCE), '/src',
+            '--dir', '/etc', '--dir', '/home',
             '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'PYTHONDONTWRITEBYTECODE', '1',
             '--setenv', 'LC_ALL', 'C.UTF-8']
     if kind == 'node':
-        args += ['--ro-bind', str(core), '/runtime', '--size', str(1520*1024*1024),
+        args += ['--ro-bind', str(SOURCE), '/src',
+                 '--ro-bind', str(core), '/runtime', '--size', str(1520*1024*1024),
                  '--tmpfs', '/lab', '--dir', '/lab/home', '--chmod', '0700', '/lab/home',
                  '--dir', '/lab/tmp', '--chmod', '0700', '/lab/tmp',
                  '--dir', '/lab/cache', '--chmod', '0700', '/lab/cache',
@@ -61,7 +62,10 @@ def sandbox(kind, core=None, deadline=None, network=None):
                  '--setenv', 'TMPDIR', '/lab/tmp', '--setenv', 'XDG_CACHE_HOME', '/lab/cache',
                  '/usr/bin/python3', '-B', '/src/lab.py', '--deadline', str(deadline), '--network', network]
     else:
-        args += ['--size', str(16*1024*1024), '--tmpfs', '/private',
+        args += ['--dir', '/src',
+                 '--ro-bind', str(SOURCE/'protocol.py'), '/src/protocol.py',
+                 '--ro-bind', str(SOURCE/'pipe_verify.py'), '/src/pipe_verify.py',
+                 '--size', str(16*1024*1024), '--tmpfs', '/private',
                  '--dir', '/private/home', '--chmod', '0700', '/private/home',
                  '--dir', '/private/tmp', '--chmod', '0700', '/private/tmp',
                  '--dir', '/private/cache', '--chmod', '0700', '/private/cache', '--chdir', '/private',
@@ -69,7 +73,7 @@ def sandbox(kind, core=None, deadline=None, network=None):
                  '--setenv', 'XDG_CACHE_HOME', '/private/cache',
                  '/usr/bin/python3', '-B', '/src/pipe_verify.py']
     p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                         env={}, bufsize=0, start_new_session=True)
+                         env={}, close_fds=True, pass_fds=(), bufsize=0, start_new_session=True)
     CHILDREN.append(p)
     return p
 

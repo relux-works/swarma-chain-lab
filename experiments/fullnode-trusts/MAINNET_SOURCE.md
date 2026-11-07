@@ -15,6 +15,30 @@ required external integrations, not source preparation's runtime authorization.
 Python allowlists are defense in depth; Core whitelists and process/mount
 isolation must independently enforce the same separation. The verifier retains
 the original narrower read-only method set and receives no signing capability.
+`Workflow.verify` now uses the original `verify/rpc/rpc_result/verdict` stdio
+protocol. The independently admitted host controller must exec `pipe_verify.py`
+in a separate sibling bwrap namespace, as in `runner.py`; it must never invoke
+the verifier in the collector process. Only public fixture/request/signature/
+pins cross JSON. The broker enforces the unchanged `protocol.READ_METHODS` and
+never serializes a Collector, callback, wallet, gate or broadcaster. The verifier
+gets only protocol/verifier source, stdio, a cleared environment and private
+0700 home/tmp/cache. Extra inherited descriptors and unexpected environment
+keys fail its startup checks. A missing controller is a bounded terminal error,
+not a fallback to an in-process verifier. These source interfaces do not supply
+a mainnet launcher or authorize one.
+
+**Own-node read-only observations use at most ten RPCs per second in every
+phase, serially with at least 0.1 seconds between dispatches.** This exception
+is bound to the admitted observer transport to the own T1 node at literal
+`127.0.0.1`; it never follows from a method name alone. Other observations,
+including public-peer requests, retain ten-second spacing. Preparation is
+bounded by 180 seconds; peer evidence retains 120 seconds. The complete
+single-input preparation path takes 5.2 seconds at ten retained anchors and
+7 seconds at sixteen in zero-latency offline controls. All seven series sizes
+complete under the real scheduler and capacity guard in those controls.
+See `OBSERVATION_CONSTRAINT.md` for the formula and assumptions. Actual RPC,
+journal and admission latency remain unqualified. Independent review and a
+new exact marker are required for the changed source.
 
 Before any future use:
 
@@ -40,11 +64,20 @@ Before any future use:
    experimental A address to the funder. Only he transfers funds. Wait for its
    confirmed UTXO. Never request the entire cap just because it is available.
 5. The superseding spend GO is **a total maximum of 1 NMC for T1 plus T1b**.
-   The model **0.06966200 NMC** is conditional arithmetic, not an actual live
+   The model **0.06866200 NMC** is conditional arithmetic, not an actual live
    estimate or a requirement to spend that sum. It includes 0.02000000 locked
-   names, 0.00200000 initial seals, 0.00708000 T1 fee caps, 0.03488000 T1b fee
+   names, 0.00100000 final B seal, 0.00708000 T1 fee caps, 0.03488000 T1b fee
    caps, 0.00046000 funding-transfer fee cap, 0.00424200 fee margin and 0.00100000
-   spendable reserve. The 200 sat/vB assumption is not an estimator quote.
+   spendable reserve. Both 0.00100000 initial seals are covered at their
+   operation peaks: A's seal later pays its 0.00050000 revoke fee and returns
+   0.00050000 confirmed selectable change. `funding.py` retains each A/B cash
+   balance; see `T1B_PLAN.md` for the complete table and peak proof. Fixed B
+   funding is 0.01436600 with no return transfer. The conditional recipient
+   amount is 0.06815600; the funder separately holds 0.00050600 for its own
+   fee and margin. Final experimental cash is 0.00519600 (fee margin plus
+   explicit reserve), with no unexplained extra seal provision.
+   The 200 sat/vB assumption is not an estimator quote. The live quote must
+   recheck per-wallet peaks, confirmed change, selected inputs and dust policy.
    The runtime admission binds a freshly recomputed minimum, not larger than
    this reviewed model, and source ceilings never increase automatically. If
    the model ceases to fit, stop and get a new calculation/review/admission.
@@ -95,13 +128,24 @@ the exact raw bytes in the active block, and records header/time/height/hash,
 fee/vsize/weight, coinbase and available AuxPoW. Coinbase labels and AuxPoW do not
 establish authenticated miner identity. Missing attribution stays UNKNOWN.
 
-The source uses 60 seconds for transaction preparation/admission, <=120 for peer
+The source uses 180 seconds for transaction preparation/admission, <120 for peer
 evidence and <=1320 for inclusion, with a 1500-second operation bound. T1b has a
 10500-second series bound; the original T1+T1b clock is <=21600 seconds. Maturity
 and expiry observation each have finite 7200-second sub-bounds inside that same
 clock. Waiting never restarts a clock. A slow Meta decision or chain stops safely.
 The request and byte limits may stop earlier than wall limits. Tip checks retain
 all prior inclusion anchors; any observed rollback/changed ancestor refuses.
+Before the first T1b gate or preparation, at least 10500 seconds must remain
+under BOTH immutable monotonic and UTC deadlines; otherwise the terminal reason
+is `STOP_INSUFFICIENT_SHARED_TIME`, including expired shared clocks. The series
+start is set once and cannot be refreshed by another size or gate. Every actual
+observation RPC and anchor read uses the same destination-aware scheduler in
+all phases: own-node loopback reads wait at least 0.1 seconds since the preceding
+observation; all other observations, including each remote-peer poll, retain a
+ten-second wait. Only one external request may be in flight. The admitted
+launcher must pin the observer transport to its own literal `127.0.0.1` T1 node,
+without redirects or proxies, and attest that binding in capability custody. The 2100 total-call limit includes construction, signing,
+broadcast and remote-peer calls as well as observation RPCs; it never resets.
 ABA/post-read races and single-node trust are retained limitations, not solved
 by this collector. No automatic reorg recovery or resumption is implemented.
 
@@ -114,6 +158,13 @@ reversible by reorg. Multi-use requests still have no replay ledger.
 
 All source tests here use explicitly synthetic in-memory RPC controls. They
 open no socket, use no wallet/key and do not attest any mainnet/Core behavior.
+The original collector structural controls explicitly override scheduling and
+the feasibility guard only in their test double, to retain raw-admission and
+stop-first coverage. Their successes do not establish runtime feasibility.
+`test_boundaries.py` separately tests the real scheduler, dual-clock entry gate,
+actual sibling verifier isolation, all seven series sizes and historical
+contract refusal. Successful timing controls use the actual preparation path
+and no timing or feasibility bypass; no production override exists.
 The raw naming API schema is checked against the pinned upstream Core 28 source
 (`src/rpc/names.cpp`, release `nc28.0`); this is documentation evidence, not a
 new executed dependency. Python execution uses only its standard library.

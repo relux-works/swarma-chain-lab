@@ -93,7 +93,7 @@ class Tests(unittest.TestCase):
 
     def test_budgets(self):
         b = t1b.budget()
-        self.assertEqual(b['all_in_required_sat'], 6966200)
+        self.assertEqual(b['all_in_required_sat'], 6866200)
         self.assertEqual(b['t1b_fee_caps_sat'], 3488000)
         self.assertEqual(b['all_fee_caps_sat'], 4242000)
         self.assertEqual(b['fee_margin_sat'], 424200)

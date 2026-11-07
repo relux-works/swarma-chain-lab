@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import time
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -19,6 +20,9 @@ from t1b import SIZES, VSIZE_CAPS, payload, script, budget
 
 SAT = Decimal(100000000)
 CAP_SAT = 100000000  # maximum, never a requested funding target
+LOOPBACK_OBSERVATION_INTERVAL_S = 0.1
+PREPARATION_S = 180
+PEER_S = 120
 T1_ORDER = ('fund_B', 'A_name_new', 'B_name_new', 'A_name_firstupdate',
             'B_name_firstupdate', 'A_seal_funding', 'A_grant_anchor',
             'B_seal_funding', 'B_grant_anchor', 'A_seal_revoke')
@@ -65,8 +69,16 @@ class Capability:
     A Python object alone is not an OS or Core security boundary. No credential
     material is accepted, introspected or included in journal records here.
     """
-    def __init__(self, transport, methods, *, wallet=''):
+    def __init__(self, transport, methods, *, wallet='', destination=None):
         self._transport, self.methods, self.wallet = transport, frozenset(methods), wallet
+        # Public destination binding supplied by the admitted launcher, not a
+        # guess from an RPC method name. It must pin the actual transport and
+        # forbid redirects/proxies to any other destination.
+        self._destination = destination
+
+    @property
+    def destination(self):
+        return self._destination
 
     def __call__(self, method, *params, wallet=''):
         if method not in self.methods or wallet != self.wallet:
@@ -105,12 +117,17 @@ class Collector:
             raise Stop('DISTINCT_EXPERIMENTAL_WALLETS_REQUIRED')
         if set(source) != {'head', 'tree'} or not all(isinstance(v, str) and len(v) == 40 for v in source.values()):
             raise Stop('SOURCE_BINDING')
+        if observer.destination != '127.0.0.1' or observer.wallet:
+            raise Stop('OWN_LOOPBACK_OBSERVER_REQUIRED')
         self.read, self.build, self.wallets, self.broadcast = observer, builder, wallets, broadcaster
         self.peer, self.gates, self.journal = peer, gates, journal
         self.source, self.clock, self.wall, self.pause = dict(source), clock, wall, pause
         self.stopped, self.index, self.calls, self.receipt_bytes, self.response_bytes = False, 0, 0, 0, 0
         self.fees, self.rows, self.anchors, self.used_raw = 0, [], [], set()
         self.tip, self.step_start, self.series_start = None, None, None
+        self.last_observation = None
+        self._rpc_lock = threading.Lock()
+        self.phase_deadline, self.phase_reason = None, None
         self.after_broadcast = None
         self.started = admission.get('started_monotonic')
         self.deadline_wall = admission.get('deadline_utc_epoch')
@@ -141,7 +158,11 @@ class Collector:
         # mount, Core whitelists, transport timeouts, durable journal and no resume.
         self._gate('capability_custody', {'source': self.source,
                    'wallet_roles': {r: w.wallet for r, w in wallets.items()},
-                   'method_sets': [sorted(x) for x in (OBSERVE, BUILD, WALLET, BROADCAST)]})
+                   'method_sets': [sorted(x) for x in (OBSERVE, BUILD, WALLET, BROADCAST)],
+                   'observer_destination': observer.destination,
+                   'observer_transport': 'own T1 node; literal IPv4 loopback; no redirects or proxy',
+                   'loopback_observation_interval_s': LOOPBACK_OBSERVATION_INTERVAL_S,
+                   'public_observation_interval_s': 10})
         self.network()
 
     def _gate(self, kind, binding):
@@ -175,9 +196,83 @@ class Collector:
             raise Stop('STEP_DEADLINE')
         if self.series_start is not None and now - self.series_start >= 10500:
             raise Stop('SERIES_DEADLINE')
+        if self.phase_deadline is not None and now >= self.phase_deadline:
+            raise Stop(self.phase_reason)
+
+    def begin_t1b(self):
+        """Reserve the full series once, before T1b gates or preparation.
+
+        The admitted UTC and monotonic bounds never move. Re-entry cannot
+        refresh either the original run clock or this series reservation.
+        """
+        if self.stopped:
+            raise Stop('TERMINAL_NO_RETRY')
+        if self.series_start is None:
+            if min(self.deadline - self.clock(), self.deadline_wall - self.wall()) < 10500:
+                self.stopped = True
+                self.record({'event': 'STOP', 'reason': 'STOP_INSUFFICIENT_SHARED_TIME',
+                             'remaining_monotonic_s': self.deadline - self.clock(),
+                             'remaining_utc_s': self.deadline_wall - self.wall(),
+                             'required_s': 10500, 'rebroadcast': False})
+                raise Stop('STOP_INSUFFICIENT_SHARED_TIME')
+            self.bounds()
+            self.series_start = self.clock()
+        self.bounds()
+
+    def observation_slot(self, cap, method):
+        """Destination-bound dispatch spacing, in every phase.
+
+        Only the admitted own-node observer at literal 127.0.0.1 gets 10/s.
+        Every other observation, including remote-peer polls and identical
+        read methods on another capability, retains a ten-second wait since
+        the preceding observation. All observations update that shared clock,
+        so neighboring loopback reads cannot accelerate a public request.
+        Construction/sign/send remain outside this read-only exception.
+        """
+        interval = (LOOPBACK_OBSERVATION_INTERVAL_S if cap is self.read and cap.destination == '127.0.0.1'
+                    and method in OBSERVE else 10)
+        self.bounds()
+        if self.last_observation is not None:
+            wait = max(0, self.last_observation + interval - self.clock())
+            if wait:
+                self.pause(wait)
+        self.bounds()  # never dispatch after waiting through any phase bound
+        if self.last_observation is not None and self.clock() < self.last_observation + interval:
+            raise Stop('OBSERVATION_CLOCK_OR_SLEEP')
+        self.last_observation = self.clock()
+
+    def require_preparation_capacity(self, intent):
+        # The actual path has THREE network passes: entry, shared builder
+        # (or exact-input branch), and after exact-raw admission. Each retains
+        # every anchor. Count the other required observer reads as well.
+        # For a funded transaction the helper reads decode/prevouts/policy;
+        # inspect reads decode/prevouts/UTXOs; policy and final acceptance add
+        # four reads. At least one input is mandatory. Exact-input skips the
+        # helper's reads but still has seven other observer reads.
+        inputs = max(1, len(intent.inputs))
+        minimum_calls = 3 * (4 + len(self.anchors)) + (7 if intent.exact_input else 7 + 3 * inputs)
+        minimum_span = (minimum_calls - 1) * LOOPBACK_OBSERVATION_INTERVAL_S
+        if minimum_span >= PREPARATION_S:
+            self.record({'event': 'CONTRACT_CONSTRAINT', 'phase': 'preparation',
+                'minimum_observation_calls': minimum_calls,
+                'minimum_span_s': minimum_span, 'phase_limit_s': PREPARATION_S,
+                'rpc_interval_s': LOOPBACK_OBSERVATION_INTERVAL_S, 'destination': '127.0.0.1',
+                'anchors_retained': len(self.anchors),
+                'resolution': 'mandatory observations exceed preparation budget'})
+            raise Stop('STOP_OBSERVATION_PREPARATION_CONTRACT')
 
     def call(self, cap, method, *params, wallet=''):
+        if not self._rpc_lock.acquire(blocking=False):
+            raise Stop('RPC_IN_FLIGHT')
+        try:
+            return self._call(cap, method, *params, wallet=wallet)
+        finally:
+            self._rpc_lock.release()
+
+    def _call(self, cap, method, *params, wallet=''):
         self.bounds()
+        if method in OBSERVE or method == 'remote_peer_observation':
+            self.observation_slot(cap, method)
         self.calls += 1
         if self.calls > 2100:
             raise Stop('RPC_COUNT_BOUND')
@@ -201,6 +296,12 @@ class Collector:
             raise Stop('RPC_TIME_BOUND')
         self.bounds()
         return result
+
+    def observe_peer(self, binding):
+        # Same scheduler, in-flight lock, count, response/elapsed bounds and
+        # error sanitization as every local observational RPC.
+        return self.call(lambda method, wallet='': self.peer(binding),
+                         'remote_peer_observation')
 
     def network(self):
         info = self.call(self.read, 'getblockchaininfo')
@@ -343,6 +444,8 @@ class Collector:
             raise Stop(reason) from None
 
     def _run_next(self, intent):
+        if intent.operation.startswith('opreturn_'):
+            self.begin_t1b()
         self.bounds()
         if self.index >= len(ORDER) or intent.operation != ORDER[self.index] or intent.role not in self.wallets:
             raise Stop('OPERATION_ORDER')
@@ -350,12 +453,12 @@ class Collector:
         if intent.role != role:
             raise Stop('OPERATION_ROLE')
         self.step_start = self.clock()
+        self.phase_deadline, self.phase_reason = self.step_start + PREPARATION_S, 'PREPARATION_DEADLINE'
         if intent.operation.startswith('opreturn_'):
-            if self.series_start is None:
-                self.series_start = self.step_start
             n = int(intent.operation.split('_')[1])
             if intent.inputs or intent.name_op or intent.outputs != ({'data': payload(n).hex()},):
                 raise Stop('EXACT_T1B_PAYLOAD')
+        self.require_preparation_capacity(intent)
         self.network()
         policy = self.policy()
         if intent.exact_input:
@@ -372,7 +475,7 @@ class Collector:
                 vsize_cap=self.size_cap(intent.operation),
                 fee_cap=Decimal(self.fee_cap(intent.operation))/SAT, name_op=intent.name_op)
         decoded, fee = self.inspect(raw, intent)
-        if self.clock() - self.step_start >= 60:
+        if self.clock() - self.step_start >= PREPARATION_S:
             raise Stop('PREPARATION_DEADLINE')
         if self.fees + fee > budget()['t1_fee_caps_sat'] + budget()['t1b_fee_caps_sat']:
             raise Stop('TOTAL_FEE_BOUND')
@@ -382,7 +485,7 @@ class Collector:
         marker = self._gate('Meta_each_exact_raw_transaction', descriptor)
         # Admission time consumes the same preparation/step/shared clocks.
         self.bounds()
-        if self.clock() - self.step_start >= 60:
+        if self.clock() - self.step_start >= PREPARATION_S:
             raise Stop('PREPARATION_DEADLINE')
         self.network()
         accepted = self.call(self.read, 'testmempoolaccept', [raw])
@@ -390,7 +493,7 @@ class Collector:
         if len(accepted) != 1 or accepted[0].get('allowed') is not True:
             raise Stop('LOCAL_POLICY_REFUSAL_OR_UNKNOWN')
         self.bounds()
-        if self.clock() - self.step_start >= 60:
+        if self.clock() - self.step_start >= PREPARATION_S:
             raise Stop('PREPARATION_DEADLINE')
         raw_hash, txid = descriptor['raw_sha256'], decoded['txid']
         if raw_hash in self.used_raw:
@@ -402,6 +505,8 @@ class Collector:
         if actual != txid:
             raise Stop('BROADCAST_TXID_MISMATCH')
         self.fees += fee
+        peer_deadline = min(self.step_start + PREPARATION_S + PEER_S, started + PEER_S)
+        self.phase_deadline, self.phase_reason = peer_deadline, 'PEER_DEADLINE_UNKNOWN'
         pool = self.call(self.read, 'getrawmempool')
         if txid not in pool:
             raise Stop('LOCAL_MEMPOOL_NOT_OBSERVED')
@@ -412,18 +517,14 @@ class Collector:
                 raise Stop('REVOCATION_MEMPOOL_CONTROL_REQUIRED')
             self.after_broadcast(intent, txid)
         # Success here is local only; UNKNOWN peer evidence never advances.
-        peer_deadline = min(self.step_start + 180, started + 120)
         peer_receipt = None
         for _ in range(25):
             self.network()
             if self.clock() >= peer_deadline:
                 break
-            begin = self.clock()
-            evidence = self.peer({'txid': txid, 'raw_sha256': raw_hash,
-                                  'deadline_monotonic': peer_deadline})
+            evidence = self.observe_peer({'txid': txid, 'raw_sha256': raw_hash,
+                                          'deadline_monotonic': peer_deadline})
             self.bounds()
-            if self.clock() - begin > 10:
-                raise Stop('PEER_OBSERVER_TIME_BOUND')
             if self.clock() >= peer_deadline:
                 raise Stop('PEER_DEADLINE_UNKNOWN')
             if evidence.get('status') == 'refused':
@@ -448,10 +549,11 @@ class Collector:
                 break
             if evidence.get('status') != 'pending':
                 raise Stop('PEER_UNKNOWN')
-            self.pause(min(5, max(0, peer_deadline - self.clock())))
+            self.pause(min(10, max(0, peer_deadline - self.clock())))
         if peer_receipt is None:
             raise Stop('PEER_DEADLINE_UNKNOWN')
         inclusion_deadline = min(self.step_start + 1500, self.clock() + 1320)
+        self.phase_deadline, self.phase_reason = inclusion_deadline, 'INCLUSION_DEADLINE'
         for _ in range(265):
             self.network()
             if self.clock() >= inclusion_deadline:
@@ -488,8 +590,9 @@ class Collector:
                 self.rows.append(row)
                 self.index += 1
                 self.step_start = None
+                self.phase_deadline, self.phase_reason = None, None
                 return row
-            self.pause(min(5, max(0, inclusion_deadline - self.clock())))
+            self.pause(min(10, max(0, inclusion_deadline - self.clock())))
         raise Stop('INCLUSION_DEADLINE')
 
 

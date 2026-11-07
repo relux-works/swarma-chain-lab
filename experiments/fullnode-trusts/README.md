@@ -4,7 +4,7 @@ The composition also contains [finite T1/T1b mainnet collector source](MAINNET_S
 It requires new whole-source review and separate runtime admission. The closed
 regtest runner below remains mainnet-disabled. A superseding experimental spend
 GO caps total T1+T1b at 1 NMC from a new owner-funded experimental address; the
-conditional 0.06966200-NMC model is not a live estimate or permission to fill the cap.
+conditional 0.06866200-NMC model is not a live estimate or permission to fill the cap.
 
 **LAB — experimental, requiring independent review.** This is a small working
 full-node experiment, using Namecoin Core 28.0. It registers two disposable
@@ -159,15 +159,26 @@ block. Generated local blocks make these regtest latency measurements; they are
 not estimates of real mainnet latency. The synthetic miner's bootstrap funding
 transaction is recorded separately from the ten budgeted lab transactions.
 
-The conditional funding minimum under the declared transaction ceilings and a
-10% fee margin is **0.02978800 NMC**: 0.02000000 in two name outputs,
-0.00200000 initially in two seals, at most 0.00708000 in lab transaction fees,
-and 0.00070800 fee margin. This amount is below the 0.5 NMC budget. Its assumed
+The retained historical receipt used **0.02978800 NMC**, an additive upper
+provision that was labelled a minimum before seal reuse was reconciled. Its
+transaction data and receipt remain unchanged; they do not attest the revised
+funding amount. The source now derives **0.02888600 NMC** for T1-only value
+accounting under its fixed B transfer, transaction fee caps and 10% fee margin.
+`funding.py` checks every A/B prefix. Final liabilities alone give 0.02878800,
+but that leaves A 9800 sat short at its anchor before revoke. At 0.02888600,
+A reaches zero ordinary cash at that peak and later recovers 50000 sat from its
+seal; B retains 30600 sat. The final 80600 sat covers margin 70800 sat and a
+timing-forced 9800 sat surplus. Both initial seals need 100000 sat, but only B's
+seal remains locked; A's other 50000 sat pays the already-counted revoke fee.
+No additional reserve is declared for T1-only. This amount is below the
+historical 0.5 NMC lab budget. Its assumed
 rate is 0.002 NMC/kB (200 sat/vB), above the measured pinned-node minimum relay
 rate of 0.001 NMC/kB. The fresh closed node has no usable fee estimator. The
-rate is explicitly an assumption, not a current mainnet quote. The receipt
-contains per-operation ceilings, actual fees and remaining balances. A spend
-returns the seal's remainder; it does not consume its full value as a fee.
+rate is explicitly an assumption, not a current mainnet quote. This is a
+satoshi value minimum, not proof that selected inputs, dust/change policy,
+signed size or confirmation timing permit an executable live quote. Those
+require fresh checks; unavailable confirmed change stops spending. Combined
+T1+T1b uses the separate explicit reserve and peak model in `T1B_PLAN.md`.
 The [public fixtures](receipts/public/) include the exact canonical grant files,
 issuer/request signatures, identity pins and decoded signed transactions from
 that run. They contain only disposable regtest public data; their private keys

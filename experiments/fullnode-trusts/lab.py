@@ -21,6 +21,7 @@ from decimal import Decimal
 from pathlib import Path
 from protocol import GENESIS, READ_METHODS, RPCError, ReadRPC, canon, H
 from transaction import build_signed
+from funding import funding_model
 
 os.umask(0o077)
 LAB = Path('/lab'); NODE = LAB / 'node'; PUBLIC = LAB / 'public'
@@ -29,7 +30,7 @@ RATE_NMC_KVB = Decimal('0.00200000')  # bounded assumption, NOT a mainnet quote
 RATE_SAT_VB = 200
 VSIZE_CAP = 600
 TX_FEE_CAP = Decimal('0.00120000')
-FUNDING = Decimal('0.02978800')
+FUNDING = Decimal(funding_model()['recipient_required_sat']) / Decimal(100000000)
 ROLE_B_FUNDING = Decimal('0.01436600')
 SEAL_VALUE = Decimal('0.00100000')
 NAME_LOCK = Decimal('0.01000000')
@@ -470,15 +471,21 @@ def finish_budget():
     fees = sum(Decimal(x['fee_nmc']) for x in rows)
     total_fee_cap = sum(FEE_CEILINGS[key] for key in BASE_SIZE_CEILINGS if key != 'bootstrap_exact_lab_funding')
     fee_margin = total_fee_cap / 10
+    model = funding_model()
     balances = {role: str(rpc('getbalance', wallet=role)) for role in ('A', 'B')}
     R['funding'] = {
         'exact_conditional_funding_nmc': str(FUNDING), 'external_budget_ceiling_nmc': '0.50000000',
         'smallest_under_declared_caps': True,
+        'minimum_kind': model['minimum_kind'],
+        'cashflow_model': model,
         'names_locked_nmc': '0.02000000', 'seals_initially_locked_nmc': '0.00200000',
         'fees_ceiling_nmc': str(total_fee_cap),
         'explicit_fee_margin_nmc': str(fee_margin),
         'margin_policy': '10 percent of individually capped transaction fees, rounded to exact satoshis',
-        'formula': '2*0.01 names + 2*0.001 seals + 0.00708000 fee ceilings + 0.00070800 margin',
+        'formula': 'max(A prefix liquidity, A final requirement after fixed B transfer); funder fee separate',
+        'final_live_seal_nmc': '0.00100000',
+        'returned_A_seal_change_nmc': '0.00050000',
+        'timing_forced_surplus_nmc': str(Decimal(model['timing_forced_surplus_sat']) / Decimal(100000000)),
         'size_ceilings_vbytes': SIZE_CEILINGS,
         'fee_ceilings_nmc': {key: str(value) for key, value in FEE_CEILINGS.items()},
         'experiment_operations': len(rows), 'actual_regtest_fees_nmc': str(fees),
@@ -495,7 +502,8 @@ def finish_budget():
     }
     if fees > total_fee_cap or len(rows) != MAX_OPERATIONS:
         raise RuntimeError('funding model operation/fee mismatch')
-    if FUNDING != Decimal('0.02200000') + total_fee_cap + fee_margin:
+    if (int(total_fee_cap * 100000000) != model['experimental_fee_caps_sat'] or
+            FUNDING != Decimal(model['recipient_required_sat']) / Decimal(100000000)):
         raise RuntimeError('exact funding formula mismatch')
     expected = FUNDING - fees - Decimal('0.02000000')
     if sum(Decimal(x) for x in balances.values()) != expected:
