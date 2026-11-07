@@ -23,6 +23,8 @@ CAP_SAT = 100000000  # maximum, never a requested funding target
 LOOPBACK_OBSERVATION_INTERVAL_S = 0.1
 PREPARATION_S = 180
 PEER_S = 120
+FIXED_FEE_SAT_VB = 200
+INCLUSION_BLOCKS = 6
 T1_ORDER = ('fund_B', 'A_name_new', 'B_name_new', 'A_name_firstupdate',
             'B_name_firstupdate', 'A_seal_funding', 'A_grant_anchor',
             'B_seal_funding', 'B_grant_anchor', 'A_seal_revoke')
@@ -129,6 +131,7 @@ class Collector:
         self._rpc_lock = threading.Lock()
         self.phase_deadline, self.phase_reason = None, None
         self.after_broadcast = None
+        self.broadcast_window = None
         self.started = admission.get('started_monotonic')
         self.deadline_wall = admission.get('deadline_utc_epoch')
         self.deadline = admission.get('deadline_monotonic')
@@ -140,7 +143,7 @@ class Collector:
         if self.deadline_wall - self.wall() > self.deadline - self.clock() + 1:
             raise Stop('CLOCK_BINDING')
         self.funding_sat = admission.get('requested_funding_sat')
-        # This source still uses the conditional ceilings. A changed estimator,
+        # This source still uses the conditional ceilings. A changed fixed rate,
         # shape or funding model needs a new reviewed source/admission.
         required = admission.get('recomputed_required_sat')
         if (type(self.funding_sat) is not int or type(required) is not int or
@@ -247,8 +250,10 @@ class Collector:
         # every anchor. Count the other required observer reads as well.
         # For a funded transaction the helper reads decode/prevouts/policy;
         # inspect reads decode/prevouts/UTXOs; policy and final acceptance add
-        # four reads. At least one input is mandatory. Exact-input skips the
-        # helper's reads but still has seven other observer reads.
+        # four reads. At least one input is mandatory. Retain one reserved
+        # policy-read slot in this conservative capacity bound, although the
+        # fixed-rate policy no longer calls an estimator. Exact-input skips
+        # the helper's reads but retains the same reserved slot.
         inputs = max(1, len(intent.inputs))
         minimum_calls = 3 * (4 + len(self.anchors)) + (7 if intent.exact_input else 7 + 3 * inputs)
         minimum_span = (minimum_calls - 1) * LOOPBACK_OBSERVATION_INTERVAL_S
@@ -322,7 +327,46 @@ class Collector:
         if self.call(self.read, 'getblockhash', height) != block:
             raise Stop('TIP_CHANGED_DURING_READ')
         self.tip = height, block
+        self.check_broadcast_window()
         return info
+
+    def check_broadcast_window(self):
+        """Six active-chain successors of the last pre-send observed tip.
+
+        Poll counts and elapsed time never manufacture blocks. The baseline
+        stays fixed; network() refuses a rollback or changed ancestor first.
+        A skipped poll may find a later tip: only exact inclusion at or before
+        the original sixth successor qualifies, never a widened window.
+        """
+        if self.broadcast_window is None:
+            return
+        start_height, start_hash, txid, raw = self.broadcast_window
+        if self.call(self.read, 'getblockhash', start_height) != start_hash:
+            raise Stop('REORG')
+        blocks = self.tip[0] - start_height
+        if blocks < 0:
+            raise Stop('REORG')
+        if blocks >= INCLUSION_BLOCKS:
+            tx = self.call(self.read, 'getrawtransaction', txid, True)
+            if tx.get('confirmations', 0) < 0:
+                raise Stop('REORG')
+            if tx.get('confirmations', 0) < 1:
+                raise Stop('SIX_BLOCK_INCLUSION_STOP')
+            block_hash = tx.get('blockhash')
+            header = self.call(self.read, 'getblockheader', block_hash)
+            height = header.get('height')
+            if type(height) is not int or not start_height < height <= start_height + INCLUSION_BLOCKS:
+                raise Stop('SIX_BLOCK_INCLUSION_STOP')
+            if self.call(self.read, 'getblockhash', height) != block_hash:
+                raise Stop('REORG')
+            exact = self.call(self.read, 'getrawtransaction', txid, False, block_hash)
+            block = self.call(self.read, 'getblock', block_hash, 2)
+            if exact != raw or not any(x.get('txid') == txid for x in block['tx']):
+                raise Stop('EXACT_INCLUSION_MISMATCH')
+            self.record({'event': 'SIX_BLOCK_WINDOW', 'broadcast_tip_height': start_height,
+                         'broadcast_tip_hash': start_hash, 'observed_tip_height': self.tip[0],
+                         'limit_height': start_height + INCLUSION_BLOCKS,
+                         'inclusion_height': height, 'txid': txid})
 
     def rpc_for_builder(self, method, *params, wallet=''):
         if method in OBSERVE:
@@ -341,14 +385,14 @@ class Collector:
     def policy(self):
         info = self.call(self.read, 'getnetworkinfo')
         pool = self.call(self.read, 'getmempoolinfo')
-        quote = self.call(self.read, 'estimatesmartfee', 6)
-        # Missing estimator is UNKNOWN, not permission to spend the full ceiling.
-        if 'feerate' not in quote or quote.get('errors'):
-            raise Stop('ESTIMATOR_UNAVAILABLE')
-        rates = (info.get('relayfee'), pool.get('mempoolminfee'), quote['feerate'])
+        # Fixed reviewed source rate; estimator availability is irrelevant.
+        # RPC policy rates are NMC/kvB: 200 sat/vB = .002 NMC/kvB.
+        rates = (info.get('relayfee'), pool.get('mempoolminfee'))
         if any(x is None or not Decimal(str(x)).is_finite() or not 0 < Decimal(str(x)) <= Decimal('.002') for x in rates):
             raise Stop('FRESH_FEE_MODEL_REQUIRED')
-        result = {'network': json_safe(info), 'mempool': json_safe(pool), 'estimator': json_safe(quote)}
+        result = {'network': json_safe(info), 'mempool': json_safe(pool),
+                  'fee_source': 'FIXED_REVIEWED_SOURCE', 'rate_sat_vb': FIXED_FEE_SAT_VB,
+                  'estimator_quote': None, 'inclusion_quote': None}
         self.record({'event': 'POLICY', 'snapshot': result,
                      'limitation': 'RPC does not expose every datacarrier/standardness option'})
         return result
@@ -471,7 +515,7 @@ class Collector:
             raw = signed['hex']
         else:
             raw = build_signed(self.rpc_for_builder, self.network, intent.role,
-                list(intent.inputs), list(intent.outputs), rate_sat_vb=200,
+                list(intent.inputs), list(intent.outputs), rate_sat_vb=FIXED_FEE_SAT_VB,
                 vsize_cap=self.size_cap(intent.operation),
                 fee_cap=Decimal(self.fee_cap(intent.operation))/SAT, name_op=intent.name_op)
         decoded, fee = self.inspect(raw, intent)
@@ -499,7 +543,12 @@ class Collector:
         if raw_hash in self.used_raw:
             raise Stop('NO_REBROADCAST')
         self.used_raw.add(raw_hash)  # before ambiguous RPC, never after success
-        self.record({'event': 'BROADCAST_ATTEMPT', 'descriptor': descriptor, 'Meta_receipt_sha256': marker})
+        # Baseline from the final native pre-send tip observation above.
+        # Blocks racing that read/send may shorten, never extend this window.
+        self.broadcast_window = (*self.tip, txid, raw)
+        self.record({'event': 'BROADCAST_ATTEMPT', 'descriptor': descriptor, 'Meta_receipt_sha256': marker,
+                     'broadcast_tip_height': self.tip[0], 'broadcast_tip_hash': self.tip[1],
+                     'inclusion_limit_height': self.tip[0] + INCLUSION_BLOCKS})
         started, started_wall = self.clock(), self.wall()
         actual = self.call(self.broadcast, 'sendrawtransaction', raw, Decimal('.00300000'))
         if actual != txid:
@@ -532,7 +581,8 @@ class Collector:
             if evidence.get('status') == 'observed':
                 if evidence.get('txid') != txid or evidence.get('raw_sha256') != raw_hash:
                     raise Stop('PEER_BINDING')
-                if evidence.get('evidence_kind') not in ('remote_mempool', 'remote_block') or not evidence.get('observer_label'):
+                # A remote block proves inclusion, not pre-inclusion relay.
+                if evidence.get('evidence_kind') != 'remote_mempool' or not evidence.get('observer_label'):
                     raise Stop('PEER_EVIDENCE_KIND')
                 observed = datetime.fromisoformat(evidence['observed_at_utc'])
                 if observed.utcoffset() is None or observed.utcoffset().total_seconds() != 0:
@@ -567,6 +617,8 @@ class Collector:
                 block_hash = tx.get('blockhash')
                 header = self.call(self.read, 'getblockheader', block_hash)
                 height = header['height']
+                if not self.broadcast_window[0] < height <= self.broadcast_window[0] + INCLUSION_BLOCKS:
+                    raise Stop('SIX_BLOCK_INCLUSION_STOP')
                 if self.call(self.read, 'getblockhash', height) != block_hash:
                     raise Stop('REORG')
                 exact = self.call(self.read, 'getrawtransaction', txid, False, block_hash)
@@ -589,6 +641,7 @@ class Collector:
                 self.record({'event': 'INCLUSION', 'result': row})
                 self.rows.append(row)
                 self.index += 1
+                self.broadcast_window = None
                 self.step_start = None
                 self.phase_deadline, self.phase_reason = None, None
                 return row

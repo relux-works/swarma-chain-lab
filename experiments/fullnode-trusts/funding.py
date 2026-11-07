@@ -7,6 +7,7 @@ input selection, signatures, relay or the availability of a fresh fee estimate.
 """
 
 RATE_SAT_VB = 200
+OWNER_CAP_SAT = 100000000
 ROLE_B_FUNDING_SAT = 1436600
 NAME_LOCK_SAT = 1000000
 SEAL_SAT = 100000
@@ -23,6 +24,24 @@ def _amount(value):
     if type(value) is not int or value < 0:
         raise ValueError('nonnegative integer satoshis required')
     return value
+
+
+def funder_record(recipient_required_sat, actual_funder_fee_sat):
+    """Record the funder's separate fee without changing experimental funding.
+
+    The former 50600-sat provision is a planning line, never an admission cap.
+    Keep a conservative 10% fee provision and the unchanged aggregate 1 NMC cap.
+    This arithmetic neither requests funds nor authorizes a transaction.
+    """
+    recipient = _amount(recipient_required_sat)
+    fee = _amount(actual_funder_fee_sat)
+    provision = fee + (fee + 9) // 10
+    total = recipient + provision
+    return {'recipient_required_sat': recipient, 'actual_funder_fee_sat': fee,
+            'funder_fee_provision_sat': provision, 'all_in_provision_sat': total,
+            'former_50600_line_exceeded': provision > 50600,
+            'within_owner_cap': total <= OWNER_CAP_SAT,
+            'spend_authorized': False}
 
 
 def cashflow(funding_sat, t1b_fee_caps_sat=()):
@@ -111,5 +130,5 @@ neither that fee nor its margin is transferred to experimental wallet A.
         'all_in_required_sat': required + funder_fee_cap_sat + funder_margin,
         'minimum_kind': 'CONDITIONAL_VALUE_MODEL_UNDER_DECLARED_CAPS_NOT_LIVE_QUOTE',
         'timing_requirement': 'confirmed selectable change before reuse; no B-to-A transfer',
-        'live_quote_requirements': 'fresh estimator/policy, exact inputs, signed sizes, dust/change and admission',
+        'live_quote_requirements': 'fixed reviewed 200 sat/vB, fresh policy, exact inputs, signed sizes, dust/change and admission; estimator not required',
         'operations': rows}

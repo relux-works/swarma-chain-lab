@@ -1,4 +1,4 @@
-# Finite T1 + T1b source, pending whole-source review
+# Finite T1 + T1b source, fixed-fee delta pending review
 
 This composition preserves the current grantee ownership-lineage repair and the
 closed-regtest runner. Component reviews do not accept the composition. This
@@ -33,8 +33,8 @@ is bound to the admitted observer transport to the own T1 node at literal
 `127.0.0.1`; it never follows from a method name alone. Other observations,
 including public-peer requests, retain ten-second spacing. Preparation is
 bounded by 180 seconds; peer evidence retains 120 seconds. The complete
-single-input preparation path takes 5.2 seconds at ten retained anchors and
-7 seconds at sixteen in zero-latency offline controls. All seven series sizes
+single-input preparation path takes 5.1 seconds at ten retained anchors and
+6.9 seconds at sixteen in zero-latency offline controls. All seven series sizes
 complete under the real scheduler and capacity guard in those controls.
 See `OBSERVATION_CONSTRAINT.md` for the formula and assumptions. Actual RPC,
 journal and admission latency remain unqualified. Independent review and a
@@ -42,8 +42,8 @@ new exact marker are required for the changed source.
 
 Before any future use:
 
-1. Obtain fresh independent review and a new Meta source marker for this whole
-   exact head/tree, including the collector, workflow, changed fixtures and plan.
+1. Obtain fresh independent review of this small delta and a new Meta source
+   marker binding the exact head/tree, retaining the accepted baseline review.
    Revalidate the complete closed-regtest experiment after the shared-builder
    extraction; historical component receipts do not attest this new source.
 2. Separately admit the experimental seeded node at tip. Compare current tip and
@@ -58,7 +58,8 @@ Before any future use:
    bindings and public addresses/keys/random reservation salts. It is not shipped
    or executed here. Confirm the newly created wallets/signers are usable with
    the pinned Core; an unqualified wallet backend is a stop, not an upgrade.
-4. Recompute the smallest required funding with fresh policy and estimator,
+4. Recompute the smallest required funding with the fixed reviewed 200 sat/vB,
+   fresh policy,
    exact selected inputs, signed sizes, output values, funding-transfer fee,
    locked names/seals, margin and reserve. Return that amount and the NEW
    experimental A address to the funder. Only he transfers funds. Wait for its
@@ -76,11 +77,18 @@ Before any future use:
    amount is 0.06815600; the funder separately holds 0.00050600 for its own
    fee and margin. Final experimental cash is 0.00519600 (fee margin plus
    explicit reserve), with no unexplained extra seal provision.
-   The 200 sat/vB assumption is not an estimator quote. The live quote must
+   The 200 sat/vB source rate is neither an estimator nor an inclusion quote.
+   `estimatesmartfee` availability is not a construction or spending prerequisite.
+   The funding calculation must
    recheck per-wallet peaks, confirmed change, selected inputs and dust policy.
    The runtime admission binds a freshly recomputed minimum, not larger than
    this reviewed model, and source ceilings never increase automatically. If
    the model ceases to fit, stop and get a new calculation/review/admission.
+   The funder's separate 50600-sat fee provision is a planning line, not a cap.
+   If his actual fee exceeds it, recompute the record with `funding.funder_record`;
+   a total still far under 1 NMC does not stop solely for crossing that line.
+   The recipient amount, transaction fee ceilings and each exact-raw gate stay
+   fixed; an unknown actual funder fee remains unknown until supplied.
 6. Configure independent Core-whitelisted observation, construction, new-wallet
    signing and single-send broadcast roles. Construction uses raw APIs only;
    wallet `sendtoaddress`, `name_new`, `name_firstupdate`, `name_update` and queue
@@ -121,12 +129,25 @@ double spend, standardness change or direct miner/peer bypass.
 Local `testmempoolaccept` refusal/unknown stops before send. Local mempool and
 successful send are recorded separately from remote peer acceptance. The remote
 observer must produce authenticated exact txid/raw-hash evidence of its mempool
-or block observation; outgoing inv/getdata and local presence do not qualify.
+observation; a remote block, outgoing inv/getdata and local presence do not
+qualify as pre-inclusion relay evidence. See `RELAY_QUALIFICATION.md` for the
+blocksonly assessment and the facts still missing from runtime qualification.
 Unknown or refused peer evidence, timeout, missing exact-byte inclusion or a
 relevant reorg stop the run before the next operation/size. Inclusion requires
 the exact raw bytes in the active block, and records header/time/height/hash,
 fee/vsize/weight, coinbase and available AuxPoW. Coinbase labels and AuxPoW do not
 establish authenticated miner identity. Missing attribution stays UNKNOWN.
+
+The fee source is fixed at 200 sat/vB. If the exact transaction is absent from
+the active chain at the sixth successor of the last native pre-send observed
+tip, stop the series and report `SIX_BLOCK_INCLUSION_STOP`. The recorded tip
+height/hash is immutable for that broadcast; reorgs stop instead of rebasing
+it. A skipped poll can accept an exact inclusion in successors 1 through 6,
+but inclusion in successor 7 never qualifies. Blocks racing the final tip read
+and send can shorten this conservative window; they cannot extend it. Both
+peer and inclusion phases enforce the window whenever they observe a tip.
+Poll count, confirmations alone and elapsed seconds do not manufacture blocks.
+No automatic bump, replacement, resend or new exact-raw admission occurs.
 
 The source uses 180 seconds for transaction preparation/admission, <120 for peer
 evidence and <=1320 for inclusion, with a 1500-second operation bound. T1b has a

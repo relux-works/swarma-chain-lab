@@ -262,7 +262,7 @@ class Boundaries(unittest.TestCase):
         self.assertEqual(len(h.rpc.calls), before)
 
     def test_actual_preparation_and_peer_feasibility_without_timing_bypass(self):
-        for anchors, calls in ((0,22), (10,52), (12,58), (13,61), (16,70)):
+        for anchors, calls in ((0,21), (10,51), (12,57), (13,60), (16,69)):
             h = self.harness()
             h.c.anchors = [(n, 'b'*64) for n in range(1,anchors+1)]
             timed = self.trace(h)

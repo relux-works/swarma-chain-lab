@@ -44,14 +44,16 @@ class SyntheticRPC:
         self.send_error, self.quote_missing = False, False
         self.extra_input, self.change_owned, self.changed_output = False, True, False
         self.local_pool, self.fail_method = True, None
+        self.height = 100
 
     def __call__(self, method, *args, wallet=''):
         self.calls.append((method, args, wallet))
         if method == self.fail_method:
             raise OSError('synthetic transport error; should never be copied')
         if method == 'getblockchaininfo':
-            return {'chain': 'main', 'initialblockdownload': False, 'blocks': 100,
-                    'headers': 100, 'bestblockhash': 'b'*64}
+            height = self.height
+            return {'chain': 'main', 'initialblockdownload': False, 'blocks': height,
+                    'headers': height, 'bestblockhash': 'b'*64}
         if method == 'getblockhash':
             return m.GENESIS['main'] if args[0] == 0 else ('d'*64 if self.reorg else 'b'*64)
         if method == 'getnetworkinfo':
@@ -94,11 +96,12 @@ class SyntheticRPC:
             if self.send_error:
                 raise OSError('SYNTHETIC_AMBIGUOUS_SEND')
             self.sent = True
+            self.height += 1
             return self.txid
         if method == 'getrawmempool':
             return [self.txid] if self.local_pool else []
         if method == 'getblockheader':
-            return {'height': 100, 'time': 1234567890}
+            return {'height': self.height, 'time': 1234567890}
         if method == 'getblock':
             return {'tx': [{'txid': 'e'*64, 'vin': [{'coinbase': '00'}]}, {'txid': self.txid}],
                     'auxpow': None}
@@ -196,7 +199,7 @@ class Tests(unittest.TestCase):
 
     def test_refusal_unknown_and_deadlines_are_terminal(self):
         cases = ('policy', 'marker', 'peer_unknown', 'peer_refused', 'peer_pending',
-                 'inclusion', 'reorg', 'quote', 'rpc', 'input', 'change', 'payload',
+                 'inclusion', 'reorg', 'rpc', 'input', 'change', 'payload',
                  'journal', 'send', 'local_pool', 'deadline', 'order')
         for case in cases:
             with self.subTest(case=case):
@@ -206,7 +209,6 @@ class Tests(unittest.TestCase):
                 if case.startswith('peer_'): self.peer_status = {'peer_unknown': 'unknown', 'peer_refused': 'refused', 'peer_pending': 'pending'}[case]
                 if case == 'inclusion': self.rpc.included = False
                 if case == 'reorg': self.rpc.reorg = True
-                if case == 'quote': self.rpc.quote_missing = True
                 if case == 'rpc': self.rpc.fail_method = 'getnetworkinfo'
                 if case == 'input': self.rpc.extra_input = True
                 if case == 'change': self.rpc.change_owned = False
@@ -222,7 +224,7 @@ class Tests(unittest.TestCase):
                 with self.assertRaises(m.Stop): self.c.run_next(self.intent())
                 self.assertEqual(len(self.sends()), count)
                 self.assertTrue(self.c.stopped)
-                if case in ('policy', 'marker', 'quote', 'rpc', 'input', 'change', 'payload', 'journal', 'deadline', 'order'):
+                if case in ('policy', 'marker', 'rpc', 'input', 'change', 'payload', 'journal', 'deadline', 'order'):
                     self.assertEqual(count, 0)
                 if case == 'policy':
                     self.assertTrue(any(r.get('result', [{}])[0].get('reject-reason') == 'SYNTHETIC_LOCAL_REFUSAL'

@@ -14,7 +14,7 @@ from transaction import build_signed
 from funding import funding_model, T1_FEE_CAPS
 
 SIZES = (80, 100, 200, 520, 1000, 4000, 10000)
-RATE_SAT_VB = 200  # inherited bounded assumption, never a live quote
+RATE_SAT_VB = 200  # fixed reviewed source rate, never an estimator/inclusion quote
 STEP_BUDGET_S = 1500  # 60 preparation + 120 relay + 1320 inclusion
 SERIES_CAP_S = 7 * STEP_BUDGET_S
 T1_CAP_S = 21600
