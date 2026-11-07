@@ -83,6 +83,8 @@ class RelayPolicy(unittest.TestCase):
     def test_authenticated_remote_mempool_neighbor_passes_in_both_modes(self):
         for core in (True, False):
             h, _, intent = self.harness(core=core, inclusion=101)
+            index = h.c.index
+            clocks = (h.c.started, h.c.deadline, h.c.deadline_wall)
             row = h.c.run_next(intent)
             self.assertEqual(row['mode'], m.CORE_MODE if core else m.SERIES_MODE)
             self.assertEqual(row['remote_mempool_status'], 'OBSERVED')
@@ -91,6 +93,101 @@ class RelayPolicy(unittest.TestCase):
             binding = next(b for k, b in h.gates if k == 'remote_peer_evidence')
             self.assertEqual(binding['operation'], intent.operation)
             self.assertEqual(binding['mode'], row['mode'])
+            self.assertEqual(binding['evidence']['evidence_kind'], 'remote_mempool')
+            self.assertEqual(len(h.sends()), 1)
+            self.assertEqual(h.c.index, index + 1)
+            self.assertEqual(clocks, (h.c.started, h.c.deadline, h.c.deadline_wall))
+            self.assertEqual([r['event'] for r in h.journal].count('PEER_OBSERVED'), 1)
+            self.assertEqual([r['event'] for r in h.journal].count('INCLUSION'), 1)
+
+    def remote_gate_state(self, h):
+        # Capture at the actual gate, after the one synthetic send and before
+        # rejection. Starting a step legitimately sets its clocks/window.
+        return copy.deepcopy((h.c.index, h.c.started, h.c.deadline, h.c.deadline_wall,
+            h.c.step_start, h.c.series_start, h.c.phase_deadline, h.c.phase_reason,
+            h.c.broadcast_window, h.c.calls, h.c.response_bytes, h.c.fees,
+            h.c.used_raw, h.c.rows, h.c.anchors, h.c.source, h.clock()))
+
+    def refuse_remote_gate(self, core, reply, reason):
+        h, _, intent = self.harness(core=core, inclusion=101)
+        initial = (h.c.index, h.c.started, h.c.deadline, h.c.deadline_wall)
+        gate, peer = h.c.gates, h.c.peer
+        gate_states, polls = [], []
+        def observed(binding):
+            polls.append(copy.deepcopy(binding))
+            return peer(binding)
+        def remote_gate(kind, binding):
+            if kind == 'remote_peer_evidence':
+                self.assertEqual(binding['source'], h.c.source)
+                self.assertEqual(binding['operation'], intent.operation)
+                self.assertEqual(binding['mode'], m.CORE_MODE if core else m.SERIES_MODE)
+                self.assertEqual(binding['evidence']['evidence_kind'], 'remote_mempool')
+                self.assertEqual(len(h.sends()), 1)
+                gate_states.append(self.remote_gate_state(h))
+                return reply(binding)
+            return gate(kind, binding)
+        h.c.peer, h.c.gates = observed, remote_gate
+        self.stop(h, intent, '^' + reason + '$')
+        self.assertEqual(len(gate_states), 1)
+        self.assertEqual(len(polls), 1)
+        self.assertEqual(self.remote_gate_state(h), gate_states[0])
+        self.assertEqual(initial, (h.c.index, h.c.started, h.c.deadline, h.c.deadline_wall))
+        self.assertEqual(len(h.sends()), 1)
+        self.assertTrue(h.c.stopped)
+        self.assertEqual(len(h.c.used_raw), 1)
+        self.assertIsNotNone(h.c.broadcast_window)
+        events = [r['event'] for r in h.journal]
+        self.assertEqual(events.count('BROADCAST_ATTEMPT'), 1)
+        self.assertFalse(set(events) & {'PEER_OBSERVED', 'PEER_BLOCK_OBSERVED',
+                                       'REMOTE_MEMPOOL_UNKNOWN', 'INCLUSION'})
+        self.assertFalse(any(r['event'] == 'ADMISSION' and
+            r['kind'] == 'remote_peer_evidence' for r in h.journal))
+        self.assertEqual([r['reason'] for r in h.journal if r['event'] == 'STOP'],
+                         [reason, 'TERMINAL_NO_RETRY'])
+
+    def test_remote_evidence_gate_cannot_mutate_nested_canonical_binding(self):
+        fields = (('evidence', 'txid'), ('evidence', 'raw_sha256'),
+                  ('source', 'head'), ('source', 'tree'), ('operation',), ('mode',))
+        for core in (True, False):
+            for path in fields:
+                with self.subTest(core=core, path=path):
+                    def mutate(binding):
+                        target = binding
+                        for key in path[:-1]:
+                            target = target[key]
+                        target[path[-1]] += '00'
+                        return 'a'*64  # Valid digest must not mask mutation.
+                    self.refuse_remote_gate(core, mutate, 'ADMISSION_BINDING_MUTATED')
+
+    def test_remote_evidence_gate_refuses_malformed_receipt_digests(self):
+        receipts = ('', 'a'*63, 'g'*64, 'A'*64, None, 123, True, [], {})
+        for core in (True, False):
+            for receipt in receipts:
+                with self.subTest(core=core, receipt=receipt):
+                    self.refuse_remote_gate(core, lambda binding: receipt,
+                                           'ADMISSION_REFUSED_remote_peer_evidence')
+
+    def test_t1b_remote_block_refuses_before_remote_authentication_gate(self):
+        h, _, intent = self.harness(core=False, inclusion=101)
+        peer = h.c.peer
+        snapshots = []
+        def remote_block(binding):
+            return dict(peer(binding), evidence_kind='remote_block',
+                        block_hash=m.sha(b'101'), height=101)
+        h.c.peer = remote_block
+        observe = h.c.observe_peer
+        def observed(binding):
+            evidence = observe(binding)
+            snapshots.append(self.remote_gate_state(h))
+            return evidence
+        h.c.observe_peer = observed
+        self.stop(h, intent, '^PEER_EVIDENCE_KIND$')
+        self.assertEqual(len(snapshots), 1)
+        self.assertEqual(self.remote_gate_state(h), snapshots[0])
+        self.assertEqual(len(h.sends()), 1)
+        self.assertFalse(any(kind == 'remote_peer_evidence' for kind, _ in h.gates))
+        self.assertFalse(any(r['event'] in ('PEER_OBSERVED', 'PEER_BLOCK_OBSERVED',
+            'REMOTE_MEMPOOL_UNKNOWN', 'INCLUSION') for r in h.journal))
 
     def test_exact_raw_and_mode_admissions_cannot_be_mutated(self):
         for core in (True, False):
