@@ -64,8 +64,12 @@ class SyntheticRPC:
             return {'errors': ['SYNTHETIC_NO_QUOTE']} if self.quote_missing else {'feerate': Decimal('.001')}
         if method == 'createrawtransaction':
             self.data = bytes.fromhex(args[1][0]['data'])
-            fee = len(t1b.serialize(self.data, 0)) * 200
-            self.raw = t1b.serialize(self.data, fee).hex()
+            def serialize(fee):
+                old, new = t1b.script(self.data), m.null_data(self.data)
+                return t1b.serialize(self.data, fee).replace(
+                    t1b.compact(len(old)) + old, t1b.compact(len(new)) + new, 1)
+            fee = len(serialize(0)) * 200
+            self.raw = serialize(fee).hex()
             self.txid = hashlib.sha256(hashlib.sha256(bytes.fromhex(self.raw)).digest()).digest()[::-1].hex()
             return self.raw
         if method == 'fundrawtransaction':
@@ -77,7 +81,7 @@ class SyntheticRPC:
             return {'txid': self.txid, 'vsize': size, 'weight': size * 4,
                 'vin': [{'txid': '0'*64, 'vout': 0}] * (2 if self.extra_input else 1),
                 'vout': [{'n': 0, 'value': 0,
-                          'scriptPubKey': {'hex': t1b.script(self.data + (b'X' if self.changed_output else b'')).hex()}},
+                          'scriptPubKey': {'hex': m.null_data(self.data + (b'X' if self.changed_output else b'')).hex()}},
                          {'n': 1, 'value': Decimal(10000000-size*200)/m.SAT,
                           'scriptPubKey': {'address': 'synthetic-change'}}]}
         if method == 'getaddressinfo':

@@ -10,7 +10,7 @@ HTTP client, wallet loader, node startup, mining, manual relay or retry path.
 `mainnet.Collector` supplies finite transaction collection and `mainnet_t1.Workflow`
 supplies the exact experiment. An independent admitted launcher must provide
 separate RPC capabilities, an authenticated admission verifier, durable public
-journal, immutable clocks and a separately authorized peer observer. These are
+journal, immutable clocks and, for T1b, a separately authorized peer observer. These are
 required external integrations, not source preparation's runtime authorization.
 Python allowlists are defense in depth; Core whitelists and process/mount
 isolation must independently enforce the same separation. The verifier retains
@@ -127,13 +127,27 @@ An RPC error is ambiguous and terminal. There is no rebroadcast, replacement,
 double spend, standardness change or direct miner/peer bypass.
 
 Local `testmempoolaccept` refusal/unknown stops before send. Local mempool and
-successful send are recorded separately from remote peer acceptance. The remote
-observer must produce authenticated exact txid/raw-hash evidence of its mempool
-observation; a remote block, outgoing inv/getdata and local presence do not
-qualify as pre-inclusion relay evidence. See `RELAY_QUALIFICATION.md` for the
-blocksonly assessment and the facts still missing from runtime qualification.
-Unknown or refused peer evidence, timeout, missing exact-byte inclusion or a
-relevant reorg stop the run before the next operation/size. Inclusion requires
+successful send are recorded separately from remote peer acceptance. The checked
+operation derives the mode, bound into each exact-raw Meta admission:
+`T1_CORE_MVP` for the ten T1 operations, `T1B_SERIES` for the seven sizes.
+For core/MVP, a missing remote mempool receipt is recorded as UNKNOWN, with a
+null peer receipt; only validated exact-byte block inclusion advances. A launcher
+declares no observer with `peer=None`; a configured observer can return exactly
+`{"status":"absent"}`, `{"status":"unknown"}` or `{"status":"pending"}`.
+Core then proceeds without a 120-second peer wait. Absence is not evidence;
+proof fields attached to an absence status are refused. Malformed, mismatched,
+refused, unauthenticated or incorrectly timed evidence still stops.
+
+T1b retains authenticated `remote_mempool` evidence with the existing receipt
+format. Missing evidence stops, and `remote_block` cannot substitute for it.
+Core may authenticate a `remote_block` receipt with exact txid/raw hash, UTC time,
+observer label, `block_hash` and integer `height`; those block fields must match
+the existing active-chain/exact-raw inclusion checks. Its separate block receipt
+never becomes a mempool receipt. Outgoing inv/getdata and local presence do not
+qualify as remote mempool evidence in either mode. See `RELAY_QUALIFICATION.md`.
+Initial funding still requires three active-chain confirmations before launcher
+admission. Missing exact-byte inclusion or a relevant reorg stops before the
+next operation/size. Inclusion requires
 the exact raw bytes in the active block, and records header/time/height/hash,
 fee/vsize/weight, coinbase and available AuxPoW. Coinbase labels and AuxPoW do not
 establish authenticated miner identity. Missing attribution stays UNKNOWN.
@@ -150,7 +164,9 @@ Poll count, confirmations alone and elapsed seconds do not manufacture blocks.
 No automatic bump, replacement, resend or new exact-raw admission occurs.
 
 The source uses 180 seconds for transaction preparation/admission, <120 for peer
-evidence and <=1320 for inclusion, with a 1500-second operation bound. T1b has a
+evidence and <=1320 for inclusion, with a 1500-second operation bound. Core's
+1320-second inclusion allowance starts at broadcast, including any peer wait;
+absence never refreshes it. T1b retains its existing phase bounds. T1b has a
 10500-second series bound; the original T1+T1b clock is <=21600 seconds. Maturity
 and expiry observation each have finite 7200-second sub-bounds inside that same
 clock. Waiting never restarts a clock. A slow Meta decision or chain stops safely.

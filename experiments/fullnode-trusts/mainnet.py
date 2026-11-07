@@ -29,6 +29,8 @@ T1_ORDER = ('fund_B', 'A_name_new', 'B_name_new', 'A_name_firstupdate',
             'B_name_firstupdate', 'A_seal_funding', 'A_grant_anchor',
             'B_seal_funding', 'B_grant_anchor', 'A_seal_revoke')
 ORDER = T1_ORDER + tuple('opreturn_' + str(n) for n in SIZES)
+CORE_MODE = 'T1_CORE_MVP'
+SERIES_MODE = 'T1B_SERIES'
 T1_SIZES = dict(zip(T1_ORDER, (230, 252, 252, 514, 514, 230, 534, 230, 534, 196)))
 OBSERVE = READ_METHODS | frozenset({'decoderawtransaction', 'getnetworkinfo',
     'getmempoolinfo', 'estimatesmartfee', 'testmempoolaccept', 'getblock',
@@ -493,6 +495,11 @@ class Collector:
         self.bounds()
         if self.index >= len(ORDER) or intent.operation != ORDER[self.index] or intent.role not in self.wallets:
             raise Stop('OPERATION_ORDER')
+        # Policy is derived from the checked operation, never a caller's mode
+        # override. In particular, T1b cannot inherit the core UNKNOWN policy.
+        mode = CORE_MODE if intent.operation in T1_ORDER else SERIES_MODE
+        if mode == SERIES_MODE and self.peer is None:
+            raise Stop('PEER_OBSERVER_REQUIRED')
         role = 'A' if intent.operation == 'fund_B' or intent.operation.startswith('opreturn_') else intent.operation[0]
         if intent.role != role:
             raise Stop('OPERATION_ROLE')
@@ -523,7 +530,7 @@ class Collector:
             raise Stop('PREPARATION_DEADLINE')
         if self.fees + fee > budget()['t1_fee_caps_sat'] + budget()['t1b_fee_caps_sat']:
             raise Stop('TOTAL_FEE_BOUND')
-        descriptor = {'source': self.source, 'operation': intent.operation, 'raw_hex': raw,
+        descriptor = {'source': self.source, 'operation': intent.operation, 'mode': mode, 'raw_hex': raw,
                       'raw_sha256': sha(bytes.fromhex(raw)), 'decoded': json_safe(decoded),
                       'fee_sat': fee, 'policy': policy, 'network_genesis': GENESIS['main']}
         marker = self._gate('Meta_each_exact_raw_transaction', descriptor)
@@ -565,9 +572,11 @@ class Collector:
             if self.after_broadcast is None:
                 raise Stop('REVOCATION_MEMPOOL_CONTROL_REQUIRED')
             self.after_broadcast(intent, txid)
-        # Success here is local only; UNKNOWN peer evidence never advances.
+        # Local presence never proves remote relay. Core may await a block
+        # with UNKNOWN relay; T1b still requires remote_mempool evidence.
         peer_receipt = None
-        for _ in range(25):
+        block_receipt, block_evidence = None, None
+        for _ in range(25 if self.peer is not None else 0):
             self.network()
             if self.clock() >= peer_deadline:
                 break
@@ -581,8 +590,10 @@ class Collector:
             if evidence.get('status') == 'observed':
                 if evidence.get('txid') != txid or evidence.get('raw_sha256') != raw_hash:
                     raise Stop('PEER_BINDING')
-                # A remote block proves inclusion, not pre-inclusion relay.
-                if evidence.get('evidence_kind') != 'remote_mempool' or not evidence.get('observer_label'):
+                kind = evidence.get('evidence_kind')
+                if (kind not in ('remote_mempool', 'remote_block') or
+                    (mode == SERIES_MODE and kind != 'remote_mempool') or
+                    not evidence.get('observer_label')):
                     raise Stop('PEER_EVIDENCE_KIND')
                 observed = datetime.fromisoformat(evidence['observed_at_utc'])
                 if observed.utcoffset() is None or observed.utcoffset().total_seconds() != 0:
@@ -590,19 +601,41 @@ class Collector:
                 if not started_wall <= observed.timestamp() <= self.wall():
                     raise Stop('PEER_EVIDENCE_TIME')
                 # Authenticated external observer receipt, not local inv/getdata.
-                peer_receipt = self._gate('remote_peer_evidence', {'source': self.source,
-                    'operation': intent.operation, 'broadcast_utc_epoch': started_wall, 'evidence': evidence})
+                if kind == 'remote_block' and (not digest(evidence.get('block_hash')) or
+                                              type(evidence.get('height')) is not int):
+                    raise Stop('PEER_BLOCK_BINDING')
+                receipt = self._gate('remote_peer_evidence', {'source': self.source,
+                    'operation': intent.operation, 'mode': mode,
+                    'broadcast_utc_epoch': started_wall, 'evidence': evidence})
                 self.bounds()
                 if self.clock() >= peer_deadline:
                     raise Stop('PEER_DEADLINE_UNKNOWN')
-                self.record({'event': 'PEER_OBSERVED', 'evidence': evidence})
+                if kind == 'remote_mempool':
+                    peer_receipt = receipt
+                    self.record({'event': 'PEER_OBSERVED', 'evidence': evidence})
+                else:
+                    block_receipt, block_evidence = receipt, evidence
+                    self.record({'event': 'PEER_BLOCK_OBSERVED', 'evidence': evidence,
+                                 'receipt_sha256': receipt})
+                break
+            if mode == CORE_MODE and evidence.get('status') in ('pending', 'unknown', 'absent'):
+                # Explicit absence needs no 120-second peer wait. This is not
+                # acceptance of evidence; inclusion must still validate below.
+                if set(evidence) != {'status'}:
+                    raise Stop('PEER_ABSENCE_SCHEMA')
                 break
             if evidence.get('status') != 'pending':
                 raise Stop('PEER_UNKNOWN')
             self.pause(min(10, max(0, peer_deadline - self.clock())))
         if peer_receipt is None:
-            raise Stop('PEER_DEADLINE_UNKNOWN')
-        inclusion_deadline = min(self.step_start + 1500, self.clock() + 1320)
+            if mode == SERIES_MODE:
+                raise Stop('PEER_DEADLINE_UNKNOWN')
+            self.record({'event': 'REMOTE_MEMPOOL_UNKNOWN', 'status': 'UNKNOWN',
+                         'operation': intent.operation, 'mode': mode, 'txid': txid,
+                         'raw_sha256': raw_hash, 'observer_absent': self.peer is None})
+        # Core's missing receipt must not start a fresh inclusion allowance.
+        inclusion_deadline = min(self.step_start + 1500,
+                                 (started if mode == CORE_MODE else self.clock()) + 1320)
         self.phase_deadline, self.phase_reason = inclusion_deadline, 'INCLUSION_DEADLINE'
         for _ in range(265):
             self.network()
@@ -625,17 +658,22 @@ class Collector:
                 block = self.call(self.read, 'getblock', block_hash, 2)
                 if exact != raw or not any(x.get('txid') == txid for x in block['tx']):
                     raise Stop('EXACT_INCLUSION_MISMATCH')
+                if block_evidence is not None and (block_evidence['block_hash'] != block_hash or
+                                                    block_evidence['height'] != height):
+                    raise Stop('PEER_BLOCK_BINDING')
                 self.anchors.append((height, block_hash))
                 self.network()
                 self.bounds()
                 if self.clock() >= inclusion_deadline:
                     raise Stop('INCLUSION_DEADLINE')
-                row = {'operation': intent.operation, 'txid': txid, 'raw_sha256': raw_hash,
+                row = {'operation': intent.operation, 'mode': mode, 'txid': txid, 'raw_sha256': raw_hash,
                        'fee_sat': fee, 'vsize': decoded['vsize'], 'weight': decoded['weight'],
                        'height': height, 'block_hash': block_hash, 'header': json_safe(header),
                        'coinbase': json_safe(block['tx'][0]), 'auxpow': json_safe(block.get('auxpow')),
                        'miner_attribution': 'UNKNOWN: coinbase/AuxPoW labels are not authenticated identity',
-                       'peer_receipt_sha256': peer_receipt, 'broadcast_monotonic': started,
+                       'peer_receipt_sha256': peer_receipt,
+                       'remote_mempool_status': 'OBSERVED' if peer_receipt else 'UNKNOWN',
+                       'block_receipt_sha256': block_receipt, 'broadcast_monotonic': started,
                        'broadcast_at_utc': datetime.fromtimestamp(started_wall, timezone.utc).isoformat(),
                        'inclusion_monotonic': self.clock(), 'status': 'INCLUDED_ACTIVE_AT_OBSERVATION'}
                 self.record({'event': 'INCLUSION', 'result': row})

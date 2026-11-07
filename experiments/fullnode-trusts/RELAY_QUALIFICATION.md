@@ -39,13 +39,20 @@ asserted.
 | Remote block receipt | Inclusion at that observer | Does not demonstrate pre-inclusion mempool relay |
 | Local block and exact raw bytes | Active-chain inclusion at observation | No authenticated miner identity, peer policy maximum, or finality guarantee |
 
-The collector already requires an own-loopback observer, local mempool presence
-and a separate authenticated peer receipt. This delta narrows the peer receipt
-to `remote_mempool`; `remote_block` now stops with `PEER_EVIDENCE_KIND`. Missing,
-refused or late peer evidence remains terminal. It neither synthesizes an
-observer nor replaces remote evidence with a local check. The preserved node
-and funding records do not demonstrate such an independent observer exists or
-is admitted, so T1b relay readiness remains unqualified.
+The collector requires an own-loopback observer and local mempool presence.
+For T1b it also requires a separate authenticated `remote_mempool` receipt;
+`remote_block` stops with `PEER_EVIDENCE_KIND`. Missing, refused or late T1b peer
+evidence remains terminal, and its observer receipt format is unchanged. The
+preserved node and funding records do not establish an admitted independent
+observer, so T1b relay readiness remains unqualified.
+
+For T1 core/MVP only, missing remote mempool evidence is explicitly UNKNOWN
+and does not block validated exact-byte inclusion. No observer is synthesized,
+and local mempool presence never becomes remote proof. An authenticated core
+`remote_block` receipt remains separate block evidence, subject to the existing
+active-chain/exact-byte checks and matching block hash/height. The operation
+determines the mode in the collector and in each exact-raw Meta binding; T1b
+cannot select core policy. See `MAINNET_SOURCE.md` for absence records and bounds.
 
 No change from `blocksonly=1` is necessary merely to submit and inspect one's
 own RPC transaction. If the experiment needs a general own-node view of incoming
