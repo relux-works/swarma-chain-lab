@@ -10,6 +10,9 @@ from decimal import Decimal
 sys.path.insert(0, '/src/experiments/fullnode-trusts')
 import seal_anchor as adapter
 from transaction import build_signed
+from name_operation import build_companion_name_signed
+from funding import T1_SIZES
+from exact_json import dumps as exact_dumps, satoshis
 
 P=pathlib.Path
 PUBLIC=P('/private/public')
@@ -89,7 +92,7 @@ def rpc(method,*args,wallet=None):
  if wallet:argv+=['-rpcwallet='+wallet]
  argv+=[method]
  for a in args:
-  argv.append(json.dumps(normalize(a),separators=(',',':')) if isinstance(a,(dict,list,bool)) else str(a))
+  argv.append(exact_dumps(a) if isinstance(a,(dict,list,bool)) else str(a))
  out,_=run('node',argv,8<<20)
  if not out.strip():return None
  try:return json.loads(out,parse_float=Decimal)
@@ -104,15 +107,15 @@ def point(txid,address=None,named=False):
  tx=rpc('getrawtransaction',txid,True)
  rows=[o for o in tx['vout'] if (address is None or o['scriptPubKey'].get('address')==address) and ('nameOp' in o['scriptPubKey'])==named]
  assert len(rows)==1,(txid,len(rows))
- o=rows[0];return {'txid':txid,'vout':o['n'],'script':o['scriptPubKey']['hex'],'value_sat':int(o['value']*100000000)}
+ o=rows[0];return {'txid':txid,'vout':o['n'],'script':o['scriptPubKey']['hex'],'value_sat':satoshis(o['value'])}
 def public_tx(txid):
  return rpc('getrawtransaction',txid,True)
 def normalize(v):
- if isinstance(v,Decimal):return float(v)
+ if isinstance(v,Decimal):return str(v)
  if isinstance(v,dict):return {k:normalize(x) for k,x in v.items()}
  if isinstance(v,(list,tuple)):return [normalize(x) for x in v]
  return v
-def builder(role,address,inputs,outputs,*,name_op=None,cap=1024,fee_cap=204800):
+def builder(role,address,inputs,outputs,*,name_op=None,cap=None,fee_cap=None):
  def broker(method,*args,wallet=None):
   if method=='fundrawtransaction':
    options=dict(args[1]);options.update({'changeAddress':address,'add_inputs':bool(name_op),'changePosition':len(outputs)})
@@ -120,7 +123,14 @@ def builder(role,address,inputs,outputs,*,name_op=None,cap=1024,fee_cap=204800):
   if method in ['createrawtransaction','namerawtransaction','signrawtransactionwithwallet']:
    return mutation(method,*args,wallet=role if method=='signrawtransactionwithwallet' else None)
   return rpc(method,*args,wallet=role if wallet else None)
- # Decimal amounts are serialized only at the RPC boundary.
+ # Final name operations use their separate named constant/helper route.
+ if name_op and name_op['op'] in ('name_firstupdate','name_update'):
+  assert cap is None and fee_cap is None
+  return build_companion_name_signed(broker,network,role,inputs,outputs,name_op=name_op,regtest_vsize_cap=1024,regtest_fee_cap_sat=204800)
+ if name_op:
+  assert name_op['op']=='name_new' and cap is None and fee_cap is None
+  cap=T1_SIZES['A_name_new'];fee_cap=cap*200
+ assert type(cap) is int and type(fee_cap) is int
  return build_signed(broker,network,role,inputs,outputs,rate_sat_vb=200,vsize_cap=cap,fee_cap=Decimal(fee_cap)/100000000,name_op=name_op)
 def send(raw):
  decoded=rpc('decoderawtransaction',raw)
@@ -129,10 +139,10 @@ def send(raw):
  return txid
 def ordinary(role,script):
  rows=rpc('listunspent',1,9999999,[],True,{},wallet=role)
- choices=[u for u in rows if u['scriptPubKey']==script and 250000<int(u['amount']*100000000)<10000000 and u.get('spendable')]
+ choices=[u for u in rows if u['scriptPubKey']==script and 250000<satoshis(u['amount'])<10000000 and u.get('spendable')]
  assert choices,'no explicitly allocated selectable UTXO'
  u=max(choices,key=lambda u:u['amount'])
- return {'txid':u['txid'],'vout':u['vout'],'script':u['scriptPubKey'],'value_sat':int(u['amount']*100000000)}
+ return {'txid':u['txid'],'vout':u['vout'],'script':u['scriptPubKey'],'value_sat':satoshis(u['amount'])}
 def reg_stage(label,**data):
  records.append({'stage':label,'at':stamp(),**normalize(data)})
  (OUT/'actual-stages.json').write_text(json.dumps(records,indent=2)+'\n')
@@ -155,12 +165,16 @@ def bridge(mode,policy,binding,request='request.json'):
    method=msg.get('rpc');assert method in ['getblockchaininfo','getblockhash','getblockheader','name_show','getrawtransaction','gettxout','getrawmempool','getblock']
    args=msg.get('params') or []
    if method=='name_show':
-    assert len(args)==1
-    args+=[{'nameEncoding':'utf8','valueEncoding':'utf8'}]
-   try: response={'result':normalize(rpc(method,*args))}
+    assert len(args)==2 and args[1]=={'nameEncoding':'ascii','valueEncoding':'ascii','allowExpired':False},'exact requested encoding required'
+   try:
+    result=rpc(method,*args)
+    if method=='name_show':
+     assert result.get('name_encoding')==args[1]['nameEncoding'] and result.get('value_encoding')==args[1]['valueEncoding']
+     result['name'].encode('ascii');result['value'].encode('ascii')
+    response={'result':result}
    except Exception:response={'failed':True}
-   reads.append({'at':stamp(),'mode':mode,'method':method,'params':args,'reply':response})
-   p.stdin.write(json.dumps(response,separators=(',',':')).encode()+b'\n');p.stdin.flush()
+   reads.append({'at':stamp(),'mode':mode,'method':method,'params':args,'reply':normalize(response)})
+   p.stdin.write(exact_dumps(response).encode()+b'\n');p.stdin.flush()
   assert answer is not None
   p.stdin.close();p.wait(timeout=3);finish(p,item);assert p.returncode==0
   return answer
@@ -230,8 +244,8 @@ try:
  reserve_address=mutation('getnewaddress','','legacy',wallet='issuer')
  second_address=mutation('getnewaddress','','legacy',wallet='issuer')
  requester_address=mutation('getnewaddress','','legacy',wallet='requester')
- allocation=mutation('sendmany','',{reserve_address:0.875,issuer_address:0.06,second_address:0.065},wallet='funder')
- mutation('sendtoaddress',requester_address,0.03,wallet='funder');mine()
+ allocation=mutation('sendmany','',{reserve_address:Decimal('0.875'),issuer_address:Decimal('0.06'),second_address:Decimal('0.065')},wallet='funder')
+ mutation('sendtoaddress',requester_address,Decimal('0.03'),wallet='funder');mine()
  reserved=point(allocation,reserve_address)
  mutation('lockunspent',False,[{'txid':reserved['txid'],'vout':reserved['vout']}],wallet='issuer')
  issuer_script=rpc('getaddressinfo',issuer_address,wallet='issuer')['scriptPubKey']
@@ -241,13 +255,13 @@ try:
  names={};reservations={}
  for role,address,key,name in [('issuer',issuer_address,'owner','id/swarma-poc-alexis'),('requester',requester_address,'requester','id/swarma-poc-ivan-agent')]:
   nonce=os.urandom(20).hex()
-  raw=builder(role,address,[],[{address:0.01}],name_op={'op':'name_new','name':name,'rand':nonce})
+  raw=builder(role,address,[],[{address:Decimal('0.01')}],name_op={'op':'name_new','name':name,'rand':nonce})
   txid=send(raw);reservations[role]=(point(txid,address,True),nonce,name,key,address)
  mine(12)
  for role,(u,nonce,name,key,address) in reservations.items():
   pin=base64.urlsafe_b64encode((PUBLIC/(key+'.der')).read_bytes()).decode().rstrip('=')
   value=json.dumps({'swarma':{'keyvault_'+key+'_spki':pin}},separators=(',',':'))
-  raw=builder(role,address,[{'txid':u['txid'],'vout':u['vout']}],[{address:0.01}],name_op={'op':'name_firstupdate','name':name,'rand':nonce,'value':value})
+  raw=builder(role,address,[{'txid':u['txid'],'vout':u['vout']}],[{address:Decimal('0.01')}],name_op={'op':'name_firstupdate','name':name,'rand':nonce,'value':value})
   txid=send(raw);names[role]=name
  mine()
  reg_stage('real-name-spki-records',owner=rpc('name_show',names['issuer']),requester=rpc('name_show',names['requester']))
@@ -260,9 +274,9 @@ try:
   plan=adapter.prepare(kind,cert,{'address':issuer_address,'script':issuer_script},u,ledger,bounds(),now=int(time.time()),seal=seal)
   intent=plan.intent()
   if kind=='revoke':
-   raw=mutation('createrawtransaction',list(intent.inputs),normalize(list(intent.outputs)))
+   raw=mutation('createrawtransaction',list(intent.inputs),list(intent.outputs))
    signed=mutation('signrawtransactionwithwallet',raw,wallet='issuer');assert signed['complete'];raw=signed['hex']
-  else:raw=builder('issuer',issuer_address,list(intent.inputs),normalize(list(intent.outputs)),cap=plan.public()['vsize_cap'],fee_cap=plan.public()['fee_cap_sat'])
+  else:raw=builder('issuer',issuer_address,list(intent.inputs),list(intent.outputs),cap=plan.public()['vsize_cap'],fee_cap=plan.public()['fee_cap_sat'])
   prev={u['txid']:rpc('getrawtransaction',u['txid'],True)}
   checked=adapter.inspect(plan,cert,raw,prev,now=int(time.time()))
   assert rpc('testmempoolaccept',[raw])[0]['allowed']
@@ -281,22 +295,43 @@ try:
  current=rpc('name_show',names['issuer'])
  value=json.dumps({'swarma':{'keyvault_owner_spki':base64.urlsafe_b64encode(owner_der).decode().rstrip('='),'keyvault_certificate_sha256':cert_hash,'keyvault_seal':{'txid':seal['txid'],'vout':seal['vout']}}},separators=(',',':'))
  assert len(value.encode())<=520
- raw=builder('issuer',issuer_address,[{'txid':current['txid'],'vout':current['vout']}],[{issuer_address:0.01},{'data':cert_hash}],name_op={'op':'name_update','name':names['issuer'],'value':value})
+ raw=builder('issuer',issuer_address,[{'txid':current['txid'],'vout':current['vout']}],[{issuer_address:Decimal('0.01')},{'data':cert_hash}],name_op={'op':'name_update','name':names['issuer'],'value':value})
  anchor_txid=send(raw);mine();anchor=public_tx(anchor_txid);tip=network()
  reg_stage('exact-name-update-certificate-anchor',name=rpc('name_show',names['issuer']),transaction=anchor,ordinary_anchor_txid=ordinary_anchor['txid'],certificate_sha256=cert_hash,bridge_regtest_vsize_cap=1024,actual_vsize=anchor['vsize'])
  policy={'OwnerName':names['issuer'],'RequesterName':names['requester'],'Account':subject['account_mxid'],'Device':subject['device_id'],'Deployment':audience['deployment_id'],'Executor':audience['executor_id'],'Cycle':cycle['cycle_id'],'CLI':'/actors/verifier/bin/keyvault','PrivateRoot':'/actors/verifier/private','AnchorTxID':anchor_txid,'AnchorBlock':anchor['blockhash'],'SealTxID':seal['txid'],'SealVout':seal['vout']}
  binding={'Seal':{'txid':seal['txid'],'vout':seal['vout']},'SealScript':seal['script'],'Anchor':{'height':tip['blocks'],'hash':anchor['blockhash'],'txid':anchor_txid},'Commitment':cert_hash,'Genesis':rpc('getblockhash',0),'Chain':'regtest','StartTip':{'height':tip['blocks'],'hash':tip['bestblockhash']},'Deadline':datetime.datetime.fromtimestamp(deadline,datetime.timezone.utc).isoformat(),'ProofValidUntil':'2026-11-08T14:00:00Z','LastBlockAt':stamp()}
  watcher=bridge('watch',policy,binding);positive=bridge('verify',policy,binding)
- reg_stage('real-positive-admission',watcher=watcher,wrapper=positive)
- assert watcher['watch']['state']=='UNSPENT' and positive['admitted'],'actual positive admission failed'
+ reg_stage('real-positive-verification',watcher=watcher,wrapper=positive)
+ assert watcher['watch']['state']=='UNSPENT' and positive['verified'],'actual positive verification failed'
+ # Bounded clock control: same real tip, simulated elapsed idle interval.
+ stale=dict(binding);stale['LastBlockAt']=(datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(minutes=30,seconds=1)).isoformat()
+ stopped=bridge('watch',policy,stale)
+ assert stopped['watch']['state']=='STOP' and stopped['watch']['reason']=='NO_NEW_BLOCK_30_MIN' and stopped['watch']['calls']==0
+ reg_stage('causal-no-block-stop-control',watcher=stopped,controlled_last_block_at=stale['LastBlockAt'],real_wait_seconds=0,clock_control='binding timestamp; not protected clock qualification')
+ generation_policy=dict(policy);generation_policy['PrivateRoot']+='/generation-control'
+ P('/private/actors/verifier/private/generation-control').mkdir(mode=0o700)
+ assert bridge('verify',generation_policy,binding)['verified']
+ current=rpc('name_show',names['issuer'])
+ replacement_raw=builder('issuer',issuer_address,[{'txid':current['txid'],'vout':current['vout']}],[{issuer_address:Decimal('0.01')},{'data':cert_hash}],name_op={'op':'name_update','name':names['issuer'],'value':value})
+ replacement_txid=send(replacement_raw);replacement_block=mine()[0]
+ changed=rpc('name_show',names['issuer']);assert changed['txid']==replacement_txid and changed['height']==tip['blocks']+1
+ generation_refusal=bridge('verify',generation_policy,binding)
+ assert not generation_refusal['verified']
+ mutation('invalidateblock',replacement_block)
+ restored=rpc('name_show',names['issuer']);assert restored['txid']==anchor_txid
+ restored_refusal=bridge('verify',generation_policy,binding)
+ assert not restored_refusal['verified'] and restored_refusal['read_calls']==2
+ latch=P('/private/actors/verifier/private/generation-control')/('closed-'+cert_hash)
+ assert latch.is_file() and latch.stat().st_mode&0o777==0o600
+ reg_stage('confirmed-generation-replacement-restored-branch-refusal',replacement_txid=replacement_txid,replacement_block=replacement_block,confirmed_replacement=changed,restored_name=restored,first_refusal=generation_refusal,fresh_process_restored_refusal=restored_refusal,independent_private_root=True)
  revoked=adapter_tx('revoke',seal)
  suspended=bridge('watch',policy,binding);refused=bridge('verify',policy,binding)
  reg_stage('immediate-mempool-refusal',watcher=suspended,wrapper=refused,spend_txid=revoked['txid'],mempool=rpc('getrawmempool',False))
- assert suspended['watch']['state']=='SUSPEND' and not refused['admitted']
+ assert suspended['watch']['state']=='SUSPEND' and not refused['verified']
  binding['Prior']=suspended['watch'];mine()
  final=bridge('watch',policy,binding);final_refusal=bridge('verify',policy,binding)
  reg_stage('one-block-final-refusal',watcher=final,wrapper=final_refusal,spend_transaction=public_tx(revoked['txid']))
- assert final['watch']['state']=='FINALREVOKED' and not final_refusal['admitted']
+ assert final['watch']['state']=='FINALREVOKED' and not final_refusal['verified']
  new_request=sign_request(2)
  # Cryptographic validity is checked independently using real unchanged CLI.
  config={'type':'grants-local-enrollment-2','owner_mxid':'@alexis:gr.relux.works','owner_spki':base64.urlsafe_b64encode(owner_der).decode().rstrip('='),'requester_spki':base64.urlsafe_b64encode(requester_der).decode().rstrip('='),'subject':subject,'audience':audience,'cycle':cycle,'organization':'relux-works','name':'matrix-grants-poc-261031','state_dir':'/private/ABSENT-STATE','gh_path':'/private/ABSENT-PROVIDER'}
@@ -306,7 +341,7 @@ try:
  valid=json.loads(valid);assert valid['verdict']=='accepted'
  subsequent=bridge('verify',policy,binding,'request2.json')
  reg_stage('new-cryptographically-valid-request-still-refused',unchanged_cli=valid,wrapper=subsequent,request_sha256=H(new_request))
- assert not subsequent['admitted']
+ assert not subsequent['verified']
  # Export public wire bytes only, never test keys, RPC configuration or wallet data.
  for name in ['owner.der','requester.der','certificate.json','request.json','request2.json']:
   (OUT/name).write_bytes((PUBLIC/name).read_bytes())
