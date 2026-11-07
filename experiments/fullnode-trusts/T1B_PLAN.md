@@ -140,8 +140,10 @@ Collector и mainnet-adapter добавлены как исходник в `main
 
 ## Полная стоимость T1+T1b
 
-1 NMC = 100000000 sat. **200 sat/vB (0,002 NMC/kvB)** — прежнее условное
-допущение T1, не свежая котировка. Большие output не считаются relayable.
+1 NMC = 100000000 sat. **200 sat/vB (0,002 NMC/kvB)** — фиксированный
+source rate T1 и T1b, не estimator и не inclusion quote.
+Доступность estimatesmartfee не является условием construction/spending.
+Большие output не считаются relayable.
 Бюджет резервирует даже все семь размеров; ранняя остановка уменьшает расход.
 
 | Состав | NMC |
@@ -196,6 +198,10 @@ reserve 100000 sat) A должен закончить с 489000 sat. Поэто�
 начальному cash A — max(6326600, 6326600+489000) = **6815600 sat**.
 Внешние **50600 sat** — provision funder для его fee <=46000 sat и margin
 4600 sat; они не переводятся A. Совокупная модель — **6866200 sat**.
+Если фактический fee funder превышает эту planning line, пересчитать record
+через `funding.funder_record`. Само превышение 50600 sat не блокирует опыт,
+пока совокупная сумма остаётся далеко ниже неизменного cap 1 NMC.
+Финансирует только Ivan; размер recipient funding и caps опыта не растут.
 Она совпадает с финальной алгеброй только после проверки всех префиксов.
 
 Для одного T1 такая финальная алгебра дала бы 2878800 sat, но оставила бы A
@@ -208,7 +214,7 @@ reserve 100000 sat) A должен закончить с 489000 sat. Поэто�
 адрес/запрос на перевод. Повторное использование change требует подтверждения
 и selectable UTXO перед следующим расходом; unconfirmed change, чужой seal
 и остаток B для A не предполагаются. Реальные inputs, dust/change policy,
-signed size, estimator и время подтверждения проверяются заново до admission.
+signed size, fixed rate, policy и время подтверждения проверяются заново до admission.
 Резервы не разрешают повышать fee caps. Имена/суммы/fee применимы только к
 ограниченному шаблону; conditional upper и свежий live minimum различны.
 
@@ -218,10 +224,16 @@ invalidateblock из regression-драйвера не входят в будущ
 и не разрешены ею. Если scope T1 меняется, включая эти операции или дополнительные
 inputs/funding transfers, пересчитать полный бюджет и получить новый review.
 
-До любого будущего broadcast заново проверить fee/policy и estimator,
-при отсутствии estimator остановиться; пересчитать exact signed
+До любого будущего broadcast заново проверить fixed 200 sat/vB и fee/policy;
+отсутствие estimator не блокирует construction/spending. Пересчитать exact signed
 size/fee и суммарный остаток. Если предпосылки не соблюдены — stop, даже если
 до 1 NMC ещё далеко. Запас не разрешает автоматическое повышение fee.
+Если exact tx отсутствует в active chain к шестому successor block от
+последнего native pre-send tip, STOP series/report. Reorg не переносит baseline;
+пропущенные polls не расширяют окно. Старые time/RPC/bytes bounds могут
+остановить раньше. Никаких automatic bump/replacement/resend; каждый новый
+raw tx требует нового exact Meta GO. См. `MAINNET_SOURCE.md` и
+`RELAY_QUALIFICATION.md`; remote block не заменяет remote mempool relay evidence.
 
 ## Общий код, композиция и gates
 

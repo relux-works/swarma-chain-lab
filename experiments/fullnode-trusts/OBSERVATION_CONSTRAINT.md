@@ -28,20 +28,22 @@ An established-tip `network()` makes `4+a` RPCs with `a` retained anchors:
 blockchain info, genesis, previous tip, each anchor and current tip. The actual
 source has **three** complete network passes: entry before policy,
 the shared builder (or exact-input branch), and the final pass after exact-raw
-admission. For a funded single-input transaction it also makes ten observation
-RPCs: three fee-policy reads; helper decode/prevout/policy; inspect
-decode/prevout/UTXO; and final acceptance. Thus it needs `3*(4+a)+10` calls.
-For an exact-input operation the corresponding minimum is `3*(4+a)+7`;
+admission. For a funded single-input transaction it also makes nine observation
+RPCs: two fee-policy reads; helper decode/prevout/policy; inspect
+decode/prevout/UTXO; and final acceptance. Thus it needs `3*(4+a)+9` calls.
+For an exact-input operation the corresponding minimum is `3*(4+a)+6`;
 additional funded inputs add three reads each. These counts omit transport,
 construction/signing, durable-journal and exact-raw admission latency.
+The capacity guard conservatively retains one reserved policy-read slot,
+using the earlier `+10` and `+7` allowances. No estimator RPC is dispatched.
 
 | Retained anchors | Single-input read calls | Best possible dispatch span | Actual zero-latency control preparation | Peer after symbolic send |
 |---:|---:|---:|---:|---:|
-| 0 | 22 | 2.1 s | 2.2 s | 10.5 s |
-| 10, T1b entry | 52 | 5.1 s | 5.2 s | 11.5 s |
-| 12 | 58 | 5.7 s | 5.8 s | 11.7 s |
-| 13 | 61 | 6 s | 6.1 s | 11.8 s |
-| 16, last T1b step | 70 | 6.9 s | 7 s | 12.1 s |
+| 0 | 21 | 2 s | 2.1 s | 10.6 s |
+| 10, T1b entry | 51 | 5 s | 5.1 s | 11.6 s |
+| 12 | 57 | 5.6 s | 5.7 s | 11.8 s |
+| 13 | 60 | 5.9 s | 6 s | 11.9 s |
+| 16, last T1b step | 69 | 6.8 s | 6.9 s | 12.2 s |
 
 The control begins immediately after a prior observation, hence one additional
 initial wait. It executes the actual full collector path with only synthetic
@@ -55,13 +57,13 @@ Preparation now has an exclusive 180-second limit. The capacity guard uses
 `(minimum_calls-1)*0.1` and still refuses impossible mandatory observation
 counts before construction, signing, exact-raw admission or send. The actual
 seven-size synthetic series, starting with ten retained anchors, completes
-80/100/200/520/1000/4000/10000 in 153.3 seconds, uses 878 total calls including
+80/100/200/520/1000/4000/10000 in 154.7 seconds, uses 892 total calls including
 initialization, and consumes seven separate exact-raw admissions. It retains
 all seventeen resulting anchors and never resets the series or shared clocks.
 
-The peer minimum after symbolic send is `10+(5+a)*0.1` seconds, including the
-local pool and network reads and the ten-second public wait. At ten anchors
-this is 11.5 seconds, so the existing 120-second peer bound is retained; no
+The peer minimum after symbolic send is `10+(6+a)*0.1` seconds, including the
+local pool, network and immutable broadcast-baseline reads and the ten-second
+public wait. At ten anchors this is 11.6 seconds, so the existing 120-second peer bound is retained; no
 300-second extension is needed by this formula. Real transport/journal/gate
 latency can still exceed the limit and must stop safely. The peer deadline is
 the earlier of preparation-start plus 180+120 and broadcast-start plus 120;
