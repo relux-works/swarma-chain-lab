@@ -8,6 +8,9 @@ service, grant format, wallet, consensus implementation or deployment.
 
 Experiments live in `experiments/<name>/`:
 
+- [Mutual full-node grants](experiments/fullnode-trusts/README.md): closed-regtest
+  mutual grants and ownership-lineage controls, plus finite T1/T1b collector
+  source pending independent review and separate runtime admission.
 - [Notary comparison](experiments/notary/README.md): synthetic notary authority,
   named-output lineage, seal liveness and observation consistency checks.
 - [UTXO creation-age analysis](experiments/utxo-age/README.md): a bounded
