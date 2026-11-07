@@ -33,12 +33,25 @@ the documented build also needs native LevelDB/plyvel inputs; this minimal job
 does not download or fabricate that environment. The UTXO tests read the
 committed native-reference outputs without executing the native encoder.
 
-Full-node tests retain their real source/evidence requirements. In particular,
-`test_t1b.py` requires the historical `/inputs/original-lab.py`, which is not in
-the published checkout, and some `test_boundaries.py` controls require the
-admitted sibling verifier pipe/controller. This workflow supplies neither a
-replacement historical fixture nor a fake verifier. Their failures remain
-visible and require a separate source-owned portability fix; a red result must
+Full-node tests use the genuine, hash-checked historical builder at
+[`test-inputs/original-lab.py.txt`](../experiments/fullnode-trusts/test-inputs/original-lab.py.txt).
+The [input record](../experiments/fullnode-trusts/test-inputs/README.md) gives its
+original commit/blob, SHA-256, licensing and AST-only use. No external `/inputs`
+directory or private artifact is required by a public checkout.
+
+The full-node job preserves the original sibling namespace topology: discovery,
+the Go stdio relay, and each real verifier run in separate offline namespaces.
+The host shell only launches/reaps namespaces and connects private FIFOs to
+anonymous stdio pipes; it executes no product or verifier algorithm. The relay
+is compiled offline using only Go's standard library and a fresh private cache.
+The original verifier environment, source visibility, namespace, descriptor,
+capability-object and denied-method assertions remain unchanged. The launcher
+checks the historical and verifier hashes before compilation/execution. Four
+fresh verifier slots cover the complete existing discovery suite; exhaustion is
+a hard error. The relay has an immutable 110-second cutoff and 2101-request /
+8-MiB-line bounds in addition to the unchanged job/process limits. It forwards
+actual verifier exits and decisions and supplies no mock admission. Nested
+namespace creation or a host-executed relay is not required. A red result must
 not be represented as runtime qualification.
 
 CI does not promote the Python experiment exception into reusable tooling or

@@ -4,7 +4,9 @@ set -euo pipefail
 case "${1:?supply a suite}" in
   fullnode-trusts|utxo-age|thin-regtest-assembly)
     cd "/source/experiments/$1"
-    python3 -B -m unittest discover -s . -p 'test_*.py' -v
+    # The full-node broker shares stdout with test diagnostics. Unbuffered text
+    # prevents a diagnostic fragment from joining an os.write protocol line.
+    python3 -u -B -m unittest discover -s . -p 'test_*.py' -v
     ;;
   notary)
     cd /source/experiments/notary

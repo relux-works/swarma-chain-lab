@@ -51,6 +51,12 @@ jobs:
           ulimit -t 240
           ulimit -f 262144
           ulimit -n 256
+          if [ "$SUITE" = fullnode-trusts ]; then
+            timeout --signal=TERM --kill-after=10s 360s \
+              /bin/bash "$GITHUB_WORKSPACE/.github/scripts/fullnode-siblings.sh" \
+                "$GITHUB_WORKSPACE" "$python_root" "$go_root" "$scratch"
+            exit
+          fi
           timeout --signal=TERM --kill-after=10s 360s \
             bwrap --unshare-all --clearenv --new-session --die-with-parent --cap-drop ALL \
             --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib \

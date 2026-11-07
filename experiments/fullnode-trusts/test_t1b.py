@@ -2,6 +2,7 @@
 """Offline independent decoding, shared-path regression and stop controls."""
 import ast
 import copy
+import hashlib
 import os
 import stat
 import unittest
@@ -52,7 +53,11 @@ class Tests(unittest.TestCase):
 
     def test_extracted_original_t1_equivalence(self):
         # Exact prior source is public input; isolate only the original function.
-        old = ast.parse(Path('/inputs/original-lab.py').read_text())
+        historical = Path(__file__).with_name('test-inputs') / 'original-lab.py.txt'
+        data = historical.read_bytes()
+        self.assertEqual(hashlib.sha256(data).hexdigest(),
+                         '7efba9dff1231b6a88db500c27e2d1c0a1bcc7d944f30eac245a8d90085e88cd')
+        old = ast.parse(data)
         fn = next(x for x in old.body if isinstance(x, ast.FunctionDef) and x.name == 'raw_signed')
         code = compile(ast.Module(body=[fn], type_ignores=[]), '<prior-T1-builder>', 'exec')
         for failure in ('none', 'funded', 'incomplete', 'size', 'fee', 'negative', 'policy'):
