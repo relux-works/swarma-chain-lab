@@ -43,6 +43,7 @@ ulimit -n 256
   set +e
   "${common[@]}" --ro-bind "$source_root" /source --ro-bind "$python_root" /tools/python \
     --bind "$scratch/tests" /work "${private[@]}" \
+    --setenv PATH /tools/python/bin:/usr/bin:/bin \
     --setenv LD_LIBRARY_PATH /tools/python/lib --chdir /source \
     /bin/bash /source/.github/scripts/offline-checks.sh fullnode-trusts \
     < "$scratch/channels/tests.in" > "$scratch/channels/tests.out"
@@ -73,7 +74,11 @@ for n in {0..3}; do
       --dir /private/tmp --chmod 0700 /private/tmp \
       --dir /private/cache --chmod 0700 /private/cache \
       --setenv HOME /private/home --setenv TMPDIR /private/tmp --setenv XDG_CACHE_HOME /private/cache \
-      --chdir /private /usr/bin/python3 -I -B -c 'import sys;sys.path.insert(0,"/src");import pipe_verify' \
+      --chdir /private /usr/bin/python3 -I -B -c '
+import json, sys, traceback
+sys.excepthook = lambda kind, value, tb: print(json.dumps({"type": "startup_error", "exception": kind.__name__, "frames": [[f.filename, f.lineno] for f in traceback.extract_tb(tb)]}), flush=True)
+sys.path.insert(0,"/src")
+import pipe_verify' \
       <&3 >&4 2>/dev/null &
     verifier_pid=$!
     child_pids+=("$verifier_pid")

@@ -130,6 +130,9 @@ func run() int {
 				Result json.RawMessage `json:"result"`
 			}
 			check(json.Unmarshal(request, &message))
+			if message.Type == "startup_error" {
+				panic(fmt.Sprintf("verifier startup failure: %s", request))
+			}
 			if message.Type == "decision" {
 				code := verifier.exit()
 				fmt.Fprintf(os.Stderr, "CONTROLLER_VERIFIER_EXIT index=%d exit=%d\n", used-1, code)
