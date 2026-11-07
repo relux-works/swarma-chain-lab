@@ -20,7 +20,7 @@ regtest parameters and never broadcasts. Name_new retains 252 vB, funding
 retains 230 vB, and the ordinary anchor retains 534 vB. Other T1 operation caps
 are unchanged. This local candidate still requires independent whole review;
 constants alone do not grant mainnet execution or raw-transaction approval.
-The final monetary helper source is a separate pending gate and is not included
+The final bounded monetary helper is composed
 in this graph. The existing allocation helper is retained at its exact pin.
 The ordinary adapter anchor remains within its original 534-vB/106800-sat cap.
 The 0.875-NMC reservation is represented by a real locked test UTXO; ordinary
