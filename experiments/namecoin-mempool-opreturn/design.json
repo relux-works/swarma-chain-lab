@@ -1,0 +1,101 @@
+{
+  "schema": "chain-lab/source-experiment-plan/1",
+  "status": "SOURCE_PLAN_ONLY_RUNTIME_NOT_AUTHORIZED",
+  "dependencies": "stdlib-only; inherited runtime pins unchanged; no Go modules",
+  "next_runtime_unit": "revocation-mempool-regtest-v1",
+  "runtime_prerequisites": [
+    "sealed corrected current-main composition",
+    "independent exact-head review of restricted P2PKH signature verifier and capability-separated driver",
+    "separate bounded runtime acceptance with unchanged lab priority"
+  ],
+  "pins": {
+    "base_head": "db20885a5d4eb4ec6e907b7fd200dd79d4a21f73",
+    "base_tree": "f5986dfbec41ab1a3a79f8bd6ef1e7b9deda294a",
+    "core_commit": "a08218ef2d44b81c53d25c399898e59271f4b642",
+    "core_daemon_sha256": "dc7430676e445af3992430e036f7c1a17bea44f757e9cf25b69205e39625f2f7",
+    "electrumx_commit": "39d477f31727ff95ce99694f6d8cb4a4cd7bd633",
+    "electrumx_patch_sha256": "bb504c218edc2179ecee22facac4da96d28ee92bd4d30c6fc6ef2556948ed6ed",
+    "electrumx_patched_archive_sha256": "90171af850977878c74c2b16f26fd4339394933019b0fbf8af6ff9adebbf10e8"
+  },
+  "bounds": {
+    "memory_max_bytes": 3221225472,
+    "swap_max_bytes": 0,
+    "cpu_quota_percent": 200,
+    "tasks_max": 64,
+    "runtime_wall_seconds": 1500,
+    "supervisor_wall_seconds": 1600,
+    "cpu_seconds_per_process": 1200,
+    "tmpfs_max_bytes": 1610612736,
+    "tmpfs_stop_fraction": 0.8,
+    "retained_max_bytes": 2147483648,
+    "export_max_bytes": 25165824,
+    "export_reserve_seconds": 120,
+    "core_nodes": 1,
+    "electrumx_processes": 1,
+    "controlled_protocol_endpoints": 2,
+    "thin_client_instances_max": 2,
+    "fixture_funding_outputs": 6,
+    "signed_candidates_max": 12,
+    "blocks_from_genesis_max": 224,
+    "owned_core_restarts_max": 2,
+    "protocol_requests_max": 512,
+    "protocol_bytes_max": 67108864,
+    "frame_bytes_max": 1048576,
+    "notification_timeout_seconds": 20,
+    "rpc_timeout_seconds": 10
+  },
+  "state_rules": {
+    "ACTIVE_to_SUSPENDED": "authenticated watched prevout plus exact input txid/vout and independent valid signature over exact candidate bytes",
+    "SUSPENDED_to_FINAL": "one validated block inclusion anchored to trusted laboratory checkpoint",
+    "drop_or_replace": "retain SUSPENDED and journal known conflicts until explicit reconciliation",
+    "FINAL_reorg": "SUSPENDED pending explicit reconciliation",
+    "unsupported_or_invalid_candidate": "no state change",
+    "silent_resume": false
+  },
+  "observables": [
+    "utc_and_monotonic_ns",
+    "broadcast_dispatch", "broadcast_return", "sampled_server_mempool_observation",
+    "subscription_notification", "history_height", "raw_transaction_received",
+    "validation_start", "validation_finish", "signature_cpu_ns", "outpoint_match",
+    "signature_valid", "state_before", "state_after", "state_reason",
+    "mining_dispatch", "mining_return", "confirmed_notification",
+    "inclusion_verified", "trusted_checkpoint_height_and_hash", "final_state_append",
+    "rpc_code_and_text", "timeout_window", "child_exit", "resource_sample"
+  ],
+  "steps": [
+    {"id":"R00", "action":"verify sealed pins, containment, resource headroom and client capability boundary", "mining":"forbidden until setup is qualified", "failure":"stop and export"},
+    {"id":"R01", "action":"create bounded disposable maturity/name fixture and authenticate watched confirmed P2PKH prevouts", "mining":"setup only; then arm barrier", "expect":"ACTIVE; source/checkpoint hashes recorded"},
+    {"id":"R02", "action":"subscribe primary honest client and separate hidden-only client, with no cross-client truth/state feed; save statuses and await acknowledgments", "mining":"forbidden", "expect":"each client independently ACTIVE"},
+    {"id":"R03", "action":"broadcast primary valid seal spend; fetch and independently verify via Electrum client", "mining":"forbidden", "expect":"unconfirmed SUSPENDED"},
+    {"id":"R04", "action":"inject bad-signature same-outpoint candidate for a separate ACTIVE seal; record separate Core rejection", "mining":"forbidden", "expect":"no suspension"},
+    {"id":"R05", "action":"supply valid wrong-outpoint spend to separate ACTIVE watched seal", "mining":"forbidden", "expect":"no suspension"},
+    {"id":"R06", "action":"hold genuine pre-spend replies on hiding view for 20 seconds", "mining":"forbidden", "expect":"UNDETECTED_SINGLE_SERVER; no negative completeness claim"},
+    {"id":"R07", "action":"activate second controlled honest view of primary spend", "mining":"forbidden", "expect":"validation then SUSPENDED; controlled endpoints not independent operators"},
+    {"id":"R08", "action":"broadcast one name_update; query name-index/owner histories, value proof, raw bytes, name_show/name_pending", "mining":"forbidden", "expect":"record exact visibility; synthetic index pending exposure not promised"},
+    {"id":"R09", "action":"assert primary SUSPENDED and all pre-mining controls complete; mine one block; verify primary inclusion", "mining":"exactly one after barrier", "expect":"primary FINAL at one confirmation; record both timing intervals"},
+    {"id":"R10", "action":"separate seal drop scenario: suspend, no-persist owned-Core restart, observe absence for 20 seconds", "mining":"forbidden during drop observation", "expect":"SUSPENDED; explicit reconciliation required"},
+    {"id":"R11", "action":"separate seal replacement: valid spend then higher-fee conflicting replacement", "mining":"only after both candidate checks; at most one confirmation block", "expect":"SUSPENDED through replacement; record rejection if policy refuses"},
+    {"id":"R12", "action":"shut down and reap owned children, inspect exact unit/listeners, discard private tmpfs, sanitize and seal public evidence", "expect":"cleanup receipt and all attempts retained"}
+  ],
+  "opreturn_single_push_payload_bytes": [0,1,75,76,79,80,81,82,83,255,256,520,521,9999,10000,65535,65536,99990,100000,100001,999000,1000000],
+  "opreturn_result_columns": [
+    "case_id", "payload_bytes", "script_bytes", "push_framing_bytes",
+    "serialized_output_bytes", "stripped_transaction_bytes", "total_transaction_bytes",
+    "witness_bytes", "weight", "vsize", "fee", "feerate", "effective_arguments",
+    "local_testmempoolaccept", "local_admission", "peer_to_peer_relay",
+    "default_template_membership", "default_mined_inclusion", "forced_block_validity"
+  ],
+  "opreturn_runtime": "separate subsequent unit; no signed transactions generated here; relay requires separately admitted private P2P topology",
+  "part_b": {
+    "status":"HELD_VALIDATED_MAINNET_TIP_AND_SEPARATE_READ_ONLY_ADMISSION",
+    "max_blocks_per_chunk":5000,
+    "max_seconds_per_chunk":600,
+    "max_requests_per_second":2,
+    "max_inflight":1,
+    "max_response_bytes_per_chunk":67108864,
+    "peer_snapshots":1,
+    "allowlist":["getblockchaininfo","getblockhash","getblock","getpeerinfo"],
+    "year":"containing block header timestamp interpreted as UTC",
+    "required_outputs":["coverage and frozen tip/hash","per-year payload/script histograms","count payload >80 bytes","largest payload/script with txid,vout,height,blockhash","malformed/nonpush counts","sanitized self-reported peer user-agent counts"]
+  }
+}
