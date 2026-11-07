@@ -107,6 +107,9 @@ def budget():
     model = funding_model((VSIZE_CAPS[n] * RATE_SAT_VB for n in SIZES),
                           final_reserve_sat=100000, funder_fee_cap_sat=transfer)
     total = model['all_in_required_sat']
+    # Render exact satoshis without consulting the caller's Decimal context.
+    whole, fraction = divmod(abs(total), 100000000)
+    total_nmc = f'{"-" if total < 0 else ""}{whole}.{fraction:08d}'
     return {'unit': 'satoshi_of_NMC', 'assumed_sat_per_vbyte': RATE_SAT_VB,
             'live_estimator_quote': None, 't1_operations': 10, 't1_fee_caps_sat': t1,
             't1b_max_operations': 7, 't1b_vsize_caps': VSIZE_CAPS,
@@ -119,7 +122,7 @@ def budget():
             'spendable_change_reserve_sat': 100000,
             'cashflow_model': model,
             'recipient_required_sat': model['recipient_required_sat'],
-            'all_in_required_sat': total, 'all_in_required_nmc': f'{Decimal(total)/SAT:.8f}',
+            'all_in_required_sat': total, 'all_in_required_nmc': total_nmc,
             'owner_cap_sat': 100000000, 'headroom_sat': 100000000 - total,
             'status': 'CONDITIONAL_MODEL_NOT_ACTUAL_ESTIMATE',
             'funding_policy': 'new experimental address funded by owner; request recomputed minimum, never fill cap'}

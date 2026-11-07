@@ -5,8 +5,9 @@ import copy
 import os
 import stat
 import unittest
-from decimal import Decimal
+from decimal import Decimal, Inexact, Rounded, localcontext
 from pathlib import Path
+from unittest.mock import patch
 import t1b
 from transaction import build_signed
 
@@ -100,6 +101,48 @@ class Tests(unittest.TestCase):
         self.assertLess(b['all_in_required_sat'], b['owner_cap_sat'])
         self.assertLessEqual(t1b.SERIES_CAP_S, t1b.T1_CAP_S)
         self.assertIsNone(b['live_estimator_quote'])
+
+    def test_budget_render_ignores_decimal_context(self):
+        expected = t1b.budget()
+        self.assertEqual(expected['all_in_required_sat'], 6866200)
+        self.assertEqual(expected['all_in_required_nmc'], '0.06866200')
+        for precision in (1, 28, 80):
+            for inexact, rounded in ((False, False), (True, False), (False, True), (True, True)):
+                with self.subTest(precision=precision, traps=(inexact, rounded)), localcontext() as ctx:
+                    ctx.prec = precision
+                    ctx.traps[Inexact], ctx.traps[Rounded] = inexact, rounded
+                    ctx.clear_flags()
+                    self.assertEqual(t1b.budget(), expected)
+                    self.assertFalse(any(ctx.flags.values()))
+                    self.assertEqual(ctx.prec, precision)
+                    self.assertEqual(ctx.traps[Inexact], inexact)
+                    self.assertEqual(ctx.traps[Rounded], rounded)
+
+    def test_budget_render_integer_boundaries_and_sign(self):
+        # Inject only the model's total to exercise display boundaries; this
+        # neither admits a negative funding input nor changes any funding cap.
+        cases = ((0, '0.00000000'), (1, '0.00000001'),
+                 (99999999, '0.99999999'), (100000000, '1.00000000'),
+                 (2**64 - 1, '184467440737.09551615'),
+                 (-1, '-0.00000001'), (-100000001, '-1.00000001'))
+        for total, text in cases:
+            for precision in (1, 80):
+                with self.subTest(total=total, precision=precision), localcontext() as ctx:
+                    ctx.prec = precision
+                    ctx.traps[Inexact] = ctx.traps[Rounded] = True
+                    model = {'all_in_required_sat': total, 'recipient_required_sat': 0}
+                    with patch.object(t1b, 'funding_model', return_value=model):
+                        result = t1b.budget()
+                    self.assertEqual(result['all_in_required_nmc'], text)
+                    self.assertEqual(result['all_in_required_sat'], total)
+                    self.assertEqual(result['headroom_sat'], 100000000 - total)
+                    self.assertEqual(result['owner_cap_sat'], 100000000)
+                    self.assertIs(result['cashflow_model'], model)
+
+    def test_budget_funding_domain_remains_nonnegative_integers(self):
+        for invalid in (-1, True, 1.5, Decimal('1')):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                t1b.funding_model((invalid,))
 
     def good(self, n=80):
         return {'payload_bytes': n, 'elapsed_s': 100, 'series_elapsed_s': 100,
