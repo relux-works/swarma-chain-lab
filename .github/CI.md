@@ -21,7 +21,7 @@ Each suite gets a fresh `bwrap --unshare-all --clearenv` namespace with read-onl
 source/tools, an empty home view, no host keys or agent sockets, and private
 mode-0700 absolute HOME, TMPDIR and cache paths. No host cache is restored.
 Each job has a ten-minute limit and its test namespace a six-minute wall limit,
-240-second per-process CPU limit, 128-MiB per-file limit and 256 open-file limit.
+240-second per-process CPU limit, 256-MiB per-file limit and 256 open-file limit.
 The source is read-only; only the disposable private scratch is writable.
 The shell helper must run inside this namespace. Namespace admission failure
 fails CI; it never falls back to execution on the runner host.
