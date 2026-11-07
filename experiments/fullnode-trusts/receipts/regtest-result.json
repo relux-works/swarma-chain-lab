@@ -1,0 +1,3129 @@
+{
+  "controller": {
+    "actual_cgroup_limits": {
+      "cpu.max": "200000 100000",
+      "memory.max": "3221225472",
+      "memory.swap.max": "0",
+      "pids.max": "64"
+    },
+    "all_children_reaped": true,
+    "node_namespace_exit": 0,
+    "resource_stats_after_child_exit": {
+      "cpu.stat": "usage_usec 5073427\nuser_usec 3688708\nsystem_usec 1384718\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 51\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0",
+      "memory.peak": "191250432",
+      "pids.current": "2"
+    },
+    "total_tmpfs_cap_mib": 1536,
+    "verifier_transport": "dedicated restricted public RPC pipe; separate offline bwrap"
+  },
+  "result": {
+    "cases": {
+      "A_grants_B_valid": {
+        "actual": {
+          "decision": "admit",
+          "elapsed_ns": 113712774,
+          "height": 142,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "CURRENT_TRUSTED_FULL_NODE",
+          "tip": "93b2bb87ca15ab5c6e389f4ce2d4bc1dff94e9741ab09ccd63436e0d0dd6dd8d"
+        },
+        "exit": 0,
+        "expected": "admit",
+        "expected_reason": null,
+        "pass": true
+      },
+      "B_grant_still_valid_after_A_revokes": {
+        "actual": {
+          "decision": "admit",
+          "elapsed_ns": 114256474,
+          "height": 143,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "CURRENT_TRUSTED_FULL_NODE",
+          "tip": "0a2cffa478a04ecc302d7a48eae5f398fe0dd0cb9f6b133385dd731aeb5cc638"
+        },
+        "exit": 0,
+        "expected": "admit",
+        "expected_reason": null,
+        "pass": true
+      },
+      "B_grants_A_valid": {
+        "actual": {
+          "decision": "admit",
+          "elapsed_ns": 115555248,
+          "height": 142,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "CURRENT_TRUSTED_FULL_NODE",
+          "tip": "93b2bb87ca15ab5c6e389f4ce2d4bc1dff94e9741ab09ccd63436e0d0dd6dd8d"
+        },
+        "exit": 0,
+        "expected": "admit",
+        "expected_reason": null,
+        "pass": true
+      },
+      "actual_height_expired": {
+        "actual": {
+          "decision": "refuse",
+          "elapsed_ns": 12879782,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "EXPIRED_OR_PREMATURE",
+          "tip": "927198fb58804cfa34c16ae3e43cb43a5fe8ecca29736c87fc162b80306734f2"
+        },
+        "exit": 1,
+        "expected": "refuse",
+        "expected_reason": "EXPIRED_OR_PREMATURE",
+        "pass": true
+      },
+      "actual_spend_mempool_refuse": {
+        "actual": {
+          "decision": "refuse",
+          "elapsed_ns": 113428283,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "SEAL_SPENT_INCLUDING_MEMPOOL",
+          "tip": "93b2bb87ca15ab5c6e389f4ce2d4bc1dff94e9741ab09ccd63436e0d0dd6dd8d"
+        },
+        "exit": 1,
+        "expected": "refuse",
+        "expected_reason": "SEAL_SPENT_INCLUDING_MEMPOOL",
+        "pass": true
+      },
+      "actual_spend_one_block_refuse": {
+        "actual": {
+          "decision": "refuse",
+          "elapsed_ns": 115785239,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "SEAL_SPENT_INCLUDING_MEMPOOL",
+          "tip": "0a2cffa478a04ecc302d7a48eae5f398fe0dd0cb9f6b133385dd731aeb5cc638"
+        },
+        "exit": 1,
+        "expected": "refuse",
+        "expected_reason": "SEAL_SPENT_INCLUDING_MEMPOOL",
+        "pass": true
+      },
+      "before_actual_seal_spend": {
+        "actual": {
+          "decision": "admit",
+          "elapsed_ns": 118098715,
+          "height": 142,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "CURRENT_TRUSTED_FULL_NODE",
+          "tip": "93b2bb87ca15ab5c6e389f4ce2d4bc1dff94e9741ab09ccd63436e0d0dd6dd8d"
+        },
+        "exit": 0,
+        "expected": "admit",
+        "expected_reason": null,
+        "pass": true
+      },
+      "expiry_height_minus_one": {
+        "actual": {
+          "decision": "admit",
+          "elapsed_ns": 115984480,
+          "height": 160,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "CURRENT_TRUSTED_FULL_NODE",
+          "tip": "f34b1f949bb778708239613130fb2ab8abcd413e2693877e10d20d6fef29ad08"
+        },
+        "exit": 0,
+        "expected": "admit",
+        "expected_reason": null,
+        "pass": true
+      },
+      "tampered_grant_signature": {
+        "actual": {
+          "decision": "refuse",
+          "elapsed_ns": 10820227,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "ISSUER_SIGNATURE",
+          "tip": "93b2bb87ca15ab5c6e389f4ce2d4bc1dff94e9741ab09ccd63436e0d0dd6dd8d"
+        },
+        "exit": 1,
+        "expected": "refuse",
+        "expected_reason": "ISSUER_SIGNATURE",
+        "pass": true
+      },
+      "wrong_action_genuinely_B_signed": {
+        "actual": {
+          "decision": "refuse",
+          "elapsed_ns": 10955678,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "REQUEST_SCOPE",
+          "tip": "93b2bb87ca15ab5c6e389f4ce2d4bc1dff94e9741ab09ccd63436e0d0dd6dd8d"
+        },
+        "exit": 1,
+        "expected": "refuse",
+        "expected_reason": "REQUEST_SCOPE",
+        "pass": true
+      },
+      "wrong_key": {
+        "actual": {
+          "decision": "refuse",
+          "elapsed_ns": 14481556,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "REQUEST_SIGNATURE",
+          "tip": "93b2bb87ca15ab5c6e389f4ce2d4bc1dff94e9741ab09ccd63436e0d0dd6dd8d"
+        },
+        "exit": 1,
+        "expected": "refuse",
+        "expected_reason": "REQUEST_SIGNATURE",
+        "pass": true
+      },
+      "wrong_network_capability": {
+        "actual": {
+          "decision": "refuse",
+          "elapsed_ns": 4677512,
+          "isolation": {
+            "credentials_present": false,
+            "home_tmp_cache_mode": "0700",
+            "network": "unshare-all; no interface to full node except restricted stdio pipe",
+            "node_mount": false,
+            "wallet_mount": false
+          },
+          "read_only_methods_rejected_before_pipe": [
+            "signmessage",
+            "sendrawtransaction",
+            "getnewaddress",
+            "createwallet",
+            "stop"
+          ],
+          "reason": "UNAVAILABLE_OR_MALFORMED"
+        },
+        "exit": 1,
+        "expected": "refuse",
+        "expected_reason": "UNAVAILABLE_OR_MALFORMED",
+        "pass": true
+      }
+    },
+    "cleanup": {
+      "Core": {
+        "exit": 0,
+        "reaped": true
+      },
+      "private_state": "tmpfs discarded by namespace exit; never exported"
+    },
+    "core_enforced_readonly_denials": [
+      {
+        "denied_before_execution": true,
+        "http_status": 403,
+        "method": "signmessage"
+      },
+      {
+        "denied_before_execution": true,
+        "http_status": 403,
+        "method": "sendrawtransaction"
+      },
+      {
+        "denied_before_execution": true,
+        "http_status": 403,
+        "method": "getnewaddress"
+      },
+      {
+        "denied_before_execution": true,
+        "http_status": 403,
+        "method": "listwallets"
+      },
+      {
+        "denied_before_execution": true,
+        "http_status": 403,
+        "method": "stop"
+      },
+      {
+        "denied_before_execution": true,
+        "http_status": 403,
+        "method": "createwallet"
+      },
+      {
+        "denied_before_execution": true,
+        "http_status": 403,
+        "method": "signrawtransactionwithwallet"
+      }
+    ],
+    "core_sha256": "dc7430676e445af3992430e036f7c1a17bea44f757e9cf25b69205e39625f2f7",
+    "executed_source_sha256": {
+      "lab.py": "7efba9dff1231b6a88db500c27e2d1c0a1bcc7d944f30eac245a8d90085e88cd",
+      "pipe_verify.py": "7567652edc7ae8716535c65a1d63e6660125dc3853aca35a9a9dd45ea0568fae",
+      "protocol.py": "e5dfe436716d2581b2c0cbe7c45ae38e32361237f4a75acaa6f0d70d20ac0494",
+      "run.sh": "fd87178c5198940ca8369060f6ad276f9387802334e16da3377534c8c66f0249",
+      "runner.py": "cb17bafac6bf5383a5fb34195f63f70978732dd6c39f62c09b217578ce34a3c1",
+      "verify.py": "3504d5425bd517c8613bf8fd607d695bfbe9b6953c6b8077250e5e007a0c218d"
+    },
+    "final_tip": {
+      "hash": "927198fb58804cfa34c16ae3e43cb43a5fe8ecca29736c87fc162b80306734f2",
+      "height": 161
+    },
+    "finished_at": "2026-11-07T06:34:19.796318+00:00",
+    "funding": {
+      "A_B_wallet_balances_including_locked_seal_excluding_names_nmc": {
+        "A": "0.00144800",
+        "B": "0.00134200"
+      },
+      "actual_regtest_fees_nmc": "0.00699800",
+      "actual_regtest_fees_satoshis": 699800,
+      "bootstrap_fee_excluded_from_requested_funding": "paid by synthetic miner; future funder transaction outside lab spend",
+      "bootstrap_fee_nmc": "0.00045000",
+      "exact_conditional_funding_nmc": "0.02978800",
+      "experiment_operations": 10,
+      "explicit_fee_margin_nmc": "0.00070800",
+      "external_budget_ceiling_nmc": "0.50000000",
+      "fee_ceilings_nmc": {
+        "A_grant_anchor": "0.001068",
+        "A_name_firstupdate": "0.001028",
+        "A_name_new": "0.000504",
+        "A_seal_funding": "0.00046",
+        "A_seal_revoke": "0.00050000",
+        "B_grant_anchor": "0.001068",
+        "B_name_firstupdate": "0.001028",
+        "B_name_new": "0.000504",
+        "B_seal_funding": "0.00046",
+        "bootstrap_exact_lab_funding": "0.00046",
+        "fund_B": "0.00046"
+      },
+      "fees_ceiling_nmc": "0.00708000",
+      "formula": "2*0.01 names + 2*0.001 seals + 0.00708000 fee ceilings + 0.00070800 margin",
+      "fresh_node_policy_size_check_before_spend_required": true,
+      "future_mainnet_fee_quote": null,
+      "future_mainnet_funding_address": null,
+      "future_mainnet_inclusion_seconds": null,
+      "margin_policy": "10 percent of individually capped transaction fees, rounded to exact satoshis",
+      "names_locked_nmc": "0.02000000",
+      "remaining_in_names_nmc": "0.02000000",
+      "remaining_live_seal_nmc": "0.00100000",
+      "seals_initially_locked_nmc": "0.00200000",
+      "size_ceilings_vbytes": {
+        "A_grant_anchor": 534,
+        "A_name_firstupdate": 514,
+        "A_name_new": 252,
+        "A_seal_funding": 230,
+        "A_seal_revoke": 196,
+        "B_grant_anchor": 534,
+        "B_name_firstupdate": 514,
+        "B_name_new": 252,
+        "B_seal_funding": 230,
+        "bootstrap_exact_lab_funding": 230,
+        "fund_B": 230
+      },
+      "smallest_under_declared_caps": true,
+      "unspent_total_excluding_names_nmc": "0.00279000",
+      "validity": "conditional cap, not a mainnet quote; if fresh policy exceeds rate or a signed tx exceeds its per-operation ceiling STOP and recompute before authorization"
+    },
+    "limitations": [
+      "single trusted fully validating node; no SPV or independent tip qualification",
+      "tip equality is not an atomic mempool snapshot and cannot detect ABA tip changes",
+      "one-block final means this lab policy only, not irreversible consensus finality",
+      "requests are multi-use; nonce is signed but no replay ledger is provided",
+      "delegation/transfer/rotation are refused; optional narrowed child not implemented",
+      "mainnet fees, relay, inclusion, node-at-tip and funding are not observed"
+    ],
+    "mainnet_broadcast_enabled": false,
+    "names_free_checks": [
+      {
+        "at": "2026-11-07T06:34:17.710114+00:00",
+        "free": true,
+        "name": "d/synthetic-trust-0021cc07c0c4-a",
+        "rpc_code": -4
+      },
+      {
+        "at": "2026-11-07T06:34:17.710679+00:00",
+        "free": true,
+        "name": "d/synthetic-trust-0021cc07c0c4-b",
+        "rpc_code": -4
+      }
+    ],
+    "namespace_boundary": {
+      "home_modes": {
+        "/lab/cache": "0o700",
+        "/lab/home": "0o700",
+        "/lab/tmp": "0o700"
+      },
+      "host_home_entries": [],
+      "network_interfaces": "sysfs not mounted",
+      "scope": "offline node namespace; separate verifier namespace uses only read-only stdio pipe",
+      "signer_uid_namespace": 1001,
+      "ssh_auth_sock_present": false
+    },
+    "network": "regtest",
+    "policy": {
+      "configured_wallet_rate_nmc_kvb": "0.00200000",
+      "core_subversion": "/Satoshi:28.0.0/",
+      "core_version": 280000,
+      "estimatesmartfee": {
+        "blocks": 0,
+        "errors": [
+          "Insufficient data or no feerate found"
+        ]
+      },
+      "fresh_mainnet_policy_estimator_check_required": true,
+      "incrementalfee_nmc_kvb": "0.00001000",
+      "mempoolminfee_nmc_kvb": "0.00100000",
+      "rate_status": "bounded assumption; estimator unavailable on fresh closed regtest",
+      "relayfee_nmc_kvb": "0.00100000"
+    },
+    "private_tmpfs_bytes_at_finish": 33333248,
+    "read_rpc_allowlist": [
+      "getbestblockhash",
+      "getblockchaininfo",
+      "getblockcount",
+      "getblockhash",
+      "getblockheader",
+      "getrawtransaction",
+      "gettxout",
+      "name_show",
+      "verifymessage"
+    ],
+    "revocation_mempool": {
+      "at": "2026-11-07T06:34:18.849962+00:00",
+      "chain_only_unspent": true,
+      "including_mempool_unspent": false,
+      "txid": "9b0fe45ff4ba7a10474b338e44c0ffefaf30e290ba9b65e16f03402890f702ef"
+    },
+    "rpc_calls": [
+      {
+        "at": "2026-11-07T06:34:15.500535+00:00",
+        "elapsed_ns": 2417917,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:15.501232+00:00",
+        "elapsed_ns": 635052,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:15.505191+00:00",
+        "elapsed_ns": 523832,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:15.505651+00:00",
+        "elapsed_ns": 416690,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:15.506445+00:00",
+        "elapsed_ns": 737891,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:16.231886+00:00",
+        "elapsed_ns": 725402168,
+        "http_status": 200,
+        "method": "createwallet",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:16.232808+00:00",
+        "elapsed_ns": 854414,
+        "http_status": 200,
+        "method": "getnewaddress",
+        "rpc_code": null,
+        "wallet_role": "miner"
+      },
+      {
+        "at": "2026-11-07T06:34:16.233508+00:00",
+        "elapsed_ns": 652582,
+        "http_status": 200,
+        "method": "getaddressinfo",
+        "rpc_code": null,
+        "wallet_role": "miner"
+      },
+      {
+        "at": "2026-11-07T06:34:16.234191+00:00",
+        "elapsed_ns": 631162,
+        "http_status": 200,
+        "method": "settxfee",
+        "rpc_code": null,
+        "wallet_role": "miner"
+      },
+      {
+        "at": "2026-11-07T06:34:16.906339+00:00",
+        "elapsed_ns": 672111716,
+        "http_status": 200,
+        "method": "createwallet",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:16.909300+00:00",
+        "elapsed_ns": 2829787,
+        "http_status": 200,
+        "method": "getnewaddress",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:16.910459+00:00",
+        "elapsed_ns": 1065723,
+        "http_status": 200,
+        "method": "getaddressinfo",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:16.911350+00:00",
+        "elapsed_ns": 807792,
+        "http_status": 200,
+        "method": "settxfee",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.587055+00:00",
+        "elapsed_ns": 675625075,
+        "http_status": 200,
+        "method": "createwallet",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.587934+00:00",
+        "elapsed_ns": 804312,
+        "http_status": 200,
+        "method": "getnewaddress",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.588669+00:00",
+        "elapsed_ns": 641712,
+        "http_status": 200,
+        "method": "getaddressinfo",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.589284+00:00",
+        "elapsed_ns": 506362,
+        "http_status": 200,
+        "method": "settxfee",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.589840+00:00",
+        "elapsed_ns": 477641,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.590322+00:00",
+        "elapsed_ns": 452341,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.658026+00:00",
+        "elapsed_ns": 67627969,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.659067+00:00",
+        "elapsed_ns": 887933,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.660164+00:00",
+        "elapsed_ns": 955212,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.661311+00:00",
+        "elapsed_ns": 995862,
+        "http_status": 200,
+        "method": "getnetworkinfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.662474+00:00",
+        "elapsed_ns": 909672,
+        "http_status": 200,
+        "method": "getmempoolinfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.663506+00:00",
+        "elapsed_ns": 885983,
+        "http_status": 200,
+        "method": "estimatesmartfee",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.664491+00:00",
+        "elapsed_ns": 836222,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.665442+00:00",
+        "elapsed_ns": 803512,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.673266+00:00",
+        "elapsed_ns": 7673059,
+        "http_status": 200,
+        "method": "sendtoaddress",
+        "rpc_code": null,
+        "wallet_role": "miner"
+      },
+      {
+        "at": "2026-11-07T06:34:17.674367+00:00",
+        "elapsed_ns": 977903,
+        "http_status": 200,
+        "method": "gettransaction",
+        "rpc_code": null,
+        "wallet_role": "miner"
+      },
+      {
+        "at": "2026-11-07T06:34:17.675392+00:00",
+        "elapsed_ns": 859922,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.676353+00:00",
+        "elapsed_ns": 820422,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.677441+00:00",
+        "elapsed_ns": 949642,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.678593+00:00",
+        "elapsed_ns": 997432,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.679960+00:00",
+        "elapsed_ns": 1136793,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.681438+00:00",
+        "elapsed_ns": 1405483,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.682458+00:00",
+        "elapsed_ns": 956992,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.683356+00:00",
+        "elapsed_ns": 837052,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.684307+00:00",
+        "elapsed_ns": 760092,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.686038+00:00",
+        "elapsed_ns": 1587864,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.687420+00:00",
+        "elapsed_ns": 1239953,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.688550+00:00",
+        "elapsed_ns": 981032,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.689948+00:00",
+        "elapsed_ns": 1219913,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.691446+00:00",
+        "elapsed_ns": 1282163,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.692992+00:00",
+        "elapsed_ns": 886762,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.694115+00:00",
+        "elapsed_ns": 983482,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.697372+00:00",
+        "elapsed_ns": 3104598,
+        "http_status": 200,
+        "method": "sendtoaddress",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.698495+00:00",
+        "elapsed_ns": 1070643,
+        "http_status": 200,
+        "method": "gettransaction",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.699443+00:00",
+        "elapsed_ns": 805862,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.700386+00:00",
+        "elapsed_ns": 792142,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.701317+00:00",
+        "elapsed_ns": 786722,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.701988+00:00",
+        "elapsed_ns": 641822,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.702624+00:00",
+        "elapsed_ns": 546071,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.703617+00:00",
+        "elapsed_ns": 893783,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.704218+00:00",
+        "elapsed_ns": 511861,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.704719+00:00",
+        "elapsed_ns": 456221,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.705279+00:00",
+        "elapsed_ns": 455571,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.705818+00:00",
+        "elapsed_ns": 460161,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.707278+00:00",
+        "elapsed_ns": 1381414,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.707941+00:00",
+        "elapsed_ns": 629111,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.708562+00:00",
+        "elapsed_ns": 587601,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.709275+00:00",
+        "elapsed_ns": 615352,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.710074+00:00",
+        "elapsed_ns": 578802,
+        "error_message": "name never existed: 'd/synthetic-trust-0021cc07c0c4-a'",
+        "http_status": 500,
+        "method": "name_show",
+        "rpc_code": -4,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.710594+00:00",
+        "elapsed_ns": 470971,
+        "error_message": "name never existed: 'd/synthetic-trust-0021cc07c0c4-b'",
+        "http_status": 500,
+        "method": "name_show",
+        "rpc_code": -4,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.711164+00:00",
+        "elapsed_ns": 463281,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.711639+00:00",
+        "elapsed_ns": 397861,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.714125+00:00",
+        "elapsed_ns": 2389116,
+        "http_status": 200,
+        "method": "name_new",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.714728+00:00",
+        "elapsed_ns": 540951,
+        "http_status": 200,
+        "method": "gettransaction",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.715352+00:00",
+        "elapsed_ns": 517481,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.715872+00:00",
+        "elapsed_ns": 487481,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.716461+00:00",
+        "elapsed_ns": 510272,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.717116+00:00",
+        "elapsed_ns": 625961,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.717817+00:00",
+        "elapsed_ns": 605351,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.718800+00:00",
+        "elapsed_ns": 894993,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.719431+00:00",
+        "elapsed_ns": 549861,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.719952+00:00",
+        "elapsed_ns": 481521,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.720546+00:00",
+        "elapsed_ns": 511311,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.721088+00:00",
+        "elapsed_ns": 464581,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.722632+00:00",
+        "elapsed_ns": 1465644,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.723590+00:00",
+        "elapsed_ns": 918312,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.724592+00:00",
+        "elapsed_ns": 916812,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.725683+00:00",
+        "elapsed_ns": 976913,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.727002+00:00",
+        "elapsed_ns": 1063013,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.727641+00:00",
+        "elapsed_ns": 610232,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.730779+00:00",
+        "elapsed_ns": 3040347,
+        "http_status": 200,
+        "method": "name_new",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.731605+00:00",
+        "elapsed_ns": 742582,
+        "http_status": 200,
+        "method": "gettransaction",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.732138+00:00",
+        "elapsed_ns": 442351,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.732783+00:00",
+        "elapsed_ns": 565581,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.733349+00:00",
+        "elapsed_ns": 487031,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.734081+00:00",
+        "elapsed_ns": 654092,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.735430+00:00",
+        "elapsed_ns": 1201563,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.736336+00:00",
+        "elapsed_ns": 871932,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.737191+00:00",
+        "elapsed_ns": 712281,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.738071+00:00",
+        "elapsed_ns": 801352,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.738584+00:00",
+        "elapsed_ns": 428861,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.739280+00:00",
+        "elapsed_ns": 503812,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.740661+00:00",
+        "elapsed_ns": 1249823,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.741358+00:00",
+        "elapsed_ns": 575582,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.742044+00:00",
+        "elapsed_ns": 603052,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.742715+00:00",
+        "elapsed_ns": 574691,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.743415+00:00",
+        "elapsed_ns": 462741,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.743875+00:00",
+        "elapsed_ns": 426381,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.752120+00:00",
+        "elapsed_ns": 8168541,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.752860+00:00",
+        "elapsed_ns": 695542,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.753401+00:00",
+        "elapsed_ns": 460421,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.759471+00:00",
+        "elapsed_ns": 5931575,
+        "http_status": 200,
+        "method": "name_firstupdate",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.760179+00:00",
+        "elapsed_ns": 595302,
+        "http_status": 200,
+        "method": "gettransaction",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.760673+00:00",
+        "elapsed_ns": 463471,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.761224+00:00",
+        "elapsed_ns": 441211,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.761866+00:00",
+        "elapsed_ns": 562571,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.762539+00:00",
+        "elapsed_ns": 592522,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.763263+00:00",
+        "elapsed_ns": 636631,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.763998+00:00",
+        "elapsed_ns": 646141,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.764890+00:00",
+        "elapsed_ns": 803452,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.765547+00:00",
+        "elapsed_ns": 572941,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.766046+00:00",
+        "elapsed_ns": 471801,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.766578+00:00",
+        "elapsed_ns": 450511,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.767102+00:00",
+        "elapsed_ns": 447391,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.768372+00:00",
+        "elapsed_ns": 1193283,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.769133+00:00",
+        "elapsed_ns": 729052,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.769830+00:00",
+        "elapsed_ns": 615872,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.770502+00:00",
+        "elapsed_ns": 579071,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.771185+00:00",
+        "elapsed_ns": 592981,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.771879+00:00",
+        "elapsed_ns": 492811,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.772353+00:00",
+        "elapsed_ns": 446391,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.776181+00:00",
+        "elapsed_ns": 3744450,
+        "http_status": 200,
+        "method": "name_firstupdate",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.776767+00:00",
+        "elapsed_ns": 509321,
+        "http_status": 200,
+        "method": "gettransaction",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.777261+00:00",
+        "elapsed_ns": 463151,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.777736+00:00",
+        "elapsed_ns": 397891,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.778357+00:00",
+        "elapsed_ns": 527751,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.779028+00:00",
+        "elapsed_ns": 590732,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.779715+00:00",
+        "elapsed_ns": 598882,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.780456+00:00",
+        "elapsed_ns": 617851,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.781312+00:00",
+        "elapsed_ns": 770662,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.781984+00:00",
+        "elapsed_ns": 568421,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.782444+00:00",
+        "elapsed_ns": 459181,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.783006+00:00",
+        "elapsed_ns": 498741,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.783555+00:00",
+        "elapsed_ns": 471291,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.784721+00:00",
+        "elapsed_ns": 1132633,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.785413+00:00",
+        "elapsed_ns": 637052,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.787151+00:00",
+        "elapsed_ns": 1717034,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.788726+00:00",
+        "elapsed_ns": 1436993,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.790259+00:00",
+        "elapsed_ns": 1288123,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.792853+00:00",
+        "elapsed_ns": 1082912,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.793928+00:00",
+        "elapsed_ns": 1012802,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.797596+00:00",
+        "elapsed_ns": 3491569,
+        "http_status": 200,
+        "method": "sendtoaddress",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.798672+00:00",
+        "elapsed_ns": 970233,
+        "http_status": 200,
+        "method": "gettransaction",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.799936+00:00",
+        "elapsed_ns": 1191283,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.801025+00:00",
+        "elapsed_ns": 974983,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.801726+00:00",
+        "elapsed_ns": 661211,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.802378+00:00",
+        "elapsed_ns": 597771,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.804015+00:00",
+        "elapsed_ns": 1588744,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.805088+00:00",
+        "elapsed_ns": 995293,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.806044+00:00",
+        "elapsed_ns": 871912,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.806547+00:00",
+        "elapsed_ns": 416001,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.807097+00:00",
+        "elapsed_ns": 465001,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.807595+00:00",
+        "elapsed_ns": 393691,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.808821+00:00",
+        "elapsed_ns": 1147683,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.809480+00:00",
+        "elapsed_ns": 574372,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.810274+00:00",
+        "elapsed_ns": 707282,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.810994+00:00",
+        "elapsed_ns": 600971,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.811852+00:00",
+        "elapsed_ns": 634622,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.812353+00:00",
+        "elapsed_ns": 412851,
+        "http_status": 200,
+        "method": "lockunspent",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.812886+00:00",
+        "elapsed_ns": 453501,
+        "http_status": 200,
+        "method": "getblockcount",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.813387+00:00",
+        "elapsed_ns": 418781,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.813900+00:00",
+        "elapsed_ns": 436581,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.814516+00:00",
+        "elapsed_ns": 498761,
+        "http_status": 200,
+        "method": "signmessage",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.815104+00:00",
+        "elapsed_ns": 508302,
+        "http_status": 200,
+        "method": "name_show",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.815632+00:00",
+        "elapsed_ns": 403981,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.816142+00:00",
+        "elapsed_ns": 401621,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.816646+00:00",
+        "elapsed_ns": 426821,
+        "http_status": 200,
+        "method": "createrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.817273+00:00",
+        "elapsed_ns": 534861,
+        "http_status": 200,
+        "method": "namerawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.819993+00:00",
+        "elapsed_ns": 2640977,
+        "http_status": 200,
+        "method": "fundrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.821120+00:00",
+        "elapsed_ns": 1023953,
+        "http_status": 200,
+        "method": "signrawtransactionwithwallet",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:17.821814+00:00",
+        "elapsed_ns": 593421,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.822568+00:00",
+        "elapsed_ns": 668401,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.823219+00:00",
+        "elapsed_ns": 610382,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.823986+00:00",
+        "elapsed_ns": 654462,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.824510+00:00",
+        "elapsed_ns": 440681,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.825111+00:00",
+        "elapsed_ns": 573272,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.825615+00:00",
+        "elapsed_ns": 420231,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.826115+00:00",
+        "elapsed_ns": 412161,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.826779+00:00",
+        "elapsed_ns": 588192,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.827427+00:00",
+        "elapsed_ns": 616781,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.828141+00:00",
+        "elapsed_ns": 631471,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.828735+00:00",
+        "elapsed_ns": 505662,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.829531+00:00",
+        "elapsed_ns": 741152,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.830203+00:00",
+        "elapsed_ns": 585181,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.830705+00:00",
+        "elapsed_ns": 422391,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.831247+00:00",
+        "elapsed_ns": 438931,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.831842+00:00",
+        "elapsed_ns": 517652,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.833139+00:00",
+        "elapsed_ns": 1189583,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.833833+00:00",
+        "elapsed_ns": 610982,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.834710+00:00",
+        "elapsed_ns": 791992,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.835734+00:00",
+        "elapsed_ns": 875122,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.836381+00:00",
+        "elapsed_ns": 582782,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.837379+00:00",
+        "elapsed_ns": 485521,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.837850+00:00",
+        "elapsed_ns": 437351,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.838486+00:00",
+        "elapsed_ns": 538271,
+        "http_status": 200,
+        "method": "signmessage",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.839197+00:00",
+        "elapsed_ns": 459761,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.839702+00:00",
+        "elapsed_ns": 425571,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.842650+00:00",
+        "elapsed_ns": 2846267,
+        "http_status": 200,
+        "method": "sendtoaddress",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.843272+00:00",
+        "elapsed_ns": 492521,
+        "http_status": 200,
+        "method": "gettransaction",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.843819+00:00",
+        "elapsed_ns": 514501,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.844299+00:00",
+        "elapsed_ns": 446512,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.844912+00:00",
+        "elapsed_ns": 536371,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.845531+00:00",
+        "elapsed_ns": 582952,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.846190+00:00",
+        "elapsed_ns": 565431,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.847023+00:00",
+        "elapsed_ns": 748592,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.847619+00:00",
+        "elapsed_ns": 507761,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.848187+00:00",
+        "elapsed_ns": 479311,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.848706+00:00",
+        "elapsed_ns": 436732,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.849239+00:00",
+        "elapsed_ns": 429401,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.850385+00:00",
+        "elapsed_ns": 1112203,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.851034+00:00",
+        "elapsed_ns": 567601,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.851802+00:00",
+        "elapsed_ns": 736382,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.852573+00:00",
+        "elapsed_ns": 581251,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.853387+00:00",
+        "elapsed_ns": 579511,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.853959+00:00",
+        "elapsed_ns": 465832,
+        "http_status": 200,
+        "method": "lockunspent",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.854421+00:00",
+        "elapsed_ns": 383891,
+        "http_status": 200,
+        "method": "getblockcount",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.854970+00:00",
+        "elapsed_ns": 470521,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.855572+00:00",
+        "elapsed_ns": 548722,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.856237+00:00",
+        "elapsed_ns": 529961,
+        "http_status": 200,
+        "method": "signmessage",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.856798+00:00",
+        "elapsed_ns": 481241,
+        "http_status": 200,
+        "method": "name_show",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.857325+00:00",
+        "elapsed_ns": 451261,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.857839+00:00",
+        "elapsed_ns": 436161,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.858301+00:00",
+        "elapsed_ns": 427432,
+        "http_status": 200,
+        "method": "createrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.858802+00:00",
+        "elapsed_ns": 469531,
+        "http_status": 200,
+        "method": "namerawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.861830+00:00",
+        "elapsed_ns": 2929807,
+        "http_status": 200,
+        "method": "fundrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.862961+00:00",
+        "elapsed_ns": 1046993,
+        "http_status": 200,
+        "method": "signrawtransactionwithwallet",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:17.863601+00:00",
+        "elapsed_ns": 562092,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.864371+00:00",
+        "elapsed_ns": 739402,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.864942+00:00",
+        "elapsed_ns": 526431,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.865547+00:00",
+        "elapsed_ns": 559002,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.866103+00:00",
+        "elapsed_ns": 513771,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.866478+00:00",
+        "elapsed_ns": 336361,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.866882+00:00",
+        "elapsed_ns": 366521,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.867237+00:00",
+        "elapsed_ns": 319711,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.867778+00:00",
+        "elapsed_ns": 509101,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.868386+00:00",
+        "elapsed_ns": 570062,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.868936+00:00",
+        "elapsed_ns": 509951,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.869422+00:00",
+        "elapsed_ns": 439461,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.870194+00:00",
+        "elapsed_ns": 730452,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.870809+00:00",
+        "elapsed_ns": 578522,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.871181+00:00",
+        "elapsed_ns": 335181,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.871576+00:00",
+        "elapsed_ns": 359041,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.871990+00:00",
+        "elapsed_ns": 380301,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.873312+00:00",
+        "elapsed_ns": 1286423,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.873932+00:00",
+        "elapsed_ns": 578491,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.874597+00:00",
+        "elapsed_ns": 625621,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.875597+00:00",
+        "elapsed_ns": 903373,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.876242+00:00",
+        "elapsed_ns": 592131,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.879959+00:00",
+        "elapsed_ns": 1030873,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.880932+00:00",
+        "elapsed_ns": 870722,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:17.882073+00:00",
+        "elapsed_ns": 1008943,
+        "http_status": 200,
+        "method": "signmessage",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:18.267364+00:00",
+        "elapsed_ns": 873613,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.268167+00:00",
+        "elapsed_ns": 715532,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.269048+00:00",
+        "elapsed_ns": 749952,
+        "http_status": 200,
+        "method": "signmessage",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:18.360964+00:00",
+        "elapsed_ns": 823042,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.361726+00:00",
+        "elapsed_ns": 675762,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.362818+00:00",
+        "elapsed_ns": 918413,
+        "http_status": 200,
+        "method": "signmessage",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:18.654079+00:00",
+        "elapsed_ns": 1180613,
+        "http_status": 200,
+        "method": "getnewaddress",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:18.654612+00:00",
+        "elapsed_ns": 474091,
+        "http_status": 200,
+        "method": "createrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.655131+00:00",
+        "elapsed_ns": 475561,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.655597+00:00",
+        "elapsed_ns": 424891,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.656359+00:00",
+        "elapsed_ns": 719852,
+        "http_status": 200,
+        "method": "signrawtransactionwithwallet",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:18.656903+00:00",
+        "elapsed_ns": 501261,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.657518+00:00",
+        "elapsed_ns": 569512,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.843595+00:00",
+        "elapsed_ns": 762302,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.844585+00:00",
+        "elapsed_ns": 887282,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.845510+00:00",
+        "elapsed_ns": 841602,
+        "http_status": 200,
+        "method": "decoderawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.846677+00:00",
+        "elapsed_ns": 1105712,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.847582+00:00",
+        "elapsed_ns": 737782,
+        "http_status": 200,
+        "method": "testmempoolaccept",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.849074+00:00",
+        "elapsed_ns": 1372553,
+        "http_status": 200,
+        "method": "sendrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.849876+00:00",
+        "elapsed_ns": 719941,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.850857+00:00",
+        "elapsed_ns": 883282,
+        "http_status": 200,
+        "method": "gettxout",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:18.851569+00:00",
+        "elapsed_ns": 630892,
+        "http_status": 200,
+        "method": "gettxout",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.036289+00:00",
+        "elapsed_ns": 1040872,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.037095+00:00",
+        "elapsed_ns": 718201,
+        "http_status": 200,
+        "method": "getrawmempool",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.038039+00:00",
+        "elapsed_ns": 854652,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.038822+00:00",
+        "elapsed_ns": 702062,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.041323+00:00",
+        "elapsed_ns": 2421366,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.042269+00:00",
+        "elapsed_ns": 858092,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.043648+00:00",
+        "elapsed_ns": 1287224,
+        "http_status": 200,
+        "method": "getrawtransaction",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.044832+00:00",
+        "elapsed_ns": 1009393,
+        "http_status": 200,
+        "method": "getblockheader",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.432079+00:00",
+        "elapsed_ns": 1586473,
+        "http_status": 200,
+        "method": "getblockcount",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.432917+00:00",
+        "elapsed_ns": 752852,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.433728+00:00",
+        "elapsed_ns": 729513,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.446969+00:00",
+        "elapsed_ns": 13128803,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.636838+00:00",
+        "elapsed_ns": 997772,
+        "http_status": 200,
+        "method": "getblockchaininfo",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.638205+00:00",
+        "elapsed_ns": 1285795,
+        "http_status": 200,
+        "method": "getblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.641564+00:00",
+        "elapsed_ns": 3274259,
+        "http_status": 200,
+        "method": "generatetoaddress",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.729137+00:00",
+        "elapsed_ns": 1348704,
+        "http_status": 200,
+        "method": "getbalance",
+        "rpc_code": null,
+        "wallet_role": "A"
+      },
+      {
+        "at": "2026-11-07T06:34:19.729987+00:00",
+        "elapsed_ns": 759492,
+        "http_status": 200,
+        "method": "getbalance",
+        "rpc_code": null,
+        "wallet_role": "B"
+      },
+      {
+        "at": "2026-11-07T06:34:19.730738+00:00",
+        "elapsed_ns": 644542,
+        "http_status": 200,
+        "method": "getblockcount",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.731535+00:00",
+        "elapsed_ns": 688682,
+        "http_status": 200,
+        "method": "getbestblockhash",
+        "rpc_code": null,
+        "wallet_role": "node"
+      },
+      {
+        "at": "2026-11-07T06:34:19.732463+00:00",
+        "elapsed_ns": 836192,
+        "http_status": 200,
+        "method": "stop",
+        "rpc_code": null,
+        "wallet_role": "node"
+      }
+    ],
+    "started_at": "2026-11-07T06:34:15.273624+00:00",
+    "status": "PASS",
+    "transactions": [
+      {
+        "blockhash": "91a58019ba00208b3c8e9d531eaa4881b94e54ecbf33720e7e3fb90852ef944e",
+        "broadcast_at": "2026-11-07T06:34:17.680023+00:00",
+        "broadcast_to_inclusion_ns": 8699352,
+        "bytes": 225,
+        "confirmations": 1,
+        "experiment_budget": false,
+        "fee_cap_nmc": "0.00046",
+        "fee_nmc": "0.00045000",
+        "height": 121,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:17.687558+00:00",
+        "mining_started_at": "2026-11-07T06:34:17.683534+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:17.688711+00:00",
+        "operation": "bootstrap_exact_lab_funding",
+        "size_ceiling_vbytes": 230,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "261ff483ef0f53aacdc346793ff3267cb6cd1b3a29522ff8d4eae8a97a9ce945",
+        "vbytes": 225,
+        "weight": 900
+      },
+      {
+        "blockhash": "e4f0f909f44071038855670a09fdce953e48f255a37c3daa0e81e69fea6b9002",
+        "broadcast_at": "2026-11-07T06:34:17.702715+00:00",
+        "broadcast_to_inclusion_ns": 5256023,
+        "bytes": 225,
+        "confirmations": 1,
+        "experiment_budget": true,
+        "fee_cap_nmc": "0.00046",
+        "fee_nmc": "0.00045000",
+        "height": 122,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:17.707307+00:00",
+        "mining_started_at": "2026-11-07T06:34:17.704817+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:17.707968+00:00",
+        "operation": "fund_B",
+        "size_ceiling_vbytes": 230,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "ee085cacd5b022f8a1186140ae5090993b6b6184de979bf8521ec6da8d5f9263",
+        "vbytes": 225,
+        "weight": 900
+      },
+      {
+        "blockhash": "7797648aaaf0b589d71340a48fe417063c4f2c618442089b9a3fc22f01a11d8c",
+        "broadcast_at": "2026-11-07T06:34:17.717898+00:00",
+        "broadcast_to_inclusion_ns": 5774305,
+        "bytes": 248,
+        "confirmations": 1,
+        "experiment_budget": true,
+        "fee_cap_nmc": "0.000504",
+        "fee_nmc": "0.00049600",
+        "height": 123,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:17.722666+00:00",
+        "mining_started_at": "2026-11-07T06:34:17.720029+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:17.723667+00:00",
+        "operation": "A_name_new",
+        "size_ceiling_vbytes": 252,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "cc84ccac073ae806e4dc1f51a4bce6651b5aa49e38a0c5f3635ff7c2376e59fc",
+        "vbytes": 248,
+        "weight": 992
+      },
+      {
+        "blockhash": "dd9b3532e32755233c7ba1ece543a198593264e1d8b55d1d01052c4cd2f483b8",
+        "broadcast_at": "2026-11-07T06:34:17.735459+00:00",
+        "broadcast_to_inclusion_ns": 5979465,
+        "bytes": 248,
+        "confirmations": 1,
+        "experiment_budget": true,
+        "fee_cap_nmc": "0.000504",
+        "fee_nmc": "0.00049600",
+        "height": 124,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:17.740774+00:00",
+        "mining_started_at": "2026-11-07T06:34:17.738149+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:17.741434+00:00",
+        "operation": "B_name_new",
+        "size_ceiling_vbytes": 252,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "dc348eafd6ceec424097107dab0d6c1b910762629f41fe8ea096d004dff46d4b",
+        "vbytes": 248,
+        "weight": 992
+      },
+      {
+        "blockhash": "4e62559e7b9055337ebd755cf6f65221249b2d3dfeeb78e59c39812902d85374",
+        "broadcast_at": "2026-11-07T06:34:17.764079+00:00",
+        "broadcast_to_inclusion_ns": 5137873,
+        "bytes": 510,
+        "confirmations": 1,
+        "experiment_budget": true,
+        "fee_cap_nmc": "0.001028",
+        "fee_nmc": "0.00102000",
+        "height": 137,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:17.768399+00:00",
+        "mining_started_at": "2026-11-07T06:34:17.766121+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:17.769212+00:00",
+        "operation": "A_name_firstupdate",
+        "size_ceiling_vbytes": 514,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "f39337cad4355aad5409bb59ab5dca0257886525f631777e8b43b0275f530dfe",
+        "vbytes": 510,
+        "weight": 2040
+      },
+      {
+        "blockhash": "8a18ab9370e51c84ad74cc67c4ebf125f2d04e5703ae7f7717e2c526e42bbf15",
+        "broadcast_at": "2026-11-07T06:34:17.780535+00:00",
+        "broadcast_to_inclusion_ns": 4960772,
+        "bytes": 510,
+        "confirmations": 1,
+        "experiment_budget": true,
+        "fee_cap_nmc": "0.001028",
+        "fee_nmc": "0.00102000",
+        "height": 138,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:17.784771+00:00",
+        "mining_started_at": "2026-11-07T06:34:17.782502+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:17.785491+00:00",
+        "operation": "B_name_firstupdate",
+        "size_ceiling_vbytes": 514,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "abefff85968265736bfd3e9135fee1f8b18c94db70e3c0c05a5078872f43d9ae",
+        "vbytes": 510,
+        "weight": 2040
+      },
+      {
+        "blockhash": "35c73e8bc17711b87cbf7ae3209a07f079b8675b9fe47ebcd04839292ec046c1",
+        "broadcast_at": "2026-11-07T06:34:17.804085+00:00",
+        "broadcast_to_inclusion_ns": 5479034,
+        "bytes": 225,
+        "confirmations": 1,
+        "experiment_budget": true,
+        "fee_cap_nmc": "0.00046",
+        "fee_nmc": "0.00045000",
+        "height": 139,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:17.808900+00:00",
+        "mining_started_at": "2026-11-07T06:34:17.806625+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:17.809559+00:00",
+        "operation": "A_seal_funding",
+        "size_ceiling_vbytes": 230,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "e7182c57025db50aa4660f2c4e14f77391820e9948acd8fdf5c40807e9f54992",
+        "vbytes": 225,
+        "weight": 900
+      },
+      {
+        "blockhash": "fb8f4d370b29d45fef2d5fbb8ed7aeb8a0e55c13e485e6e814f739eb69aaecf0",
+        "broadcast_at": "2026-11-07T06:34:17.828785+00:00",
+        "broadcast_to_inclusion_ns": 5131863,
+        "bytes": 529,
+        "confirmations": 1,
+        "experiment_budget": true,
+        "fee_cap_nmc": "0.001068",
+        "fee_nmc": "0.00105800",
+        "height": 140,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:17.833216+00:00",
+        "mining_started_at": "2026-11-07T06:34:17.830802+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:17.833911+00:00",
+        "operation": "A_grant_anchor",
+        "size_ceiling_vbytes": 534,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "1a99070ca26f079e0ea7925c416266b80bc02238a227ffc5d1593977fc9d1160",
+        "vbytes": 529,
+        "weight": 2116
+      },
+      {
+        "blockhash": "1f915582c8012dabc08cabb3513d5fa97df74a98e8e07e92b79853effb1ee6a0",
+        "broadcast_at": "2026-11-07T06:34:17.846268+00:00",
+        "broadcast_to_inclusion_ns": 4795842,
+        "bytes": 225,
+        "confirmations": 1,
+        "experiment_budget": true,
+        "fee_cap_nmc": "0.00046",
+        "fee_nmc": "0.00045000",
+        "height": 141,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:17.850461+00:00",
+        "mining_started_at": "2026-11-07T06:34:17.848264+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:17.851061+00:00",
+        "operation": "B_seal_funding",
+        "size_ceiling_vbytes": 230,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "293a544d40fa9e13fec572f27eb95c3eb09473d9be8970d19a92ddcf9b56ef80",
+        "vbytes": 225,
+        "weight": 900
+      },
+      {
+        "blockhash": "93b2bb87ca15ab5c6e389f4ce2d4bc1dff94e9741ab09ccd63436e0d0dd6dd8d",
+        "broadcast_at": "2026-11-07T06:34:17.869458+00:00",
+        "broadcast_to_inclusion_ns": 4511201,
+        "bytes": 529,
+        "confirmations": 1,
+        "experiment_budget": true,
+        "fee_cap_nmc": "0.001068",
+        "fee_nmc": "0.00105800",
+        "height": 142,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:17.873349+00:00",
+        "mining_started_at": "2026-11-07T06:34:17.871213+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:17.873966+00:00",
+        "operation": "B_grant_anchor",
+        "size_ceiling_vbytes": 534,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "ddf0d48813ab74d0206752ba2a92b8a13c54697d146483a80bdaa1f34ab15d36",
+        "vbytes": 529,
+        "weight": 2116
+      },
+      {
+        "blockhash": "0a2cffa478a04ecc302d7a48eae5f398fe0dd0cb9f6b133385dd731aeb5cc638",
+        "broadcast_at": "2026-11-07T06:34:18.847666+00:00",
+        "broadcast_to_inclusion_ns": 194689585,
+        "bytes": 191,
+        "confirmations": 1,
+        "experiment_budget": true,
+        "fee_cap_nmc": "0.00050000",
+        "fee_nmc": "0.00050000",
+        "height": 143,
+        "mempool_seen_before_mining": true,
+        "mining_returned_at": "2026-11-07T06:34:19.041401+00:00",
+        "mining_started_at": "2026-11-07T06:34:19.037174+00:00",
+        "observed_inclusion_at": "2026-11-07T06:34:19.042347+00:00",
+        "operation": "A_seal_revoke",
+        "size_ceiling_vbytes": 196,
+        "timing_kind": "local generated regtest block; not a mainnet latency estimate",
+        "txid": "9b0fe45ff4ba7a10474b338e44c0ffefaf30e290ba9b65e16f03402890f702ef",
+        "vbytes": 191,
+        "weight": 764
+      }
+    ]
+  }
+}
