@@ -49,3 +49,13 @@ Build scratch belongs in `.temp/`; admitted harness runs separate `public/`
 evidence from private node/wallet state. Mainnet use requires separate review and runtime admission.
 Spend discovery tolerates unrelated witness/large-input traffic while retaining
 strict legacy checks for seal-spend candidates and explicit observation budgets.
+
+## Rental booking tools
+
+[Rental booking](experiments/rental-booking/README.md) is the bounded M3 regtest
+booking/payment/contract experiment. From that module, run `go test -race ./...`,
+`go build -trimpath -o ../../.temp/rental-booking ./cmd/rental-booking` and
+`go build -trimpath -o ../../.temp/rental-relay ./cmd/rental-relay`.
+Its README defines canonical contract/consent/issuance formats, loopback CLI
+commands, pinned Core integration inputs and private/public evidence separation.
+No mainnet or public deployment is authorized by the experiment.

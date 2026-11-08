@@ -1,0 +1,49 @@
+name: Rental booking checks
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/rental-booking/**'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.github/workflows/rental-booking.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/rental-booking/**'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.github/workflows/rental-booking.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  booking:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: experiments/rental-booking
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Fetch and verify pinned modules
+        run: |
+          go mod download
+          go mod verify
+      - name: Unit, loopback protocol and frozen wire checks
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          go test -race ./...
+          go build -trimpath ./cmd/...
