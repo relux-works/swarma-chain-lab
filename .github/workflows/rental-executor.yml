@@ -1,0 +1,51 @@
+name: Rental executor checks
+on:
+  pull_request:
+    paths:
+      - 'experiments/rental-executor/**'
+      - 'experiments/rental/**'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.github/workflows/rental-executor.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/rental-executor/**'
+      - 'experiments/rental/**'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.github/workflows/rental-executor.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  executor:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: experiments/rental-executor
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Require integrated M1 dependency
+        run: test -f ../rental/go.mod && test -f ../single-use/observation.go
+      - name: Verify pinned dependencies
+        run: |
+          go mod download
+          go mod verify
+      - name: Unit, Unix sockets and protocol checks
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          go test -race ./...
+          go vet ./...
+          go build -trimpath ./cmd/rental-executor

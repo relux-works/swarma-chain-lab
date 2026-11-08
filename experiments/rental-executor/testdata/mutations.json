@@ -1,0 +1,272 @@
+[
+  {
+    "Name": "signature",
+    "File": "event.go",
+    "Old": "if err != nil || se != nil || !sig.Verify(id, p) {",
+    "New": "if false && (err != nil || se != nil || !sig.Verify(id, p)) {",
+    "Selector": "TestRequestControls/signature",
+    "Marker": "want EVENT_SIGNATURE",
+    "Core": false
+  },
+  {
+    "Name": "event-id",
+    "File": "event.go",
+    "Old": "if e.ID != e.Digest() {",
+    "New": "if false && e.ID != e.Digest() {",
+    "Selector": "TestRequestControls/id",
+    "Marker": "want EVENT_ID",
+    "Core": false
+  },
+  {
+    "Name": "kind",
+    "File": "event.go",
+    "Old": "e.Kind != RequestKind ||",
+    "New": "false ||",
+    "Selector": "TestRequestControls/kind",
+    "Marker": "want EVENT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "prose",
+    "File": "event.go",
+    "Old": "e.Content != \"\" ||",
+    "New": "false ||",
+    "Selector": "TestRequestControls/prose",
+    "Marker": "want EVENT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "duplicate-tag",
+    "File": "event.go",
+    "Old": "if _, ok := tags[t[0]]; ok {",
+    "New": "if _, ok := tags[t[0]]; false && ok {",
+    "Selector": "TestRequestControls/duplicate-tag",
+    "Marker": "want REQUEST_TAGS",
+    "Core": false
+  },
+  {
+    "Name": "tag-arity",
+    "File": "event.go",
+    "Old": "len(t) != 2 ||",
+    "New": "false ||",
+    "Selector": "TestRequestControls/tag-arity",
+    "Marker": "want REQUEST_TAGS",
+    "Core": false
+  },
+  {
+    "Name": "zero-amount",
+    "File": "event.go",
+    "Old": "n <= 0 ||",
+    "New": "false ||",
+    "Selector": "TestRequestControls/amount-zero",
+    "Marker": "want REQUEST_AMOUNT",
+    "Core": false
+  },
+  {
+    "Name": "negative-amount",
+    "File": "event.go",
+    "Old": "n <= 0 ||",
+    "New": "false ||",
+    "Selector": "TestRequestControls/amount-negative",
+    "Marker": "want REQUEST_AMOUNT",
+    "Core": false
+  },
+  {
+    "Name": "money-cap",
+    "File": "event.go",
+    "Old": "n > MaxMoney ||",
+    "New": "false ||",
+    "Selector": "TestRequestControls/amount-money-cap",
+    "Marker": "want REQUEST_AMOUNT",
+    "Core": false
+  },
+  {
+    "Name": "decimal-canonical",
+    "File": "event.go",
+    "Old": "strconv.FormatInt(n, 10) != tags[\"amount\"]",
+    "New": "false && strconv.FormatInt(n, 10) != tags[\"amount\"]",
+    "Selector": "TestRequestControls/amount-leading-zero",
+    "Marker": "want REQUEST_AMOUNT",
+    "Core": false
+  },
+  {
+    "Name": "unknown-action",
+    "File": "event.go",
+    "Old": "default:\n\t\treturn Request{}, fail(\"REQUEST_ACTION\")",
+    "New": "default:\n",
+    "Selector": "TestRequestControls/unknown-action",
+    "Marker": "want REQUEST_ACTION",
+    "Core": false
+  },
+  {
+    "Name": "json-duplicate-field",
+    "File": "event.go",
+    "Old": "func Strict(b []byte, out any) error {",
+    "New": "func Strict(b []byte, out any) error {\n return json.Unmarshal(b,out)\n",
+    "Selector": "TestRequestControls/duplicate-field",
+    "Marker": "want EVENT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "json-field-alias",
+    "File": "event.go",
+    "Old": "func Strict(b []byte, out any) error {",
+    "New": "func Strict(b []byte, out any) error {\n return json.Unmarshal(b,out)\n",
+    "Selector": "TestRequestControls/field-alias",
+    "Marker": "want EVENT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "json-unknown-field",
+    "File": "event.go",
+    "Old": "func Strict(b []byte, out any) error {",
+    "New": "func Strict(b []byte, out any) error {\n return json.Unmarshal(b,out)\n",
+    "Selector": "TestRequestControls/unknown-field",
+    "Marker": "want EVENT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "json-null-content",
+    "File": "event.go",
+    "Old": "func Strict(b []byte, out any) error {",
+    "New": "func Strict(b []byte, out any) error {\n return json.Unmarshal(b,out)\n",
+    "Selector": "TestRequestControls/null-content",
+    "Marker": "want EVENT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "json-missing-content",
+    "File": "event.go",
+    "Old": "func Strict(b []byte, out any) error {",
+    "New": "func Strict(b []byte, out any) error {\n return json.Unmarshal(b,out)\n",
+    "Selector": "TestRequestControls/missing-content",
+    "Marker": "want EVENT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "token-revocation",
+    "File": "trackb.go",
+    "Old": "!b.state.Tokens[i].Revoked &&",
+    "New": "true &&",
+    "Selector": "TestTrackBControls",
+    "Marker": "revoked key",
+    "Core": false
+  },
+  {
+    "Name": "token-match",
+    "File": "trackb.go",
+    "Old": "subtle.ConstantTimeCompare([]byte(hash), []byte(b.state.Tokens[i].TokenHash)) == 1",
+    "New": "(true || subtle.ConstantTimeCompare([]byte(hash), []byte(b.state.Tokens[i].TokenHash)) == 1)",
+    "Selector": "TestTrackBControls",
+    "Marker": "invalid token released key",
+    "Core": false
+  },
+  {
+    "Name": "token-slot",
+    "File": "trackb.go",
+    "Old": "if r.Slot == slot {",
+    "New": "if true || r.Slot == slot {",
+    "Selector": "TestTrackBControls",
+    "Marker": "invalid token released key",
+    "Core": false
+  },
+  {
+    "Name": "token-revoke-write",
+    "File": "trackb.go",
+    "Old": "b.state.Tokens[i].Revoked = true",
+    "New": "b.state.Tokens[i].Revoked = false",
+    "Selector": "TestTrackBControls",
+    "Marker": "revoked key",
+    "Core": false
+  },
+  {
+    "Name": "audit-before-release",
+    "File": "trackb.go",
+    "Old": "if e := b.audit(\"claim\", slot, hash, reason); e != nil {",
+    "New": "if e := b.audit(\"claim\", slot, hash, reason); false && e != nil {",
+    "Selector": "TestTrackBAuditFailure",
+    "Marker": "release without audit",
+    "Core": false
+  },
+  {
+    "Name": "prize-address",
+    "File": "payment.go",
+    "Old": "if keyAddress(key) == prize.Address {",
+    "New": "if false && keyAddress(key) == prize.Address {",
+    "Selector": "TestPaymentIsolation/prize-address",
+    "Marker": "isolation prize-address",
+    "Core": false
+  },
+  {
+    "Name": "reserved-input",
+    "File": "payment.go",
+    "Old": "if used[p.key()] {",
+    "New": "if false && used[p.key()] {",
+    "Selector": "TestPaymentIsolation/reserved",
+    "Marker": "isolation reserved",
+    "Core": false
+  },
+  {
+    "Name": "budget-script",
+    "File": "payment.go",
+    "Old": "if got != hex.EncodeToString(script) {",
+    "New": "if false && got != hex.EncodeToString(script) {",
+    "Selector": "TestPaymentIsolation/script",
+    "Marker": "isolation script",
+    "Core": false
+  },
+  {
+    "Name": "single-writer",
+    "File": "store.go",
+    "Old": "if syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) != nil {",
+    "New": "if false && syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) != nil {",
+    "Selector": "TestConcurrentStoreCreation",
+    "Marker": "writers=",
+    "Core": false
+  },
+  {
+    "Name": "budget",
+    "File": "executor.go",
+    "Old": "if r.Amount > MaxMoney-s.Wallet.Fee || r.Amount+s.Wallet.Fee > cert.BudgetSat-spent {",
+    "New": "if false && (r.Amount > MaxMoney-s.Wallet.Fee || r.Amount+s.Wallet.Fee > cert.BudgetSat-spent) {",
+    "Selector": "TestCoreExecutor/scopes-bindings-clock-budget",
+    "Marker": "want refused/BUDGET_EXCEEDED",
+    "Core": true
+  },
+  {
+    "Name": "nonce",
+    "File": "executor.go",
+    "Old": "if prior.Nonce == r.Nonce {",
+    "New": "if false && prior.Nonce == r.Nonce {",
+    "Selector": "TestCoreExecutor/scopes-bindings-clock-budget",
+    "Marker": "want already-executed/DURABLE_RESERVATION_NO_RETRY",
+    "Core": true
+  },
+  {
+    "Name": "kernel-live",
+    "File": "executor.go",
+    "Old": "if receipt.Verdict != \"live\" {",
+    "New": "if false && receipt.Verdict != \"live\" {",
+    "Selector": "TestCoreExecutor/mempool-and-confirmed-revocation",
+    "Marker": "want refused/KERNEL_SEAL_SPENT",
+    "Core": true
+  },
+  {
+    "Name": "file-hash",
+    "File": "executor.go",
+    "Old": "if r.Action == \"deliver\" && Hash(file) != r.Target[7:] {",
+    "New": "if false && r.Action == \"deliver\" && Hash(file) != r.Target[7:] {",
+    "Selector": "TestCoreExecutor/deliver-and-substitution",
+    "Marker": "want refused/FILE_HASH",
+    "Core": true
+  },
+  {
+    "Name": "prize-funding-block",
+    "File": "prize.go",
+    "Old": "for height := h.Height; height <= o.Tip().Blocks; height++ {",
+    "New": "previous=block\n for height := h.Height+1; height <= o.Tip().Blocks; height++ {",
+    "Selector": "TestCoreScopeAndPrize",
+    "Marker": "same-block prize spend not detected",
+    "Core": true
+  }
+]

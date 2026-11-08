@@ -74,3 +74,13 @@ From `experiments/rental`, run `go test -race ./...`,
 `go build -trimpath -o .temp/rental-plan ./cmd/rental-plan`. Its README documents
 separate opt-in Core runs, private state, public evidence and remaining M4/M5
 integration. Shared storage and fee primitives remain used by single-use too.
+
+## Rental executor and contest endpoints
+
+[Rental executor](experiments/rental-executor/README.md) adds strict renter-signed
+requests, fresh M1 checks, durable nonce/budget reservations, explicit regtest
+budget payments and separate Track B admin/claim sockets. It requires pinned M1
+63087f31 or its integrated sibling modules. From its module run
+`go test -race ./...`, `go vet ./...` and
+`go build -trimpath -o ../../.temp/rental-executor ./cmd/rental-executor`.
+See its README for exact Core/control environment and private/public artifacts.
