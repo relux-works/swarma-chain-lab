@@ -54,10 +54,21 @@ type poolReservation struct {
 	BookingID         string `json:"booking_id"`
 }
 
-// MakePlan performs no RPC, subprocess, signing or broadcast. Issue plans burn
-// a pool reservation durably before returning. A retry never reuses it, even
-// for identical inputs; a failed output write does not undo that reservation.
-func MakePlan(p IssuerPolicy, s PlanSpec, certificate, request, publication []byte, now int64) (plan Plan, err error) {
+// MakePlan returns unsigned refill/revoke plans without RPC or reservations.
+// Legacy station-anchor issuance is disabled; use IssueDetached for issuance.
+func MakePlan(p IssuerPolicy, s PlanSpec, certificate, request, publication []byte, now int64) (Plan, error) {
+	if s.Kind == "issue" {
+		return Plan{}, bad("LEGACY_ISSUANCE_DISABLED")
+	}
+	if p.Policy.AgentName != "" {
+		return makeDetachedPoolPlan(p.Policy, s)
+	}
+	return MakeLegacyPlan(p, s, certificate, request, publication, now)
+}
+
+// MakeLegacyPlan retains station-anchor issuance solely for explicit legacy
+// regression callers. New issuance signs a detached certificate instead.
+func MakeLegacyPlan(p IssuerPolicy, s PlanSpec, certificate, request, publication []byte, now int64) (plan Plan, err error) {
 	plan = Plan{Version: 1, Network: p.Policy.Network, Genesis: p.Policy.Genesis, Kind: s.Kind, Offline: true, TransactionVersion: 2, Inputs: s.Inputs, FeeRate: 200, RequiredReview: "Offline unsigned plan only; independently verify prevouts, current payment/package, signer policy and exact transaction immediately before signing. No broadcast authority."}
 	if e := p.Policy.validate(); e != nil {
 		return plan, e

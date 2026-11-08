@@ -25,11 +25,11 @@ func TestRuntimeNetworkBoundary(t *testing.T) {
 		} else {
 			q.Policy.Network = network
 		}
-		r := Check(context.Background(), nil, q.Policy, cert, q.Policy.StationName, testCertificate().GranteePubkey, 500)
+		r := CheckLegacy(context.Background(), nil, q.Policy, cert, q.Policy.StationName, testCertificate().GranteePubkey, 500)
 		if r.Verdict != "refused" || r.Reason != "REGTEST_ONLY" || r.Calls != 0 {
 			t.Fatal(r)
 		}
-		if _, e := MakePlan(q, s, cert, req, event, 500); e == nil || e.Error() != "REGTEST_ONLY" {
+		if _, e := MakeLegacyPlan(q, s, cert, req, event, 500); e == nil || e.Error() != "REGTEST_ONLY" {
 			t.Fatal(e)
 		}
 		files, e := os.ReadDir(p.Policy.StateDir)
@@ -37,7 +37,7 @@ func TestRuntimeNetworkBoundary(t *testing.T) {
 			t.Fatal("network refusal wrote state", e)
 		}
 	}
-	if _, e := MakePlan(p, s, cert, req, event, 500); e != nil {
+	if _, e := MakeLegacyPlan(p, s, cert, req, event, 500); e != nil {
 		t.Fatal("positive control", e)
 	}
 }
@@ -125,7 +125,7 @@ func unitPolicy(t *testing.T) IssuerPolicy {
 		t.Fatal(e)
 	}
 	_, provider := testKey(4)
-	return IssuerPolicy{Policy{"regtest", su.RegtestGenesis, c.IssuerPubkey, c.AgentPubkey, c.StationName, "76a914" + strings.Repeat("11", 20) + "88ac", root}, provider}
+	return IssuerPolicy{Policy{Network: "regtest", Genesis: su.RegtestGenesis, IssuerPubkey: c.IssuerPubkey, AgentPubkey: c.AgentPubkey, StationName: c.StationName, StationScript: "76a914" + strings.Repeat("11", 20) + "88ac", StateDir: root}, provider}
 }
 func unitIssue(t *testing.T) (IssuerPolicy, PlanSpec, []byte, []byte, []byte) {
 	p := unitPolicy(t)
@@ -198,7 +198,7 @@ func TestPoolReservationAndRefusals(t *testing.T) {
 				want = "CHANGE_PIN"
 			}
 			if want != "" {
-				if _, e := MakePlan(p, s, cert, req, event, 500); e == nil || e.Error() != want {
+				if _, e := MakeLegacyPlan(p, s, cert, req, event, 500); e == nil || e.Error() != want {
 					t.Fatalf("%s: %v", want, e)
 				}
 				files, _ := filepath.Glob(filepath.Join(p.Policy.StateDir, "pool-*"))
@@ -206,7 +206,7 @@ func TestPoolReservationAndRefusals(t *testing.T) {
 					t.Fatal("refusal reserved pool")
 				}
 			}
-			plan, e := MakePlan(p, original, cert, req, event, 500)
+			plan, e := MakeLegacyPlan(p, original, cert, req, event, 500)
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -223,7 +223,7 @@ func TestPoolReservationAndRefusals(t *testing.T) {
 			if in-out != plan.FeeSat || plan.FeeSat != int64(plan.MaxSignedVBytes)*200 {
 				t.Fatal("fee conservation")
 			}
-			if _, e := MakePlan(p, original, cert, req, event, 500); e == nil || e.Error() != "POOL_ALREADY_RESERVED" {
+			if _, e := MakeLegacyPlan(p, original, cert, req, event, 500); e == nil || e.Error() != "POOL_ALREADY_RESERVED" {
 				t.Fatal("pool reuse", e)
 			}
 		})
@@ -285,7 +285,7 @@ func TestPlannerPaymentConfirmation(t *testing.T) {
 			c, r, event := packageFixture(t, testCertificate(), "mfixtureAddress000000000000000000000", Point{strings.Repeat("4", 64), 0}, 0, "", policy)
 			cert := signTest(t, c, 1)
 			req, _ := json.Marshal(r)
-			if _, e := MakePlan(p, s, cert, req, eventBytes(event), 500); e == nil || e.Error() != "payment_unconfirmed" {
+			if _, e := MakeLegacyPlan(p, s, cert, req, eventBytes(event), 500); e == nil || e.Error() != "payment_unconfirmed" {
 				t.Fatal(e)
 			}
 			files, e := os.ReadDir(p.Policy.StateDir)
@@ -295,7 +295,7 @@ func TestPlannerPaymentConfirmation(t *testing.T) {
 			r.PaymentHeight = 1
 			r.PaymentBlockHash = strings.Repeat("5", 64)
 			req, _ = json.Marshal(r)
-			if _, e := MakePlan(p, s, cert, req, eventBytes(event), 500); e != nil {
+			if _, e := MakeLegacyPlan(p, s, cert, req, eventBytes(event), 500); e != nil {
 				t.Fatal("confirmed neighbor", e)
 			}
 		})
@@ -305,7 +305,7 @@ func TestPlannerPaymentConfirmation(t *testing.T) {
 // A previously reserved booking cannot switch to a fresh seal on retry.
 func TestBookingReservation(t *testing.T) {
 	p, s, cert, req, event := unitIssue(t)
-	if _, e := MakePlan(p, s, cert, req, event, 500); e != nil {
+	if _, e := MakeLegacyPlan(p, s, cert, req, event, 500); e != nil {
 		t.Fatal(e)
 	}
 	var env Envelope
@@ -313,7 +313,7 @@ func TestBookingReservation(t *testing.T) {
 	env.Certificate.Seal.TxID = strings.Repeat("a", 64)
 	s.Pool.Point = env.Certificate.Seal
 	cert = signTest(t, env.Certificate, 1)
-	if _, e := MakePlan(p, s, cert, req, event, 500); e == nil || e.Error() != "BOOKING_ALREADY_RESERVED" {
+	if _, e := MakeLegacyPlan(p, s, cert, req, event, 500); e == nil || e.Error() != "BOOKING_ALREADY_RESERVED" {
 		t.Fatal(e)
 	}
 }
@@ -322,14 +322,14 @@ func TestBookingReservation(t *testing.T) {
 // already burned by the first booking. The booking-id guard is not sufficient.
 func TestPoolDifferentBooking(t *testing.T) {
 	p, s, cert, req, event := unitIssue(t)
-	if _, e := MakePlan(p, s, cert, req, event, 500); e != nil {
+	if _, e := MakeLegacyPlan(p, s, cert, req, event, 500); e != nil {
 		t.Fatal(e)
 	}
 	var env Envelope
 	_ = json.Unmarshal(cert, &env)
 	c, r, pub := packageFixture(t, env.Certificate, "mfixtureAddress000000000000000000000", Point{strings.Repeat("4", 64), 0}, 1, strings.Repeat("5", 64), "advance", strings.Repeat("f", 64))
 	raw, _ := json.Marshal(r)
-	if _, e := MakePlan(p, s, signTest(t, c, 1), raw, eventBytes(pub), 500); e == nil || e.Error() != "POOL_ALREADY_RESERVED" {
+	if _, e := MakeLegacyPlan(p, s, signTest(t, c, 1), raw, eventBytes(pub), 500); e == nil || e.Error() != "POOL_ALREADY_RESERVED" {
 		t.Fatal("different booking reused seal", e)
 	}
 }
@@ -340,7 +340,7 @@ func TestPoolCrashAfterReservation(t *testing.T) {
 	p, s, cert, req, event := unitIssue(t)
 	if os.Getenv("M1_CRASH_CHILD") == "1" {
 		p.Policy.StateDir = os.Getenv("M1_CRASH_ROOT")
-		if _, e := MakePlan(p, s, cert, req, event, 500); e != nil {
+		if _, e := MakeLegacyPlan(p, s, cert, req, event, 500); e != nil {
 			os.Exit(84)
 		}
 		os.Exit(85)
@@ -358,7 +358,7 @@ func TestPoolCrashAfterReservation(t *testing.T) {
 	if len(pool) != 1 || len(booking) != 1 {
 		t.Fatal("missing durable records")
 	}
-	if _, e := MakePlan(p, s, cert, req, event, 500); e == nil || e.Error() != "POOL_ALREADY_RESERVED" {
+	if _, e := MakeLegacyPlan(p, s, cert, req, event, 500); e == nil || e.Error() != "POOL_ALREADY_RESERVED" {
 		t.Fatal(e)
 	}
 }

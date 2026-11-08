@@ -44,7 +44,7 @@ func noCertificateRecord(t *testing.T, p Policy) {
 }
 func (l *coreLab) revoke(pool PoolOutput, mine bool) string {
 	p := l.policy("revoke-planner")
-	plan, e := MakePlan(IssuerPolicy{Policy: p}, PlanSpec{Kind: "revoke", Inputs: []su.PlanInput{{Point: su.Point{TxID: pool.Point.TxID, Vout: pool.Point.Vout}, ValueSat: pool.ValueSat, Script: pool.Script, Role: "seal"}}, ChangeScript: l.script, Pool: pool}, nil, nil, nil, 500)
+	plan, e := MakeLegacyPlan(IssuerPolicy{Policy: p}, PlanSpec{Kind: "revoke", Inputs: []su.PlanInput{{Point: su.Point{TxID: pool.Point.TxID, Vout: pool.Point.Vout}, ValueSat: pool.ValueSat, Script: pool.Script, Role: "seal"}}, ChangeScript: l.script, Pool: pool}, nil, nil, nil, 500)
 	if e != nil {
 		l.t.Fatal(e)
 	}

@@ -21,6 +21,8 @@ type Policy struct {
 	StationName   string `json:"station_name"`
 	StationScript string `json:"station_script"`
 	StateDir      string `json:"state_dir"`
+	AgentName     string `json:"agent_name,omitempty"`
+	SealScript    string `json:"seal_script,omitempty"`
 }
 type Anchor struct {
 	TxID   string `json:"txid"`
@@ -65,11 +67,11 @@ func p2pkh(s string) bool {
 	return e == nil && hex.EncodeToString(b) == s && len(b) == 25 && bytes.Equal(b[:3], []byte{0x76, 0xa9, 20}) && bytes.Equal(b[23:], []byte{0x88, 0xac})
 }
 
-// Check authenticates a rental and observes the admitted own node. Only live
+// CheckLegacy authenticates a v1 rental against its station anchor. Only live
 // admits; it does not authorize any action. Caller supplies the authenticated
 // NIP-17 inner-seal key and a trusted UTC clock. Observation is not atomic with
 // the chain after return; each effect requires a new check.
-func Check(ctx context.Context, node su.Node, p Policy, raw []byte, stationName, senderPubkey string, nowUnix int64) (r Receipt) {
+func CheckLegacy(ctx context.Context, node su.Node, p Policy, raw []byte, stationName, senderPubkey string, nowUnix int64) (r Receipt) {
 	started := time.Now()
 	r = Receipt{Version: 1, Verdict: "refused", CertificateSHA256: Hash(raw), StationName: stationName, CheckedAt: nowUnix}
 	refuse := func(e error) Receipt { r.Reason = e.Error(); return r }

@@ -1,6 +1,8 @@
 # CIP-0004 draft: confirmed seal pool and offline plans
 
-Status: M1 handoff draft, regtest evidence only.
+Status: historical M1 v1 handoff draft, retained for explicit `MakeLegacyPlan`
+regression callers. Default issuance is now [detached v2](LIP-0003-PROFILE.md).
+Regtest evidence only.
 
 A station keeps ordinary P2PKH outputs at its pinned name-owner address.
 Refill makes N equal outputs (1..16, at least 100000 sat each) from explicit

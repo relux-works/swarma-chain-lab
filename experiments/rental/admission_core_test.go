@@ -171,7 +171,7 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 			s.Pool = PoolOutput{Point: Point{foreign, 0}, ValueSat: 1000000, Script: fv.Vout[0].Script.Hex, Height: fh.Height, Block: fv.Block}
 			c.Seal = s.Pool.Point
 			raw = signTest(t, c, 1)
-			if _, e := MakePlan(ip, s, raw, r, e, 500); e == nil || e.Error() != "POOL_STATION_BINDING" {
+			if _, e := MakeLegacyPlan(ip, s, raw, r, e, 500); e == nil || e.Error() != "POOL_STATION_BINDING" {
 				t.Fatal(mode, e)
 			}
 			s.Pool = pool
@@ -179,7 +179,7 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 			raw = signTest(t, c, 1)
 		}
 		if mode == "unconfirmed-pool" {
-			if _, err := MakePlan(ip, s, raw, r, e, 500); err == nil || err.Error() != "POOL_UNCONFIRMED" {
+			if _, err := MakeLegacyPlan(ip, s, raw, r, e, 500); err == nil || err.Error() != "POOL_UNCONFIRMED" {
 				t.Fatal(mode, err)
 			}
 			l.mine(1)
@@ -190,7 +190,7 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 			s.Pool.Height = h.Height
 			s.Pool.Block = v.Block
 		}
-		plan, err := MakePlan(ip, s, raw, r, e, 500)
+		plan, err := MakeLegacyPlan(ip, s, raw, r, e, 500)
 		if err != nil {
 			t.Fatal("pool valid neighbor", err)
 		}
@@ -199,7 +199,7 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 			c.NotAfter++
 			c, r, e = l.requestFor(c, id, "advance")
 			raw = signTest(t, c, 1)
-			if _, err := MakePlan(ip, s, raw, r, e, 500); err == nil || err.Error() != "POOL_ALREADY_RESERVED" {
+			if _, err := MakeLegacyPlan(ip, s, raw, r, e, 500); err == nil || err.Error() != "POOL_ALREADY_RESERVED" {
 				t.Fatal(mode, err)
 			}
 		}

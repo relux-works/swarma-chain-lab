@@ -95,7 +95,7 @@ func TestCoreCLI(t *testing.T) {
 		t.Helper()
 		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, binary, "check", "--policy", policyPath, "--route", routePath, "--certificate", certPath, "--station", l.station, "--sender", c.GranteePubkey, "--at", "500")
+		cmd := exec.CommandContext(ctx, binary, "check-legacy", "--policy", policyPath, "--route", routePath, "--certificate", certPath, "--station", l.station, "--sender", c.GranteePubkey, "--at", "500")
 		out, e := cmd.Output()
 		code := 0
 		if e != nil {

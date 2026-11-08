@@ -34,6 +34,8 @@ func main() {
 	cert := fs.String("certificate", "", "canonical signed certificate")
 	request := fs.String("request", "", "M3 issuance request")
 	event := fs.String("package-event", "", "signed M3 package publication")
+	ids := fs.String("ids", "", "JSON array of certificate ids for optional batch")
+	enableBatch := fs.Bool("enable-batch", false, "explicitly enable offline batch anchoring")
 	at := fs.Int64("at", -1, "regtest clock override")
 	if fs.Parse(os.Args[2:]) != nil || fs.NArg() != 0 {
 		die("ARGUMENTS")
@@ -46,6 +48,20 @@ func main() {
 	now := time.Now().Unix()
 	if *at >= 0 {
 		now = *at
+	}
+	if kind == "batch-anchor" {
+		var leaves []string
+		if su.StrictInput(read(*ids), &leaves) != nil {
+			die("BATCH_IDS")
+		}
+		plan, e := rental.MakeBatchAnchorPlan(p.Policy, s, leaves, *enableBatch)
+		if e != nil {
+			die(e.Error())
+		}
+		if json.NewEncoder(os.Stdout).Encode(plan) != nil {
+			os.Exit(1)
+		}
+		return
 	}
 	plan, e := rental.MakePlan(p, s, read(*cert), read(*request), read(*event), now)
 	if e != nil {

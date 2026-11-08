@@ -1,21 +1,25 @@
 # Remaining integration decisions
 
-- M1 is regtest-only. Mainnet runtime admission, deployment, real keys, signer
-  caps, payment sweeping, revocation broadcast and production availability are
-  M4/M5 work; no source build or passing test authorizes them.
-- M4 owns structured renter requests, scope/target/budget enforcement,
-  anti-replay, prize-outpoint exclusion and effects. Kernel scope output alone
-  is never authority for an effect.
-- Gateway/issuer must keep persistent state off hostile station UIDs. Backup,
-  restore and disaster recovery must preserve burned reservations/closures.
-- Payment serialization supports bounded legacy and witness transactions;
-  anchor/seal/W3 signer paths remain legacy-only. Any future widening beyond
-  the stated payment resource bounds needs separate controls. Both payment
-  policies require active confirmation; start_now is a two-block path.
-- A first kernel observation cannot prove previously unobserved name history.
-  A deployment needing universal historical closure must provide a trusted
-  persistent observer or a separately specified history-reconstruction rule.
-- M3 hold bounds are signed; late arrival refuses for operator/refund review.
-  v1 does not accept a watcher receipt as proof of earlier payment observation.
-- The CIP drafts here require independent review and transfer to the public
-  swarma-link-spec repository by its owner. M1 producer does not publish it.
+- This is regtest-only. Production keys, deployment, signing caps, payment
+  sweeping, revocation broadcast and availability remain separate work.
+- Gateway adoption must use the detached policy, authenticated inner sender,
+  inline exact-id presentation and a fresh Check for every message. Retaining
+  the Go call shape does not migrate an old policy or signed wire automatically.
+- M4 owns scope/target/budget, anti-replay, prize exclusion and effects. Kernel
+  output alone does not authorize them. Time/chain observations are not atomic
+  with an external effect.
+- Persistent state belongs outside hostile station UIDs. Disaster recovery must
+  preserve closure, seen-seal indices and issuer booking/pool burns. Automatic
+  recovery of uncertain signatures is intentionally absent.
+- First observers cannot infer unseen key rotations. Same-seal equivocation
+  across independent verifiers remains possible without shared history.
+- Grant-key rotation needs new seal ownership/policy pins for new grants and
+  continued old policy/state observation for old certificates.
+- Batch roots do not authenticate count under odd-tail duplication. Callers
+  must independently pin metadata; no production metadata service is included.
+- Bounded legacy/witness read decoding does not validate transaction input
+  signatures locally; the own Core active-chain view supplies that validation.
+  Legacy W3 signer profile is unchanged. Detached start_now has no anchor block;
+  payment and pool must already be confirmed, signed hold bounds still apply.
+- Public LIP/CIP specification publication and production custody review belong
+  to their owners; this producer supplies source/evidence for independent review.

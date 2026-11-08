@@ -204,7 +204,7 @@ func (l *coreLab) policy(label string) Policy {
 	if e := os.Mkdir(root, 0700); e != nil {
 		l.t.Fatal(e)
 	}
-	return Policy{"regtest", su.RegtestGenesis, c.IssuerPubkey, c.AgentPubkey, l.station, l.script, root}
+	return Policy{Network: "regtest", Genesis: su.RegtestGenesis, IssuerPubkey: c.IssuerPubkey, AgentPubkey: c.AgentPubkey, StationName: l.station, StationScript: l.script, StateDir: root}
 }
 func (l *coreLab) fund() su.PlanInput {
 	l.t.Helper()
@@ -256,7 +256,7 @@ func (l *coreLab) sendPlan(p Plan, mine bool) string {
 }
 func (l *coreLab) pool(p Policy, mine bool) PoolOutput {
 	l.t.Helper()
-	plan, e := MakePlan(IssuerPolicy{Policy: p}, PlanSpec{Kind: "refill", Inputs: []su.PlanInput{l.fund()}, ChangeScript: l.script, Count: 2, ValueSat: 1000000}, nil, nil, nil, 500)
+	plan, e := MakeLegacyPlan(IssuerPolicy{Policy: p}, PlanSpec{Kind: "refill", Inputs: []su.PlanInput{l.fund()}, ChangeScript: l.script, Count: 2, ValueSat: 1000000}, nil, nil, nil, 500)
 	if e != nil {
 		l.t.Fatal(e)
 	}
@@ -359,7 +359,7 @@ func (l *coreLab) issueFixture(label string) (Policy, Certificate, []byte, PoolO
 	}
 	in := previous.Vout[name.Vout]
 	spec := PlanSpec{Kind: "issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: name.TxID, Vout: name.Vout}, ValueSat: int64(in.Value), Script: in.Script.Hex, Role: "name"}, l.fund()}, ChangeScript: l.script, Pool: pool}
-	plan, e := MakePlan(ip, spec, raw, request, eventBytes(event), 500)
+	plan, e := MakeLegacyPlan(ip, spec, raw, request, eventBytes(event), 500)
 	if e != nil {
 		l.t.Fatal(e)
 	}
@@ -372,7 +372,7 @@ func (l *coreLab) issueFixture(label string) (Policy, Certificate, []byte, PoolO
 }
 func (l *coreLab) check(label string, node su.Node, p Policy, raw []byte, sender string, now int64, want, reason string, closed bool) Receipt {
 	l.t.Helper()
-	r := Check(context.Background(), node, p, raw, l.station, sender, now)
+	r := CheckLegacy(context.Background(), node, p, raw, l.station, sender, now)
 	l.save(label+".json", r)
 	if r.Verdict != want || r.Reason != reason || r.Closed != closed {
 		l.t.Fatalf("%s: want %s/%s closed%v; %+v", label, want, reason, closed, r)
@@ -387,7 +387,7 @@ func TestCoreLifecycle(t *testing.T) {
 	l := newCore(t)
 	p, c, raw, pool := l.issueFixture("lifecycle")
 	l.check("live", l.observer, p, raw, c.GranteePubkey, 500, "live", "LIVE", false)
-	plan, e := MakePlan(IssuerPolicy{Policy: p}, PlanSpec{Kind: "revoke", Inputs: []su.PlanInput{{Point: su.Point{TxID: pool.Point.TxID, Vout: pool.Point.Vout}, ValueSat: pool.ValueSat, Script: pool.Script, Role: "seal"}}, ChangeScript: l.script, Pool: pool}, nil, nil, nil, 500)
+	plan, e := MakeLegacyPlan(IssuerPolicy{Policy: p}, PlanSpec{Kind: "revoke", Inputs: []su.PlanInput{{Point: su.Point{TxID: pool.Point.TxID, Vout: pool.Point.Vout}, ValueSat: pool.ValueSat, Script: pool.Script, Role: "seal"}}, ChangeScript: l.script, Pool: pool}, nil, nil, nil, 500)
 	if e != nil {
 		t.Fatal(e)
 	}

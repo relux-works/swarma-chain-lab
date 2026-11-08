@@ -23,7 +23,7 @@ func read(path string) []byte {
 	return b
 }
 func main() {
-	if len(os.Args) < 2 || (os.Args[1] != "check" && os.Args[1] != "admit-issuance") {
+	if len(os.Args) < 2 || (os.Args[1] != "check" && os.Args[1] != "present" && os.Args[1] != "check-legacy" && os.Args[1] != "admit-issuance") {
 		die("COMMAND")
 	}
 	fs := flag.NewFlagSet("rental-kernel", flag.ContinueOnError)
@@ -32,6 +32,8 @@ func main() {
 	operator := fs.Bool("operator-route", false, "use hash-pinned CLI operator route")
 	cert := fs.String("certificate", "", "canonical signed envelope")
 	station := fs.String("station", "", "station name")
+	agent := fs.String("agent", "", "pinned agent identity name")
+	id := fs.String("id", "", "expected envelope id for inline presentation")
 	sender := fs.String("sender", "", "authenticated inner-seal public key")
 	request := fs.String("request", "", "M3 issuance request")
 	publication := fs.String("package-event", "", "signed M3 package publication")
@@ -45,7 +47,7 @@ func main() {
 	}
 	var p rental.Policy
 	var ip rental.IssuerPolicy
-	if os.Args[1] == "check" {
+	if os.Args[1] != "admit-issuance" {
 		if su.StrictInput(read(*policy), &p) != nil {
 			die("POLICY_INPUT")
 		}
@@ -91,7 +93,23 @@ func main() {
 		}
 		return
 	}
-	r := rental.Check(context.Background(), node, p, read(*cert), *station, *sender, now)
+	name := *agent
+	if name == "" {
+		name = *station
+	}
+	if *agent != "" && *station != "" && *agent != *station {
+		die("AGENT_NAME_ARGUMENT")
+	}
+	check := rental.Check
+	if os.Args[1] == "check-legacy" {
+		check = rental.CheckLegacy
+	}
+	var r rental.Receipt
+	if os.Args[1] == "present" {
+		r = rental.Present(context.Background(), node, p, read(*cert), *id, name, *sender, now)
+	} else {
+		r = check(context.Background(), node, p, read(*cert), name, *sender, now)
+	}
 	if json.NewEncoder(os.Stdout).Encode(r) != nil {
 		os.Exit(1)
 	}

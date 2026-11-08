@@ -1,6 +1,8 @@
 # CIP-0003 draft: rental certificates and kernel observations
 
-Status: M1 handoff draft; separate format, no KeyVault schema change.
+Status: historical M1 v1 handoff draft, retained for explicit `CheckLegacy`
+regression callers. The default is now [detached v2](LIP-0003-PROFILE.md).
+Separate format; no KeyVault schema change.
 
 ## Signed bytes
 
