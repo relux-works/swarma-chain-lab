@@ -47,3 +47,5 @@ executor with explicit network pins, genuine Core controls and an offline mainne
 The experiment README lists opt-in Core harness inputs and exact CLI commands.
 Build scratch belongs in `.temp/`; admitted harness runs separate `public/`
 evidence from private node/wallet state. Mainnet use requires separate review and runtime admission.
+Spend discovery tolerates unrelated witness/large-input traffic while retaining
+strict legacy checks for seal-spend candidates and explicit observation budgets.

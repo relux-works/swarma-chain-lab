@@ -277,6 +277,113 @@ func (o *observation) transaction(id string) (rpcTx, *Transaction, error) {
 	if e := o.call("getrawtransaction", &view, id, true); e != nil {
 		return view, nil, e
 	}
+	return bindTransaction(id, view)
+}
+
+// Discovery trusts the admitted own-node's exact verbose outpoint projection
+// only to select candidates. Unrelated transactions need not fit the candidate
+// legacy profile. A selected candidate must pass every raw binding check using
+// this same reply; it is never re-fetched between selection and validation.
+func (o *observation) spendCandidate(id string, seal Point) (rpcTx, *Transaction, error) {
+	var view rpcTx
+	if !digestHex(id) {
+		return view, nil, fail("TXID")
+	}
+	var raw json.RawMessage
+	if e := o.call("getrawtransaction", &raw, id, true); e != nil {
+		return view, nil, e
+	}
+	return projectCandidate(raw, id, seal)
+}
+
+func projectCandidate(raw json.RawMessage, id string, seal Point) (rpcTx, *Transaction, error) {
+	var view rpcTx
+	var selection struct {
+		id  string
+		vin []Point
+	}
+	if e := sealwatch.ProjectJSON(raw, map[string]any{"txid": &selection.id, "vin": &selection.vin}, nil); e != nil {
+		return view, nil, fail("NODE_PROJECTION")
+	}
+	if selection.id != id {
+		return view, nil, fail("DISCOVERY_TXID")
+	}
+	if len(selection.vin) == 0 {
+		return view, nil, fail("DISCOVERY_INPUTS")
+	}
+	matched := false
+	for _, in := range selection.vin {
+		if !digestHex(in.TxID) {
+			return view, nil, fail("DISCOVERY_INPUTS")
+		}
+		matched = matched || in == seal
+	}
+	if !matched {
+		return view, nil, nil
+	}
+	if e := sealwatch.DecodeJSON(raw, &view); e != nil {
+		return view, nil, fail("NODE_PROJECTION")
+	}
+	return bindTransaction(id, view)
+}
+
+type discoveryBlock struct {
+	Hash   string
+	Height int64
+	Tx     []json.RawMessage
+}
+
+func (v *discoveryBlock) UnmarshalJSON(b []byte) error {
+	return sealwatch.ProjectJSON(b, map[string]any{"hash": &v.Hash, "height": &v.Height, "tx": &v.Tx}, nil)
+}
+
+// Verbosity 2 amortizes discovery to one bounded reply per block, instead of
+// spending one RPC on every unrelated transaction. Membership checks for the
+// accepted anchor/seal/spend still independently use active headers and v1.
+func (o *observation) scanBlock(block string, height int64) (discoveryBlock, []string, error) {
+	var b discoveryBlock
+	if e := o.call("getblock", &b, block, 2); e != nil {
+		return b, nil, e
+	}
+	if b.Hash != block || b.Height != height || len(b.Tx) == 0 || len(b.Tx) > 10000 {
+		return b, nil, fail("BLOCK_PROJECTION")
+	}
+	ids := make([]string, len(b.Tx))
+	seen := map[string]bool{}
+	for i, raw := range b.Tx {
+		if e := sealwatch.ProjectJSON(raw, map[string]any{"txid": &ids[i]}, nil); e != nil {
+			return b, nil, fail("NODE_PROJECTION")
+		}
+		if !digestHex(ids[i]) || seen[ids[i]] {
+			return b, nil, fail("BLOCK_TXIDS")
+		}
+		seen[ids[i]] = true
+	}
+	return b, ids, nil
+}
+
+func candidateInBlock(raw json.RawMessage, id string, seal Point, block string, confirmations int64) (rpcTx, *Transaction, error) {
+	view, tx, e := projectCandidate(raw, id, seal)
+	if e != nil || tx == nil {
+		return view, tx, e
+	}
+	// Core's verbosity-2 entries normally omit this context. If supplied by
+	// another compatible node, it must agree; never overwrite a contradiction.
+	var fields map[string]json.RawMessage
+	if e := json.Unmarshal(raw, &fields); e != nil {
+		return view, nil, fail("NODE_PROJECTION")
+	}
+	if _, ok := fields["blockhash"]; ok && view.Block != block {
+		return view, nil, fail("BLOCK_CANDIDATE_BINDING")
+	}
+	if _, ok := fields["confirmations"]; ok && view.Confirmations != confirmations {
+		return view, nil, fail("BLOCK_CANDIDATE_BINDING")
+	}
+	view.Block, view.Confirmations = block, confirmations
+	return view, tx, nil
+}
+
+func bindTransaction(id string, view rpcTx) (rpcTx, *Transaction, error) {
 	raw, e := hex.DecodeString(view.Hex)
 	if e != nil || hex.EncodeToString(raw) != view.Hex || view.TxID != id {
 		return view, nil, fail("TX_HEX")

@@ -216,20 +216,24 @@ func (o *observation) proof(p Policy, cert, req []byte) (string, bool, error) {
 	}
 	var found []candidate
 	seen := map[string]bool{}
-	inspect := func(id string) error {
+	inspect := func(id string, raw json.RawMessage, block string, confirmations int64) error {
 		if seen[id] {
 			return nil
 		}
 		seen[id] = true
-		view, tx, e := o.transaction(id)
+		var view rpcTx
+		var tx *Transaction
+		var e error
+		if raw == nil {
+			view, tx, e = o.spendCandidate(id, p.Seal)
+		} else {
+			view, tx, e = candidateInBlock(raw, id, p.Seal, block, confirmations)
+		}
 		if e != nil {
 			return e
 		}
-		for _, in := range tx.Inputs {
-			if in.Point == p.Seal {
-				found = append(found, candidate{view, tx})
-				break
-			}
+		if tx != nil {
+			found = append(found, candidate{view, tx})
 		}
 		return nil
 	}
@@ -238,14 +242,14 @@ func (o *observation) proof(p Policy, cert, req []byte) (string, bool, error) {
 		if e = o.call("getblockhash", &blockHash, height); e != nil {
 			return "", false, e
 		}
-		b, e := o.block(blockHash, height)
+		b, ids, e := o.scanBlock(blockHash, height)
 		if e != nil {
 			return "", false, e
 		}
 		// Core block order identifies the first transaction as coinbase. Its witness
 		// serialization is irrelevant to a spend of a pre-existing seal.
-		for _, id := range b.Tx[1:] {
-			if e = inspect(id); e != nil {
+		for i, id := range ids[1:] {
+			if e = inspect(id, b.Tx[i+1], blockHash, o.tip.Blocks-height+1); e != nil {
 				return "", false, e
 			}
 		}
@@ -254,14 +258,14 @@ func (o *observation) proof(p Policy, cert, req []byte) (string, bool, error) {
 	if e = o.call("getrawmempool", &mempool); e != nil {
 		return "", false, e
 	}
-	if mempool == nil || len(mempool) > 256 {
+	if mempool == nil {
 		return "", false, fail("MEMPOOL_BOUND")
 	}
 	for _, id := range mempool {
 		if !digestHex(id) {
 			return "", false, fail("MEMPOOL_TXID")
 		}
-		if e = inspect(id); e != nil {
+		if e = inspect(id, nil, "", 0); e != nil {
 			return "", false, e
 		}
 	}

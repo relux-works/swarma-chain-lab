@@ -68,14 +68,30 @@ whitelisting as well. Methods: `getblockchaininfo`, `getblockhash`,
 `getblockheader`, `getrawtransaction`, `gettxout`, `name_show`, `getrawmempool`,
 `getblock`. `gettxout` is permitted but currently unused. W7 sealwatch exports
 provide duplicate/fold-alias rejection and exact relevant-field projections;
-unrelated Core metadata remains allowed. Raw transaction bytes are bound to
-projected inputs/outputs, txid and active block membership.
+unrelated Core metadata remains allowed. Discovery projects exact `txid` and
+`vin[].{txid,vout}` from verbose Core replies. Unrelated transactions are not
+required to fit the seal spend's legacy profile. Candidate raw bytes remain
+bound to all projected inputs/outputs, txid and active block membership;
+selection and raw validation use the same reply. This relies on the admitted
+own-node's input projection for discovery, not on arbitrary remote JSON.
+
+Blocks use `getblock HASH 2`, one bounded verbose reply per block. Candidates
+inherit the enclosing block context; explicitly supplied conflicting context
+refuses. Independent active-header and membership checks still apply. Mempool
+entries use `getrawtransaction TXID true`; there is no 256-entry cutoff. With
+N scanned blocks and M distinct mempool entries not already in those blocks,
+a successful fresh confirmed execution takes at most **26 + 2N + M RPCs**,
+including the final pre-reservation checks (public signature verification is
+local). Replay takes zero. Exhausted resource budgets still refuse before any
+journal/effect; this is not a claim of availability for unbounded chain load.
 
 Limits: 30 seconds, 1,024 calls, 32 MiB total replies, 8 MiB per reply, at most
-64 blocks of seal age (65 inclusive block positions), 256 mempool entries,
-1 MiB legacy transactions, 64 inputs/outputs, 10,000-byte scripts. Witness
-transactions encountered in the scan refuse; coinbase is skipped. This bounded
-legacy-only scan is unsuitable for arbitrary busy chains without further work.
+64 blocks of seal age (65 inclusive block positions), 10,000 transactions per
+block. Anchor, seal and candidate transactions retain the strict 1 MiB legacy
+profile, 64 inputs/outputs and 10,000-byte scripts. Unrelated witness and
+larger-input transactions are allowed; a witness or oversized candidate still
+refuses. Coinbase is skipped. Busy chains can still exhaust the observation
+time/call/byte budgets; a spend-index/proof adapter remains separate work.
 The `headers` counter is bounded metadata, not an active-tip authority: genuine
 Core after invalidate/reconsider can report `blocks=117, headers=116, IBD=false`.
 Active hashes, headers, membership and repeated tip checks provide the proof.
@@ -126,6 +142,25 @@ public verifier and signer are separately pinned dependencies, not built here.
 Per-run `public/` holds commands, exit codes, receipts, control results and node
 lifecycle. `private/` holds wallets, cookie, routes, node logs and executor state;
 never distribute that directory. Tests require valid, unexpired public fixtures.
+
+Discovery regressions use the same environment and a **different new run root
+for each test**:
+
+```sh
+for name in WitnessMempool WitnessBlock ManyInputsMempool ManyInputsBlock LargeMempool DiscoveryRefusals; do
+  W3_RUN_ROOT="/absolute/new/discovery-$name" \
+    go test -count=1 -v -run "^TestGenuineCore${name}$" .
+done
+```
+
+They cover genuine unrelated witness traffic in blocks and mempool, 65-input
+noise, 257 independent mempool transactions (including the operator CLI
+transport), unchanged candidate commitment rejection, and explicitly labelled
+Core-reply corruption. The original executor is a bounded regression control:
+the witness/65-input cases must fail with `LEGACY_INPUT_BOUND`, and the 257-entry
+case with `MEMPOOL_BOUND`, while their clean neighbors execute. Fixture setup
+failures or skipped tests do not establish those controls. Block projection and
+candidate raw/context binding also have offline positive/negative unit tests.
 
 The 47 matrix controls each assert the specified refusal/pending/replay outcome
 and state/effect counts next to a valid control. Three named alias/conflict cases
