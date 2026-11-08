@@ -117,6 +117,18 @@ func writeScript(w *bytes.Buffer, b []byte) { putVar(w, uint64(len(b))); w.Write
 // DecodeTransaction accepts bounded legacy serialization only. Witness spends
 // are outside this v0 P2SH profile; no decoder fallback guesses their meaning.
 func DecodeTransaction(raw []byte) (*Transaction, error) {
+	return decodeTransaction(raw, false)
+}
+
+// DecodePaymentTransaction also accepts bounded witness serialization. It
+// returns the stripped transaction for txid/output binding, not a signed wire
+// transaction for rebroadcast. Witness script/signature validity belongs to
+// the admitted Core node; this parser validates serialization only.
+func DecodePaymentTransaction(raw []byte) (*Transaction, error) {
+	return decodeTransaction(raw, true)
+}
+
+func decodeTransaction(raw []byte, allowWitness bool) (*Transaction, error) {
 	if len(raw) < 10 || len(raw) > 1<<20 {
 		return nil, fail("TX_SIZE")
 	}
@@ -126,6 +138,15 @@ func DecodeTransaction(raw []byte) (*Transaction, error) {
 		return nil, fail("TX_VERSION")
 	}
 	n, e := readVar(r)
+	witness := false
+	if e == nil && n == 0 && allowWitness {
+		flag, err := r.ReadByte()
+		if err != nil || flag != 1 {
+			return nil, fail("WITNESS_FLAG")
+		}
+		witness = true
+		n, e = readVar(r)
+	}
 	if e != nil || n == 0 || n > 64 {
 		return nil, fail("LEGACY_INPUT_BOUND")
 	}
@@ -167,6 +188,28 @@ func DecodeTransaction(raw []byte) (*Transaction, error) {
 			return nil, e
 		}
 		tx.Outputs = append(tx.Outputs, out)
+	}
+	if witness {
+		anyStack := false
+		for range tx.Inputs {
+			count, e := readVar(r)
+			if e != nil || count > 1000 {
+				return nil, fail("WITNESS_STACK_BOUND")
+			}
+			anyStack = anyStack || count > 0
+			for j := uint64(0); j < count; j++ {
+				size, e := readVar(r)
+				if e != nil || size > 10000 || size > uint64(r.Len()) {
+					return nil, fail("WITNESS_ITEM_BOUND")
+				}
+				if _, e = r.Seek(int64(size), io.SeekCurrent); e != nil {
+					return nil, fail("WITNESS_ITEM_BOUND")
+				}
+			}
+		}
+		if !anyStack {
+			return nil, fail("WITNESS_SUPERFLUOUS")
+		}
 	}
 	if binary.Read(r, binary.LittleEndian, &tx.Locktime) != nil || r.Len() != 0 {
 		return nil, fail("TX_TRAILING")

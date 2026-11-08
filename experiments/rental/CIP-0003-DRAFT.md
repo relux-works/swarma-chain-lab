@@ -97,8 +97,11 @@ First online admission for **both** advance and start_now requires trusted
 `now < hold_expires_at`; equality refuses `hold_expired_at_admission` for
 refund/operator review. Never use miner block time as observation time. M3's
 default hold is 1800 seconds, configurable within its 1200..1800 policy.
-Advance requires payment confirmed in the active chain now. Start_now accepts
-the exact transaction in the current mempool or active chain. Match the exact
+Both advance and start_now require payment confirmed in the active chain now.
+A mempool-only or rolled-back payment refuses `payment_unconfirmed`; a wallet
+sequence number cannot disable full RBF. Start_now means the slot starts after
+the subsequent anchor confirmation (two blocks total), not mempool issuance.
+Match the exact
 outpoint amount/address to the signed contract; a replacement transaction is
 not a substitute even if it pays the same amount/address. Recheck before
 return. Missing transaction/read failure refuses; it need not be distinguished
@@ -108,3 +111,13 @@ AdmitIssuance is read-only and not a durable spending capability. M4 must
 invoke it immediately before signing and independently verify pool/funding
 prevouts, templates and caps. Payment replacement/disappearance after issue
 triggers revocation. Start_now never relaxes the confirmed anchor/seal rules.
+
+Payment serialization may be legacy or witness. The shared decoder validates
+the exact marker/flag (00/01), minimal CompactSize values, witness stack for
+each input, non-superfluous witness and complete consumption through locktime.
+Bounds: 1 MiB raw, 64 inputs/outputs, 1000 witness items per input and 10000
+bytes per script/item. Use stripped txid, not wtxid; bind raw outputs and
+projected outpoints. Core establishes witness script/signature validity and
+active confirmation. This read path returns a stripped transaction view; it
+is not a witness-preserving signing/rebroadcast API. Anchor/seal decoding and
+W3 signer attribution retain their existing legacy-only profile.

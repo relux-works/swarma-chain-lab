@@ -76,7 +76,7 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 		t.Fatal(e)
 	}
 	l.rpc("", "invalidateblock", view.Block)
-	check("advance-reorg", req, event, 500, "refused", "PAYMENT_UNCONFIRMED")
+	check("advance-reorg", req, event, 500, "refused", "payment_unconfirmed")
 	l.rpc("", "reconsiderblock", view.Block)
 	check("advance-restored", req, event, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
 	wrong, _ := l.payment(1000001, l.script, true)
@@ -91,7 +91,12 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 	check("address-neighbor", req, event, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
 	mem, tx := l.payment(1000000, l.script, false)
 	_, memReq, memEvent := l.requestFor(testCertificate(), mem, "start_now")
-	check("start-now-valid", memReq, memEvent, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
+	check("start-now-mempool-refused", memReq, memEvent, 500, "refused", "payment_unconfirmed")
+	_, confirmedNowReq, confirmedNowEvent := l.requestFor(testCertificate(), id, "start_now")
+	check("start-now-confirmed-neighbor", confirmedNowReq, confirmedNowEvent, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
+	_, advanceMemReq, advanceMemEvent := l.requestFor(testCertificate(), mem, "advance")
+	check("advance-mempool-refused", advanceMemReq, advanceMemEvent, 500, "refused", "payment_unconfirmed")
+	check("advance-mempool-neighbor", req, event, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
 	check("start-now-expired-hold", memReq, memEvent, 900, "refused", "hold_expired_at_admission")
 	if tx.Inputs[0].Sequence < 0xfffffffe {
 		t.Fatal("replacement control signalled RBF")
@@ -177,7 +182,8 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 	}
 	dropped, _ := l.payment(1000000, l.script, false)
 	_, dropReq, dropEvent := l.requestFor(testCertificate(), dropped, "start_now")
-	check("drop-before-valid", dropReq, dropEvent, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
+	check("drop-before-unconfirmed", dropReq, dropEvent, 500, "refused", "payment_unconfirmed")
+	check("drop-before-neighbor", confirmedNowReq, confirmedNowEvent, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
 	l.stop()
 	l.noWalletBroadcast = true
 	l.start()

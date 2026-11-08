@@ -14,6 +14,11 @@ one zero-value 6a20 envelope-hash output, and change to the pinned script.
 The name output remains 1000000 sat. All funding/name prevouts and values are
 explicit. No hidden wallet selection, signing or network operation occurs.
 An operator-supplied pool observation is not proof of current chain state.
+Before signing any issue plan, the online admission gate must observe an
+active confirmed payment for both advance and start_now. Mempool payments
+never authorize issuance. Start_now waits one payment block, then one anchor
+block. A witness-funded payment is supported by the read-only payment path;
+this does not widen the offline plan's legacy funding/anchor/seal templates.
 
 Revoke spends exactly the selected seal to the pinned script as change.
 It needs no booking state or payment lookup, so payment disappearance can

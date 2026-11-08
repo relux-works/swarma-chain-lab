@@ -141,7 +141,7 @@ func VerifyIssuancePackage(p IssuerPolicy, request, event []byte, now int64) (Is
 	if r.StationName != p.Policy.StationName || r.AgentPubkey != p.Policy.AgentPubkey || !pubkey(r.RenterPubkey) || r.BudgetSat < 0 || r.BudgetSat > MaxMoney || r.NotBefore < 1 || r.NotAfter <= r.NotBefore || r.NotAfter-r.NotBefore > 3600 || now >= r.NotAfter {
 		return fail("ISSUANCE_BINDING")
 	}
-	if (r.PaymentPolicy != "advance" && r.PaymentPolicy != "start_now") || r.PaymentHeight < 0 || (r.PaymentHeight == 0 && r.PaymentBlockHash != "") || (r.PaymentHeight > 0 && !digest(r.PaymentBlockHash)) || (r.PaymentPolicy == "advance" && r.PaymentHeight == 0) {
+	if (r.PaymentPolicy != "advance" && r.PaymentPolicy != "start_now") || r.PaymentHeight < 0 || (r.PaymentHeight == 0 && r.PaymentBlockHash != "") || (r.PaymentHeight > 0 && !digest(r.PaymentBlockHash)) {
 		return fail("PAYMENT_OBSERVATION")
 	}
 	// M3 emits unescaped printable-ASCII JSON for NIP-01 interoperability.
@@ -223,7 +223,7 @@ func AdmitIssuance(ctx context.Context, node su.Node, p IssuerPolicy, request, e
 	}
 	a.TipHash = o.Tip().Best
 	for i := 0; i < 2; i++ {
-		v, tx, e := o.Transaction(r.PaymentTxID)
+		v, tx, e := o.PaymentTransaction(r.PaymentTxID)
 		if e != nil {
 			return refuse(e)
 		}
@@ -235,30 +235,11 @@ func AdmitIssuance(ctx context.Context, node su.Node, p IssuerPolicy, request, e
 		if output.Value != pack.Contract.PriceNMCSat || !p2pkh(hex.EncodeToString(output.Script)) || projected.Script.Address != pack.Contract.PaymentAddress {
 			return refuse(bad("PAYMENT_BINDING"))
 		}
-		if v.Block != "" && v.Confirmations > 0 {
-			if _, e = o.Confirmed(v); e != nil {
-				return refuse(e)
-			}
-		} else {
-			if r.PaymentPolicy != "start_now" || v.Confirmations < 0 {
-				return refuse(bad("PAYMENT_UNCONFIRMED"))
-			}
-			var ids []string
-			if e = o.Call("getrawmempool", &ids); e != nil {
-				return refuse(e)
-			}
-			found := false
-			seen := map[string]bool{}
-			for _, id := range ids {
-				if !digest(id) || seen[id] {
-					return refuse(bad("MEMPOOL_PROJECTION"))
-				}
-				seen[id] = true
-				found = found || id == r.PaymentTxID
-			}
-			if !found {
-				return refuse(bad("PAYMENT_DISAPPEARED"))
-			}
+		if v.Block == "" || v.Confirmations <= 0 {
+			return refuse(bad("payment_unconfirmed"))
+		}
+		if _, e = o.Confirmed(v); e != nil {
+			return refuse(e)
 		}
 	}
 	if e = o.Stable(); e != nil {

@@ -154,7 +154,7 @@ func TestIssuancePackageBoundary(t *testing.T) {
 		{"wrong-scope", func(r *IssuanceRequest) { r.Scope = []string{"pay"} }, "PACKAGE_REQUEST_BINDING"},
 		{"wrong-budget", func(r *IssuanceRequest) { r.BudgetSat++ }, "PACKAGE_REQUEST_BINDING"},
 		{"wrong-event", func(r *IssuanceRequest) { r.PackageEventID = strings.Repeat("9", 64) }, "PACKAGE_EVENT"},
-		{"unconfirmed-advance", func(r *IssuanceRequest) { r.PaymentHeight = 0; r.PaymentBlockHash = "" }, "PAYMENT_OBSERVATION"},
+		{"height-block-mismatch", func(r *IssuanceRequest) { r.PaymentHeight = 0 }, "PAYMENT_OBSERVATION"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

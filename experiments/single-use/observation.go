@@ -32,6 +32,19 @@ func (r *ReadObservation) Call(method string, out any, args ...any) error {
 func (r *ReadObservation) Transaction(id string) (TransactionView, *Transaction, error) {
 	return r.o.transaction(id)
 }
+
+// PaymentTransaction binds legacy or witness payment serialization to stripped
+// txid and exact RPC projections. Anchor/seal/spend paths keep Transaction().
+func (r *ReadObservation) PaymentTransaction(id string) (TransactionView, *Transaction, error) {
+	var view rpcTx
+	if !digestHex(id) {
+		return view, nil, fail("TXID")
+	}
+	if e := r.o.call("getrawtransaction", &view, id, true); e != nil {
+		return view, nil, e
+	}
+	return bindPaymentTransaction(id, view)
+}
 func (r *ReadObservation) Confirmed(v TransactionView) (Header, error) { return r.o.confirmed(v) }
 func (r *ReadObservation) Active(block string) (Header, error)         { return r.o.active(block) }
 func (r *ReadObservation) Stable() error                               { return r.o.stable() }

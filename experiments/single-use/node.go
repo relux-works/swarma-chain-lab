@@ -384,11 +384,17 @@ func candidateInBlock(raw json.RawMessage, id string, seal Point, block string, 
 }
 
 func bindTransaction(id string, view rpcTx) (rpcTx, *Transaction, error) {
+	return bindDecodedTransaction(id, view, DecodeTransaction)
+}
+func bindPaymentTransaction(id string, view rpcTx) (rpcTx, *Transaction, error) {
+	return bindDecodedTransaction(id, view, DecodePaymentTransaction)
+}
+func bindDecodedTransaction(id string, view rpcTx, decode func([]byte) (*Transaction, error)) (rpcTx, *Transaction, error) {
 	raw, e := hex.DecodeString(view.Hex)
 	if e != nil || hex.EncodeToString(raw) != view.Hex || view.TxID != id {
 		return view, nil, fail("TX_HEX")
 	}
-	tx, e := DecodeTransaction(raw)
+	tx, e := decode(raw)
 	if e != nil {
 		return view, nil, e
 	}

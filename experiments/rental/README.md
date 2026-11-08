@@ -103,7 +103,7 @@ M1_CORE_CLI=/absolute/pinned/namecoin-cli \
 go test -count=1 -run '^TestCoreLifecycle$' -v
 ```
 
-Run `TestCoreMatrix`, `TestCoreIssuanceAndPool`, `TestCoreStateBoundaries`
+Run `TestCoreMatrix`, `TestCoreIssuanceAndPool`, `TestCoreWitnessPayment`, `TestCoreStateBoundaries`
 separately with new roots. `TestCoreCLI` additionally requires
 `M1_KERNEL=/absolute/path/to/rental-kernel` built from the tested source.
 Do not enable all Core tests against one root: each intentionally refuses an
@@ -127,11 +127,14 @@ Pinned CLI SHA256:
   `single-use/durable`, also used by W3's existing journal.
 - Fee/change: shared conservative legacy finalizer at 200 sat/vB. Inputs
   reserve up to 140 scriptSig bytes; plans are bounded to 4096 signed vbytes.
-- Relevant anchor/seal/payment transactions must fit the existing bounded
-  legacy decoder (64 inputs/outputs, 1 MiB, 10 kB scripts). Unrelated witness
-  transactions are not decoded and do not change admission. A witness-funded
-  booking payment is outside this initial profile and fails closed; M3 and
-  deployment must present the supported payment profile until extended.
+- Relevant anchor/seal transactions retain the bounded legacy decoder.
+  Payments accept legacy and witness serialization, bind stripped txid and
+  raw outputs, and require active confirmation for both payment policies.
+  Mempool payment refuses `payment_unconfirmed`; start_now waits a payment
+  block and then an anchor block. Payment bounds are 64 inputs/outputs, 1 MiB,
+  10 kB scripts/items and 1000 witness items per input. Witness framing is
+  strict; Core validates input scripts/signatures. Unrelated witness traffic
+  does not change rental admission. W3's legacy signer profile is unchanged.
 
 The node, service UID, trusted clock and pinned policy are trust assumptions.
 File permissions do not isolate hostile same-UID processes. There is no

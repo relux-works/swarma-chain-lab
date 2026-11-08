@@ -8,10 +8,10 @@
   is never authority for an effect.
 - Gateway/issuer must keep persistent state off hostile station UIDs. Backup,
   restore and disaster recovery must preserve burned reservations/closures.
-- Current relevant transaction decoding is legacy-only and bounded. A booking
-  payment with witness inputs fails closed. Broader payment support needs an
-  explicit decoder/profile extension and its own controls; unrelated witness
-  traffic is already tolerated.
+- Payment serialization supports bounded legacy and witness transactions;
+  anchor/seal/W3 signer paths remain legacy-only. Any future widening beyond
+  the stated payment resource bounds needs separate controls. Both payment
+  policies require active confirmation; start_now is a two-block path.
 - A first kernel observation cannot prove previously unobserved name history.
   A deployment needing universal historical closure must provide a trusted
   persistent observer or a separately specified history-reconstruction rule.
