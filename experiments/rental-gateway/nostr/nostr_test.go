@@ -157,3 +157,30 @@ func TestWrapUnwrapRoundTrip(t *testing.T) {
 		t.Fatal("gift-wrap key must be ephemeral, not sender")
 	}
 }
+
+// TestWrapAtSmallTimestamp proves NIP-59 timestamp jitter never
+// produces a negative created_at (regression: seal/wrap at small
+// unix times were unparseable).
+func TestWrapAtSmallTimestamp(t *testing.T) {
+	alice, _ := GeneratePrivKey()
+	bob, _ := GeneratePrivKey()
+	for i := 0; i < 20; i++ {
+		wrap, _, err := WrapDM(alice, bob.PubKeyHex(), "early", nil, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if wrap.CreatedAt < 0 {
+			t.Fatalf("wrap created_at %d negative", wrap.CreatedAt)
+		}
+		out, err := UnwrapDM(wrap, bob)
+		if err != nil {
+			t.Fatalf("unwrap at small time: %v", err)
+		}
+		if out.Seal.CreatedAt < 0 {
+			t.Fatalf("seal created_at %d negative", out.Seal.CreatedAt)
+		}
+		if out.Rumor.CreatedAt != 100 {
+			t.Fatalf("rumor time jittered: %d", out.Rumor.CreatedAt)
+		}
+	}
+}

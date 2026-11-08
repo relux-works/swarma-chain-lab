@@ -55,7 +55,7 @@ func GiftWrap(rumor *Event, sealSigner *PrivKey, recipientHex string, now int64)
 		return nil, err
 	}
 	seal := &Event{
-		CreatedAt: now - jitterSeconds(),
+		CreatedAt: jitteredPast(now),
 		Kind:      KindSeal,
 		Tags:      [][]string{},
 		Content:   sealedRumor,
@@ -80,7 +80,7 @@ func GiftWrap(rumor *Event, sealSigner *PrivKey, recipientHex string, now int64)
 		return nil, err
 	}
 	wrap := &Event{
-		CreatedAt: now - jitterSeconds(),
+		CreatedAt: jitteredPast(now),
 		Kind:      KindGiftWrap,
 		Tags:      [][]string{{"p", recipientHex}},
 		Content:   wrappedSeal,
@@ -163,6 +163,15 @@ func UnwrapDM(wrap *Event, recipient *PrivKey) (*UnwrappedDM, error) {
 		return nil, fmt.Errorf("rumor: id mismatch")
 	}
 	return &UnwrappedDM{Rumor: rumor, Seal: seal, SenderHex: seal.PubKey, WrapperHex: wrap.PubKey}, nil
+}
+
+// jitteredPast offsets now into the past per NIP-59, clamped at 0:
+// created_at must never be negative.
+func jitteredPast(now int64) int64 {
+	if t := now - jitterSeconds(); t > 0 {
+		return t
+	}
+	return 0
 }
 
 // jitterSeconds returns a uniform offset in [0, 2 days) from crypto/rand.
