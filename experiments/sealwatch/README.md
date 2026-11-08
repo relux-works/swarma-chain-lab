@@ -100,3 +100,21 @@ dropped spend, prior/spend reorg, tip race, unknown/malformed replies, proof and
 clock expiry, six-successor boundary, byte/call/count budgets, cancellation
 and concurrent operation refusal. They do not establish live-node, mainnet,
 runtime, wallet, policy or whole-prototype review qualification.
+
+## Exact Core field projection
+
+All structured node replies use official case-sensitive Core field names,
+including nested transaction inputs and outputs. Alias-only fields, aliases
+beside official members, and exact or Unicode case-fold-equal duplicates yield
+`UNKNOWN/RPC_UNAVAILABLE_OR_MALFORMED`. Unknown non-conflicting Core extensions
+remain compatible. Context-dependent optional transaction fields retain the
+existing schema checks; an absent field cannot supply a seal or spend proof.
+Block hashes remain strings and mempool replies remain bounded lists of unique
+canonical transaction IDs. A null UTXO keeps its existing spent/unknown meaning.
+
+Run `GOTOOLCHAIN=local GOFLAGS=-mod=readonly go test -race ./...` in this module.
+`TestW7WatchExactProjection` pairs official UNSPENT/SUSPEND/FINALREVOKED controls
+with alias/conflict/duplicate replies. `TestW7FoldDuplicates` includes Unicode
+fold classes not merged by lowercasing. Keep test logs under `.temp/`.
+The production watcher and projection tests match the Keyvault `lab/sealwatch`
+copy byte-for-byte; import paths are the only module-level distinction.

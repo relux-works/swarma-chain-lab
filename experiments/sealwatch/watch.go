@@ -281,7 +281,7 @@ func (r *run) call(method string, out any, args ...any) error {
 	return nil
 }
 
-// Reject duplicate object keys and excessive nesting before typed decoding.
+// Reject fold-equal object keys and excessive nesting before typed decoding.
 // Unknown Core fields remain allowed; conflicting copies of a field do not.
 func uniqueJSON(data []byte) error {
 	d := json.NewDecoder(bytes.NewReader(data))
@@ -308,7 +308,7 @@ func uniqueJSON(data []byte) error {
 					return err
 				}
 				s, ok := key.(string)
-				s = strings.ToLower(s)
+				s = foldJSONKey(s)
 				if !ok || keys[s] {
 					return failure("JSON_DUPLICATE")
 				}
@@ -352,9 +352,9 @@ func uniqueJSON(data []byte) error {
 }
 
 type info struct {
-	Chain   string
-	Blocks  *int64
-	Headers *int64
+	Chain   string `json:"chain"`
+	Blocks  *int64 `json:"blocks"`
+	Headers *int64 `json:"headers"`
 	Best    string `json:"bestblockhash"`
 	IBD     *bool  `json:"initialblockdownload"`
 }
@@ -364,10 +364,8 @@ type input struct {
 	Coinbase string  `json:"coinbase"`
 }
 type output struct {
-	N      *uint32 `json:"n"`
-	Script struct {
-		Hex string `json:"hex"`
-	} `json:"scriptPubKey"`
+	N      *uint32      `json:"n"`
+	Script scriptPubKey `json:"scriptPubKey"`
 }
 type tx struct {
 	TxID          string   `json:"txid"`
@@ -377,16 +375,14 @@ type tx struct {
 	Vout          []output `json:"vout"`
 }
 type block struct {
-	Hash   string
-	Height *int64
-	Tx     []tx
+	Hash   string `json:"hash"`
+	Height *int64 `json:"height"`
+	Tx     []tx   `json:"tx"`
 }
 type utxo struct {
-	Best          string `json:"bestblock"`
-	Confirmations *int64 `json:"confirmations"`
-	Script        struct {
-		Hex string `json:"hex"`
-	} `json:"scriptPubKey"`
+	Best          string       `json:"bestblock"`
+	Confirmations *int64       `json:"confirmations"`
+	Script        scriptPubKey `json:"scriptPubKey"`
 }
 
 func (r *run) active(t Tip) error {
