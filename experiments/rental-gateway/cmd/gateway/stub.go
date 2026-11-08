@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
 )
@@ -20,9 +21,20 @@ func runStationStub() error {
 	if sock == "" || slotID == "" || stationName == "" {
 		return fmt.Errorf("station-stub: GATEWAY_SOCKET, SLOT_ID and STATION_NAME are required")
 	}
-	conn, err := net.Dial("unix", sock)
-	if err != nil {
-		return err
+	// Stations must tolerate the gateway not listening yet (process
+	// start order, gateway restart): retry the dial briefly.
+	var conn net.Conn
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var err error
+		conn, err = net.Dial("unix", sock)
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	defer conn.Close()
 	client := stationlink.NewClient(conn)

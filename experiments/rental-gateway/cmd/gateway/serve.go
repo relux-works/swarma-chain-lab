@@ -78,6 +78,7 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	var startSlotID string
 	if *slotPath != "" {
 		raw, err := os.ReadFile(*slotPath)
 		if err != nil {
@@ -99,11 +100,11 @@ func runServe(args []string) error {
 			return err
 		}
 		if sf.StartNow {
-			if err := gw.StartSlot(ctx, sf.ID); err != nil {
-				return err
-			}
+			startSlotID = sf.ID
 		}
 	}
+	// Listen before starting any station: stations dial the gateway,
+	// so the socket must exist when their processes launch.
 	_ = os.Remove(*stationUnix)
 	ln, err := net.Listen("unix", *stationUnix)
 	if err != nil {
@@ -117,6 +118,11 @@ func runServe(args []string) error {
 		}
 	}()
 	go func() { _ = gw.ServeStations(ln) }()
+	if startSlotID != "" {
+		if err := gw.StartSlot(ctx, startSlotID); err != nil {
+			return err
+		}
+	}
 	fmt.Fprintf(os.Stderr, "gateway: agent %s serving (pid %d)\n", gw.AgentPubKey(), os.Getpid())
 	err = relay.SubscribeGiftWraps(ctx, gw.AgentPubKey(), func(ctx context.Context, ev *nostr.Event) {
 		res := gw.HandleGiftWrap(ctx, ev)
