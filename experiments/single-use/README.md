@@ -3,8 +3,10 @@
 Go executor and genuine Namecoin Core 28 regtest harness for CIP-0002. The only
 implemented effect is a local JSONL append labelled `simulated-repository.create`.
 This is not production authorization, a wallet, or a mainnet runtime qualification.
-The executable deliberately accepts regtest only. Mainnet output consists solely
-of offline JSON plans, with no serialized transaction hex or network operations.
+The executor accepts only explicitly pinned regtest or main networks. Mainnet
+CLI observations require the operator CLI route described below and a separate
+runtime admission; this source change alone grants no permission to run them.
+The offline planner emits JSON plans, never serialized transaction hex.
 
 ## Contract
 
@@ -59,8 +61,8 @@ filesystem locking/fsync semantics are assumptions, not hostile same-UID
 confinement. Reorgs after an effect do not undo it. One confirmation is not
 finality; observation and journal reservation cannot be atomic with consensus.
 
-The node is an independently trusted, fully validating own Core instance. The
-read-only HTTP adapter accepts only loopback IPs and a dedicated `w3-observer`
+The node is an independently trusted, fully validating own Core instance. The regtest
+HTTP adapter accepts only loopback IPs and a dedicated `w3-observer`
 account, no proxy, redirect or wallet endpoint. Configure server-side RPC
 whitelisting as well. Methods: `getblockchaininfo`, `getblockhash`,
 `getblockheader`, `getrawtransaction`, `gettxout`, `name_show`, `getrawmempool`,
@@ -98,8 +100,9 @@ go build -trimpath -o .temp/single-use-plan ./cmd/single-use-plan
 
 Executor input structs are in policy.go/node.go. Route files contain credentials
 and must stay private. Policy and request files are public inputs, but their
-local paths are not portable. `--test-at RFC3339` is a regtest clock override;
-the runtime still refuses non-regtest policies. Receipt exits: 0 for pending,
+local paths are not portable. `--test-at RFC3339` is a regtest clock override. Mainnet rejects this flag,
+including an explicitly empty value; the mainnet library also samples its own
+wall clock instead of trusting a caller-supplied observation time. Receipt exits: 0 for pending,
 executed or already-executed; 1 for refused; 2 for malformed CLI/input. The CLI
 has no crash-injection switch. The separate Go test child owns that test seam.
 
@@ -146,5 +149,51 @@ planner does not validate funding ownership, previous name consensus semantics,
 P-256 authority, current fees or the final signed transaction. Names and owner
 pins must be independently validated. Example outpoints are inert placeholders.
 
-A plan is not permission to spend. Mainnet needs independent review and a new
-admitted runtime path, then owner GO for each exact signed transaction hex.
+A plan is not permission to spend. Mainnet needs independent delta review and
+explicit runtime admission, then owner GO for each exact signed transaction hex.
+
+## W3-02 explicit network and operator route
+
+Both policy fields are mandatory: `network` and `genesis`. Accepted pairs are
+`regtest` / `0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206`
+and `main` / `000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770`.
+There is no default. The observed node must independently match both pins.
+
+For main, `--route` is an OperatorRoute JSON object with exact fields `Network`,
+`Genesis`, `NodeCLI`, `NodeCLISHA256`, `NodeConfig`, `NodeDataDir`. It contains no
+password or configurable argv. The binary must match its SHA256 pin and all
+paths must be absolute and clean. NodeConfig and NodeDataDir are references
+only; this program never reads their contents. The admitted Namecoin CLI alone
+loads its own configuration when a separately authorized observation runs.
+Main has no HTTP-route fallback. The library Execute entry also requires the
+operator capability bound to the same network, genesis and state root. The same CLI adapter is exercised against
+isolated regtest in `TestGenuineCoreOperatorRoute`.
+
+Each child uses exactly `-conf=... -datadir=... -chain=main
+-rpcclienttimeout=2 METHOD PARAMS`, a cleared environment, a temporary private
+working directory, a two-second context and bounded output. Only the eight read
+methods listed above are allowed. `getindexinfo` is within the operator's larger
+whitelist but is not needed or enabled here. Wallet, signing, transaction send,
+stop, remote-URL and option-like string arguments are refused. Raw getblockhash
+and gettxout-null CLI output are normalized before W7 JSON projection.
+
+Policy and route files, as well as the other public-file inputs and pinned
+executables, refuse group/world write bits. The open descriptor is checked again
+against the inspected file. Readable mode0644 public inputs are supported; keep
+credential-bearing regtest routes0600. This does not protect against a hostile
+same-UID owner replacing trusted inputs or parent directories.
+
+Immediately before reservation, after public request revalidation, the executor
+rechecks the active tip, fetches the exact spend again, requires its original
+block, verifies that block's active height/hash/confirmations and transaction
+membership, then rechecks the tip once more. A genuine-Core control invalidates
+the spend block at this seam: accepted W3-01 executes incorrectly, while this
+delta refuses TIP_CHANGED with no journal/effect; restoring the block permits a
+valid execution. The residual window after the final RPC and before journal
+fsync/effect remains unavoidable without a different consensus/effect protocol.
+No atomic finality or rollback is claimed.
+
+Mainnet CLI route/clock/network tests use offline fixtures only. The complete
+47-case regtest matrix, late-reorg control and real operator-CLI regtest control
+cover the changed shared path. These tests do not assert that any mainnet
+observation or transaction has been admitted or performed.

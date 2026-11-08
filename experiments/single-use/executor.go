@@ -33,6 +33,14 @@ func Execute(parent context.Context, node Node, p Policy, cert, req []byte, at t
 	if e := p.validate(cert, req); e != nil {
 		return refuse(e)
 	}
+	if p.Network == "main" && !mainnetRouteBound(node, p) {
+		return refuse(fail("MAINNET_OPERATOR_ROUTE"))
+	}
+	// The mainnet API ignores caller-supplied test clocks. CLI additionally
+	// rejects --test-at, including an explicitly empty override.
+	if p.Network == "main" {
+		at = time.Now()
+	}
 	j, e := openJournal(p)
 	if e != nil {
 		return refuse(e)
@@ -95,6 +103,14 @@ func Execute(parent context.Context, node Node, p Policy, cert, req []byte, at t
 	if hook != nil {
 		hook("before-journal")
 	}
+	// Last external observations before the durable reservation. Recheck the
+	// exact spend block and membership, then the active tip. Consensus may
+	// still change after this check; fsync is not atomic with the chain.
+	if e = o.beforeReservation(spend); e != nil {
+		receipt.Calls = o.calls
+		return refuse(e)
+	}
+	receipt.Calls = o.calls
 	record := journalRecord{1, binding, receipt.RequestHash, spend, "reserved"}
 	if e = j.write(record); e != nil {
 		return refuse(e)
@@ -150,7 +166,7 @@ func (o *observation) currentName(p Policy) (nameShow, error) {
 func (o *observation) currentAnchor(p Policy) error { _, e := o.currentName(p); return e }
 
 func (o *observation) proof(p Policy, cert, req []byte) (string, bool, error) {
-	if e := o.start(); e != nil {
+	if e := o.start(p.Network, p.Genesis); e != nil {
 		return "", false, e
 	}
 	name, e := o.currentName(p)
@@ -276,5 +292,23 @@ func (o *observation) proof(p Policy, cert, req []byte) (string, bool, error) {
 	if h.Height <= p.Anchor.Height {
 		return spend.view.TxID, false, fail("ANCHOR_USE_ORDER")
 	}
+	o.spendBlock = spend.view.Block
 	return spend.view.TxID, false, nil
+}
+
+func (o *observation) beforeReservation(spend string) error {
+	if e := o.stable(); e != nil {
+		return e
+	}
+	v, _, e := o.transaction(spend)
+	if e != nil {
+		return e
+	}
+	if v.Block != o.spendBlock || !digestHex(v.Block) {
+		return fail("SPEND_BLOCK_CHANGED")
+	}
+	if _, e = o.confirmed(v); e != nil {
+		return e
+	}
+	return o.stable()
 }

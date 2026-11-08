@@ -1,7 +1,7 @@
 # Remaining research boundaries
 
 - Independent review is required before publication or runtime admission.
-- Mainnet execution is deliberately disabled. A later task must admit the exact
+- Mainnet support requires separate delta review and admission of the exact
   mainnet runtime, own-node route, pins and transactions; every transaction needs
   owner GO for its exact signed hex. Offline templates do not supply that GO.
 - The grantee chain key is an operator pin in v0. A future attestation/registry

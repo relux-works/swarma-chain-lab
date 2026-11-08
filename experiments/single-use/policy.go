@@ -101,7 +101,7 @@ func StrictInput(raw []byte, out any) error {
 }
 func PublicFile(path string, limit int64) ([]byte, error) {
 	info, e := os.Lstat(path)
-	if e != nil || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > limit {
+	if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0022 != 0 || info.Size() < 1 || info.Size() > limit {
 		return nil, fail("PUBLIC_FILE")
 	}
 	f, e := os.Open(path)
@@ -109,6 +109,10 @@ func PublicFile(path string, limit int64) ([]byte, error) {
 		return nil, fail("PUBLIC_FILE")
 	}
 	defer f.Close()
+	opened, e := f.Stat()
+	if e != nil || !os.SameFile(info, opened) || !opened.Mode().IsRegular() || opened.Mode().Perm()&0022 != 0 {
+		return nil, fail("PUBLIC_FILE")
+	}
 	b, e := io.ReadAll(io.LimitReader(f, limit+1))
 	if e != nil || int64(len(b)) > limit {
 		return nil, fail("PUBLIC_FILE")
@@ -116,7 +120,7 @@ func PublicFile(path string, limit int64) ([]byte, error) {
 	return b, nil
 }
 func (p Policy) validate(cert, req []byte) error {
-	if p.Network != "regtest" || p.Genesis != RegtestGenesis || !digestHex(p.Seal.TxID) || !digestHex(p.Anchor.TxID) || !digestHex(p.Anchor.Block) || p.Anchor.Height < 1 || !digestHex(p.CertificateHash) || Hash(cert) != p.CertificateHash || len(cert) == 0 || len(cert) > 98304 || len(req) == 0 || len(req) > 12288 {
+	if !NetworkPinned(p.Network, p.Genesis) || !digestHex(p.Seal.TxID) || !digestHex(p.Anchor.TxID) || !digestHex(p.Anchor.Block) || p.Anchor.Height < 1 || !digestHex(p.CertificateHash) || Hash(cert) != p.CertificateHash || len(cert) == 0 || len(cert) > 98304 || len(req) == 0 || len(req) > 12288 {
 		return fail("POLICY_BINDING")
 	}
 	_, script, e := SealScript(p.IssuerKey, p.GranteeKey)

@@ -17,6 +17,12 @@ import (
 )
 
 const RegtestGenesis = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+const MainGenesis = "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770"
+
+// NetworkPinned has no implicit/default network or genesis.
+func NetworkPinned(network, genesis string) bool {
+	return (network == "regtest" && genesis == RegtestGenesis) || (network == "main" && genesis == MainGenesis)
+}
 
 var errNodeProjection = errors.New("NODE_PROJECTION")
 
@@ -205,6 +211,7 @@ type observation struct {
 	node         Node
 	calls, bytes int
 	tip          chainInfo
+	spendBlock   string
 }
 
 func (o *observation) call(method string, out any, args ...any) error {
@@ -349,18 +356,21 @@ func (o *observation) stable() error {
 	}
 	return nil
 }
-func (o *observation) start() error {
+func (o *observation) start(network, pinnedGenesis string) error {
+	if !NetworkPinned(network, pinnedGenesis) {
+		return fail("GENESIS")
+	}
 	if e := o.call("getblockchaininfo", &o.tip); e != nil {
 		return e
 	}
 	// Core28 reconsiderblock can restore blocks above its cached best-header
 	// counter. That counter supplies no authority: verify the active hash,
 	// height, confirmations and transaction membership independently below.
-	if o.tip.Chain != "regtest" || o.tip.IBD || o.tip.Blocks < 0 || o.tip.Blocks > 2147483647 || o.tip.Headers < 0 || o.tip.Headers > 2147483647 || !digestHex(o.tip.Best) {
+	if o.tip.Chain != network || o.tip.IBD || o.tip.Blocks < 0 || o.tip.Blocks > 2147483647 || o.tip.Headers < 0 || o.tip.Headers > 2147483647 || !digestHex(o.tip.Best) {
 		return fail("CHAIN_STATE")
 	}
 	var genesis string
-	if e := o.call("getblockhash", &genesis, 0); e != nil || genesis != RegtestGenesis {
+	if e := o.call("getblockhash", &genesis, 0); e != nil || genesis != pinnedGenesis {
 		return fail("GENESIS")
 	}
 	_, e := o.active(o.tip.Best)
