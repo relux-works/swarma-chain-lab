@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
@@ -196,5 +197,115 @@ func TestReplyRequiresLiveGrant(t *testing.T) {
 	h.kern.Verdict, h.kern.Reason = kernel.Live, ""
 	if ack, err := c.Reply("live again"); err != nil || ack.Type != stationlink.TypeAck {
 		t.Fatalf("live-again reply = %+v %v", ack, err)
+	}
+}
+
+// TestConcurrentDuplicateOps proves RM2-03 C1: eight concurrent
+// callers with one operation id coalesce — exactly one effect runs
+// per kind; the final message reaches the publisher as exactly one
+// distinct event id. Run under -race.
+func TestConcurrentDuplicateOps(t *testing.T) {
+	h := newHarness(t, harnessOpts{})
+	ctx := context.Background()
+	const n = 8
+
+	run := func(fn func() error) []error {
+		errs := make([]error, n)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for i := 0; i < n; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				<-start
+				errs[i] = fn()
+			}(i)
+		}
+		close(start)
+		wg.Wait()
+		return errs
+	}
+	for i, err := range run(func() error {
+		_, err := h.gw.EndSlot(ctx, "slot-1", "op-end-c", "closer")
+		return err
+	}) {
+		if err != nil {
+			t.Fatalf("concurrent EndSlot %d: %v", i, err)
+		}
+	}
+	before := h.pub.count()
+	for i, err := range run(func() error {
+		_, err := h.gw.SendFinalMessage(ctx, "slot-1", "op-final-c", "concurrent final")
+		return err
+	}) {
+		if err != nil {
+			t.Fatalf("concurrent SendFinalMessage %d: %v", i, err)
+		}
+	}
+	ids := map[string]bool{}
+	for _, ev := range h.pub.evsSnapshot()[before:] {
+		if u, err := nostr.UnwrapDM(ev, h.renter); err == nil && u.Rumor.Content == "concurrent final" {
+			ids[ev.ID] = true
+		}
+	}
+	if len(ids) != 1 {
+		t.Fatalf("concurrent final produced %d distinct event ids, want 1 (%v)", len(ids), ids)
+	}
+	for i, err := range run(func() error {
+		_, _, err := h.gw.DestroySlot(ctx, "slot-1", "op-destroy-c")
+		return err
+	}) {
+		if err != nil {
+			t.Fatalf("concurrent DestroySlot %d: %v", i, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(h.stationDir, "slot-1")); !os.IsNotExist(err) {
+		t.Fatalf("home survives concurrent destroy: %v", err)
+	}
+}
+
+// TestConcurrentDifferentIDsConflict proves two different op ids
+// for one slot+kind race to exactly one winner and one conflict.
+func TestConcurrentDifferentIDsConflict(t *testing.T) {
+	h := newHarness(t, harnessOpts{})
+	ctx := context.Background()
+	if _, err := h.gw.EndSlot(ctx, "slot-1", "op-end-x", "closer"); err != nil {
+		t.Fatal(err)
+	}
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i, id := range []string{"op-final-a", "op-final-b"} {
+		wg.Add(1)
+		go func(i int, id string) {
+			defer wg.Done()
+			<-start
+			_, errs[i] = h.gw.SendFinalMessage(ctx, "slot-1", id, "race final")
+		}(i, id)
+	}
+	close(start)
+	wg.Wait()
+	wins, conflicts := 0, 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			wins++
+		case errors.Is(err, gateway.ErrOperationConflict):
+			conflicts++
+		default:
+			t.Fatalf("unexpected err: %v", err)
+		}
+	}
+	if wins != 1 || conflicts != 1 {
+		t.Fatalf("wins=%d conflicts=%d, want 1/1 (errs %v)", wins, conflicts, errs)
+	}
+	count := 0
+	for _, dm := range h.pub.dmsTo(h.renter) {
+		if dm == "race final" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("race final delivered %d times, want 1", count)
 	}
 }

@@ -108,7 +108,7 @@ func (g *Gateway) SendFinalMessage(ctx context.Context, slotID, opID, content st
 		existing.ContentSHA256 != "" && existing.ContentSHA256 != contentSHA {
 		return existing, ErrOperationConflict
 	}
-	return g.runOperation(ctx, slotID, journal.OpFinalMessage, opID, "",
+	rec, err := g.runOperation(ctx, slotID, journal.OpFinalMessage, opID, "",
 		func(ctx context.Context, slot *journal.Slot, rec journal.OpRecord) ([]string, []string, error) {
 			if slot.Destroyed {
 				return nil, nil, fmt.Errorf("gateway: slot %s destroyed: final message must precede destroy", slotID)
@@ -144,6 +144,10 @@ func (g *Gateway) SendFinalMessage(ctx context.Context, slotID, opID, content st
 			}
 			return nil, nil, nil
 		})
+	if err == nil && rec.ContentSHA256 != "" && rec.ContentSHA256 != contentSHA {
+		return rec, ErrOperationConflict
+	}
+	return rec, err
 }
 
 // DestroySlot ends and destroys the station as a recorded closer
@@ -190,15 +194,56 @@ func (g *Gateway) DestroySlot(ctx context.Context, slotID, opID string) (station
 	return station.DestroyReport{Removed: rec.Removed, Kept: rec.Kept}, rec, nil
 }
 
+// opCall is one in-flight closer operation. Concurrent callers for
+// the same (slot, op id) wait for the owner and return its recorded
+// result instead of racing the effect (RM2-03 C1).
+type opCall struct {
+	done chan struct{}
+	rec  journal.OpRecord
+	err  error
+}
+
+func (g *Gateway) opEnter(slotID, opID string) (key string, call *opCall, owner bool) {
+	key = slotID + "\x00" + opID
+	g.opMu.Lock()
+	defer g.opMu.Unlock()
+	if c, ok := g.inFlight[key]; ok {
+		return key, c, false
+	}
+	c := &opCall{done: make(chan struct{})}
+	if g.inFlight == nil {
+		g.inFlight = map[string]*opCall{}
+	}
+	g.inFlight[key] = c
+	return key, c, true
+}
+
+func (g *Gateway) opLeave(key string, call *opCall, rec journal.OpRecord, err error) {
+	call.rec, call.err = rec, err
+	g.opMu.Lock()
+	delete(g.inFlight, key)
+	g.opMu.Unlock()
+	close(call.done)
+}
+
 // runOperation is the shared exactly-once skeleton: begin (durable
 // started) -> effect -> complete/fail (durable). Existing done
 // returns as-is; existing failed returns the recorded failure;
-// existing started resumes the effect (all three operation kinds
-// are retry-completable by construction); a persist failure after
-// the effect reports ErrOperationUncertain.
+// existing started with no in-flight owner (crash leftover) resumes
+// the effect (all three operation kinds are retry-completable by
+// construction); a persist failure after the effect reports
+// ErrOperationUncertain. Concurrent same-id callers are coalesced
+// by opEnter above; different ids for one slot+kind are serialized
+// by the journal's atomic conflict check.
 func (g *Gateway) runOperation(ctx context.Context, slotID, kind, opID, reason string,
 	effect func(ctx context.Context, slot *journal.Slot, rec journal.OpRecord) ([]string, []string, error),
-) (journal.OpRecord, error) {
+) (rec journal.OpRecord, err error) {
+	key, call, owner := g.opEnter(slotID, opID)
+	if !owner {
+		<-call.done
+		return call.rec, call.err
+	}
+	defer func() { g.opLeave(key, call, rec, err) }()
 	slot, ok := g.cfg.Journal.Get(slotID)
 	if !ok {
 		return journal.OpRecord{}, fmt.Errorf("gateway: no slot %s", slotID)

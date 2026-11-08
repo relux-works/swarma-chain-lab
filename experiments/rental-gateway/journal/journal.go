@@ -91,6 +91,24 @@ func (s *Slot) rebuildSeen() {
 	}
 }
 
+// copySlot deep-copies a slot for return outside the lock: slices
+// (seen ids, operation records and their report lists) must never
+// share backing storage with the stored slot.
+func copySlot(s *Slot) *Slot {
+	cp := *s
+	cp.SeenRumorIDs = append([]string(nil), s.SeenRumorIDs...)
+	if s.Operations != nil {
+		cp.Operations = make([]OpRecord, len(s.Operations))
+		for i, r := range s.Operations {
+			r.Removed = append([]string(nil), r.Removed...)
+			r.Kept = append([]string(nil), r.Kept...)
+			cp.Operations[i] = r
+		}
+	}
+	cp.rebuildSeen()
+	return &cp
+}
+
 // HasSeen reports whether a rumor id was already recorded.
 func (s *Slot) HasSeen(rumorID string) bool { return s.seen[rumorID] }
 
@@ -186,10 +204,7 @@ func (st *Store) Get(id string) (*Slot, bool) {
 	if !ok {
 		return nil, false
 	}
-	cp := *s
-	cp.SeenRumorIDs = append([]string(nil), s.SeenRumorIDs...)
-	cp.rebuildSeen()
-	return &cp, true
+	return copySlot(s), true
 }
 
 // ActiveByRenter returns the renter's single not-ended slot copy.
@@ -198,10 +213,7 @@ func (st *Store) ActiveByRenter(renterPubKey string) (*Slot, bool) {
 	defer st.mu.Unlock()
 	for _, s := range st.slots {
 		if s.RenterPubKey == renterPubKey && !s.Ended && !s.Destroyed {
-			cp := *s
-			cp.SeenRumorIDs = append([]string(nil), s.SeenRumorIDs...)
-			cp.rebuildSeen()
-			return &cp, true
+			return copySlot(s), true
 		}
 	}
 	return nil, false
@@ -213,10 +225,7 @@ func (st *Store) All() []*Slot {
 	defer st.mu.Unlock()
 	out := make([]*Slot, 0, len(st.slots))
 	for _, s := range st.slots {
-		cp := *s
-		cp.SeenRumorIDs = append([]string(nil), s.SeenRumorIDs...)
-		cp.rebuildSeen()
-		out = append(out, &cp)
+		out = append(out, copySlot(s))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
@@ -449,12 +458,16 @@ func (st *Store) FailOperation(id, opID, errMsg string, now int64) (OpRecord, er
 // LookupOperation returns the recorded result for (slot, opID):
 // the closer's answer after an uncertain outcome.
 func (st *Store) LookupOperation(id, opID string) (OpRecord, bool) {
-	slot, ok := st.Get(id)
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	s, ok := st.slots[id]
 	if !ok {
 		return OpRecord{}, false
 	}
-	for _, r := range slot.Operations {
+	for _, r := range s.Operations {
 		if r.OpID == opID {
+			r.Removed = append([]string(nil), r.Removed...)
+			r.Kept = append([]string(nil), r.Kept...)
 			return r, true
 		}
 	}

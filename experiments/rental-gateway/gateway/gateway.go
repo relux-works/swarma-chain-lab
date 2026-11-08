@@ -82,6 +82,9 @@ type Gateway struct {
 	stations map[string]*station.Station
 	queues   map[string]chan *stationlink.Frame
 	bound    map[string]*connState // slot id -> live authenticated station binding
+
+	opMu     sync.Mutex
+	inFlight map[string]*opCall // slot\x00op id -> running closer operation
 }
 
 // New validates config and builds a Gateway.
@@ -100,8 +103,9 @@ func New(cfg Config) (*Gateway, error) {
 		cfg.Now = time.Now
 	}
 	return &Gateway{cfg: cfg, stations: map[string]*station.Station{},
-		queues: map[string]chan *stationlink.Frame{},
-		bound:  map[string]*connState{}}, nil
+		queues:   map[string]chan *stationlink.Frame{},
+		bound:    map[string]*connState{},
+		inFlight: map[string]*opCall{}}, nil
 }
 
 // AgentPubKey returns the stable agent public identity (hex).
