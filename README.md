@@ -36,3 +36,14 @@ publication supplies no operational receipts, node binaries, wallets or runtime
 state. A new runtime experiment requires its own admitted isolation and bounds.
 
 Licensed under [Apache-2.0](LICENSE); see [NOTICE](NOTICE) and experiment notices.
+
+## Single-use grant tools
+
+[Single-use grants](experiments/single-use/README.md) provides a regtest-only Go
+executor, genuine Core controls and an offline mainnet JSON planner. From
+`experiments/single-use`, run `go test -race ./...`,
+`go build -trimpath -o .temp/single-use ./cmd/single-use` and
+`go build -trimpath -o .temp/single-use-plan ./cmd/single-use-plan`.
+The experiment README lists opt-in Core harness inputs and exact CLI commands.
+Build scratch belongs in `.temp/`; admitted harness runs separate `public/`
+evidence from private node/wallet state. No mainnet runtime is qualified.

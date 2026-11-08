@@ -1,0 +1,8 @@
+{
+  "address": "2NCW9HHA74ML23ca1hgBTRtDeS5whfEL8Eh",
+  "grantee_key": "023b480ae18d61b49e795f9b1744a879e65f9197964b524ab964632c6b356338a1",
+  "issuer_key": "0297814586ca759bdef32df81b743c8ddceb09a07c04f21e6a0b8cfe8b7d7853fa",
+  "redeem_script": "51210297814586ca759bdef32df81b743c8ddceb09a07c04f21e6a0b8cfe8b7d7853fa21023b480ae18d61b49e795f9b1744a879e65f9197964b524ab964632c6b356338a152ae",
+  "scope": "synthetic hash, no grant/executor qualification",
+  "standard_policy": true
+}
