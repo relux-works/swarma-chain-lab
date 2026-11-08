@@ -2,11 +2,11 @@
 
 No mainnet or public deployment is authorized by this regtest module.
 
-- The orchestrator owns branch publication, exact-head Muse review, hosted
-  checks and landing. Producer tests are not review acceptance.
+- Branch publication, independent review, hosted checks and landing happen
+  outside this module. Producer tests are not review acceptance.
 - M1 must admit only before signed hold expiry and independently recheck the
-  signed package plus current payment. Its independent frozen-wire cross-check passed (M1 event
-  $Md0UHoaCiIAMr2IVIHKNYq8rfsIsjaCVMhE9Ypl4s4o, 2026-11-08). This is
+  signed package plus current payment. M1's independent frozen-wire cross-check
+  passed on 2026-11-08. This is
   interoperability evidence, not independent review acceptance of M3.
 - Cross-host authenticated outbox transport, revoke delivery/acknowledgement,
   actual issuance and refund handling belong to M1/M4/deployment integration.

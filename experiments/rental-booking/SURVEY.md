@@ -4,7 +4,7 @@
 > both advance and start_now now require active confirmation before hold
 > expiry. See README and FORMAT-PROPOSAL for the current contract.
 
-2026-11-08. Producer: ivmbp_swarma-grants_dev2, Codex gpt-6-astra / high.
+2026-11-08. Producer: Codex gpt-6-astra (high).
 Base: `2a4410e2e06bbd1de40da5a5096f060bc5ef5af6`, freshly fetched origin/main.
 Scope: a bounded local regtest experiment, not a public deployment. No real
 wallets, renter keys, relays, spending, or custody changes. M1's
@@ -54,8 +54,7 @@ Additional payments also require refund review; no second issuance or slot.
 A paid booking retains its slot beyond the hold. A reorg returns confirmed
 payment to pending; if already handed to the issuer, append a revoke trigger.
 
-New scope from the orchestrator on 2026-11-08 (owner-source verification
-requested): stable `agent_pubkey` instead of station key; optional renter name;
+Scope update on 2026-11-08: stable `agent_pubkey` instead of station key; optional renter name;
 USD-denominated quotes; explicit `advance` and `start_now` payment policy.
 For `start_now`, a qualifying mempool payment can enable issuance; replacement
 or disappearance creates a durable revoke trigger and must never silently
@@ -103,7 +102,7 @@ codes and post-failure state, not just an error. Targeted mutation plants in
 isolated copies must demonstrate that the relevant tests catch missing guards;
 base lacks the new API, so compile failures on base do not count as controls.
 
-Core binaries are read-only from `/Users/iv/Werkstatt/grants-dev/w7/core-bin/`:
+Core binaries are read-only from `<core-bin>/`:
 `namecoind` SHA-256 `86b85483da23c83f7de134a5bf28bad8e3c6a8dbfe2af71a5e889a7b1547787f`,
 `namecoin-cli` SHA-256 `5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d`.
 Both verified on this bench. New node directories stay under this bench's
@@ -134,10 +133,10 @@ from relative header and block counters. Regression evidence:
 `m3/regtest-reorg-05/public/restored-chaininfo.json` (failing predecessor) and
 `m3/regtest-06/public/reorg.json` (corrected matrix) in the producer bench.
 
-The orchestrator accepted conservative first admission before hold expiry for
+The contract requires conservative first admission before hold expiry for
 both payment modes. Signed package hold bounds were added; block time is never
 used as an observation timestamp. Default hold is 1800 seconds. An unissued
 booking at expiry goes to refund/operator review, even if relay recovery occurs
-later. M1 independently accepted the frozen wire fixture and expiry boundaries
-(event $Md0UHoaCiIAMr2IVIHKNYq8rfsIsjaCVMhE9Ypl4s4o). Station grammar is bounded
+later. M1's independent frozen-wire cross-check, including expiry boundaries,
+passed on 2026-11-08. Station grammar is bounded
 lowercase `id/<identifier>`; deployment prefixes are not a trust rule.
