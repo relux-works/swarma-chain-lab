@@ -64,3 +64,13 @@ No mainnet or public deployment is authorized by the experiment.
 Rental-booking M3-02 requires confirmed payments for both advance and start-now
 slots. See its [operator observation-window notes](experiments/rental-booking/README.md#payments-outside-the-observation-window)
 and opt-in genuine witness-payment controls. No automatic refund/sweep is added.
+
+## Rental grant tools
+
+[Rental certificates](experiments/rental/README.md) adds a regtest-only BIP-340
+kernel, offline seal-pool planner and read-only payment/package admission gate.
+From `experiments/rental`, run `go test -race ./...`,
+`go build -trimpath -o .temp/rental-kernel ./cmd/rental-kernel` and
+`go build -trimpath -o .temp/rental-plan ./cmd/rental-plan`. Its README documents
+separate opt-in Core runs, private state, public evidence and remaining M4/M5
+integration. Shared storage and fee primitives remain used by single-use too.

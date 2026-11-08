@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"relux.works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 type journalRecord struct {
@@ -18,40 +20,26 @@ type journalRecord struct {
 }
 type journal struct {
 	root, path string
-	lock       *os.File
+	store      *durable.Store
 }
 
 func privateRegular(info os.FileInfo) bool {
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	return ok && info.Mode().IsRegular() && info.Mode().Perm() == 0600 && int(stat.Uid) == os.Getuid() && stat.Nlink == 1
+	return durable.PrivateRegular(info)
 }
 
 func openJournal(p Policy) (*journal, error) {
-	info, e := os.Lstat(p.StateDir)
-	if e != nil || !info.IsDir() || info.Mode().Perm() != 0700 {
-		return nil, fail("PRIVATE_STATE_ROOT")
-	}
-	if stat, ok := info.Sys().(*syscall.Stat_t); !ok || int(stat.Uid) != os.Getuid() {
-		return nil, fail("STATE_OWNER")
-	}
-	f, e := os.OpenFile(filepath.Join(p.StateDir, "executor.lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	store, e := durable.Open(p.StateDir, "executor.lock")
 	if e != nil {
-		return nil, fail("STATE_LOCK")
-	}
-	s, e := f.Stat()
-	if e != nil || !privateRegular(s) {
-		f.Close()
-		return nil, fail("STATE_LOCK_FILE")
-	}
-	if e = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); e != nil {
-		f.Close()
-		return nil, fail("EXECUTOR_BUSY")
+		if e.Error() == "STATE_BUSY" {
+			return nil, fail("EXECUTOR_BUSY")
+		}
+		return nil, e
 	}
 	point, _ := json.Marshal(p.Seal)
 	name := Hash(append([]byte(p.Genesis+":"), point...))
-	return &journal{p.StateDir, filepath.Join(p.StateDir, "journal-"+name+".json"), f}, nil
+	return &journal{p.StateDir, filepath.Join(p.StateDir, "journal-"+name+".json"), store}, nil
 }
-func (j *journal) close() { _ = syscall.Flock(int(j.lock.Fd()), syscall.LOCK_UN); _ = j.lock.Close() }
+func (j *journal) close() { j.store.Close() }
 func (j *journal) read() (*journalRecord, error) {
 	info, e := os.Lstat(j.path)
 	if os.IsNotExist(e) {
@@ -74,35 +62,14 @@ func (j *journal) read() (*journalRecord, error) {
 	return &record, nil
 }
 func syncDir(path string) error {
-	f, e := os.Open(path)
-	if e != nil {
-		return e
-	}
-	defer f.Close()
-	return f.Sync()
+	return durable.SyncDir(path)
 }
 func (j *journal) write(record journalRecord) error {
 	b, e := json.Marshal(record)
 	if e != nil {
 		return fail("JOURNAL_ENCODING")
 	}
-	tmp, e := os.CreateTemp(j.root, ".journal-")
-	if e != nil {
-		return fail("JOURNAL_WRITE")
-	}
-	name := tmp.Name()
-	defer os.Remove(name)
-	if _, e = tmp.Write(append(b, '\n')); e == nil {
-		e = tmp.Sync()
-	}
-	ce := tmp.Close()
-	if e != nil || ce != nil {
-		return fail("JOURNAL_FSYNC")
-	}
-	if os.Rename(name, j.path) != nil || syncDir(j.root) != nil {
-		return fail("JOURNAL_COMMIT")
-	}
-	return nil
+	return j.store.Write(filepath.Base(j.path), append(b, '\n'))
 }
 func (j *journal) effect(record journalRecord) error {
 	f, e := os.OpenFile(filepath.Join(j.root, "effects.jsonl"), os.O_CREATE|os.O_WRONLY|os.O_APPEND|syscall.O_NOFOLLOW, 0600)

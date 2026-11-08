@@ -163,21 +163,11 @@ func MakePlan(s PlanSpec, request []byte) (Plan, error) {
 		add(payment.ValueSat, script, "payment")
 	}
 	add(0, change, "change")
-	p.MaxSignedVBytes = len(tx.Bytes())
-	if p.MaxSignedVBytes > 4096 {
-		return p, fail("PLAN_SIZE_BOUND")
+	var changeValue int64
+	p.MaxSignedVBytes, p.FeeSat, changeValue, e = ReserveLegacyFee(tx, total)
+	if e != nil {
+		return p, e
 	}
-	p.FeeSat = int64(p.MaxSignedVBytes) * p.FeeRate
-	var outputs int64
-	for _, output := range tx.Outputs {
-		if output.Value < 0 || output.Value > 21000000*100000000-outputs {
-			return p, fail("OUTPUT_VALUE")
-		}
-		outputs += output.Value
-	}
-	if total-outputs-p.FeeSat < 1000 {
-		return p, fail("FUNDING_OR_DUST_RESERVE")
-	}
-	p.Outputs[len(p.Outputs)-1].ValueSat = total - outputs - p.FeeSat
+	p.Outputs[len(p.Outputs)-1].ValueSat = changeValue
 	return p, nil
 }
