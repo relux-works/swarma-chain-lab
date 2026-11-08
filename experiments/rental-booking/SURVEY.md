@@ -1,5 +1,9 @@
 # M3-01 survey (before implementation)
 
+> Historical M3-01 survey. M3-02 supersedes the mempool issuance choice below:
+> both advance and start_now now require active confirmation before hold
+> expiry. See README and FORMAT-PROPOSAL for the current contract.
+
 2026-11-08. Producer: ivmbp_swarma-grants_dev2, Codex gpt-6-astra / high.
 Base: `2a4410e2e06bbd1de40da5a5096f060bc5ef5af6`, freshly fetched origin/main.
 Scope: a bounded local regtest experiment, not a public deployment. No real

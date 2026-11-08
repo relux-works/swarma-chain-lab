@@ -91,9 +91,10 @@ payment_txid, payment_vout, payment_height, payment_block_hash,
 observed_tip_hash, package_event_id
 ```
 
-For `advance`: height > 0 and nonempty block hash, active chain confirmation
-observed before hold expiry. For `start_now`: height 0 + empty block hash
-means the exact txid/vout was observed in the mempool; otherwise confirmed.
+For both `advance` and `start_now`: height > 0 and nonempty block hash, active
+chain confirmation observed before hold expiry. M3-02 removes mempool-only
+issuance. start_now concerns scheduling after anchor confirmation; it does not
+relax the payment gate or mutate already signed contract times.
 `scope` is the contract's allowed list. M1 must independently re-check payment
 status and the package before actual issuance; this file is a request, not an
 authority to spend or an eternal assertion of payment liveness. Outbox file
@@ -101,10 +102,12 @@ name is the booking id. Repeated scans cannot create a second request.
 
 Revoke outbox: `version, booking_id, contract_sha256, payment_txid,
 payment_vout, reason, observed_tip_hash`; reason is `payment_reorged` or
-`payment_disappeared`. Durable once per booking. A replaced start_now payment
-is a disappearance of the original txid; do not automatically issue again on
-the replacement, even if it pays the same address. Operator reconciliation
-must decide a new booking. Any extra/late outputs remain refund-review data.
+`payment_disappeared`. Durable once per issued booking, status `revoked`. An
+issued payment disappearing/reorganizing never automatically reissues. A
+mempool-only payment is pending for either policy and cannot create issuance
+or revocation; replacement/drop cannot make the old outpoint paid. Another
+current confirmed payment may qualify during the hold. Extra/late outputs
+remain refund-review data.
 
 Open integration questions: M1 acknowledgement/dequeue and revoke consumer
 contract; exact shared action spellings; whether an emission is considered

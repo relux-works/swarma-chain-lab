@@ -149,3 +149,27 @@ func TestLocalRelayProtocol(t *testing.T) {
 		t.Fatal("remote relay accepted")
 	}
 }
+
+// Unknown origin-form and asterisk-form paths return an explicit 404; the
+// valid page remains reachable through the same handler and host boundary.
+func TestHTTPUnknownPaths(t *testing.T) {
+	f := newFixture(t)
+	h, e := NewHTTPHandler(f.s, "http://127.0.0.1:12345")
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, path := range []string{"/missing", "*"} {
+		r := httptest.NewRequest("GET", "http://127.0.0.1:12345/", nil)
+		r.URL.Path = path
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != 404 || !strings.Contains(w.Body.String(), "NOT_FOUND") {
+			t.Fatal("unknown path not 404")
+		}
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "http://127.0.0.1:12345/", nil))
+	if w.Code != 200 {
+		t.Fatal("valid page refused")
+	}
+}

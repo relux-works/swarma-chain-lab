@@ -59,3 +59,8 @@ booking/payment/contract experiment. From that module, run `go test -race ./...`
 Its README defines canonical contract/consent/issuance formats, loopback CLI
 commands, pinned Core integration inputs and private/public evidence separation.
 No mainnet or public deployment is authorized by the experiment.
+
+
+Rental-booking M3-02 requires confirmed payments for both advance and start-now
+slots. See its [operator observation-window notes](experiments/rental-booking/README.md#payments-outside-the-observation-window)
+and opt-in genuine witness-payment controls. No automatic refund/sweep is added.

@@ -18,3 +18,14 @@ No mainnet or public deployment is authorized by this regtest module.
   protocol flow, not a human extension's permission UI.
 - USD/NMC rates are explicit operator configuration. An external rate feed and
   its policy are outside v1. No mainnet wallet or spending authority is implied.
+
+- M3-02 requires active confirmation for both payment policies. Existing
+  zero-confirmation issuance state from M3-01 refuses startup and needs operator
+  reconciliation; no automatic migration is supplied. No real service state
+  is migrated by this lab revision.
+- Start-now scheduling must coordinate an immutable signed contract interval
+  with actual anchor confirmation. M3 does not retime signed contracts; station
+  start waits for the confirmed anchor and the signed not_before boundary.
+- Pre-checkpoint and post-slot payments require the operator inventory/sweep
+  process documented in README; the watcher does not discover them. Renter name
+  binding remains a booking-time attribution; authority is always the key.

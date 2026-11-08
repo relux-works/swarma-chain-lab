@@ -365,13 +365,13 @@ func TestGenuineCorePayments(t *testing.T) {
 		defer l.rpc("", "reconsiderblock", block)
 		l.save("invalidated-chaininfo", l.rpc("", "getblockchaininfo"))
 		pending := refresh(t, f, b.Contract.BookingID)
-		if pending.Payment != nil || pending.Revoke == nil || pending.Revoke.Reason != "payment_reorged" {
+		if pending.Status != "revoked" || pending.Payment != nil || pending.Revoke == nil || pending.Revoke.Reason != "payment_reorged" {
 			t.Fatal("reorg did not revoke")
 		}
 		l.rpc("", "reconsiderblock", block)
 		l.save("restored-chaininfo", l.rpc("", "getblockchaininfo"))
 		again := refresh(t, f, b.Contract.BookingID)
-		if again.Revoke == nil || string(canonical(again.Issuance)) != string(canonical(paid.Issuance)) {
+		if again.Status != "revoked" || again.Revoke == nil || string(canonical(again.Issuance)) != string(canonical(paid.Issuance)) {
 			t.Fatal("reorg silently reissued")
 		}
 		l.save("reorg", again)
@@ -382,8 +382,8 @@ func TestGenuineCorePayments(t *testing.T) {
 		b := readyBooking(t, f)
 		id := l.pay(b.Contract.PaymentAddress, b.Contract.PriceNMCSat)
 		paid := refresh(t, f, b.Contract.BookingID)
-		if paid.Issuance == nil || paid.Issuance.PaymentHeight != 0 {
-			t.Fatal("start-now missing")
+		if paid.Issuance != nil || paid.Payment != nil || paid.Status != "pending" {
+			t.Fatal("mempool admitted start_now replacement")
 		}
 		tx := obj(t, l.rpc("", "getrawtransaction", id, true))
 		var inputs []map[string]json.RawMessage
@@ -417,11 +417,23 @@ func TestGenuineCorePayments(t *testing.T) {
 		}
 		replacement := textValue(t, l.rpc("", "sendrawtransaction", textValue(t, signed["hex"])))
 		revoked := refresh(t, f, b.Contract.BookingID)
-		if revoked.Revoke == nil || revoked.Revoke.Reason != "payment_disappeared" || revoked.Payment != nil || revoked.Issuance.PaymentTxID != id {
-			t.Fatal("replacement not revoked")
+		if revoked.Revoke != nil || revoked.Payment != nil || revoked.Issuance != nil || revoked.Status != "pending" {
+			t.Fatal("replacement became paid")
 		}
 		l.save("replacement", map[string]any{"original": id, "replacement": replacement, "original_signals_rbf": false, "booking": revoked})
 		l.mine(1)
+		after := refresh(t, f, b.Contract.BookingID)
+		if after.Issuance != nil || after.Payment != nil {
+			t.Fatal("replaced original confirmed")
+		}
+		valid := l.pay(b.Contract.PaymentAddress, b.Contract.PriceNMCSat)
+		l.mine(1)
+		good := refresh(t, f, b.Contract.BookingID)
+		if good.Issuance == nil || good.Issuance.PaymentTxID != valid || good.Issuance.PaymentHeight <= 0 {
+			t.Fatal("confirmed replacement neighbour refused")
+		}
+		l.save("replacement-confirmed-neighbour", good)
+
 	})
 	t.Run("start_now_dropped", func(t *testing.T) {
 		l.t = t
@@ -429,8 +441,8 @@ func TestGenuineCorePayments(t *testing.T) {
 		b := readyBooking(t, f)
 		id := l.pay(b.Contract.PaymentAddress, b.Contract.PriceNMCSat)
 		paid := refresh(t, f, b.Contract.BookingID)
-		if paid.Issuance == nil {
-			t.Fatal("positive missing")
+		if paid.Issuance != nil || paid.Payment != nil || paid.Status != "pending" {
+			t.Fatal("mempool admitted start_now drop")
 		}
 		before := string(canonical(f.s.state))
 		l.stop()
@@ -446,10 +458,19 @@ func TestGenuineCorePayments(t *testing.T) {
 			}
 		}
 		revoked := refresh(t, f, b.Contract.BookingID)
-		if revoked.Revoke == nil || revoked.Revoke.Reason != "payment_disappeared" {
-			t.Fatal("drop not revoked")
+		if revoked.Issuance != nil || revoked.Payment != nil || revoked.Revoke != nil || revoked.Status != "pending" {
+			t.Fatal("dropped payment became paid")
 		}
 		l.save("dropped", revoked)
+		l.rpc("", "loadwallet", "lab")
+		l.rpc("lab", "abandontransaction", id)
+		valid := l.pay(b.Contract.PaymentAddress, b.Contract.PriceNMCSat)
+		l.mine(1)
+		good := refresh(t, f, b.Contract.BookingID)
+		if good.Issuance == nil || good.Issuance.PaymentTxID != valid || good.Issuance.PaymentHeight <= 0 {
+			t.Fatal("confirmed drop neighbour refused")
+		}
+		l.save("dropped-confirmed-neighbour", good)
 	})
 	l.t = t
 }
@@ -757,4 +778,79 @@ func TestGenuineCoreLateRelay(t *testing.T) {
 	}
 	l.save("late-relay", late)
 	l.save("late-relay-neighbour", good)
+}
+
+// A real P2WPKH-funded payment is discovered by Core's txid/output projection
+// for either policy. Mempool and confirmed underpayment neighbours never issue;
+// the exact fully paid transaction issues only after an active confirmation.
+func TestGenuineCoreWitnessPayments(t *testing.T) {
+	l := newCoreLab(t)
+	for _, policy := range []string{"advance", "start_now"} {
+		t.Run(policy, func(t *testing.T) {
+			l.t = t
+			f := l.fixture(t, policy)
+			b := readyBooking(t, f)
+			witnessPay := func(value int64) string {
+				address := textValue(t, l.rpc("lab", "getnewaddress", "witness-payment", "bech32"))
+				seedValue := b.Contract.PriceNMCSat + 1000000
+				seed := l.pay(address, seedValue)
+				l.mine(1)
+				tx := obj(t, l.rpc("", "getrawtransaction", seed, true))
+				var outs []map[string]json.RawMessage
+				if json.Unmarshal(tx["vout"], &outs) != nil {
+					t.Fatal("seed outputs")
+				}
+				script := textValue(t, obj(t, l.rpc("lab", "getaddressinfo", address))["scriptPubKey"])
+				var point singleuse.Point
+				found := false
+				for _, out := range outs {
+					spk := obj(t, out["scriptPubKey"])
+					if textValue(t, spk["hex"]) == script {
+						var n uint32
+						_ = json.Unmarshal(out["n"], &n)
+						point = singleuse.Point{TxID: seed, Vout: n}
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Fatal("witness funding not found")
+				}
+				raw := textValue(t, l.rpc("", "createrawtransaction", []singleuse.Point{point}, map[string]any{b.Contract.PaymentAddress: amountJSON(value), l.miner: amountJSON(seedValue - value - 200000)}))
+				signed := obj(t, l.rpc("lab", "signrawtransactionwithwallet", raw))
+				if string(signed["complete"]) != "true" {
+					t.Fatal("witness payment not signed")
+				}
+				encoded := textValue(t, signed["hex"])
+				if len(encoded) < 12 || encoded[8:12] != "0001" {
+					t.Fatal("witness payment control not applied")
+				}
+				id := textValue(t, l.rpc("", "sendrawtransaction", encoded))
+				verbose := obj(t, l.rpc("", "getrawtransaction", id, true))
+				if textValue(t, verbose["txid"]) != id || textValue(t, verbose["hash"]) == id {
+					t.Fatal("txid/wtxid distinction not applied")
+				}
+				l.save(policy+"-witness-transaction", verbose)
+				return id
+			}
+			witnessPay(b.Contract.PriceNMCSat - 1)
+			l.mine(1)
+			under := refresh(t, f, b.Contract.BookingID)
+			if under.Issuance != nil || under.Payment != nil {
+				t.Fatal("witness underpayment admitted")
+			}
+			id := witnessPay(b.Contract.PriceNMCSat)
+			pending := refresh(t, f, b.Contract.BookingID)
+			if pending.Issuance != nil || pending.Payment != nil || pending.Status != "pending" {
+				t.Fatal("witness mempool admitted")
+			}
+			l.mine(1)
+			paid := refresh(t, f, b.Contract.BookingID)
+			if paid.Issuance == nil || paid.Issuance.PaymentTxID != id || paid.Issuance.PaymentHeight <= 0 || paid.Status != "paid" {
+				t.Fatal("confirmed witness payment refused")
+			}
+			l.save(policy+"-witness-confirmed", paid)
+		})
+	}
+	l.t = t
 }

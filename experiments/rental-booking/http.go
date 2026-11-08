@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 )
 
 const browserScript = `const out=document.getElementById('out');let current;
@@ -120,8 +119,6 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		respond(w, 200, b)
 	default:
-		if strings.HasPrefix(r.URL.Path, "/") {
-			httpFail(w, 404, "NOT_FOUND")
-		}
+		httpFail(w, 404, "NOT_FOUND")
 	}
 }

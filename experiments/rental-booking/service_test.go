@@ -376,3 +376,38 @@ func TestProviderCountersignature(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+
+// Startup validation accepts a confirmed start-now issuance and rejects the
+// former zero-confirmation encoding, including a missing confirmed block hash.
+// This is a state-format control, not evidence that synthetic coordinates exist.
+func TestPersistedConfirmationRequired(t *testing.T) {
+	f := newFixture(t)
+	f.s.Close()
+	f.cfg.StateDir = privateDir(t)
+	f.cfg.Slots[0].PaymentPolicy = "start_now"
+	var e error
+	f.s, e = NewService(f.cfg, f.profile, f.provider, f.node, f.relay, func() time.Time { return time.Unix(f.now, 0) })
+	if e != nil {
+		t.Fatal(e)
+	}
+	b := readyBooking(t, f)
+	p := Payment{TxID: strings.Repeat("1", 64), Height: 101, BlockHash: strings.Repeat("2", 64), ValueSat: b.Contract.PriceNMCSat}
+	issuance := newIssuance(b, p, strings.Repeat("3", 64))
+	f.s.state.Bookings[0].Issuance = &issuance
+	if e = f.s.validateState(); e != nil {
+		t.Fatal("confirmed state neighbour", e)
+	}
+	issuance.PaymentHeight = 0
+	issuance.PaymentBlockHash = ""
+	if e = f.s.validateState(); e == nil || e.Error() != "STATE_ISSUANCE" {
+		t.Fatalf("zero-conf state admitted: %v", e)
+	}
+	issuance.PaymentHeight = 101
+	if e = f.s.validateState(); e == nil || e.Error() != "STATE_ISSUANCE" {
+		t.Fatalf("missing block admitted: %v", e)
+	}
+	issuance.PaymentBlockHash = p.BlockHash
+	if e = f.s.validateState(); e != nil {
+		t.Fatal("restored confirmed neighbour", e)
+	}
+}

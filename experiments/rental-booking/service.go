@@ -214,7 +214,7 @@ func (s *Service) validateState() error {
 				return refuse("STATE_ISSUANCE")
 			}
 			p := Payment{TxID: r.PaymentTxID, Vout: r.PaymentVout, Height: r.PaymentHeight, BlockHash: r.PaymentBlockHash}
-			if r.PaymentHeight < 0 || r.PaymentHeight == 0 && (c.PaymentPolicy != "start_now" || r.PaymentBlockHash != "") || r.PaymentHeight > 0 && !hexSize(r.PaymentBlockHash, 32) || !hexSize(r.ObservedTipHash, 32) || string(canonical(newIssuance(b, p, r.ObservedTipHash))) != string(canonical(r)) {
+			if r.PaymentHeight <= 0 || !hexSize(r.PaymentBlockHash, 32) || !hexSize(r.ObservedTipHash, 32) || string(canonical(newIssuance(b, p, r.ObservedTipHash))) != string(canonical(r)) {
 				return refuse("STATE_ISSUANCE")
 			}
 		}
@@ -484,7 +484,7 @@ func (s *Service) Refresh(ctx context.Context) error {
 					if r.Payment.point() != p.point() {
 						continue
 					}
-					eligible := p.ValueSat >= b.Contract.PriceNMCSat && ((b.Contract.PaymentPolicy == "advance" && p.Height > 0 && r.ConfirmedAt > 0 && r.ConfirmedAt < b.HoldExpiresAt) || (b.Contract.PaymentPolicy == "start_now" && r.FirstSeen < b.HoldExpiresAt))
+					eligible := p.ValueSat >= b.Contract.PriceNMCSat && p.Height > 0 && r.ConfirmedAt > 0 && r.ConfirmedAt < b.HoldExpiresAt
 					if eligible {
 						p := p
 						b.Payment = &p
@@ -512,7 +512,7 @@ func (s *Service) Refresh(ctx context.Context) error {
 			b.Status = "expired"
 		}
 		if b.Revoke != nil {
-			b.Status = "pending"
+			b.Status = "revoked"
 		}
 		if b.Payment != nil && b.Package != nil && b.Published && b.Issuance == nil && b.Revoke == nil && now < b.HoldExpiresAt {
 			r := newIssuance(*b, *b.Payment, snap.Tip.Hash)

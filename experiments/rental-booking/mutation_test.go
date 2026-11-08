@@ -63,10 +63,12 @@ func TestGuardRemovalControls(t *testing.T) {
 		{"writer-lock", "store.go", "e = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)", "e = nil", "TestStoreLockAndOutbox", "parallel writer accepted", false},
 		{"outbox-conflict", "store.go", "if !bytes.Equal(old, b) {", "if false && !bytes.Equal(old, b) {", "TestStoreLockAndOutbox", "conflict:", false},
 		{"underpayment", "service.go", "eligible := p.ValueSat >= b.Contract.PriceNMCSat &&", "eligible := true &&", "TestGenuineCorePayments/underpayment_and_wrong_address", "under/wrong payment admitted", true},
-		{"mempool-advance", "service.go", "b.Contract.PaymentPolicy == \"advance\" && p.Height > 0 && r.ConfirmedAt > 0 &&", "b.Contract.PaymentPolicy == \"advance\" &&", "TestGenuineCorePayments/advance_pending_then_confirmed_duplicate_restart", "mempool admitted advance", true},
+		{"mempool-advance", "service.go", "p.Height > 0 && r.ConfirmedAt > 0 &&", "true &&", "TestGenuineCorePayments/advance_pending_then_confirmed_duplicate_restart", "mempool admitted advance", true},
 		{"reorg", "service.go", "if !present || reorged {", "if false && (!present || reorged) {", "TestGenuineCorePayments/confirmed_reorg", "reorg did not revoke", true},
-		{"replacement", "service.go", "if !present || reorged {", "if false && (!present || reorged) {", "TestGenuineCorePayments/start_now_replacement", "replacement not revoked", true},
-		{"drop", "service.go", "if !present || reorged {", "if false && (!present || reorged) {", "TestGenuineCorePayments/start_now_dropped", "drop not revoked", true},
+		{"replacement", "service.go", "p.Height > 0 && r.ConfirmedAt > 0 &&", "true &&", "TestGenuineCorePayments/start_now_replacement", "mempool admitted start_now replacement", true},
+		{"drop", "service.go", "p.Height > 0 && r.ConfirmedAt > 0 &&", "true &&", "TestGenuineCorePayments/start_now_dropped", "mempool admitted start_now drop", true},
+		{"revoked-status", "service.go", "b.Status = \"revoked\"", "b.Status = \"pending\"", "TestGenuineCorePayments/confirmed_reorg", "reorg did not revoke", true},
+		{"http-not-found", "http.go", "httpFail(w, 404, \"NOT_FOUND\")", "httpFail(w, 200, \"NOT_FOUND\")", "TestHTTPUnknownPaths", "unknown path not 404", false},
 	}
 	cwd, e := os.Getwd()
 	if e != nil {

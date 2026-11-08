@@ -21,8 +21,10 @@ key, wallet RPC, mainnet route, external relay or real renter key is needed.
    package and a provider-signed kind 8182 event, then publish that exact event.
    A missing/wrong relay ACK cannot mark the package published. Retry keeps the
    original event id; it never produces another contract or signature package.
-5. `advance`: one active-chain confirmation first observed before expiry.
-   `start_now`: a matching mempool output can qualify before expiry. Any valid
+5. Both `advance` and `start_now` require one active-chain confirmation first
+   observed before expiry. Mempool-only payments remain pending. `start_now`
+   describes slot scheduling after the anchor confirms, not weaker payment
+   admission; contract times stay signed and cannot be rewritten. Any valid
    payment is one output at least the fixed amount; dust is not aggregated.
    Coinbase outputs are not renter payments. Duplicate/underpaid/late outputs
    are retained for operator refund review; this service never sends refunds.
@@ -31,8 +33,9 @@ key, wallet RPC, mainnet route, external relay or real renter key is needed.
    independently validate the package and payment, and admit only while
    `now < hold_expires_at` for either policy. Header time is not observation
    time; v1 has no signed watcher receipt enabling late admission.
-7. A paying block reorg or a previously emitted mempool payment's disappearance
-   appends a revoke request and returns payment status to `pending`. The old
+7. An issued payment's block reorg or disappearance appends a revoke request
+   and sets payment status to `revoked`. A replaced/dropped pending transaction
+   never issues; a new confirmed payment can qualify before hold expiry. The old
    issuance is never rewritten or reissued, even if the same payment returns.
    Full-RBF replacement can affect non-signalling transactions too. A read
    failure or changing tip/mempool makes no payment-state change and proves
@@ -142,9 +145,10 @@ observed_tip_hash, package_event_id
 ```
 
 Scope equals contract.allowed; identity, interval, hash and budget equal the
-contract. `payment_vout` is uint32. Confirmed payment requires positive height
-and nonempty block hash. Only start_now allows height 0 and an empty block
-hash. observed_tip_hash is a coherent active tip at emission; package_event_id
+contract. `payment_vout` is uint32. Both policies require positive payment
+height and a nonempty block hash. Zero-confirmation issuance records from the
+older prototype refuse on restart; operator reconciliation is required, never
+silent migration or reissue. observed_tip_hash is a coherent active tip at emission; package_event_id
 is the signed kind 8182 id. The request is not independently signed and does
 not replace M1's online admission or authorize spending. Schema validation
 alone does not prove canonical order, cryptography, uniqueness or chain facts.
@@ -166,13 +170,31 @@ used as a chain proof. Each scanned block must link to its predecessor and the
 final block must match the observed tip. Both tip and mempool membership are
 checked again before the whole observation commits. Discovery projects output
 scripts first and only interprets amount/index/input metadata for candidates;
-strict legacy input/witness limits never apply to unrelated transactions.
+no raw transaction decoder is used. Genuine Core supplies decoded outputs and
+transaction IDs for both legacy and witness-funded payments. The watcher binds
+the RPC `txid`, not `hash` (wtxid), to mempool IDs and linked active blocks.
+Malformed decoded candidate metadata refuses; validating serialized witness
+stacks belongs to Core and M1's independent raw-payment admission.
 
 Limits are explicit config: max_blocks <= 2016, max_mempool <= 100000,
 max_calls <= 200000, max_bytes <= 512 MiB, and the underlying route's per-RPC
 8 MiB response bound. Exceeding a bound refuses the observation without
 changing state. This is a bounded laboratory watcher, not an unbounded chain
 indexer; operators must monitor refused scans. Finished slots are not rescanned.
+
+### Payments outside the observation window
+
+An operator with the watch-only branch can derive future addresses. A payment
+confirmed before its booking checkpoint is outside this watcher scan, as is
+money arriving after the slot ends. Such funds may remain at a derived address
+without an M3 refund-review receipt. The custody operator must inventory all
+allocated indices (including expired bookings) and reconcile/sweep these
+addresses using the separately authorized wallet/policy process. M3 does not
+hold the private branch, sweep funds or infer spending permission. Preserve the
+index and booking ledger during reconciliation; never reuse an address.
+A watcher outage spanning hold expiry can also leave a real payment in
+refund-review rather than issue late; block time does not replace a trusted
+first-observation time.
 
 ## Tools and commands
 
@@ -233,3 +255,11 @@ bindings; `TestGenuineCoreLateRelay` proves late relay recovery cannot issue.
 For the actual executable control, first build the service, then additionally
 set `M3_BOOKING_BIN=/absolute/path/to/rental-booking` and select
 `TestGenuineCoreServiceProcess`. It records and stops its own service PID.
+
+
+M3-02 adds `TestGenuineCoreWitnessPayments` to the opt-in Core suites. Run it
+with the same explicit M3_REGTEST/M3_CORE_CLI/M3_CORE_DAEMON environment and a
+fresh M3_RUN_ROOT as the payment suite, selecting
+`go test -race -count=1 -run '^TestGenuineCoreWitnessPayments$' ./...`.
+It verifies both policies with confirmed P2WPKH-funded payments, mempool
+refusals, underpayment neighbours and distinct txid/wtxid evidence.
