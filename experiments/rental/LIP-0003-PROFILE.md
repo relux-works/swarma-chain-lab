@@ -96,10 +96,12 @@ No per-certificate name update or transaction occurs.
 Disabled by default. A batch contains 1..256 unique sorted envelope ids.
 Leaf = SHA256(00 || id bytes); internal = SHA256(01 || left || right); duplicate
 the last node at an odd width. Proof carries version 1, index, count and an
-exact sibling path. `VerifyBatchProof` takes a separately pinned expected
-count: odd-tail duplication **does not commit cardinality in the root**.
-Metadata authentication/count pinning remains the caller's responsibility.
-The plan has one zero-valued `6a20<root>` output plus pinned change. It is
+exact sibling path. The anchored commitment is
+`SHA256("swarma-batch-v1" || uint64_big_endian(count) || merkle_root_bytes)`.
+`VerifyBatchProof` recomputes this commitment from the proof's count and path;
+no separately trusted count is required. A duplicated odd tail can preserve
+the internal root, but changes the commitment. The plan has one zero-valued
+`6a20<commitment>` output plus pinned change. It is
 unsigned, offline, and conveys no pool reservation or spending authority.
-Membership proves only this envelope's inclusion in the chosen root. It does
+Membership proves only this envelope's inclusion in the chosen commitment. It does
 not replace Check or prove certificate issuance time.

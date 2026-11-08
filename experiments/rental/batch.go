@@ -2,6 +2,7 @@ package rental
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"slices"
 
@@ -17,9 +18,10 @@ type BatchProof struct {
 	Siblings []string `json:"siblings"`
 }
 type Batch struct {
-	Root   string       `json:"root"`
-	IDs    []string     `json:"ids"`
-	Proofs []BatchProof `json:"proofs"`
+	Root       string       `json:"root"`
+	Commitment string       `json:"commitment"`
+	IDs        []string     `json:"ids"`
+	Proofs     []BatchProof `json:"proofs"`
 }
 
 func merkleLeaf(id string) []byte {
@@ -29,6 +31,14 @@ func merkleLeaf(id string) []byte {
 func merkleNode(left, right []byte) []byte {
 	b := append([]byte{1}, left...)
 	b = append(b, right...)
+	h := sha256.Sum256(b)
+	return h[:]
+}
+
+func batchCommitment(root []byte, count int) []byte {
+	b := []byte("swarma-batch-v1")
+	b = binary.BigEndian.AppendUint64(b, uint64(count))
+	b = append(b, root...)
 	h := sha256.Sum256(b)
 	return h[:]
 }
@@ -75,14 +85,15 @@ func BuildBatch(ids []string) (Batch, error) {
 		level = next
 	}
 	batch.Root = hex.EncodeToString(level[0])
+	batch.Commitment = hex.EncodeToString(batchCommitment(level[0], len(ids)))
 	return batch, nil
 }
 
-// VerifyBatchProof checks membership and proof shape against an expected count
-// supplied with the batch metadata. Odd-tail duplication does NOT itself commit
-// the tree's cardinality in the root; callers must pin expectedCount separately.
-func VerifyBatchProof(id, root string, expectedCount int, p BatchProof) bool {
-	if !digest(id) || !digest(root) || expectedCount < 1 || expectedCount > BatchCapacity || p.Version != 1 || p.Count != expectedCount || p.Index < 0 || p.Index >= p.Count || p.Siblings == nil {
+// VerifyBatchProof binds membership, proof shape and cardinality to the actual
+// anchored commitment. Count is encoded as uint64 big-endian under the fixed
+// swarma-batch-v1 domain, eliminating duplicate-odd-tail cardinality ambiguity.
+func VerifyBatchProof(id, commitment string, p BatchProof) bool {
+	if !digest(id) || !digest(commitment) || p.Count < 1 || p.Count > BatchCapacity || p.Version != 1 || p.Index < 0 || p.Index >= p.Count || p.Siblings == nil {
 		return false
 	}
 	hash := merkleLeaf(id)
@@ -105,7 +116,7 @@ func VerifyBatchProof(id, root string, expectedCount int, p BatchProof) bool {
 		index /= 2
 		width = (width + 1) / 2
 	}
-	return used == len(p.Siblings) && hex.EncodeToString(hash) == root
+	return used == len(p.Siblings) && hex.EncodeToString(batchCommitment(hash, p.Count)) == commitment
 }
 
 type BatchAnchorPlan struct {
@@ -142,7 +153,7 @@ func MakeBatchAnchorPlan(p Policy, s PlanSpec, ids []string, enabled bool) (Batc
 		total += in.ValueSat
 		tx.Inputs = append(tx.Inputs, su.Input{Point: in.Point, Script: make([]byte, 140), Sequence: 0xfffffffe})
 	}
-	rootScript := append([]byte{0x6a, 32}, mustDecodeKey(batch.Root)...)
+	rootScript := append([]byte{0x6a, 32}, mustDecodeKey(batch.Commitment)...)
 	tx.Outputs = []su.Output{{Value: 0, Script: rootScript}, {Value: 0, Script: mustDecodeKey(p.SealScript)}}
 	size, fee, change, e := su.ReserveLegacyFee(tx, total)
 	if e != nil {

@@ -148,7 +148,7 @@ func TestCoreDetachedBatch(t *testing.T) {
 	if e := json.Unmarshal(l.rpc("", "getrawtransaction", id, true), &view); e != nil {
 		t.Fatal(e)
 	}
-	rootScript := "6a20" + batch.Batch.Root
+	rootScript := "6a20" + batch.Batch.Commitment
 	commits := 0
 	for _, output := range view.Vout {
 		if output.Script.Hex == rootScript {
@@ -167,13 +167,18 @@ func TestCoreDetachedBatch(t *testing.T) {
 			index = i
 		}
 	}
-	if index < 0 || !VerifyBatchProof(Hash(raw), batch.Batch.Root, len(ids), batch.Batch.Proofs[index]) {
+	if index < 0 || !VerifyBatchProof(Hash(raw), batch.Batch.Commitment, batch.Batch.Proofs[index]) {
 		t.Fatal("valid batch proof")
 	}
-	if VerifyBatchProof(Hash([]byte("wrong-leaf")), batch.Batch.Root, len(ids), batch.Batch.Proofs[index]) {
+	if VerifyBatchProof(Hash([]byte("wrong-leaf")), batch.Batch.Commitment, batch.Batch.Proofs[index]) {
 		t.Fatal("wrong leaf accepted")
+	}
+	wrongCount := batch.Batch.Proofs[index]
+	wrongCount.Count++
+	if VerifyBatchProof(Hash(raw), batch.Batch.Commitment, wrongCount) {
+		t.Fatal("wrong count accepted")
 	}
 	l.checkDetached("with-optional-anchor", p, c, raw, 500, "live", "LIVE", false)
 	l.save("batch-plan.json", batch)
-	l.save("batch-result.json", map[string]any{"status": "PASS", "txid": id, "root": batch.Batch.Root})
+	l.save("batch-result.json", map[string]any{"status": "PASS", "txid": id, "root": batch.Batch.Root, "commitment": batch.Batch.Commitment})
 }

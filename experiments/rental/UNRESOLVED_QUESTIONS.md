@@ -15,8 +15,9 @@
   across independent verifiers remains possible without shared history.
 - Grant-key rotation needs new seal ownership/policy pins for new grants and
   continued old policy/state observation for old certificates.
-- Batch roots do not authenticate count under odd-tail duplication. Callers
-  must independently pin metadata; no production metadata service is included.
+- Batch commitments bind cardinality and the internal root. A caller must
+  still authenticate the chosen on-chain commitment; the kernel does not
+  require an anchor or provide a production batch-discovery service.
 - Bounded legacy/witness read decoding does not validate transaction input
   signatures locally; the own Core active-chain view supplies that validation.
   Legacy W3 signer profile is unchanged. Detached start_now has no anchor block;
