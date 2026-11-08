@@ -23,11 +23,27 @@ type Audit struct {
 	TokenHash string `json:"token_sha256"`
 	Outcome   string `json:"outcome"`
 }
+
+const ClaimWindowSeconds int64 = 60
+const ValidClaimsPerWindow = 32
+const InvalidClaimsPerWindow = 8
+const AuditPerSlot = 32
+const AuditAdmin = 128
+
+type ClaimWindow struct {
+	Slot    string `json:"slot"`
+	Since   int64  `json:"since"`
+	Valid   int    `json:"valid"`
+	Invalid int    `json:"invalid"`
+}
+
 type tokenState struct {
-	Version int           `json:"version"`
-	Binding string        `json:"binding"`
-	Tokens  []TokenRecord `json:"tokens"`
-	Audit   []Audit       `json:"audit"`
+	Version      int           `json:"version"`
+	Binding      string        `json:"binding"`
+	Tokens       []TokenRecord `json:"tokens"`
+	Audit        []Audit       `json:"audit"`
+	Windows      []ClaimWindow `json:"claim_windows"`
+	AuditDropped uint64        `json:"audit_dropped"`
 }
 type TrackB struct {
 	mu    sync.Mutex
@@ -69,7 +85,7 @@ func OpenTrackB(root, network string, prizes map[string]string) (*TrackB, error)
 		return nil, e
 	}
 	if raw == nil {
-		b.state = tokenState{Version: 1, Binding: binding, Tokens: []TokenRecord{}, Audit: []Audit{}}
+		b.state = tokenState{Version: 1, Binding: binding, Tokens: []TokenRecord{}, Audit: []Audit{}, Windows: []ClaimWindow{}}
 		if e = b.persist(); e != nil {
 			s.close()
 			return nil, e
@@ -95,6 +111,28 @@ func OpenTrackB(root, network string, prizes map[string]string) (*TrackB, error)
 				return nil, fail("TRACKB_STATE")
 			}
 		}
+		windows := map[string]bool{}
+		if len(b.state.Windows) > len(keys)+1 {
+			s.close()
+			return nil, fail("TRACKB_STATE")
+		}
+		for _, w := range b.state.Windows {
+			_, known := keys[w.Slot]
+			if (w.Slot != "" && !known) || windows[w.Slot] || w.Since < 1 || w.Valid < 0 || w.Valid > ValidClaimsPerWindow+1 || w.Invalid < 0 || w.Invalid > InvalidClaimsPerWindow+1 {
+				s.close()
+				return nil, fail("TRACKB_STATE")
+			}
+			windows[w.Slot] = true
+		}
+		if b.state.Windows == nil {
+			b.state.Windows = []ClaimWindow{}
+		}
+		if b.compactAudit() {
+			if e = b.persist(); e != nil {
+				s.close()
+				return nil, e
+			}
+		}
 	}
 	return b, nil
 }
@@ -107,7 +145,7 @@ func (b *TrackB) persist() error {
 	return nil
 }
 func (b *TrackB) available() error {
-	if b.store.poison || len(b.state.Audit) >= 10000 {
+	if b.store.poison {
 		return fail("TRACKB_UNAVAILABLE")
 	}
 	return nil
@@ -127,6 +165,7 @@ func (b *TrackB) audit(op, slot, hash, outcome string) error {
 		return fail("CLOCK")
 	}
 	b.state.Audit = append(b.state.Audit, Audit{at, op, slot, hash, outcome})
+	b.compactAudit()
 	return b.persist()
 }
 func (b *TrackB) index(slot string) int {
@@ -219,6 +258,9 @@ func (b *TrackB) Claim(slot, token string) (string, error) {
 	if i >= 0 && hash != "" && !b.state.Tokens[i].Revoked && subtle.ConstantTimeCompare([]byte(hash), []byte(b.state.Tokens[i].TokenHash)) == 1 {
 		reason = "KEY_RELEASED"
 	}
+	if e := b.claimRate(slot, reason == "KEY_RELEASED"); e != nil {
+		return "", e
+	}
 	if e := b.audit("claim", slot, hash, reason); e != nil {
 		return "", e
 	}
@@ -228,9 +270,98 @@ func (b *TrackB) Claim(slot, token string) (string, error) {
 	return b.keys[slot], nil
 }
 
-// Rejected records malformed/unknown endpoint calls without retaining body data.
+// Rejected bounds and coalesces malformed/unknown calls without body data.
 func (b *TrackB) Rejected(operation string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if e := b.available(); e != nil {
+		return e
+	}
+	if e := b.claimRate("", false); e != nil {
+		return e
+	}
 	return b.audit(operation, "", "", "MALFORMED")
+}
+
+// Unknown slots share one bounded bucket. A valid token has its own allowance
+// so guessed tokens cannot consume its capacity; admin operations do not use it.
+// The first over-limit call is durably coalesced; repeats do not write the disk.
+func (b *TrackB) claimRate(slot string, valid bool) error {
+	if _, ok := b.keys[slot]; !ok {
+		slot = ""
+		valid = false
+	}
+	now := b.now().Unix()
+	if now < 1 {
+		return fail("CLOCK")
+	}
+	i := -1
+	for n, w := range b.state.Windows {
+		if w.Slot == slot {
+			i = n
+			break
+		}
+	}
+	if i < 0 {
+		b.state.Windows = append(b.state.Windows, ClaimWindow{Slot: slot, Since: now})
+		i = len(b.state.Windows) - 1
+	}
+	w := &b.state.Windows[i]
+	if now >= w.Since && now-w.Since >= ClaimWindowSeconds {
+		*w = ClaimWindow{Slot: slot, Since: now}
+	}
+	count, limit := &w.Invalid, InvalidClaimsPerWindow
+	if valid {
+		count, limit = &w.Valid, ValidClaimsPerWindow
+	}
+	if *count >= limit {
+		if *count == limit {
+			*count++
+			if e := b.audit("claim", slot, "", "RATE_LIMITED"); e != nil {
+				return e
+			}
+		}
+		return fail("RATE_LIMITED")
+	}
+	*count++
+	return nil
+}
+
+// Keep a separate bounded tail for every configured slot, admin calls, and
+// malformed/unknown traffic. Rotation never changes tokens or revocation.
+func (b *TrackB) compactAudit() bool {
+	counts := map[string]int{}
+	kept := make([]Audit, 0, len(b.state.Audit))
+	dropped := uint64(0)
+	for i := len(b.state.Audit) - 1; i >= 0; i-- {
+		a := b.state.Audit[i]
+		key := "admin"
+		limit := AuditAdmin
+		if a.Operation == "claim" || a.Operation == "http-rejected" {
+			key = "unknown"
+			limit = AuditPerSlot
+			if _, ok := b.keys[a.Slot]; ok {
+				key = a.Slot
+			}
+		}
+		if counts[key] >= limit {
+			dropped++
+			continue
+		}
+		counts[key]++
+		kept = append(kept, a)
+	}
+	if dropped == 0 {
+		return false
+	}
+	for i, j := 0, len(kept)-1; i < j; i, j = i+1, j-1 {
+		kept[i], kept[j] = kept[j], kept[i]
+	}
+	b.state.Audit = kept
+	if ^uint64(0)-b.state.AuditDropped < dropped {
+		b.state.AuditDropped = ^uint64(0)
+	} else {
+		b.state.AuditDropped += dropped
+	}
+	return true
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,4 +88,40 @@ func TestTrackBUnix(t *testing.T) {
 	if _, e := ListenUnix(filepath.Join(root, "admin.sock")); e == nil {
 		t.Fatal("existing socket replaced")
 	}
+}
+
+// Claim throttling returns 429, invalid tokens 403, persistence failure 503;
+// valid claims are not blocked by the invalid-token allowance.
+func TestTrackBHTTPRefusalStatus(t *testing.T) {
+	b, e := OpenTrackB(rootDir(t), "regtest", prizes())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer b.Close()
+	slot := strings.Repeat("1", 64)
+	token, e := b.Mint(slot)
+	if e != nil {
+		t.Fatal(e)
+	}
+	h := TrackBHandler(b, false)
+	call := func(token string, want int) {
+		t.Helper()
+		r := httptest.NewRequest("POST", "/claim", bytes.NewReader(canonical(map[string]string{"slot": slot, "token": token})))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != want {
+			t.Fatal("claim HTTP status", w.Code)
+		}
+	}
+	for i := 0; i <= InvalidClaimsPerWindow; i++ {
+		want := 403
+		if i == InvalidClaimsPerWindow {
+			want = 429
+		}
+		call(strings.Repeat("0", 64), want)
+	}
+	call(token, 200)
+	b.store.poison = true
+	call(token, 503)
 }

@@ -34,7 +34,7 @@ func TrackBHandler(b *TrackB, admin bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		malformed := func() {
 			if e := b.Rejected("http-rejected"); e != nil {
-				respond(w, 503, map[string]string{"status": "refused", "reason": "AUDIT_UNAVAILABLE"})
+				respond(w, trackBHTTPStatus(e), map[string]string{"status": "refused", "reason": e.Error()})
 				return
 			}
 			respond(w, 400, map[string]string{"status": "refused", "reason": "HTTP_SCHEMA"})
@@ -50,7 +50,7 @@ func TrackBHandler(b *TrackB, admin bool) http.Handler {
 			}
 			key, e := b.Claim(q.Slot, q.Token)
 			if e != nil {
-				respond(w, 403, map[string]string{"status": "refused", "reason": e.Error()})
+				respond(w, trackBHTTPStatus(e), map[string]string{"status": "refused", "reason": e.Error()})
 				return
 			}
 			respond(w, 200, map[string]string{"status": "ok", "private_key": key})
@@ -67,14 +67,14 @@ func TrackBHandler(b *TrackB, admin bool) http.Handler {
 			if r.URL.Path == "/mint" {
 				token, e := b.Mint(q.Slot)
 				if e != nil {
-					respond(w, 403, map[string]string{"status": "refused", "reason": e.Error()})
+					respond(w, trackBHTTPStatus(e), map[string]string{"status": "refused", "reason": e.Error()})
 					return
 				}
 				respond(w, 200, map[string]string{"status": "ok", "token": token})
 				return
 			}
 			if e := b.Revoke(q.Slot); e != nil {
-				respond(w, 403, map[string]string{"status": "refused", "reason": e.Error()})
+				respond(w, trackBHTTPStatus(e), map[string]string{"status": "refused", "reason": e.Error()})
 				return
 			}
 			respond(w, 200, map[string]string{"status": "ok"})
@@ -128,4 +128,14 @@ func ListenUnix(path string) (net.Listener, error) {
 }
 func HTTPServer(h http.Handler) *http.Server {
 	return &http.Server{Handler: h, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 40 * time.Second, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 8192}
+}
+
+func trackBHTTPStatus(e error) int {
+	if e.Error() == "RATE_LIMITED" {
+		return http.StatusTooManyRequests
+	}
+	if e.Error() == "TRACKB_UNAVAILABLE" || e.Error() == "CLOCK" || len(e.Error()) >= 6 && e.Error()[:6] == "STATE_" {
+		return http.StatusServiceUnavailable
+	}
+	return http.StatusForbidden
 }

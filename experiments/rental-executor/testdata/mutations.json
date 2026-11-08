@@ -268,5 +268,77 @@
     "Selector": "TestCoreScopeAndPrize",
     "Marker": "same-block prize spend not detected",
     "Core": true
+  },
+  {
+    "Name": "claim-rate",
+    "File": "trackb.go",
+    "Old": "if *count >= limit {",
+    "New": "if false && *count >= limit {",
+    "Selector": "TestTrackBSpamIsolation",
+    "Marker": "invalid claim rate not bounded",
+    "Core": false
+  },
+  {
+    "Name": "claim-valid-lane",
+    "File": "trackb.go",
+    "Old": "if valid {\n\t\tcount, limit = &w.Valid, ValidClaimsPerWindow",
+    "New": "if false && valid {\n\t\tcount, limit = &w.Valid, ValidClaimsPerWindow",
+    "Selector": "TestTrackBSpamIsolation",
+    "Marker": "invalid flood froze valid claim",
+    "Core": false
+  },
+  {
+    "Name": "claim-window-restart",
+    "File": "trackb.go",
+    "Old": "if b.state.Windows == nil {",
+    "New": "if true {",
+    "Selector": "TestTrackBSpamIsolation",
+    "Marker": "claim window reset by restart",
+    "Core": false
+  },
+  {
+    "Name": "audit-rotation",
+    "File": "trackb.go",
+    "Old": "func (b *TrackB) compactAudit() bool {",
+    "New": "func (b *TrackB) compactAudit() bool {\n return false\n",
+    "Selector": "TestTrackBRollingAudit",
+    "Marker": "historical audit did not roll",
+    "Core": false
+  },
+  {
+    "Name": "export-slot",
+    "File": "executor.go",
+    "Old": "if r.Slot != slot {",
+    "New": "if false && r.Slot != slot {",
+    "Selector": "TestSlotExportReadOnly",
+    "Marker": "export leaked slot or uncertain deliverable",
+    "Core": false
+  },
+  {
+    "Name": "export-completion",
+    "File": "executor.go",
+    "Old": "if r.Action == \"deliver\" && r.Phase == \"complete\" {\n\t\t\tout.Deliverables",
+    "New": "if r.Action == \"deliver\" {\n\t\t\tout.Deliverables",
+    "Selector": "TestSlotExportReadOnly",
+    "Marker": "export leaked slot or uncertain deliverable",
+    "Core": false
+  },
+  {
+    "Name": "replay-closed-receipt",
+    "File": "executor.go",
+    "Old": "authorityReason := check()",
+    "New": "authorityReason := check(); if authorityReason!=\"\" {return refuse(authorityReason)}",
+    "Selector": "TestCoreClosureReceiptsAndExport",
+    "Marker": "closure lost durable receipt",
+    "Core": true
+  },
+  {
+    "Name": "http-refusal-status",
+    "File": "executor.go",
+    "Old": "respond(w, receiptHTTPStatus(receipt), receipt)",
+    "New": "respond(w, 200, receipt)",
+    "Selector": "TestCoreClosureReceiptsAndExport",
+    "Marker": "refusal HTTP status",
+    "Core": true
   }
 ]

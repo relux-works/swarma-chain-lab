@@ -45,9 +45,10 @@ Go 1.26.8, modules declare Go 1.26.0. Same cryptographic pins as M1/M2:
 Payment serialization/address handling additionally uses btcd v0.24.2 and
 btcutil v1.1.5 (same as M3), avoiding hand-written Bitcoin transaction crypto.
 Full resolved versions/checksums will be captured after M1 dependency pinning.
-M1 immutable dependency is now 63087f31b62da50a6566250ef96af969e313e51b,
-verified signed and independently accepted on 2026-11-08. Build against that
-exact dependency until it is integrated into the default branch.
+M4a-01 initially pinned M1 at 63087f31b62da50a6566250ef96af969e313e51b,
+verified signed and independently accepted on 2026-11-08. M4a-02 uses landed M1 baseline
+c94b116d2ddda3aebf634fbec8059b721197e0a5 and reruns integration without an
+external workspace.
 
 Primary protocol references consulted:
 [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) defines the

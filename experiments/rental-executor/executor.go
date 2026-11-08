@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,15 +45,17 @@ type journal struct {
 	Reservations []Reservation `json:"reservations"`
 }
 type Receipt struct {
-	Status      string `json:"status"`
-	Reason      string `json:"reason"`
-	Slot        string `json:"slot"`
-	EventID     string `json:"event_id"`
-	Phase       string `json:"phase"`
-	TxID        string `json:"txid"`
-	FileHash    string `json:"file_sha256"`
-	Link        string `json:"local_link"`
-	RetainUntil int64  `json:"retain_until"`
+	Status          string `json:"status"`
+	Action          string `json:"action"`
+	AuthorityReason string `json:"authority_reason,omitempty"`
+	Reason          string `json:"reason"`
+	Slot            string `json:"slot"`
+	EventID         string `json:"event_id"`
+	Phase           string `json:"phase"`
+	TxID            string `json:"txid"`
+	FileHash        string `json:"file_sha256"`
+	Link            string `json:"local_link"`
+	RetainUntil     int64  `json:"retain_until"`
 }
 type Broadcaster interface {
 	Broadcast(context.Context, []byte) (string, error)
@@ -204,6 +207,7 @@ func (x *Executor) Execute(ctx context.Context, event, file []byte) Receipt {
 	}
 	result.Slot = r.Slot
 	result.EventID = r.Event.ID
+	result.Action = r.Action
 	s, ok := x.slots[r.Slot]
 	if !ok {
 		return refuse("SLOT_UNKNOWN")
@@ -238,20 +242,16 @@ func (x *Executor) Execute(ctx context.Context, event, file []byte) Receipt {
 		}
 		return ""
 	}
-	if reason := check(); reason != "" {
-		return refuse(reason)
-	}
+	authorityReason := check()
 	spent := int64(0)
 	used := map[string]bool{}
 	for _, prior := range x.journal.Reservations {
 		if prior.Slot == r.Slot {
 			if prior.Nonce == r.Nonce {
+				result = x.receipt(prior)
 				result.Status = "already-executed"
 				result.Reason = "DURABLE_RESERVATION_NO_RETRY"
-				result.Phase = prior.Phase
-				result.TxID = prior.TxID
-				result.FileHash = prior.FileHash
-				result.RetainUntil = prior.RetainUntil
+				result.AuthorityReason = authorityReason
 				return result
 			}
 			spent += prior.Debit
@@ -259,6 +259,9 @@ func (x *Executor) Execute(ctx context.Context, event, file []byte) Receipt {
 		for _, p := range prior.Inputs {
 			used[p.key()] = true
 		}
+	}
+	if authorityReason != "" {
+		return refuse(authorityReason)
 	}
 	if len(x.journal.Reservations) >= 10000 {
 		return refuse("JOURNAL_LIMIT")
@@ -337,6 +340,26 @@ func (x *Executor) Execute(ctx context.Context, event, file []byte) Receipt {
 }
 func ExecutorHandler(x *Executor) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/slots/") {
+			if r.Method != "GET" || r.URL.RawQuery != "" || r.URL.ForceQuery || r.ContentLength != 0 || len(r.TransferEncoding) != 0 {
+				respond(w, 400, map[string]string{"status": "refused", "reason": "HTTP_SCHEMA"})
+				return
+			}
+			result, e := x.ListSlot(strings.TrimPrefix(r.URL.Path, "/slots/"))
+			if e != nil {
+				code := 503
+				if e.Error() == "SLOT_UNKNOWN" {
+					code = 404
+				}
+				if e.Error() == "SLOT_FORMAT" {
+					code = 400
+				}
+				respond(w, code, map[string]string{"status": "refused", "reason": e.Error()})
+				return
+			}
+			respond(w, 200, result)
+			return
+		}
 		var q struct {
 			Event json.RawMessage `json:"event"`
 			File  string          `json:"file_base64"`
@@ -351,7 +374,7 @@ func ExecutorHandler(x *Executor) http.Handler {
 			return
 		}
 		receipt := x.Execute(r.Context(), q.Event, file)
-		respond(w, 200, receipt)
+		respond(w, receiptHTTPStatus(receipt), receipt)
 	})
 }
 
@@ -362,4 +385,63 @@ func PublicKey(secret string) (string, error) {
 		return "", e
 	}
 	return hex.EncodeToString(k.PubKey().SerializeCompressed()), nil
+}
+
+func (x *Executor) receipt(r Reservation) Receipt {
+	out := Receipt{Status: "recorded", Reason: "DURABLE_RESERVATION", Slot: r.Slot, EventID: r.EventID, Action: r.Action, Phase: r.Phase, TxID: r.TxID, FileHash: r.FileHash, RetainUntil: r.RetainUntil}
+	if r.Action == "deliver" && r.Phase == "complete" {
+		out.Link = "file://" + x.store.root + "/file-" + r.Slot + "-" + r.Nonce
+	}
+	return out
+}
+
+type SlotExport struct {
+	Slot         string    `json:"slot"`
+	Effects      []Receipt `json:"effects"`
+	Deliverables []Receipt `json:"deliverables"`
+}
+
+// ListSlot is a local journal projection: no kernel call, journal mutation,
+// key release or effect. Reserved records remain explicitly uncertain.
+func (x *Executor) ListSlot(slot string) (SlotExport, error) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	out := SlotExport{Slot: slot, Effects: []Receipt{}, Deliverables: []Receipt{}}
+	if x.store.poison {
+		return out, fail("STATE_UNAVAILABLE")
+	}
+	if !hexN(slot, 32) {
+		return out, fail("SLOT_FORMAT")
+	}
+	if _, ok := x.slots[slot]; !ok {
+		return out, fail("SLOT_UNKNOWN")
+	}
+	for _, r := range x.journal.Reservations {
+		if r.Slot != slot {
+			continue
+		}
+		out.Effects = append(out.Effects, x.receipt(r))
+		if r.Action == "deliver" && r.Phase == "complete" {
+			out.Deliverables = append(out.Deliverables, x.receipt(r))
+		}
+	}
+	return out, nil
+}
+func receiptHTTPStatus(r Receipt) int {
+	if r.Status != "refused" {
+		return http.StatusOK
+	}
+	if r.Reason == "SLOT_UNKNOWN" {
+		return http.StatusNotFound
+	}
+	if strings.Contains(r.Reason, "UNAVAILABLE") || strings.Contains(r.Reason, "UNCERTAIN") || strings.HasPrefix(r.Reason, "STATE_") {
+		return http.StatusServiceUnavailable
+	}
+	if strings.HasPrefix(r.Reason, "EVENT_") || strings.HasPrefix(r.Reason, "REQUEST_") || strings.HasPrefix(r.Reason, "FILE_") {
+		return http.StatusBadRequest
+	}
+	if strings.HasPrefix(r.Reason, "BUDGET_") || r.Reason == "JOURNAL_LIMIT" {
+		return http.StatusConflict
+	}
+	return http.StatusForbidden
 }

@@ -126,9 +126,19 @@ func TestCoreServiceProcess(t *testing.T) {
 	event.CreatedAt = time.Now().Unix()
 	event = signEvent(event, testKey(2))
 	q["event"] = event
-	if json.Unmarshal(call(execClient, "/execute", q, 200), &receipt) != nil {
+	if json.Unmarshal(call(execClient, "/execute", q, 503), &receipt) != nil {
 		t.Fatal("receipt")
 	}
 	expectResult(t, receipt, "refused", "KERNEL_NODE_UNAVAILABLE")
 	l.save("cli-node-down.json", receipt)
+	resp, err := execClient.Get("http://unix/slots/" + conf.Slots[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var exported SlotExport
+	if resp.StatusCode != 200 || json.NewDecoder(resp.Body).Decode(&exported) != nil || len(exported.Effects) != 1 || exported.Effects[0].Phase != "complete" || exported.Effects[0].TxID == "" {
+		t.Fatal("CLI offline export")
+	}
+	l.save("cli-offline-export.json", exported)
 }

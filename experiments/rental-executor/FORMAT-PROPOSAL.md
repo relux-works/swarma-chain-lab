@@ -64,6 +64,21 @@ Audit failure refuses release. Logs, receipts, list and handoffs never contain
 raw tokens or private key material. Mint/revoke operations and audit are stored
 atomically in one state snapshot. HTTP/socket responses set no-store.
 
-M1 integration pin: 63087f31b62da50a6566250ef96af969e313e51b. This interface
+M1 integration pin: c94b116d2ddda3aebf634fbec8059b721197e0a5. This interface
 adds no production spend authority, public deployment or target-scope semantics
 beyond the explicitly local regtest experiment.
+
+## M4a-02 receipts and local read-only export
+
+Request-event signing bytes are unchanged. Receipts add `action` and optional
+`authority_reason`. Replays report the original durable event ID/artifact/phase
+even after closure; the current kernel refusal is carried in authority_reason.
+No replay authorizes another effect. Refusals use non-200 HTTP statuses as listed
+in README; successful execution and durable replay use 200.
+
+`GET /slots/<slot>` (no body/query) returns `slot`, `effects` and `deliverables`.
+Both arrays contain receipt-shaped records with status `recorded`; effects retain
+reserved/complete phase, while deliverables includes only complete deliveries.
+No grant check or mutation occurs in this projection. Unknown slot returns 404;
+invalid request returns 400; unavailable state returns 503. The same local service
+UID boundary applies. No private configuration or file contents are exported.

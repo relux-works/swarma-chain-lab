@@ -62,9 +62,12 @@ fsync, rename and directory fsync. An uncertain write poisons the handle.
 A reservation burns slot+nonce, selected inputs and amount+fee before any
 broadcast/file/record. It survives crash and never retries, even if the outcome
 is unknown. Duplicates return `already-executed` with `reserved` or `complete`,
-after the grant check; that status is a no-retry statement, not evidence that
-an uncertain effect happened. Reusing a nonce with another event also refuses
-execution. Journal capacity is 10,000 reservations; exhaustion fails closed.
+after request authentication and a fresh kernel observation. A closed or
+unavailable kernel does not erase that durable receipt: `authority_reason`
+reports the current kernel refusal while `event_id`, phase and artifact fields
+refer to the original reservation. New nonces still require live authority.
+This status is a no-retry statement, not evidence that an uncertain effect
+happened. Reusing a nonce with another event never creates a second effect. Journal capacity is 10,000 reservations; exhaustion fails closed.
 Restart checks configuration commitment and journal invariants. Do not delete,
 copy, rewind or restore stale state to retry: operator reconciliation is
 required. Same-UID hostile processes and restoration of old backups are outside
@@ -94,19 +97,46 @@ The claim endpoint deliberately does **not** call the kernel: a valid token
 returns the configured per-slot throwaway prize B private scalar. Repeated valid
 claims return the same key; the sweep is outside this service.
 
-Every normal admin/claim operation commits time, operation, slot, token hash and
-outcome with the token state before response. Malformed requests log a sanitized
-rejection without body content. Audit capacity is 10,000 calls; full/unwritable
-audit fails closed and never releases a key. No raw token, key, message or file
-content enters the journal/audit/list. Calls that cannot persist audit return
-failure rather than claiming to have logged successfully.
+Successful claims and ordinary admin/claim attempts commit time, operation,
+slot, token hash and outcome with token state before response/key release.
+Each configured slot has a durable 60-second window: up to 32 valid-token claims
+and 8 invalid-token attempts. These allowances are separate; guessed tokens
+cannot consume the valid-token allowance. Unknown slots and malformed calls
+share one bounded invalid bucket. The first over-limit attempt is logged as
+RATE_LIMITED; subsequent attempts in that window are coalesced and return 429
+without further disk writes. Restart or backward clock movement cannot reset a
+window. Admin mint/revoke/list bypass claim throttling.
+
+The audit rolls independently: last 32 claim records per configured slot,
+last 32 malformed/unknown records, and last 128 admin records. `audit_dropped`
+counts evicted records (saturating); token/revocation state is never evicted.
+Existing full historical audits are compacted on open. No global count freezes
+claims. This bounded local tail is not a complete forensic archive; deployment
+can collect it separately if needed. Unwritable/uncertain state still fails closed
+before releasing a key. No raw token, key, message or file content enters audit.
 
 Executor socket: `POST /execute` with
 `{"event":<kind8183 event>,"file_base64":""}` (canonical base64 for deliver).
 Response is a receipt with status/reason, slot/event ID, phase, txid or file
-hash/local link/retention deadline. HTTP 200 carries an executor verdict; shape
-errors use HTTP 400. Track B schema errors use 400, token refusals 403, audit
-unavailability can use 503. All errors are bounded codes without secret values.
+hash/local link/retention deadline and action. HTTP 200 is reserved for executed
+or already-executed receipts. Refusals use 400 for shape/input errors, 403 for
+authority/scope denial, 404 for unknown slot, 409 for budget/limit conflicts and
+503 for unavailable state/node or uncertain effects. Track B uses 400 for schema,
+403 for token refusal, 429 for claim throttling and 503 for unavailable audit.
+Always read the status/reason/phase too; a reserved phase never proves execution.
+All errors are bounded codes without secret values.
+
+Read-only closer export: `GET /slots/<64-lower-hex-slot>` on the executor socket,
+with no query or body. Response is `{slot,effects:[receipts],deliverables:[receipts]}`.
+`effects` includes every recorded action for only that slot, with original event
+ID, phase, txid or file metadata. `deliverables` includes only complete deliveries
+with sha256, local_link and retain_until. Reserved entries have no delivery link.
+The receipt status `recorded` describes journal evidence, not a fresh grant check.
+The Go method is `ListSlot(slot) (SlotExport, error)`. Both paths only project the
+journal: no node call, state write, effect, key release or file-body read. They
+work after closure/expiry and node outage and preserve evidence across restart.
+Links are local metadata, not a promise that retention/deployment still keeps
+the file. Socket ownership limits access; a cross-host proxy is still external.
 
 ## Configuration and CLI
 
@@ -131,12 +161,12 @@ passwords or tokens in argv, logs, task messages or the public evidence packet.
 
 ## Dependencies, tools and reproduction
 
-Pinned M1 dependency: **63087f31b62da50a6566250ef96af969e313e51b** (signed).
-The branch starts from chain-lab main 2a4410e2; M1 must be present as sibling
-`rental`, and its matching `single-use`/`sealwatch` must be used. No source change
-is made in those modules. Before M1 lands, use a Go workspace override pointed
-at a clean checkout of that exact M1 head, as recorded in the delivery packet.
-Do not substitute the older base's single-use (it lacks M1's observation API).
+Integrated M1 baseline: **c94b116d2ddda3aebf634fbec8059b721197e0a5** (signed).
+M4a-02 is rebased onto this landed main. The `rental`, `single-use` and
+`sealwatch` sibling modules are present and build directly with `GOWORK=off`.
+No workspace override or external dependency checkout is required. The original
+M4a-01 evidence used 63087f31; the new delivery reruns integration against the
+landed baseline. No source changes are made in those dependency modules.
 
 Go 1.26.8, btcec/v2 2.3.5, decred secp256k1/v4 4.4.0, btcd 0.24.2,
 btcutil 1.1.5; full graph/checksums in go.mod/go.sum and delivery dependencies.
@@ -155,7 +185,8 @@ GOTOOLCHAIN=go1.26.8 go build -trimpath -o ../../.temp/rental-executor ./cmd/ren
 Core suites require `M4A_REGTEST=1`, a fresh absolute `M4A_RUN_ROOT`, and
 `M4A_CORE_CLI`/`M4A_CORE_DAEMON` pointing to the hash-pinned Core 28 binaries
 in SURVEY.md. Select one suite per fresh root: `TestCoreExecutor`,
-`TestCoreScopeAndPrize`, `TestCoreServiceProcess` (also set `M4A_BIN` to the
+`TestCoreScopeAndPrize`, `TestCoreClosureReceiptsAndExport`, and
+`TestCoreServiceProcess` (also set `M4A_BIN` to the
 trimpath binary). They use own datadirs, `listen=0`, no peers and PID cleanup.
 Only each run's `public/` is exportable; `private/` holds disposable credentials
 and wallets. Unit tests never require Core; skipped suites are not passes.
@@ -163,7 +194,7 @@ and wallets. Unit tests never require Core; skipped suites are not passes.
 Guard controls: set `M4A_MUTATIONS=1`, fresh `M4A_MUTATION_ROOT`,
 `M4A_DEP_ROOT` to the pinned dependency checkout's experiments directory, plus
 the Core binary variables; run `go test -count=1 -run '^TestGuardPlants$' -v`.
-30 isolated plants must fail named assertions, not setup/build/panic/timeouts.
+38 isolated plants must fail named assertions, not setup/build/panic/timeouts.
 The manifest is `testdata/mutations.json`; results/logs remain in that scratch
 root. Repeat `TestConcurrentStoreCreation` with `-race -count=200` on macOS
 for the first-create concurrency regression. Build/log scratch belongs in

@@ -294,7 +294,7 @@ func TestCoreExecutor(t *testing.T) {
 			t.Fatal("revocation effect")
 		}
 	})
-	l.save("result.json", map[string]any{"status": "PASS", "regtest": true, "m1_dependency_pin": "63087f31b62da50a6566250ef96af969e313e51b"})
+	l.save("result.json", map[string]any{"status": "PASS", "regtest": true, "m1_dependency_pin": "c94b116d2ddda3aebf634fbec8059b721197e0a5"})
 }
 
 type failingNode struct{}

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func prizes() map[string]string {
@@ -141,5 +142,135 @@ func TestTrackBConcurrentMint(t *testing.T) {
 	}
 	if n != 1 || len(b.state.Tokens) != 1 || len(b.state.Audit) != 16 {
 		t.Fatal("mint race")
+	}
+}
+
+// Invalid-token/malformed floods do not exhaust valid claims or another slot,
+// and throttling remains durable across restart. Admin revoke stays available.
+func TestTrackBSpamIsolation(t *testing.T) {
+	root := rootDir(t)
+	b, e := OpenTrackB(root, "regtest", prizes())
+	if e != nil {
+		t.Fatal(e)
+	}
+	at := int64(2000000000)
+	b.now = func() time.Time { return time.Unix(at, 0) }
+	a, other := strings.Repeat("1", 64), strings.Repeat("2", 64)
+	tok, e := b.Mint(a)
+	if e != nil {
+		t.Fatal(e)
+	}
+	tok2, e := b.Mint(other)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for i := 0; i < 10020; i++ {
+		_, e = b.Claim(a, strings.Repeat("0", 64))
+		want := "TOKEN_REFUSED"
+		if i >= InvalidClaimsPerWindow {
+			want = "RATE_LIMITED"
+		}
+		if e == nil || e.Error() != want {
+			t.Fatal("invalid claim rate not bounded", i, e)
+		}
+		e = b.Rejected("http-rejected")
+		if i >= InvalidClaimsPerWindow && (e == nil || e.Error() != "RATE_LIMITED") {
+			t.Fatal("malformed rate not bounded")
+		}
+	}
+	if _, e = b.Claim(a, tok); e != nil {
+		t.Fatal("invalid flood froze valid claim", e)
+	}
+	if _, e = b.Claim(other, tok2); e != nil {
+		t.Fatal("cross-slot audit freeze", e)
+	}
+	for i := 1; i < ValidClaimsPerWindow; i++ {
+		if _, e = b.Claim(a, tok); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if key, e := b.Claim(a, tok); e == nil || e.Error() != "RATE_LIMITED" || key != "" {
+		t.Fatal("valid claim rate not bounded")
+	}
+	b.Close()
+	b, e = OpenTrackB(root, "regtest", prizes())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer b.Close()
+	b.now = func() time.Time { return time.Unix(at, 0) }
+	if _, e = b.Claim(a, tok); e == nil || e.Error() != "RATE_LIMITED" {
+		t.Fatal("claim window reset by restart")
+	}
+	at--
+	if _, e = b.Claim(a, tok); e == nil || e.Error() != "RATE_LIMITED" {
+		t.Fatal("clock rollback reset claim window")
+	}
+	if e = b.Revoke(a); e != nil {
+		t.Fatal("claim throttle froze admin revoke", e)
+	}
+	at += 61
+	if _, e = b.Claim(a, tok); e == nil || e.Error() != "TOKEN_REFUSED" {
+		t.Fatal("rotation lost revocation")
+	}
+	if _, e = b.Claim(other, tok2); e != nil {
+		t.Fatal("other slot did not recover", e)
+	}
+	if len(b.state.Windows) > 3 || len(b.state.Audit) > 2*AuditPerSlot+AuditAdmin+AuditPerSlot {
+		t.Fatal("spam storage unbounded")
+	}
+}
+
+// A full historical audit rotates, preserves token revocation and keeps
+// unrelated claim/admin traffic usable; audit failure still blocks key release.
+func TestTrackBRollingAudit(t *testing.T) {
+	root := rootDir(t)
+	b, e := OpenTrackB(root, "regtest", prizes())
+	if e != nil {
+		t.Fatal(e)
+	}
+	slot, other := strings.Repeat("1", 64), strings.Repeat("2", 64)
+	tok, e := b.Mint(slot)
+	if e != nil {
+		t.Fatal(e)
+	}
+	tok2, e := b.Mint(other)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = b.Revoke(slot); e != nil {
+		t.Fatal(e)
+	}
+	// Small malformed records reproduce the old global-cap state within the
+	// file-size bound. Rotation must happen before the next claim can freeze.
+	b.state.Audit = make([]Audit, 10000)
+	for i := range b.state.Audit {
+		b.state.Audit[i] = Audit{Time: 2000000000, Operation: "http-rejected", Outcome: "MALFORMED"}
+	}
+	if e = b.persist(); e != nil {
+		t.Fatal(e)
+	}
+	b.Close()
+	b, e = OpenTrackB(root, "regtest", prizes())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer b.Close()
+	if len(b.state.Audit) > AuditPerSlot || b.state.AuditDropped != 10000-AuditPerSlot {
+		t.Fatal("historical audit did not roll")
+	}
+	if _, e = b.Claim(slot, tok); e == nil || e.Error() != "TOKEN_REFUSED" {
+		t.Fatal("rolling audit resurrected token")
+	}
+	if _, e = b.Claim(other, tok2); e != nil {
+		t.Fatal("full audit froze unrelated claim", e)
+	}
+	for range 200 {
+		if _, e = b.List(); e != nil {
+			t.Fatal("admin audit froze", e)
+		}
+	}
+	if len(b.state.Audit) > AuditAdmin+AuditPerSlot+2 {
+		t.Fatal("admin audit not rolling")
 	}
 }
