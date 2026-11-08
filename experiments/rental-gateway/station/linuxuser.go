@@ -25,10 +25,14 @@ type Executor interface {
 // FailOn maps argv[0] to the error that command returns; OutputFor
 // maps argv[0] to stdout bytes (e.g. "1007\n" for id -u).
 type FakeExec struct {
-	Calls     [][]string
-	Inputs    [][]byte
-	FailOn    map[string]error
-	OutputFor map[string][]byte
+	Calls  [][]string
+	Inputs [][]byte
+	FailOn map[string]error
+	// FailOnPrefix maps a joined-argv prefix (e.g. "nft delete")
+	// to an error, checked before FailOn so argv0-shared commands
+	// can fail selectively.
+	FailOnPrefix map[string]error
+	OutputFor    map[string][]byte
 }
 
 // Run implements Executor.
@@ -40,6 +44,13 @@ func (f *FakeExec) Run(ctx context.Context, name string, args ...string) ([]byte
 func (f *FakeExec) RunInput(ctx context.Context, input []byte, name string, args ...string) ([]byte, error) {
 	f.Calls = append(f.Calls, append([]string{name}, args...))
 	f.Inputs = append(f.Inputs, append([]byte(nil), input...))
+	joined := name
+	if len(args) > 0 {
+		joined += " " + args[0]
+	}
+	if err := f.FailOnPrefix[joined]; err != nil {
+		return nil, err
+	}
 	if err := f.FailOn[name]; err != nil {
 		return nil, err
 	}
@@ -352,14 +363,20 @@ func (d *LinuxUserDriver) Destroy(ctx context.Context, st *Station) (DestroyRepo
 			errs = append(errs, fmt.Errorf("token revoke: %w", err))
 		}
 	}
+	// Retry-safe teardown: already-gone is success, proven by
+	// assertion (table list fails, id fails), never assumed.
 	if _, err := d.run(ctx, "nft", "delete", "table", "inet", d.nftTable(st)); err != nil {
-		errs = append(errs, fmt.Errorf("nft delete table: %w", err))
+		if _, listErr := d.run(ctx, "nft", "list", "table", "inet", d.nftTable(st)); listErr == nil {
+			errs = append(errs, fmt.Errorf("nft delete table: %w", err))
+		}
 	}
 	if _, err := d.run(ctx, "pkill", "-TERM", "-u", st.User); err != nil && !exitCodeIs(err, 1) {
 		errs = append(errs, fmt.Errorf("pkill: %w", err))
 	}
 	if _, err := d.run(ctx, "userdel", "--remove", st.User); err != nil {
-		errs = append(errs, fmt.Errorf("userdel: %w", err))
+		if _, idErr := d.run(ctx, "id", st.User); idErr == nil {
+			errs = append(errs, fmt.Errorf("userdel: %w", err))
+		}
 	} else if _, err := d.run(ctx, "id", st.User); err == nil {
 		errs = append(errs, fmt.Errorf("linux-user destroy: user %s still exists after userdel", st.User))
 	}

@@ -180,6 +180,10 @@ func (g *Gateway) StartSlot(ctx context.Context, slotID string) error {
 		_, _ = g.cfg.Driver.Destroy(ctx, st)
 		return fmt.Errorf("gateway: register channel secret: %w", err)
 	}
+	if err := g.cfg.Journal.SetStationHandle(slot.ID, st.Home, st.User); err != nil {
+		_, _ = g.cfg.Driver.Destroy(ctx, st)
+		return fmt.Errorf("gateway: register station handle: %w", err)
+	}
 	info := station.SessionInfo{
 		RenterPubKey: slot.RenterPubKey, ContractSHA256: slot.ContractSHA256,
 		NotAfter: slot.NotAfter, GatewayEndpoint: g.cfg.Endpoint,
@@ -209,81 +213,11 @@ func (g *Gateway) Tick(ctx context.Context) {
 	}
 }
 
-// DestroySlot ends the session and destroys the station (home and
-// Track B token removed by the driver). Journal records are kept.
-func (g *Gateway) DestroySlot(ctx context.Context, slotID string) (station.DestroyReport, error) {
-	slot, ok := g.cfg.Journal.Get(slotID)
-	if !ok {
-		return station.DestroyReport{}, fmt.Errorf("gateway: no slot %s", slotID)
-	}
-	g.endSlot(ctx, slotID, "destroyed", "")
-	g.mu.Lock()
-	st := g.stations[slotID]
-	delete(g.stations, slotID)
-	g.mu.Unlock()
-	var report station.DestroyReport
-	var err error
-	if st != nil {
-		report, err = g.cfg.Driver.Destroy(ctx, st)
-		if err != nil {
-			return report, err
-		}
-	} else {
-		report = station.DestroyReport{Kept: append([]string(nil), station.KeptElsewhere...)}
-		_ = slot
-	}
-	if err := g.cfg.Journal.MarkDestroyed(slotID); err != nil {
-		return report, err
-	}
-	return report, nil
-}
-
-// SendFinalMessage delivers the closer's end-of-slot message
-// (summary, deliverables, revoke txid) to the renter, signed with
-// the agent key. The closer (M4b) calls it after slot end and
-// before DestroySlot; after destruction it is refused, so the
-// required order end -> final message -> destroy is enforceable.
-func (g *Gateway) SendFinalMessage(ctx context.Context, slotID, content string) error {
-	slot, ok := g.cfg.Journal.Get(slotID)
-	if !ok {
-		return fmt.Errorf("gateway: no slot %s", slotID)
-	}
-	if slot.Destroyed {
-		return fmt.Errorf("gateway: slot %s destroyed: final message must precede destroy", slotID)
-	}
-	if content == "" {
-		return fmt.Errorf("gateway: empty final message")
-	}
-	return g.dmRenter(ctx, slot, content)
-}
-
-// endSlot durably ends a slot, stops its station process (session
-// end, not destroy), notifies the station queue, and optionally DMs
-// the renter. It never extends or reopens a slot.
+// endSlot is the best-effort internal wrapper for gateway-driven
+// ends (Tick, screening, kernel closure, end-early). Closer-driven
+// ends go through the recorded EndSlot operation in ops.go.
 func (g *Gateway) endSlot(ctx context.Context, slotID, reason, renterDM string) {
-	slot, ok := g.cfg.Journal.Get(slotID)
-	if !ok || slot.Ended {
-		// Still record destroy-flavoured ends for unknown state below.
-		if !ok {
-			return
-		}
-	}
-	_ = g.cfg.Journal.MarkEnded(slotID, reason)
-	g.mu.Lock()
-	st := g.stations[slotID]
-	g.mu.Unlock()
-	if st != nil {
-		_ = g.cfg.Driver.End(ctx, st, reason)
-	}
-	q := g.queueFor(slotID)
-	select {
-	case q <- &stationlink.Frame{Type: stationlink.TypeEnd, SlotID: slotID, Reason: reason}:
-	default:
-	}
-	if renterDM != "" {
-		fresh, _ := g.cfg.Journal.Get(slotID)
-		_ = g.dmRenter(ctx, fresh, renterDM)
-	}
+	_ = g.endSlotE(ctx, slotID, reason, renterDM)
 }
 
 func (g *Gateway) kernelCheck(ctx context.Context, slot *journal.Slot, nowUnix int64) (kernel.Receipt, error) {

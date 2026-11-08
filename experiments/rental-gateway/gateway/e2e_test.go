@@ -68,7 +68,7 @@ func TestStubProcessEndToEnd(t *testing.T) {
 	t.Setenv("M2_STATION_STUB_PROCESS", "1")
 	h := newHarness(t, harnessOpts{stubCmd: []string{os.Args[0],
 		"-test.run=^TestStationStubProcess$", "-test.count=1"}})
-	defer func() { _, _ = h.gw.DestroySlot(context.Background(), "slot-1") }()
+	defer func() { _, _, _ = h.gw.DestroySlot(context.Background(), "slot-1", "op-destroy-e2e") }()
 	res := h.handle(h.renterDM("ping via process", nowMid))
 	if !res.Delivered {
 		t.Fatalf("delivery refused: %+v", res)

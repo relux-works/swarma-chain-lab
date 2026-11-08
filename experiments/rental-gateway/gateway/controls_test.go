@@ -402,7 +402,7 @@ func TestDestroyedStationCannotReply(t *testing.T) {
 	}
 	conn.Close()
 	staleSecret := h.slotSecret("slot-1")
-	report, err := h.gw.DestroySlot(context.Background(), "slot-1")
+	report, _, err := h.gw.DestroySlot(context.Background(), "slot-1", "op-destroy-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -560,17 +560,17 @@ func TestFinalMessageOrder(t *testing.T) {
 	}
 	conn.Close()
 	ctx := context.Background()
-	if err := h.gw.SendFinalMessage(ctx, "slot-1", "final: summary, deliverables, revoke txid abc"); err != nil {
+	if _, err := h.gw.SendFinalMessage(ctx, "slot-1", "op-final-1", "final: summary, deliverables, revoke txid abc"); err != nil {
 		t.Fatalf("final message after end refused: %v", err)
 	}
 	dms := h.pub.dmsTo(h.renter)
 	if !strings.Contains(dms[len(dms)-1], "revoke txid abc") {
 		t.Fatalf("final DM missing: %v", dms)
 	}
-	if _, err := h.gw.DestroySlot(ctx, "slot-1"); err != nil {
+	if _, _, err := h.gw.DestroySlot(ctx, "slot-1", "op-destroy-1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.gw.SendFinalMessage(ctx, "slot-1", "too late"); err == nil {
+	if _, err := h.gw.SendFinalMessage(ctx, "slot-1", "op-final-2", "too late"); err == nil {
 		t.Fatal("final message accepted after destroy")
 	}
 }

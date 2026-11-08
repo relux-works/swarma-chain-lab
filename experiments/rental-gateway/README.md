@@ -53,11 +53,26 @@ local-test driver launches per station.
   message with a "screening unavailable, retry" DM and no strike.
   The closer's final message goes through
   `Gateway.SendFinalMessage` (agent-signed, before Destroy only).
+- **Closer operations (exactly-once):** `EndSlot`,
+  `SendFinalMessage` and `DestroySlot` each carry a caller-chosen
+  operation id with a durable journal record (started fsynced
+  before the effect, done/failed after). A repeat with the same id
+  returns the recorded result and performs nothing; a different id
+  for a started/done kind conflicts; `LookupOperation` answers
+  after an uncertain outcome. Crash-leftover started records
+  complete on retry where the effect is idempotent: the final
+  message re-publishes the one persisted event (never a second,
+  different message), ending an ended slot is a no-op, and destroy
+  proves already-gone by assertion. Destroy also works after a
+  gateway restart from durable station facts (no persisted PID).
+  Agent-signed station replies additionally require a fresh live
+  kernel check (current grantees only, no outbound screening); the
+  final message is the deliberate exemption.
 - **Kernel boundary:** `kernel.Checker` mirrors the frozen M1
   interface; `kernel.Stub` serves unit tests, the nested
   `kernelbind/` module binds the real `experiments/rental` package
   once M1 lands. The genuine-Core regtest end-to-end test is
-  **pending that landing** (orchestrator supplies the head); the
+  **pending a shared landing of both modules on main**; the
   stub-kernel relay end-to-end test runs now. A kernel read failure
   refuses the message but never durably closes anything gateway-side.
 - **Station channel:** stations initiate every connection (separate

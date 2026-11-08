@@ -38,6 +38,12 @@ type Slot struct {
 	// TokenSHA256 is the hash of the per-slot Track B token (the
 	// token itself lives only in the station home).
 	TokenSHA256 string `json:"token_sha256,omitempty"`
+	// StationHome/User locate the created station for Destroy after
+	// a gateway restart (no PID is ever persisted).
+	StationHome string `json:"station_home,omitempty"`
+	StationUser string `json:"station_user,omitempty"`
+	// Operations are the durable closer-operation records.
+	Operations []OpRecord `json:"operations,omitempty"`
 
 	seen map[string]bool `json:"-"`
 }
@@ -313,4 +319,153 @@ func (st *Store) update(id string, fn func(*Slot)) error {
 		return err
 	}
 	return nil
+}
+
+// Operation kinds recorded for closer-facing gateway operations.
+const (
+	OpEndSlot      = "end_slot"
+	OpFinalMessage = "final_message"
+	OpDestroy      = "destroy"
+	OpStateStarted = "started"
+	OpStateDone    = "done"
+	OpStateFailed  = "failed"
+)
+
+// OpRecord is the durable result record for one (slot, operation
+// id). State started is fsynced BEFORE the effect runs; done/failed
+// are fsynced after. A final-message record also carries the exact
+// event to publish, persisted before the first publish attempt.
+type OpRecord struct {
+	OpID          string   `json:"op_id"`
+	Kind          string   `json:"kind"`
+	State         string   `json:"state"`
+	Reason        string   `json:"reason,omitempty"`
+	Error         string   `json:"error,omitempty"`
+	EventID       string   `json:"event_id,omitempty"`
+	EventB64      string   `json:"event_b64,omitempty"`
+	ContentSHA256 string   `json:"content_sha256,omitempty"`
+	Removed       []string `json:"removed,omitempty"`
+	Kept          []string `json:"kept,omitempty"`
+	UpdatedAt     int64    `json:"updated_at"`
+}
+
+// ErrOpConflict reports a different operation id for a kind that
+// already has a started or done record on this slot.
+var ErrOpConflict = fmt.Errorf("journal: operation conflict")
+
+// BeginState says what BeginOperation found for an operation id.
+type BeginState int
+
+const (
+	BeginNew      BeginState = iota // fresh started record persisted; run the effect
+	BeginExisting                   // record already existed; inspect its State
+)
+
+func validOpID(id string) bool {
+	return id != "" && len(id) <= 128 && !strings.ContainsAny(id, " \t\r\n")
+}
+
+// BeginOperation returns the existing record for (slot, opID), or
+// durably persists a new started record. A different op id for a
+// kind with a started/done record is ErrOpConflict; failed records
+// do not block a fresh attempt under a new id.
+func (st *Store) BeginOperation(id, kind, opID, reason string, now int64) (OpRecord, BeginState, error) {
+	if !validOpID(opID) {
+		return OpRecord{}, BeginNew, fmt.Errorf("journal: invalid operation id %q", opID)
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	s, ok := st.slots[id]
+	if !ok {
+		return OpRecord{}, BeginNew, fmt.Errorf("journal: no slot %s", id)
+	}
+	for _, r := range s.Operations {
+		if r.OpID == opID {
+			if r.Kind != kind {
+				return r, BeginExisting, ErrOpConflict
+			}
+			return r, BeginExisting, nil
+		}
+	}
+	for _, r := range s.Operations {
+		if r.Kind == kind && r.State != OpStateFailed {
+			return r, BeginExisting, ErrOpConflict
+		}
+	}
+	rec := OpRecord{OpID: opID, Kind: kind, State: OpStateStarted, Reason: reason, UpdatedAt: now}
+	s.Operations = append(s.Operations, rec)
+	if err := st.persistLocked(s); err != nil {
+		s.Operations = s.Operations[:len(s.Operations)-1]
+		return OpRecord{}, BeginNew, err
+	}
+	return rec, BeginNew, nil
+}
+
+func (st *Store) mutateOp(id, opID string, fn func(*OpRecord)) (OpRecord, error) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	s, ok := st.slots[id]
+	if !ok {
+		return OpRecord{}, fmt.Errorf("journal: no slot %s", id)
+	}
+	for i := range s.Operations {
+		if s.Operations[i].OpID == opID {
+			backup := s.Operations[i]
+			fn(&s.Operations[i])
+			if err := st.persistLocked(s); err != nil {
+				s.Operations[i] = backup
+				return OpRecord{}, err
+			}
+			return s.Operations[i], nil
+		}
+	}
+	return OpRecord{}, fmt.Errorf("journal: no operation %s on slot %s", opID, id)
+}
+
+// AttachOperationEvent persists the exact final-message event
+// (id + bytes + content hash) into a started record, before any
+// publish attempt.
+func (st *Store) AttachOperationEvent(id, opID, eventID, eventB64, contentSHA256 string, now int64) (OpRecord, error) {
+	return st.mutateOp(id, opID, func(r *OpRecord) {
+		r.EventID, r.EventB64, r.ContentSHA256, r.UpdatedAt = eventID, eventB64, contentSHA256, now
+	})
+}
+
+// CompleteOperation durably marks an operation done, recording the
+// destroy report for destroy operations.
+func (st *Store) CompleteOperation(id, opID string, removed, kept []string, now int64) (OpRecord, error) {
+	return st.mutateOp(id, opID, func(r *OpRecord) {
+		r.State, r.Error, r.Removed, r.Kept, r.UpdatedAt = OpStateDone, "", removed, kept, now
+	})
+}
+
+// FailOperation durably marks an operation failed with its error.
+func (st *Store) FailOperation(id, opID, errMsg string, now int64) (OpRecord, error) {
+	return st.mutateOp(id, opID, func(r *OpRecord) {
+		r.State, r.Error, r.UpdatedAt = OpStateFailed, errMsg, now
+	})
+}
+
+// LookupOperation returns the recorded result for (slot, opID):
+// the closer's answer after an uncertain outcome.
+func (st *Store) LookupOperation(id, opID string) (OpRecord, bool) {
+	slot, ok := st.Get(id)
+	if !ok {
+		return OpRecord{}, false
+	}
+	for _, r := range slot.Operations {
+		if r.OpID == opID {
+			return r, true
+		}
+	}
+	return OpRecord{}, false
+}
+
+// SetStationHandle durably records where the station lives (home,
+// OS user) so Destroy can re-derive its handle after a gateway
+// restart. PIDs are deliberately never persisted.
+func (st *Store) SetStationHandle(id, home, user string) error {
+	return st.update(id, func(s *Slot) {
+		s.StationHome, s.StationUser = home, user
+	})
 }

@@ -257,3 +257,31 @@ func TestSlotUserNoCollision(t *testing.T) {
 		t.Fatalf("users collide or too long: %s / %s", a, b)
 	}
 }
+
+// TestLinuxDestroyAlreadyGone proves a teardown retry where the
+// table and user are already gone still succeeds, proven by the
+// assertions (nft list fails, id fails) rather than assumed.
+func TestLinuxDestroyAlreadyGone(t *testing.T) {
+	fake := &station.FakeExec{
+		FailOnPrefix: map[string]error{
+			"nft delete": errors.New("no such table"),
+			"nft list":   errors.New("no such table"),
+		},
+		FailOn: map[string]error{
+			"pkill":   exitErr{1},
+			"userdel": exitErr{6},
+			"id":      exitErr{1},
+		},
+	}
+	d := linuxDriver(fake, &fakeTokens{token: strings.Repeat("ab", 32)})
+	st := station.Reattach(station.SlotSpec{SlotID: "slot-9",
+		StationName: "id/swarma-station-9", BookingID: strings.Repeat("ef", 32)},
+		"/home/"+wantUser("slot-9"), wantUser("slot-9"))
+	report, err := d.Destroy(context.Background(), st)
+	if err != nil {
+		t.Fatalf("already-gone destroy must succeed: %v", err)
+	}
+	if len(report.Removed) == 0 {
+		t.Fatal("empty destroy report")
+	}
+}

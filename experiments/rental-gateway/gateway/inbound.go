@@ -283,9 +283,23 @@ func (g *Gateway) stationRequest(ctx context.Context, state *connState, frame *s
 		if slot.Ended {
 			return deny("slot ended")
 		}
-		if g.cfg.Now().Unix() >= slot.NotAfter {
+		now := g.cfg.Now().Unix()
+		if now >= slot.NotAfter {
 			g.endSlot(ctx, slot.ID, "not_after", "slot ended")
 			return deny("slot over")
+		}
+		// Outbound is signed only to a current grantee: fresh
+		// kernel check, no outbound screening (owner decision).
+		receipt, err := g.kernelCheckSender(ctx, slot, slot.RenterPubKey, now)
+		if err != nil {
+			return deny("grant check failed")
+		}
+		if receipt.Closed {
+			g.endSlot(ctx, slot.ID, "kernel_closed", "")
+			return deny("grant closed")
+		}
+		if !receipt.Admits() {
+			return deny("grant not live")
 		}
 		if err := g.dmRenter(ctx, slot, frame.Content); err != nil {
 			return deny("publish failed")

@@ -109,3 +109,14 @@ type Driver interface {
 	End(ctx context.Context, st *Station, reason string) error
 	Destroy(ctx context.Context, st *Station) (DestroyReport, error)
 }
+
+// Reattach rebuilds a station handle from durable facts after a
+// gateway restart. PID is deliberately zero: a pre-restart PID may
+// have been reused by an unrelated process and must never be
+// signalled. Linux teardown is UID-scoped (systemd unit + pkill
+// -u), so Destroy works fully from this handle; the local-test
+// driver's Destroy removes the home without a live handle.
+func Reattach(spec SlotSpec, home, user string) *Station {
+	return &Station{SlotID: spec.SlotID, StationName: spec.StationName,
+		Home: home, User: user, bookingID: spec.BookingID}
+}
