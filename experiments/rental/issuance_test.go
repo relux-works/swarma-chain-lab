@@ -276,6 +276,32 @@ func TestPackageSignatureLayers(t *testing.T) {
 	}
 }
 
+// Height-zero payment claims cannot burn either reservation or create a lock;
+// both payment policies retain a valid positive-height neighbor afterward.
+func TestPlannerPaymentConfirmation(t *testing.T) {
+	for _, policy := range []string{"advance", "start_now"} {
+		t.Run(policy, func(t *testing.T) {
+			p, s, _, _, _ := unitIssue(t)
+			c, r, event := packageFixture(t, testCertificate(), "mfixtureAddress000000000000000000000", Point{strings.Repeat("4", 64), 0}, 0, "", policy)
+			cert := signTest(t, c, 1)
+			req, _ := json.Marshal(r)
+			if _, e := MakePlan(p, s, cert, req, eventBytes(event), 500); e == nil || e.Error() != "payment_unconfirmed" {
+				t.Fatal(e)
+			}
+			files, e := os.ReadDir(p.Policy.StateDir)
+			if e != nil || len(files) != 0 {
+				t.Fatal("unconfirmed payment wrote state", e)
+			}
+			r.PaymentHeight = 1
+			r.PaymentBlockHash = strings.Repeat("5", 64)
+			req, _ = json.Marshal(r)
+			if _, e := MakePlan(p, s, cert, req, eventBytes(event), 500); e != nil {
+				t.Fatal("confirmed neighbor", e)
+			}
+		})
+	}
+}
+
 // A previously reserved booking cannot switch to a fresh seal on retry.
 func TestBookingReservation(t *testing.T) {
 	p, s, cert, req, event := unitIssue(t)

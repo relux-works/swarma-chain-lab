@@ -55,6 +55,8 @@ in height than the anchor, and unspent in mempool-inclusive gettxout.
 returns `live`, `pending` or `refused`; only live admits. The sender must be
 the NIP-17 authenticated inner-seal key supplied by the gateway, equal to the
 grantee. The kernel does not implement NIP-17 or judge action scope.
+`checked_at` is the caller-supplied start clock, not observation completion
+time; elapsed-time expiry rechecks do not change that receipt field.
 
 Primary pending reasons: NOT_YET_VALID, ANCHOR_UNCONFIRMED, ANCHOR_INACTIVE,
 SEAL_UNCONFIRMED. On actual Core a new mempool anchor normally leaves the
@@ -101,8 +103,11 @@ Both advance and start_now require payment confirmed in the active chain now.
 A mempool-only or rolled-back payment refuses `payment_unconfirmed`; a wallet
 sequence number cannot disable full RBF. Start_now means the slot starts after
 the subsequent anchor confirmation (two blocks total), not mempool issuance.
-Match the exact
-outpoint amount/address to the signed contract; a replacement transaction is
+Match the exact outpoint/address and require its value to be at least the
+signed contract price. Successful admission reports `surplus_sat` (value
+minus price) for refund review; exact payment reports zero, and refusals
+report zero surplus. Surplus never increases the effect budget or authorizes
+a refund. A replacement transaction is
 not a substitute even if it pays the same amount/address. Recheck before
 return. Missing transaction/read failure refuses; it need not be distinguished
 from a temporarily unavailable node to avoid admission.

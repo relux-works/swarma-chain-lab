@@ -193,6 +193,7 @@ type Admission struct {
 	BookingID      string `json:"booking_id"`
 	ContractSHA256 string `json:"contract_sha256"`
 	Payment        Point  `json:"payment"`
+	SurplusSat     int64  `json:"surplus_sat"`
 	TipHash        string `json:"tip_hash"`
 	Calls          int    `json:"calls"`
 	CheckedAt      int64  `json:"checked_at"`
@@ -222,6 +223,7 @@ func AdmitIssuance(ctx context.Context, node su.Node, p IssuerPolicy, request, e
 		return refuse(e)
 	}
 	a.TipHash = o.Tip().Best
+	var surplus int64
 	for i := 0; i < 2; i++ {
 		v, tx, e := o.PaymentTransaction(r.PaymentTxID)
 		if e != nil {
@@ -232,9 +234,10 @@ func AdmitIssuance(ctx context.Context, node su.Node, p IssuerPolicy, request, e
 		}
 		output := tx.Outputs[r.PaymentVout]
 		projected := v.Vout[r.PaymentVout]
-		if output.Value != pack.Contract.PriceNMCSat || !p2pkh(hex.EncodeToString(output.Script)) || projected.Script.Address != pack.Contract.PaymentAddress {
+		if output.Value < pack.Contract.PriceNMCSat || !p2pkh(hex.EncodeToString(output.Script)) || projected.Script.Address != pack.Contract.PaymentAddress {
 			return refuse(bad("PAYMENT_BINDING"))
 		}
+		surplus = output.Value - pack.Contract.PriceNMCSat
 		if v.Block == "" || v.Confirmations <= 0 {
 			return refuse(bad("payment_unconfirmed"))
 		}
@@ -254,5 +257,6 @@ func AdmitIssuance(ctx context.Context, node su.Node, p IssuerPolicy, request, e
 	}
 	a.Verdict = "admit"
 	a.Reason = "PAYMENT_AND_PACKAGE_CURRENT"
+	a.SurplusSat = surplus
 	return a
 }

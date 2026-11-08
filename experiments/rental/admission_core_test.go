@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"os"
 	"testing"
 
 	su "relux.works/swarma-chain-lab/experiments/single-use"
@@ -48,7 +49,7 @@ func (l *coreLab) issueSpec(pool PoolOutput) PlanSpec {
 }
 
 // Admission rechecks real payment state, including non-signalling full-RBF,
-// mined/reorged payments, exact amount/address, and signed hold expiry. Pool
+// mined/reorged payments, minimum amount/exact address, and signed hold expiry. Pool
 // refusal controls use actual confirmed/unconfirmed Core prevouts and nearby
 // valid plans. Wire authentication is separately cross-checked with M3.
 func TestCoreIssuanceAndPool(t *testing.T) {
@@ -57,12 +58,23 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 	_, provider := testKey(4)
 	ip := IssuerPolicy{p, provider}
 	passed := []string{}
-	check := func(label string, request, event []byte, now int64, verdict, reason string) {
+	check := func(label string, request, event []byte, now int64, verdict, reason string, expectedSurplus ...int64) {
 		t.Helper()
 		a := AdmitIssuance(context.Background(), l.observer, ip, request, event, now)
 		l.save(label+".json", a)
 		if a.Verdict != verdict || a.Reason != reason {
 			t.Fatalf("%s: %+v", label, a)
+		}
+		var want int64
+		if len(expectedSurplus) == 1 {
+			want = expectedSurplus[0]
+		}
+		if a.SurplusSat != want {
+			t.Fatalf("%s: surplus %d, want %d", label, a.SurplusSat, want)
+		}
+		files, e := os.ReadDir(p.StateDir)
+		if e != nil || len(files) != 0 {
+			t.Fatal("admission wrote state", e)
 		}
 		passed = append(passed, label)
 	}
@@ -79,9 +91,22 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 	check("advance-reorg", req, event, 500, "refused", "payment_unconfirmed")
 	l.rpc("", "reconsiderblock", view.Block)
 	check("advance-restored", req, event, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
-	wrong, _ := l.payment(1000001, l.script, true)
+	over, _ := l.payment(1000001, l.script, true)
+	_, overReq, overEvent := l.requestFor(testCertificate(), over, "advance")
+	check("overpayment", overReq, overEvent, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT", 1)
+	_, overNowReq, overNowEvent := l.requestFor(testCertificate(), over, "start_now")
+	check("overpayment-start-now", overNowReq, overNowEvent, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT", 1)
+	check("overpayment-expired-hold", overReq, overEvent, 900, "refused", "hold_expired_at_admission")
+	if e := json.Unmarshal(l.rpc("", "getrawtransaction", over, true), &view); e != nil {
+		t.Fatal(e)
+	}
+	l.rpc("", "invalidateblock", view.Block)
+	check("overpayment-reorg", overReq, overEvent, 500, "refused", "payment_unconfirmed")
+	l.rpc("", "reconsiderblock", view.Block)
+	check("overpayment-restored", overReq, overEvent, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT", 1)
+	wrong, _ := l.payment(999999, l.script, true)
 	_, badReq, badEvent := l.requestFor(testCertificate(), wrong, "advance")
-	check("wrong-payment-amount", badReq, badEvent, 500, "refused", "PAYMENT_BINDING")
+	check("underpayment", badReq, badEvent, 500, "refused", "PAYMENT_BINDING")
 	check("amount-neighbor", req, event, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
 	other := text(t, l.rpc("issuer", "getnewaddress", "", "legacy"))
 	otherScript := text(t, object(t, l.rpc("issuer", "getaddressinfo", other))["scriptPubKey"])

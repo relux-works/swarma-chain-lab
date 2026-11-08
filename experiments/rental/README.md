@@ -52,6 +52,12 @@ Kernel:
 only for admit. Both print a JSON receipt. `--operator-route` selects the
 existing hash-pinned CLI route. `--at UNIX_SECONDS` is a regtest clock override;
 default is the current clock. There is no M1 mainnet runtime mode.
+In both receipts, `checked_at` echoes the caller-supplied start clock; it is
+not observation completion time. Elapsed-time expiry checks remain internal.
+Admission requires one bound output of at least the signed price at the exact
+booking address. Successful receipts report `surplus_sat = output - price`
+for refund review; exact payment reports zero. Refused receipts report zero
+surplus. This does not authorize a refund or increase the certificate budget.
 
 Policy fields: `network`, `genesis`, `issuer_pubkey`, `agent_pubkey`,
 `station_name`, `station_script`, `state_dir`. Issuer policy wraps that object
@@ -83,6 +89,8 @@ the operator's observed block/height. These are **offline claims**, not proofs
 of current confirmations or ownership. The future signer must independently
 check them and call AdmitIssuance immediately before signing. The planner
 checks package/request/certificate bindings and signatures but has no RPC.
+An issue request with `payment_height == 0` is refused before any reservation;
+a positive claimed height still requires the signer's fresh online check.
 It emits an inert JSON plan, never signed transaction hex.
 
 Issue burns both booking and pool reservations before returning a plan.
@@ -94,7 +102,7 @@ require a certificate signature and do not reserve a booking.
 ## Genuine Core controls
 
 Only use hash-pinned Core 28 binaries, a new empty run root and no live datadir.
-Set each run root to a distinct absolute directory. From this module:
+Set each run root to a distinct absolute realpath (no symlink). From this module:
 
 ```sh
 M1_REGTEST=1 M1_RUN_ROOT=/absolute/new/m1/lifecycle \

@@ -129,6 +129,9 @@ func MakePlan(p IssuerPolicy, s PlanSpec, certificate, request, publication []by
 		if e != nil {
 			return plan, e
 		}
+		if r.PaymentHeight == 0 {
+			return plan, bad("payment_unconfirmed")
+		}
 		if c.Network != p.Policy.Network || c.Genesis != p.Policy.Genesis || c.IssuerPubkey != p.Policy.IssuerPubkey || c.AgentPubkey != r.AgentPubkey || c.StationName != r.StationName || c.GranteePubkey != r.RenterPubkey || c.ContractSHA256 != r.ContractSHA256 || c.NotBefore != r.NotBefore || c.NotAfter != r.NotAfter || c.BudgetSat != r.BudgetSat || !slices.Equal(c.Scope, r.Scope) {
 			return plan, bad("CERTIFICATE_REQUEST_BINDING")
 		}

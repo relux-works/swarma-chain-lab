@@ -14,6 +14,9 @@ one zero-value 6a20 envelope-hash output, and change to the pinned script.
 The name output remains 1000000 sat. All funding/name prevouts and values are
 explicit. No hidden wallet selection, signing or network operation occurs.
 An operator-supplied pool observation is not proof of current chain state.
+An issuance request claiming `payment_height == 0` refuses
+`payment_unconfirmed` before locking or reserving either booking or seal.
+A positive claimed height is still an offline assertion, not fresh proof.
 Before signing any issue plan, the online admission gate must observe an
 active confirmed payment for both advance and start_now. Mempool payments
 never authorize issuance. Start_now waits one payment block, then one anchor
