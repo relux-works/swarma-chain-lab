@@ -8,29 +8,68 @@
 package stationlink
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 )
 
+// ChannelSecretBytes is the per-slot channel credential length.
+const ChannelSecretBytes = 32
+
+// ComputeResponse returns hex(HMAC-SHA256(secret,
+// nonceBytes || slotID || stationName)) for a challenge nonce (hex).
+func ComputeResponse(secret []byte, nonceHex, slotID, stationName string) (string, error) {
+	if len(secret) != ChannelSecretBytes {
+		return "", fmt.Errorf("stationlink: secret want %d bytes", ChannelSecretBytes)
+	}
+	nonce, err := hex.DecodeString(nonceHex)
+	if err != nil || len(nonce) != 32 {
+		return "", fmt.Errorf("stationlink: nonce want 64 hex")
+	}
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(nonce)
+	mac.Write([]byte(slotID))
+	mac.Write([]byte(stationName))
+	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+// VerifyResponse compares a response in constant time.
+func VerifyResponse(secret []byte, nonceHex, slotID, stationName, responseHex string) bool {
+	want, err := ComputeResponse(secret, nonceHex, slotID, stationName)
+	if err != nil {
+		return false
+	}
+	got, err := hex.DecodeString(responseHex)
+	if err != nil {
+		return false
+	}
+	wantBytes, _ := hex.DecodeString(want)
+	return hmac.Equal(got, wantBytes)
+}
+
 // Message types. Station -> gateway requests each get exactly one
 // gateway response frame.
 const (
-	TypeHello    = "hello"     // station -> gateway: bind to slot
+	TypeHello    = "hello"     // station -> gateway: request auth challenge for a slot
+	TypeAuth     = "auth"      // station -> gateway: HMAC response to the challenge
 	TypePull     = "pull"      // station -> gateway: next delivery please
 	TypeReply    = "reply"     // station -> gateway: agent reply content
 	TypeEndEarly = "end_early" // station -> gateway: agent asks to end
 	TypeExtend   = "extend"    // station -> gateway: always refused
 
-	TypeSystem  = "system"  // gateway -> station: hello response (session info)
-	TypeDeliver = "deliver" // gateway -> station: pull response with a message
-	TypeNotice  = "notice"  // gateway -> station: screening refusal notice
-	TypeNone    = "none"    // gateway -> station: pull timed out, nothing queued
-	TypeAck     = "ack"     // gateway -> station: reply accepted
-	TypeEnd     = "end"     // gateway -> station: slot over
-	TypeError   = "error"   // gateway -> station: request refused
+	TypeChallenge = "challenge" // gateway -> station: hello answer carrying the nonce
+	TypeSystem    = "system"    // gateway -> station: auth response (session info)
+	TypeDeliver   = "deliver"   // gateway -> station: pull response with a message
+	TypeNotice    = "notice"    // gateway -> station: screening refusal notice
+	TypeNone      = "none"      // gateway -> station: pull timed out, nothing queued
+	TypeAck       = "ack"       // gateway -> station: reply accepted
+	TypeEnd       = "end"       // gateway -> station: slot over
+	TypeError     = "error"     // gateway -> station: request refused
 )
 
 // Frame is one protocol message. Only fields relevant to Type are set.
@@ -44,6 +83,8 @@ type Frame struct {
 	DeliveryID     string `json:"delivery_id,omitempty"`
 	Content        string `json:"content,omitempty"`
 	Reason         string `json:"reason,omitempty"`
+	Nonce          string `json:"nonce,omitempty"`    // challenge: 64 lower hex (32 bytes)
+	Response       string `json:"response,omitempty"` // auth: 64 lower hex HMAC-SHA256
 }
 
 // MaxFrameBytes bounds one frame (DM rumor content is <= 64 KiB by
@@ -100,10 +141,23 @@ type Client struct {
 // NewClient wraps a station-initiated connection (unix or TCP+mTLS).
 func NewClient(conn net.Conn) *Client { return &Client{conn: conn} }
 
-// Hello binds the connection to a slot and returns the system frame
-// (renter key, contract hash, end time) or a refusal frame.
-func (c *Client) Hello(slotID, stationName string) (*Frame, error) {
-	return c.roundTrip(&Frame{Type: TypeHello, SlotID: slotID, StationName: stationName})
+// Hello authenticates and binds the connection to a slot:
+// hello -> challenge(nonce) -> auth(HMAC response) -> system frame
+// (renter key, contract hash, end time) or a refusal frame. The
+// secret itself never crosses the wire.
+func (c *Client) Hello(slotID, stationName string, secret []byte) (*Frame, error) {
+	ch, err := c.roundTrip(&Frame{Type: TypeHello, SlotID: slotID, StationName: stationName})
+	if err != nil {
+		return nil, err
+	}
+	if ch.Type != TypeChallenge {
+		return ch, nil // refusal/end frame: caller inspects Type
+	}
+	resp, err := ComputeResponse(secret, ch.Nonce, slotID, stationName)
+	if err != nil {
+		return nil, err
+	}
+	return c.roundTrip(&Frame{Type: TypeAuth, SlotID: slotID, StationName: stationName, Response: resp})
 }
 
 // Pull asks for the next queued delivery/notice/end (long-poll).

@@ -1,6 +1,7 @@
 package journal_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -76,5 +77,39 @@ func TestJournalOneActiveSlotPerRenter(t *testing.T) {
 	}
 	if err := st.Put(testSlot("slot-3", "aa")); err != nil {
 		t.Fatalf("slot after previous ended refused: %v", err)
+	}
+}
+
+// TestJournalUpdateRollback proves a failed persist leaves memory
+// and disk in agreement (RM2 M10): MarkEnded on an unwritable dir
+// must not flip the in-memory Ended flag.
+func TestJournalUpdateRollback(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "journal")
+	st, err := journal.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Put(testSlot("slot-1", "aa")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0500); err != nil {
+		t.Fatal(err)
+	}
+	err = st.MarkEnded("slot-1", "boom")
+	_ = os.Chmod(dir, 0700)
+	if err == nil {
+		t.Fatal("MarkEnded succeeded on unwritable journal dir")
+	}
+	slot, _ := st.Get("slot-1")
+	if slot.Ended {
+		t.Fatal("in-memory Ended flipped despite persist failure (would revive on restart)")
+	}
+	st2, err := journal.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slot2, _ := st2.Get("slot-1")
+	if slot2.Ended {
+		t.Fatal("disk says Ended after failed persist")
 	}
 }

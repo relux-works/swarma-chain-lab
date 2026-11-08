@@ -2,6 +2,7 @@ package nostr
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -182,5 +183,54 @@ func TestWrapAtSmallTimestamp(t *testing.T) {
 		if out.Rumor.CreatedAt != 100 {
 			t.Fatalf("rumor time jittered: %d", out.Rumor.CreatedAt)
 		}
+	}
+}
+
+// TestZeroPrivKeyRefused proves the zero scalar is not a key (RM2 M5).
+func TestZeroPrivKeyRefused(t *testing.T) {
+	if _, err := PrivKeyFromHex(strings.Repeat("0", 64)); err == nil {
+		t.Fatal("zero private key accepted")
+	}
+	if _, err := PrivKeyFromBytes(make([]byte, 32)); err == nil {
+		t.Fatal("zero private key bytes accepted")
+	}
+	// Neighbour: scalar 1 is a valid key.
+	if _, err := PrivKeyFromHex("0000000000000000000000000000000000000000000000000000000000000001"); err != nil {
+		t.Fatalf("scalar 1 refused: %v", err)
+	}
+}
+
+// TestParseEventDuplicateKeysRefused proves duplicate top-level JSON
+// keys are refused instead of last-wins (RM2 M8).
+func TestParseEventDuplicateKeysRefused(t *testing.T) {
+	alice, _ := GeneratePrivKey()
+	ev := &Event{CreatedAt: 1, Kind: 1, Tags: [][]string{}, Content: "x"}
+	if err := alice.SignEvent(ev); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(ev)
+	if _, err := ParseEvent(raw); err != nil {
+		t.Fatalf("valid neighbour refused: %v", err)
+	}
+	dup := strings.Replace(string(raw), `"content":"x"`, `"content":"x","content":"y"`, 1)
+	if _, err := ParseEvent([]byte(dup)); err == nil {
+		t.Fatal("duplicate content key accepted")
+	}
+}
+
+// TestUnwrapRequiresKind14 proves a non-14 rumor inside a valid seal
+// is refused (RM2 M3), beside the kind-14 neighbour above.
+func TestUnwrapRequiresKind14(t *testing.T) {
+	alice, _ := GeneratePrivKey()
+	bob, _ := GeneratePrivKey()
+	rumor := &Event{PubKey: alice.PubKeyHex(), CreatedAt: 1700000000, Kind: 1,
+		Tags: [][]string{{"p", bob.PubKeyHex()}}, Content: "note, not a DM"}
+	rumor.ID = rumor.ComputeID()
+	wrap, err := GiftWrap(rumor, alice, bob.PubKeyHex(), 1700000000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UnwrapDM(wrap, bob); err == nil || !strings.Contains(err.Error(), "kind") {
+		t.Fatalf("kind-1 rumor unwrap err = %v", err)
 	}
 }

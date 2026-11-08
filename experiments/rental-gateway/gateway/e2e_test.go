@@ -2,6 +2,7 @@ package gateway_test
 
 import (
 	"context"
+	"encoding/hex"
 	"net"
 	"os"
 	"strings"
@@ -32,7 +33,15 @@ func TestStationStubProcess(t *testing.T) {
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
 	c := stationlink.NewClient(conn)
-	sys, err := c.Hello(os.Getenv("SLOT_ID"), os.Getenv("STATION_NAME"))
+	secretRaw, err := os.ReadFile(os.Getenv("CHANNEL_SECRET_FILE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, err := hex.DecodeString(strings.TrimSpace(string(secretRaw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sys, err := c.Hello(os.Getenv("SLOT_ID"), os.Getenv("STATION_NAME"), secret)
 	if err != nil || sys.Type != stationlink.TypeSystem {
 		t.Fatalf("hello = %+v %v", sys, err)
 	}
@@ -147,7 +156,9 @@ func TestRelayEndToEnd(t *testing.T) {
 		defer conn.Close()
 		_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 		c := stationlink.NewClient(conn)
-		if _, err := c.Hello("slot-1", "id/swarma-station-1"); err != nil {
+		slotRec, _ := store.Get("slot-1")
+		secret, _ := hex.DecodeString(slotRec.ChannelSecretHex)
+		if _, err := c.Hello("slot-1", "id/swarma-station-1", secret); err != nil {
 			stationDone <- err
 			return
 		}

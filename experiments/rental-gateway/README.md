@@ -46,10 +46,13 @@ local-test driver launches per station.
   durable replay journal -> fresh kernel `Check` (only `live`
   admits; errors refuse) -> screening (only explicit allow delivers;
   error/timeout/malformed refuse) -> station delivery queue.
-- **Screening outcomes (§5.0):** refusal counter is fsynced before
-  acting; renter gets a warning DM, station gets a notice, message
-  is not delivered; second refusal in a slot ends it. The counter
-  survives gateway restarts.
+- **Screening outcomes (§5.0):** only an explicit model REFUSE
+  spends a strike (counter fsynced before acting; warning DM +
+  station notice; second strike ends the slot; counter survives
+  restarts). Model outage/timeout/malformed refuses that one
+  message with a "screening unavailable, retry" DM and no strike.
+  The closer's final message goes through
+  `Gateway.SendFinalMessage` (agent-signed, before Destroy only).
 - **Kernel boundary:** `kernel.Checker` mirrors the frozen M1
   interface; `kernel.Stub` serves unit tests, the nested
   `kernelbind/` module binds the real `experiments/rental` package
@@ -60,18 +63,30 @@ local-test driver launches per station.
 - **Station channel:** stations initiate every connection (separate
   VM in deployment): pull deliveries, push replies, one
   length-prefixed-JSON protocol over `net.Conn` — unix socket
-  locally, TCP+mTLS in deployment with identical frames. The agent
-  key never crosses it; session start delivers exactly one system
-  frame (renter key, contract hash, end time). The agent may end
-  early; extension requests are always refused. At `not_after` the
-  session ends regardless of chain state.
+  locally, TCP in deployment with identical frames. Hello is a
+  challenge-response: the station manager mints a 32-byte per-slot
+  channel secret at Create (0600 in the slot home, registered
+  gateway-side), the gateway challenges with a nonce, the station
+  answers HMAC-SHA256(secret, nonce||slot||station) in constant
+  time. One live binding per slot; no rebind on a bound connection;
+  after disconnect only the same secret rebinds; the secret dies at
+  slot end. Any mTLS proxy certificate never authenticates a
+  station. The agent key never crosses the channel; session start
+  delivers exactly one system frame (renter key, contract hash, end
+  time). The agent may end early; extension is always refused. At
+  `not_after` the session ends regardless of chain state.
 - **Station drivers:** `local-test` (temp home 0700 + scripted stub
-  child, killed by PID) for tests; `linux-user` (fresh OS user per
-  slot, home 0700, per-UID egress allowlist: gateway, executor
-  proxy, model API, optional package proxy; default DROP) built
-  entirely through an injected command executor — unit-tested argv
-  only, real execution belongs on the Infra VM. Destroy removes
-  home + per-slot Track B token; retention follows §5.2.
+  child, killed by PID) for tests; `linux-user` (fresh hash-suffixed
+  OS user per slot, home 0700, per-UID **nftables inet** egress —
+  gateway, executor proxy, model API, optional package proxy, v4+v6,
+  default DROP for that UID) built entirely through an injected
+  command executor — argv-tested only, real execution on the Infra
+  VM (nftables is the picked VM spelling). Track B tokens are minted
+  per slot through the M4a admin contract (`POST /mint|/revoke` over
+  a private unix socket, slot = 64-hex booking id) when configured,
+  written 0600 exclusive, revoked at Destroy; local random minting
+  is a test-only fallback. Create rolls back on partial failure.
+  Destroy removes home + token + channel secret; retention §5.2.
 - **Station names** are passed through to the kernel, which pins
   them against trusted policy; the `id/swarma-station-*` prefix is a
   deployment convention here, never a trust rule.
@@ -84,6 +99,6 @@ local-test driver launches per station.
 - No relay redundancy/reconnect backoff yet (single relay client).
 - Screening is an interface + stub; the real model call lands with
   its own prompt/host pinning outside this experiment.
-- `linux-user` token provisioning references
-  `/etc/swarma/trackb-template` as the manager-side staging file;
-  Infra owns how per-slot tokens are minted there.
+- The renter channel sits behind the `Transport` (Publisher)
+  boundary so it can move to an a2a transport later; no a2a code
+  exists in this milestone.

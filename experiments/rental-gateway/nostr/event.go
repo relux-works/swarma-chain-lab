@@ -126,9 +126,11 @@ func (e Event) MarshalJSON() ([]byte, error) {
 }
 
 // ParseEvent strictly decodes one event: unknown fields, duplicate
-// top-level keys with different spellings aside, trailing data and
-// malformed hex/lengths are refused by ValidateShape.
+// top-level keys, trailing data and malformed hex/lengths are refused.
 func ParseEvent(raw []byte) (*Event, error) {
+	if err := rejectDuplicateTopKeys(raw); err != nil {
+		return nil, err
+	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	var e Event
@@ -165,6 +167,36 @@ func (e *Event) ValidateShape() error {
 	for _, tag := range e.Tags {
 		if len(tag) == 0 {
 			return fmt.Errorf("event tag: empty tag")
+		}
+	}
+	return nil
+}
+
+// rejectDuplicateTopKeys scans the top-level JSON object keys and
+// refuses duplicates (encoding/json would otherwise keep the last).
+func rejectDuplicateTopKeys(raw []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	tok, err := dec.Token()
+	if err != nil {
+		return fmt.Errorf("event json: %w", err)
+	}
+	if d, ok := tok.(json.Delim); !ok || d != '{' {
+		return fmt.Errorf("event json: not an object")
+	}
+	seen := map[string]bool{}
+	for dec.More() {
+		ktok, err := dec.Token()
+		if err != nil {
+			return fmt.Errorf("event json: %w", err)
+		}
+		key, _ := ktok.(string)
+		if seen[key] {
+			return fmt.Errorf("event json: duplicate key %q", key)
+		}
+		seen[key] = true
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return fmt.Errorf("event json: %w", err)
 		}
 	}
 	return nil

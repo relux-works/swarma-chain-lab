@@ -2,6 +2,8 @@ package gateway
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -14,23 +16,20 @@ import (
 )
 
 // HandleGiftWrap runs the inbound pipeline for one gift-wrapped DM,
-// in the request's fixed order. Every refusal is final for that
-// event; nothing is delivered on any error path.
+// in fixed order. Every refusal is final for that event; nothing is
+// delivered on any error path.
 func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result {
-	refuse := func(reason string) Result {
-		return Result{Refused: true, Reason: reason}
-	}
 	// (a) Strict unwrap: sender is the seal pubkey.
 	unwrapped, err := nostr.UnwrapDM(wrap, g.cfg.AgentKey)
 	if err != nil {
-		return refuse("unwrap: " + err.Error())
+		return Result{Refused: true, Reason: "unwrap: " + err.Error()}
 	}
 	sender := unwrapped.SenderHex
 	rumor := unwrapped.Rumor
 	res := Result{SenderHex: sender}
 
 	// (c) Sender must be the grantee of an active slot (looked up
-	// first because replay journal and windows are per-slot).
+	// first because windows and the journal are per-slot).
 	slot, ok := g.cfg.Journal.ActiveByRenter(sender)
 	if !ok {
 		res.Refused, res.Reason = true, "no_active_slot"
@@ -44,12 +43,37 @@ func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result 
 		return res
 	}
 
-	// (b) Replay journal: rumor time inside the slot window, and the
-	// rumor id recorded durably before any delivery.
+	// (b) Rumor time inside the slot window. The durable seen
+	// record moves after the kernel admits (RM2 M4): kernel-refused
+	// or pending messages do not burn their rumor id.
 	if rumor.CreatedAt < slot.NotBefore || rumor.CreatedAt >= slot.NotAfter {
 		res.Refused, res.Reason = true, "rumor_outside_slot_window"
 		return res
 	}
+
+	// (d) Grant live check, fresh for this event. A receipt with
+	// durable closure (Closed) ends the slot at once and stops all
+	// outbound (RM2 M2).
+	receipt, err := g.kernelCheckSender(ctx, slot, sender, now)
+	if err != nil {
+		res.Refused, res.Reason = true, "kernel_error"
+		return res
+	}
+	if receipt.Closed {
+		g.endSlot(ctx, slot.ID, "kernel_closed", "")
+		res.Refused, res.SlotEnded = true, true
+		res.Reason = fmt.Sprintf("kernel_closed:%s", receipt.Reason)
+		return res
+	}
+	if !receipt.Admits() {
+		res.Refused = true
+		res.Reason = fmt.Sprintf("kernel_%s:%s", receipt.Verdict, receipt.Reason)
+		return res
+	}
+
+	// (b, durable half) Record the rumor id now — after kernel live,
+	// fsynced before screening and delivery — so a replayed,
+	// screened message cannot add further strikes (RM2 M4).
 	already, err := g.cfg.Journal.RecordSeen(slot.ID, rumor.ID)
 	if err != nil {
 		res.Refused, res.Reason = true, "journal_error"
@@ -60,25 +84,14 @@ func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result 
 		return res
 	}
 
-	// (d) Grant live check, fresh for this event.
-	receipt, err := g.kernelCheckSender(ctx, slot, sender, now)
-	if err != nil {
-		res.Refused, res.Reason = true, "kernel_error"
-		return res
-	}
-	if !receipt.Admits() {
-		res.Refused = true
-		res.Reason = fmt.Sprintf("kernel_%s:%s", receipt.Verdict, receipt.Reason)
-		return res
-	}
-
-	// (e) Screening: only an explicit allow delivers.
+	// (e) Screening: only an explicit allow delivers, and only an
+	// explicit model REFUSE spends a strike (RM2 M1 policy).
 	decision, err := g.runScreen(ctx, rumor.Content)
-	if err != nil || !decision.Allow {
+	if err != nil {
+		return g.screeningUnavailable(ctx, slot, res)
+	}
+	if !decision.Allow {
 		reason := decision.Reason
-		if err != nil {
-			reason = "screening_unavailable"
-		}
 		if reason == "" {
 			reason = "screening_refused"
 		}
@@ -101,16 +114,34 @@ func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result 
 	}
 }
 
-// screeningRefusal implements 5.0: durable counter first (fsync
-// before acting), then renter warning + station notice, second
-// refusal ends the slot. The message is never delivered.
+// screeningUnavailable refuses one message without a strike when
+// the model path failed (timeout, transport error, malformed
+// answer): the renter is told to retry, the station is noticed.
+func (g *Gateway) screeningUnavailable(ctx context.Context, slot *journal.Slot, res Result) Result {
+	res.Refused = true
+	res.Reason = "screening_unavailable"
+	if err := g.dmRenter(ctx, slot,
+		"screening unavailable, retry: your message was not delivered and does not count as a refusal."); err == nil {
+		res.WarningSent = true
+	}
+	q := g.queueFor(slot.ID)
+	select {
+	case q <- &stationlink.Frame{Type: stationlink.TypeNotice, SlotID: slot.ID,
+		Reason:  "screening_unavailable",
+		Content: "screening unavailable: renter message not delivered (no strike)"}:
+	default:
+	}
+	return res
+}
+
+// screeningRefusal implements 5.0 for an explicit model REFUSE:
+// durable counter first (fsync before acting), then renter warning
+// + station notice, second strike ends the slot. Never delivered.
 func (g *Gateway) screeningRefusal(ctx context.Context, slot *journal.Slot, res Result, reason string) Result {
 	res.Refused = true
 	res.Reason = "screening:" + reason
 	count, err := g.cfg.Journal.AddRefusal(slot.ID)
 	if err != nil {
-		// Without a durable count we must not warn/end on a guess;
-		// refusing delivery is still fail-closed.
 		res.Reason = "journal_error"
 		return res
 	}
@@ -157,6 +188,14 @@ func (g *Gateway) runScreen(ctx context.Context, content string) (screen.Decisio
 	}
 }
 
+// connState is one station connection's auth state.
+type connState struct {
+	pendingSlot    string
+	pendingStation string
+	nonceHex       string
+	boundSlot      string
+}
+
 // ServeStations accepts station-initiated connections until the
 // listener closes. Each connection is served in its own goroutine.
 func (g *Gateway) ServeStations(ln net.Listener) error {
@@ -169,19 +208,22 @@ func (g *Gateway) ServeStations(ln net.Listener) error {
 	}
 }
 
-// HandleStationConn serves one station connection. The station must
-// hello-bind to a started, not-ended slot with a matching station
-// name before any other request is honoured.
+// HandleStationConn serves one station connection. Hello requests a
+// challenge; Auth (HMAC over nonce||slot||station with the per-slot
+// channel secret) binds the connection. Nothing else is honoured
+// before binding, one live binding exists per slot, and a bound
+// connection can never rebind (RM2 B1).
 func (g *Gateway) HandleStationConn(conn net.Conn) {
 	defer conn.Close()
+	state := &connState{}
+	defer g.unbind(state)
 	ctx := context.Background()
-	var slotID string
 	for {
 		frame, err := stationlink.ReadFrame(conn)
 		if err != nil {
 			return
 		}
-		resp := g.stationRequest(ctx, &slotID, frame)
+		resp := g.stationRequest(ctx, state, frame)
 		if err := stationlink.WriteFrame(conn, resp); err != nil {
 			return
 		}
@@ -191,42 +233,34 @@ func (g *Gateway) HandleStationConn(conn net.Conn) {
 	}
 }
 
-func (g *Gateway) stationRequest(ctx context.Context, bound *string, frame *stationlink.Frame) *stationlink.Frame {
+func (g *Gateway) unbind(state *connState) {
+	if state.boundSlot == "" {
+		return
+	}
+	g.mu.Lock()
+	if g.bound[state.boundSlot] == state {
+		delete(g.bound, state.boundSlot)
+	}
+	g.mu.Unlock()
+	state.boundSlot = ""
+}
+
+func (g *Gateway) stationRequest(ctx context.Context, state *connState, frame *stationlink.Frame) *stationlink.Frame {
 	deny := func(reason string) *stationlink.Frame {
 		return &stationlink.Frame{Type: stationlink.TypeError, Reason: reason}
 	}
 	switch frame.Type {
 	case stationlink.TypeHello:
-		slot, ok := g.cfg.Journal.Get(frame.SlotID)
-		if !ok {
-			return deny("unknown slot")
-		}
-		if slot.Destroyed {
-			return deny("station destroyed")
-		}
-		if slot.Ended {
-			return &stationlink.Frame{Type: stationlink.TypeEnd, SlotID: slot.ID, Reason: slot.EndReason}
-		}
-		if !slot.Started {
-			return deny("session not started")
-		}
-		if frame.StationName != slot.StationName {
-			return deny("station name mismatch")
-		}
-		*bound = slot.ID
-		return &stationlink.Frame{
-			Type: stationlink.TypeSystem, SlotID: slot.ID,
-			RenterPubKey: slot.RenterPubKey, ContractSHA256: slot.ContractSHA256,
-			NotAfter: slot.NotAfter,
-		}
+		return g.stationHello(state, frame, deny)
+	case stationlink.TypeAuth:
+		return g.stationAuth(state, frame, deny)
 	case stationlink.TypeExtend:
-		// The agent may end a slot early; it can never extend one.
 		return deny("extension refused")
 	}
-	if *bound == "" {
-		return deny("hello required first")
+	if state.boundSlot == "" {
+		return deny("authentication required first")
 	}
-	slot, ok := g.cfg.Journal.Get(*bound)
+	slot, ok := g.cfg.Journal.Get(state.boundSlot)
 	if !ok || slot.Destroyed {
 		return deny("station destroyed")
 	}
@@ -240,8 +274,6 @@ func (g *Gateway) stationRequest(ctx context.Context, bound *string, frame *stat
 		case f := <-q:
 			return f
 		case <-time.After(g.cfg.PullTimeout):
-			// Re-check end state so a slot that ended while waiting
-			// still terminates promptly on the next pull.
 			if fresh, ok := g.cfg.Journal.Get(slot.ID); ok && fresh.Ended {
 				return &stationlink.Frame{Type: stationlink.TypeEnd, SlotID: slot.ID, Reason: fresh.EndReason}
 			}
@@ -264,5 +296,81 @@ func (g *Gateway) stationRequest(ctx context.Context, bound *string, frame *stat
 		return &stationlink.Frame{Type: stationlink.TypeEnd, SlotID: slot.ID, Reason: "agent_end_early"}
 	default:
 		return deny("unknown request type")
+	}
+}
+
+func (g *Gateway) stationHello(state *connState, frame *stationlink.Frame,
+	deny func(string) *stationlink.Frame) *stationlink.Frame {
+	if state.boundSlot != "" {
+		return deny("already bound; rebind refused")
+	}
+	slot, ok := g.cfg.Journal.Get(frame.SlotID)
+	if !ok {
+		return deny("unknown slot")
+	}
+	if slot.Destroyed {
+		return deny("station destroyed")
+	}
+	if slot.Ended {
+		return &stationlink.Frame{Type: stationlink.TypeEnd, SlotID: slot.ID, Reason: slot.EndReason}
+	}
+	if !slot.Started {
+		return deny("session not started")
+	}
+	if frame.StationName != slot.StationName {
+		return deny("station name mismatch")
+	}
+	if slot.ChannelSecretHex == "" {
+		return deny("no channel credential registered")
+	}
+	g.mu.Lock()
+	_, alreadyBound := g.bound[slot.ID]
+	g.mu.Unlock()
+	if alreadyBound {
+		return deny("slot already bound")
+	}
+	nonce := make([]byte, 32)
+	if _, err := rand.Read(nonce); err != nil {
+		return deny("challenge unavailable")
+	}
+	state.pendingSlot = slot.ID
+	state.pendingStation = frame.StationName
+	state.nonceHex = hex.EncodeToString(nonce)
+	return &stationlink.Frame{Type: stationlink.TypeChallenge,
+		SlotID: slot.ID, Nonce: state.nonceHex}
+}
+
+func (g *Gateway) stationAuth(state *connState, frame *stationlink.Frame,
+	deny func(string) *stationlink.Frame) *stationlink.Frame {
+	if state.boundSlot != "" {
+		return deny("already bound; rebind refused")
+	}
+	// The nonce is single-use: consume the pending challenge on any
+	// auth attempt, success or failure.
+	pendingSlot, pendingStation, nonceHex := state.pendingSlot, state.pendingStation, state.nonceHex
+	state.pendingSlot, state.pendingStation, state.nonceHex = "", "", ""
+	if pendingSlot == "" || frame.SlotID != pendingSlot || frame.StationName != pendingStation {
+		return deny("authentication failed")
+	}
+	slot, ok := g.cfg.Journal.Get(pendingSlot)
+	if !ok || slot.Destroyed || slot.Ended || slot.ChannelSecretHex == "" {
+		return deny("authentication failed")
+	}
+	secret, err := hex.DecodeString(slot.ChannelSecretHex)
+	if err != nil || !stationlink.VerifyResponse(secret, nonceHex, pendingSlot, pendingStation, frame.Response) {
+		return deny("authentication failed")
+	}
+	g.mu.Lock()
+	if _, taken := g.bound[slot.ID]; taken {
+		g.mu.Unlock()
+		return deny("slot already bound")
+	}
+	g.bound[slot.ID] = state
+	g.mu.Unlock()
+	state.boundSlot = slot.ID
+	return &stationlink.Frame{
+		Type: stationlink.TypeSystem, SlotID: slot.ID,
+		RenterPubKey: slot.RenterPubKey, ContractSHA256: slot.ContractSHA256,
+		NotAfter: slot.NotAfter,
 	}
 }

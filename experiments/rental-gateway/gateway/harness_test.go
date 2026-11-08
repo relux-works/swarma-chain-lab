@@ -2,6 +2,7 @@ package gateway_test
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"net"
 	"os"
@@ -216,6 +217,20 @@ func (h *harness) handle(wrap *nostr.Event) gateway.Result {
 	return h.gw.HandleGiftWrap(context.Background(), wrap)
 }
 
+// slotSecret reads the registered channel secret for a slot.
+func (h *harness) slotSecret(slotID string) []byte {
+	h.t.Helper()
+	slot, ok := h.store.Get(slotID)
+	if !ok || slot.ChannelSecretHex == "" {
+		h.t.Fatalf("no channel secret for %s", slotID)
+	}
+	b, err := hex.DecodeString(slot.ChannelSecretHex)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return b
+}
+
 // stationClient dials the gateway as the station and hellos.
 func (h *harness) stationClient() (*stationlink.Client, net.Conn) {
 	h.t.Helper()
@@ -225,7 +240,7 @@ func (h *harness) stationClient() (*stationlink.Client, net.Conn) {
 	}
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	c := stationlink.NewClient(conn)
-	sys, err := c.Hello("slot-1", "id/swarma-station-1")
+	sys, err := c.Hello("slot-1", "id/swarma-station-1", h.slotSecret("slot-1"))
 	if err != nil {
 		h.t.Fatal(err)
 	}

@@ -285,8 +285,9 @@ func TestSecondScreeningRefusalEndsSlot(t *testing.T) {
 }
 
 // TestScreeningTimeoutErrorMalformed proves the model can only
-// refuse: hard timeout, transport error and malformed answers are
-// all refusals, never allows.
+// refuse: hard timeout, transport error and malformed answers all
+// refuse that message as screening-unavailable WITHOUT a strike
+// (RM2 M1 policy: strikes are spent only by explicit REFUSE).
 func TestScreeningTimeoutErrorMalformed(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -309,12 +310,16 @@ func TestScreeningTimeoutErrorMalformed(t *testing.T) {
 			// apply short timeout by rebuilding with tight config:
 			h.scr.Handler = tc.handler
 			res := h.handle(h.renterDM("screen me", nowMid))
-			if res.Delivered {
-				t.Fatalf("%s screening allowed delivery: %+v", tc.name, res)
+			if res.Delivered || res.Reason != "screening_unavailable" {
+				t.Fatalf("%s result: %+v", tc.name, res)
 			}
 			slot, _ := h.store.Get("slot-1")
-			if slot.Refusals != 1 {
-				t.Fatalf("refusals = %d, want 1 durable count", slot.Refusals)
+			if slot.Refusals != 0 || slot.Ended {
+				t.Fatalf("unavailable spent a strike: refusals=%d ended=%v", slot.Refusals, slot.Ended)
+			}
+			dms := h.pub.dmsTo(h.renter)
+			if !strings.Contains(dms[len(dms)-1], "screening unavailable, retry") {
+				t.Fatalf("retry notice DM missing: %v", dms)
 			}
 		})
 	}
@@ -396,6 +401,7 @@ func TestDestroyedStationCannotReply(t *testing.T) {
 		}
 	}
 	conn.Close()
+	staleSecret := h.slotSecret("slot-1")
 	report, err := h.gw.DestroySlot(context.Background(), "slot-1")
 	if err != nil {
 		t.Fatal(err)
@@ -413,7 +419,7 @@ func TestDestroyedStationCannotReply(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer raw.Close()
-	hello, err := raw.Hello("slot-1", "id/swarma-station-1")
+	hello, err := raw.Hello("slot-1", "id/swarma-station-1", staleSecret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,5 +471,106 @@ func TestStartSlotGating(t *testing.T) {
 	}
 	if dms := h.pub.dmsTo(h.renter); len(dms) != 1 || dms[0] != "ready" {
 		t.Fatalf("ready DM = %v", dms)
+	}
+}
+
+// TestKernelPendingDoesNotBurnRumor proves RM2 M4: a kernel-pending
+// message keeps its rumor id usable — the identical wrap delivers
+// once the kernel turns live.
+func TestKernelPendingDoesNotBurnRumor(t *testing.T) {
+	h := newHarness(t, harnessOpts{})
+	c, conn := h.stationClient()
+	defer conn.Close()
+	h.kern.Verdict, h.kern.Reason = kernel.Pending, "ANCHOR_UNCONFIRMED"
+	wrap := h.renterDM("retry me verbatim", nowMid)
+	if res := h.handle(wrap); res.Delivered || res.Reason != "kernel_pending:ANCHOR_UNCONFIRMED" {
+		t.Fatalf("pending result: %+v", res)
+	}
+	h.kern.Verdict, h.kern.Reason = kernel.Live, ""
+	res := h.handle(wrap)
+	if !res.Delivered {
+		t.Fatalf("identical resend after live refused (rumor burned): %+v", res)
+	}
+	if f := pull(t, c); f.Type != stationlink.TypeDeliver || f.Content != "retry me verbatim" {
+		t.Fatalf("station got %+v", f)
+	}
+	// And now it IS recorded: a third copy is a replay.
+	if res := h.handle(wrap); res.Reason != "replayed_rumor" {
+		t.Fatalf("third copy = %+v, want replayed_rumor", res)
+	}
+}
+
+// TestScreenedReplaySingleStrike proves RM2 M4's other half: the
+// seen record precedes screening, so resending one screened-out
+// wrap cannot spend the second strike.
+func TestScreenedReplaySingleStrike(t *testing.T) {
+	h := newHarness(t, harnessOpts{})
+	h.scr.RefuseSubstrings = []string{"bad"}
+	wrap := h.renterDM("bad once", nowMid)
+	if res := h.handle(wrap); !res.Refused || res.SlotEnded {
+		t.Fatalf("first screened result: %+v", res)
+	}
+	res := h.handle(wrap)
+	if res.Reason != "replayed_rumor" {
+		t.Fatalf("screened resend = %+v, want replayed_rumor", res)
+	}
+	slot, _ := h.store.Get("slot-1")
+	if slot.Refusals != 1 || slot.Ended {
+		t.Fatalf("replay spent a strike: refusals=%d ended=%v", slot.Refusals, slot.Ended)
+	}
+}
+
+// TestKernelClosedEndsSlotAndOutbound proves RM2 M2: a kernel
+// receipt carrying durable closure ends the slot at once; the
+// station can no longer get agent-signed replies out.
+func TestKernelClosedEndsSlotAndOutbound(t *testing.T) {
+	h := newHarness(t, harnessOpts{})
+	c, conn := h.stationClient()
+	defer conn.Close()
+	h.deliverValid(c, "before closure")
+	h.kern.Handler = func(ctx context.Context, cert []byte, stationName, sender string, now int64) (kernel.Receipt, error) {
+		return kernel.Receipt{Verdict: kernel.Refused, Reason: "SEAL_SPENT", Closed: true}, nil
+	}
+	res := h.handle(h.renterDM("after revoke", nowMid))
+	if res.Delivered || !res.SlotEnded || !strings.Contains(res.Reason, "kernel_closed") {
+		t.Fatalf("closed result: %+v", res)
+	}
+	before := h.pub.count()
+	ack, err := c.Reply("must not be signed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ack.Type == stationlink.TypeAck {
+		t.Fatalf("reply acked after kernel closure: %+v", ack)
+	}
+	if h.pub.count() != before {
+		t.Fatal("outbound DM published after kernel closure")
+	}
+}
+
+// TestFinalMessageOrder proves the closer path (owner decision):
+// SendFinalMessage DMs the renter signed by the agent after slot
+// end, and is refused after Destroy.
+func TestFinalMessageOrder(t *testing.T) {
+	h := newHarness(t, harnessOpts{})
+	c, conn := h.stationClient()
+	h.deliverValid(c, "work")
+	if _, err := c.EndEarly(); err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+	ctx := context.Background()
+	if err := h.gw.SendFinalMessage(ctx, "slot-1", "final: summary, deliverables, revoke txid abc"); err != nil {
+		t.Fatalf("final message after end refused: %v", err)
+	}
+	dms := h.pub.dmsTo(h.renter)
+	if !strings.Contains(dms[len(dms)-1], "revoke txid abc") {
+		t.Fatalf("final DM missing: %v", dms)
+	}
+	if _, err := h.gw.DestroySlot(ctx, "slot-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.gw.SendFinalMessage(ctx, "slot-1", "too late"); err == nil {
+		t.Fatal("final message accepted after destroy")
 	}
 }

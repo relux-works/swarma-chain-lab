@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
@@ -18,8 +20,17 @@ func runStationStub() error {
 	sock := os.Getenv("GATEWAY_SOCKET")
 	slotID := os.Getenv("SLOT_ID")
 	stationName := os.Getenv("STATION_NAME")
-	if sock == "" || slotID == "" || stationName == "" {
-		return fmt.Errorf("station-stub: GATEWAY_SOCKET, SLOT_ID and STATION_NAME are required")
+	secretFile := os.Getenv("CHANNEL_SECRET_FILE")
+	if sock == "" || slotID == "" || stationName == "" || secretFile == "" {
+		return fmt.Errorf("station-stub: GATEWAY_SOCKET, SLOT_ID, STATION_NAME and CHANNEL_SECRET_FILE are required")
+	}
+	secretRaw, err := os.ReadFile(secretFile)
+	if err != nil {
+		return fmt.Errorf("station-stub: channel secret: %w", err)
+	}
+	secret, err := hex.DecodeString(strings.TrimSpace(string(secretRaw)))
+	if err != nil || len(secret) != stationlink.ChannelSecretBytes {
+		return fmt.Errorf("station-stub: channel secret malformed")
 	}
 	// Stations must tolerate the gateway not listening yet (process
 	// start order, gateway restart): retry the dial briefly.
@@ -38,7 +49,7 @@ func runStationStub() error {
 	}
 	defer conn.Close()
 	client := stationlink.NewClient(conn)
-	sys, err := client.Hello(slotID, stationName)
+	sys, err := client.Hello(slotID, stationName, secret)
 	if err != nil {
 		return err
 	}

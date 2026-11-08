@@ -10,7 +10,8 @@ import (
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/testrelay"
 )
 
-// TestRelayVerifiesSignatures proves the test relay stores valid
+// TestRelayVerifiesSignatures proves Publish awaits relay OK
+// (accepted vs rejected), and the test relay stores valid
 // signed gift wraps and rejects tampered events like a real relay
 // (the gateway later refuses them again at unwrap: defence in depth).
 func TestRelayVerifiesSignatures(t *testing.T) {
@@ -31,11 +32,12 @@ func TestRelayVerifiesSignatures(t *testing.T) {
 	if err := client.Publish(ctx, wrap); err != nil {
 		t.Fatal(err)
 	}
-	// Tampered event: content flipped after signing.
+	// Tampered event: content flipped after signing. Publish now
+	// awaits the relay OK (RM2 M7), so the rejection is the error.
 	bad := *wrap
 	bad.Content = "x" + bad.Content[1:]
-	if err := client.Publish(ctx, &bad); err != nil {
-		t.Fatal(err)
+	if err := client.Publish(ctx, &bad); err == nil {
+		t.Fatal("tampered event publish accepted by relay")
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for {

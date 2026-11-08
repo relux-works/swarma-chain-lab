@@ -21,6 +21,7 @@ type Slot struct {
 	StationName    string   `json:"station_name"`
 	RenterPubKey   string   `json:"renter_pubkey"` // 64 lower hex, grantee key
 	CertificateB64 string   `json:"certificate_b64"`
+	BookingID      string   `json:"booking_id,omitempty"` // M3 booking id (Track B key)
 	ContractSHA256 string   `json:"contract_sha256"`
 	NotBefore      int64    `json:"not_before"`
 	NotAfter       int64    `json:"not_after"` // half-open: [NotBefore, NotAfter)
@@ -30,6 +31,13 @@ type Slot struct {
 	Ended          bool     `json:"ended"`
 	EndReason      string   `json:"end_reason,omitempty"`
 	Destroyed      bool     `json:"destroyed"`
+	// ChannelSecretHex is the per-slot stationlink credential key
+	// (64 lower hex = 32 bytes). Journal files are 0600 in a 0700
+	// dir on the gateway host only. Cleared durably at slot end.
+	ChannelSecretHex string `json:"channel_secret_hex,omitempty"`
+	// TokenSHA256 is the hash of the per-slot Track B token (the
+	// token itself lives only in the station home).
+	TokenSHA256 string `json:"token_sha256,omitempty"`
 
 	seen map[string]bool `json:"-"`
 }
@@ -249,6 +257,17 @@ func (st *Store) AddRefusal(id string) (int, error) {
 	return s.Refusals, nil
 }
 
+// SetChannelSecret durably registers the per-slot stationlink
+// secret (hex) and Track B token hash minted at station Create.
+// Fsynced before the station process starts, so hello can never
+// race ahead of the gateway-side credential.
+func (st *Store) SetChannelSecret(id, secretHex, tokenSHA256 string) error {
+	return st.update(id, func(s *Slot) {
+		s.ChannelSecretHex = secretHex
+		s.TokenSHA256 = tokenSHA256
+	})
+}
+
 // MarkStarted durably records session start.
 func (st *Store) MarkStarted(id string) error {
 	return st.update(id, func(s *Slot) { s.Started = true })
@@ -262,6 +281,7 @@ func (st *Store) MarkEnded(id, reason string) error {
 			s.Ended = true
 			s.EndReason = reason
 		}
+		s.ChannelSecretHex = "" // channel secret dies at slot end
 	})
 }
 
@@ -270,6 +290,7 @@ func (st *Store) MarkDestroyed(id string) error {
 	return st.update(id, func(s *Slot) {
 		s.Ended = true
 		s.Destroyed = true
+		s.ChannelSecretHex = ""
 		if s.EndReason == "" {
 			s.EndReason = "destroyed"
 		}
@@ -283,6 +304,13 @@ func (st *Store) update(id string, fn func(*Slot)) error {
 	if !ok {
 		return fmt.Errorf("journal: no slot %s", id)
 	}
+	backup := *s // seen map is never mutated by update callers
 	fn(s)
-	return st.persistLocked(s)
+	if err := st.persistLocked(s); err != nil {
+		seen := s.seen
+		*s = backup
+		s.seen = seen
+		return err
+	}
+	return nil
 }

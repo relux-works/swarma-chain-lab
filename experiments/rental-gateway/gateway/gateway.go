@@ -9,7 +9,9 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -22,10 +24,18 @@ import (
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
 )
 
-// Publisher sends one signed event to the relay set.
+// Publisher sends one signed event to the relay set. It is the
+// renter-channel transport boundary: outbound traffic leaves only
+// through it, inbound enters only through HandleGiftWrap, so the
+// Nostr relay transport (RelayClient) can later be replaced by an
+// a2a transport without touching gateway policy (owner decision,
+// 2026-11-08; no a2a work in this milestone).
 type Publisher interface {
 	Publish(ctx context.Context, ev *nostr.Event) error
 }
+
+// Transport is the renter-channel transport (see Publisher).
+type Transport = Publisher
 
 // Config wires the gateway. Now defaults to time.Now.
 type Config struct {
@@ -48,6 +58,7 @@ type SlotSpec struct {
 	RenterPubKey   string // grantee key, 64 lower hex
 	Certificate    []byte // signed rental certificate envelope bytes
 	ContractSHA256 string
+	BookingID      string // M3 booking id, 64 lower hex (Track B key); may be empty locally
 	NotBefore      int64
 	NotAfter       int64 // half-open end
 }
@@ -70,6 +81,7 @@ type Gateway struct {
 	mu       sync.Mutex
 	stations map[string]*station.Station
 	queues   map[string]chan *stationlink.Frame
+	bound    map[string]*connState // slot id -> live authenticated station binding
 }
 
 // New validates config and builds a Gateway.
@@ -88,7 +100,8 @@ func New(cfg Config) (*Gateway, error) {
 		cfg.Now = time.Now
 	}
 	return &Gateway{cfg: cfg, stations: map[string]*station.Station{},
-		queues: map[string]chan *stationlink.Frame{}}, nil
+		queues: map[string]chan *stationlink.Frame{},
+		bound:  map[string]*connState{}}, nil
 }
 
 // AgentPubKey returns the stable agent public identity (hex).
@@ -116,6 +129,7 @@ func (g *Gateway) RegisterSlot(spec SlotSpec) error {
 		RenterPubKey:   spec.RenterPubKey,
 		CertificateB64: base64.StdEncoding.EncodeToString(spec.Certificate),
 		ContractSHA256: spec.ContractSHA256,
+		BookingID:      spec.BookingID,
 		NotBefore:      spec.NotBefore,
 		NotAfter:       spec.NotAfter,
 	})
@@ -148,12 +162,23 @@ func (g *Gateway) StartSlot(ctx context.Context, slotID string) error {
 	if err != nil {
 		return fmt.Errorf("gateway: slot %s refused: kernel error: %w", slotID, err)
 	}
+	if receipt.Closed {
+		g.endSlot(ctx, slotID, "kernel_closed", "")
+		return fmt.Errorf("gateway: slot %s closed: %s", slotID, receipt.Reason)
+	}
 	if !receipt.Admits() {
 		return fmt.Errorf("gateway: slot %s %s: %s", slotID, receipt.Verdict, receipt.Reason)
 	}
-	st, err := g.cfg.Driver.Create(ctx, station.SlotSpec{SlotID: slot.ID, StationName: slot.StationName})
+	st, err := g.cfg.Driver.Create(ctx, station.SlotSpec{
+		SlotID: slot.ID, StationName: slot.StationName, BookingID: slot.BookingID})
 	if err != nil {
 		return fmt.Errorf("gateway: create station: %w", err)
+	}
+	tokenSum := sha256.Sum256([]byte(st.TrackBToken))
+	if err := g.cfg.Journal.SetChannelSecret(slot.ID,
+		hex.EncodeToString(st.ChannelSecret), hex.EncodeToString(tokenSum[:])); err != nil {
+		_, _ = g.cfg.Driver.Destroy(ctx, st)
+		return fmt.Errorf("gateway: register channel secret: %w", err)
 	}
 	info := station.SessionInfo{
 		RenterPubKey: slot.RenterPubKey, ContractSHA256: slot.ContractSHA256,
@@ -211,6 +236,25 @@ func (g *Gateway) DestroySlot(ctx context.Context, slotID string) (station.Destr
 		return report, err
 	}
 	return report, nil
+}
+
+// SendFinalMessage delivers the closer's end-of-slot message
+// (summary, deliverables, revoke txid) to the renter, signed with
+// the agent key. The closer (M4b) calls it after slot end and
+// before DestroySlot; after destruction it is refused, so the
+// required order end -> final message -> destroy is enforceable.
+func (g *Gateway) SendFinalMessage(ctx context.Context, slotID, content string) error {
+	slot, ok := g.cfg.Journal.Get(slotID)
+	if !ok {
+		return fmt.Errorf("gateway: no slot %s", slotID)
+	}
+	if slot.Destroyed {
+		return fmt.Errorf("gateway: slot %s destroyed: final message must precede destroy", slotID)
+	}
+	if content == "" {
+		return fmt.Errorf("gateway: empty final message")
+	}
+	return g.dmRenter(ctx, slot, content)
 }
 
 // endSlot durably ends a slot, stops its station process (session

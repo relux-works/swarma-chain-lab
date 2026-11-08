@@ -3,6 +3,7 @@ package gateway_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
@@ -35,5 +36,17 @@ func TestLoadAgentKeyModes(t *testing.T) {
 	}
 	if _, err := gateway.LoadAgentKey(path); err == nil {
 		t.Fatal("0644 agent key accepted")
+	}
+}
+
+// TestLoadZeroKeyRefused proves a zero-filled key file (corrupt or
+// wiped) cannot start a gateway with identity 000...0 (RM2 M5).
+func TestLoadZeroKeyRefused(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "zero.key")
+	if err := os.WriteFile(path, []byte(strings.Repeat("0", 64)+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gateway.LoadAgentKey(path); err == nil {
+		t.Fatal("zero agent key accepted")
 	}
 }

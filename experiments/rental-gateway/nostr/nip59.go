@@ -153,6 +153,9 @@ func UnwrapDM(wrap *Event, recipient *PrivKey) (*UnwrappedDM, error) {
 	if err != nil {
 		return nil, fmt.Errorf("rumor parse: %w", err)
 	}
+	if rumor.Kind != KindRumor {
+		return nil, fmt.Errorf("rumor: kind %d, want %d", rumor.Kind, KindRumor)
+	}
 	if rumor.PubKey != seal.PubKey {
 		return nil, fmt.Errorf("rumor: pubkey does not match seal pubkey")
 	}

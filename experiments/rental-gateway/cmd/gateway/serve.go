@@ -24,6 +24,7 @@ type slotFile struct {
 	RenterPubKey   string `json:"renter_pubkey"`
 	CertificateB64 string `json:"certificate_b64"`
 	ContractSHA256 string `json:"contract_sha256"`
+	BookingID      string `json:"booking_id"`
 	NotBefore      int64  `json:"not_before"`
 	NotAfter       int64  `json:"not_after"`
 	StartNow       bool   `json:"start_now"`
@@ -94,7 +95,7 @@ func runServe(args []string) error {
 		}
 		if err := gw.RegisterSlot(gateway.SlotSpec{
 			ID: sf.ID, StationName: sf.StationName, RenterPubKey: sf.RenterPubKey,
-			Certificate: cert, ContractSHA256: sf.ContractSHA256,
+			Certificate: cert, ContractSHA256: sf.ContractSHA256, BookingID: sf.BookingID,
 			NotBefore: sf.NotBefore, NotAfter: sf.NotAfter,
 		}); err != nil {
 			return err

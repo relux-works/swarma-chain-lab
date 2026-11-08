@@ -40,6 +40,16 @@ func PrivKeyFromBytes(b []byte) (*PrivKey, error) {
 	if len(b) != 32 {
 		return nil, fmt.Errorf("privkey: want 32 bytes, got %d", len(b))
 	}
+	zero := true
+	for _, c := range b {
+		if c != 0 {
+			zero = false
+			break
+		}
+	}
+	if zero {
+		return nil, fmt.Errorf("privkey: zero scalar refused")
+	}
 	k, _ := btcec.PrivKeyFromBytes(b)
 	if k == nil {
 		return nil, fmt.Errorf("privkey: invalid scalar")
