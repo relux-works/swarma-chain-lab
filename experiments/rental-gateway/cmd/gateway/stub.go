@@ -1,0 +1,74 @@
+package main
+
+import (
+	"fmt"
+	"net"
+	"os"
+
+	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
+)
+
+// runStationStub is the scripted agent for the local-test driver. It
+// dials the gateway itself (station-initiated), echoes deliveries as
+// replies, and understands two trigger contents used by controls:
+// "__end_early__" asks to end; "__extend__" attempts an extension
+// (the gateway must refuse) and replies with the refusal frame type.
+func runStationStub() error {
+	sock := os.Getenv("GATEWAY_SOCKET")
+	slotID := os.Getenv("SLOT_ID")
+	stationName := os.Getenv("STATION_NAME")
+	if sock == "" || slotID == "" || stationName == "" {
+		return fmt.Errorf("station-stub: GATEWAY_SOCKET, SLOT_ID and STATION_NAME are required")
+	}
+	conn, err := net.Dial("unix", sock)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	client := stationlink.NewClient(conn)
+	sys, err := client.Hello(slotID, stationName)
+	if err != nil {
+		return err
+	}
+	if sys.Type != stationlink.TypeSystem {
+		return fmt.Errorf("station-stub: hello refused: %s %s", sys.Type, sys.Reason)
+	}
+	for {
+		frame, err := client.Pull()
+		if err != nil {
+			return err
+		}
+		switch frame.Type {
+		case stationlink.TypeDeliver:
+			switch frame.Content {
+			case "__end_early__":
+				end, err := client.EndEarly()
+				if err != nil {
+					return err
+				}
+				if end.Type == stationlink.TypeEnd {
+					return nil
+				}
+				return fmt.Errorf("station-stub: end_early answered %s", end.Type)
+			case "__extend__":
+				ext, err := client.Extend()
+				if err != nil {
+					return err
+				}
+				if _, err := client.Reply("extend answered: " + ext.Type); err != nil {
+					return err
+				}
+			default:
+				if _, err := client.Reply("echo: " + frame.Content); err != nil {
+					return err
+				}
+			}
+		case stationlink.TypeNotice, stationlink.TypeNone:
+			continue
+		case stationlink.TypeEnd:
+			return nil
+		default:
+			return fmt.Errorf("station-stub: unexpected frame %s", frame.Type)
+		}
+	}
+}
