@@ -854,3 +854,90 @@ func TestGenuineCoreWitnessPayments(t *testing.T) {
 	}
 	l.t = t
 }
+
+// Genuine Core exact/over/under controls prove >= price admission, explicit
+// surplus/review, one issuance, restart persistence and old-receipt backfill.
+func TestGenuineCoreSurplus(t *testing.T) {
+	l := newCoreLab(t)
+	for _, tc := range []struct {
+		name  string
+		delta int64
+	}{{"exact", 0}, {"over", 5000}, {"under", -1}} {
+		t.Run(tc.name, func(t *testing.T) {
+			l.t = t
+			f := l.fixture(t, "advance")
+			b := readyBooking(t, f)
+			l.pay(b.Contract.PaymentAddress, b.Contract.PriceNMCSat+tc.delta)
+			l.mine(1)
+			got := refresh(t, f, b.Contract.BookingID)
+			if len(got.Receipts) != 1 {
+				t.Fatal("payment receipt missing")
+			}
+			r := got.Receipts[0]
+			if tc.delta < 0 {
+				if got.Status != "pending" || got.Issuance != nil || r.SurplusSat != 0 || !r.RefundReview {
+					t.Fatal("underpayment authority/review")
+				}
+				l.pay(b.Contract.PaymentAddress, b.Contract.PriceNMCSat)
+				l.mine(1)
+				got = refresh(t, f, b.Contract.BookingID)
+				if got.Status != "paid" || got.Issuance == nil {
+					t.Fatal("underpayment valid neighbour refused")
+				}
+			} else if got.Status != "paid" || got.Issuance == nil || r.Disposition != "selected" || r.SurplusSat != tc.delta || r.RefundReview != (tc.delta > 0) {
+				t.Fatal("selected surplus/review not recorded")
+			}
+			issuance := string(canonical(got.Issuance))
+			f.s.Close()
+			var e error
+			f.s, e = NewService(f.cfg, f.profile, f.provider, l.read, f.s.relay, func() time.Time { return time.Unix(f.now, 0) })
+			if e != nil {
+				t.Fatal(e)
+			}
+			reopened, e := f.s.Get(b.Contract.BookingID)
+			if e != nil || string(canonical(reopened.Receipts)) != string(canonical(got.Receipts)) || string(canonical(reopened.Issuance)) != issuance {
+				t.Fatal("restart lost receipt/issuance", e)
+			}
+			if tc.delta > 0 {
+				// Remove only the newly derived fields, reproducing M3-02 storage.
+				// Startup must persist the backfill without another issuance.
+				f.s.Close()
+				path := filepath.Join(f.cfg.StateDir, "state.json")
+				raw, e := os.ReadFile(path)
+				if e != nil {
+					t.Fatal(e)
+				}
+				var old map[string]any
+				if e = json.Unmarshal(raw, &old); e != nil {
+					t.Fatal(e)
+				}
+				for _, entry := range old["bookings"].([]any) {
+					for _, receipt := range entry.(map[string]any)["receipts"].([]any) {
+						delete(receipt.(map[string]any), "surplus_sat")
+						delete(receipt.(map[string]any), "refund_review")
+					}
+				}
+				if e = os.WriteFile(path, canonical(old), 0600); e != nil {
+					t.Fatal(e)
+				}
+				f.s, e = NewService(f.cfg, f.profile, f.provider, l.read, f.s.relay, func() time.Time { return time.Unix(f.now, 0) })
+				if e != nil {
+					t.Fatal(e)
+				}
+				reopened, e = f.s.Get(b.Contract.BookingID)
+				if e != nil || reopened.Receipts[0].SurplusSat != 5000 || !reopened.Receipts[0].RefundReview || string(canonical(reopened.Issuance)) != issuance {
+					t.Fatal("legacy surplus backfill lost metadata/authority", e)
+				}
+				raw, e = os.ReadFile(path)
+				if e != nil {
+					t.Fatal(e)
+				}
+				var persisted state
+				if Strict(raw, &persisted) != nil || persisted.Bookings[0].Receipts[0].SurplusSat != 5000 || !persisted.Bookings[0].Receipts[0].RefundReview {
+					t.Fatal("legacy surplus backfill not persisted")
+				}
+			}
+			l.save("surplus-"+tc.name, reopened)
+		})
+	}
+}

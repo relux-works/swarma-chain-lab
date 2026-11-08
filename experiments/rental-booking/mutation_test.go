@@ -31,6 +31,11 @@ func TestGuardRemovalControls(t *testing.T) {
 		t.Fatal(e)
 	}
 	plants := []guardPlant{
+		{"start-window-entry", "service.go", "if s.startWindowClosed(*slot, now) {", "if false && s.startWindowClosed(*slot, now) {", "TestStartNowRemainingWindow/below", "remaining-window refusal/state", false},
+		{"start-window-node-delay", "service.go", "if s.startWindowClosed(*slot, later) {", "if false && s.startWindowClosed(*slot, later) {", "TestStartNowRemainingWindow/node_delay", "remaining-window refusal/state", false},
+		{"surplus-amount", "service.go", "surplus = r.Payment.ValueSat - b.Contract.PriceNMCSat", "surplus = 0", "TestGenuineCoreSurplus/over", "selected surplus/review not recorded", true},
+		{"surplus-review", "service.go", "review := surplus > 0 ||", "review := false ||", "TestGenuineCoreSurplus/over", "selected surplus/review not recorded", true},
+		{"surplus-backfill", "service.go", "if changed {", "if false && changed {", "TestGenuineCoreSurplus/over", "legacy surplus backfill not persisted", true},
 		{"late-relay-expiry", "service.go", "if b.Issuance == nil && now >= b.HoldExpiresAt {", "if false && b.Issuance == nil && now >= b.HoldExpiresAt {", "TestGenuineCoreLateRelay", "late relay retained paid/issued state", true},
 		{"provider-signature", "nostr.go", "if !verifySignature(provider, p.Contract.Hash(), p.ProviderSignature) {", "if false && !verifySignature(provider, p.Contract.Hash(), p.ProviderSignature) {", "TestProviderCountersignature", "provider signature:", false},
 		{"package-hold", "nostr.go", "p.HoldExpiresAt != expires ||", "false ||", "TestPackageHoldBinding", "hold tamper:", false},

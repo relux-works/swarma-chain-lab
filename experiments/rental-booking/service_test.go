@@ -411,3 +411,120 @@ func TestPersistedConfirmationRequired(t *testing.T) {
 		t.Fatal("restored confirmed neighbour", e)
 	}
 }
+
+// Start-now refuses below the configured remainder, including time elapsed in
+// node reads; threshold/advance neighbours succeed and refusals preserve state.
+func TestStartNowRemainingWindow(t *testing.T) {
+	for _, tc := range []struct {
+		name                           string
+		remaining, configured, elapsed int64
+		policy                         string
+		refused                        bool
+	}{
+		{"below", 1499, 0, 0, "start_now", true},
+		{"boundary", 1500, 0, 0, "start_now", false},
+		{"above", 1501, 0, 0, "start_now", false},
+		{"node_delay", 1500, 0, 1, "start_now", true},
+		{"custom_below", 1799, 1800, 0, "start_now", true},
+		{"custom_boundary", 1800, 1800, 0, "start_now", false},
+		{"advance_neighbour", 300, 0, 0, "advance", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.s.Close()
+			f.cfg.MinStartNowRemainingSeconds = tc.configured
+			f.cfg.Slots[0] = Slot{"one", "id/station-one", f.now + 1, f.now + tc.remaining, tc.policy}
+			var e error
+			f.s, e = NewService(f.cfg, f.profile, f.provider, f.node, f.relay, func() time.Time { return time.Unix(f.now, 0) })
+			if e != nil {
+				t.Fatal(e)
+			}
+			// An already-too-short slot must refuse before even an unavailable
+			// node is consulted. Restore the node for the valid neighbour.
+			f.node.fail = tc.refused && tc.elapsed == 0
+			calls := 0
+			f.s.clock = func() time.Time {
+				calls++
+				if calls > 1 {
+					return time.Unix(f.now+tc.elapsed, 0)
+				}
+				return time.Unix(f.now, 0)
+			}
+			before, e := os.ReadFile(filepath.Join(f.cfg.StateDir, "state.json"))
+			if e != nil {
+				t.Fatal(e)
+			}
+			b, e := f.s.Book(context.Background(), BookInput{"one", keyHex(f.renter), "", true})
+			if tc.refused {
+				after, readErr := os.ReadFile(filepath.Join(f.cfg.StateDir, "state.json"))
+				if e == nil || e.Error() != "SLOT_REMAINING_WINDOW" || readErr != nil || string(before) != string(after) || f.s.state.NextIndex != 0 || len(f.s.state.Bookings) != 0 {
+					t.Fatalf("remaining-window refusal/state: %v", e)
+				}
+				f.s.clock = func() time.Time { return time.Unix(f.now-1, 0) }
+				f.s.cfg.RateAsOf = f.now - 1
+				f.node.fail = false
+				if _, e = f.s.Book(context.Background(), BookInput{"one", keyHex(f.renter), "", true}); e != nil {
+					t.Fatal("remaining-window valid neighbour", e)
+				}
+			} else if e != nil || b.AddressIndex != 0 || b.Contract.NotAfter != f.cfg.Slots[0].NotAfter {
+				t.Fatalf("remaining-window boundary neighbour: %v", e)
+			}
+		})
+	}
+}
+
+// Invalid operator windows fail before writing state. Zero defaults to 1500;
+// explicit windows from 1 through 3600 seconds remain configurable.
+func TestStartNowWindowConfig(t *testing.T) {
+	for _, seconds := range []int64{-1, 3601, 0, 1, 3600} {
+		f := newFixture(t)
+		f.s.Close()
+		f.cfg.StateDir = privateDir(t)
+		f.cfg.MinStartNowRemainingSeconds = seconds
+		s, e := NewService(f.cfg, f.profile, f.provider, f.node, f.relay, func() time.Time { return time.Unix(f.now, 0) })
+		if seconds < 0 || seconds > 3600 {
+			entries, readErr := os.ReadDir(f.cfg.StateDir)
+			if e == nil || e.Error() != "START_WINDOW_CONFIG" || s != nil || readErr != nil || len(entries) != 0 {
+				t.Fatalf("window config refusal/state: %v", e)
+			}
+			continue
+		}
+		if e != nil {
+			t.Fatal(e)
+		}
+		want := seconds
+		if want == 0 {
+			want = 1500
+		}
+		if s.cfg.MinStartNowRemainingSeconds != want {
+			t.Fatal("window default/config ignored")
+		}
+		s.Close()
+	}
+}
+
+// Individual receipt surplus uses the signed price, while selected overpayments
+// keep their disposition. Annotation never changes received value or issuance.
+func TestReceiptReviewProjection(t *testing.T) {
+	b := Booking{Contract: Contract{PriceNMCSat: 100}, Receipts: []Receipt{
+		{Payment: Payment{ValueSat: 99}, Disposition: "pending"},
+		{Payment: Payment{ValueSat: 100}, Disposition: "selected"},
+		{Payment: Payment{ValueSat: 101}, Disposition: "selected"},
+		{Payment: Payment{ValueSat: 100}, Disposition: "refund_review"},
+	}}
+	if !annotateReceipts(&b) {
+		t.Fatal("receipt review not derived")
+	}
+	for i, want := range []struct {
+		surplus int64
+		review  bool
+	}{{0, false}, {0, false}, {1, true}, {0, true}} {
+		r := b.Receipts[i]
+		if r.SurplusSat != want.surplus || r.RefundReview != want.review {
+			t.Fatal("receipt surplus/review mismatch", i)
+		}
+	}
+	if annotateReceipts(&b) || b.Receipts[2].Disposition != "selected" || b.Receipts[2].Payment.ValueSat != 101 || b.Issuance != nil {
+		t.Fatal("receipt review altered authority/value")
+	}
+}

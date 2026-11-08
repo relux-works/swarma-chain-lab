@@ -223,7 +223,8 @@ M3_CORE_CLI=/absolute/pinned/namecoin-cli M3_CORE_DAEMON=/absolute/pinned/nameco
 ```
 
 Config schema is the exported `Config`/`Template`/`Slot`/`Limits` structs in
-service.go/contract.go/watcher.go; all fields except hold_seconds are explicit.
+service.go/contract.go/watcher.go; all fields except hold_seconds and
+min_start_now_remaining_seconds are explicit.
 The provider key file is 0600, a 32-byte test secret scalar encoded as hex; never
 put it in argv, logs or evidence. OperatorRoute is the existing single-use
 read-only capability with pinned CLI hash and private config/datadir references.
@@ -263,3 +264,36 @@ fresh M3_RUN_ROOT as the payment suite, selecting
 `go test -race -count=1 -run '^TestGenuineCoreWitnessPayments$' ./...`.
 It verifies both policies with confirmed P2WPKH-funded payments, mempool
 refusals, underpayment neighbours and distinct txid/wtxid evidence.
+
+## M3-03 payment surplus and remaining time
+
+A single confirmed output of at least the signed `price_nmc_sat` can pay the
+booking. Each receipt exposes `surplus_sat = max(value_sat - price_nmc_sat, 0)`
+and `refund_review`. A selected overpayment stays `selected` and paid, issues
+only once, and sets refund_review=true for its excess. An exact selected payment
+has zero surplus and false review. Receipts already marked `refund_review`
+(including duplicate or insufficient payments) also set the flag; their full
+value may need reconciliation. The flag requests operator review, never an
+automatic refund or a change to the signed price. Per-receipt surplus is not a
+sum or a second payment-selection rule.
+
+Startup recomputes these fields from recorded value, signed price and
+disposition, persisting any changed metadata before serving. This also restores
+surplus review for old receipts that lack the fields. No chain read,
+new payment verdict, signature, issuance or transfer is produced by backfill;
+startup refuses if the durable write fails. Existing zero-confirmation issuance
+state is still rejected under M3-02's rule.
+
+`min_start_now_remaining_seconds` defaults to 1500 (25 minutes) when omitted or
+zero. Explicit operator values must be 1..3600 seconds. Start-now booking refuses
+with `SLOT_REMAINING_WINDOW` when `not_after - now` is smaller than that setting,
+both before and after node reads. The exact threshold is allowed. Refusal
+reserves no address or hold. Advance booking semantics are unchanged. This is an
+admission-time margin, not a block-time guarantee; existing contracts and slot
+ends are never retimed, and normal confirmation/expiry gates still apply.
+
+The page explains that payment and rental activation confirmations may delay
+start. Run the exact/over/under Core controls with a fresh test root and the same
+Core variables above using `-run '^TestGenuineCoreSurplus$'`; unit boundary tests
+are `TestStartNowRemainingWindow` and `TestStartNowWindowConfig`. The full guard
+plant suite now includes amount, review, legacy backfill and both time checks.

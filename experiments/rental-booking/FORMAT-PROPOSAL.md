@@ -1,6 +1,6 @@
 # M3 / M1 interface proposal v1
 
-Status: accepted baseline by the orchestrator; M1 action agreement received.
+Status: shared M3/M1 baseline for the regtest experiment.
 Amendment: signed package hold bounds added on 2026-11-08 at M1 request.
 2026-11-08, M3-01. Shared approval is required before the issuer depends on it.
 
@@ -113,3 +113,11 @@ Open integration questions: M1 acknowledgement/dequeue and revoke consumer
 contract; exact shared action spellings; whether an emission is considered
 handed off even before M1 ack (proposal: conservative yes). No production
 issuer automation is implied by this regtest file interface.
+
+## Receipt review metadata (M3-03)
+
+Booking status receipts expose `surplus_sat` (nonnegative excess of one received
+output over the signed price) and `refund_review` (true for that excess or an
+existing refund-review disposition). This metadata does not alter contract,
+consent, package or issuance-request canonical bytes. A selected overpayment is
+still one paid booking and one issuance. Refund execution remains external.

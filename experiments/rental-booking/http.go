@@ -15,7 +15,7 @@ const browserScript = `const out=document.getElementById('out');let current;
 async function post(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const v=await r.json();if(!r.ok)throw Error(v.error);return v;}
 document.getElementById('book').onclick=async()=>{try{if(!document.getElementById('privacy').checked)throw Error('Acknowledge the privacy notice first.');if(!window.nostr)throw Error('A NIP-07 signer is required.');const pubkey=await window.nostr.getPublicKey();current=await post('/book',{slot_id:document.getElementById('slot').value,renter_pubkey:pubkey,renter_name:document.getElementById('name').value,privacy_acknowledged:true});out.textContent=JSON.stringify(current,null,2);document.getElementById('sign').disabled=false;}catch(e){out.textContent=e.message;}};
 document.getElementById('sign').onclick=async()=>{try{if(!current)throw Error('Book first.');const b=current.booking;const event={created_at:Math.floor(Date.now()/1000),kind:8181,tags:[['t','swarma-rental-consent-v1'],['contract',current.contract_sha256],['booking',b.contract.booking_id],['privacy',b.contract.privacy_sha256]],content:''};const signed=await window.nostr.signEvent(event);out.textContent=JSON.stringify(await post('/consent',{booking_id:b.contract.booking_id,event:signed}),null,2);}catch(e){out.textContent=e.message;}};`
-const pageHTML = `<!doctype html><html lang="en"><meta charset="utf-8"><title>Rental booking regtest</title><h1>Rental booking — regtest</h1><p>Local experiment. Payments use disposable regtest coins.</p><p>{{.Privacy}}</p><label><input id="privacy" type="checkbox">I acknowledge this permanent public linkage.</label><p><label>Slot <select id="slot">{{range .Slots}}<option value="{{.ID}}">{{.StationName}} · {{.NotBefore}}–{{.NotAfter}} · {{.PaymentPolicy}}</option>{{end}}</select></label></p><p>Price: {{.Price}} USD cents. The booking response fixes the exact NMC amount and rate.</p><p><label>Optional Namecoin name <input id="name" placeholder="id/example"></label></p><button id="book">Create hold and show contract</button><button id="sign" disabled>Sign the displayed contract</button><pre id="out" aria-live="polite"></pre><script>{{.Script}}</script></html>`
+const pageHTML = `<!doctype html><html lang="en"><meta charset="utf-8"><title>Rental booking regtest</title><h1>Rental booking — regtest</h1><p>Local experiment. Payments use disposable regtest coins.</p><p>Start-now bookings require at least {{.StartWindow}} seconds remaining. Payment and rental activation confirmations may delay the start; the signed end time stays fixed.</p><p>{{.Privacy}}</p><label><input id="privacy" type="checkbox">I acknowledge this permanent public linkage.</label><p><label>Slot <select id="slot">{{range .Slots}}<option value="{{.ID}}">{{.StationName}} · {{.NotBefore}}–{{.NotAfter}} · {{.PaymentPolicy}}</option>{{end}}</select></label></p><p>Price: {{.Price}} USD cents. The booking response fixes the exact NMC amount and rate.</p><p><label>Optional Namecoin name <input id="name" placeholder="id/example"></label></p><button id="book">Create hold and show contract</button><button id="sign" disabled>Sign the displayed contract</button><pre id="out" aria-live="polite"></pre><script>{{.Script}}</script></html>`
 
 type HTTPHandler struct {
 	s      *Service
@@ -74,11 +74,12 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "GET" && r.URL.Path == "/":
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_ = h.page.Execute(w, struct {
-			Privacy string
-			Slots   []Slot
-			Price   int64
-			Script  template.JS
-		}{PrivacyNotice, h.s.cfg.Slots, h.s.cfg.PriceUSDCents, template.JS(browserScript)})
+			Privacy     string
+			Slots       []Slot
+			Price       int64
+			StartWindow int64
+			Script      template.JS
+		}{PrivacyNotice, h.s.cfg.Slots, h.s.cfg.PriceUSDCents, h.s.cfg.MinStartNowRemainingSeconds, template.JS(browserScript)})
 	case r.Method == "POST" && r.URL.Path == "/book":
 		var in BookInput
 		if e := decodeBody(w, r, &in); e != nil {

@@ -19,20 +19,21 @@ type Slot struct {
 	PaymentPolicy string `json:"payment_policy"`
 }
 type Config struct {
-	StateDir           string   `json:"state_dir"`
-	PublicBranch       string   `json:"public_branch"`
-	PublicBranchSHA256 string   `json:"public_branch_sha256"`
-	AgentPubkey        string   `json:"agent_pubkey"`
-	ProviderPubkey     string   `json:"provider_pubkey"`
-	HoldSeconds        int64    `json:"hold_seconds"`
-	PriceUSDCents      int64    `json:"price_usd_cents"`
-	USDMicrosPerNMC    int64    `json:"usd_micros_per_nmc"`
-	RateAsOf           int64    `json:"rate_as_of"`
-	MaxRateAge         int64    `json:"max_rate_age_seconds"`
-	Template           Template `json:"template"`
-	TemplateSHA256     string   `json:"template_sha256"`
-	Slots              []Slot   `json:"slots"`
-	Limits             Limits   `json:"limits"`
+	StateDir                    string   `json:"state_dir"`
+	PublicBranch                string   `json:"public_branch"`
+	PublicBranchSHA256          string   `json:"public_branch_sha256"`
+	AgentPubkey                 string   `json:"agent_pubkey"`
+	ProviderPubkey              string   `json:"provider_pubkey"`
+	HoldSeconds                 int64    `json:"hold_seconds"`
+	MinStartNowRemainingSeconds int64    `json:"min_start_now_remaining_seconds"`
+	PriceUSDCents               int64    `json:"price_usd_cents"`
+	USDMicrosPerNMC             int64    `json:"usd_micros_per_nmc"`
+	RateAsOf                    int64    `json:"rate_as_of"`
+	MaxRateAge                  int64    `json:"max_rate_age_seconds"`
+	Template                    Template `json:"template"`
+	TemplateSHA256              string   `json:"template_sha256"`
+	Slots                       []Slot   `json:"slots"`
+	Limits                      Limits   `json:"limits"`
 }
 type IssuanceRequest struct {
 	Version          int      `json:"version"`
@@ -63,10 +64,12 @@ type RevokeRequest struct {
 	ObservedTipHash string `json:"observed_tip_hash"`
 }
 type Receipt struct {
-	Payment     Payment `json:"payment"`
-	FirstSeen   int64   `json:"first_seen"`
-	ConfirmedAt int64   `json:"confirmed_at"`
-	Disposition string  `json:"disposition"`
+	Payment      Payment `json:"payment"`
+	FirstSeen    int64   `json:"first_seen"`
+	ConfirmedAt  int64   `json:"confirmed_at"`
+	Disposition  string  `json:"disposition"`
+	SurplusSat   int64   `json:"surplus_sat"`
+	RefundReview bool    `json:"refund_review"`
 }
 type Booking struct {
 	Contract         Contract         `json:"contract"`
@@ -107,10 +110,17 @@ type Service struct {
 }
 
 const DefaultHoldSeconds int64 = 1800
+const DefaultMinStartNowRemainingSeconds int64 = 1500
 
 func NewService(cfg Config, profile []byte, key *btcec.PrivateKey, node Node, relay Publisher, clock func() time.Time) (*Service, error) {
 	if cfg.HoldSeconds == 0 {
 		cfg.HoldSeconds = DefaultHoldSeconds
+	}
+	if cfg.MinStartNowRemainingSeconds == 0 {
+		cfg.MinStartNowRemainingSeconds = DefaultMinStartNowRemainingSeconds
+	}
+	if cfg.MinStartNowRemainingSeconds < 1 || cfg.MinStartNowRemainingSeconds > 3600 {
+		return nil, refuse("START_WINDOW_CONFIG")
 	}
 	if key == nil || keyHex(key) != cfg.ProviderPubkey || !pubkey(cfg.AgentPubkey) || cfg.HoldSeconds < 1200 || cfg.HoldSeconds > 1800 || !cfg.Limits.valid() || node == nil || relay == nil || clock == nil {
 		return nil, refuse("SERVICE_CONFIG")
@@ -157,6 +167,17 @@ func NewService(cfg Config, profile []byte, key *btcec.PrivateKey, node Node, re
 		if e = s.validateState(); e != nil {
 			s.Close()
 			return nil, e
+		}
+		// Review metadata is derived from existing receipts, never new authority.
+		changed := false
+		for i := range s.state.Bookings {
+			changed = annotateReceipts(&s.state.Bookings[i]) || changed
+		}
+		if changed {
+			if e = s.persist(s.state); e != nil {
+				s.Close()
+				return nil, e
+			}
 		}
 	}
 	if e = s.export(); e != nil {
@@ -273,6 +294,9 @@ func (s *Service) Book(ctx context.Context, in BookInput) (Booking, error) {
 	if slot == nil || slot.NotAfter <= now || slot.PaymentPolicy == "advance" && slot.NotBefore <= now {
 		return Booking{}, refuse("SLOT_UNAVAILABLE")
 	}
+	if s.startWindowClosed(*slot, now) {
+		return Booking{}, refuse("SLOT_REMAINING_WINDOW")
+	}
 	for _, b := range s.state.Bookings {
 		c := b.Contract
 		if c.StationName == slot.StationName && c.NotBefore < slot.NotAfter && slot.NotBefore < c.NotAfter && (b.HoldExpiresAt > now || b.Issuance != nil) {
@@ -295,6 +319,9 @@ func (s *Service) Book(ctx context.Context, in BookInput) (Booking, error) {
 	later := s.clock().Unix()
 	if later < now || slot.NotAfter <= later || slot.PaymentPolicy == "advance" && slot.NotBefore <= later {
 		return Booking{}, refuse("BOOKING_CLOCK_CHANGED")
+	}
+	if s.startWindowClosed(*slot, later) {
+		return Booking{}, refuse("SLOT_REMAINING_WINDOW")
 	}
 	now = later
 	quote, e = NewQuote(s.cfg.PriceUSDCents, s.cfg.USDMicrosPerNMC, s.cfg.RateAsOf, s.cfg.MaxRateAge, now)
@@ -454,7 +481,7 @@ func (s *Service) Refresh(ctx context.Context) error {
 				if p.Height > 0 {
 					confirmed = now
 				}
-				b.Receipts = append(b.Receipts, Receipt{p, now, confirmed, "pending"})
+				b.Receipts = append(b.Receipts, Receipt{Payment: p, FirstSeen: now, ConfirmedAt: confirmed, Disposition: "pending"})
 			}
 		}
 		previous := b.Payment
@@ -505,6 +532,7 @@ func (s *Service) Refresh(ctx context.Context) error {
 				r.Disposition = "pending"
 			}
 		}
+		annotateReceipts(b)
 		b.Status = "pending"
 		if b.Payment != nil {
 			b.Status = "paid"
@@ -523,4 +551,25 @@ func (s *Service) Refresh(ctx context.Context) error {
 		return e
 	}
 	return s.export()
+}
+
+func (s *Service) startWindowClosed(slot Slot, now int64) bool {
+	return slot.PaymentPolicy == "start_now" && slot.NotAfter-now < s.cfg.MinStartNowRemainingSeconds
+}
+
+// Surplus is the excess of an individual receipt over the signed price.
+// A selected overpayment remains selected; its excess still needs review.
+func annotateReceipts(b *Booking) bool {
+	changed := false
+	for i := range b.Receipts {
+		r := &b.Receipts[i]
+		surplus := int64(0)
+		if r.Payment.ValueSat > b.Contract.PriceNMCSat {
+			surplus = r.Payment.ValueSat - b.Contract.PriceNMCSat
+		}
+		review := surplus > 0 || r.Disposition == "refund_review"
+		changed = changed || r.SurplusSat != surplus || r.RefundReview != review
+		r.SurplusSat, r.RefundReview = surplus, review
+	}
+	return changed
 }
