@@ -11,6 +11,26 @@ func TestPaymentCoinProvisioning(t *testing.T) {
 			t.Fatal("equal explicit coin sets refused", e)
 		}
 	}
+	// Public validation allows test-mode V1 with NMC, but deployment pairing
+	// requires V2. Check that both inputs reach the comparison before asserting
+	// its rejection; the otherwise identical V2 neighbor must pass.
+	singleCoinBooking := []byte(`{"service_version":2,"config":{"coins":{"nmc":{"public_branch":"fixture"}}}}`)
+	for _, tc := range []struct {
+		version string
+		want    error
+	}{{"1", ErrPolicy}, {"2", nil}} {
+		t.Run("public-valid-version-"+tc.version, func(t *testing.T) {
+			g := []byte(`{"mode":"test","exchange":{"booking_version":` + tc.version + `,"payment_coins":["nmc"]}}`)
+			for _, raw := range [][]byte{g, singleCoinBooking} {
+				if e := ValidatePublicJSON(raw); e != nil {
+					t.Fatal("version fixture rejected before coin comparison", e)
+				}
+			}
+			if e := ComparePaymentCoins(g, singleCoinBooking); e != tc.want {
+				t.Fatalf("coin mismatch accepted: version=%s got=%v want=%v", tc.version, e, tc.want)
+			}
+		})
+	}
 	for _, g := range []string{
 		`{"exchange":{"booking_version":1,"payment_coins":["nmc","btc"]}}`,
 		`{"exchange":{"booking_version":2,"payment_coins":["nmc"]}}`,
