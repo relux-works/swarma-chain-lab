@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -16,6 +18,7 @@ import (
 	"relux.works/swarma-chain-lab/experiments/rental"
 	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
+	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	su "relux.works/swarma-chain-lab/experiments/single-use"
 )
@@ -24,17 +27,19 @@ var errConfig = errors.New("CONFIG_REFUSED")
 var errMode = errors.New("TEST_MODE_REQUIRED")
 
 type serveConfig struct {
-	Version       int            `json:"version"`
-	Mode          string         `json:"mode"`
-	AgentKeyFile  string         `json:"agent_key_file"`
-	AgentPubkey   string         `json:"agent_pubkey"`
-	RelayURL      string         `json:"relay_url"`
-	JournalDir    string         `json:"journal_dir"`
-	StationSocket string         `json:"station_socket"`
-	Screening     string         `json:"screening"`
-	Kernel        kernelConfig   `json:"kernel"`
-	Exchange      exchangeConfig `json:"exchange"`
-	Station       stationConfig  `json:"station"`
+	Version       int               `json:"version"`
+	Mode          string            `json:"mode"`
+	AgentKeyFile  string            `json:"agent_key_file"`
+	AgentPubkey   string            `json:"agent_pubkey"`
+	RelayURL      string            `json:"relay_url"`
+	RelayAuth     string            `json:"relay_auth,omitempty"`
+	JournalDir    string            `json:"journal_dir"`
+	StationSocket string            `json:"station_socket"`
+	Screening     string            `json:"screening"`
+	Kernel        kernelConfig      `json:"kernel"`
+	Exchange      exchangeConfig    `json:"exchange"`
+	Station       stationConfig     `json:"station"`
+	ModelProxy    *modelProxyConfig `json:"model_proxy,omitempty"`
 }
 type kernelConfig struct {
 	Kind         string `json:"kind"`
@@ -170,6 +175,12 @@ func (c serveConfig) validate(allowTest bool) error {
 	if ip == nil || !ip.IsLoopback() || c.Kernel.RPCPort < 1 || c.Kernel.RPCPort > 65535 {
 		return errConfig
 	}
+	if !c.ModelProxy.valid() || (c.ModelProxy != nil && c.Station.Driver != "manager") {
+		return errConfig
+	}
+	if !gateway.ValidRelayAuth(c.RelayAuth) {
+		return errConfig
+	}
 	if !loopURL(c.RelayURL, "ws") || !loopURL(c.Exchange.BookingURL, "http") {
 		return errConfig
 	}
@@ -258,6 +269,13 @@ func loadConfig(path string, allowTest bool) (serveConfig, error) {
 	var c serveConfig
 	b, e := readFile(path, 64<<10, 0)
 	if e != nil || booking.Strict(b, &c) != nil {
+		return c, errConfig
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(b, &fields) != nil {
+		return c, errConfig
+	}
+	if v, ok := fields["model_proxy"]; ok && bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
 		return c, errConfig
 	}
 	return c, c.validate(allowTest)

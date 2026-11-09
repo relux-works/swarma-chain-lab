@@ -1,0 +1,65 @@
+name: Gateway AUTH and registrar controls
+
+env:
+  GOWORK: 'off'
+
+on:
+  pull_request:
+    paths:
+      - 'deploy/**'
+      - 'experiments/station-lifecycle/**'
+      - 'experiments/model-proxy/**'
+      - 'experiments/rental-gateway/**'
+      - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.github/workflows/gateway-auth-model.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/**'
+      - 'experiments/station-lifecycle/**'
+      - 'experiments/model-proxy/**'
+      - 'experiments/rental-gateway/**'
+      - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.github/workflows/gateway-auth-model.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gateway-auth-model:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Fetch and verify pinned module closure
+        run: |
+          for module in experiments/rental-gateway deploy; do
+            (cd "$module" && go mod download && go mod verify)
+          done
+      - name: Vet, race tests, build and guard controls
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          for module in experiments/rental-gateway deploy; do
+            (cd "$module" && go vet ./... && go test -race -count=1 ./...)
+          done
+          cd experiments/rental-gateway
+          go run .scripts/ga1-guards.go -out .temp/ga1-guards

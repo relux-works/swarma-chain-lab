@@ -98,3 +98,19 @@ The static unit checks only establish required template directives, not Linux
 enforcement. For memory/IP cgroup controls see the primary
 [systemd resource-control reference](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html).
 Host support must be checked by Infra; text presence is not runtime proof.
+
+## Optional gateway AUTH and model proxy
+
+The gateway template sets `relay_auth: off`; choose `when_challenged` or `required`
+only with a compatible relay and the existing gateway signing key. The separate
+`templates/gateway/model-proxy-section.json` is an optional merge fragment for
+native `gateway/service.json`, not a standalone service configuration. Replace
+every placeholder with approved numeric UID/caps and exact origin/leaf pin before
+merging. Leave the section absent for bootstrap v1. There are no spending defaults.
+
+`deploy-kit validate -public` checks the AUTH mode and refuses a partial/null
+model section, unknown fields, invalid UID/caps or non-manager selection. Integer
+limits retain uint64 precision. Native `gateway validate` independently checks
+the same boundary before startup effects. The kit still refuses mainnet and all
+unresolved placeholders. See the gateway's [configuration contract](../experiments/rental-gateway/RELAY_MODEL.md)
+for the Linux socket ownership/peer checks and bootstrap lifecycle.

@@ -1,0 +1,15 @@
+{
+  "model_proxy": {
+    "admin_socket": "/run/swarma-model-proxy/admin.sock",
+    "server_uid": "PLACEHOLDER_PROXY_UID",
+    "origin": "https://PLACEHOLDER_PROXY_ORIGIN",
+    "cert_sha256": "PLACEHOLDER_PROXY_LEAF_SHA256",
+    "caps": {
+      "input_tokens": "PLACEHOLDER_INPUT_TOKENS",
+      "output_tokens": "PLACEHOLDER_OUTPUT_TOKENS",
+      "requests": "PLACEHOLDER_REQUESTS",
+      "max_tokens": "PLACEHOLDER_MAX_TOKENS",
+      "cost_nano_usd": "PLACEHOLDER_COST_NANO_USD"
+    }
+  }
+}

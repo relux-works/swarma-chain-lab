@@ -82,7 +82,7 @@ func newStationRuntime(c serveConfig, store *journal.Store, managerTLS, payloadT
 		return nil, errTLS
 	}
 	m := c.Station.Manager
-	d, e := gatewaybind.New(gatewaybind.Config{StateDir: m.StateDir, Journal: store, PayloadID: m.PayloadID, PayloadSHA256: m.PayloadSHA256, SlotMin: uint16(m.SlotMin), SlotMax: uint16(m.SlotMax), ManagerCertSHA256: m.TLS.ManagerCertSHA256, Now: time.Now, StartTimeout: time.Duration(m.StartMilliseconds) * time.Millisecond})
+	d, e := gatewaybind.New(stationDriverConfig(c, store))
 	if e != nil {
 		return nil, errors.New("STATION_MANAGER_STATE")
 	}

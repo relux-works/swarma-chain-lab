@@ -17,7 +17,7 @@ require (
 )
 
 require (
-	relux.works/swarma-chain-lab/experiments/model-proxy v0.0.0 // indirect
+	relux.works/swarma-chain-lab/experiments/model-proxy v0.0.0
 	relux.works/swarma-chain-lab/experiments/payment-chain v0.0.0 // indirect
 	relux.works/swarma-chain-lab/experiments/sealwatch v0.0.0 // indirect
 )

@@ -269,3 +269,11 @@ bookingbind and the live kernel still validate bindings, signatures and chain
 state. Cross-host file distribution is a deployment adapter. Run
 `go test -race ./cmd/gateway ./presentationdir`; the producer-to-reader genuine
 Core process fixture lives in signer-service's `TestCoreBookingComposition`.
+
+## Optional relay AUTH and model bootstrap
+
+[RELAY_MODEL.md](RELAY_MODEL.md) documents `relay_auth`, the explicit optional
+`model_proxy` section, NIP-42 authentication and MP1 registrar wiring. Omitted
+settings retain AUTH off and bootstrap v1. From this module, run
+`go run .scripts/ga1-guards.go -out .temp/ga1-guards` for the bounded AUTH/config/pin
+controls; logs and source hashes are written under that output directory.

@@ -145,7 +145,9 @@ func ValidatePublicJSON(raw []byte) error {
 		return ErrPolicy
 	}
 	var v any
-	if json.Unmarshal(raw, &v) != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if decoder.Decode(&v) != nil {
 		return ErrPolicy
 	}
 	var check func(any) error
@@ -183,7 +185,10 @@ func ValidatePublicJSON(raw []byte) error {
 	if _, ok := v.(map[string]any); !ok {
 		return ErrPolicy
 	}
-	return check(v)
+	if e := check(v); e != nil {
+		return e
+	}
+	return gatewayOptions(v.(map[string]any))
 }
 
 // Reject duplicate keys, trailing values and excess depth before typed decoding.

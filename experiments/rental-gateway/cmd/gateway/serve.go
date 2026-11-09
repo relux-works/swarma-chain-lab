@@ -149,7 +149,7 @@ func serve(parent context.Context, c serveConfig) error {
 	}
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	relay := &gateway.RelayClient{URL: c.RelayURL}
+	relay := &gateway.RelayClient{URL: c.RelayURL, Auth: c.RelayAuth, AgentKey: key}
 	if e = relay.Dial(ctx); e != nil {
 		return errors.New("RELAY_UNAVAILABLE")
 	}

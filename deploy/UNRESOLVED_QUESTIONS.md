@@ -26,3 +26,10 @@ pinned Linux namecoin-cli, provider key,0400 RPC config and existing relay are
 not guessed by this kit. Infra resolves them through the agreed custody and
 installation flow. The public validator does not certify unseen native files or
 credential contents. No live host or mainnet action is part of DK1 delivery.
+
+## Optional model-proxy operator inputs
+
+The operator must explicitly supply proxy UID, admin socket ownership/access,
+HTTPS origin, leaf pin and every approved token/request/cost cap. The optional
+fragment deliberately supplies no numerical allowance. Production Unix peer
+qualification requires Linux; a compiled Linux binary is not acceptance evidence.
