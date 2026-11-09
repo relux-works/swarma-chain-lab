@@ -1,4 +1,4 @@
-// rental-issue creates detached regtest certificates, never chain transactions.
+// rental-issue prepares signed regtest grants and unsigned commitment plans.
 package main
 
 import (
@@ -30,6 +30,8 @@ func main() {
 	request := fs.String("request", "", "authenticated issuance request bytes")
 	publication := fs.String("package-event", "", "signed package event bytes")
 	seal := fs.String("seal", "", "public pool outpoint JSON")
+	spec := fs.String("spec", "", "unsigned issuance funding specification")
+	legacy := fs.Bool("v2-regression", false, "explicit old v2 regression issuer")
 	key := fs.String("grant-key-file", "", "private 0600 binary grant scalar file")
 	at := fs.Int64("at", -1, "regtest trusted clock override")
 	if fs.Parse(os.Args[1:]) != nil || fs.NArg() != 0 {
@@ -54,6 +56,20 @@ func main() {
 	now := time.Now().Unix()
 	if *at >= 0 {
 		now = *at
+	}
+	if !*legacy {
+		var funding rental.PlanSpec
+		if su.StrictInput(read(*spec), &funding) != nil {
+			die("PLAN_INPUT")
+		}
+		result := rental.IssueGrant(context.Background(), node, p, read(*request), read(*publication), point, funding, *key, now)
+		if json.NewEncoder(os.Stdout).Encode(result) != nil {
+			os.Exit(1)
+		}
+		if result.Verdict != "prepared" {
+			os.Exit(1)
+		}
+		return
 	}
 	result := rental.IssueDetached(context.Background(), node, p, read(*request), read(*publication), point, *key, now)
 	if json.NewEncoder(os.Stdout).Encode(result) != nil {

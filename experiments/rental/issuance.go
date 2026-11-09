@@ -135,7 +135,7 @@ func VerifyIssuancePackage(p IssuerPolicy, request, event []byte, now int64) (Is
 	if p.Policy.validate() != nil || !pubkey(p.ProviderPubkey) {
 		return fail("ISSUER_POLICY")
 	}
-	if canonical(request, &r) != nil || r.Version != 1 || !digest(r.BookingID) || !digest(r.PaymentTxID) || !digest(r.ObservedTipHash) || !digest(r.PackageEventID) || !digest(r.ContractSHA256) || !validScope(r.Scope) {
+	if canonical(request, &r) != nil || r.Version != 1 || !digest(r.BookingID) || !digest(r.PaymentTxID) || !digest(r.ObservedTipHash) || !digest(r.PackageEventID) || !digest(r.ContractSHA256) || !validGrantScope(r.Scope) {
 		return fail("ISSUANCE_REQUEST")
 	}
 	if r.StationName != p.Policy.StationName || r.AgentPubkey != p.Policy.AgentPubkey || !pubkey(r.RenterPubkey) || r.BudgetSat < 0 || r.BudgetSat > MaxMoney || r.NotBefore < 1 || r.NotAfter <= r.NotBefore || r.NotAfter-r.NotBefore > 3600 || now >= r.NotAfter {
@@ -166,7 +166,13 @@ func VerifyIssuancePackage(p IssuerPolicy, request, event []byte, now int64) (Is
 	if c.BookingID != r.BookingID || c.RenterPubkey != r.RenterPubkey || c.AgentPubkey != r.AgentPubkey || c.StationName != r.StationName || c.NotBefore != r.NotBefore || c.NotAfter != r.NotAfter || c.BudgetSat != r.BudgetSat || c.PaymentPolicy != r.PaymentPolicy || !slices.Equal(c.Allowed, r.Scope) {
 		return fail("PACKAGE_REQUEST_BINDING")
 	}
-	if !validScope(c.Allowed) || !validScope(c.Forbidden) || len(c.Allowed)+len(c.Forbidden) != 5 {
+	// Existing M3 contracts partition five actions. The additive action is
+	// denied when absent; its explicit presence requires all six actions.
+	actions := 5
+	if slices.Contains(c.Allowed, "names.register") || slices.Contains(c.Forbidden, "names.register") {
+		actions = 6
+	}
+	if !validGrantScope(c.Allowed) || !validGrantScope(c.Forbidden) || len(c.Allowed)+len(c.Forbidden) != actions {
 		return fail("CONTRACT_SCOPE")
 	}
 	for _, v := range c.Allowed {

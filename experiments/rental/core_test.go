@@ -226,20 +226,24 @@ func (l *coreLab) fund() su.PlanInput {
 	l.t.Fatal("funding absent")
 	return su.PlanInput{}
 }
-func (l *coreLab) send(raw string, mine bool) string {
+func (l *coreLab) send(raw string, mine bool, burn ...int64) string {
 	l.t.Helper()
 	signed := object(l.t, l.rpc("issuer", "signrawtransactionwithwallet", raw))
 	if string(signed["complete"]) != "true" {
 		l.t.Fatal("incomplete signature")
 	}
 	signedHex := text(l.t, signed["hex"])
-	id := text(l.t, l.rpc("", "sendrawtransaction", signedHex, su.Coins(10000000)))
+	maxBurn := int64(0)
+	if len(burn) == 1 {
+		maxBurn = burn[0]
+	}
+	id := text(l.t, l.rpc("", "sendrawtransaction", signedHex, su.Coins(10000000), su.Coins(maxBurn)))
 	if mine {
 		l.mine(1)
 	}
 	return id
 }
-func (l *coreLab) sendPlan(p Plan, mine bool) string {
+func (l *coreLab) sendPlan(p Plan, mine bool, burn ...int64) string {
 	l.t.Helper()
 	tx := su.Transaction{Version: p.TransactionVersion}
 	for _, i := range p.Inputs {
@@ -252,7 +256,7 @@ func (l *coreLab) sendPlan(p Plan, mine bool) string {
 		}
 		tx.Outputs = append(tx.Outputs, su.Output{Value: o.ValueSat, Script: b})
 	}
-	return l.send(hex.EncodeToString(tx.Bytes()), mine)
+	return l.send(hex.EncodeToString(tx.Bytes()), mine, burn...)
 }
 func (l *coreLab) pool(p Policy, mine bool) PoolOutput {
 	l.t.Helper()

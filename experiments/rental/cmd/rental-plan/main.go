@@ -32,9 +32,10 @@ func main() {
 	policy := fs.String("policy", "", "issuer policy JSON")
 	spec := fs.String("spec", "", "offline funding and pool facts")
 	cert := fs.String("certificate", "", "canonical signed certificate")
+	grant := fs.String("grant", "", "canonical signed v3 grant")
 	request := fs.String("request", "", "M3 issuance request")
 	event := fs.String("package-event", "", "signed M3 package publication")
-	ids := fs.String("ids", "", "JSON array of certificate ids for optional batch")
+	ids := fs.String("ids", "", "JSON array of signed grant ids for optional batch")
 	enableBatch := fs.Bool("enable-batch", false, "explicitly enable offline batch anchoring")
 	at := fs.Int64("at", -1, "regtest clock override")
 	if fs.Parse(os.Args[2:]) != nil || fs.NArg() != 0 {
@@ -55,6 +56,16 @@ func main() {
 			die("BATCH_IDS")
 		}
 		plan, e := rental.MakeBatchAnchorPlan(p.Policy, s, leaves, *enableBatch)
+		if e != nil {
+			die(e.Error())
+		}
+		if json.NewEncoder(os.Stdout).Encode(plan) != nil {
+			os.Exit(1)
+		}
+		return
+	}
+	if kind == "grant-issue" {
+		plan, e := rental.MakeGrantIssuancePlan(p.Policy, s, read(*grant))
 		if e != nil {
 			die(e.Error())
 		}

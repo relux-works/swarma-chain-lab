@@ -40,6 +40,7 @@ type Plan struct {
 	FeeSat             int64           `json:"reserved_fee_sat"`
 	MaxSignedVBytes    int             `json:"maximum_signed_vbytes"`
 	CertificateSHA256  string          `json:"certificate_sha256,omitempty"`
+	GrantID            string          `json:"grant_id,omitempty"`
 	BookingID          string          `json:"booking_id,omitempty"`
 	NameValue          string          `json:"name_value,omitempty"`
 	Reservation        string          `json:"reservation,omitempty"`
@@ -59,6 +60,9 @@ type poolReservation struct {
 func MakePlan(p IssuerPolicy, s PlanSpec, certificate, request, publication []byte, now int64) (Plan, error) {
 	if s.Kind == "issue" {
 		return Plan{}, bad("LEGACY_ISSUANCE_DISABLED")
+	}
+	if p.Policy.LandlordName != "" {
+		return makeGrantPoolPlan(p.Policy, s)
 	}
 	if p.Policy.AgentName != "" {
 		return makeDetachedPoolPlan(p.Policy, s)

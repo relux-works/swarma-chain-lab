@@ -49,7 +49,7 @@ func TestCoreDetachedPresentation(t *testing.T) {
 	}
 	p, c, raw := l.detached("presentation", seals[0], 10)
 	present := func(bytes []byte, id, sender string) Receipt {
-		return Present(context.Background(), l.observer, p, bytes, id, p.AgentName, sender, 500)
+		return PresentV2(context.Background(), l.observer, p, bytes, id, p.AgentName, sender, 500)
 	}
 	if r := present(raw, Hash(raw), c.GranteeKey); r.Verdict != "live" {
 		t.Fatal(r)
@@ -113,7 +113,7 @@ func TestCoreDetachedPresentation(t *testing.T) {
 	if r := present(replacementRaw, Hash(replacementRaw), c.GranteeKey); r.Verdict != "live" {
 		t.Fatal("live replacement at capacity", r)
 	}
-	cached, id, e := CachedCertificate(p, c.GranteeKey)
+	cached, id, e := CachedCertificateV2(p, c.GranteeKey)
 	if e != nil || id != Hash(replacementRaw) || !bytes.Equal(cached, replacementRaw) {
 		t.Fatal("replacement lookup", e)
 	}

@@ -58,7 +58,7 @@ func TestCoreDetachedState(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	r := Check(context.Background(), unavailableNode{}, p, raw, p.AgentName, c.GranteeKey, 500)
+	r := CheckV2(context.Background(), unavailableNode{}, p, raw, p.AgentName, c.GranteeKey, 500)
 	if r.Reason != "NODE_UNAVAILABLE" || r.Closed {
 		t.Fatal(r)
 	}
@@ -70,7 +70,7 @@ func TestCoreDetachedState(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	r = Check(context.Background(), l.observer, p, raw, p.AgentName, c.GranteeKey, 500)
+	r = CheckV2(context.Background(), l.observer, p, raw, p.AgentName, c.GranteeKey, 500)
 	lock.Close()
 	if r.Reason != "STATE_BUSY" || r.Closed {
 		t.Fatal(r)
@@ -84,7 +84,7 @@ func TestCoreDetachedState(t *testing.T) {
 	}
 	l.checkDetached("restored", p, c, raw, 500, "live", "LIVE", false)
 	fresh, fc, fr := l.detached("elapsed", c.Seal, 2)
-	r = Check(context.Background(), &delayedNode{base: l.observer}, fresh, fr, fresh.AgentName, fc.GranteeKey, 999)
+	r = CheckV2(context.Background(), &delayedNode{base: l.observer}, fresh, fr, fresh.AgentName, fc.GranteeKey, 999)
 	if r.Reason != "EXPIRED" || r.Closed {
 		t.Fatal(r)
 	}

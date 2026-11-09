@@ -46,10 +46,10 @@ func sealIndexName(p Policy, point Point) string {
 	return "seen-seal-" + Hash(b) + ".json"
 }
 
-// Check verifies detached certificates only. Policy pins the agent and chain;
+// CheckV2 verifies detached v2 certificates only. Policy pins the agent and chain;
 // sender is already authenticated by the caller. nowUnix is the trusted local
 // clock. No signing, broadcasting or external effect is performed here.
-func Check(ctx context.Context, node su.Node, p Policy, raw []byte, agentName, sender string, nowUnix int64) (r Receipt) {
+func CheckV2(ctx context.Context, node su.Node, p Policy, raw []byte, agentName, sender string, nowUnix int64) (r Receipt) {
 	started := time.Now()
 	r = Receipt{Version: 2, Verdict: "refused", CertificateSHA256: Hash(raw), StationName: agentName, CheckedAt: nowUnix}
 	refuse := func(e error) Receipt { r.Reason = e.Error(); return r }

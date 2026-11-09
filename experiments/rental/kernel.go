@@ -14,15 +14,18 @@ import (
 )
 
 type Policy struct {
-	Network       string `json:"network"`
-	Genesis       string `json:"genesis"`
-	IssuerPubkey  string `json:"issuer_pubkey"`
-	AgentPubkey   string `json:"agent_pubkey"`
-	StationName   string `json:"station_name"`
-	StationScript string `json:"station_script"`
-	StateDir      string `json:"state_dir"`
-	AgentName     string `json:"agent_name,omitempty"`
-	SealScript    string `json:"seal_script,omitempty"`
+	Network        string  `json:"network"`
+	Genesis        string  `json:"genesis"`
+	IssuerPubkey   string  `json:"issuer_pubkey"`
+	AgentPubkey    string  `json:"agent_pubkey"`
+	StationName    string  `json:"station_name"`
+	StationScript  string  `json:"station_script"`
+	StateDir       string  `json:"state_dir"`
+	AgentName      string  `json:"agent_name,omitempty"`
+	SealScript     string  `json:"seal_script,omitempty"`
+	LandlordName   string  `json:"landlord_name,omitempty"`
+	KnownPoolSeals []Point `json:"known_pool_seals,omitempty"`
+	FundingScript  string  `json:"funding_script,omitempty"`
 }
 type Anchor struct {
 	TxID   string `json:"txid"`
@@ -34,8 +37,11 @@ type Receipt struct {
 	Version           int      `json:"version"`
 	Verdict           string   `json:"verdict"`
 	Reason            string   `json:"reason"`
-	CertificateSHA256 string   `json:"certificate_sha256"`
-	StationName       string   `json:"station_name"`
+	CertificateSHA256 string   `json:"certificate_sha256,omitempty"`
+	StationName       string   `json:"station_name,omitempty"`
+	GrantID           string   `json:"grant_id,omitempty"`
+	AgentName         string   `json:"agent_name,omitempty"`
+	LandlordName      string   `json:"landlord_name,omitempty"`
 	CheckedAt         int64    `json:"checked_at"`
 	Closed            bool     `json:"closed"`
 	Anchor            *Anchor  `json:"anchor,omitempty"`

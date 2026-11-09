@@ -57,13 +57,13 @@ func readPresentations(store *durable.Store, p Policy) (presentationCache, error
 // Present accepts only inline bytes and an exact envelope id. It performs a
 // fresh Check before changing the bounded sender cache. A cache hit is never
 // authority; each subsequent message must still call Check against its node.
-func Present(ctx context.Context, node su.Node, p Policy, raw []byte, id, agentName, sender string, now int64) Receipt {
+func PresentV2(ctx context.Context, node su.Node, p Policy, raw []byte, id, agentName, sender string, now int64) Receipt {
 	fail := Receipt{Version: 2, Verdict: "refused", CertificateSHA256: id, StationName: agentName, CheckedAt: now}
 	if len(raw) == 0 || len(raw) > 16384 || !digest(id) || Hash(raw) != id {
 		fail.Reason = "PRESENTATION_ID"
 		return fail
 	}
-	r := Check(ctx, node, p, raw, agentName, sender, now)
+	r := CheckV2(ctx, node, p, raw, agentName, sender, now)
 	if r.Verdict != "live" {
 		return r
 	}
@@ -108,7 +108,7 @@ func Present(ctx context.Context, node su.Node, p Policy, raw []byte, id, agentN
 
 // CachedCertificate returns public presentation bytes, not a cached verdict.
 // Consumers MUST Check them freshly with their authenticated sender and clock.
-func CachedCertificate(p Policy, sender string) ([]byte, string, error) {
+func CachedCertificateV2(p Policy, sender string) ([]byte, string, error) {
 	if e := p.validateDetached(); e != nil {
 		return nil, "", e
 	}

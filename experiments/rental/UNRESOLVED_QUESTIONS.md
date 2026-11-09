@@ -1,26 +1,34 @@
 # Remaining integration decisions
 
-- This is regtest-only. Production keys, deployment, signing caps, payment
-  sweeping, revocation broadcast and availability remain separate work.
-- Gateway adoption must use the detached policy, authenticated inner sender,
-  inline exact-id presentation and a fresh Check for every message. Retaining
-  the Go call shape does not migrate an old policy or signed wire automatically.
-- M4 owns scope/target/budget, anti-replay, prize exclusion and effects. Kernel
-  output alone does not authorize them. Time/chain observations are not atomic
-  with an external effect.
-- Persistent state belongs outside hostile station UIDs. Disaster recovery must
-  preserve closure, seen-seal indices and issuer booking/pool burns. Automatic
-  recovery of uncertain signatures is intentionally absent.
-- First observers cannot infer unseen key rotations. Same-seal equivocation
-  across independent verifiers remains possible without shared history.
-- Grant-key rotation needs new seal ownership/policy pins for new grants and
-  continued old policy/state observation for old certificates.
-- Batch commitments bind cardinality and the internal root. A caller must
-  still authenticate the chosen on-chain commitment; the kernel does not
-  require an anchor or provide a production batch-discovery service.
-- Bounded legacy/witness read decoding does not validate transaction input
-  signatures locally; the own Core active-chain view supplies that validation.
-  Legacy W3 signer profile is unchanged. Detached start_now has no anchor block;
-  payment and pool must already be confirmed, signed hold bounds still apply.
-- Public LIP/CIP specification publication and production custody review belong
-  to their owners; this producer supplies source/evidence for independent review.
+- This laboratory is regtest-only. Production custody, deployment, signing
+  caps, funding reservations, payment sweeping, revocation broadcast and
+  availability remain separate work. An unsigned plan is not spending approval.
+- Gateway/wallet adoption must migrate to the v3 policy and presentation wire,
+  stable signed-grant ID, new receipt fields, authenticated inner sender and
+  fresh Check for every action. Keeping the Go call shape does not migrate data.
+- M3 must separately adopt names.register before real bookings can request it.
+  Existing five-action contracts are preserved and do not grant that action.
+- Scope/target/budget, anti-replay, prize exclusion and external effects belong
+  to the enforcement point. Time/chain observations are not atomic with effects.
+- Persistent state belongs outside hostile agent UIDs. Recovery must preserve
+  closure, seen-seal indices and issuer booking/pool burns. Uncertain signature
+  recovery intentionally stops; funding-input reservation is a signer concern.
+- Funding and change must use a separately pinned key/script. Issuer/refill
+  integrations must supply funding_script; old seal-funded plans cannot migrate
+  through replay. The separate signer must enforce this on actual prevouts too.
+- V3 grant signatures require the fixed `swarma-grant-v3` prefix. Earlier
+  untagged development objects must be regenerated, never silently accepted.
+- First observers cannot infer unseen rotations. Same-seal equivocation across
+  independent verifiers remains possible without shared history. Per-grant
+  issuance commits authority bytes but does not establish globally unique seals.
+- Key rotation needs new seal ownership/policy pins for new grants and retained
+  old policy/state observation for old grants. Cold name ownership is separate.
+- The renter can see commitment inputs/formula before consenting, but final
+  grant ID/landlord countersignature/commitment only after issuance. The UI and
+  delivery/recovery flow for this verification need separate integration.
+- Optional batch discovery remains outside the kernel. V3 always requires its
+  own confirmed issuance commitment; a batch root cannot replace it.
+- Bounded legacy/witness decoding does not locally validate input signatures;
+  the own Core active-chain view provides that validation. Legacy W3 is unchanged.
+- Public LIP/CIP publication and production security review belong to their
+  owners. This producer supplies local signed source/evidence for independent review.

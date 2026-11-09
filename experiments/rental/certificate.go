@@ -1,4 +1,4 @@
-// Package rental implements the experimental rental certificate profile. It
+// Package rental implements experimental landlord grants and legacy profiles. It
 // exports scope as data; it never authorizes an effect from conversation text.
 package rental
 
@@ -66,7 +66,17 @@ func station(s string) bool {
 	return true
 }
 func validScope(s []string) bool {
-	if s == nil || len(s) > 5 || !sort.StringsAreSorted(s) {
+	return validProfileScope(s, false)
+}
+func validGrantScope(s []string) bool {
+	return validProfileScope(s, true)
+}
+func validProfileScope(s []string, names bool) bool {
+	max := 5
+	if names {
+		max = 6
+	}
+	if s == nil || len(s) > max || !sort.StringsAreSorted(s) {
 		return false
 	}
 	for i, v := range s {
@@ -75,6 +85,10 @@ func validScope(s []string) bool {
 		}
 		switch v {
 		case "deliver", "pay", "publish", "repository.push", "secret.release":
+		case "names.register":
+			if !names {
+				return false
+			}
 		default:
 			return false
 		}

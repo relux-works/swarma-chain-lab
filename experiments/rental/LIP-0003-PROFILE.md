@@ -1,4 +1,10 @@
-# Implemented detached grant profile
+# Historical v2 detached grant profile
+
+This profile is retained behind explicit v2 regression entry points. The default
+kernel and issuer use [the landlord v3 profile](LIP-0004-PROFILE.md). References
+below to `Check`, `Present` and default commands describe the former v2 API;
+use `CheckV2`, `PresentV2`, `CachedCertificateV2`, `check-v2`, `present-v2` and
+issuer `--v2-regression` when exercising that profile.
 
 This regtest profile records implementation choices for independent review.
 It is not a production authorization or a publication of the public LIP.

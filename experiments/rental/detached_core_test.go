@@ -88,7 +88,7 @@ func (l *coreLab) detached(label string, seal Point, grantee byte) (Policy, Deta
 }
 func (l *coreLab) checkDetached(label string, p Policy, c DetachedCertificate, raw []byte, now int64, want, reason string, closed bool) Receipt {
 	l.t.Helper()
-	r := Check(context.Background(), l.observer, p, raw, p.AgentName, c.GranteeKey, now)
+	r := CheckV2(context.Background(), l.observer, p, raw, p.AgentName, c.GranteeKey, now)
 	l.save(label+".json", r)
 	if r.Verdict != want || r.Reason != reason || r.Closed != closed {
 		l.t.Fatalf("%s: want %s/%s closed=%v; got %+v", label, want, reason, closed, r)

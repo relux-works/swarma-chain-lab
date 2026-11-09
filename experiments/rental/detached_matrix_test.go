@@ -80,7 +80,7 @@ func TestCoreDetachedMatrix(t *testing.T) {
 			sender := c.GranteeKey
 			now := int64(500)
 			tc.change(&p, &c, &raw, &sender, &now)
-			r := Check(context.Background(), l.observer, p, raw, p.AgentName, sender, now)
+			r := CheckV2(context.Background(), l.observer, p, raw, p.AgentName, sender, now)
 			l.save(tc.name+".json", r)
 			if r.Verdict != tc.verdict || r.Reason != tc.reason || r.Closed {
 				l.t.Fatalf("want %s/%s unclosed got %+v", tc.verdict, tc.reason, r)
@@ -115,7 +115,7 @@ func TestCoreDetachedMatrix(t *testing.T) {
 	}
 	run("read-unavailable", func() {
 		p, c, raw := l.detached("unavailable", seal, 2)
-		r := Check(context.Background(), unavailableNode{}, p, raw, p.AgentName, c.GranteeKey, 500)
+		r := CheckV2(context.Background(), unavailableNode{}, p, raw, p.AgentName, c.GranteeKey, 500)
 		if r.Reason != "NODE_UNAVAILABLE" || r.Closed {
 			l.t.Fatal(r)
 		}
@@ -125,7 +125,7 @@ func TestCoreDetachedMatrix(t *testing.T) {
 	run("malformed-node-projection", func() {
 		p, c, raw := l.detached("projection", seal, 2)
 		n := &aliasNode{base: l.observer}
-		r := Check(context.Background(), n, p, raw, p.AgentName, c.GranteeKey, 500)
+		r := CheckV2(context.Background(), n, p, raw, p.AgentName, c.GranteeKey, 500)
 		if n.applied != 1 || r.Reason != "NODE_PROJECTION" || r.Closed {
 			l.t.Fatal(r, n.applied)
 		}

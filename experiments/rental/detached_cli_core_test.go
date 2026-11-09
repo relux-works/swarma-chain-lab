@@ -62,7 +62,7 @@ func TestCoreDetachedCLI(t *testing.T) {
 		l.save(label+".json", map[string]any{"output": json.RawMessage(out), "exit": code, "pid": cmd.ProcessState.Pid(), "binary_sha256": Hash(b)})
 		return out
 	}
-	args := []string{"--policy", write("issuer-policy.json", ip), "--route", route, "--request", write("request.json", json.RawMessage(request)), "--package-event", write("event.json", json.RawMessage(event)), "--seal", write("seal.json", seal), "--grant-key-file", key, "--at", "500"}
+	args := []string{"--v2-regression", "--policy", write("issuer-policy.json", ip), "--route", route, "--request", write("request.json", json.RawMessage(request)), "--package-event", write("event.json", json.RawMessage(event)), "--seal", write("seal.json", seal), "--grant-key-file", key, "--at", "500"}
 	if e := os.Chmod(key, 0644); e != nil {
 		t.Fatal(e)
 	}
@@ -83,7 +83,7 @@ func TestCoreDetachedCLI(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	check := []string{"present", "--policy", write("policy.json", p), "--route", route, "--certificate", write("certificate.json", issued.Envelope), "--agent", p.AgentName, "--sender", env.Certificate.GranteeKey, "--at", "500", "--id", issued.ID}
+	check := []string{"present-v2", "--policy", write("policy.json", p), "--route", route, "--certificate", write("certificate.json", issued.Envelope), "--agent", p.AgentName, "--sender", env.Certificate.GranteeKey, "--at", "500", "--id", issued.ID}
 	var receipt Receipt
 	if json.Unmarshal(invoke("present-live", "M1_KERNEL", 0, check...), &receipt) != nil || receipt.Verdict != "live" {
 		t.Fatal("CLI presentation")
