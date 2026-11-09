@@ -115,7 +115,10 @@ not only one sample. `responses_shape` attests that resulting observation.
 The expiry close request is issued before the idle wait finishes so Infra's
 prepared watcher can meet the deadline. Do not send extra application probes
 during expiry idle. The authenticated native `slot ended` notice is permitted only at/after
-not_after; other unsolicited payload replies fail. Normal WebSocket heartbeats
+not_after. After the revoke probe, exact native exchange Help or NotLive may
+arrive through the non-grantee fallback; require its timestamp at/after the
+probe. Record the observed fixed notice kind separately. These control replies
+are not payload delivery; other unsolicited payload replies fail. Normal WebSocket heartbeats
 continue. A disconnect or replay
 overflow is a failed liveness observation, not a reason to retry into success.
 For revoke, capture spend time promptly; do not reset its deadline when the

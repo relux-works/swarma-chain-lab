@@ -26,24 +26,25 @@ type Attestation struct {
 	Receipt Receipt `json:"receipt"`
 }
 type Report struct {
-	Version            int           `json:"version"`
-	RunID              string        `json:"run_id"`
-	Mode               string        `json:"mode"`
-	Scenario           string        `json:"scenario"`
-	Outcome            string        `json:"outcome"`
-	Failure            string        `json:"failure,omitempty"`
-	ConfigSHA256       string        `json:"config_sha256"`
-	EnvironmentSHA256  string        `json:"environment_sha256"`
-	StartedMS          int64         `json:"started_ms"`
-	FinishedMS         int64         `json:"finished_ms"`
-	BookingID          string        `json:"booking_id,omitempty"`
-	ContractSHA256     string        `json:"contract_sha256,omitempty"`
-	PresentationSHA256 string        `json:"presentation_sha256,omitempty"`
-	ApplicationIdleMS  int64         `json:"application_idle_ms"`
-	ClosureLatencyMS   int64         `json:"closure_latency_ms"`
-	Client             []Observation `json:"client_observed"`
-	Operator           []Attestation `json:"operator_attested"`
-	Limits             []string      `json:"limits"`
+	Version              int           `json:"version"`
+	RunID                string        `json:"run_id"`
+	Mode                 string        `json:"mode"`
+	Scenario             string        `json:"scenario"`
+	Outcome              string        `json:"outcome"`
+	Failure              string        `json:"failure,omitempty"`
+	ConfigSHA256         string        `json:"config_sha256"`
+	EnvironmentSHA256    string        `json:"environment_sha256"`
+	StartedMS            int64         `json:"started_ms"`
+	FinishedMS           int64         `json:"finished_ms"`
+	BookingID            string        `json:"booking_id,omitempty"`
+	ContractSHA256       string        `json:"contract_sha256,omitempty"`
+	PresentationSHA256   string        `json:"presentation_sha256,omitempty"`
+	ApplicationIdleMS    int64         `json:"application_idle_ms"`
+	ClosureLatencyMS     int64         `json:"closure_latency_ms"`
+	Client               []Observation `json:"client_observed"`
+	Operator             []Attestation `json:"operator_attested"`
+	NativeClosureNotices []string      `json:"native_closure_notices"`
+	Limits               []string      `json:"limits"`
 }
 type runner struct {
 	c           Config
@@ -102,6 +103,7 @@ func (r *runner) drive(ctx context.Context) error {
 		return e
 	}
 	defer peer.close()
+	defer func() { r.report.NativeClosureNotices = append([]string{}, peer.notices...) }()
 	command := func(s, want string) error {
 		if e := peer.send(ctx, s, 0, p.pace); e != nil {
 			return e

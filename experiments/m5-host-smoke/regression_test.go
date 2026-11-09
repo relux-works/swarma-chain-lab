@@ -121,7 +121,7 @@ func TestClosureAndQuietPlants(t *testing.T) {
 	for _, tc := range []struct {
 		scenario, text string
 		valid          bool
-	}{{"expiry", "", true}, {"expiry", "slot ended", true}, {"revoke", exchange.NotLive, true}, {"expiry", exchange.NotLive, false}, {"revoke", "model fixture reply", false}, {"expiry", "model fixture reply", false}} {
+	}{{"expiry", "", true}, {"expiry", "slot ended", true}, {"revoke", exchange.NotLive, true}, {"revoke", exchange.Help, true}, {"expiry", exchange.NotLive, false}, {"revoke", "model fixture reply", false}, {"expiry", "model fixture reply", false}} {
 		c := &conversation{inbox: make(chan received, 1), fault: make(chan error, 1)}
 		if tc.text != "" {
 			c.inbox <- received{tc.text, end}
@@ -213,5 +213,26 @@ func TestPrematureExpiryNotice(t *testing.T) {
 		c := &conversation{inbox: make(chan received, 1), fault: make(chan error, 1)}
 		c.inbox <- m
 		wantCode(t, c.quiet("expiry", now), "UNEXPECTED_CLOSED_REPLY")
+	}
+}
+
+// Revoke probes can enter the native exchange non-grantee fallback and receive
+// exact Help. Stale Help and a similar-looking arbitrary reply remain invalid.
+func TestRevokeFallbackNotice(t *testing.T) {
+	now := time.Now().Unix()
+	for _, tc := range []struct {
+		message received
+		ok      bool
+	}{{received{exchange.Help, now}, true}, {received{exchange.Help, now - 1}, false}, {received{exchange.Help + " extra", now}, false}} {
+		c := &conversation{lastRequestAt: now, inbox: make(chan received, 1), fault: make(chan error, 1)}
+		c.inbox <- tc.message
+		e := c.quiet("revoke", now+100)
+		if tc.ok {
+			if e != nil || len(c.notices) != 1 || c.notices[0] != "revoke_exchange_help" {
+				t.Fatal("native refusal control")
+			}
+		} else {
+			wantCode(t, e, "UNEXPECTED_CLOSED_REPLY")
+		}
 	}
 }

@@ -20,18 +20,20 @@ type received struct {
 }
 
 type conversation struct {
-	peer      *gateway.RelayClient
-	key       *nostr.PrivKey
-	agent     string
-	inbox     chan received
-	fault     chan error
-	done      chan struct{}
-	cancel    context.CancelFunc
-	started   int64
-	lastSend  time.Time
-	lastReply time.Time
-	seen      map[string]bool
-	mu        sync.Mutex
+	peer          *gateway.RelayClient
+	key           *nostr.PrivKey
+	agent         string
+	inbox         chan received
+	fault         chan error
+	done          chan struct{}
+	cancel        context.CancelFunc
+	started       int64
+	lastSend      time.Time
+	lastReply     time.Time
+	lastRequestAt int64
+	notices       []string
+	seen          map[string]bool
+	mu            sync.Mutex
 }
 
 func connect(ctx context.Context, url, agent string) (*conversation, error) {
@@ -138,6 +140,7 @@ func (c *conversation) send(ctx context.Context, text string, work int, pace tim
 	} else {
 		r.ID = r.ComputeID()
 	}
+	c.lastRequestAt = r.CreatedAt
 	ev, e := nostr.GiftWrap(r, c.key, c.agent, time.Now().Unix())
 	if e != nil {
 		return refuse("WRAP")
@@ -238,9 +241,20 @@ func (c *conversation) quiet(scenario string, notAfter int64) error {
 	for {
 		select {
 		case s := <-c.inbox:
-			allowed := scenario == "revoke" && s.content == exchange.NotLive
+			allowed := false
+			if scenario == "revoke" && s.at >= c.lastRequestAt {
+				switch s.content {
+				case exchange.NotLive:
+					allowed = true
+					c.notices = append(c.notices, "revoke_not_live")
+				case exchange.Help:
+					allowed = true
+					c.notices = append(c.notices, "revoke_exchange_help")
+				}
+			}
 			if scenario == "expiry" && s.content == "slot ended" && s.at >= notAfter && time.Now().Unix() >= notAfter {
 				allowed = true
+				c.notices = append(c.notices, "expiry_slot_ended")
 			}
 			if !allowed {
 				return refuse("UNEXPECTED_CLOSED_REPLY")
