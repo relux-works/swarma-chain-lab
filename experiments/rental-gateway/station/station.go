@@ -110,6 +110,16 @@ type Driver interface {
 	Destroy(ctx context.Context, st *Station) (DestroyReport, error)
 }
 
+// Recoverer resolves an opaque station handle from the driver's own durable
+// mapping. Unknown mappings must refuse; an empty Home is not proof of absence.
+type Recoverer interface {
+	Reattach(context.Context, SlotSpec) (*Station, error)
+}
+
+// ErrCleanupPending means cleanup has no confirmed result yet. The gateway
+// leaves its operation started so the same operation ID can reconcile on retry.
+var ErrCleanupPending = errors.New("station: cleanup pending")
+
 // Reattach rebuilds a station handle from durable facts after a
 // gateway restart. PID is deliberately zero: a pre-restart PID may
 // have been reused by an unrelated process and must never be

@@ -47,15 +47,11 @@ func (g *Gateway) endSlotE(ctx context.Context, slotID, reason, renterDM string)
 	if !ok {
 		return fmt.Errorf("gateway: no slot %s", slotID)
 	}
-	_ = slot
 	if err := g.cfg.Journal.MarkEnded(slotID, reason); err != nil {
 		return err
 	}
-	g.mu.Lock()
-	st := g.stations[slotID]
-	g.mu.Unlock()
-	var endErr error
-	if st != nil {
+	st, endErr := g.recoverStation(ctx, slot)
+	if endErr == nil && st != nil {
 		endErr = g.cfg.Driver.End(ctx, st, reason)
 	}
 	q := g.queueFor(slotID)
@@ -164,14 +160,9 @@ func (g *Gateway) DestroySlot(ctx context.Context, slotID, opID string) (station
 			// successful Destroy below (station gone either way);
 			// a failing Destroy returns its own error.
 			_ = g.endSlotE(ctx, slotID, "destroyed", "")
-			g.mu.Lock()
-			st := g.stations[slotID]
-			delete(g.stations, slotID)
-			g.mu.Unlock()
-			if st == nil && slot.StationHome != "" {
-				st = station.Reattach(station.SlotSpec{
-					SlotID: slot.ID, StationName: slot.StationName,
-					BookingID: slot.BookingID}, slot.StationHome, slot.StationUser)
+			st, recoverErr := g.recoverStation(ctx, slot)
+			if recoverErr != nil {
+				return nil, nil, recoverErr
 			}
 			var report station.DestroyReport
 			if st != nil {
@@ -183,6 +174,9 @@ func (g *Gateway) DestroySlot(ctx context.Context, slotID, opID string) (station
 			} else {
 				report = station.DestroyReport{Kept: append([]string(nil), station.KeptElsewhere...)}
 			}
+			g.mu.Lock()
+			delete(g.stations, slotID)
+			g.mu.Unlock()
 			if err := g.cfg.Journal.MarkDestroyed(slotID); err != nil {
 				return nil, nil, err
 			}
@@ -192,6 +186,40 @@ func (g *Gateway) DestroySlot(ctx context.Context, slotID, opID string) (station
 		return station.DestroyReport{}, rec, err
 	}
 	return station.DestroyReport{Removed: rec.Removed, Kept: rec.Kept}, rec, nil
+}
+
+// recoverStation gives remote drivers their own durable lookup. The local
+// fallback preserves the existing home/user recovery without inventing paths.
+func (g *Gateway) recoverStation(ctx context.Context, slot *journal.Slot) (*station.Station, error) {
+	g.mu.Lock()
+	st := g.stations[slot.ID]
+	g.mu.Unlock()
+	if st != nil {
+		return st, nil
+	}
+	spec := station.SlotSpec{SlotID: slot.ID, StationName: slot.StationName, BookingID: slot.BookingID}
+	if remote, ok := g.cfg.Driver.(station.Recoverer); ok {
+		recovered, err := remote.Reattach(ctx, spec)
+		if err != nil {
+			return nil, err
+		}
+		if recovered == nil || recovered.SlotID != slot.ID {
+			return nil, station.ErrCleanupPending
+		}
+		st = recovered
+	} else if slot.StationHome != "" {
+		st = station.Reattach(spec, slot.StationHome, slot.StationUser)
+	}
+	if st != nil {
+		g.mu.Lock()
+		if existing := g.stations[slot.ID]; existing != nil {
+			st = existing
+		} else {
+			g.stations[slot.ID] = st
+		}
+		g.mu.Unlock()
+	}
+	return st, nil
 }
 
 // opCall is one in-flight closer operation. Concurrent callers for
@@ -276,6 +304,9 @@ func (g *Gateway) runOperation(ctx context.Context, slotID, kind, opID, reason s
 	}
 	removed, kept, effErr := effect(ctx, slot, rec)
 	if effErr != nil {
+		if errors.Is(effErr, station.ErrCleanupPending) {
+			return rec, fmt.Errorf("%w: station cleanup pending", ErrOperationUncertain)
+		}
 		if errors.Is(effErr, ErrOperationConflict) || errors.Is(effErr, ErrOperationUncertain) {
 			return rec, effErr
 		}

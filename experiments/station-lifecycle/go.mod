@@ -1,0 +1,7 @@
+module relux.works/swarma-chain-lab/experiments/station-lifecycle
+
+go 1.26.0
+
+require relux.works/swarma-chain-lab/experiments/single-use v0.0.0
+
+replace relux.works/swarma-chain-lab/experiments/single-use => ../single-use

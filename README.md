@@ -155,3 +155,14 @@ Its public validator, booking/store unit templates and Infra smoke plan are
 documented there. Gateway remains a blocked reference with no runnable unit;
 no host deployment or mainnet action is part of this tooling. Release outputs
 use a new directory outside the source checkout; task logs stay in `.temp/`.
+
+## Demo station lifecycle tools
+
+[Station lifecycle](experiments/station-lifecycle/README.md) is a relay-independent
+manager/broker and typed client of the Infra-owned slotd helper, with a separate
+rental-gateway adapter module. From `experiments/station-lifecycle`, run
+`go test -race ./...`, `go build -o .temp/station-manager ./cmd/station-manager`,
+`go run .scripts/guards.go -out .temp/guards` and
+`(cd gatewaybind && go test -race ./...)`. The README documents private input
+configuration and external Linux/payload validation; local test/build evidence
+belongs in `.temp/`. No host deployment is performed by these commands.

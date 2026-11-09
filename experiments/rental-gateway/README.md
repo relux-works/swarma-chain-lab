@@ -108,7 +108,12 @@ local-test driver launches per station.
   message re-publishes the one persisted event (never a second,
   different message), ending an ended slot is a no-op, and destroy
   proves already-gone by assertion. Destroy also works after a
-  gateway restart from durable station facts (no persisted PID).
+  gateway restart from durable station facts (no persisted PID). Remote drivers
+  may implement `station.Recoverer`; End and Destroy then resolve their opaque
+  handle from the driver's durable mapping, even with no local home. Unknown
+  mappings refuse. `station.ErrCleanupPending` keeps the operation started for
+  same-ID retry; a timeout never marks the slot destroyed. See the separate
+  [demo lifecycle adapter](../station-lifecycle/README.md).
   Agent-signed station replies additionally require a fresh live
   kernel check (current grantees only, no outbound screening); the
   final message is the deliberate exemption.
