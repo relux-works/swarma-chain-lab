@@ -6,8 +6,8 @@
 //	gateway validate -config /absolute/path/to/gateway.json
 //	gateway station-stub   (env GATEWAY_SOCKET, SLOT_ID, STATION_NAME)
 //
-// Stop it by PID. It binds only what flags name; station sockets are
-// unix paths and relays in tests are 127.0.0.1.
+// Stop it by PID. Config pins the local routes and separate remote TLS
+// listeners; Unix station sockets are restricted to explicit local-test mode.
 package main
 
 import (
