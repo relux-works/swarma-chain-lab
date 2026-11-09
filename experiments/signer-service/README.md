@@ -156,3 +156,14 @@ specific assertion failures, and rejects skips, crashes or compile failures as
 control evidence. Its non-Core mode runs the12 unit plants; `-core` adds three
 actual subprocess/payment/durable-record guard-removal controls. Tests describe their specific
 claims and limits beside the exercised paths.
+
+### Booking V2 producer composition
+
+Set `booking_outbox` to the private ServiceV2 state root. Its exporter now writes
+this service's existing index/hashed Item format, with original request and
+PackageEvent JSON strings and complete sticky revoke tuples. It never converts
+v1 booking state: a legacy root without an index returns `PRIVATE_FILE` on pull.
+The explicit SG1 v1 input contract remains available for other provisioned sources.
+`TestCoreV2Payments` exercises actual exporter → FileSource → Engine.Pull → P1
+issuance for BTC/LTC/NMC, plus malformed/partial/duplicate file refusals and
+repeat intake. `TestLegacyBookingRootRefused` checks the closed no-index boundary.

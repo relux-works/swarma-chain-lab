@@ -31,6 +31,8 @@ func TestGuardRemovalControls(t *testing.T) {
 		t.Fatal(e)
 	}
 	plants := []guardPlant{
+		{"outbox-prefix", "outbox_v2.go", "index = append(index, h)", "index = append([]string{h}, index...)", "TestOutboxV2$", "outbox prefix rewritten", false},
+		{"outbox-bytes", "outbox_v2.go", "Publication: string(canonical(b.PackageEvent))", "Publication: string(canonical(b.Package))", "TestOutboxV2$", "signed outbox bytes changed", false},
 		{"v2-http-origin", "http.go", "if r.Method == \"POST\" && r.Header.Get(\"Origin\") != h.origin {", "if false && r.Method == \"POST\" && r.Header.Get(\"Origin\") != h.origin {", "TestHTTPV2/btc/origin", "v2 HTTP guard changed state or accepted", false},
 		{"v2-service-version", "cmd/rental-booking/config.go", "c.ServiceVersion != 2", "false", "TestServiceConfigSelection/unknown-version", "ambiguous service config accepted", false},
 

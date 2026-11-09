@@ -100,7 +100,17 @@ func TestCoreV2Payments(t *testing.T) {
 			if ready.Issuance == nil {
 				t.Fatal("confirmed request absent")
 			}
-			item := Item{ID: hash([]byte("v2/" + coin)), Kind: "grant-issue", Request: string(eventBytes(ready.Issuance)), Publication: string(eventBytes(ready.PackageEvent))}
+			// Consume the actual exporter; no handwritten Item or index bridges this seam.
+			source, e := OpenFileSource(filepath.Join(l.private, "booking-"+coin))
+			if e != nil {
+				t.Fatal(e)
+			}
+			batch, e := source.Pull(ctx, "", MaxRecords)
+			var item Item
+			if e != nil || len(batch) != 1 || strict(batch[0].Raw, &item) != nil || item.Request != string(eventBytes(ready.Issuance)) || item.Publication != string(eventBytes(ready.PackageEvent)) {
+				t.Fatal("booking exporter intake", e)
+			}
+			checkBookingFileSource(t, source, batch)
 			ip := rental.IssuerPolicyV2{IssuerPolicy: l.cfg.Policy, PaymentPolicies: map[string]rental.PaymentAdmissionPolicy{coin: {MaxRateAgeSeconds: 60, MinConfirmations: 2, Limits: pc.Limits{MaxBlocks: 2016, MaxMempool: 100000, MaxCalls: 200000, MaxBytes: 512 << 20}}}}
 			l.cfg.Profile = "v2"
 			l.cfg.PaymentPolicies = ip.PaymentPolicies
@@ -128,14 +138,12 @@ func TestCoreV2Payments(t *testing.T) {
 				t.Fatal("reorg allocated authority")
 			}
 			lab.rpc("", "reconsiderblock", block)
-			outbox := dir(t)
-			appendItem(t, outbox, nil, item)
-			source, e := OpenFileSource(outbox)
-			if e != nil {
-				t.Fatal(e)
-			}
 			if e = x.Pull(ctx, source, BookingSource, 500); e != nil {
 				t.Fatal(e)
+			}
+			intakeBefore := encode(x.state)
+			if e = x.Pull(ctx, source, BookingSource, 500); e != nil || !bytes.Equal(intakeBefore, encode(x.state)) {
+				t.Fatal("duplicate export intake", e)
 			}
 			result := x.Step(ctx, 500)
 			if len(result) != 1 || result[0].Reason != "" || result[0].Phase != "stored" {
@@ -166,7 +174,14 @@ func TestCoreV2Payments(t *testing.T) {
 			if e = json.Unmarshal(eventBytes(restored.Revoke), &revoke); e != nil {
 				t.Fatal(e)
 			}
-			revokeItem := Item{ID: hash([]byte("v2-revoke/" + coin)), Kind: "revoke", Revoke: &revoke}
+			revokeBatch, e := source.Pull(ctx, batch[0].After, MaxRecords)
+			var revokeItem Item
+			if e != nil || len(revokeBatch) != 1 || strict(revokeBatch[0].Raw, &revokeItem) != nil || !bytes.Equal(encode(revokeItem.Revoke), encode(revoke)) {
+				t.Fatal("booking revoke intake", e)
+			}
+			if e = x.Pull(ctx, source, BookingSource, 502); e != nil {
+				t.Fatal(e)
+			}
 			rr, e := x.Process(ctx, encode(revokeItem), BookingSource, 502)
 			if e != nil || rr.Phase != "broadcast" {
 				t.Fatal("sticky service revoke", rr, e)

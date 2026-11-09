@@ -50,7 +50,7 @@ jobs:
           go test -race ./...
           go build -trimpath ./cmd/...
 
-      - name: V2 HTTP and CLI guard controls
+      - name: V2 HTTP, CLI and outbox guard controls
         env:
           GOPROXY: 'off'
           GOSUMDB: 'off'
@@ -58,4 +58,4 @@ jobs:
           GOWORK: 'off'
         run: |
           mkdir -p .temp
-          M3_MUTATIONS=1 M3_MUTATION_ROOT="$PWD/.temp/bg1-http-controls" go test -count=1 -run '^TestGuardRemovalControls/(v2-http-origin|v2-service-version)$' .
+          M3_MUTATIONS=1 M3_MUTATION_ROOT="$PWD/.temp/bg1-http-controls" go test -count=1 -run '^TestGuardRemovalControls/(v2-http-origin|v2-service-version|outbox-prefix|outbox-bytes)$' .

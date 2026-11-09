@@ -248,22 +248,6 @@ func paymentPoint(p pc.Payment) string { return fmt.Sprintf("%s:%d", p.TxID, p.V
 func eligibleV2(p pc.Payment, c ContractV2, tip pc.Tip) bool {
 	return p.ValueAtoms >= c.Payment.AmountAtoms && p.Height > 0 && p.Height <= tip.Height && tip.Height-p.Height+1 >= c.Payment.MinConfirmations
 }
-func (s *ServiceV2) exportV2() error {
-	for _, b := range s.state.Bookings {
-		for _, item := range []struct {
-			name    string
-			present bool
-			value   any
-		}{{"package", b.Package != nil, b.Package}, {"issue", b.Issuance != nil, b.Issuance}, {"revoke", b.Revoke != nil, b.Revoke}} {
-			if item.present {
-				if e := s.store.write(item.name+"-"+b.Contract.BookingID+".json", canonical(item.value), true); e != nil {
-					return e
-				}
-			}
-		}
-	}
-	return nil
-}
 func (s *ServiceV2) Book(ctx context.Context, in BookInputV2) (BookingV2, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

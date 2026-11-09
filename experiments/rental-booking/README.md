@@ -376,3 +376,35 @@ Run `go test -race -count=1 ./...` for both versions and the CLI selector.
 Targeted controls use `M3_MUTATIONS=1 M3_MUTATION_ROOT=<new-absolute-directory>
 go test -run '^TestGuardRemovalControls/(v2-http-origin|v2-service-version)$' .`;
 the directory holds isolated mutation copies and exact assertion logs.
+
+## V2 signer intake outbox
+
+The V2 private state root is also SG1's `booking_outbox`. It contains an atomic
+`index.json` array of lowercase SHA256 names, with immutable `<hash>.json` Item
+envelopes (0600 in the existing owner-only 0700 root). Each issue Item has
+`id = SHA256("grant-issue/" + booking_id)`, `kind = "grant-issue"`, and `request`
+and `publication` JSON strings holding the original canonical IssuanceRequestV2
+and signed kind8182 PackageEvent. `package-event-<booking_id>.json` preserves that
+same event as a companion; existing package/issue/revoke companions remain.
+Revoke Items use `SHA256("revoke/" + booking_id)`, `kind = "revoke"`, and the
+original RevokeRequestV2 object including its complete coin/network/genesis and
+payment tuple. No v1 contract or revoke reason is translated.
+
+All items and companions are fsynced before the index is atomically committed.
+The entire old index prefix is retained; eligibility order can differ from hold
+order. Restart checks and reuses immutable bytes. Unindexed interrupted exports
+are harmless; indexed missing/conflicting bytes refuse without repairing or
+rewriting the prefix. Limits are 4096 Items, 64KiB per Item, and a 1MiB index;
+there is no automatic archive or truncation. Export failure may follow an already
+durable booking transition: reopen/reconcile instead of creating another hold.
+SG1 independently has a smaller 64-record intake bound.
+
+Legacy v1 roots do not export an SG1 index. Pointing FileSource at one returns
+`PRIVATE_FILE` on its first pull; never populate a translated index to bypass
+this refusal. Manually provisioned SG1 v1 sources remain a separate contract.
+
+Run `go test -race -run '^TestOutboxV2' .` for producer ordering, original bytes,
+restart, corruption and orphan recovery. The signer-service `TestCoreV2Payments`
+reads this real exporter through FileSource and durable Engine.Pull on all three
+pinned regtest coins, including malformed/partial/duplicate source controls.
+Guard controls `outbox-prefix` and `outbox-bytes` use the mutation command above.
