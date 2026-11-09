@@ -146,7 +146,9 @@ func (e *Engine) process(ctx context.Context, r *nostr.Event) {
 	var v *client
 	if old == nil {
 		if len(e.disk.clients) >= e.cfg.MaxClients {
-			return
+			if e.disk.evictIdle() != nil {
+				return
+			}
 		}
 		v = &client{Version: 1, Sender: r.PubKey, Tokens: e.cfg.Burst, Refilled: now, KnownUntil: now + e.cfg.KnownSeconds, Seen: []seen{}}
 	} else {

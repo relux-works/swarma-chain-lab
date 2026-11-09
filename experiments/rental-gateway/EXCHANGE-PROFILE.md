@@ -71,7 +71,15 @@ replies independently from the relay read/ACK pump. Full queues drop immediately
 Per-sender token buckets use the authenticated seal key. A bounded first-contact
 PoW cache expires; replay IDs have a bounded validity window. Limits, state
 capacity and message sizes are explicit configuration with hard upper bounds.
-Unexpired entries are never evicted merely to admit a new sender. Bucket state,
+At capacity, a fresh sender must pass PoW before the oldest unprogressed entry
+can be evicted: empty phase, no hold/consent or pending response. Age is the
+retained knowledge horizon, with sender-key order breaking ties. The old file is
+removed and fsynced before replacement; failures poison/refuse the engine. All
+protected entries means new admission still refuses. Evicted introductions lose
+cached terms, bucket and replay state and require first-contact PoW again. A
+still-valid old proof may qualify: there is no global replay tombstone. An old book command
+cannot reuse their lost terms. This does not guarantee fairness under continuous
+Sybil churn. Memory and private client-file counts remain bounded. Retained bucket state,
 clock high-water, accepted command IDs, hold mappings and pending notification
 facts survive restart; queue contents are volatile and unacknowledged requests
 may be retried. Ambiguous booking effects fail closed rather than issuing a
@@ -157,7 +165,7 @@ responses without allocating a new event or spending another command token.
 A durable `book_pending` intent precedes the backend Book. An unknown outcome
 retains this intent and never repeats Book, including after restart; it requires
 operator reconciliation against authoritative booking state. Explicit no-effect
-rejections can retry. Ordinary idle records are reclaimed only after knowledge,
+rejections can retry. Without capacity pressure, ordinary idle records are reclaimed after knowledge,
 replay and full bucket refill horizons have elapsed, with no pending response or
 unexpired slot; ambiguous booking intents are never automatically evicted.
 

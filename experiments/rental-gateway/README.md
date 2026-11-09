@@ -186,6 +186,9 @@ local-test driver launches per station.
 The conversation and exact texts are specified in [EXCHANGE-PROFILE.md](EXCHANGE-PROFILE.md).
 It requires first-contact inner-rumor NIP-13 work, bounds per-key buckets, replay
 history, clients and queue, and persists counters, holds and exact pending replies.
+At client capacity, fresh PoW senders can replace the oldest acknowledged,
+unprogressed introduction. Booking/consent state and pending replies are protected;
+evicted introductions must obtain terms again. See EXCHANGE-PROFILE.md for limits.
 Live grantees bypass the exchange. A full exchange queue drops immediately;
 booking calls and exchange publication run off the relay read/ACK pump.
 

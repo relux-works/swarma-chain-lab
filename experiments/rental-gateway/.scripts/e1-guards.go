@@ -31,6 +31,7 @@ var plants = []plant{
 	{"duplicate_nonce", "gateway", "exchange/pow.go", "if found || len(tag) != 3 {", "if len(tag) != 3 {", "./exchange", "TestExchangePoW/duplicate", "invalid PoW allocated state or replied", false},
 	{"nonce_canonical", "gateway", "exchange/pow.go", " || strconv.FormatUint(nonce, 10) != tag[1]", " || (strconv.FormatUint(nonce, 10) != tag[1] && false)", "./exchange", "TestExchangePoW/bad_nonce", "invalid PoW allocated state or replied", false},
 	{"token_debit", "gateway", "exchange/engine.go", "v.Tokens--", "v.Tokens -= 0", "./exchange", "TestExchangeLimitsRestart", "per-key bucket exceeded", false},
+	{"idle_eviction", "gateway", "exchange/engine.go", "if e.disk.evictIdle() != nil {", "if true {", "./exchange", "TestExchangeManyKeys", "fresh honest sender starved by idle table", false},
 	{"client_capacity", "gateway", "exchange/engine.go", "if len(e.disk.clients) >= e.cfg.MaxClients {", "if len(e.disk.clients) >= e.cfg.MaxClients && false {", "./exchange", "TestExchangeManyKeys", "client cap exceeded", false},
 	{"rumor_replay_retention", "gateway", "exchange/engine.go", "v.Seen = retained", "v.Seen = retained[:0]", "./exchange", "TestExchangeReplayWithCapacity", "replay repeated response or debit", false},
 	{"known_expiry", "gateway", "exchange/engine.go", "old == nil || old.KnownUntil <= now", "old == nil", "./exchange", "TestExchangeKnownExpiry", "expired known key bypassed work", false},

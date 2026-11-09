@@ -207,3 +207,36 @@ func TestExchangeGatewayIdentity(t *testing.T) {
 		t.Fatal("valid gateway identity neighbour")
 	}
 }
+
+// Two completed valid-work introductions fill the configured two-client table.
+// A live grantee still reaches the station without PoW or exchange admission.
+// This uses the real worker/gateway; the kernel and station remain fixtures.
+func TestExchangeFullTableGranteeBypass(t *testing.T) {
+	s := &slowExchange{entered: make(chan struct{}), release: make(chan struct{})}
+	close(s.release)
+	e := exchangeEngine(t, s)
+	h := newHarness(t, harnessOpts{exchange: e, agentName: e.AgentName(), skipStart: true})
+	for i := 0; i < 2; i++ {
+		key, _ := nostr.GeneratePrivKey()
+		r := h.handle(exchangeWrap(t, key, h.agent.PubKeyHex(), "terms", true))
+		if !r.ExchangeQueued || r.Delivered {
+			t.Fatal("exchange admission", r)
+		}
+		deadline := time.Now().Add(3 * time.Second)
+		for len(h.pub.dmsTo(key)) == 0 && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		if got := h.pub.dmsTo(key); len(got) != 1 || got[0] != exchange.Unavailable {
+			t.Fatal("table introduction did not complete", got)
+		}
+	}
+	r := h.handle(h.renterDM("live through full table", nowMid))
+	if !r.Delivered || r.ExchangeQueued {
+		t.Fatal("live grantee throttled by full table", r)
+	}
+	c, conn := h.stationClient()
+	defer conn.Close()
+	if got := pull(t, c); got.Content != "live through full table" {
+		t.Fatal("wrong delivery", got)
+	}
+}

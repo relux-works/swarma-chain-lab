@@ -203,3 +203,35 @@ func (d *disk) prune(now int64) error {
 	}
 	return nil
 }
+
+// Only unprogressed, fully acknowledged introductions may lose retained terms,
+// replay and bucket state under capacity pressure. Booking/outbox facts survive.
+// Removing and syncing first ensures replacement never exceeds the disk bound;
+// a crash between removal and replacement loses only the idle introduction.
+func (d *disk) evictIdle() error {
+	if d.poisoned {
+		return errors.New("exchange state invalid")
+	}
+	var oldest *client
+	for _, v := range d.clients {
+		if v.Phase != "" || v.Hold != nil || v.ConsentID != "" || v.Pending != nil {
+			continue
+		}
+		if oldest == nil || v.KnownUntil < oldest.KnownUntil || (v.KnownUntil == oldest.KnownUntil && v.Sender < oldest.Sender) {
+			oldest = v
+		}
+	}
+	if oldest == nil {
+		return errors.New("exchange state capacity")
+	}
+	if err := os.Remove(filepath.Join(d.cfg.StateDir, "client-"+oldest.Sender+".json")); err != nil {
+		d.poisoned = true
+		return err
+	}
+	if err := durable.SyncDir(d.cfg.StateDir); err != nil {
+		d.poisoned = true
+		return err
+	}
+	delete(d.clients, oldest.Sender)
+	return nil
+}

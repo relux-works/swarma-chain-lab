@@ -387,28 +387,155 @@ func TestExchangeLimitsRestart(t *testing.T) {
 	}
 }
 
-// A bounded client table refuses valid-work Sybils without eviction/reset of a
-// live key's bucket; expired idle entries can be reclaimed after replay expiry.
+// Fresh valid-work keys cannot pin all idle slots: the next honest sender gets
+// terms and can book. Both memory and private client files stay bounded across
+// restart. Evicted keys lose cached terms and cannot replay an old book directly.
 func TestExchangeManyKeys(t *testing.T) {
 	f := fixtureNew(t)
-	f.e.cfg.MaxClients = 2
-	f.e.disk.cfg.MaxClients = 2
+	f.e.Close()
+	f.c.MaxClients = 2
+	f.open(t)
 	f.send("terms")
 	first := f.renter
-	f.renter, _ = nostr.GeneratePrivKey()
+	for i := 0; i < 8; i++ {
+		f.now++
+		f.renter, _ = nostr.GeneratePrivKey()
+		before := len(f.p.events)
+		f.send("terms")
+		if len(f.p.events) != before+1 || !strings.HasPrefix(f.last(t), "terms\n") {
+			t.Fatal("fresh honest sender starved by idle table")
+		}
+		files, err := filepath.Glob(filepath.Join(f.dir, "client-*.json"))
+		if err != nil || len(f.e.disk.clients) != 2 || len(files) != 2 {
+			t.Fatal("client cap exceeded", err)
+		}
+	}
+	if f.e.disk.clients[first.PubKeyHex()] != nil {
+		t.Fatal("oldest idle client retained")
+	}
+	f.e.Close()
+	f.open(t)
+	if len(f.e.disk.clients) != 2 {
+		t.Fatal("restart changed client bound")
+	}
+	f.send("book demo one")
+	if f.b.books != 1 || !strings.HasPrefix(f.last(t), "contract\n") {
+		t.Fatal("honest booking refused")
+	}
+	honest := f.renter.PubKeyHex()
+	f.renter = first
+	f.send("book demo one")
+	if f.b.books != 1 || f.last(t) != Help || f.e.disk.clients[honest].Phase != "held" {
+		t.Fatal("evicted key reused old terms or displaced booking")
+	}
+}
+
+// No-work senders cannot cause eviction. When every record protects a booking
+// or pending reply, admission refuses without writes or bucket resets. Only the
+// idle neighbor is reclaimable; equal-age ties choose the lower sender key.
+func TestExchangeEvictionBoundaries(t *testing.T) {
+	for _, state := range []string{"book_pending", "held", "consent_pending", "consented", "issued", "ready_done", "pending"} {
+		t.Run(state, func(t *testing.T) {
+			f := fixtureNew(t)
+			f.e.Close()
+			f.c.MaxClients = 2
+			f.open(t)
+			f.send("terms")
+			protected := f.renter.PubKeyHex()
+			v := clone(f.e.disk.clients[protected])
+			if state == "pending" {
+				f.p.fail = true
+				f.send("terms")
+				f.p.fail = false
+			} else {
+				v.Phase = state
+				if state != "book_pending" {
+					h := f.b.hold
+					v.Hold = &h
+				}
+				if err := f.e.disk.save(v); err != nil {
+					t.Fatal(err)
+				}
+			}
+			protectedBytes := canonical(f.e.disk.clients[protected])
+			f.renter, _ = nostr.GeneratePrivKey()
+			f.send("terms")
+			idle := f.renter.PubKeyHex()
+			before := canonical(f.e.disk.clients)
+			f.renter, _ = nostr.GeneratePrivKey()
+			f.e.process(context.Background(), f.rumor("terms", false))
+			if !bytes.Equal(before, canonical(f.e.disk.clients)) {
+				t.Fatal("no-work sender evicted state")
+			}
+			f.send("terms")
+			if f.e.disk.clients[idle] != nil || !bytes.Equal(protectedBytes, canonical(f.e.disk.clients[protected])) {
+				t.Fatal("protected state evicted or changed")
+			}
+			v = clone(f.e.disk.clients[f.renter.PubKeyHex()])
+			v.Phase = "book_pending"
+			if err := f.e.disk.save(v); err != nil {
+				t.Fatal(err)
+			}
+			before = canonical(f.e.disk.clients)
+			n := len(f.p.events)
+			f.renter, _ = nostr.GeneratePrivKey()
+			f.send("terms")
+			if !bytes.Equal(before, canonical(f.e.disk.clients)) || len(f.p.events) != n || len(f.e.disk.clients) != 2 {
+				t.Fatal("protected table modified")
+			}
+			f.e.Close()
+			f.open(t)
+			if !bytes.Equal(before, canonical(f.e.disk.clients)) {
+				t.Fatal("protected records changed on restart")
+			}
+		})
+	}
+	t.Run("tie", func(t *testing.T) {
+		f := fixtureNew(t)
+		f.e.Close()
+		f.c.MaxClients = 2
+		f.open(t)
+		f.send("terms")
+		a := f.renter.PubKeyHex()
+		f.renter, _ = nostr.GeneratePrivKey()
+		f.send("terms")
+		b := f.renter.PubKeyHex()
+		if a > b {
+			a, b = b, a
+		}
+		f.renter, _ = nostr.GeneratePrivKey()
+		f.send("terms")
+		if f.e.disk.clients[a] != nil || f.e.disk.clients[b] == nil {
+			t.Fatal("eviction tie not deterministic")
+		}
+	})
+}
+
+// A failed victim deletion poisons/refuses admission without allocating the
+// replacement or publishing a reply. Fault injection touches only this fixture.
+func TestExchangeEvictionDiskFailure(t *testing.T) {
+	f := fixtureNew(t)
+	f.e.Close()
+	f.c.MaxClients = 1
+	f.open(t)
 	f.send("terms")
+	victim := f.renter.PubKeyHex()
+	path := filepath.Join(f.dir, "client-"+victim+".json")
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "block"), []byte("fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before := canonical(f.e.disk.clients)
 	n := len(f.p.events)
 	f.renter, _ = nostr.GeneratePrivKey()
 	f.send("terms")
-	if len(f.e.disk.clients) != 2 || len(f.p.events) != n {
-		t.Fatal("client cap exceeded")
-	}
-	if f.e.disk.clients[first.PubKeyHex()] == nil {
-		t.Fatal("live client evicted")
-	}
-	f.now = 1200
-	if e := f.e.disk.prune(f.now); e != nil || len(f.e.disk.clients) != 0 {
-		t.Fatal("idle expiry not reclaimed", e)
+	if !f.e.disk.poisoned || !bytes.Equal(before, canonical(f.e.disk.clients)) || len(f.p.events) != n {
+		t.Fatal("failed eviction admitted or changed state")
 	}
 }
 
@@ -640,4 +767,65 @@ func TestExchangeOutboxIdentity(t *testing.T) {
 	}
 	e.Close()
 	f.open(t)
+}
+
+// Ordinary expiry still reclaims idle records once replay and bucket horizons
+// pass, independently of the new capacity-pressure eviction policy.
+func TestExchangeIdlePrune(t *testing.T) {
+	f := fixtureNew(t)
+	f.send("terms")
+	f.now = 1200
+	if err := f.e.disk.prune(f.now); err != nil || len(f.e.disk.clients) != 0 {
+		t.Fatal("idle expiry not reclaimed", err)
+	}
+}
+
+// An evicted sender has no global replay tombstone. An exact old rumor without
+// first-contact work refuses; an old valid-work rumor may re-enter while still
+// fresh, but an old book cannot reuse erased terms or cause a booking effect.
+func TestExchangeEvictedReplay(t *testing.T) {
+	f := fixtureNew(t)
+	f.e.Close()
+	f.c.MaxClients = 1
+	f.open(t)
+	original := f.renter
+	oldBook := f.rumor("book demo one", true)
+	f.e.process(context.Background(), oldBook)
+	if f.last(t) != Help || f.b.books != 0 {
+		t.Fatal("book without terms")
+	}
+	oldTerms := f.rumor("terms", true)
+	f.e.process(context.Background(), oldTerms)
+	oldNoWork := f.rumor("book missing slot", false)
+	f.e.process(context.Background(), oldNoWork)
+	if f.last(t) != Help || f.b.books != 0 {
+		t.Fatal("invalid known-key neighbor")
+	}
+	f.now++
+	f.renter, _ = nostr.GeneratePrivKey()
+	f.send("terms")
+	before := canonical(f.e.disk.clients)
+	n := len(f.p.events)
+	f.renter = original
+	f.e.process(context.Background(), oldNoWork)
+	if !bytes.Equal(before, canonical(f.e.disk.clients)) || len(f.p.events) != n {
+		t.Fatal("evicted replay bypassed first-contact work")
+	}
+	f.e.process(context.Background(), oldBook)
+	if f.last(t) != Help || f.b.books != 0 || f.e.disk.clients[original.PubKeyHex()].TermsPin != "" {
+		t.Fatal("evicted replay recreated booking authority")
+	}
+	n = len(f.p.events)
+	f.e.process(context.Background(), oldBook)
+	if len(f.p.events) != n || f.b.books != 0 {
+		t.Fatal("readmitted replay escaped retained journal")
+	}
+	f.e.process(context.Background(), oldTerms)
+	if !strings.HasPrefix(f.last(t), "terms\n") || f.b.books != 0 {
+		t.Fatal("valid-work replay was not a harmless terms response")
+	}
+	f.send("book demo one")
+	if f.b.books != 1 || !strings.HasPrefix(f.last(t), "contract\n") {
+		t.Fatal("fresh terms booking neighbor refused")
+	}
 }
