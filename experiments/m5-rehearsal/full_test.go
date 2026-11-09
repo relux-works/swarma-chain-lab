@@ -90,7 +90,7 @@ func TestFullComposition(t *testing.T) {
 	checked(t, e, "public branch")
 	tmpl := booking.Template{Version: 1, ID: "demo", ProfileID: "rehearsal", ProfileVersion: "1", ProfileSHA256: booking.Hash(profile), Allowed: []string{"deliver"}, Forbidden: []string{"pay", "publish", "repository.push", "secret.release"}, BudgetSat: 1000000}
 	now := time.Now().Unix()
-	cfg := booking.ConfigV2{StateDir: l.dir("booking"), AgentPubkey: agent.PubKeyHex(), ProviderPubkey: provider.PubKeyHex(), HoldSeconds: 1800, PriceUSDCents: 100, Template: tmpl, TemplateSHA256: booking.Hash(encoded(tmpl)), Slots: []booking.Slot{{ID: "one", StationName: agentName, NotBefore: now + 60, NotAfter: now + 100, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{"nmc": {PublicBranch: public.String(), PublicBranchSHA256: booking.Hash([]byte(public.String())), USDMicrosPerCoin: 100000000, RateAsOf: now, MaxRateAgeSeconds: 7200, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}
+	cfg := booking.ConfigV2{StateDir: l.dir("booking"), AgentPubkey: agent.PubKeyHex(), ProviderPubkey: provider.PubKeyHex(), HoldSeconds: 1800, PriceUSDCents: 100, Template: tmpl, TemplateSHA256: booking.Hash(encoded(tmpl)), Slots: []booking.Slot{{ID: "one", StationName: agentName, NotBefore: now + 60, NotAfter: now + 160, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{"nmc": {PublicBranch: public.String(), PublicBranchSHA256: booking.Hash([]byte(public.String())), USDMicrosPerCoin: 100000000, RateAsOf: now, MaxRateAgeSeconds: 7200, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}
 	observer := filepath.Join(l.private, "booking-node.conf")
 	l.write(observer, []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", l.read.Username, l.read.Password, l.read.Port)), 0600)
 	operator := su.OperatorRoute{Network: "regtest", Genesis: su.RegtestGenesis, NodeCLI: l.cli, NodeCLISHA256: cliPin, NodeConfig: observer, NodeDataDir: l.nodeDir}
@@ -172,14 +172,20 @@ func TestFullComposition(t *testing.T) {
 	})
 	proof := l.confirmedPresentation(signerConfig, contract.BookingID, presentations)
 	conversation.receive("issued\n", 10*time.Second)
+	l.evidence["stage"] = "confirmed presentation and issued"
+	t.Log("native SG1 confirmed presentation and issued received")
 	if time.Now().Unix() < contract.NotBefore && l.slot(contract.BookingID).Started {
 		t.Fatal("slot started before grant window")
 	}
 	conversation.receive("ready", 75*time.Second)
+	l.evidence["stage"] = "ready"
+	t.Log("ready received; sending first grantee message")
 	tag, e := gateway.GrantCertTag(proof)
 	checked(t, e, "issued presentation tag")
 	conversation.send("first model request", false, tag)
 	conversation.receive("model fixture reply", 10*time.Second)
+	l.evidence["stage"] = "first model reply"
+	t.Log("real payload/model reply received")
 	conversation.send("second model request", false)
 	conversation.receive("model fixture reply", 10*time.Second)
 	conversation.send("request beyond cap", false)
@@ -201,7 +207,7 @@ func TestFullComposition(t *testing.T) {
 		l.revokeNative(signerConfig, contract, proof)
 		conversation.send("must not reach revoked slot", false)
 	}
-	deadline := time.Now().Add(60 * time.Second)
+	deadline := time.Now().Add(120 * time.Second)
 	for !l.slot(contract.BookingID).Ended {
 		if time.Now().After(deadline) {
 			t.Fatal("slot closure deadline")

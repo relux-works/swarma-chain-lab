@@ -279,6 +279,10 @@ func newLab(t *testing.T) *lab {
 		}
 		l.evidence["direct_processes"] = audit
 		l.evidence["descendants_inventoried"] = false
+		if t.Failed() {
+			l.evidence["outcome"] = "FAIL"
+			l.evidence["full_scenario"] = "incomplete; see last recorded stage and test failure"
+		}
 		b := encoded(l.evidence)
 		if leaked(b, l.secrets) {
 			t.Error("public evidence secret scan refused")

@@ -56,7 +56,6 @@ func (l *lab) signerCycle(config string) {
 	if code != 0 || leaked(out, l.secrets) || strings.Contains(string(out), "DATA RACE") {
 		l.t.Fatal("native signer cycle failed; output withheld")
 	}
-	l.write(filepath.Join(l.private, "signer-last-cycle.log"), out, 0600)
 }
 func (l *lab) confirmedPresentation(config, id, dir string) []byte {
 	target := filepath.Join(dir, id+".json")
