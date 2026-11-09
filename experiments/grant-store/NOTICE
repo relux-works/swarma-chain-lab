@@ -1,0 +1,6 @@
+The Blossom client protocol pattern is adapted from relux-works/a2a-transport-nostr
+blossom/client.go, Git blob 8ec81578b1e906cc68f4edf83f4ed836379c349d.
+Copyright (c) 2026 Alexey Grigorev, Ivan Oparin. MIT license reproduced in
+LICENSE.a2a-transport-nostr. Its in-memory test server was inspected but is not
+used as the durable HTTP store. Cryptographic and durable primitives are
+imported from the reviewed in-tree rental-gateway and single-use modules.

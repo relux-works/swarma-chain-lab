@@ -106,3 +106,14 @@ and stable signed-grant IDs. From each module run `GOWORK=off go vet ./...` and
 `go build -trimpath -o .temp/gateway ./cmd/gateway`. The module README documents
 the opt-in issuer-driven Core regtest test, private/public output boundaries
 and required tool paths. Scratch builds and logs belong in `.temp/`.
+
+## Grant store tools
+
+[Grant store](experiments/grant-store/README.md) provides a bounded Blossom HTTP
+store with mandatory signed uploads/downloads and per-blob readers. From
+`experiments/grant-store`, run `go test -race -count=1 ./...`,
+`go build -trimpath -o ../../.temp/grant-store ./cmd/grant-store`, and
+`go run .scripts/guard-controls.go -out .temp/guards`.
+The module README documents loopback CLI configuration, limits, grant helpers,
+replay/ACL persistence, and the scope of the local checks. Build and guard
+artifacts stay in `.temp/`; private state/key files are never delivery artifacts.
