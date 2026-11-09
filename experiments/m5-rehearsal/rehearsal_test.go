@@ -102,6 +102,9 @@ func (l *lab) tlsFiles() tlsPaths {
 // means the documented blockers were reproduced, NOT that M5 completed. No
 // manual grant/outbox bridge masks the remaining signer intake break.
 func TestLandedComposition(t *testing.T) {
+	if os.Getenv("IT1_PRE_G6_DIAGNOSTIC") != "1" {
+		t.Skip("historical pre-G6 diagnostic; use TestFullComposition")
+	}
 	l := newLab(t)
 	agent := l.key("agent.key", false)
 	provider := l.key("provider.key", false)

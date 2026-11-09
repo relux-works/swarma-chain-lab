@@ -1,61 +1,122 @@
 # Local composition rehearsal
 
-This opt-in Go harness extends the earlier IT1 composition survey with the actual
-RL1 relay, tagged Darwin manager, BG1 V2 producer and the PL1 scripted payload
-build. A passing diagnostic run means its recorded boundary was reproduced; it
-does **not** mean the complete M5 rental lifecycle passed.
+This opt-in Go harness exercises native V2 booking, relay, signer, grant store,
+gateway, manager and scripted payload against a fresh isolated Namecoin Core
+regtest. Run the expiry and early-revoke variants separately. Preparation/build
+checks do not establish that either runtime scenario passed: consult the exact
+run's public result and exit status. Product integration gaps are reported at the
+first failing stage, never patched or bridged by the harness.
 
-The target is the first unresolved seam, G6. Gateway exchange uses v1 booking
-requests. Legacy v1 can complete terms/consent/payment but intentionally produces
-no SG1 V2 index. Selecting the actual V2 CLI retains the catalogue shape, then
-the gateway's v1 Book request omits the payment coin: HTTP refuses with
-`COIN_PROFILE` and the exchange reports `BookPending`. The harness checks
-that no slot/hold was silently created, and uses a separate direct HTTP V2
-book/consent/payment as the positive control: its original exported Item is read
-by the actual signer FileSource. It does not convert the v1 contract, synthesize
-an intake Item, issue a substitute grant or bridge around the gateway failure.
+The full scenario sends terms/book/consent through the actual relay and gateway,
+pays the frozen NMC V2 contract, and lets the actual SG1 CLI consume the original
+booking outbox. SG1 enrolls disposable regtest inventory using its native config,
+signs, broadcasts, stores the grant in S1 and publishes the confirmed presentation.
+The harness never creates a replacement booking Item or grant presentation.
+At `not_before`, the gateway starts the real manager and payload path. Two model
+requests reach a fake HTTPS upstream through the real MP1 Service; further
+requests return the fixed cap refusal. The expiry variant waits for `not_after`.
+The revoke variant sends a native operator revoke Item to the actual SG1 CLI,
+checks that the exact issued seal is spent, then probes the closed grant.
 
-The node is genuine isolated Namecoin Core regtest with network discovery and
-network activity disabled. CLI and daemon hashes are pinned in the harness.
-Only fresh fixture wallets and keys are used. Actual booking, store, signer,
-gateway, relay, manager and payload binaries are built from the requested exact
-signed head; every exercised source path must match it and have no untracked
-files. Manager alone uses `-tags slotdfake`, including its explicit fixture clock.
-Other binaries use ordinary builds. The manager startup probe does not imply a
-helper or payload was started when issuance is blocked.
+Controls cover missing/unoffered coins preserving the slot, foreign consent
+preserving the package, no pre-grant slot, no unconfirmed presentation, original
+bootstrap bytes, real payload TLS leaf-pin refusal, model accounting and caps,
+terminal-client no retry, closed credentials, and no extra delivery after closure.
+The known-secret scanner checks recorded credentials and encodings in process
+logs and public evidence; it is not an unknown-secret detector. No real paid API,
+existing wallet, mainnet funds or external host is used.
 
-The scripted payload's separate tests exercise real proxy accounting against a
-fake HTTPS upstream, TLS/HMAC, v1/v2 and refusal controls. If full composition
-eventually reaches registration on macOS, the approved substitution is narrowly
-an in-process registrar into the real MP1 Service, replacing Linux peer-credential
-admin transport in harness code only. The current G6 diagnostic does not reach
-or exercise that substitution. Production keeps the Linux-only admin rule.
+## Declared macOS substitutions
 
-Issued/ready, live slot delivery, expiry cleanup and early revoke remain NOT RUN
-when the first break is G6. Assertions are intentionally specific so a future
-G6 fix requires extending the harness instead of silently calling a stale
-diagnostic proof a full success.
+1. The manager alone uses `-tags slotdfake`. Its real r4 codec connects to a
+   harness-owned Unix helper. On create, that helper writes the original canonical
+   bootstrap bytes; on start, it launches the exact PL1 payload binary with fixed
+   operator arguments. Stop targets only its recorded PID; destroy removes only
+   its owned bootstrap file. This exercises protocol, process and disposable-file
+   cleanup. **Linux users, cgroups, filesystem isolation and physical disk wipe
+   are not exercised.**
+2. `fixtures/registrar.go.txt` supplies a Go build overlay used only by this
+   rehearsal. `overlay_test.go` requires exactly one occurrence of the production
+   `proxy.Client` constructor and replaces only that expression with a direct
+   registrar into a real MP1 Service in the gateway process. `pinnedRegistrar`,
+   endpoint/caps checks, lifecycle and kernel code remain unchanged. The real
+   Service serves TLS requests; only Linux peer-credential admin transport is
+   replaced. Normal product/release builds cannot load this fixture. Public
+   evidence records original, replacement, helper and overlay-binary hashes.
+
+The gateway is explicitly reported as an overlay build, not an unchanged native
+binary. SG1 remains its actual CLI. Relay compatibility AUTH is explicitly off.
+The model CLI is Linux-only and is not claimed as executed here.
+
+## Release isolation gate
+
+Before any Core activity, the full test requires `IT2_RELEASE_DIR`. It verifies
+that this release describes identical relevant product sources, then builds
+ordinary and overlay Linux/amd64 gateways using the release's toolchain/flags.
+The manifest gateway hash must equal the ordinary build and differ from the
+same-platform overlay build. A Darwin-vs-Linux difference is not accepted as proof.
+The release directory is read-only input; neither the fixture nor the overlay is
+installed into it. Release signatures, hosted CI and Linux runtime remain
+separate delivery obligations.
 
 ## Tools and artifacts
 
-Go1.26.8, Darwin, landed BG1/RL1 dependencies and installed pinned modules are
-required. Choose a new absolute root for every run; never reset a prior fixture.
+Use Go 1.26.8 on Darwin with the pinned module cache. Core hashes are in
+`lab_test.go`. Every Core run requires an exact signed clean task head and a new
+absolute run root. Keep paths short enough for the macOS Unix socket limit.
 
 ```sh
 export GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off GOFLAGS=-mod=readonly
 go mod verify
 go vet ./...
-go test -race -count=1 ./...  # scanner control only; Core explicitly skipped
-IT1_REGTEST=1 IT1_PRODUCT_HEAD=<exact-signed-task-head> \
- IT1_RUN_ROOT=/absolute/new-private-run \
- IT1_CORE_DAEMON=/absolute/pinned/namecoind \
- IT1_CORE_CLI=/absolute/pinned/namecoin-cli \
- go test -race -count=1 -timeout 8m -v ./...
+go test -race -count=1 ./... # scanner; opt-in builds/Core explicitly skipped
 ```
 
-`<run>/public/result.json` records stages, binary pins, first break, known-secret
-scan and direct-PID absence. `<run>/private` contains fixtures, wallets, keys,
-configs, native binaries and process logs; never export that directory. A known
-canary tests scanner detection beside a public neighbor. That scanner does not
-prove absence of unknown secrets, and direct-PID receipts do not inventory every
-compiler/runtime descendant. Ordinary command logs belong under `.temp/`.
+Produce the normal release from a clean checkout using the deploy kit:
+
+```sh
+go -C ../../deploy run ./cmd/deploy-kit build \
+  -repo /absolute/clean-checkout -commit <exact-product-commit> \
+  -out /absolute/new-release
+```
+
+Preparation-only build proof (no Core, service, wallet or signing key):
+
+```sh
+IT2_BUILD_ONLY_ROOT=/absolute/new-build-root \
+ IT2_RELEASE_DIR=/absolute/new-release \
+ go test -run '^TestOverlayReleaseIsolation$' -count=1 -v -timeout 3m
+```
+
+The gate's bounded negative control plants the already-built Linux overlay into
+an independent, deliberately invalid manifest/artifact fixture. The source
+release is untouched. The second command must exit 1 with exactly the
+`release builder overlay isolation failed` assertion; setup/build failures are
+not successful control evidence.
+
+```sh
+go run .scripts/plant-release-overlay.go /absolute/new-release \
+  /absolute/new-build-root/private/overlay-linux-gateway /absolute/new-control
+IT2_BUILD_ONLY_ROOT=/absolute/new-control-build \
+ IT2_RELEASE_DIR=/absolute/new-control \
+ go test -run '^TestOverlayReleaseIsolation$' -count=1 -v -timeout 3m
+```
+
+After the required product dependencies are landed, run each full variant with
+its own fresh root:
+
+```sh
+IT1_REGTEST=1 IT2_SCENARIO=revoke IT1_PRODUCT_HEAD=<exact-signed-task-head> \
+ IT1_RUN_ROOT=/absolute/new-revoke-run IT2_RELEASE_DIR=/absolute/new-release \
+ IT1_CORE_DAEMON=/absolute/pinned/namecoind \
+ IT1_CORE_CLI=/absolute/pinned/namecoin-cli \
+ go test -race -run '^TestFullComposition$' -count=1 -v -timeout 8m
+# Repeat with IT2_SCENARIO=expiry and a different IT1_RUN_ROOT.
+```
+
+`<run>/public/result.json` records stages, pins, build isolation, accounting,
+known-secret scan and direct-PID absence. `<run>/private` holds fixture keys,
+wallets, configs, binaries and process logs; never export it. Compiler descendants
+are not inventoried. Preparation logs and control sources belong under `.temp/`.
+Historical pre-G6 diagnostics remain opt-in via `IT1_PRE_G6_DIAGNOSTIC=1`; they
+are intentionally incompatible with a G6 gateway and are not a fallback.

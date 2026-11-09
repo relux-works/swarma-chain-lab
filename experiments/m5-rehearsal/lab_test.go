@@ -40,7 +40,7 @@ type process struct {
 type lab struct {
 	t                                                        *testing.T
 	root, private, public, repo, cli, conf, nodeDir, address string
-	read, broadcast, payment                                 su.Route
+	read, broadcast, payment, paymentIssuer                  su.Route
 	bins                                                     map[string]string
 	processes                                                []*process
 	pids                                                     []int
@@ -338,7 +338,7 @@ func (l *lab) startCore(agent, issuer string) {
 	for _, entry := range []struct {
 		name, methods string
 		dest          *su.Route
-	}{{"w3-observer", "getblockchaininfo,getblockhash,getblockheader,getrawtransaction,gettxout,name_show,getrawmempool,getblock", &l.read}, {"sg1-broadcaster", "sendrawtransaction", &l.broadcast}, {"payment-observer", "getnetworkinfo,getblockchaininfo,getblockhash,getblockheader,getrawtransaction,getrawmempool,getblock", &l.payment}} {
+	}{{"w3-observer", "getblockchaininfo,getblockhash,getblockheader,getrawtransaction,gettxout,name_show,getrawmempool,getblock", &l.read}, {"sg1-broadcaster", "sendrawtransaction", &l.broadcast}, {"payment-observer", "getnetworkinfo,getblockchaininfo,getblockhash,getblockheader,getrawtransaction,getrawmempool,getblock", &l.payment}, {"payment-issuer", "getnetworkinfo,getblockchaininfo,getblockhash,getblockheader,getrawtransaction,getrawmempool,getblock,gettxout", &l.paymentIssuer}} {
 		b := make([]byte, 32)
 		_, e := rand.Read(b)
 		checked(l.t, e, "RPC fixture random")

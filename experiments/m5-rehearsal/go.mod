@@ -7,8 +7,12 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.5
 	github.com/btcsuite/btcd/btcutil v1.1.5
 	github.com/gorilla/websocket v1.5.3
+	relux.works/swarma-chain-lab/experiments/model-proxy v0.0.0
 	relux.works/swarma-chain-lab/experiments/rental v0.0.0
 	relux.works/swarma-chain-lab/experiments/single-use v0.0.0
+	relux.works/swarma-chain-lab/experiments/station-lifecycle v0.0.0
+	relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind v0.0.0
+	relux.works/swarma-chain-lab/experiments/station-payload v0.0.0
 )
 
 require golang.org/x/sys v0.47.0 // indirect
@@ -49,3 +53,5 @@ replace relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind =
 replace relux.works/swarma-chain-lab/experiments/signer-service => ../signer-service
 
 replace relux.works/swarma-chain-lab/experiments/model-proxy => ../model-proxy
+
+replace relux.works/swarma-chain-lab/experiments/station-payload => ../station-payload

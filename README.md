@@ -214,3 +214,12 @@ Run `go -C experiments/relay test -race ./...` and
 `go -C experiments/rental-gateway test -race ./...`; the Go control runner
 `go -C experiments/relay run .scripts/rk1-guards.go` writes evidence under
 `experiments/relay/.temp/rk1-guards/` and mutates copied sources only.
+
+### Full composition rehearsal
+
+[m5-rehearsal](experiments/m5-rehearsal/README.md) prepares expiry and native-SG1
+seal-revocation scenarios through V2 exchange, real relay, manager and scripted
+model payload. Its documented macOS helper/admin seams are rehearsal-only.
+Use the module's opt-in Go commands for release-isolation controls and fresh
+Core runs; public receipts stay separate from private fixture trees. A build or
+preparation result is not evidence that the full runtime scenario passed.
