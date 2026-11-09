@@ -128,6 +128,16 @@ are intentionally incompatible with a G6 gateway and are not a fallback.
 
 ## Current result
 
+SP2 adds `TestResponsesComposition`, selecting MP2's Responses profile and the
+payload's explicit pinned mode. It reuses the full IT2 assertions and genuine
+isolated Core flow, with a fake TLS OpenAI upstream. Run the full command above
+with `-run '^TestResponsesComposition$'` in separate revoke/expiry roots. The
+fixture passes a canonical public model config copy and explicit dialect/model
+flags; no credential path in that copy is opened by the payload. Public receipts
+include `responses_mode` and `payload_profile`. Legacy full/partial test entry
+points keep their Messages default and assertions. Compare both before/after
+when changing shared helpers. This does not qualify a paid API or Codex harness.
+
 The [historical startup ordering gap](GAP-IT2-STARTUP.md) was fixed by SR1; RK1
 keeps expiry alive through relay idle periods and transport loss. The resumed
 full runs use these landed product sources. Read each public result for the

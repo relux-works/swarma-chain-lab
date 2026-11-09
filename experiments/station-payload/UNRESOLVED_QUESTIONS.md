@@ -1,5 +1,11 @@
 # Remaining qualification
 
+- Legacy omitted-dialect New/CLI exists only for old Messages tests and is
+  unqualified for deployment. Deploy requires explicit pinned mode and a public
+  model config copy. Config copies must track the proxy; no live metadata endpoint
+  or bootstrap codec expansion attests a remote profile.
+- Responses mode is a bounded, nonstream, text-only scripted consumer. A Codex
+  harness, tools, streaming and a paid provider remain separate qualification.
 - The rented-agent runtime, deployment and host containment remain operator
   decisions. This scripted fixture does not install or select them.
 - Full composition depends on landed BG1 intake/presentation, RL1 relay/tagged

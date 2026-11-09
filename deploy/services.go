@@ -34,8 +34,8 @@ func validateServicePolicy(p Policy) (Policy, error) {
 }
 
 // ValidateServiceInputs binds each new descriptor to exactly one native public
-// config. Payload has flags only, so it accepts no invented native JSON. Older
-// services retain their existing supplemental-public-file validation contract.
+// config. Payload requires a pinned argv pairing record followed by the actual
+// public model config. Older services retain their supplemental-file contract.
 func ValidateServiceInputs(p Policy, inputs [][]byte) error {
 	if !newService(p.Service) {
 		for _, raw := range inputs {
@@ -49,10 +49,7 @@ func ValidateServiceInputs(p Policy, inputs [][]byte) error {
 		return e
 	}
 	if p.Service == "payload" {
-		if len(inputs) != 0 {
-			return ErrPolicy
-		}
-		return nil
+		return validatePayloadInputs(inputs)
 	}
 	if len(inputs) != 1 {
 		return ErrPolicy

@@ -101,6 +101,9 @@ func TestNewServicePolicies(t *testing.T) {
 			var inputs [][]byte
 			if service != "payload" {
 				inputs = [][]byte{nativeFixture(t, service)}
+			} else {
+				c := modelFixture()
+				inputs = [][]byte{encoded(t, payloadPair{"messages", "fixture-model", 10, c.Endpoint.URL, c.Endpoint.CertSHA256}), encoded(t, c)}
 			}
 			if e := ValidateServiceInputs(p, inputs); e != nil {
 				t.Fatal("complete native input refused", e)

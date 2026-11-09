@@ -119,6 +119,9 @@ func (f *fakeHelper) handle(c net.Conn) {
 			return
 		}
 		cmd := exec.Command(f.payload, "-bootstrap", r.path, "-ca", f.ca, "-gateway", f.endpoint, "-gateway-pin", f.pin, "-model", "fixture", "-max-tokens", "16")
+		if f.l.responses {
+			cmd.Args = append(cmd.Args, "-dialect", "responses", "-model-config", f.l.modelConfigPath)
+		}
 		cmd.Stdout = log
 		cmd.Stderr = log
 		if cmd.Start() != nil {

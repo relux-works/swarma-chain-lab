@@ -103,6 +103,12 @@ func main() {
 	must(e)
 	defer os.RemoveAll(scratch)
 	plants := []plant{
+		{"payload_pinned_required", "services.go", "return validatePayloadInputs(inputs)", "return nil", ".", "^TestPayloadPairing$/^messages$/^missing-config$", "unpinned payload deployment accepted"},
+		{"payload_dialect", "payload_pair.go", "p.Dialect != want", "false && p.Dialect != want", ".", "^TestPayloadPairing$/^responses$/^legacy$", "unpinned payload deployment accepted"},
+		{"payload_profile", "payload_pair.go", "p.Dialect != want", "false && p.Dialect != want", ".", "^TestPayloadPairing$/^messages$/^dialect$", "unpinned payload deployment accepted"},
+		{"payload_model", "payload_pair.go", "m, ok := c.Models[p.Model]", "m, ok := c.Models[p.Model]; if !ok {m = modelSpec{ContextTokens: 100}; ok = true}", ".", "^TestPayloadPairing$/^messages$/^model$", "unpinned payload deployment accepted"},
+		{"payload_endpoint", "payload_pair.go", "p.Endpoint != c.Endpoint.URL", "false && p.Endpoint != c.Endpoint.URL", ".", "^TestPayloadPairing$/^responses$/^endpoint$", "unpinned payload deployment accepted"},
+		{"payload_pin", "payload_pair.go", "p.CertSHA256 != c.Endpoint.CertSHA256", "false && p.CertSHA256 != c.Endpoint.CertSHA256", ".", "^TestPayloadPairing$/^responses$/^pin$", "unpinned payload deployment accepted"},
 		{"model_upstream_pair", "services.go", "upstreamValid = modelResponsesURL(c.Upstream)", "upstreamValid = true", ".", "^TestModelResponsesProfiles$/^mismatch$", "Responses public config guard missing"},
 		{"model_profile", "services.go", "p.Profile != \"openai-responses-functions-default-v1\"", "false", ".", "^TestModelResponsesProfiles$/^profile$", "Responses public config guard missing"},
 		{"model_profile_id", "services.go", "!exists || p.Profile", "(false && !exists) || p.Profile", ".", "^TestModelResponsesProfiles$/^model$", "Responses public config guard missing"},

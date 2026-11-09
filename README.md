@@ -202,7 +202,8 @@ Tests use only a local fake upstream and synthetic keys.
 
 [station-payload](experiments/station-payload/README.md) consumes canonical v1/v2
 private bootstrap, retains scripted station controls and exercises the per-slot
-model proxy over verified, leaf-pinned TLS. Run its Go tests, guard controls and
+model proxy using operator-pinned Messages or text-only Responses over verified,
+leaf-pinned TLS. Run its Go tests, guard controls and
 CLI using the commands in that module; artifacts belong under `.temp/`. It is a
 rehearsal fixture, not a selected rented-agent runtime or host deployment.
 

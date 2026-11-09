@@ -46,6 +46,8 @@ type lab struct {
 	pids                                                     []int
 	secrets                                                  [][]byte
 	evidence                                                 map[string]any
+	responses                                                bool
+	modelConfigPath                                          string
 }
 
 func encoded(v any) []byte {

@@ -23,7 +23,12 @@ func run(ctx context.Context, args []string) error {
 	pin := f.String("gateway-pin", "", "gateway leaf DER SHA256")
 	model := f.String("model", "", "exact operator model ID (v2)")
 	max := f.Uint64("max-tokens", 0, "operator per-request output limit (v2)")
+	dialect := f.String("dialect", "", "operator-pinned messages or responses; omitted only for legacy tests")
+	modelConfig := f.String("model-config", "", "public canonical proxy config copy (0600); referenced paths are never opened")
 	if f.Parse(args) != nil || f.NArg() != 0 {
+		return payload.ErrConfig
+	}
+	if (*dialect == "") != (*modelConfig == "") || (*dialect != "" && *dialect != payload.DialectMessages && *dialect != payload.DialectResponses) {
 		return payload.ErrConfig
 	}
 	raw, e := proxy.ReadPrivateFile(*bootstrap, 0600, 4096)
@@ -38,7 +43,18 @@ func run(ctx context.Context, args []string) error {
 	if !roots.AppendCertsFromPEM(cert) {
 		return payload.ErrConfig
 	}
-	c, e := payload.New(raw, payload.Options{Model: *model, MaxTokens: *max, Roots: roots})
+	options := payload.Options{Model: *model, MaxTokens: *max, Roots: roots}
+	var c *payload.Client
+	if *dialect == "" {
+		c, e = payload.New(raw, options)
+	} else {
+		var config proxy.FileConfig
+		config, e = proxy.LoadConfig(*modelConfig)
+		if e != nil {
+			return payload.ErrConfig
+		}
+		c, e = payload.NewPinned(raw, options, *dialect, config)
+	}
 	if e != nil {
 		return e
 	}

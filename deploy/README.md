@@ -170,8 +170,14 @@ New descriptor service IDs are `issuer`, `model`, `stations`, `payload`. The
 first three require exactly one `-public` native service JSON file; omitting it
 or passing duplicate native files refuses. References and bounded public values
 are checked without opening credentials, connecting to a node or creating state.
-Payload has no native JSON: its descriptor pins only the release identity and
-rejects `-public` inputs. Its executable is launched solely by Infra's reviewed
+Payload requires exactly two ordered `-public` inputs: the canonical
+`payload/pairing.json` (dialect, model, max_tokens, model_endpoint,
+model_cert_sha256), then the actual model service config. Missing or empty
+dialect, either direction of profile mismatch, unknown model or endpoint/pin
+drift refuses before deployment. The pairing describes the exact pinned launch
+argv; the payload independently checks it at startup using `-dialect` and
+`-model-config`. Legacy omitted-dialect startup is test-only and unqualified.
+The existing main-network refusal remains unchanged. Its executable is launched solely by Infra's reviewed
 root policy; [POLICY-NEEDS.md](templates/payload/POLICY-NEEDS.md) is a table of
 requirements, not an installable policy fragment.
 
@@ -273,7 +279,7 @@ go -C deploy run .scripts/dk2-guards.go -out .temp/dk2-guards
 go -C deploy run ./cmd/deploy-kit validate -config "$STAGING/issuer/deploy.json" -public "$STAGING/issuer/service.json"
 go -C deploy run ./cmd/deploy-kit validate -config "$STAGING/model/deploy.json" -public "$STAGING/model/service.json"
 go -C deploy run ./cmd/deploy-kit validate -config "$STAGING/stations/deploy.json" -public "$STAGING/stations/service.json"
-go -C deploy run ./cmd/deploy-kit validate -config "$STAGING/payload/deploy.json"
+go -C deploy run ./cmd/deploy-kit validate -config "$STAGING/payload/deploy.json" -public "$STAGING/payload/pairing.json" -public "$STAGING/model/service.json"
 ```
 
 `deploy-kit check-coins -gateway PUBLIC_GATEWAY_JSON -booking PUBLIC_BOOKING_JSON`

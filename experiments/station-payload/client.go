@@ -53,6 +53,7 @@ type Client struct {
 	maxTokens uint64
 	http      *http.Client
 	terminal  error
+	responses bool
 }
 
 func (*Client) Format(s fmt.State, _ rune) { _, _ = io.WriteString(s, "[private payload client]") }
@@ -121,7 +122,11 @@ func (c *Client) Respond(ctx context.Context, text string) (string, error) {
 	if len(text) > MaxText || !utf8.ValidString(text) {
 		return "", ErrRequest
 	}
-	answer, err := c.generate(ctx, text)
+	generate := c.generate
+	if c.responses {
+		generate = c.generateResponses
+	}
+	answer, err := generate(ctx, text)
 	if err == Code("MODEL_CAP") || err == Code("MODEL_AUTH") {
 		c.terminal = err
 	}

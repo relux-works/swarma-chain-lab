@@ -12,7 +12,7 @@ challenge. V1 retains echo replies, `__extend__` refusal reporting and
 ordinary deliveries. The original gateway local-test stub is unchanged.
 
 For v2, `model_endpoint` and `model_cert_sha256` come only from the validated
-bootstrap. Requests go to `/slots/<booking_id>/v1/messages` with its model bearer.
+bootstrap. Messages requests go to `/slots/<booking_id>/v1/messages` with its model bearer.
 Normal TLS verification and the leaf pin are both required. The operator supplies
 an exact model ID and `max_tokens`; there are no inferred model or spending
 defaults. Each delivery is one non-streaming, text-only user message with no
@@ -20,6 +20,42 @@ conversation history. Tools, arbitrary request objects and client headers cannot
 be injected. Input text is bounded to 32 KiB, encoded requests to the proxy's
 64 KiB profile, complete responses to 8 MiB and returned text to 32 KiB. The
 reviewed Messages dialect validates complete response content and usage.
+
+The operator can instead pin `responses`, which sends one string-valued `input`,
+`model`, `stream=false` and `max_output_tokens` to `/slots/<booking_id>/v1/responses`.
+There are no tools, instructions or conversation history. MP2's `Responses.Parse`
+validates the outgoing request; `Responses.Complete` validates the matching
+completed response and usage before text is released. Only assistant output text
+is returned. Tool/unknown items and malformed usage/status refuse; a refusal
+item returns fixed `MODEL_REFUSAL`, without provider text. Empty output refuses.
+The text limits remain 32 KiB, responses 8 MiB; encoded Responses requests use
+MP2's 2 MiB cap, permitting JSON escape expansion within the text limit. No SSE
+is requested or consumed, so stream terminal handling is not part of this client.
+
+## Pinned startup and deployment
+
+Deployment requires explicit `-dialect messages|responses` and `-model-config`
+alongside the exact `-model` and positive `-max-tokens`. The config is an
+operator-provisioned, canonical public copy of the model proxy configuration,
+0600 with the same protected-path rules as the bootstrap. The loader reads only
+this JSON, never paths named by `api_key_file`, `tls_key` or any other field.
+Before network activity, `NewPinned` checks the selected model, its dialect,
+output limit against context, and bootstrap origin/leaf pin against this copy.
+Missing model, either direction of dialect mismatch, endpoint/pin mismatch or
+an unknown dialect refuses `PAYLOAD_CONFIG`. Bootstrap v1/v2 bytes are unchanged;
+pinned model mode requires v2.
+
+The deploy validator requires a canonical payload pairing record plus the actual
+public model configuration. The record mirrors operator argv and the expected
+bootstrap origin/pin; Infra must pin those exact values when provisioning the
+launch. The public copy and proxy config must be updated together. This checks
+operator configuration, not remote live-state attestation or root-policy execution.
+The existing global mainnet deployment refusal remains in force.
+
+Omitted dialect (`New` and the old CLI argv) retains the Messages behavior solely
+for legacy tests and is **unqualified for deployment**. Deploy admission rejects
+missing pairing or an empty dialect. New fixtures and the Responses rehearsal
+use pinned mode. This compatibility path does not perform a profile lookup.
 
 The client has no generation retry, redirect following, environment proxy,
 credential refresh or cap fallback. It disables connection reuse to avoid stale
@@ -57,7 +93,8 @@ go run .scripts/guards.go -out .temp/guards
 go build -trimpath -o .temp/station-payload ./cmd/station-payload
 .temp/station-payload -bootstrap /absolute/private/bootstrap.json \
   -ca /absolute/private/fixture-ca.pem -gateway 127.0.0.1:9444 \
-  -gateway-pin <gateway-leaf-sha256> -model <operator-model-id> -max-tokens 10
+  -gateway-pin <gateway-leaf-sha256> -model <operator-model-id> -max-tokens 10 \
+  -dialect responses -model-config /absolute/private/public-model-config.json
 ```
 
 For installed offline dependencies also use `GOPROXY=off GOSUMDB=off
@@ -65,7 +102,7 @@ GOFLAGS=-mod=readonly`. V1 does not require model flags. The Go API accepts a
 separate CA pool for model requests and for the gateway channel; the CLI's shared
 CA file is a fixture convenience, not authority to skip either leaf pin.
 
-Tests exercise actual TLS payload → real MP1 Service → fake HTTPS upstream,
+Tests exercise actual TLS payload → real MP1/MP2 Service → fake HTTPS upstream,
 accounted usage and cap/expiry/revocation, chain and leaf-pin refusals, terminal
 errors, text/response bounds, no redirect/replay, closed bootstrap and private CLI
 input. Channel tests use real TLS/HMAC with scripted gateway frames; they do not

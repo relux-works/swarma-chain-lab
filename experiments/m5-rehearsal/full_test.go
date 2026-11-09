@@ -46,7 +46,7 @@ func TestIndependentPartialLegs(t *testing.T) {
 	}
 	runComposition(t, true)
 }
-func runComposition(t *testing.T, partial bool) {
+func runComposition(t *testing.T, partial bool, dialect ...string) {
 	if os.Getenv("IT2_SCENARIO") == "" {
 		t.Skip("requires explicit IT2_SCENARIO=expiry|revoke after G6 landing")
 	}
@@ -55,6 +55,11 @@ func runComposition(t *testing.T, partial bool) {
 		t.Fatal("invalid full scenario")
 	}
 	l := newLab(t)
+	if len(dialect) > 1 || (len(dialect) == 1 && dialect[0] != "responses") {
+		t.Fatal("invalid rehearsal dialect")
+	}
+	l.responses = len(dialect) == 1
+	l.evidence["responses_mode"] = l.responses
 	l.evidence["partial_only"] = partial
 	overlay := l.registrarOverlay()
 	overlaid := filepath.Join(l.private, "bin", "gateway-overlay")
@@ -127,6 +132,10 @@ func runComposition(t *testing.T, partial bool) {
 	l.secret([]byte(apiKey))
 	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstreamCalls.Add(1)
+		if l.responses {
+			responsesUpstream(t, w, r, apiKey)
+			return
+		}
 		if r.URL.Path != "/v1/messages" || r.Header.Get("x-api-key") != apiKey || r.Header.Get("Authorization") != "" {
 			t.Error("upstream route or credential boundary")
 		}
@@ -163,6 +172,9 @@ func runComposition(t *testing.T, partial bool) {
 	modelState := l.dir("model")
 	gc["model_proxy"] = map[string]any{"admin_socket": admin, "server_uid": os.Geteuid(), "origin": "https://" + modelAddr, "cert_sha256": p.serverPin, "caps": proxy.Caps{InputTokens: 1000, OutputTokens: 100, Requests: 2, MaxTokens: 16, CostNanoUSD: 10000}}
 	l.write(admin+".rehearsal.json", encoded(map[string]any{"StateDir": modelState, "Upstream": upstream.URL + "/v1/messages", "APIKey": apiKey, "CA": p.ca, "Cert": p.server, "Key": p.key, "Models": map[string]proxy.Model{"fixture": {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic rehearsal pricing"}}}), 0600)
+	if l.responses {
+		l.configureResponses(admin, upstream.URL, "https://"+modelAddr, p.serverPin)
+	}
 	gp := l.json("gateway.json", gc, 0600)
 	out, code := l.command("gateway config", l.bins["gateway"], "validate", "-config", gp)
 	if code != 0 || strings.TrimSpace(string(out)) != "valid-public-config" {
@@ -326,6 +338,10 @@ func runComposition(t *testing.T, partial bool) {
 }
 
 func (l *lab) checkProxyRefusal(p tlsPaths, b gatewaybind.PayloadBootstrap, kind string) {
+	if l.responses {
+		l.checkResponsesRefusal(p, b, kind)
+		return
+	}
 	roots := x509.NewCertPool()
 	raw, e := os.ReadFile(p.ca)
 	checked(l.t, e, "probe CA")
