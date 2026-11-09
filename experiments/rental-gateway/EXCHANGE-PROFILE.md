@@ -94,7 +94,7 @@ kernel gate before lazy instance creation or screening.
 NIP-01 subscription events do not contain the original client IP. E1 therefore
 implements no gateway per-IP limiter and trusts no IP tags/headers. Per-IP and
 connection limits belong to the operator's relay deployment policy. This is an
-explicit orchestrator scope decision; application work limits do not claim to
+explicit maintainer scope decision; application work limits do not claim to
 prevent transport/cryptographic CPU exhaustion before authentication.
 
 ## Booking adapter and evidence plan

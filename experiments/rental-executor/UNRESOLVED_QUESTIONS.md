@@ -1,6 +1,6 @@
 # M4a integration boundaries
 
-- Independent review, hosted checks and orchestrator publication/landing remain
+- Independent review, hosted checks and maintainer publication/landing remain
   required. Producer tests are not ACCEPT. Integrated M1 baseline is c94b116d; review/rebase must
   preserve or explicitly update the dependency head and rerun integration.
 - Deployment owns OS identities, socket proxy/mTLS, node capability configuration,
