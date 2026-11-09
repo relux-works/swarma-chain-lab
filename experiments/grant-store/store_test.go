@@ -347,8 +347,20 @@ func TestReplayAndRestart(t *testing.T) {
 		}
 		l.reopen()
 		status, _, _ = l.do(v.method, v.path, auth, nil)
-		if status != 401 {
+		want := 401
+		if v.action == "delete" {
+			want = 403 // No current putter authorization for a missing blob.
+		}
+		if status != want {
 			t.Fatalf("%s replay accepted", v.action)
+		}
+		if v.action == "delete" {
+			l.put("restart", l.reader.PubKeyHex())
+			status, _, _ = l.do(v.method, v.path, auth, nil)
+			if status != 401 {
+				t.Fatal("delete replay accepted after recreation")
+			}
+			l.read(l.reader, hash, "restart")
 		}
 	}
 }
@@ -453,7 +465,11 @@ func TestDeleteFailureBoundaries(t *testing.T) {
 			}
 			l.reopen()
 			s, _, _ = l.do("DELETE", "/"+hash, h, nil)
-			if s != 401 {
+			want := 401
+			if stage == "deleted" {
+				want = 403
+			}
+			if s != want {
 				t.Fatal("delete replay")
 			}
 			if stage == "before_delete" {
@@ -463,6 +479,12 @@ func TestDeleteFailureBoundaries(t *testing.T) {
 				if s != 403 {
 					t.Fatal("deleted content returned")
 				}
+				l.put("delete-me", l.reader.PubKeyHex())
+				s, _, _ = l.do("DELETE", "/"+hash, h, nil)
+				if s != 401 {
+					t.Fatal("delete replay after recreation")
+				}
+				l.read(l.reader, hash, "delete-me")
 			}
 			valid := l.put("valid")
 			l.read(l.writer, valid, "valid")

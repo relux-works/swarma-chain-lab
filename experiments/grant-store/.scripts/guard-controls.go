@@ -21,6 +21,12 @@ import (
 type plant struct{ Name, File, Old, New, Test, Witness string }
 
 var plants = []plant{
+	{"authorization_order", "http.go", "\tif !s.authorized(a, action, hash, r.URL.Path) {\n\t\tdeny(w, r, 403)\n\t\treturn\n\t}\n\tif status, e := s.reserve(a, now); e != nil {\n\t\tdeny(w, r, status)\n\t\treturn\n\t}\n", "\tif status, e := s.reserve(a, now); e != nil {\n\t\tdeny(w, r, status)\n\t\treturn\n\t}\n\tif !s.authorized(a, action, hash, r.URL.Path) {\n\t\tdeny(w, r, 403)\n\t\treturn\n\t}\n", "TestUnauthorizedDoesNotReserve/get", "unauthorized request changed replay journal"},
+	{"own_empty_list", "http.go", "\t\treturn false\n\tcase \"get\", \"delete\":", "\t\treturn true\n\tcase \"get\", \"delete\":", "TestUnauthorizedDoesNotReserve/own_empty_list", "unauthorized refusal=200 want403"},
+	{"per_key_quota", "store.go", "if keySlots >= s.cfg.MaxReplayPerKey {", "if keySlots >= s.cfg.MaxReplayPerKey && false {", "TestPerKeyQuota", "per-key cap status=200 want429"},
+	{"per_key_accounting", "store.go", "if v.PubKey == a.Event.PubKey {", "if v.PubKey == a.Event.PubKey && false {", "TestPerKeyQuota", "per-key cap status=200 want429"},
+	{"persisted_signer", "store.go", "PubKey: a.Event.PubKey", "PubKey: \"\"", "TestPerKeyQuota", "per-key cap status=200 want429"},
+	{"legacy_ids", "replay.go", "legacy.Version = 2", "legacy.Entries = []replayEntry{}\n\tlegacy.Version = 2", "TestLegacyReplayMigration", "legacy consumed ID reset"},
 	{"crypto_admission", "auth.go", "!ev.CheckID() || nostr.VerifySignature(ev) != nil || ", "", "TestUploadControls/bad_id", "rejection status=201 want=401"},
 	{"signature", "auth.go", "nostr.VerifySignature(ev) != nil || ", "", "TestUploadControls/bad_sig", "rejection status=201 want=401"},
 	{"writer_allowlist", "http.go", "allowed = allowed || writer == a.Event.PubKey", "allowed = allowed || writer != \"\"", "TestUploadControls/nonwriter", "rejection status=201 want=403"},

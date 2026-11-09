@@ -17,14 +17,15 @@ import (
 )
 
 type Config struct {
-	Root          string   `json:"root"`
-	PublicURL     string   `json:"public_url"`
-	Writers       []string `json:"writers"`
-	MaxBlobBytes  int64    `json:"max_blob_bytes"`
-	MaxBlobs      int      `json:"max_blobs"`
-	MaxTotalBytes int64    `json:"max_total_bytes"`
-	MaxReplay     int      `json:"max_replay"`
-	SkewSeconds   int64    `json:"skew_seconds"`
+	Root            string   `json:"root"`
+	PublicURL       string   `json:"public_url"`
+	Writers         []string `json:"writers"`
+	MaxBlobBytes    int64    `json:"max_blob_bytes"`
+	MaxBlobs        int      `json:"max_blobs"`
+	MaxTotalBytes   int64    `json:"max_total_bytes"`
+	MaxReplay       int      `json:"max_replay"`
+	MaxReplayPerKey int      `json:"max_replay_per_key"`
+	SkewSeconds     int64    `json:"skew_seconds"`
 }
 type Descriptor struct {
 	URL      string `json:"url"`
@@ -42,6 +43,7 @@ type metadata struct {
 type replayEntry struct {
 	ID     string `json:"id"`
 	Expiry int64  `json:"expiry"`
+	PubKey string `json:"pubkey,omitempty"`
 }
 type replayState struct {
 	Version  int           `json:"version"`
@@ -84,10 +86,13 @@ func Open(c Config) (*Server, error) {
 	if c.MaxReplay == 0 {
 		c.MaxReplay = 512
 	}
+	if c.MaxReplayPerKey == 0 {
+		c.MaxReplayPerKey = min(32, c.MaxReplay/2)
+	}
 	if c.SkewSeconds == 0 {
 		c.SkewSeconds = 30
 	}
-	if c.MaxBlobBytes < 1 || c.MaxBlobBytes > 64<<20 || c.MaxBlobs < 1 || c.MaxBlobs > 4096 || c.MaxTotalBytes < c.MaxBlobBytes || c.MaxTotalBytes > 1<<30 || c.MaxReplay < 1 || c.MaxReplay > 512 || c.SkewSeconds < 0 || c.SkewSeconds > 60 || len(c.Writers) == 0 || len(c.Writers) > 64 {
+	if c.MaxBlobBytes < 1 || c.MaxBlobBytes > 64<<20 || c.MaxBlobs < 1 || c.MaxBlobs > 4096 || c.MaxTotalBytes < c.MaxBlobBytes || c.MaxTotalBytes > 1<<30 || c.MaxReplay < 2 || c.MaxReplay > 512 || c.MaxReplayPerKey < 1 || c.MaxReplayPerKey >= c.MaxReplay || c.SkewSeconds < 0 || c.SkewSeconds > 60 || len(c.Writers) == 0 || len(c.Writers) > 64 {
 		return nil, errors.New("invalid store limits")
 	}
 	u, e := serverURL(c.PublicURL)
@@ -106,7 +111,7 @@ func Open(c Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	s := &Server{cfg: c, hostname: u.Hostname(), journal: j, blobs: map[string]metadata{}, now: time.Now, replay: replayState{Version: 1, Entries: []replayEntry{}}}
+	s := &Server{cfg: c, hostname: u.Hostname(), journal: j, blobs: map[string]metadata{}, now: time.Now, replay: replayState{Version: 2, Entries: []replayEntry{}}}
 	if e = s.load(); e != nil {
 		j.Close()
 		return nil, e
@@ -136,12 +141,13 @@ func (s *Server) load() error {
 		return e
 	}
 	if raw != nil {
-		if !canonical(raw, &s.replay) || s.replay.Version != 1 || s.replay.LastTime < 0 || s.replay.Entries == nil || len(s.replay.Entries) > s.cfg.MaxReplay {
+		s.replay, e = decodeReplay(raw)
+		if e != nil || s.replay.LastTime < 0 || s.replay.Entries == nil || len(s.replay.Entries) > s.cfg.MaxReplay {
 			return errStorage
 		}
 		ids := map[string]bool{}
 		for _, v := range s.replay.Entries {
-			if !digest(v.ID) || ids[v.ID] || v.Expiry < 0 {
+			if !digest(v.ID) || ids[v.ID] || v.Expiry < 0 || (v.PubKey != "" && !key(v.PubKey)) {
 				return errStorage
 			}
 			ids[v.ID] = true
@@ -269,20 +275,30 @@ func (s *Server) reserve(a authorization, now int64) (int, error) {
 	if now < s.replay.LastTime {
 		return 503, errors.New("clock rollback")
 	}
-	next := replayState{Version: 1, LastTime: now, Entries: []replayEntry{}}
+	next := replayState{Version: 2, LastTime: now, Entries: []replayEntry{}}
+	keySlots := 0
 	for _, v := range s.replay.Entries {
 		if v.Expiry > now {
 			if v.ID == a.Event.ID {
 				return 401, errAuth
 			}
 			next.Entries = append(next.Entries, v)
+			if v.PubKey == a.Event.PubKey {
+				keySlots++
+			}
 		}
 	}
 	if len(next.Entries) >= s.cfg.MaxReplay {
 		return 429, errors.New("auth capacity")
 	}
-	next.Entries = append(next.Entries, replayEntry{a.Event.ID, a.Expiry})
-	b, _ := json.Marshal(next)
+	if keySlots >= s.cfg.MaxReplayPerKey {
+		return 429, errors.New("key auth capacity")
+	}
+	next.Entries = append(next.Entries, replayEntry{ID: a.Event.ID, Expiry: a.Expiry, PubKey: a.Event.PubKey})
+	b, e := encodeReplay(next)
+	if e != nil {
+		return 503, errStorage
+	}
 	if e := s.journal.Write("replay.json", b); e != nil {
 		s.failed = true
 		return 503, errStorage

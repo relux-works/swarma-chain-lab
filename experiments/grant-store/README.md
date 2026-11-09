@@ -21,7 +21,7 @@ Optional upload preflight, mirroring and reporting BUDs are outside this MVP.
 | `PUT /upload` | Kind 24242, `t=upload`, exactly one `x=SHA256(body)`, writer allowlist; `p` keys become readers and the putter is always included. Descriptor contains `url`, `sha256`, `size`, `type`, `uploaded`. |
 | `GET /<hash>[.ext]` or `HEAD` | Kind 24242, `t=get`, matching `x`, signer in this blob's readers. Hash is 64 lowercase hex characters. Extensions contain 1–16 ASCII letters/digits. |
 | `DELETE /<hash>[.ext]` | Kind 24242, `t=delete`, matching `x`, signer is this blob's putter. Returns 204. |
-| `GET /list/<pubkey>` | Kind 24242, `t=list`, signer equals the requested pubkey. Returns only that putter's descriptors. `limit` is 1–100 (default 100); `cursor` is the last returned hash. Descending upload time, ascending hash for ties. |
+| `GET /list/<pubkey>` | Kind 24242, `t=list`, signer equals the requested pubkey and currently owns at least one blob. Returns only that putter's descriptors. `limit` is 1–100 (default 100); `cursor` is the last returned hash. Descending upload time, ascending hash for ties. |
 | `OPTIONS` | Unauthenticated CORS capabilities, no blob metadata. |
 
 `Authorization: Nostr <event>` uses unpadded base64url; older padded standard
@@ -58,9 +58,14 @@ removes it. Startup cleans unpublished staging directories, validates private
 files, content hashes, metadata and configured bounds, and rejects corruption.
 Returned descriptor URLs follow the current configured endpoint after restart.
 
-The canonical `replay.json` journal reserves each valid auth ID durably before
-any operation or response, including later ACL/cap rejections. Retries need a
-freshly signed event. Expired entries are evicted, and a persisted time high-water
+The canonical `replay.json` journal reserves an auth ID only after signature and
+full operation authorization, before any effect or successful response, under the
+same mutex. Unauthorized requests do not change the journal, even when it is full.
+An empty self-signed list namespace is refused with 403: it is not putter authority.
+After deleting the last owned blob, listing that namespace also returns 403.
+Authorized requests that subsequently fail storage validation may consume a slot;
+ACL denials and replay-quota denials do not. Consumed-event retries need a freshly
+signed event. Expired entries are evicted, and a persisted time high-water
 rejects clock rollback with 503. Journal errors and uncertain post-rename effects
 fail closed until reopen; a consumed event stays consumed after a failed effect.
 A client that loses an upload response can retry with fresh auth and the same ACL.
@@ -70,12 +75,24 @@ A client that loses an upload response can retry with fresh auth and the same AC
 | `max_blob_bytes` | 1 MiB | 1 byte–64 MiB |
 | `max_blobs` | 1024 | 1–4096 |
 | `max_total_bytes` | 64 MiB | At least `max_blob_bytes`, at most 1 GiB |
-| `max_replay` | 512 | 1–512 |
+| `max_replay` | 512 | 2–512 |
+| `max_replay_per_key` | min(32, `max_replay` / 2) | 1 through `max_replay` minus 1 |
 | `skew_seconds` | 30 s | 1–60 s (zero selects default) |
 
-The replay ceiling fits the reused journal's 64 KiB bound even with int64 expiry
-values. Defaults reserve at most 512 valid requests in any 300-second window;
-429 indicates replay/storage capacity. Blob quotas bound payload bytes and object
+The replay ceiling fits the reused journal's 64 KiB bound even with 512 distinct
+signers and int64 expiry values. Version 2 stores compact ID/expiration/signer
+tuples. Version 1 journals migrate on the next successful reservation without
+resetting consumed IDs or the clock high-water. Legacy records lack signers and
+remain charged globally until their original expiration; per-key attribution
+applies to new records. An already full legacy journal therefore remains full
+until expiry. Older binaries cannot read v2; do not downgrade by resetting state.
+
+Defaults reserve at most 512 authorized requests globally and 32 per key in a
+300-second window. The per-key quota spans every operation and survives restart.
+At global capacity 4, the default key budget is 2; one key cannot exhaust the global
+journal. Multiple authorized keys may still fill it. A journal needs at least 2
+slots and an explicit key cap must be below the global cap. 429 indicates
+replay/key/storage capacity. Blob quotas bound payload bytes and object
 count, not filesystem overhead. Startup hashes bounded stored data. Requests are
 serialized through authorization and storage, including bounded upload reads.
 The CLI supplies read/header/write timeouts; library hosts must do the same.
@@ -149,7 +166,10 @@ upload/auth controls with valid put/read neighbors, missing/forbidden response
 equality, cross-blob readers, putter-only management, immutable ownership/ACL,
 replay across restart, three concurrent race scenarios, unknown-length body caps,
 private-file corruption, changed endpoint restart, hostile server responses,
-canonical signed-grant helpers, and compiled CLI/private-key checks.
+canonical signed-grant helpers, and compiled CLI/private-key checks. Replay
+fairness controls cover a stranger flood at global capacity 4 across all operation
+ACLs, unchanged durable state on denial, independent reader/writer budgets,
+restart and expiry, concurrent admission, legacy migration and a full journal.
 
 Injected errors and six child-process exits cover reservation, file sync,
 publication and deletion boundaries. They prove process-interruption behavior
@@ -162,7 +182,8 @@ The Go guard runner copies this module into private `.temp/guard-work-*`
 fixtures, uses unchanged in-tree dependencies, and removes one guard at a time.
 It first requires a passing baseline, then requires exit 1, the named failed test,
 and its intended assertion text. Compilation errors, crashes, setup errors and
-non-applied mutations cannot count. Twenty-four plants exercise crypto admission,
+non-applied mutations cannot count. Thirty plants exercise authorization ordering, empty-list admission, per-key
+quota/accounting, persisted signers, legacy replay preservation, crypto admission,
 writer/reader/owner checks, replay/durable reservation, ownership/ACL immutability,
 quotas, clock rollback and client hash/redirect checks. The combined crypto plant
 removes both ID and signature admission because the reused verifier also checks

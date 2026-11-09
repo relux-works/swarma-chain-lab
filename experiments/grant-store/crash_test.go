@@ -55,7 +55,11 @@ func TestProcessInterruption(t *testing.T) {
 			}
 			l.reopen()
 			s, _, _ := l.do(method, path, h, data)
-			if s != 401 {
+			want := 401
+			if stage == "deleted" {
+				want = 403
+			}
+			if s != want {
 				t.Fatalf("interrupted auth reused: %d", s)
 			}
 			exists := stage == "published" || stage == "before_delete"
@@ -66,6 +70,14 @@ func TestProcessInterruption(t *testing.T) {
 				if s != 403 {
 					t.Fatal("interrupted object visible")
 				}
+			}
+			if stage == "deleted" {
+				l.put("crash", l.reader.PubKeyHex())
+				s, _, _ = l.do(method, path, h, data)
+				if s != 401 {
+					t.Fatal("interrupted delete replay after recreation")
+				}
+				l.read(l.reader, hash, "crash")
 			}
 			valid := l.put("after-crash")
 			l.read(l.writer, valid, "after-crash")

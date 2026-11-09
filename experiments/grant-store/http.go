@@ -136,20 +136,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		deny(w, r, 401)
 		return
 	}
+	if !s.authorized(a, action, hash, r.URL.Path) {
+		deny(w, r, 403)
+		return
+	}
 	if status, e := s.reserve(a, now); e != nil {
 		deny(w, r, status)
 		return
 	}
 	switch action {
 	case "upload":
-		allowed := false
-		for _, writer := range s.cfg.Writers {
-			allowed = allowed || writer == a.Event.PubKey
-		}
-		if !allowed {
-			deny(w, r, 403)
-			return
-		}
 		d, status, e := s.put(a, data, now)
 		if e != nil {
 			deny(w, r, status)
@@ -158,10 +154,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, status, d)
 	case "list":
 		owner := strings.TrimPrefix(r.URL.Path, "/list/")
-		if owner != a.Event.PubKey || !key(owner) {
-			deny(w, r, 403)
-			return
-		}
 		limit := 100
 		query, e := url.ParseQuery(r.URL.RawQuery)
 		if e != nil {
@@ -219,22 +211,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		jsonResponse(w, 200, list[start:end])
 	case "get", "delete":
-		m, ok := s.blobs[hash]
-		allowed := false
-		if ok {
-			if action == "delete" {
-				allowed = m.Owner == a.Event.PubKey
-			} else {
-				for _, reader := range m.Readers {
-					allowed = allowed || reader == a.Event.PubKey
-				}
-			}
-		}
-		// Deliberately identical for missing blobs and unauthorized callers.
-		if !allowed {
-			deny(w, r, 403)
-			return
-		}
+		m := s.blobs[hash]
 		if action == "delete" {
 			if e := s.remove(hash); e != nil {
 				deny(w, r, 503)
@@ -252,4 +229,44 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", m.Descriptor.Type)
 		http.ServeContent(w, r, hash+".bin", time.Unix(m.Descriptor.Uploaded, 0), bytes.NewReader(b))
 	}
+}
+
+// authorized runs under the same mutex as reservation and effects. Refusals
+// never spend a replay slot, including missing blobs and another owner's list.
+func (s *Server) authorized(a authorization, action, hash, path string) bool {
+	switch action {
+	case "upload":
+		allowed := false
+		for _, writer := range s.cfg.Writers {
+			allowed = allowed || writer == a.Event.PubKey
+		}
+		return allowed
+	case "list":
+		owner := strings.TrimPrefix(path, "/list/")
+		if owner != a.Event.PubKey || !key(owner) {
+			return false
+		}
+		// A self-signed empty namespace is not putter authority: otherwise
+		// anyone could mint fresh keys and fill the journal through list.
+		for _, m := range s.blobs {
+			if m.Owner == owner {
+				return true
+			}
+		}
+		return false
+	case "get", "delete":
+		m, ok := s.blobs[hash]
+		allowed := false
+		if ok {
+			if action == "delete" {
+				allowed = m.Owner == a.Event.PubKey
+			} else {
+				for _, reader := range m.Readers {
+					allowed = allowed || reader == a.Event.PubKey
+				}
+			}
+		}
+		return allowed
+	}
+	return false
 }
