@@ -119,8 +119,15 @@ jobs:
           "$RUNNER_TEMP/deploy-kit" validate -config "$RUNNER_TEMP/dk1-cli/valid.json" > "$RUNNER_TEMP/dk1-cli/valid.log" 2>&1
           grep -Fx '{"Status":"valid-public-policy","Service":"store","Network":"regtest"}' "$RUNNER_TEMP/dk1-cli/valid.log"
           sed 's/"network":"regtest"/"network":"main"/' "$RUNNER_TEMP/dk1-cli/valid.json" > "$RUNNER_TEMP/dk1-cli/mainnet.json"
+          # Main needs both exact chain pins and a complete native public input.
+          # The public generator point below is a synthetic store-writer fixture.
+          sed 's/"network":"regtest"/"network":"main","genesis":"000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770"/' "$RUNNER_TEMP/dk1-cli/valid.json" > "$RUNNER_TEMP/dk1-cli/mainnet-complete-pins.json"
+          sed 's/PLACEHOLDER_LANDLORD_PUBLIC_KEY/79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798/' templates/m5-test/store/service.json > "$RUNNER_TEMP/dk1-cli/mainnet-store.json"
+          "$RUNNER_TEMP/deploy-kit" validate -config "$RUNNER_TEMP/dk1-cli/mainnet-complete-pins.json" -public "$RUNNER_TEMP/dk1-cli/mainnet-store.json" > "$RUNNER_TEMP/dk1-cli/mainnet-valid.log" 2>&1
+          grep -Fx '{"Status":"valid-public-policy","Service":"store","Network":"main"}' "$RUNNER_TEMP/dk1-cli/mainnet-valid.log"
           sed "s/$store_hash/PLACEHOLDER/" "$RUNNER_TEMP/dk1-cli/valid.json" > "$RUNNER_TEMP/dk1-cli/placeholder.json"
           sed "s/$store_hash/PLACEHOLDER/" "$RUNNER_TEMP/dk1-cli/mainnet.json" > "$RUNNER_TEMP/dk1-cli/mainnet-placeholder.json"
+          sed "s/$store_hash/PLACEHOLDER/" "$RUNNER_TEMP/dk1-cli/mainnet-complete-pins.json" > "$RUNNER_TEMP/dk1-cli/mainnet-complete-placeholder.json"
           sed 's/{"version"/{"unexpected":"ci-private-marker","version"/' "$RUNNER_TEMP/dk1-cli/valid.json" > "$RUNNER_TEMP/dk1-cli/unknown.json"
           expect_refusal() {
             local name="$1" expected="$2" code=0
@@ -131,8 +138,10 @@ jobs:
               return 1
             fi
           }
-          expect_refusal mainnet 'deploy: regtest required'
+          expect_refusal mainnet 'deploy: explicit supported network/genesis required'
+          expect_refusal mainnet-complete-pins 'deploy: invalid policy'
           expect_refusal placeholder 'deploy: unresolved placeholder'
-          expect_refusal mainnet-placeholder 'deploy: regtest required'
+          expect_refusal mainnet-placeholder 'deploy: explicit supported network/genesis required'
+          expect_refusal mainnet-complete-placeholder 'deploy: unresolved placeholder'
           expect_refusal unknown 'deploy: invalid policy'
           test -z "$(git status --porcelain)"
