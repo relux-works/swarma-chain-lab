@@ -301,7 +301,7 @@ func newLab(t *testing.T) *lab {
 	l.evidence["core_pins"] = map[string]string{"daemon": daemonPin, "cli": cliPin}
 	// The exact task head must be clean on every exercised product and harness
 	// path. It contains the payload change atop landed dependencies, not glue.
-	products := []string{"experiments/m5-rehearsal", "experiments/station-payload", "experiments/relay", "experiments/model-proxy", "deploy", "experiments/rental-booking", "experiments/rental-gateway", "experiments/rental", "experiments/single-use", "experiments/signer-service", "experiments/grant-store", "experiments/station-lifecycle", "experiments/payment-chain", "experiments/sealwatch"}
+	products := []string{"experiments/m5-host-smoke", "experiments/m5-rehearsal", "experiments/station-payload", "experiments/relay", "experiments/model-proxy", "deploy", "experiments/rental-booking", "experiments/rental-gateway", "experiments/rental", "experiments/single-use", "experiments/signer-service", "experiments/grant-store", "experiments/station-lifecycle", "experiments/payment-chain", "experiments/sealwatch"}
 	head, code := l.command("product head", "git", "-C", repo, "rev-parse", "HEAD")
 	if code != 0 || strings.TrimSpace(string(head)) != productBase {
 		t.Fatal("checkout is not requested exact head")

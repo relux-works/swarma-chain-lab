@@ -1,0 +1,215 @@
+package smoke
+
+import (
+	"context"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+)
+
+type conversation struct {
+	peer     *gateway.RelayClient
+	key      *nostr.PrivKey
+	agent    string
+	inbox    chan string
+	fault    chan error
+	done     chan struct{}
+	cancel   context.CancelFunc
+	started  int64
+	lastSend time.Time
+	seen     map[string]bool
+	mu       sync.Mutex
+}
+
+func connect(ctx context.Context, url, agent string) (*conversation, error) {
+	key, e := nostr.GeneratePrivKey()
+	if e != nil {
+		return nil, refuse("RENTER_KEY")
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	c := &conversation{key: key, agent: agent, inbox: make(chan string, 256), fault: make(chan error, 1), done: make(chan struct{}), cancel: cancel, started: time.Now().Unix(), seen: map[string]bool{}}
+	live := make(chan struct{}, 1)
+	c.peer = &gateway.RelayClient{URL: url, Auth: gateway.RelayAuthWhenChallenged, AgentKey: key, OnStatus: func(s gateway.RelayStatus) {
+		if s.Reason == "RELAY_LIVE" {
+			select {
+			case live <- struct{}{}:
+			default:
+			}
+		} else {
+			c.fail("RELAY_LIVENESS")
+		}
+	}}
+	go func() {
+		defer close(c.done)
+		e := c.peer.RunGiftWraps(ctx, key.PubKeyHex(), func(_ context.Context, ev *nostr.Event) {
+			u, e := nostr.UnwrapDM(ev, key)
+			if e != nil || u.SenderHex != agent || u.Rumor == nil || u.Rumor.CreatedAt < c.started || u.Rumor.CreatedAt > time.Now().Add(5*time.Second).Unix() {
+				c.fail("REPLY_AUTH")
+				return
+			}
+			c.mu.Lock()
+			defer c.mu.Unlock()
+			if c.seen[u.Rumor.ID] {
+				return
+			}
+			if len(c.seen) >= 1024 {
+				c.fail("REPLY_LIMIT")
+				return
+			}
+			c.seen[u.Rumor.ID] = true
+			select {
+			case c.inbox <- u.Rumor.Content:
+			default:
+				c.fail("REPLY_OVERFLOW")
+			}
+		})
+		if ctx.Err() == nil && e != nil {
+			c.fail("RELAY_SUBSCRIPTION")
+		}
+	}()
+	timer := time.NewTimer(15 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-live:
+		return c, nil
+	case e := <-c.fault:
+		c.close()
+		return nil, e
+	case <-ctx.Done():
+		c.close()
+		return nil, refuse("CANCELLED")
+	case <-timer.C:
+		c.close()
+		return nil, refuse("RELAY_START")
+	}
+}
+func (c *conversation) fail(s string) {
+	select {
+	case c.fault <- refuse(s):
+	default:
+	}
+	c.cancel()
+}
+func (c *conversation) close() { c.cancel(); c.peer.Close(); <-c.done }
+func (c *conversation) healthy() error {
+	select {
+	case e := <-c.fault:
+		return e
+	default:
+		return nil
+	}
+}
+func pause(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return ctx.Err()
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return nil
+	case <-ctx.Done():
+		return refuse("CANCELLED")
+	}
+}
+func (c *conversation) send(ctx context.Context, text string, work int, pace time.Duration, tags ...[]string) error {
+	if e := c.healthy(); e != nil {
+		return e
+	}
+	if e := pause(ctx, time.Until(c.lastSend.Add(pace))); e != nil {
+		return e
+	}
+	r := &nostr.Event{PubKey: c.key.PubKeyHex(), CreatedAt: time.Now().Unix(), Kind: nostr.KindRumor, Content: text, Tags: append([][]string{{"p", c.agent}}, tags...)}
+	if work > 0 {
+		r.Tags = append(r.Tags, []string{"nonce", "0", strconv.Itoa(work)})
+		for n := 0; ; n++ {
+			if n%1024 == 0 && ctx.Err() != nil {
+				return refuse("CANCELLED")
+			}
+			r.Tags[len(r.Tags)-1][1] = strconv.Itoa(n)
+			r.ID = r.ComputeID()
+			if exchange.CheckWork(r, work) {
+				break
+			}
+		}
+	} else {
+		r.ID = r.ComputeID()
+	}
+	ev, e := nostr.GiftWrap(r, c.key, c.agent, time.Now().Unix())
+	if e != nil {
+		return refuse("WRAP")
+	}
+	bounded, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if e = c.peer.Publish(bounded, ev); e != nil {
+		return refuse("PUBLISH")
+	}
+	c.lastSend = time.Now()
+	return nil
+}
+func (c *conversation) receive(ctx context.Context, timeout time.Duration) (string, error) {
+	if e := c.healthy(); e != nil {
+		return "", e
+	}
+	t := time.NewTimer(timeout)
+	defer t.Stop()
+	select {
+	case s := <-c.inbox:
+		return s, nil
+	case e := <-c.fault:
+		return "", e
+	case <-ctx.Done():
+		return "", refuse("CANCELLED")
+	case <-t.C:
+		return "", refuse("REPLY_TIMEOUT")
+	}
+}
+func (c *conversation) expect(ctx context.Context, want string, timeout time.Duration) error {
+	s, e := c.receive(ctx, timeout)
+	if e != nil {
+		return e
+	}
+	if s != want {
+		return refuse("REPLY_EXACT")
+	}
+	return nil
+}
+func (c *conversation) object(ctx context.Context, prefix string, v any, timeout time.Duration) error {
+	s, e := c.receive(ctx, timeout)
+	if e != nil {
+		return e
+	}
+	if !strings.HasPrefix(s, prefix+"\n") {
+		return refuse("REPLY_KIND")
+	}
+	return Strict([]byte(strings.TrimPrefix(s, prefix+"\n")), v)
+}
+func get(ctx context.Context, origin, path string, v any) error {
+	req, e := http.NewRequestWithContext(ctx, "GET", strings.TrimSuffix(origin, "/")+path, nil)
+	if e != nil {
+		return refuse("HTTP_REQUEST")
+	}
+	tr := &http.Transport{Proxy: nil}
+	defer tr.CloseIdleConnections()
+	client := &http.Client{Transport: tr, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return refuse("HTTP_REDIRECT") }}
+	res, e := client.Do(req)
+	if e != nil {
+		return refuse("HTTP_TRANSPORT")
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return refuse("HTTP_STATUS")
+	}
+	raw, e := io.ReadAll(io.LimitReader(res.Body, (256<<10)+1))
+	if e != nil {
+		return refuse("HTTP_BODY")
+	}
+	return Strict(raw, v)
+}

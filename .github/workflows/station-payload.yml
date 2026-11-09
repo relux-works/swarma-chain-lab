@@ -2,10 +2,10 @@ name: Scripted station payload checks
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths: ['experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
+    paths: ['experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/m5-host-smoke/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
   push:
     branches: [main]
-    paths: ['experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
+    paths: ['experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/m5-host-smoke/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,6 +30,7 @@ jobs:
       - name: Fetch pinned dependencies
         run: |
           go -C experiments/station-payload mod download
+          go -C experiments/m5-host-smoke mod download
           go -C experiments/m5-rehearsal mod download
       - name: Verify, vet, race, controls and build
         env:
@@ -43,6 +44,10 @@ jobs:
           go -C experiments/station-payload test -race -count=1 ./...
           go -C experiments/station-payload run .scripts/guards.go -out .temp/guards
           go -C experiments/station-payload build -o .temp/station-payload ./cmd/station-payload
+          go -C experiments/m5-host-smoke mod verify
+          go -C experiments/m5-host-smoke vet ./...
+          go -C experiments/m5-host-smoke test -race -count=1 ./...
+          go -C experiments/m5-host-smoke build -o .temp/m5-host-smoke ./cmd/m5-host-smoke
           go -C experiments/m5-rehearsal mod verify
           go -C experiments/m5-rehearsal vet ./...
           go -C experiments/m5-rehearsal test -race -count=1 ./...

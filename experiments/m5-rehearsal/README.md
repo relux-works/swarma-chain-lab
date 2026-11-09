@@ -177,3 +177,7 @@ IT2_PARTIAL=1 IT2_SCENARIO=revoke IT1_REGTEST=1 \
  go test -race -run '^TestIndependentPartialLegs$' -count=1 -v -timeout 8m
 # Repeat with expiry and another fresh root.
 ```
+
+## External host runner self-test
+
+`TestHostRunnerComposition` runs the new [external client](../m5-host-smoke/README.md) against this same isolated Darwin composition. Select `IT2_SCENARIO=expiry|revoke`, the same pinned Core/release inputs and a fresh root. The result is explicitly `PASS_SELF_TEST`, never Linux host evidence. The fixture adapter alone owns disposable payment/signing/private probes; the external client receives public bound receipts only. It also restarts its owned gateway/model overlay without resetting the journal and checks durable closed-state accounting.

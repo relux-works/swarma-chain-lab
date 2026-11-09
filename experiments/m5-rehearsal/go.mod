@@ -3,6 +3,7 @@ module github.com/relux-works/swarma-chain-lab/experiments/m5-rehearsal
 go 1.26.0
 
 require (
+	github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke v0.1.0
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcec/v2 v2.3.5
 	github.com/btcsuite/btcd/btcutil v1.1.5
@@ -55,3 +56,5 @@ replace github.com/relux-works/swarma-chain-lab/experiments/signer-service => ..
 replace github.com/relux-works/swarma-chain-lab/experiments/model-proxy => ../model-proxy
 
 replace github.com/relux-works/swarma-chain-lab/experiments/station-payload => ../station-payload
+
+replace github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke => ../m5-host-smoke

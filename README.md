@@ -238,6 +238,8 @@ Run `go -C experiments/relay test -race ./...` and
 
 ### Full composition rehearsal
 
+[m5-host-smoke](experiments/m5-host-smoke/README.md) drives installed services as an external client with explicit operator receipt handoffs. Its fixed host profile and [runbook delta](experiments/m5-host-smoke/HOST_SMOKE.md) preserve M5C gates; Darwin runner self-tests do not qualify Linux hosts. Build/test commands and sealed packet locations are documented in the module README.
+
 [m5-rehearsal](experiments/m5-rehearsal/README.md) passed both full genuine-Core
 NMC expiry and native-SG1 seal-revocation scenarios on product `14e35bbc`, through
 V2 exchange, real relay, manager and scripted model payload. The approved macOS

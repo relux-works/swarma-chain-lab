@@ -55,7 +55,7 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 		t.Fatal("invalid full scenario")
 	}
 	l := newLab(t)
-	if len(dialect) > 1 || (len(dialect) == 1 && dialect[0] != "responses") {
+	if len(dialect) > 1 || (len(dialect) == 1 && dialect[0] != "responses" && dialect[0] != "host-runner") {
 		t.Fatal("invalid rehearsal dialect")
 	}
 	l.responses = len(dialect) == 1
@@ -190,6 +190,10 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	managerProcess := l.startManager(p, managerAddr, payloadHash, filepath.Join(helper.root, "s.sock"))
 	defer l.stop(managerProcess)
 	signerConfig := l.signerConfig(cfg, storeURL, presentations, grant, funding, provider)
+	if len(dialect) == 1 && dialect[0] == "host-runner" {
+		l.hostRunner(scenario, cfg, relayURL, bookingURL, grant.PubKeyHex(), signerConfig, presentations, modelState, gp, p, helper, managerProcess, gatewayProcess, &upstreamCalls)
+		return
+	}
 	conversation := l.conversation(relayURL, renter, agent.PubKeyHex())
 	defer conversation.close()
 	contract := conversation.bookV2(bookingURL, "one")
