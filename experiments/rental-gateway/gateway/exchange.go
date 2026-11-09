@@ -5,9 +5,9 @@ import (
 	"encoding/base64"
 	"errors"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 )
 
 // Non-grantees may enqueue only deterministic exchange work. This function

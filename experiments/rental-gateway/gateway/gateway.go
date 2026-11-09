@@ -17,13 +17,13 @@ import (
 	"sync"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/screen"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/screen"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/stationlink"
 )
 
 // Publisher sends one signed event to the relay set. It is the

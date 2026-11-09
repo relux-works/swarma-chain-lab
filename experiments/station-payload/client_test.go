@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
 )
 
 const modelID = "fixture-model-1"

@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 )
 
 // The caller uses the actual deployable relay CLI. Exchange and booking remain

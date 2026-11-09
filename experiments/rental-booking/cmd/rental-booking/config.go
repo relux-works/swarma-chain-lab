@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
 )
 
 // A flat legacy Config selects v1. V2 is explicit and carries a trusted route

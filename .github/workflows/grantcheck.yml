@@ -1,12 +1,15 @@
 name: Grant checker checks
 
 env:
-  GOWORK: 'off'
+  GOWORK: ${{ github.workspace }}/go.work
   GOTOOLCHAIN: local
 
 on:
   pull_request:
     paths:
+      - 'go.work'
+      - 'go.work.sum'
+      - 'deploy/workspace/**'
       - 'experiments/model-proxy/**'
       - 'experiments/grantcheck/**'
       - 'experiments/rental/**'
@@ -19,6 +22,9 @@ on:
   push:
     branches: [main]
     paths:
+      - 'go.work'
+      - 'go.work.sum'
+      - 'deploy/workspace/**'
       - 'experiments/model-proxy/**'
       - 'experiments/grantcheck/**'
       - 'experiments/rental/**'

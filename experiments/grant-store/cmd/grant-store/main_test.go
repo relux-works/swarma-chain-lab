@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	store "relux.works/swarma-chain-lab/experiments/grant-store"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	store "github.com/relux-works/swarma-chain-lab/experiments/grant-store"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 )
 
 func commandOutput(t *testing.T, cmd *exec.Cmd) ([]byte, error) {

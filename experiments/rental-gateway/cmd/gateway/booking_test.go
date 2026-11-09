@@ -16,9 +16,9 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type bookingTestNode struct{}

@@ -1,5 +1,5 @@
 {
-  "module": "relux.works/swarma-chain-lab/experiments/sealwatch",
+  "module": "github.com/relux-works/swarma-chain-lab/experiments/sealwatch",
   "language_version": "go1.26.0",
   "external_modules": [],
   "canonical_h1": "not applicable: standard library only; no external dependencies acquired or upgraded",

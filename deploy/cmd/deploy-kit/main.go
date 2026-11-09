@@ -11,7 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"relux.works/swarma-chain-lab/deploy"
+	"github.com/relux-works/swarma-chain-lab/deploy"
 )
 
 func main() {

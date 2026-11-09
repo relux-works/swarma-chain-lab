@@ -119,11 +119,11 @@ No wall-clock freshness fallback is used; real r4 helper acceptance is a host ga
 From `experiments/rental-gateway`, use Go1.26.8:
 
 ```sh
-GOTOOLCHAIN=go1.26.8 GOWORK=off go test -race ./...
-GOTOOLCHAIN=go1.26.8 GOWORK=off go vet ./...
-GOTOOLCHAIN=go1.26.8 GOWORK=off go build -trimpath -o .temp/gateway ./cmd/gateway
+GOTOOLCHAIN=go1.26.8 GOWORK= go test -race ./...
+GOTOOLCHAIN=go1.26.8 GOWORK= go vet ./...
+GOTOOLCHAIN=go1.26.8 GOWORK= go build -trimpath -o .temp/gateway ./cmd/gateway
 .temp/gateway validate -config /absolute/path/to/gateway.json
-GOTOOLCHAIN=go1.26.8 GOWORK=off go run .scripts/gw1-guards.go -out .temp/gw1-guards
+GOTOOLCHAIN=go1.26.8 GOWORK= go run .scripts/gw1-guards.go -out .temp/gw1-guards
 ```
 
 The guard runner copies mutable modules into a fresh `.temp/` tree, verifies
@@ -144,7 +144,7 @@ GW1_REGTEST=1 \
 GW1_RUN_ROOT="$PWD/.temp/gw1-core-run" \
 GW1_CORE_DAEMON=/absolute/path/to/namecoind \
 GW1_CORE_CLI=/absolute/path/to/namecoin-cli \
-GOTOOLCHAIN=go1.26.8 GOWORK=off go test -race -count=1 -v -timeout 5m -run '^TestCoreServe$' ./cmd/gateway
+GOTOOLCHAIN=go1.26.8 GOWORK= go test -race -count=1 -v -timeout 5m -run '^TestCoreServe$' ./cmd/gateway
 ```
 
 The run root must not exist and its parent must exist. The helper pins the Core

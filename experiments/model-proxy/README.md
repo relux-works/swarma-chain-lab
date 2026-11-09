@@ -132,11 +132,11 @@ be symlink-free. Only synthetic fixtures are read by automated tests.
 From this module, with Go 1.26.8 and the sibling source modules present:
 
 ```sh
-GOWORK=off go mod verify
-GOWORK=off go vet ./...
-GOWORK=off go test -race -count=1 ./...
-GOWORK=off go build -o .temp/model-proxy ./cmd/model-proxy
-GOWORK=off go run .scripts/guards.go -out .temp/guards
+GOWORK= go mod verify
+GOWORK= go vet ./...
+GOWORK= go test -race -count=1 ./...
+GOWORK= go build -o .temp/model-proxy ./cmd/model-proxy
+GOWORK= go run .scripts/guards.go -out .temp/guards
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o .temp/model-proxy-linux ./cmd/model-proxy
 ```
 

@@ -16,11 +16,11 @@ import (
 	"testing"
 	"time"
 
-	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
 )
 
 func modelConfig(t *testing.T) *modelProxyConfig {

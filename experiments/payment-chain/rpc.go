@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
 	"io"
 	"net"
 	"net/http"
-	"relux.works/swarma-chain-lab/experiments/sealwatch"
 	"strconv"
 	"time"
 )

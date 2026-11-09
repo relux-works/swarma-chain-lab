@@ -22,8 +22,8 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type coreLab struct {

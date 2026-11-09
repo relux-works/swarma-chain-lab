@@ -14,8 +14,8 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func (l *coreLab) oneoff() (OneoffEnvelope, []byte) {

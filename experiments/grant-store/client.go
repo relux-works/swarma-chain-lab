@@ -10,9 +10,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"io"
 	"net/http"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"strings"
 	"time"
 )

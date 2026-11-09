@@ -15,12 +15,12 @@ import (
 	"syscall"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 var errConfig = errors.New("CONFIG_REFUSED")

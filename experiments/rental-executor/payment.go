@@ -14,8 +14,8 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"relux.works/swarma-chain-lab/experiments/sealwatch"
-	"relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type Point struct {

@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	"relux.works/swarma-chain-lab/experiments/rental"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 const MaxPresentationBytes = 16384

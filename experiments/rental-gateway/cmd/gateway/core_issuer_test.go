@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"os"
 	"path/filepath"
-	"relux.works/swarma-chain-lab/experiments/rental"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
 	"time"
 )
 

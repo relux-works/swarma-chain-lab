@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
 )
 
 // No UID or spending defaults: presence selects the v2 bootstrap profile.

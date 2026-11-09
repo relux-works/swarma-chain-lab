@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 type delayedNode struct {

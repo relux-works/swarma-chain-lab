@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // RPCBroadcast has one write method and a distinct least-privilege principal.

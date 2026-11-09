@@ -16,11 +16,11 @@ import (
 	"testing"
 	"time"
 
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/presentationdir"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/presentationdir"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // The exact built booking CLI serves real HTTP and watches an isolated genuine

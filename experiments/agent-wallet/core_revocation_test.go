@@ -10,7 +10,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	rental "relux.works/swarma-chain-lab/experiments/rental"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
 )
 
 func (l *coreLab) revoke(raw []byte) {

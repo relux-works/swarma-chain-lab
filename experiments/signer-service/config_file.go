@@ -3,12 +3,12 @@ package signerservice
 import (
 	"context"
 	"encoding/json"
-	paymentchain "relux.works/swarma-chain-lab/experiments/payment-chain"
-	rental "relux.works/swarma-chain-lab/experiments/rental"
+	paymentchain "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type FileConfig struct {

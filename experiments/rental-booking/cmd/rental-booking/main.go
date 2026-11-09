@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	singleuse "relux.works/swarma-chain-lab/experiments/single-use"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func run() error {

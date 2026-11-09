@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
-	payload "relux.works/swarma-chain-lab/experiments/station-payload"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/stationlink"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
+	payload "github.com/relux-works/swarma-chain-lab/experiments/station-payload"
 )
 
 // The child executes the actual CLI main and captures its public output. This

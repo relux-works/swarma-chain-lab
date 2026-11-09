@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/screen"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/testrelay"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/screen"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/stationlink"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/testrelay"
 )
 
 // TestStationStubProcess is not a test in the parent run: the

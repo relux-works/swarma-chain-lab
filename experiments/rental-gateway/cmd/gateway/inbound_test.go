@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/testrelay"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/testrelay"
 )
 
 // Four blocked startup handlers plus a full bounded queue cannot occupy the

@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/testrelay"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/testrelay"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // The actual serve entrypoint destroys an interrupted local-test launch before

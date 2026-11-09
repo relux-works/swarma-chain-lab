@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
 	"net/url"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
 	"strconv"
 	"time"
 )

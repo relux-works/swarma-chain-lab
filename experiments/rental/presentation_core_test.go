@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func (l *coreLab) detachedPoolMany(count int) []Point {

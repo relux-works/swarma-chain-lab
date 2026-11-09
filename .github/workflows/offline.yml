@@ -1,3 +1,6 @@
+env:
+  GOWORK: ${{ github.workspace }}/go.work
+
 name: Offline experiment checks
 
 on:

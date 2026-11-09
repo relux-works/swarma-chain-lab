@@ -2,9 +2,9 @@ package relay
 
 import (
 	"encoding/json"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"os"
 	"path/filepath"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"testing"
 	"time"
 )

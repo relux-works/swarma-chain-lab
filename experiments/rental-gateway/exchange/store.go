@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 type seen struct {

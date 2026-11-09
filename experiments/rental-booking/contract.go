@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	singleuse "relux.works/swarma-chain-lab/experiments/single-use"
+	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 var actions = []string{"deliver", "pay", "publish", "repository.push", "secret.release"}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"reflect"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
 	"testing"
 )
 

@@ -10,8 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
-	payload "relux.works/swarma-chain-lab/experiments/station-payload"
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	payload "github.com/relux-works/swarma-chain-lab/experiments/station-payload"
 )
 
 func run(ctx context.Context, args []string) error {

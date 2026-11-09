@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // Detached refill/revoke conserve value with a bounded legacy fee and only

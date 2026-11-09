@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	wallet "relux.works/swarma-chain-lab/experiments/agent-wallet"
+	wallet "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet"
 )
 
 func main()      { os.Exit(run(os.Args[1:])) }

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
 )
 
 func coalesceGateway(t *testing.T) *Gateway {

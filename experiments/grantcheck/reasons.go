@@ -1,6 +1,6 @@
 package grantcheck
 
-import "relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
+import "github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
 
 // Exact mappings only. The wrapper never infers a lifecycle transition from
 // error text, and unknown future reasons remain a non-retryable refusal.

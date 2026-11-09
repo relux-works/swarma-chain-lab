@@ -3,7 +3,7 @@ package grantstore
 import (
 	"context"
 	"errors"
-	"relux.works/swarma-chain-lab/experiments/rental"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 )
 
 // PutGrant stores exact canonical signed-grant bytes. Landlord and agent are

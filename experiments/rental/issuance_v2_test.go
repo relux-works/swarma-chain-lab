@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	paymentchain "relux.works/swarma-chain-lab/experiments/payment-chain"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	paymentchain "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func paymentV2Fixture(t *testing.T, coin string) (IssuerPolicyV2, IssuanceRequestV2, PackageV2, Event) {

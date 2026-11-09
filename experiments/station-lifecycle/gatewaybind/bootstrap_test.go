@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
 // Payload decoders reject version/field/schema aliases before HMAC use; the

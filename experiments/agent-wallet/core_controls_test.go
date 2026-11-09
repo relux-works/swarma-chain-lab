@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	rental "relux.works/swarma-chain-lab/experiments/rental"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
 )
 
 func modifyGrant(t *testing.T, raw []byte, f func(*rental.Grant)) []byte {

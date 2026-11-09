@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
-	singleuse "relux.works/swarma-chain-lab/experiments/single-use"
+	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type staticNode struct{ fail bool }

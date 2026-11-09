@@ -3,7 +3,7 @@ package slotd
 import (
 	"context"
 	"encoding/base64"
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 	"time"
 )
 

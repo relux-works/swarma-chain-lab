@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/stationlink"
 )
 
 // runStationStub is the scripted agent for the local-test driver. It

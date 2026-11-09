@@ -12,10 +12,10 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type paymentRelay struct{}

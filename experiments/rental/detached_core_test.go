@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"testing"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // Public deterministic laboratory WIF only; never production custody material.

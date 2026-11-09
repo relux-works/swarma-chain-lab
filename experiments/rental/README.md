@@ -179,7 +179,7 @@ Use separate `payment-observer` and `payment-issuer` RPC principals/secrets.
 `budget_sat` remains NMC execution authority. The legacy `IssueGrant` API and
 completed bare-plan replay remain available. See
 [the v2 wire contract](../rental-booking/PAYMENT-V2.md). Run
-`GOWORK=off go test -race -count=1 ./...` for independent consumer and legacy
+`GOWORK= go test -race -count=1 ./...` for independent consumer and legacy
 regression tests. Frozen public input vectors are in `testdata/payment-v2/`.
 
 
@@ -188,7 +188,7 @@ issuer admission on pinned BTC/LTC/NMC regtest payment nodes (txindex=0,
 prune=550), plus a distinct Namecoin identity/funding node. Enable P1_REGTEST=1
 and M1_REGTEST=1; supply fresh absolute P1_RUN_ROOT and M1_RUN_ROOT, explicit
 P1_{BTC,LTC,NMC}_{DAEMON,CLI} and M1_CORE_{DAEMON,CLI} binary paths. Run
-`GOWORK=off go test -race -count=1 -run '^TestCorePaymentLifecycle$' -v .`.
+`GOWORK= go test -race -count=1 -run '^TestCorePaymentLifecycle$' -v .`.
 Each run preserves private credentials/wallets/logs separately from public
 control/result/process metadata under its configured roots. Never publish the
 private subdirectories. Routine CI skips this opt-in genuine-node lane.

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
 )
 
 type remoteRecoveryDriver struct {

@@ -23,12 +23,12 @@ import (
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/gorilla/websocket"
-	store "relux.works/swarma-chain-lab/experiments/grant-store"
-	"relux.works/swarma-chain-lab/experiments/rental"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	signer "relux.works/swarma-chain-lab/experiments/signer-service"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	store "github.com/relux-works/swarma-chain-lab/experiments/grant-store"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	signer "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func (l *lab) template(service string, v any) {

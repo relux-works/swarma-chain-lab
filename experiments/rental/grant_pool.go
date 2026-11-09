@@ -1,6 +1,6 @@
 package rental
 
-import su "relux.works/swarma-chain-lab/experiments/single-use"
+import su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 
 // V3 refill uses the separate funding key; only explicit pool-seal outputs go
 // to the grant key. Revoke deliberately spends one selected seal. Both return

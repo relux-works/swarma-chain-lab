@@ -2,15 +2,15 @@ name: Rental relay checks
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths: ['experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
+    paths: ['go.work', 'go.work.sum', 'deploy/workspace/**', 'experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
   push:
     branches: [main]
-    paths: ['experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
+    paths: ['go.work', 'go.work.sum', 'deploy/workspace/**', 'experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
   workflow_dispatch:
 permissions:
   contents: read
 env:
-  GOWORK: 'off'
+  GOWORK: ${{ github.workspace }}/go.work
 jobs:
   relay:
     strategy:
@@ -110,7 +110,7 @@ jobs:
             if [ "$profile" = slotdfake ]; then tags=slotdfake; fi
             go -C experiments/relay build -tags="$tags" -o "$GITHUB_WORKSPACE/.temp/darwin/relay-$profile" ./cmd/swarma-relay
             # Keep the fake constructor visible to nm; other packages retain normal optimization.
-            go -C experiments/station-lifecycle build -tags="$tags" -gcflags=relux.works/swarma-chain-lab/experiments/station-lifecycle/slotd=-l -o "$GITHUB_WORKSPACE/.temp/darwin/manager-$profile" ./cmd/station-manager
+            go -C experiments/station-lifecycle build -tags="$tags" -gcflags=github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/slotd=-l -o "$GITHUB_WORKSPACE/.temp/darwin/manager-$profile" ./cmd/station-manager
             go tool nm "$GITHUB_WORKSPACE/.temp/darwin/manager-$profile" > "$GITHUB_WORKSPACE/.temp/darwin/manager-$profile.nm"
           done
           # Default rejects the fake constructor; tagged is the positive detector control.

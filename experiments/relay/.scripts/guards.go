@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/relux-works/swarma-chain-lab/deploy/workspace"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -63,7 +64,7 @@ func run() error {
 		return e
 	}
 	mod, e := os.ReadFile("go.mod")
-	if e != nil || !bytes.HasPrefix(mod, []byte("module relux.works/swarma-chain-lab/experiments/relay\n")) {
+	if e != nil || !bytes.HasPrefix(mod, []byte("module github.com/relux-works/swarma-chain-lab/experiments/relay\n")) {
 		return errors.New("run from relay")
 	}
 	evidence, e := filepath.Abs(*out)
@@ -96,6 +97,10 @@ func run() error {
 			return e
 		}
 	}
+	fixtureWork, e := workspace.Isolate(root, work)
+	if e != nil {
+		return e
+	}
 	runTest := func(p plant, label string) ([]byte, int, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
@@ -105,7 +110,7 @@ func run() error {
 		}
 		cmd := exec.CommandContext(ctx, "go", "test", "-count=1", "-v", "-run", "^"+p.Test+"$", pkg)
 		cmd.Dir = filepath.Join(work, p.Module)
-		cmd.Env = append(os.Environ(), "GOWORK=off", "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "GOFLAGS=-mod=readonly")
+		cmd.Env = append(os.Environ(), "GOWORK="+fixtureWork, "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "GOFLAGS=-mod=readonly")
 		var b bytes.Buffer
 		cmd.Stdout = &b
 		cmd.Stderr = &b

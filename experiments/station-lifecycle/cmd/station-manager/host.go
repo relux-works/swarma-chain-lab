@@ -3,7 +3,7 @@
 package main
 
 import (
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/slotd"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/slotd"
 	"time"
 )
 

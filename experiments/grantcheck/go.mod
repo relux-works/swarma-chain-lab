@@ -1,13 +1,13 @@
-module relux.works/swarma-chain-lab/experiments/grantcheck
+module github.com/relux-works/swarma-chain-lab/experiments/grantcheck
 
 go 1.26.0
 
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.5
-	relux.works/swarma-chain-lab/experiments/rental v0.0.0
-	relux.works/swarma-chain-lab/experiments/rental-gateway v0.0.0
-	relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind v0.0.0
-	relux.works/swarma-chain-lab/experiments/single-use v0.0.0
+	github.com/relux-works/swarma-chain-lab/experiments/rental v0.1.0
+	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.1.0
+	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind v0.1.0
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.1.0
 )
 
 require (
@@ -16,28 +16,8 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.1.0 // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.1.0 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	relux.works/swarma-chain-lab/experiments/payment-chain v0.0.0 // indirect
-	relux.works/swarma-chain-lab/experiments/sealwatch v0.0.0 // indirect
 )
-
-replace relux.works/swarma-chain-lab/experiments/rental => ../rental
-
-replace relux.works/swarma-chain-lab/experiments/rental-gateway => ../rental-gateway
-
-replace relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind => ../rental-gateway/kernelbind
-
-replace relux.works/swarma-chain-lab/experiments/single-use => ../single-use
-
-replace relux.works/swarma-chain-lab/experiments/sealwatch => ../sealwatch
-
-replace relux.works/swarma-chain-lab/experiments/rental-booking => ../rental-booking
-
-replace relux.works/swarma-chain-lab/experiments/payment-chain => ../payment-chain
-
-replace relux.works/swarma-chain-lab/experiments/station-lifecycle => ../station-lifecycle
-
-replace relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind => ../station-lifecycle/gatewaybind
-
-replace relux.works/swarma-chain-lab/experiments/model-proxy => ../model-proxy

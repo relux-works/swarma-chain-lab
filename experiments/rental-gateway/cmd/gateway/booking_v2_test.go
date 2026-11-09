@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind/bookingbind"
 	"net/http"
 	"net/http/httptest"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind/bookingbind"
 	"strings"
 	"testing"
 	"time"
@@ -15,9 +15,9 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 )
 
 type bookingV2Node struct{ coin string }

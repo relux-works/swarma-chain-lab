@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
 )
 
 // TestTrackBAdminWire proves Mint/Revoke hit POST /mint and /revoke

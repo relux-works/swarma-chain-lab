@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/sealwatch"
+	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
 )
 
 const RegtestGenesis = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"

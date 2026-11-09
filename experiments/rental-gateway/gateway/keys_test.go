@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 )
 
 // TestLoadAgentKeyModes proves the agent key loads only from a

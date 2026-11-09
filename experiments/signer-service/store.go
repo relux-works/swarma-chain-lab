@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"time"
 
-	gs "relux.works/swarma-chain-lab/experiments/grant-store"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	gs "github.com/relux-works/swarma-chain-lab/experiments/grant-store"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 )
 
 // S1Store fixes its URL and readers at construction. This regtest unit accepts

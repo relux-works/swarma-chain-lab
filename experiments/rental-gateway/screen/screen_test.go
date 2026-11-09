@@ -3,7 +3,7 @@ package screen_test
 import (
 	"testing"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/screen"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/screen"
 )
 
 // TestParseAnswer proves only exact ALLOW / REFUSE <reason> parse;

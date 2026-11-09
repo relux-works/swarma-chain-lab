@@ -1,6 +1,6 @@
 package rental
 
-import su "relux.works/swarma-chain-lab/experiments/single-use"
+import su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 
 func makeDetachedPoolPlan(p Policy, s PlanSpec) (Plan, error) {
 	var plan Plan

@@ -7,7 +7,7 @@ bookingbind and signed-wire interpretation out of the exchange itself.
 
 ## Coin and quote
 
-Import `relux.works/swarma-chain-lab/experiments/payment-chain` as paymentchain.
+Import `github.com/relux-works/swarma-chain-lab/experiments/payment-chain` as paymentchain.
 
 ```go
 type Coin string
@@ -58,7 +58,7 @@ NMC execution budget and is never converted to the chosen payment currency.
 
 ## Opaque contract handle
 
-Import `relux.works/swarma-chain-lab/experiments/rental-booking` as booking.
+Import `github.com/relux-works/swarma-chain-lab/experiments/rental-booking` as booking.
 
 ```go
 type ContractHandleV2 struct {
@@ -112,10 +112,10 @@ exchange or pretend that v2 wire types alone provide booking operations.
 
 ## Validation
 
-`GOWORK=off go test -race -count=1 -run '^(TestCoinBoundary|TestProfiles)$' .`
+`GOWORK= go test -race -count=1 -run '^(TestCoinBoundary|TestProfiles)$' .`
 from payment-chain checks the closed coin vocabulary and quote/profile controls.
 From rental-booking, run
-`GOWORK=off go test -race -count=1 -run '^(TestContractHandleV2|TestFrozenWireV2|TestFrozenPublicFixture|TestWireV2Binding|TestWireV2Eligibility)$' .`.
+`GOWORK= go test -race -count=1 -run '^(TestContractHandleV2|TestFrozenWireV2|TestFrozenPublicFixture|TestWireV2Binding|TestWireV2Eligibility)$' .`.
 The handle controls reject mismatched hashes/IDs, noncanonical bytes, oversized
 input and legacy versions beside valid per-coin controls. Frozen v1/v2 signed
 vectors remain unchanged. These are static API tests, not end-to-end bookings.

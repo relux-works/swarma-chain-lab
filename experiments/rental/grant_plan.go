@@ -2,8 +2,8 @@ package rental
 
 import (
 	"encoding/hex"
-	"relux.works/swarma-chain-lab/experiments/rental/oplocator"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental/oplocator"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func (p Policy) validateGrantFunding() error {

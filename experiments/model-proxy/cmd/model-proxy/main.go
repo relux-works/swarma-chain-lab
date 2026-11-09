@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
 )
 
 func main() {

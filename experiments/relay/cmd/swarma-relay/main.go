@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	relay "relux.works/swarma-chain-lab/experiments/relay"
+	relay "github.com/relux-works/swarma-chain-lab/experiments/relay"
 )
 
 func run(ctx context.Context, args []string) error {

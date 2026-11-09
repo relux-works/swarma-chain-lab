@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // These wire types implement the agreed M3 FORMAT-PROPOSAL v1. They contain

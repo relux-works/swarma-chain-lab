@@ -8,7 +8,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"relux.works/swarma-chain-lab/experiments/rental"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"testing"
 )
 

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 type Config struct {

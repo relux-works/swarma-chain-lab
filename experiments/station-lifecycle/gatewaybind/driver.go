@@ -13,11 +13,11 @@ import (
 	"net/http"
 	"time"
 
-	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
 // ModelRegistrar is optional public-host local administration. The private

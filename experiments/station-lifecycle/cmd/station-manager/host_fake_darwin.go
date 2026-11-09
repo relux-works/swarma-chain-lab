@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/slotd"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/slotd"
 )
 
 // The fixture explicitly owns its clock: SOCKET.clock holds a canonical

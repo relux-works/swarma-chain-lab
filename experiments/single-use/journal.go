@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 type journalRecord struct {

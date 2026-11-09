@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // The export projects only the requested slot, exposes complete delivery links,

@@ -11,9 +11,9 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	sw "relux.works/swarma-chain-lab/experiments/sealwatch"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	sw "github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type plan struct {

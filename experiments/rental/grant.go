@@ -3,7 +3,7 @@ package rental
 import (
 	"encoding/json"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // GrantConsent retains the renter's actual NIP-01 signed event. Its signature

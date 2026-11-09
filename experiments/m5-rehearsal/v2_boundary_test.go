@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	signer "relux.works/swarma-chain-lab/experiments/signer-service"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	signer "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // The actual booking CLI selects V2 without adapting any existing v1 contract.

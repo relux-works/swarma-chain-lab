@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
 )
 
 func testSlot(id, renter string) *journal.Slot {

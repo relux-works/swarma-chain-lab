@@ -6,10 +6,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
 	"strings"
 	"testing"
 )

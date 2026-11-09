@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/x509"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/stationlink"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
 // Run preserves the existing scripted echo/end/extend behavior for v1 and sends

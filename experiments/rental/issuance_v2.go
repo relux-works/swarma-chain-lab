@@ -3,8 +3,8 @@ package rental
 import (
 	"bytes"
 	"context"
-	paymentchain "relux.works/swarma-chain-lab/experiments/payment-chain"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	paymentchain "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"slices"
 	"time"
 )

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // This table uses actual confirmed Core name/seal fixtures; authentication and

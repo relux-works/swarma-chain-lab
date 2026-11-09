@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 	"golang.org/x/sys/unix"
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
 // SystemBootClock is host-wide, includes suspend, and has no wall-clock fallback.

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"os"
-	singleuse "relux.works/swarma-chain-lab/experiments/single-use"
 )
 
 func main() { os.Exit(run()) }

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 type nodeFunc func(context.Context, string, ...any) (json.RawMessage, error)

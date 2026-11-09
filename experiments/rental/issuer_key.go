@@ -9,7 +9,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 // readGrantKey reads exactly 32 binary scalar bytes from an owner-only file.

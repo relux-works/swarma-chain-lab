@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
 	"strings"
 	"testing"
 )

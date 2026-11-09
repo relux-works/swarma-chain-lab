@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"relux.works/swarma-chain-lab/deploy"
+	"github.com/relux-works/swarma-chain-lab/deploy"
 )
 
 // The real CLI dispatch requires the new model native file, accepts a complete

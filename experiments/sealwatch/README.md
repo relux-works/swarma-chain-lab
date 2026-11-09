@@ -46,7 +46,7 @@ verdict := observer.Watch(ctx, binding, sealwatch.DefaultLimits())
 ```
 
 The module import path is
-`relux.works/swarma-chain-lab/experiments/sealwatch`; integration may use a local
+`github.com/relux-works/swarma-chain-lab/experiments/sealwatch`; integration may use a local
 Go module replacement to this directory. There are no downloaded dependencies
 or new wire versions. The thin prototype retains the existing KeyVault owner,
 fixed target and actions; no repository operation is executed.

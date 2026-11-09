@@ -110,8 +110,8 @@ func clean(ctx context.Context, repo string) error {
 	}
 	return nil
 }
-func goEnv(cache string) []string {
-	e := append(os.Environ(), "GOENV=off", "GOTOOLCHAIN=local", "GOWORK=off", "GOFLAGS=", "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0", "GOEXPERIMENT=", "GOAMD64=v1", "GOPROXY=off", "GOSUMDB=off")
+func goEnv(root, cache string) []string {
+	e := append(os.Environ(), "GOENV=off", "GOTOOLCHAIN=local", "GOWORK="+filepath.Join(root, "go.work"), "GOFLAGS=", "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0", "GOEXPERIMENT=", "GOAMD64=v1", "GOPROXY=off", "GOSUMDB=off")
 	if cache != "" {
 		e = append(e, "GOCACHE="+cache)
 	}
@@ -141,7 +141,7 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 	if e != nil || strings.TrimSpace(string(head)) != in.Commit {
 		return empty, ErrSource
 	}
-	version, e := command(ctx, in.Repo, goEnv(""), "go", "env", "GOVERSION")
+	version, e := command(ctx, in.Repo, goEnv(in.Repo, ""), "go", "env", "GOVERSION")
 	if e != nil || strings.TrimSpace(string(version)) != GoVersion {
 		return empty, ErrToolchain
 	}
@@ -235,10 +235,10 @@ func buildPair(ctx context.Context, work, first, second string, a Artifact, buil
 
 func buildGo(ctx context.Context, root, cache, out string, a Artifact) ([]byte, error) {
 	dir := filepath.Join(root, filepath.FromSlash(a.Module))
-	if _, e := command(ctx, dir, goEnv(cache), "go", "mod", "verify"); e != nil {
+	if _, e := command(ctx, dir, goEnv(root, cache), "go", "mod", "verify"); e != nil {
 		return nil, ErrBuild
 	}
-	if _, e := command(ctx, dir, goEnv(cache), "go", "build", "-trimpath", "-buildvcs=false", "-mod=readonly", "-o", out, a.Package); e != nil {
+	if _, e := command(ctx, dir, goEnv(root, cache), "go", "build", "-trimpath", "-buildvcs=false", "-mod=readonly", "-o", out, a.Package); e != nil {
 		return nil, ErrBuild
 	}
 	b, e := os.ReadFile(out)

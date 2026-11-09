@@ -17,17 +17,17 @@ import (
 	"syscall"
 	"time"
 
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind/bookingbind"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/screen"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind/bookingbind"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/screen"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func configArgs(args []string, validate bool) (string, bool, error) {

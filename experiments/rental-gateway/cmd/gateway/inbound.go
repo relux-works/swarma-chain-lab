@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 )
 
 // A fixed worker pool keeps station startup and kernel calls off the relay's

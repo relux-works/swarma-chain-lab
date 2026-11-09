@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"github.com/relux-works/swarma-chain-lab/deploy/workspace"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -93,6 +94,10 @@ func TestGuardPlants(t *testing.T) {
 			if e = os.WriteFile(file, []byte(mutated), 0600); e != nil {
 				t.Fatal(e)
 			}
+			fixtureWork, e := workspace.Isolate(cwd, dir)
+			if e != nil {
+				t.Fatal(e)
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
 			selector := "^" + strings.ReplaceAll(p.Selector, "/", "$/^") + "$"
@@ -103,7 +108,7 @@ func TestGuardPlants(t *testing.T) {
 					cmd.Env = append(cmd.Env, v)
 				}
 			}
-			cmd.Env = append(cmd.Env, "GOWORK=off")
+			cmd.Env = append(cmd.Env, "GOWORK="+fixtureWork)
 			if p.Core {
 				cmd.Env = append(cmd.Env, "M4A_REGTEST=1", "M4A_RUN_ROOT="+filepath.Join(dir, "core"), "M4A_CORE_CLI="+os.Getenv("M4A_CORE_CLI"), "M4A_CORE_DAEMON="+os.Getenv("M4A_CORE_DAEMON"))
 			}

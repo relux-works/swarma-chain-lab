@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"sync"
 
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	"relux.works/swarma-chain-lab/experiments/rental/oplocator"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental/oplocator"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 type Inventory struct {

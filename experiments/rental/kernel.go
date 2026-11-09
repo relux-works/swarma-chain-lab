@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	sw "relux.works/swarma-chain-lab/experiments/sealwatch"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	sw "github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 type Policy struct {

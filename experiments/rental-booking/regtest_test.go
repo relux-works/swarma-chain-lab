@@ -22,7 +22,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
-	singleuse "relux.works/swarma-chain-lab/experiments/single-use"
+	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type coreLab struct {

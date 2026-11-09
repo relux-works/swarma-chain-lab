@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // Non-regtest policies fail before node access or reservations. The original

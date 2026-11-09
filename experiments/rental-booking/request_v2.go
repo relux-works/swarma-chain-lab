@@ -1,7 +1,7 @@
 package booking
 
 import (
-	paymentchain "relux.works/swarma-chain-lab/experiments/payment-chain"
+	paymentchain "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	"slices"
 )
 

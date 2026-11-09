@@ -17,7 +17,7 @@ import (
 	"syscall"
 	"time"
 
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
 type config struct {

@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
 )
 
 // Both launch intent and promotion survive reopen through the existing durable

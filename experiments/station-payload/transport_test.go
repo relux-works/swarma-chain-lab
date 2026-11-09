@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/stationlink"
 )
 
 // The station uses real TLS and the actual stationlink HMAC protocol; the

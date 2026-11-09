@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"time"
 
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func (x *Engine) Process(ctx context.Context, raw []byte, source SourceClass, now int64) (Result, error) {

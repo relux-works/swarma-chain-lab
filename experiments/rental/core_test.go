@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type coreLab struct {

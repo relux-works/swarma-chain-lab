@@ -2,8 +2,8 @@ package rental
 
 import (
 	"context"
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // IssueGrantWithNodes keeps Namecoin identity, seals and funding on the explicit

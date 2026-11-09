@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"time"
 
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
 const MaxWire = 8192

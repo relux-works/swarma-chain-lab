@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // The client admits its fixed method set on the pinned wallet path and rejects

@@ -2,14 +2,14 @@ package rehearsal
 
 import (
 	"encoding/json"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	signer "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"os"
 	"path/filepath"
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
-	"relux.works/swarma-chain-lab/experiments/rental"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	signer "relux.works/swarma-chain-lab/experiments/signer-service"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
 	"strings"
 	"time"
 )

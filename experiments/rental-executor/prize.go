@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"github.com/btcsuite/btcd/wire"
-	"relux.works/swarma-chain-lab/experiments/sealwatch"
-	"relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"slices"
 )
 

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
 // V1 stays byte-identical; v2 is closed and requires the exact private credential,

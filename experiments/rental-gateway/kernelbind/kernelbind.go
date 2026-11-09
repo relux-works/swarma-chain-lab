@@ -1,5 +1,5 @@
 // Package kernelbind binds the landed K1 v3 grant kernel
-// (relux.works/swarma-chain-lab/experiments/rental, LIP-0003) to
+// (github.com/relux-works/swarma-chain-lab/experiments/rental, LIP-0003) to
 // the gateway's kernel boundary:
 //
 //	rental.Check(ctx, node, policy, envelopeBytes, agentName,
@@ -18,9 +18,9 @@ import (
 	"context"
 	"fmt"
 
-	"relux.works/swarma-chain-lab/experiments/rental"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
-	singleuse "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
+	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // Adapter binds the real v3 kernel. It implements both

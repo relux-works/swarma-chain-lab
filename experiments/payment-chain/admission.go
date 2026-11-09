@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/wire"
-	"relux.works/swarma-chain-lab/experiments/sealwatch"
+	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
 )
 
 // Admission is an own-node observation, never a spending or issuance authority.

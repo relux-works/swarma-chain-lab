@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	deploy "github.com/relux-works/swarma-chain-lab/deploy"
 	"io"
 	"os"
-	deploy "relux.works/swarma-chain-lab/deploy"
 )
 
 func checkCoins(args []string) error {

@@ -1,3 +1,3 @@
-module relux.works/swarma-chain-lab/deploy
+module github.com/relux-works/swarma-chain-lab/deploy
 
 go 1.26.0

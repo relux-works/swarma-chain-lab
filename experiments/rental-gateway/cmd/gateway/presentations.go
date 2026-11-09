@@ -1,6 +1,6 @@
 package main
 
-import "relux.works/swarma-chain-lab/experiments/rental-gateway/presentationdir"
+import "github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/presentationdir"
 
 // Keep the command and integration tests on the same read-only source.
 type presentationDirectory = presentationdir.Directory

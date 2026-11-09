@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 // Genuine pending malformed updates refuse without closure. Dropping each

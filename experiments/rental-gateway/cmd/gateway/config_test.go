@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
 	"os"
 	"path/filepath"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
 	"strings"
 	"testing"
 
-	"relux.works/swarma-chain-lab/experiments/rental"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func testRoot(t *testing.T) string {

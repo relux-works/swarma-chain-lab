@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 const daemonPin = "86b85483da23c83f7de134a5bf28bad8e3c6a8dbfe2af71a5e889a7b1547787f"
@@ -95,7 +95,7 @@ func (l *lab) command(role, path string, args ...string) ([]byte, int) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	c := exec.CommandContext(ctx, path, args...)
-	c.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOWORK=off", "GOPROXY=off", "GOSUMDB=off", "GOFLAGS=-mod=readonly")
+	c.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOWORK="+filepath.Join(l.repo, "go.work"), "GOPROXY=off", "GOSUMDB=off", "GOFLAGS=-mod=readonly")
 	var out bytes.Buffer
 	c.Stdout = &out
 	c.Stderr = &out

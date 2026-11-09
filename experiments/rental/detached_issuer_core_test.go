@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func (l *coreLab) detachedIssueInputs(p Policy, label string, confirmed bool) (IssuerPolicy, []byte, []byte, string) {

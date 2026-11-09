@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind/bookingbind"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind/bookingbind"
 )
 
 var errBooking = errors.New("BOOKING_UNAVAILABLE")

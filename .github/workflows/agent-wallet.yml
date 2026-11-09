@@ -1,7 +1,13 @@
+env:
+  GOWORK: ${{ github.workspace }}/go.work
+
 name: Agent wallet checks
 on:
   pull_request:
     paths:
+      - 'go.work'
+      - 'go.work.sum'
+      - 'deploy/workspace/**'
       - 'experiments/agent-wallet/**'
       - 'experiments/rental/**'
       - 'experiments/rental-booking/**'
@@ -12,6 +18,9 @@ on:
   push:
     branches: [main]
     paths:
+      - 'go.work'
+      - 'go.work.sum'
+      - 'deploy/workspace/**'
       - 'experiments/agent-wallet/**'
       - 'experiments/rental/**'
       - 'experiments/rental-booking/**'

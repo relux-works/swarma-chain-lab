@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/wire"
-	"relux.works/swarma-chain-lab/experiments/rental"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type countedBroadcast struct {

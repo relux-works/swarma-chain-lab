@@ -11,16 +11,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"relux.works/swarma-chain-lab/experiments/rental"
 	"strings"
 	"testing"
 	"time"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type coreLab struct {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 )
 
 // LoadAgentKey loads the stable agent private key from a file that

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
 // Malformed/missing r4 fields never dial; canonical neighbors use exactly the

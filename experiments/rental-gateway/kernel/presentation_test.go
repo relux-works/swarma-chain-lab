@@ -3,7 +3,7 @@ package kernel_test
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"strings"
 	"testing"
 )

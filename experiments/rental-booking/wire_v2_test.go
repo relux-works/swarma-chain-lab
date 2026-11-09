@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	paymentchain "relux.works/swarma-chain-lab/experiments/payment-chain"
+	paymentchain "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 )
 
 func contractV2Fixture(t *testing.T, coin string) (*fixture, ContractV2) {

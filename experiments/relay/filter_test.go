@@ -1,7 +1,7 @@
 package relay
 
 import (
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"strings"
 	"testing"
 )

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/presentationdir"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/presentationdir"
 )
 
 func publicDir(t *testing.T) string {

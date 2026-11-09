@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 // A real name_firstupdate can introduce the exact agent value. A subsequent

@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"io"
 	"net"
 	"net/http"
-	"relux.works/swarma-chain-lab/experiments/sealwatch"
-	"relux.works/swarma-chain-lab/experiments/single-use"
 	"strconv"
 	"time"
 )

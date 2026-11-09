@@ -7,8 +7,8 @@ import (
 	"errors"
 	"strings"
 
-	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
 // PayloadBootstrap is private station input, not a manager credential or host

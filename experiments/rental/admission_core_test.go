@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 func (l *coreLab) payment(amount int64, script string, mine bool) (string, su.Transaction) {

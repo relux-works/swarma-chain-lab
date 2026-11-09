@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental"
-	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/slotd"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/slotd"
 )
 
 type helperRecord struct {

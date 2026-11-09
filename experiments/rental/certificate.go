@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 const MaxMoney int64 = 21000000 * 100000000

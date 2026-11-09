@@ -1,6 +1,6 @@
 package booking
 
-import paymentchain "relux.works/swarma-chain-lab/experiments/payment-chain"
+import paymentchain "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 
 // ContractV2 binds payment currency independently of the NMC execution budget.
 type ContractV2 struct {

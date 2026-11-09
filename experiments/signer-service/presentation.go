@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"syscall"
 
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"golang.org/x/sys/unix"
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
 )
 
 func presentationRoot(path string) error {

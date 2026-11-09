@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental"
-	"relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type Slot struct {

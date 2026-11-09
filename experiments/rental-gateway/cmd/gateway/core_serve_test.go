@@ -5,11 +5,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
 	"strconv"
 	"strings"
 	"testing"
@@ -18,14 +18,14 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
-	"relux.works/swarma-chain-lab/experiments/rental"
-	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/testrelay"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/testrelay"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // Genuine pinned Core, the actual serve CLI, real HTTP booking/consent/payment
@@ -59,7 +59,7 @@ func TestCoreServe(t *testing.T) {
 	buildctx, buildcancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer buildcancel()
 	build := exec.CommandContext(buildctx, "go", "build", "-race", "-trimpath", "-buildvcs=false", "-o", binary, ".")
-	build.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOWORK=off", "GOPROXY=off")
+	build.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOPROXY=off")
 	if e := build.Run(); e != nil {
 		l.recordCmd(build)
 		t.Fatal("actual CLI build", e)

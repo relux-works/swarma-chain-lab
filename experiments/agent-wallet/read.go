@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	sw "relux.works/swarma-chain-lab/experiments/sealwatch"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	sw "github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type Balance struct {

@@ -18,8 +18,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
 )
 
 // Code is safe for public status; no lower-level errors or remote text escape.

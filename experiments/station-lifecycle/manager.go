@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/single-use/durable"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 type record struct {

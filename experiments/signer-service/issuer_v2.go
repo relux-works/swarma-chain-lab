@@ -2,8 +2,8 @@ package signerservice
 
 import (
 	"context"
-	rental "relux.works/swarma-chain-lab/experiments/rental"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // V2Issuer is the only multi-coin binding. P1 owns signed-wire decoding, trusted

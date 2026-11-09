@@ -16,7 +16,7 @@ import (
  "os/signal"
  "syscall"
  "time"
- proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
+ proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
 )
 type rehearsalDirect struct{ service *proxy.Service }
 func (r rehearsalDirect) Prepare(_ context.Context,b proxy.Binding)(proxy.Credential,error){return r.service.Prepare(b)}

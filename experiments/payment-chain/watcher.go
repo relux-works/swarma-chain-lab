@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"relux.works/swarma-chain-lab/experiments/sealwatch"
-	singleuse "relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
+	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type Node = singleuse.Node

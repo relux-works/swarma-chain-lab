@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/sealwatch"
+	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
 )
 
 type Receipt struct {

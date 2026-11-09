@@ -11,7 +11,7 @@ import (
 	"strconv"
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	"relux.works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 const RequestKind = 8183

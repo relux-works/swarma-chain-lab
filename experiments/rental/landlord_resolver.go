@@ -2,7 +2,7 @@ package rental
 
 import (
 	"context"
-	su "relux.works/swarma-chain-lab/experiments/single-use"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // ResolveLandlordGrantKey returns a fresh, confirmed landlord key and raw-bound

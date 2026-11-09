@@ -71,7 +71,7 @@ Use Go 1.26.8 on Darwin with the pinned module cache. Core hashes are in
 absolute run root. Keep paths short enough for the macOS Unix socket limit.
 
 ```sh
-export GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off GOFLAGS=-mod=readonly
+export GOTOOLCHAIN=local GOWORK= GOPROXY=off GOSUMDB=off GOFLAGS=-mod=readonly
 go mod verify
 go vet ./...
 go test -race -count=1 ./... # scanner; opt-in builds/Core explicitly skipped

@@ -1,3 +1,3 @@
-module relux.works/swarma-chain-lab/experiments/sealwatch
+module github.com/relux-works/swarma-chain-lab/experiments/sealwatch
 
 go 1.26.0

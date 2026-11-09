@@ -18,7 +18,7 @@ func TestFakeBuildBoundary(t *testing.T) {
 	}{{"darwin", "", false}, {"linux", "", false}, {"linux", "slotdfake", false}, {"darwin", "slotdfake", true}} {
 		for _, pkg := range []string{".", "../cmd/station-manager"} {
 			c := exec.Command("go", "list", "-json", "-tags="+tc.tags, pkg)
-			c.Env = append(os.Environ(), "GOOS="+tc.os, "GOARCH=amd64", "CGO_ENABLED=0", "GOWORK=off", "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off")
+			c.Env = append(os.Environ(), "GOOS="+tc.os, "GOARCH=amd64", "CGO_ENABLED=0", "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off")
 			raw, e := c.Output()
 			if e != nil {
 				t.Fatal("build selection unavailable", e)

@@ -12,7 +12,7 @@ wallets, renter keys, relays, spending, or custody changes. M1's
 
 ## Reuse and layout
 
-New Go module `relux.works/swarma-chain-lab/experiments/rental-booking`,
+New Go module `github.com/relux-works/swarma-chain-lab/experiments/rental-booking`,
 Go 1.26.8, with local module replacements for `single-use` and `sealwatch`.
 Use `singleuse.NewRPC`/`NewOperatorRPC` for the read-only node capability and
 `sealwatch.ProjectJSON` for exact field spelling/duplicate rejection. Do not

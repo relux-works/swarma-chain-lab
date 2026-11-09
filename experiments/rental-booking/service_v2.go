@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
-	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 )
 
 // CoinConfig contains a watch-only branch and trusted quote policy. Current

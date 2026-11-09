@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
 )
 
 type stationRuntime struct {

@@ -2,6 +2,7 @@ package booking
 
 import (
 	"context"
+	"github.com/relux-works/swarma-chain-lab/deploy/workspace"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -132,6 +133,10 @@ func TestGuardRemovalControls(t *testing.T) {
 			if e = os.WriteFile(file, []byte(mutant), 0600); e != nil {
 				t.Fatal(e)
 			}
+			fixtureWork, e := workspace.Isolate(cwd, dir)
+			if e != nil {
+				t.Fatal(e)
+			}
 			ctx, c := context.WithTimeout(context.Background(), 90*time.Second)
 			defer c()
 			selector := "^" + strings.ReplaceAll(p.selector, "/", "$/^") + "$"
@@ -146,6 +151,7 @@ func TestGuardRemovalControls(t *testing.T) {
 					cmd.Env = append(cmd.Env, v)
 				}
 			}
+			cmd.Env = append(cmd.Env, "GOWORK="+fixtureWork)
 			if p.core {
 				cmd.Env = append(cmd.Env, "M3_REGTEST=1", "M3_RUN_ROOT="+filepath.Join(dir, "core"), "M3_CORE_CLI="+os.Getenv("M3_CORE_CLI"), "M3_CORE_DAEMON="+os.Getenv("M3_CORE_DAEMON"))
 			}
