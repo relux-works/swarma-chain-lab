@@ -43,7 +43,14 @@ func textValue(t *testing.T, b json.RawMessage) string {
 }
 func (l *coreLab) rpc(wallet, method string, args ...any) json.RawMessage {
 	l.t.Helper()
-	ctx, c := context.WithTimeout(context.Background(), 20*time.Second)
+	timeout := 20 * time.Second
+	if method == "generatetoaddress" {
+		// Building the isolated 110-block maturity fixture can exceed 20s on a
+		// loaded host. Keep ordinary RPC deadlines unchanged; this bound matches
+		// the signer fixture and does not alter product observation timeouts.
+		timeout = 60 * time.Second
+	}
+	ctx, c := context.WithTimeout(context.Background(), timeout)
 	defer c()
 	argv := []string{"-regtest", "-datadir=" + l.private, "-conf=" + l.conf}
 	if wallet != "" {
