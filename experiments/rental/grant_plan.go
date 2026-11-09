@@ -1,6 +1,10 @@
 package rental
 
-import su "relux.works/swarma-chain-lab/experiments/single-use"
+import (
+	"encoding/hex"
+	"relux.works/swarma-chain-lab/experiments/rental/oplocator"
+	su "relux.works/swarma-chain-lab/experiments/single-use"
+)
 
 func (p Policy) validateGrantFunding() error {
 	if e := p.validateGrant(); e != nil {
@@ -15,6 +19,12 @@ func (p Policy) validateGrantFunding() error {
 // grantFunding validates offline input facts and prepares the bounded fee
 // projection. It neither reserves inputs nor asserts their chain state.
 func grantFunding(p Policy, s PlanSpec, pool Point) (su.Transaction, int64, error) {
+	return grantFundingShape(p, s, pool, false)
+}
+
+// The bare size is used only for validation of completed legacy records.
+// Fresh issuance must pass grantFunding's framed fee projection before burns.
+func grantFundingShape(p Policy, s PlanSpec, pool Point, legacy bool) (su.Transaction, int64, error) {
 	tx := su.Transaction{Version: 2}
 	var total int64
 	if e := p.validateGrantFunding(); e != nil {
@@ -43,9 +53,12 @@ func grantFunding(p Policy, s PlanSpec, pool Point) (su.Transaction, int64, erro
 		total += in.ValueSat
 		tx.Inputs = append(tx.Inputs, su.Input{Point: in.Point, Script: make([]byte, 140), Sequence: 0xfffffffe})
 	}
-	// The actual commitment is always 34 script bytes. Only its size matters for
-	// pre-sign fee validation; these placeholder bytes are never returned as a plan.
-	tx.Outputs = []su.Output{{Value: 0, Script: make([]byte, 34)}, {Value: 0, Script: mustDecodeKey(p.FundingScript)}}
+	// Only size matters here; placeholders never escape as a returned plan.
+	size := oplocator.IssuanceBlobScriptBytes
+	if legacy {
+		size = 34
+	}
+	tx.Outputs = []su.Output{{Value: 0, Script: make([]byte, size)}, {Value: 0, Script: mustDecodeKey(p.FundingScript)}}
 	if _, _, _, e := su.ReserveLegacyFee(tx, total); e != nil {
 		return tx, 0, e
 	}
@@ -56,6 +69,10 @@ func grantFunding(p Policy, s PlanSpec, pool Point) (su.Transaction, int64, erro
 // Funding facts confer no authority; a separate signer must recheck prevouts,
 // custody and reservations. The referenced seal can never be an input.
 func MakeGrantIssuancePlan(p Policy, s PlanSpec, raw []byte) (Plan, error) {
+	return makeGrantIssuancePlan(p, s, raw, false)
+}
+
+func makeGrantIssuancePlan(p Policy, s PlanSpec, raw []byte, legacy bool) (Plan, error) {
 	var result Plan
 	if e := p.validateGrantFunding(); e != nil {
 		return result, e
@@ -69,7 +86,7 @@ func MakeGrantIssuancePlan(p Policy, s PlanSpec, raw []byte) (Plan, error) {
 	if e != nil || script != p.SealScript || g.AgentName != p.AgentName || g.LandlordName != p.LandlordName || g.Network != p.Network || g.Genesis != p.Genesis {
 		return result, bad("GRANT_PLAN_POLICY")
 	}
-	tx, total, e := grantFunding(p, s, g.Seal)
+	tx, total, e := grantFundingShape(p, s, g.Seal, legacy)
 	if e != nil {
 		return result, e
 	}
@@ -77,11 +94,35 @@ func MakeGrantIssuancePlan(p Policy, s PlanSpec, raw []byte) (Plan, error) {
 	if e != nil {
 		return result, e
 	}
-	rootScript := "6a20" + commit
-	tx.Outputs[0].Script = mustDecodeKey(rootScript)
+	var commitment [32]byte
+	copy(commitment[:], mustDecodeKey(commit))
+	framed, e := oplocator.Build(oplocator.ActionGrantIssuance, commitment, oplocator.Locator{Type: oplocator.LocationBlob, Pointer: mustDecodeKey(signed.ID())})
+	if e != nil {
+		return result, e
+	}
+	if legacy {
+		framed = append([]byte{0x6a, 0x20}, commitment[:]...)
+	}
+	rootScript := hex.EncodeToString(framed)
+	tx.Outputs[0].Script = framed
 	size, fee, change, e := su.ReserveLegacyFee(tx, total)
 	if e != nil {
 		return result, e
 	}
 	return Plan{Version: 3, Network: p.Network, Genesis: p.Genesis, Kind: "grant-issue", Offline: true, TransactionVersion: 2, Inputs: s.Inputs, Outputs: []su.PlanOutput{{ValueSat: 0, Script: rootScript, Role: "issuance-commitment"}, {ValueSat: change, Script: p.FundingScript, Role: "change"}}, FeeRate: 200, FeeSat: fee, MaxSignedVBytes: size, GrantID: signed.ID(), RequiredReview: "Unsigned issuance plan only. Independently verify current funding prevouts, separate funding/change script, pool reservations, custody and exact transaction before signing; no broadcast authority."}, nil
+}
+
+// matchesIssuedGrantPlan validates completed-record replay only. Compare every
+// plan field, including fee/change/size; never rewrite an old plan for replay.
+func matchesIssuedGrantPlan(p Policy, s PlanSpec, raw []byte, stored *Plan) bool {
+	if stored == nil {
+		return false
+	}
+	for _, legacy := range []bool{false, true} {
+		plan, e := makeGrantIssuancePlan(p, s, raw, legacy)
+		if e == nil && sameJSON(plan, *stored) {
+			return true
+		}
+	}
+	return false
 }

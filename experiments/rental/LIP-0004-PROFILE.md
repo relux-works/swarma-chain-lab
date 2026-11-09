@@ -82,11 +82,30 @@ grant_id                             32 bytes
 ```
 
 The domain is exactly the literal above (15 ASCII bytes). SHA256 of that
-concatenation is the 32-byte commitment. The transaction must have exactly one
-OP_RETURN output, zero value, with exact script `6a20<commitment>`; any additional
-OP_RETURN, alternate hash/push encoding or nonzero value refuses. The seal must
-not appear among its inputs. Other outputs are allowed by the checking profile;
-the planner emits only the commitment and pinned change.
+concatenation is the 32-byte commitment. New issuance follows
+[LIP-0005 at v0.1.3](https://github.com/relux-works/swarma-link-spec/blob/v0.1.3/lips/LIP-0005-op-return-locator.md):
+exactly one zero-value OP_RETURN, with the 72-byte script
+`6a 03 53 4c 01 42 01 <commitment32> 01 <grant_id32>`.
+The first direct push identifies Link/action 1; the second is a 66-byte payload
+containing version 1, the commitment, and a blob SHA-256 locator. The locator
+pointer must equal the presented signed grant's ID. The commitment formula
+remains [LIP-0004 section 4](https://github.com/relux-works/swarma-link-spec/blob/v0.1.3/lips/LIP-0004-landlord-grants.md).
+
+Verification also accepts the exact historical 34-byte `6a20<commitment>`
+script. Script shape selects the form; no policy/version flag or malformed-frame
+fallback is used. The bare commitment already binds the grant ID through its
+hash. PUSHDATA1/2/4, split protocol IDs, OP_1..16, extra pushes/trailing bytes,
+unknown actions/versions/locations, wrong lengths, wrong pointers/commitments,
+nonzero values and any additional OP_RETURN refuse. Memo's `0x6d` protocol is
+not Link and cannot satisfy issuance; a Memo output still counts toward the
+one-OP_RETURN limit. The seal must not appear among the inputs. Other outputs
+are allowed by checking; the planner emits only the commitment and pinned change.
+
+The reusable `oplocator` package builds/parses both defined actions (issuance 1,
+batch 2) and locations: none (0, zero pointer bytes), blob SHA-256 (1, 32),
+BitTorrent v2 (2, 32), BitTorrent v1 (3, 20), SwarmaTorrent v2 (4, 32). The rental
+issuance gate accepts only action 1/blob 1. Parsing grants no authority and
+performs no retrieval. The existing optional batch planner is unchanged.
 
 The locator transaction must be actively confirmed. Raw serialization, txid,
 RPC projections and active block membership are bound through the own-node
@@ -156,6 +175,14 @@ the exact stored grant/plan without re-signing, even after expiry, provided
 none of its funding inputs is now a known or reserved pool seal. Replay is
 not a renewed live approval. Conflicting request/package/spec/seal bindings
 refuse. Existing booking/pool indices prevent reuse across v2/v3 issuers.
+
+Completed v3 records may contain exactly the old bare plan or the new framed
+plan. Replay compares the entire recomputed shape, including fee, change and
+size, and returns the original stored bytes. Any other plan refuses with
+`ISSUANCE_JOURNAL_CORRUPT`. Old records retain their original funding floor;
+fresh issuance checks the larger 72-byte output before reservation or signing.
+At the fixed 200 sat/vB reserve, the frame adds 38 bytes and 7600 sat to the
+previous fee. New preparation never emits a bare plan.
 
 The result is `prepared/GRANT_PREPARED`, never live. `MakeGrantIssuancePlan`
 validates declared offline funding, excludes the seal, bounds fees at 200

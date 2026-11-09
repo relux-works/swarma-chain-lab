@@ -13,6 +13,13 @@ journal. A pool seal is referenced, never consumed by issuance. Expiry needs no
 transaction; spending the seal closes the grant. Scope and budget are outputs
 for a separate executor, not authorization for an external effect.
 
+New issuance uses the LIP-0005 v0.1.3 two-direct-push frame:
+`6a03534c014201<commitment32>01<grant_id32>` (72 bytes). Checking accepts this
+exact issuance/blob binding or the exact historical `6a20<commitment32>` form.
+Completed journals replay either complete original plan byte-for-byte, including
+its fee; fresh preparation uses only the frame. See the v3 profile below for
+strict rejection rules and the reusable `oplocator` package's location types.
+
 V3 signatures use Grant.SigningHash() with the fixed swarma-grant-v3 prefix;
 untagged development signatures refuse. Legacy v1/v2 scopes retain their original
 five actions. Issuer and v3 pool-planner policies require funding_script distinct
@@ -35,6 +42,7 @@ Go 1.26.8; macOS/Linux (flock and fsync). From this module:
 go mod verify
 go vet ./...
 go test -race ./...
+go run .scripts/l5-guards.go -out .temp/l5-guards
 mkdir -p .temp/bin
 go build -trimpath -o .temp/bin/rental-kernel ./cmd/rental-kernel
 go build -trimpath -o .temp/bin/rental-plan ./cmd/rental-plan
@@ -130,3 +138,31 @@ The historical replay control `TestCoreGrantLegacyReplay` additionally requires
 funds, then checks refusal by the revised issuer without broadcasting the old
 plan or altering the record. Its private inputs/journal remain under the test
 run root; only the refusal summary and process metadata are public evidence.
+
+`TestCoreGrantLocator` exercises actual framed issuance, historical bare
+verification and mined malformed transactions beside live neighbors.
+`TestCoreGrantLocatorReplay` requires `L5_OLD_ISSUER`, the pinned Darwin arm64
+issuer built from base `bbcf014478ea60a4a78f9614cea287c5ba911523` with Go 1.26.8
+and `go build -buildvcs=false -trimpath ./cmd/rental-issue` (binary SHA-256
+`ec0ea6d732aaba05069ee35dc3ff70ff5c9f4a84e6980ef51bf92ba7f950f664`).
+Build only from a clean checkout of that exact base. VCS stamping is disabled
+for this historical test binary so an enclosing worktree cannot change its pin;
+the source revision is verified separately before building.
+It creates a real completed bare record at the former minimum funding boundary,
+checks byte-identical replay and corrupt-record refusal, then checks the new
+pre-sign fee gate beside a funded framed preparation. This differs from the
+pre-domain historical rejection control above.
+
+To run the L5 guard-removal controls including genuine Core, use:
+
+```sh
+M1_CORE_CLI=/absolute/namecoin-cli M1_CORE_DAEMON=/absolute/namecoind \
+L5_OLD_ISSUER=/absolute/pinned-base-issuer \
+go run .scripts/l5-guards.go -core -out .temp/l5-guards
+```
+
+The runner first requires passing baselines, mutates only an isolated copy,
+and requires each intended test assertion to fail. Build failures, panics and
+skips do not count. Its fresh `run-*` directory contains logs and `results.json`
+with source hashes and exact replacements. Core roots include private wallets;
+export only logs/results and each root's `public/` evidence, never `private/`.

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"relux.works/swarma-chain-lab/experiments/rental/oplocator"
 	su "relux.works/swarma-chain-lab/experiments/single-use"
 	"relux.works/swarma-chain-lab/experiments/single-use/durable"
 )
@@ -327,7 +328,6 @@ func checkIssuance(o *su.ReadObservation, s SignedGrant, proof IssuanceProof) er
 	if e != nil {
 		return e
 	}
-	expected := "6a20" + commit
 	returns, matches := 0, 0
 	for _, in := range tx.Inputs {
 		if in.Point == (su.Point{TxID: s.Grant.Seal.TxID, Vout: s.Grant.Seal.Vout}) {
@@ -337,7 +337,7 @@ func checkIssuance(o *su.ReadObservation, s SignedGrant, proof IssuanceProof) er
 	for _, out := range tx.Outputs {
 		if len(out.Script) > 0 && out.Script[0] == 0x6a {
 			returns++
-			if hex.EncodeToString(out.Script) == expected && out.Value == 0 {
+			if issuanceScriptMatches(out.Script, commit, s.ID()) && out.Value == 0 {
 				matches++
 			}
 		}
@@ -346,4 +346,17 @@ func checkIssuance(o *su.ReadObservation, s SignedGrant, proof IssuanceProof) er
 		return bad("ISSUANCE_COMMITMENT")
 	}
 	return nil
+}
+
+// Bare legacy commitments already bind the grant ID through the LIP-0004 hash.
+// Framed issuance additionally pins action, blob location and the presented ID.
+func issuanceScriptMatches(script []byte, commitment, grantID string) bool {
+	m, e := oplocator.Parse(script)
+	if e != nil || hex.EncodeToString(m.Commitment[:]) != commitment {
+		return false
+	}
+	if m.Legacy {
+		return true
+	}
+	return m.Action == oplocator.ActionGrantIssuance && m.Locator.Type == oplocator.LocationBlob && hex.EncodeToString(m.Locator.Pointer) == grantID
 }

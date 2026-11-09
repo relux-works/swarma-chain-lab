@@ -65,7 +65,7 @@ func TestGrantPlans(t *testing.T) {
 			}
 			signed, _ := ParseSignedGrant(raw)
 			commit, _ := IssuanceCommitment(signed)
-			if !plan.Offline || plan.Version != 3 || plan.GrantID != Hash(raw) || len(plan.Outputs) != 2 || plan.Outputs[0].ValueSat != 0 || plan.Outputs[0].Script != "6a20"+commit || plan.Outputs[1].Script != p.FundingScript || plan.Outputs[1].ValueSat+plan.FeeSat != good.Inputs[0].ValueSat || plan.FeeSat != 200*int64(plan.MaxSignedVBytes) {
+			if !plan.Offline || plan.Version != 3 || plan.GrantID != Hash(raw) || len(plan.Outputs) != 2 || plan.Outputs[0].ValueSat != 0 || plan.Outputs[0].Script != "6a03534c014201"+commit+"01"+signed.ID() || plan.Outputs[1].Script != p.FundingScript || plan.Outputs[1].ValueSat+plan.FeeSat != good.Inputs[0].ValueSat || plan.FeeSat != 200*int64(plan.MaxSignedVBytes) {
 				t.Fatal("plan commitment or conservation")
 			}
 		})

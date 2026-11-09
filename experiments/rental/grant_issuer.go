@@ -52,7 +52,7 @@ func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publ
 	if canonical(request, &claimed) != nil || !digest(claimed.BookingID) || !digest(pool.TxID) {
 		return refuse(bad("ISSUANCE_REQUEST"))
 	}
-	if _, _, e := grantFunding(p.Policy, spec, pool); e != nil {
+	if _, _, e := grantFundingShape(p.Policy, spec, pool, true); e != nil {
 		return refuse(e)
 	}
 	binding, _ := json.Marshal(struct{ Network, Genesis, Agent, Landlord, Script, Funding, Provider string }{p.Policy.Network, p.Policy.Genesis, p.Policy.AgentName, p.Policy.LandlordName, p.Policy.SealScript, p.Policy.FundingScript, p.ProviderPubkey})
@@ -107,8 +107,7 @@ func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publ
 		if e != nil || old.Phase != "complete" || old.GrantID != signed.ID() || signed.Grant.Seal != pool || signed.Grant.ContractSHA256 != claimed.ContractSHA256 {
 			return refuse(bad("ISSUANCE_JOURNAL_CORRUPT"))
 		}
-		plan, e := MakeGrantIssuancePlan(p.Policy, spec, old.SignedGrant)
-		if e != nil || old.Plan == nil || !sameJSON(plan, *old.Plan) {
+		if !matchesIssuedGrantPlan(p.Policy, spec, old.SignedGrant, old.Plan) {
 			return refuse(bad("ISSUANCE_JOURNAL_CORRUPT"))
 		}
 		result.Verdict = "prepared"
@@ -119,6 +118,11 @@ func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publ
 		result.Admission = old.Admission
 		result.Replay = true
 		return result
+	}
+	// Fresh issuance must fund the larger framed output before any reservation
+	// or signature. Completed bare records above retain their original fee floor.
+	if _, _, e := grantFunding(p.Policy, spec, pool); e != nil {
+		return refuse(e)
 	}
 	if node == nil {
 		return refuse(bad("NODE_UNAVAILABLE"))
