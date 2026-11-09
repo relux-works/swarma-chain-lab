@@ -35,6 +35,7 @@ var plants = []plant{
 	{"client_capacity", "gateway", "exchange/engine.go", "if len(e.disk.clients) >= e.cfg.MaxClients {", "if len(e.disk.clients) >= e.cfg.MaxClients && false {", "./exchange", "TestExchangeManyKeys", "client cap exceeded", false},
 	{"rumor_replay_retention", "gateway", "exchange/engine.go", "v.Seen = retained", "v.Seen = retained[:0]", "./exchange", "TestExchangeReplayWithCapacity", "replay repeated response or debit", false},
 	{"known_expiry", "gateway", "exchange/engine.go", "old == nil || old.KnownUntil <= now", "old == nil", "./exchange", "TestExchangeKnownExpiry", "expired known key bypassed work", false},
+	{"pending_text", "gateway", "exchange/types.go", "const BookPending = \"Booking pending reconciliation. Wait or retry terms; do not repeat the booking.\"", "const BookPending = Help", "./exchange", "TestExchangePendingText", "pending text mismatch", false},
 	{"ambiguous_booking", "gateway", "exchange/engine.go", "if errors.Is(err, ErrRejected) {", "if errors.Is(err, ErrRejected) || true {", "./exchange", "TestExchangeBookingRecovery/true", "uncertain booking repeated", false},
 	{"issued_sender", "gateway", "exchange/engine.go", " || issued.Sender != h.Sender", "", "./exchange", "TestExchangeIssuedBinding/sender", "foreign issuance registered", false},
 	{"issued_contract", "gateway", "exchange/engine.go", " || issued.ContractSHA256 != h.ContractSHA256", "", "./exchange", "TestExchangeIssuedBinding/contract", "foreign issuance registered", false},

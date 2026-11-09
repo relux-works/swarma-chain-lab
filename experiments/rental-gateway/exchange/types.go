@@ -36,6 +36,7 @@ func ParseCoin(s string) (Coin, error) {
 }
 
 const Help = "Rental exchange: send terms, then book <template> <slot> [coin], then consent <signed kind-8181 event JSON>. Booking acknowledges the privacy notice shown in terms. Wait for ready before sending a message with your grant."
+const BookPending = "Booking pending reconciliation. Wait or retry terms; do not repeat the booking."
 const Unavailable = "Rental exchange unavailable; retry later."
 const NotYet = "Rental slot has not started yet."
 const NotLive = "Rental grant is not live; try again later."

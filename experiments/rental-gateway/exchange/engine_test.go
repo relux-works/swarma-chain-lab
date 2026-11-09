@@ -575,7 +575,9 @@ func TestExchangeBookingRecovery(t *testing.T) {
 				f.b.failBook = errors.New("uncertain")
 			}
 			f.send("book demo one")
-			if f.last(t) != Unavailable {
+			// The dedicated pending-text test checks the ambiguous first reply;
+			// this recovery witness must reach the second Book attempt.
+			if !ambiguous && f.last(t) != Unavailable {
 				t.Fatal("booking failure text")
 			}
 			f.e.Close()
@@ -583,7 +585,7 @@ func TestExchangeBookingRecovery(t *testing.T) {
 			f.b.failBook = nil
 			f.send("book demo one")
 			if ambiguous {
-				if f.b.books != 1 || f.last(t) != Help {
+				if f.b.books != 1 || f.last(t) != BookPending {
 					t.Fatal("uncertain booking repeated")
 				}
 			} else if f.b.books != 2 || !strings.HasPrefix(f.last(t), "contract\n") {
@@ -827,5 +829,47 @@ func TestExchangeEvictedReplay(t *testing.T) {
 	f.send("book demo one")
 	if f.b.books != 1 || !strings.HasPrefix(f.last(t), "contract\n") {
 		t.Fatal("fresh terms booking neighbor refused")
+	}
+}
+
+// Ambiguous bookings return one fixed reconciliation message, including after
+// restart and for attacker-chosen commands. Terms stays available, and no input
+// echoes or repeated Book calls occur. A failed publish retries the exact wrap.
+func TestExchangePendingText(t *testing.T) {
+	const expected = "Booking pending reconciliation. Wait or retry terms; do not repeat the booking."
+	for _, input := range []string{"book demo one", "book attacker-private-marker slot", "consent attacker-private-marker", "attacker-private-marker"} {
+		t.Run(input, func(t *testing.T) {
+			f := fixtureNew(t)
+			f.send("terms")
+			f.b.failBook = errors.New("backend-private-marker")
+			f.send("book demo one")
+			if f.last(t) != expected {
+				t.Fatal("pending text mismatch", f.last(t))
+			}
+			f.e.Close()
+			f.open(t)
+			f.b.failBook = nil
+			f.send(input)
+			if f.last(t) != expected || f.b.books != 1 || f.e.disk.clients[f.renter.PubKeyHex()].Phase != "book_pending" {
+				t.Fatal("pending text mismatch or booking repeated", f.last(t))
+			}
+			f.send("terms")
+			if !strings.HasPrefix(f.last(t), "terms\n") || f.b.books != 1 {
+				t.Fatal("pending terms unavailable")
+			}
+			f.p.fail = true
+			f.send(input)
+			saved := f.e.disk.clients[f.renter.PubKeyHex()].Pending
+			if saved == nil {
+				t.Fatal("missing durable pending reply")
+			}
+			f.e.Close()
+			f.open(t)
+			f.p.fail = false
+			f.e.poll(context.Background())
+			if f.last(t) != expected || f.p.events[len(f.p.events)-1].ID != saved.ID || f.b.books != 1 {
+				t.Fatal("pending reply changed on restart")
+			}
+		})
 	}
 }

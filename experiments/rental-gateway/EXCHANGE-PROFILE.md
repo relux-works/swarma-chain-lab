@@ -164,7 +164,10 @@ responses without allocating a new event or spending another command token.
 
 A durable `book_pending` intent precedes the backend Book. An unknown outcome
 retains this intent and never repeats Book, including after restart; it requires
-operator reconciliation against authoritative booking state. Explicit no-effect
+operator reconciliation against authoritative booking state. The fixed reply is
+"Booking pending reconciliation. Wait or retry terms; do not repeat the booking."
+Further commands return that same text without echoing input; `terms` can still
+refresh the catalogue and never resets the booking intent. Explicit no-effect
 rejections can retry. Without capacity pressure, ordinary idle records are reclaimed after knowledge,
 replay and full bucket refill horizons have elapsed, with no pending response or
 unexpired slot; ambiguous booking intents are never automatically evicted.

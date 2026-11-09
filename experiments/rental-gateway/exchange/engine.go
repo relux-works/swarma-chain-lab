@@ -207,6 +207,10 @@ func (e *Engine) process(ctx context.Context, r *nostr.Event) {
 		e.terms(ctx, v)
 		return
 	}
+	if v.Phase == "book_pending" {
+		e.respond(ctx, v, "book_pending", BookPending)
+		return
+	}
 	if strings.HasPrefix(r.Content, "book ") {
 		e.book(ctx, v, r.Content)
 		return
@@ -346,12 +350,14 @@ func (e *Engine) book(ctx context.Context, v *client, text string) {
 	if err != nil {
 		if errors.Is(err, ErrRejected) {
 			v.Phase = ""
+			e.respond(ctx, v, "unavailable", Unavailable)
+			return
 		}
-		e.respond(ctx, v, "unavailable", Unavailable)
+		e.respond(ctx, v, "book_pending", BookPending)
 		return
 	}
 	if !h.valid(e.cfg, v.Sender) || h.Coin != coin || len(h.Contract) < 1 || len(h.Contract) > 8192 || hash(h.Contract) != h.ContractSHA256 || h.Expires <= e.cfg.Now().Unix() {
-		e.respond(ctx, v, "unavailable", Unavailable)
+		e.respond(ctx, v, "book_pending", BookPending)
 		return
 	}
 	v.Hold = &h
