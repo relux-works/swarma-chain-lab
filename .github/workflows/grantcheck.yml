@@ -1,0 +1,65 @@
+name: Grant checker checks
+
+env:
+  GOWORK: 'off'
+  GOTOOLCHAIN: local
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/grantcheck/**'
+      - 'experiments/rental/**'
+      - 'experiments/rental-gateway/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.github/workflows/grantcheck.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/grantcheck/**'
+      - 'experiments/rental/**'
+      - 'experiments/rental-gateway/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.github/workflows/grantcheck.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: experiments/grantcheck
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Fetch and verify pinned modules
+        run: |
+          go mod download
+          go mod verify
+      # Core vectors require separately provisioned pinned binaries and stay
+      # opt-in. This lane runs unit/race tests and non-Core guard controls.
+      - name: Vet, race tests, build and guard controls
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          CG1_REGTEST: '0'
+        run: |
+          go vet ./...
+          go test -race -count=1 ./...
+          go build -trimpath ./...
+          go run .scripts/guards.go -out .temp/guards
