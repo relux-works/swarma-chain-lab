@@ -1,14 +1,16 @@
 package gateway_test
 
-// M2-04 inline-presentation controls (detached grants). The stub
-// kernel doubles as the scripted Presenter: envelopes are marker
-// byte strings, and the Handler scripts verdicts by marker and
+// V3 inline-presentation controls. The stub kernel doubles as the
+// scripted Presenter: transport fixtures contain a marker grant,
+// and the Handler scripts verdicts and
 // records every envelope it was asked to Check, so cache behaviour
 // is observable without a chain. The genuine-Core version of these
 // flows lives in kernelbind's opt-in e2e.
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -37,13 +39,22 @@ func (s *presScript) install(h *harness) {
 		s.mu.Lock()
 		s.checked = append(s.checked, string(env))
 		s.mu.Unlock()
-		r := kernel.Receipt{Verdict: kernel.Live, Reason: "LIVE", StationName: agentName, CheckedAt: now}
+		r := kernel.Receipt{Verdict: kernel.Live, Reason: "LIVE", AgentName: agentName, CheckedAt: now}
+		var parsed struct {
+			SignedGrant struct {
+				Grant struct {
+					Marker string `json:"marker"`
+				} `json:"grant"`
+			} `json:"signed_grant"`
+		}
+		_ = json.Unmarshal(env, &parsed)
+		marker := parsed.SignedGrant.Grant.Marker
 		switch {
-		case string(env) == "cert-revoked":
+		case marker == "cert-revoked":
 			r.Verdict, r.Reason, r.Closed = kernel.Refused, "SEAL_SPENT", true
-		case strings.HasPrefix(string(env), "cert-of-") && strings.TrimPrefix(string(env), "cert-of-") != sender:
+		case strings.HasPrefix(marker, "cert-of-") && strings.TrimPrefix(marker, "cert-of-") != sender:
 			r.Verdict, r.Reason = kernel.Refused, "GRANTEE_MISMATCH"
-		case strings.Contains(string(env), "REFUSED"):
+		case strings.Contains(marker, "REFUSED"):
 			r.Verdict, r.Reason = kernel.Refused, "STUB_REFUSED"
 		}
 		return r, nil
@@ -70,7 +81,7 @@ func wrapTagged(t *testing.T, sender *nostr.PrivKey, agentPub, content string, t
 
 func dmWithCert(t *testing.T, sender *nostr.PrivKey, agentPub, content string, cert []byte, at int64) *nostr.Event {
 	t.Helper()
-	return wrapTagged(t, sender, agentPub, content, [][]string{gateway.GrantCertTag(cert)}, at)
+	return wrapTagged(t, sender, agentPub, content, [][]string{mustTag(t, cert)}, at)
 }
 
 func stationFor(t *testing.T, h *harness, slotID, stationName string) *stationlink.Client {
@@ -108,7 +119,7 @@ func TestPresentationFirstMessageAndLazyStart(t *testing.T) {
 	h := newHarness(t, harnessOpts{presenter: true, noCert: true, skipStart: true})
 	script := &presScript{}
 	script.install(h)
-	cert := []byte("cert-of-" + h.renter.PubKeyHex())
+	cert := markerPresentation("cert-of-" + h.renter.PubKeyHex())
 
 	plain := h.renterDM("too early", nowMid)
 	res := h.handle(plain)
@@ -170,9 +181,9 @@ func TestPresentationParallelGrantees(t *testing.T) {
 		t.Fatal(err)
 	}
 	res1 := h.handle(dmWithCert(t, h.renter, h.agent.PubKeyHex(), "for one",
-		[]byte("cert-of-"+h.renter.PubKeyHex()), nowMid))
+		markerPresentation("cert-of-"+h.renter.PubKeyHex()), nowMid))
 	res2 := h.handle(dmWithCert(t, renter2, h.agent.PubKeyHex(), "for two",
-		[]byte("cert-of-"+renter2.PubKeyHex()), nowMid))
+		markerPresentation("cert-of-"+renter2.PubKeyHex()), nowMid))
 	if !res1.Delivered || !res2.Delivered || res1.SlotID != "slot-1" || res2.SlotID != "slot-2" {
 		t.Fatalf("parallel presentations = %+v / %+v", res1, res2)
 	}
@@ -212,7 +223,7 @@ func TestPresentationForeignCertificateRefused(t *testing.T) {
 	other, _ := nostr.GeneratePrivKey()
 
 	res := h.handle(dmWithCert(t, h.renter, h.agent.PubKeyHex(), "borrowed cert",
-		[]byte("cert-of-"+other.PubKeyHex()), nowMid))
+		markerPresentation("cert-of-"+other.PubKeyHex()), nowMid))
 	if !res.Refused || res.Reason != "kernel_refused:GRANTEE_MISMATCH" || !res.WarningSent {
 		t.Fatalf("foreign cert = %+v, want GRANTEE_MISMATCH + notice", res)
 	}
@@ -223,7 +234,7 @@ func TestPresentationForeignCertificateRefused(t *testing.T) {
 		t.Fatal("station started on a foreign certificate")
 	}
 	res = h.handle(dmWithCert(t, h.renter, h.agent.PubKeyHex(), "my own cert",
-		[]byte("cert-of-"+h.renter.PubKeyHex()), nowMid))
+		markerPresentation("cert-of-"+h.renter.PubKeyHex()), nowMid))
 	if !res.Delivered {
 		t.Fatalf("valid neighbour after foreign refusal = %+v", res)
 	}
@@ -238,7 +249,7 @@ func TestPresentationRevokedCertificateRefused(t *testing.T) {
 	script.install(h)
 
 	res := h.handle(dmWithCert(t, h.renter, h.agent.PubKeyHex(), "revoked hello",
-		[]byte("cert-revoked"), nowMid))
+		markerPresentation("cert-revoked"), nowMid))
 	if !res.Refused || !res.SlotEnded || res.Reason != "kernel_closed:SEAL_SPENT" {
 		t.Fatalf("revoked presentation = %+v, want kernel_closed:SEAL_SPENT", res)
 	}
@@ -257,9 +268,9 @@ func TestPresentationReplacementOnlyIfLive(t *testing.T) {
 	script := &presScript{}
 	script.install(h)
 	me := h.renter.PubKeyHex()
-	certA := []byte("cert-of-" + me)
-	badB := []byte("cert-of-" + me + "-REFUSED")
-	certB := []byte("cert-B-live") // distinct live bytes for the same sender
+	certA := markerPresentation("cert-of-" + me)
+	badB := markerPresentation("cert-of-" + me + "-REFUSED")
+	certB := markerPresentation("cert-B-live") // distinct live bytes for the same sender
 
 	if res := h.handle(dmWithCert(t, h.renter, h.agent.PubKeyHex(), "with A", certA, nowMid)); !res.Delivered {
 		t.Fatalf("present A = %+v", res)
@@ -302,11 +313,11 @@ func TestPresentationCacheFullRefuses(t *testing.T) {
 		t.Fatal(err)
 	}
 	if res := h.handle(dmWithCert(t, h.renter, h.agent.PubKeyHex(), "first in",
-		[]byte("cert-of-"+h.renter.PubKeyHex()), nowMid)); !res.Delivered {
+		markerPresentation("cert-of-"+h.renter.PubKeyHex()), nowMid)); !res.Delivered {
 		t.Fatalf("first presentation = %+v", res)
 	}
 	res := h.handle(dmWithCert(t, renter2, h.agent.PubKeyHex(), "cache is full",
-		[]byte("cert-of-"+renter2.PubKeyHex()), nowMid))
+		markerPresentation("cert-of-"+renter2.PubKeyHex()), nowMid))
 	if !res.Refused || res.Reason != "kernel_refused:PRESENTATION_CACHE_FULL" || !res.WarningSent {
 		t.Fatalf("full-cache presentation = %+v, want PRESENTATION_CACHE_FULL + notice", res)
 	}
@@ -322,23 +333,33 @@ func TestPresentationMalformedVariants(t *testing.T) {
 	h := newHarness(t, harnessOpts{presenter: true, noCert: true, skipStart: true})
 	script := &presScript{}
 	script.install(h)
-	cert := []byte("cert-of-" + h.renter.PubKeyHex())
-	good := gateway.GrantCertTag(cert)
+	cert := markerPresentation("cert-of-" + h.renter.PubKeyHex())
+	good := mustTag(t, cert)
 	badID := append([]string(nil), good...)
 	badID[1] = strings.Repeat("0", 64)
+	badJSON := []string{"grant-cert", good[1], base64.StdEncoding.EncodeToString([]byte("not JSON"))}
+	legacy := []string{"grant-cert", good[1], base64.StdEncoding.EncodeToString([]byte(`{"certificate":{"version":2}}`))}
 	variants := [][][]string{
+		{badJSON}, {legacy},
 		{good, good},                     // two tags
-		{badID},                          // id != sha256(bytes)
+		{badID},                          // id != stable signed-grant hash
 		{{"grant-cert", good[1], "!!!"}}, // bad base64
 		{{"grant-cert", good[1]}},        // wrong arity
 		{{"grant-cert", "XYZ", good[2]}}, // bad id form
-		{gateway.GrantCertTag([]byte(strings.Repeat("x", 17000)))}, // oversize
+		{{"grant-cert", good[1], base64.StdEncoding.EncodeToString([]byte(strings.Repeat("x", 17000)))}}, // oversize
 	}
 	for i, tags := range variants {
-		res := h.handle(wrapTagged(t, h.renter, h.agent.PubKeyHex(), "malformed", tags, nowMid))
+		wrapped := wrapTagged(t, h.renter, h.agent.PubKeyHex(), "malformed", tags, nowMid)
+		res := h.handle(wrapped)
 		if !res.Refused || res.Reason != "presentation_malformed" || !res.WarningSent {
 			t.Fatalf("variant %d = %+v, want presentation_malformed + notice", i, res)
 		}
+		if replay := h.handle(wrapped); replay.Reason != "presentation_malformed" {
+			t.Fatalf("malformed replay burned id: %+v", replay)
+		}
+	}
+	if h.kern.Calls != 0 || h.kern.PresentCalls != 0 || h.scr.Calls != 0 {
+		t.Fatal("malformed presentation reached kernel or screening")
 	}
 	if slot, _ := h.store.Get("slot-1"); slot.Refusals != 0 {
 		t.Fatalf("malformed presentations spent strikes: %d", slot.Refusals)
@@ -357,11 +378,27 @@ func TestPresentationMalformedVariants(t *testing.T) {
 func TestPresentationUnsupportedWithoutPresenter(t *testing.T) {
 	h := newHarness(t, harnessOpts{}) // stored cert, started, no presenter
 	res := h.handle(dmWithCert(t, h.renter, h.agent.PubKeyHex(), "tagged anyway",
-		[]byte("cert-of-"+h.renter.PubKeyHex()), nowMid))
+		markerPresentation("cert-of-"+h.renter.PubKeyHex()), nowMid))
 	if !res.Refused || res.Reason != "presentation_unsupported" || !res.WarningSent {
 		t.Fatalf("tagged without presenter = %+v, want presentation_unsupported + notice", res)
 	}
 	if res := h.handle(h.renterDM("plain still works", nowMid)); !res.Delivered {
 		t.Fatalf("stored-cert neighbour = %+v", res)
 	}
+}
+
+// markerPresentation is a transport fixture only. Its placeholder signature
+// never reaches the real kernel; genuine signed grants are tested in kernelbind.
+func markerPresentation(marker string) []byte {
+	b, _ := json.Marshal(marker)
+	return []byte(`{"signed_grant":{"grant":{"version":3,"marker":` + string(b) + `},"signature":"` + strings.Repeat("a", 128) + `"},"issuance":{"txid":"` + strings.Repeat("b", 64) + `"}}`)
+}
+
+func mustTag(t *testing.T, raw []byte) []string {
+	t.Helper()
+	tag, err := gateway.GrantCertTag(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tag
 }

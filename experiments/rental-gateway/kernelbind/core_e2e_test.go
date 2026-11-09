@@ -1,7 +1,7 @@
 package kernelbind_test
 
-// Genuine-Core gateway end-to-end for detached grants (M2-04):
-// real pinned Namecoin Core regtest, two detached certificates
+// Genuine-Core gateway end-to-end for K1 v3 grants (M2-05):
+// real pinned Namecoin Core regtest, two grants produced by the real K1 issuer
 // under one agent name, inline presentation through the real
 // kernel via kernelbind, lazy per-grantee station starts, then
 // one seal is spent (revocation) and only that grantee's slot
@@ -16,19 +16,24 @@ package kernelbind_test
 // own PID.
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,6 +43,7 @@ import (
 	"relux.works/swarma-chain-lab/experiments/rental"
 	gw "relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/screen"
@@ -47,6 +53,7 @@ import (
 )
 
 const e2eAgentName = "id/swarma-agent-e2e"
+const e2eLandlordName = "id/swarma-landlord-e2e"
 
 type coreLab struct {
 	t                        *testing.T
@@ -253,17 +260,29 @@ func newCoreLab(t *testing.T, agentNostrPub string) *coreLab {
 	l.script = labText(t, labObject(t, l.rpc("issuer", "getaddressinfo", l.address))["scriptPubKey"])
 	l.mine(101)
 	// Register the agent name carrying the LIP-0003 key value.
-	value, e := rental.AgentValue(rental.AgentKeys{Nostr: agentNostrPub, Grant: l.issuerPub})
+	value, e := rental.AgentBindingValue(rental.AgentBinding{Nostr: agentNostrPub, Landlord: e2eLandlordName})
 	if e != nil {
 		t.Fatal(e)
 	}
-	var reservation []string
-	if e = json.Unmarshal(l.rpc("issuer", "name_new", e2eAgentName), &reservation); e != nil {
+	landlordValue, e := rental.LandlordValue(rental.LandlordBinding{Grant: l.issuerPub})
+	if e != nil {
 		t.Fatal(e)
 	}
+	// Reserve both names together so the first name cannot expire while the
+	// second waits twelve confirmations on regtest.
+	reservations := map[string][]string{}
+	for _, name := range []string{e2eAgentName, e2eLandlordName} {
+		var res []string
+		if e = json.Unmarshal(l.rpc("issuer", "name_new", name), &res); e != nil {
+			t.Fatal(e)
+		}
+		reservations[name] = res
+	}
 	l.mine(12)
-	l.rpc("issuer", "name_firstupdate", e2eAgentName, reservation[1], reservation[0], value,
-		map[string]string{"destAddress": l.address})
+	for name, v := range map[string]string{e2eAgentName: value, e2eLandlordName: landlordValue} {
+		res := reservations[name]
+		l.rpc("issuer", "name_firstupdate", name, res[1], res[0], v, map[string]string{"destAddress": l.address})
+	}
 	l.mine(1)
 	l.rpc("issuer", "importprivkey", testWIF(1), "", false)
 	return l
@@ -300,29 +319,97 @@ func (l *coreLab) seal() rental.Point {
 	return rental.Point{}
 }
 
-// grant signs one detached certificate envelope for a renter key.
-func (l *coreLab) grant(granteePub, contract string, seal rental.Point) []byte {
+// grant uses the real K1 issuer after a confirmed payment and authenticated
+// booking package. The harness signs/broadcasts its returned transaction plan;
+// it never constructs or signs a v3 grant itself.
+func (l *coreLab) grant(grantee *nostr.PrivKey, label string, seal rental.Point, confirmed bool) []byte {
 	l.t.Helper()
-	c := rental.DetachedCertificate{
-		Version: 2, Network: "regtest", Genesis: su.RegtestGenesis,
-		AgentName: e2eAgentName, IssuerKey: l.issuerPub, GranteeKey: granteePub,
-		ContractSHA256: contract, Scope: []string{"deliver", "pay"},
-		NotBefore: 100, NotAfter: 1000, Seal: seal,
+	booking := rental.Hash([]byte(label))
+	provider, err := nostr.GeneratePrivKey()
+	if err != nil {
+		l.t.Fatal(err)
 	}
-	raw, e := c.Canonical()
-	if e != nil {
-		l.t.Fatal(e)
+	payment := l.output(l.address, l.script)
+	funding := l.output(l.address, l.script)
+	var paymentTx su.TransactionView
+	if err = json.Unmarshal(l.rpc("", "getrawtransaction", payment.TxID, true), &paymentTx); err != nil {
+		l.t.Fatal(err)
 	}
-	h, _ := hex.DecodeString(rental.Hash(raw))
-	sig, e := schnorr.Sign(l.issuer, h)
-	if e != nil {
-		l.t.Fatal(e)
+	var header su.Header
+	if err = json.Unmarshal(l.rpc("", "getblockheader", paymentTx.Block), &header); err != nil {
+		l.t.Fatal(err)
 	}
-	env, e := json.Marshal(rental.DetachedEnvelope{Certificate: c, Signature: hex.EncodeToString(sig.Serialize())})
-	if e != nil {
-		l.t.Fatal(e)
+	contract := rental.Contract{
+		Version: 1, BookingID: booking, RenterPubkey: grantee.PubKeyHex(), AgentPubkey: l.agentNostrPub,
+		StationName: e2eAgentName, NotBefore: 100, NotAfter: 1000,
+		Allowed: []string{"deliver", "pay"}, Forbidden: []string{"publish", "repository.push", "secret.release"}, BudgetSat: 1000000,
+		TemplateID: "lab-template", TemplateSHA256: strings.Repeat("1", 64), ProfileID: "lab-profile", ProfileVersion: "1", ProfileSHA256: strings.Repeat("2", 64),
+		PriceUSDCents: 100, USDMicrosPerNMC: 100000000, RateAsOf: 100, PriceNMCSat: 1000000, PaymentPolicy: "advance", PaymentAddress: l.address, PrivacySHA256: strings.Repeat("3", 64),
 	}
-	return env
+	contractID := rental.Hash(jsonBytes(l.t, contract))
+	consent := signEvent(l.t, grantee, rental.Event{CreatedAt: 200, Kind: 8181, Tags: [][]string{{"t", "swarma-rental-consent-v1"}, {"contract", contractID}, {"booking", booking}, {"privacy", contract.PrivacySHA256}}})
+	pk, _ := btcec.PrivKeyFromBytes(provider.Bytes())
+	pack := rental.Package{Version: 1, Contract: contract, Consent: consent, ProviderPubkey: provider.PubKeyHex(), ProviderSignature: signHash(l.t, pk, contractID), PrivacyAckAt: 100, PrivacySHA256: contract.PrivacySHA256, HoldCreatedAt: 100, HoldExpiresAt: 900}
+	publication := signEvent(l.t, provider, rental.Event{CreatedAt: 300, Kind: 8182, Tags: [][]string{{"t", "swarma-rental-package-v1"}, {"contract", contractID}, {"booking", booking}, {"e", consent.ID}}, Content: string(jsonBytes(l.t, pack))})
+	req := rental.IssuanceRequest{Version: 1, BookingID: booking, StationName: e2eAgentName, AgentPubkey: l.agentNostrPub, RenterPubkey: grantee.PubKeyHex(), ContractSHA256: contractID, Scope: contract.Allowed, BudgetSat: contract.BudgetSat, NotBefore: 100, NotAfter: 1000, PaymentPolicy: "advance", PaymentTxID: payment.TxID, PaymentVout: payment.Vout, PaymentHeight: header.Height, PaymentBlockHash: paymentTx.Block, ObservedTipHash: labText(l.t, l.rpc("", "getbestblockhash")), PackageEventID: publication.ID}
+	issuerState := filepath.Join(l.private, "issuer-"+label)
+	if err = os.Mkdir(issuerState, 0700); err != nil {
+		l.t.Fatal(err)
+	}
+	keyPath := filepath.Join(issuerState, "grant-key")
+	if err = os.WriteFile(keyPath, l.issuer.Serialize(), 0600); err != nil {
+		l.t.Fatal(err)
+	}
+	sealScript, _ := rental.GrantSealScript(l.issuerPub)
+	policy := rental.Policy{Network: "regtest", Genesis: su.RegtestGenesis, AgentName: e2eAgentName, LandlordName: e2eLandlordName, SealScript: sealScript, FundingScript: l.script, StateDir: issuerState}
+	spec := rental.PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: funding.TxID, Vout: funding.Vout}, ValueSat: 1000000, Script: l.script, Role: "funding"}}, ChangeScript: l.script}
+	r := rental.IssueGrant(context.Background(), l.observer, rental.IssuerPolicy{Policy: policy, ProviderPubkey: provider.PubKeyHex()}, jsonBytes(l.t, req), jsonBytes(l.t, publication), seal, spec, keyPath, 500)
+	if r.Verdict != "prepared" || r.Plan == nil || r.GrantID != rental.Hash(r.SignedGrant) {
+		l.t.Fatalf("K1 issuer: %s/%s", r.Verdict, r.Reason)
+	}
+	tx := su.Transaction{Version: r.Plan.TransactionVersion}
+	for _, in := range r.Plan.Inputs {
+		tx.Inputs = append(tx.Inputs, su.Input{Point: in.Point, Sequence: 0xfffffffe})
+	}
+	for _, out := range r.Plan.Outputs {
+		script, err := hex.DecodeString(out.Script)
+		if err != nil {
+			l.t.Fatal(err)
+		}
+		tx.Outputs = append(tx.Outputs, su.Output{Value: out.ValueSat, Script: script})
+	}
+	id := l.send(hex.EncodeToString(tx.Bytes()), confirmed)
+	proof, err := rental.PresentIssuedGrant(r.SignedGrant, id)
+	if err != nil {
+		l.t.Fatal(err)
+	}
+	// Persist only public issuance evidence; key files stay in private/.
+	if err = os.WriteFile(filepath.Join(l.root, label+"-issued.json"), jsonBytes(l.t, r), 0600); err != nil {
+		l.t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(l.root, label+"-presentation.json"), proof, 0600); err != nil {
+		l.t.Fatal(err)
+	}
+	return proof
+}
+
+func (l *coreLab) output(address, script string) rental.Point {
+	l.t.Helper()
+	id := labText(l.t, l.rpc("issuer", "sendtoaddress", address, su.Coins(1000000)))
+	l.mine(1)
+	var tx su.TransactionView
+	if err := json.Unmarshal(l.rpc("", "getrawtransaction", id, true), &tx); err != nil {
+		l.t.Fatal(err)
+	}
+	for _, out := range tx.Vout {
+		if out.Script.Hex == script && int64(out.Value) == 1000000 {
+			point := rental.Point{TxID: id, Vout: out.N}
+			l.rpc("issuer", "lockunspent", false, []rental.Point{point})
+			return point
+		}
+	}
+	l.t.Fatal("fixture output absent")
+	return rental.Point{}
 }
 
 // revoke spends a seal back to the issuer wallet (revocation).
@@ -333,18 +420,23 @@ func (l *coreLab) revoke(seal rental.Point) {
 	l.send(unsigned, true)
 }
 
-type collectPub struct{ evs []*nostr.Event }
+type collectPub struct {
+	mu  sync.Mutex
+	evs []*nostr.Event
+}
 
 func (c *collectPub) Publish(ctx context.Context, ev *nostr.Event) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.evs = append(c.evs, ev)
 	return nil
 }
 
-// TestGatewayDetachedCoreE2E proves the M2-04 path on genuine
-// Core: two grantees present detached certificates inline, are
+// TestGatewayV3CoreE2E proves the M2-05 path on genuine
+// Core: two grantees present issuer-produced v3 grants inline, are
 // routed to separate lazily-started instances, the seal of grant
 // one is spent, and only that grantee's slot closes.
-func TestGatewayDetachedCoreE2E(t *testing.T) {
+func TestGatewayV3CoreE2E(t *testing.T) {
 	ctx := context.Background()
 	agent, _ := nostr.GeneratePrivKey()
 	l := newCoreLab(t, agent.PubKeyHex())
@@ -353,14 +445,14 @@ func TestGatewayDetachedCoreE2E(t *testing.T) {
 
 	renter1, _ := nostr.GeneratePrivKey()
 	renter2, _ := nostr.GeneratePrivKey()
-	cert1 := l.grant(renter1.PubKeyHex(), strings.Repeat("a", 64), seal1)
-	cert2 := l.grant(renter2.PubKeyHex(), strings.Repeat("b", 64), seal2)
+	cert1 := l.grant(renter1, "one", seal1, true)
+	cert2 := l.grant(renter2, "two", seal2, false)
 
 	kernelState := filepath.Join(l.root, "kernel-state")
 	if e := os.Mkdir(kernelState, 0700); e != nil {
 		t.Fatal(e)
 	}
-	adapter, err := kernelbind.New(l.observer, kernelState, e2eAgentName, l.issuerPub)
+	adapter, err := kernelbind.New(l.observer, kernelState, e2eAgentName, e2eLandlordName, l.issuerPub)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,11 +468,12 @@ func TestGatewayDetachedCoreE2E(t *testing.T) {
 	sock := filepath.Join(sockDir, "s.sock")
 	pub := &collectPub{}
 	fixed := time.Unix(500, 0)
+	screener := &screen.Stub{}
 	g, err := gw.New(gw.Config{
 		AgentKey: agent, Kernel: adapter, Presenter: adapter, AgentName: e2eAgentName,
-		Screener: &screen.Stub{}, Journal: store, Publisher: pub,
+		Screener: screener, Journal: store, Publisher: pub,
 		Driver:   &station.LocalTestDriver{Root: filepath.Join(l.root, "stations")},
-		Endpoint: sock, Now: func() time.Time { return fixed },
+		Endpoint: sock, PullTimeout: 10 * time.Millisecond, Now: func() time.Time { return fixed },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -396,7 +489,7 @@ func TestGatewayDetachedCoreE2E(t *testing.T) {
 		spec := gw.SlotSpec{
 			ID: fmt.Sprintf("slot-%d", i+1), StationName: fmt.Sprintf("id/e2e-station-%d", i+1),
 			RenterPubKey:   r.PubKeyHex(),
-			ContractSHA256: strings.Repeat(string(rune('a'+i)), 64),
+			ContractSHA256: proofGrant(t, [][]byte{cert1, cert2}[i]).Grant.ContractSHA256,
 			NotBefore:      100, NotAfter: 1000,
 		}
 		if err := g.RegisterSlot(spec); err != nil {
@@ -406,7 +499,11 @@ func TestGatewayDetachedCoreE2E(t *testing.T) {
 	dm := func(from *nostr.PrivKey, content string, cert []byte) *nostr.Event {
 		var tags [][]string
 		if cert != nil {
-			tags = [][]string{gw.GrantCertTag(cert)}
+			tag, err := gw.GrantCertTag(cert)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tags = [][]string{tag}
 		}
 		w, _, err := nostr.WrapDM(from, agent.PubKeyHex(), content, tags, 500)
 		if err != nil {
@@ -419,7 +516,8 @@ func TestGatewayDetachedCoreE2E(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+		t.Cleanup(func() { _ = conn.Close() })
+		_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
 		c := stationlink.NewClient(conn)
 		secret, _ := hex.DecodeString(secretHex)
 		sys, err := c.Hello(slotID, stationName, secret)
@@ -441,11 +539,64 @@ func TestGatewayDetachedCoreE2E(t *testing.T) {
 		res.Reason != "kernel_refused:presentation_required" {
 		t.Fatalf("untagged first = %+v", res)
 	}
+	// These refusals precede any station start/screening/cache insertion.
+	// Every attempt is replayed verbatim to prove its rumor id is not burned.
+	refuse := func(label string, wrapped *nostr.Event, want string, sender string) {
+		t.Helper()
+		before := screener.Calls
+		for retry := 0; retry < 2; retry++ {
+			r := g.HandleGiftWrap(ctx, wrapped)
+			if !r.Refused || r.Delivered || r.SlotEnded || r.Reason != want {
+				t.Fatalf("%s refusal: %+v, want %s", label, r, want)
+			}
+			if screener.Calls != before {
+				t.Fatalf("%s reached screening", label)
+			}
+			if _, err := adapter.CachedGrant(sender); !errors.Is(err, kernel.ErrNoPresentation) {
+				t.Fatalf("%s cached refused grant: %v", label, err)
+			}
+			if slot, ok := store.ActiveByRenter(sender); !ok || slot.Started || slot.Ended || slot.Refusals != 0 {
+				t.Fatalf("%s changed slot state", label)
+			}
+		}
+		t.Logf("control %s PASS (%s; no screening/cache/start/strike/replay burn)", label, want)
+	}
+	refuse("foreign-grantee", dm(renter1, "foreign grant", cert2), "kernel_refused:GRANTEE_MISMATCH", renter1.PubKeyHex())
+	signed1 := proofGrant(t, cert1)
+	v2 := legacyEnvelope(t, signed1.Grant)
+	if _, err := rental.ParseDetachedEnvelope(v2); err != nil {
+		t.Fatal("v2 negative fixture invalid", err)
+	}
+	v2Receipt, err := adapter.Check(ctx, v2, e2eAgentName, renter1.PubKeyHex(), 500)
+	if err != nil || v2Receipt.Verdict != kernel.Refused || v2Receipt.Reason != "CANONICAL_ENCODING" || v2Receipt.Closed {
+		t.Fatalf("v2 policy refusal: %+v %v", v2Receipt, err)
+	}
+	rawTag := func(raw []byte, id string) *nostr.Event {
+		w, _, err := nostr.WrapDM(renter1, agent.PubKeyHex(), "raw tag", [][]string{{"grant-cert", id, base64.StdEncoding.EncodeToString(raw)}}, 500)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return w
+	}
+	refuse("v2-transport", rawTag(v2, rental.Hash(v2)), "presentation_malformed", renter1.PubKeyHex())
+	refuse("tag-id-mismatch", rawTag(cert1, strings.Repeat("0", 64)), "presentation_malformed", renter1.PubKeyHex())
+	wrongLocator, err := rental.PresentIssuedGrant(jsonBytes(t, signed1), seal2.TxID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := kernel.PresentationID(wrongLocator); err != nil || got != signed1.ID() {
+		t.Fatal("locator changed stable id", err)
+	}
+	refuse("wrong-locator", dm(renter1, "wrong commitment", wrongLocator), "kernel_refused:ISSUANCE_COMMITMENT", renter1.PubKeyHex())
+	unconfirmed := dm(renter2, "hello from two", cert2)
+	refuse("unconfirmed-issuance", unconfirmed, "kernel_pending:ISSUANCE_UNCONFIRMED", renter2.PubKeyHex())
+	l.mine(1)
+
 	// Both grantees present inline and deliver to separate instances.
 	if res := g.HandleGiftWrap(ctx, dm(renter1, "hello from one", cert1)); !res.Delivered {
 		t.Fatalf("grant 1 presentation = %+v", res)
 	}
-	if res := g.HandleGiftWrap(ctx, dm(renter2, "hello from two", cert2)); !res.Delivered {
+	if res := g.HandleGiftWrap(ctx, unconfirmed); !res.Delivered {
 		t.Fatalf("grant 2 presentation = %+v", res)
 	}
 	s1, _ := store.Get("slot-1")
@@ -461,6 +612,34 @@ func TestGatewayDetachedCoreE2E(t *testing.T) {
 	if f, err := c2.Pull(); err != nil || f.Content != "hello from two" {
 		t.Fatalf("station 2 pull = %+v %v", f, err)
 	}
+	// The actual K1 cache stores v3 proof bytes, not a live verdict. Gateway
+	// receipts carry grant identity and names; no funding policy is needed.
+	for _, row := range []struct {
+		sender string
+		raw    []byte
+	}{{renter1.PubKeyHex(), cert1}, {renter2.PubKeyHex(), cert2}} {
+		cached, err := adapter.CachedGrant(row.sender)
+		if err != nil || !bytes.Equal(cached, row.raw) {
+			t.Fatal("live presentation not cached", err)
+		}
+		signed := proofGrant(t, row.raw)
+		receipt, err := adapter.Check(ctx, cached, e2eAgentName, row.sender, 500)
+		if err != nil || !receipt.Admits() || receipt.GrantID != signed.ID() || receipt.AgentName != e2eAgentName || receipt.LandlordName != e2eLandlordName || !reflect.DeepEqual(receipt.Scope, signed.Grant.Scope) || adapter.Policy.FundingScript != "" {
+			t.Fatalf("live receipt mapping: %+v %v", receipt, err)
+		}
+	}
+	if f, err := c2.Reply("live reply"); err != nil || f.Type != stationlink.TypeAck {
+		t.Fatalf("live station reply: %+v %v", f, err)
+	}
+	// A bad locator cannot replace an already-live cached presentation.
+	beforeReplacement := screener.Calls
+	if r := g.HandleGiftWrap(ctx, dm(renter1, "bad replacement", wrongLocator)); !r.Refused || r.Delivered || r.SlotEnded || r.Reason != "kernel_refused:ISSUANCE_COMMITMENT" {
+		t.Fatalf("refused replacement: %+v", r)
+	}
+	if raw, err := adapter.CachedGrant(renter1.PubKeyHex()); err != nil || !bytes.Equal(raw, cert1) || screener.Calls != beforeReplacement {
+		t.Fatal("refused replacement changed cache or reached screening", err)
+	}
+	t.Log("control refused-replacement PASS (prior live cache preserved)")
 	// Cached path: untagged follow-ups are Checked fresh and flow.
 	if res := g.HandleGiftWrap(ctx, dm(renter1, "one again", nil)); !res.Delivered {
 		t.Fatalf("grant 1 cached follow-up = %+v", res)
@@ -479,6 +658,7 @@ func TestGatewayDetachedCoreE2E(t *testing.T) {
 	if s, _ := store.Get("slot-1"); !s.Ended {
 		t.Fatalf("slot-1 not ended after revocation: %+v", s)
 	}
+	t.Log("control revoke-one PASS (first slot durably closed)")
 	// Grant 2 keeps talking.
 	if res := g.HandleGiftWrap(ctx, dm(renter2, "two still here", nil)); !res.Delivered {
 		t.Fatalf("grant 2 after grant-1 revocation = %+v", res)
@@ -486,5 +666,48 @@ func TestGatewayDetachedCoreE2E(t *testing.T) {
 	if f, err := c2.Pull(); err != nil || f.Content != "two still here" {
 		t.Fatalf("station 2 pull 2 = %+v %v", f, err)
 	}
-	t.Logf("genuine-Core detached e2e PASS (root %s)", l.root)
+	t.Log("control parallel-neighbour PASS (second slot still delivers)")
+	// A mempool landlord rotation blocks both incoming traffic and station
+	// replies without ending the surviving slot. Confirmation closes it.
+	value, err := rental.LandlordValue(rental.LandlordBinding{Grant: xonly(9)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.rpc("issuer", "name_update", e2eLandlordName, value)
+	before := screener.Calls
+	for i := 0; i < 2; i++ {
+		r := g.HandleGiftWrap(ctx, dm(renter2, "during rotation", nil))
+		if !r.Refused || r.Delivered || r.SlotEnded || r.Reason != "kernel_refused:PENDING_LANDLORD_ROTATION" {
+			t.Fatalf("pending rotation: %+v", r)
+		}
+	}
+	if slot, _ := store.Get("slot-2"); slot.Ended || slot.Refusals != 0 || screener.Calls != before {
+		t.Fatal("pending rotation ended/struck/screened slot")
+	}
+	if f, err := c2.Pull(); err != nil || f.Type != stationlink.TypeNone {
+		t.Fatalf("pending rotation leaked delivery: %+v %v", f, err)
+	}
+	pub.mu.Lock()
+	published := len(pub.evs)
+	pub.mu.Unlock()
+	if f, err := c2.Reply("must not publish"); err != nil || f.Type != stationlink.TypeError || f.Reason != "grant not live" {
+		t.Fatalf("pending outbound: %+v %v", f, err)
+	}
+	pub.mu.Lock()
+	afterPublished := len(pub.evs)
+	pub.mu.Unlock()
+	if afterPublished != published {
+		t.Fatal("pending rotation published station reply")
+	}
+	t.Log("control pending-landlord-rotation PASS (refused, slot remains open)")
+	l.mine(1)
+	r := g.HandleGiftWrap(ctx, dm(renter2, "after rotation", nil))
+	if !r.Refused || r.Delivered || !r.SlotEnded || r.Reason != "kernel_closed:LANDLORD_KEY_ROTATED" {
+		t.Fatalf("confirmed rotation: %+v", r)
+	}
+	if slot, _ := store.Get("slot-2"); !slot.Ended {
+		t.Fatal("confirmed rotation did not persist slot end")
+	}
+	t.Log("control confirmed-landlord-rotation PASS (slot closed)")
+	t.Logf("genuine-Core v3 issuer gateway e2e PASS (root %s)", l.root)
 }

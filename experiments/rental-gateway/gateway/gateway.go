@@ -283,7 +283,7 @@ func (g *Gateway) agentNameFor(slot *journal.Slot) string {
 // slot-stored envelope. ok=false means the sender must present.
 func (g *Gateway) envelopeFor(slot *journal.Slot, senderHex string) (cert []byte, ok bool, err error) {
 	if g.cfg.Presenter != nil {
-		raw, perr := g.cfg.Presenter.CachedCertificate(senderHex)
+		raw, perr := g.cfg.Presenter.CachedGrant(senderHex)
 		if perr == nil && len(raw) > 0 {
 			return raw, true, nil
 		}
@@ -316,7 +316,7 @@ func (g *Gateway) kernelCheckSender(ctx context.Context, slot *journal.Slot, sen
 	}
 	if !ok {
 		return kernel.Receipt{Verdict: kernel.Refused, Reason: "presentation_required",
-			StationName: g.agentNameFor(slot), CheckedAt: nowUnix}, nil
+			AgentName: g.agentNameFor(slot), CheckedAt: nowUnix}, nil
 	}
 	return g.cfg.Kernel.Check(ctx, cert, g.agentNameFor(slot), senderHex, nowUnix)
 }

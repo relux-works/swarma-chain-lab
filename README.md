@@ -95,3 +95,14 @@ From `experiments/agent-wallet`, run `go test -race ./...`, `go vet ./...` and
 Its README lists exact Core/guard controls, bounded RPC routes and private/public
 artifact separation. The [skill draft](skills/namecoin-wallet/SKILL.md) requires
 Curator deployment to pin paths; it makes no sandbox or custody guarantee.
+
+## Rental gateway tools
+
+[Rental gateway](experiments/rental-gateway/README.md) routes authenticated NIP-17
+messages to separate renter stations after fresh K1 v3 grant checks. Its nested
+`kernelbind` module uses the in-tree rental kernel, landlord/agent policy pins
+and stable signed-grant IDs. From each module run `GOWORK=off go vet ./...` and
+`GOWORK=off go test -race ./...`; build the stub CLI from the gateway module with
+`go build -trimpath -o .temp/gateway ./cmd/gateway`. The module README documents
+the opt-in issuer-driven Core regtest test, private/public output boundaries
+and required tool paths. Scratch builds and logs belong in `.temp/`.

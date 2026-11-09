@@ -7,7 +7,7 @@ the gateway, NIP-17 routing to per-slot stations, screening outcomes
 with deterministic slot ending, and station lifecycle. It does not
 judge action scope (R3) and holds no chain keys.
 
-## Build and test
+## Tools: build and test
 
 From `experiments/rental-gateway`:
 
@@ -17,16 +17,29 @@ go test -race -count=1 ./...
 go build -trimpath -o .temp/gateway ./cmd/gateway
 ```
 
-Toolchain: `go 1.26.0` module (recorded run: go1.26.0 darwin/arm64
-via GOTOOLCHAIN=auto). All tests are offline and localhost-only; the
+Toolchain: `go 1.26.0` module (validated with go1.26.8 darwin/arm64
+via GOTOOLCHAIN=go1.26.8). Default tests are offline and localhost-only; the
 test relay binds `127.0.0.1` on an ephemeral port.
 
-The nested `kernelbind/` module (real detached kernel binding)
+The nested `kernelbind/` module (real K1 v3 kernel binding)
 builds and tests the same way from its own directory. Its
 genuine-Core end-to-end test is opt-in and skipped unless
 `GW_E2E_REGTEST=1` with `GW_E2E_RUN_ROOT`, `GW_E2E_CORE_DAEMON` and
 `GW_E2E_CORE_CLI` point at a fresh run dir and the pinned Core
-binaries.
+binaries. Run it with:
+
+```sh
+cd kernelbind
+GW_E2E_REGTEST=1 GW_E2E_RUN_ROOT="$PWD/.temp/core-run-01" \
+GW_E2E_CORE_DAEMON=/absolute/path/to/namecoind \
+GW_E2E_CORE_CLI=/absolute/path/to/namecoin-cli \
+GOWORK=off GOTOOLCHAIN=go1.26.8 go test -race -count=1 -v -run '^TestGatewayV3CoreE2E$' .
+```
+
+Create the parent `.temp/` directory first; the run directory must not exist.
+Only the harness's isolated regtest wallet is used. Public issuance results,
+presentations and `node.pid` are written at the run root; private node data
+and temporary signing inputs remain under `private/` and must not be shared.
 
 Local run (stub kernel; the real kernel binds library-side via
 `kernelbind/`):
@@ -50,19 +63,23 @@ local-test driver launches per station.
   seal mismatch. Interop was cross-checked both ways against
   go-nostr v0.52.3 in scratch during development.
 - **Inbound order (fixed):** strict unwrap (sender = inner seal key,
-  never the gift-wrap key) -> active-slot lookup -> slot window +
-  durable replay journal -> grant check -> lazy station start ->
-  screening (only explicit allow delivers; error/timeout/malformed
+  never the gift-wrap key) -> active-slot lookup -> slot window ->
+  v3 presentation parse -> fresh grant check -> lazy station start ->
+  durable replay journal -> screening (only explicit allow delivers; error/timeout/malformed
   refuse) -> station delivery queue.
-- **Inline presentation (detached grants):** the renter attaches
-  one rumor tag `["grant-cert", <sha256 hex id>, <base64 envelope>]`
-  (exact canonical detached-envelope bytes, ≤16384) to its first
-  message. The gateway runs kernel `Present` (a fresh `Check`
+- **Inline presentation (K1 v3 grants):** the renter attaches
+  one rumor tag `["grant-cert", <grant_id>, <base64 presentation>]`
+  (canonical `{signed_grant, issuance: {txid}}` JSON, ≤16384 decoded bytes)
+  to its first message. `grant_id` is SHA-256 of the canonical signed grant, excluding
+  the issuance locator. `GrantCertTag(presentation)` returns `(tag, error)`;
+  it rejects malformed transport framing. The kernel checks the complete
+  grant schema, signatures and locator against its own chain. The gateway
+  runs kernel `Present` (a fresh `Check`
   inside; only `live` admits the bytes into the kernel's bounded
   64-sender cache; same-sender replacement only via a new live
   presentation; a 65th sender is refused). Later messages are
   `Check`ed fresh against the cached bytes — the cache is never a
-  verdict — or against a slot-stored envelope when one was
+  verdict — or against a slot-stored presentation when one was
   pre-provisioned. No known bytes refuse as `presentation_required`.
   Malformed tags refuse that message before screening (no strike,
   rumor id not burned). Presentation refusals DM the renter a
@@ -71,8 +88,8 @@ local-test driver launches per station.
   first live verdict for an in-window slot lazily starts that
   grantee's station instance (one per slot; many grantees in
   parallel). The tag's wire shape lives in one small function
-  (`parseGrantPresentation`) so a future grant format swaps it
-  mechanically.
+  (`parseGrantPresentation`, using `kernel.PresentationID` for the
+  shared transport/ID calculation). No legacy v2 admission path remains.
 - **Screening outcomes (§5.0):** only an explicit model REFUSE
   spends a strike (counter fsynced before acting; warning DM +
   station notice; second strike ends the slot; counter survives
@@ -96,18 +113,23 @@ local-test driver launches per station.
   kernel check (current grantees only, no outbound screening); the
   final message is the deliberate exemption.
 - **Kernel boundary:** `kernel.Checker` + `kernel.Presenter` bind
-  the landed detached-grant kernel (M1-04, LIP-0003):
-  `Check`/`Present`/`CachedCertificate` over detached certificate
-  envelopes. `kernel.Stub` serves unit tests; the nested
+  the landed K1 v3 grant kernel:
+  `Check`/`Present`/`CachedGrant` over v3 grant presentations. Receipts
+  expose `GrantID`, `AgentName`, `LandlordName` and `Scope`; the gateway
+  does not interpret scope as effect authority. `kernel.Stub` serves unit
+  tests; the nested
   `kernelbind/` module binds the real `experiments/rental` package
   in-tree (`kernelbind.New` pins regtest + genesis, derives the
-  seal script from the issuer grant key, and takes the agent name
-  and kernel state dir — which must exist at mode 0700). The
-  genuine-Core regtest end-to-end (two grants present inline,
-  separate instances, one seal spent, the other keeps talking)
+  seal script from the issuer grant key, and takes separate agent and
+  landlord names
+  plus the kernel state dir — which must exist at mode 0700). The
+  genuine-Core regtest end-to-end (the real K1 issuer produces both
+  grants; separate instances, revoke-one isolation, unconfirmed/wrong
+  locator refusal, pending/confirmed landlord rotation)
   lives in `kernelbind/core_e2e_test.go`, opt-in via env. A kernel
   read failure refuses the message but never durably closes
-  anything gateway-side.
+  anything gateway-side. `FundingScript` is unnecessary here: the gateway
+  neither prepares nor funds issuance.
 - **Station channel:** stations initiate every connection (separate
   VM in deployment): pull deliveries, push replies, one
   length-prefixed-JSON protocol over `net.Conn` — unix socket
@@ -137,7 +159,10 @@ local-test driver launches per station.
   Destroy removes home + token + channel secret; retention §5.2.
 - **Names:** the kernel pins the rented agent's name
   (`Policy.AgentName`, gateway config `AgentName`) against the
-  certificate and the on-chain name value. Station names are only
+  grant and on-chain agent binding, and independently pins the landlord
+  name (`Policy.LandlordName`) whose current name value carries the grant
+  key. Pending rotation refuses without closing; confirmed key rotation
+  yields the kernel's durable closed receipt and ends the slot. Station names are only
   the stationlink binding names; the `id/swarma-station-*` prefix
   is a deployment convention here, never a trust rule.
 

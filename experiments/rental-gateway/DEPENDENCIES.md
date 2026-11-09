@@ -26,4 +26,5 @@ in multiple implementations), one published NIP-01 event
 The nested `kernelbind/` module additionally depends only on
 in-tree siblings (`experiments/rental`, `experiments/single-use`,
 `experiments/sealwatch` via replaces) and this module; see its
-`go.mod`.
+`go.mod`. The adapter targets the landed K1 v3 API; no external or
+bench-local module replacement is needed.

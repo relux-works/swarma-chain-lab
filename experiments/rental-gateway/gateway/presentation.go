@@ -2,41 +2,27 @@ package gateway
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
 )
 
-// Inline certificate presentation (detached grants, M2-04): the
-// renter attaches ONE rumor tag
-//
-//	["grant-cert", <id>, <b64>]
-//
-// to its first NIP-17 message, where <b64> is base64-StdEncoding of
-// the exact canonical detached-envelope JSON bytes (at most 16384
-// raw bytes, the kernel Present bound) and <id> is the lowercase
-// hex SHA-256 of those bytes. The gateway presents the bytes to the
-// kernel (fresh Check; only live admits them into the kernel's
-// bounded per-sender cache); later messages are Checked fresh
-// against the cached bytes. The tag is stripped here: screening and
-// station delivery only ever see the rumor content.
-//
-// parseGrantPresentation is the single place that knows this wire
-// shape. A later grant format that changes what <id> commits to
-// (K1: grant_id over the signed grant, locator outside the id)
-// swaps this function only.
+// A renter presents one ["grant-cert", <grant_id>, <base64 presentation>]
+// tag. The v3 presentation is {signed_grant, issuance:{txid}} in canonical
+// JSON. grant_id hashes only the canonical signed grant; the locator is
+// untrusted and checked by the kernel. At most 16384 decoded bytes are
+// accepted. Only content reaches screening and the station.
 const grantCertTag = "grant-cert"
 const maxPresentationBytes = 16384
 
 // Deterministic gateway notice texts for presentation refusals.
 // These are fixed gateway strings, never model output.
 const (
-	noticePresentationRequired    = "presentation required: attach your grant certificate to your next message with one grant-cert tag [\"grant-cert\", <sha256 hex id>, <base64 envelope>]."
-	noticePresentationMalformed   = "presentation refused: malformed grant-cert tag; attach exactly one [\"grant-cert\", <sha256 hex id>, <base64 envelope>] tag whose id is the SHA-256 of the envelope bytes."
+	noticePresentationRequired    = "presentation required: attach your v3 grant to your next message with one grant-cert tag [\"grant-cert\", <grant_id>, <base64 presentation>]."
+	noticePresentationMalformed   = "presentation refused: malformed grant-cert tag; attach exactly one [\"grant-cert\", <grant_id>, <base64 presentation>] tag whose id is the SHA-256 of the canonical signed grant."
 	noticePresentationUnsupported = "presentation refused: inline presentation is not enabled on this gateway."
 )
 
@@ -50,7 +36,7 @@ type grantPresentation struct {
 // parseGrantPresentation extracts the inline presentation from a
 // rumor: (nil, nil) when absent, an error when malformed (more
 // than one tag, wrong arity, bad id form, undecodable or oversize
-// bytes, or id not the SHA-256 of the bytes).
+// bytes, invalid v3 framing, or mismatched stable signed-grant id).
 func parseGrantPresentation(rumor *nostr.Event) (*grantPresentation, error) {
 	var found []string
 	count := 0
@@ -70,24 +56,28 @@ func parseGrantPresentation(rumor *nostr.Event) (*grantPresentation, error) {
 	if len(id) != 64 || !isLowerHex(id) {
 		return nil, errPresentationMalformed
 	}
+	if len(found[2]) > base64.StdEncoding.EncodedLen(maxPresentationBytes) {
+		return nil, errPresentationMalformed
+	}
 	raw, err := base64.StdEncoding.DecodeString(found[2])
 	if err != nil || len(raw) == 0 || len(raw) > maxPresentationBytes {
 		return nil, errPresentationMalformed
 	}
-	sum := sha256.Sum256(raw)
-	if hex.EncodeToString(sum[:]) != id {
+	got, err := kernel.PresentationID(raw)
+	if err != nil || got != id {
 		return nil, errPresentationMalformed
 	}
 	return &grantPresentation{id: id, raw: raw}, nil
 }
 
-// GrantCertTag builds the rumor tag carrying one inline
-// presentation of the exact envelope bytes. It is the renter-side
-// counterpart of parseGrantPresentation (clients and tests).
-func GrantCertTag(envelopeBytes []byte) []string {
-	sum := sha256.Sum256(envelopeBytes)
-	return []string{grantCertTag, hex.EncodeToString(sum[:]),
-		base64.StdEncoding.EncodeToString(envelopeBytes)}
+// GrantCertTag builds a v3 tag, refusing invalid transport framing. It does
+// not attest authority; the recipient must call the real kernel Presenter.
+func GrantCertTag(presentation []byte) ([]string, error) {
+	id, err := kernel.PresentationID(presentation)
+	if err != nil {
+		return nil, err
+	}
+	return []string{grantCertTag, id, base64.StdEncoding.EncodeToString(presentation)}, nil
 }
 
 func isLowerHex(s string) bool {

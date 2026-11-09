@@ -1,5 +1,8 @@
 name: Rental gateway checks
 
+env:
+  GOWORK: 'off'
+
 on:
   pull_request:
     paths:
@@ -52,7 +55,7 @@ jobs:
           go build -trimpath -o "$RUNNER_TEMP/bin/" ./cmd/...
 
   kernelbind:
-    # The nested module binds the landed detached kernel
+    # The nested module binds the landed K1 v3 kernel
     # (experiments/rental) via in-tree replaces.
     runs-on: ubuntu-22.04
     timeout-minutes: 10

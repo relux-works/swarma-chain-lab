@@ -1,27 +1,21 @@
 package kernelbind_test
 
-// Unit controls for the detached-kernel binding that need no
-// chain: policy pinning in New, receipt field mapping on refusal
-// paths, presentation id enforcement, and the absent-cache error
-// mapping. Live paths against a genuine Core are in the opt-in
-// core_e2e_test.go.
-
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
-	"os"
-	"strings"
-	"testing"
-
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-
+	"os"
+	"reflect"
 	"relux.works/swarma-chain-lab/experiments/rental"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind"
-	singleuse "relux.works/swarma-chain-lab/experiments/single-use"
+	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	su "relux.works/swarma-chain-lab/experiments/single-use"
+	"strings"
+	"testing"
 )
 
 func xonly(n byte) string {
@@ -30,88 +24,166 @@ func xonly(n byte) string {
 	_, p := btcec.PrivKeyFromBytes(b)
 	return hex.EncodeToString(schnorr.SerializePubKey(p))
 }
-
 func stateDir(t *testing.T) string {
 	t.Helper()
-	// The kernel's durable store demands an existing 0700 root.
 	dir := t.TempDir()
-	if err := os.Chmod(dir, 0700); err != nil {
-		t.Fatal(err)
+	if e := os.Chmod(dir, 0700); e != nil {
+		t.Fatal(e)
 	}
 	return dir
 }
-
 func newAdapter(t *testing.T) *kernelbind.Adapter {
 	t.Helper()
-	a, err := kernelbind.New(nil, stateDir(t), "id/test-agent", xonly(1))
-	if err != nil {
-		t.Fatal(err)
+	a, e := kernelbind.New(nil, stateDir(t), "id/test-agent", "id/test-landlord", xonly(1))
+	if e != nil {
+		t.Fatal(e)
 	}
 	return a
 }
+func jsonBytes(t *testing.T, v any) []byte {
+	t.Helper()
+	b, e := json.Marshal(v)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return b
+}
+func signHash(t *testing.T, k *btcec.PrivateKey, id string) string {
+	t.Helper()
+	h, e := hex.DecodeString(id)
+	if e != nil {
+		t.Fatal(e)
+	}
+	s, e := schnorr.Sign(k, h)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return hex.EncodeToString(s.Serialize())
+}
+func signEvent(t *testing.T, k *nostr.PrivKey, e rental.Event) rental.Event {
+	t.Helper()
+	n := nostr.Event{CreatedAt: e.CreatedAt, Kind: e.Kind, Tags: e.Tags, Content: e.Content}
+	if err := k.SignEvent(&n); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(jsonBytes(t, n), &e); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+func proofGrant(t *testing.T, raw []byte) rental.SignedGrant {
+	t.Helper()
+	p, e := rental.ParseGrantPresentation(raw)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return p.SignedGrant
+}
 
-// TestNewPinsPolicy proves New fixes the detached policy: regtest
-// network + pinned genesis, the given agent name, and the seal
-// script derived from the issuer key; a malformed issuer key is
-// refused at construction.
+// Offline cryptographic fixture only. The genuine Core suite creates every
+// admitted v3 grant through rental.IssueGrant instead.
+func unitGrant(t *testing.T) []byte {
+	t.Helper()
+	keyBytes := make([]byte, 32)
+	keyBytes[31] = 1
+	k, _ := btcec.PrivKeyFromBytes(keyBytes)
+	keyBytes[31] = 2
+	renter, e := nostr.PrivKeyFromBytes(keyBytes)
+	if e != nil {
+		t.Fatal(e)
+	}
+	hash := strings.Repeat("a", 64)
+	consent := signEvent(t, renter, rental.Event{CreatedAt: 200, Kind: 8181, Tags: [][]string{{"t", "swarma-rental-consent-v1"}, {"contract", hash}, {"booking", strings.Repeat("b", 64)}, {"privacy", strings.Repeat("c", 64)}}})
+	g := rental.Grant{Version: 3, Network: "regtest", Genesis: su.RegtestGenesis, AgentName: "id/test-agent", LandlordName: "id/test-landlord", IssuerKey: xonly(1), GranteeKey: renter.PubKeyHex(), ContractSHA256: hash, Scope: []string{"deliver", "pay"}, NotBefore: 100, NotAfter: 1000, Seal: rental.Point{TxID: strings.Repeat("d", 64)}, Consent: rental.GrantConsent{ContractSHA256: hash, ConsentEvent: consent, LandlordSig: signHash(t, k, hash)}}
+	digest, e := g.SigningHash()
+	if e != nil {
+		t.Fatal(e)
+	}
+	raw, e := rental.PresentIssuedGrant(jsonBytes(t, rental.SignedGrant{Grant: g, Signature: signHash(t, k, digest)}), strings.Repeat("e", 64))
+	if e != nil {
+		t.Fatal(e)
+	}
+	return raw
+}
+
+// Policy pins include landlord and agent; the gateway never needs funding.
+// A malformed seal key is refused locally beside the valid constructor.
 func TestNewPinsPolicy(t *testing.T) {
 	a := newAdapter(t)
 	p := a.Policy
-	wantScript, err := rental.GrantSealScript(xonly(1))
-	if err != nil {
-		t.Fatal(err)
+	script, e := rental.GrantSealScript(xonly(1))
+	if e != nil {
+		t.Fatal(e)
 	}
-	if p.Network != "regtest" || p.Genesis != singleuse.RegtestGenesis ||
-		p.AgentName != "id/test-agent" || p.SealScript != wantScript || p.StateDir == "" {
-		t.Fatalf("policy pins wrong: %+v", p)
+	if p.Network != "regtest" || p.Genesis != su.RegtestGenesis || p.AgentName != "id/test-agent" || p.LandlordName != "id/test-landlord" || p.SealScript != script || p.StateDir == "" || p.FundingScript != "" {
+		t.Fatalf("policy pins: %+v", p)
 	}
-	if _, err := kernelbind.New(nil, t.TempDir(), "id/test-agent", "not-a-key"); err == nil {
-		t.Fatal("malformed issuer key accepted")
+	if _, e = kernelbind.New(nil, t.TempDir(), "id/test-agent", "id/test-landlord", "bad-key"); e == nil {
+		t.Fatal("malformed key admitted")
 	}
 }
 
-// TestCheckMapsRefusal proves a malformed envelope comes back as a
-// mapped refused receipt (never an error, never an admission) with
-// the kernel's id/checked-at fields carried over.
-func TestCheckMapsRefusal(t *testing.T) {
+// Mapping preserves v3 fields when the node is absent. A foreign sender and
+// malformed/v2 objects refuse before chain observation, with no closure.
+func TestCheckMapsV3Receipt(t *testing.T) {
 	a := newAdapter(t)
-	raw := []byte("not an envelope")
-	r, err := a.Check(context.Background(), raw, "id/test-agent", xonly(2), 500)
-	if err != nil {
-		t.Fatal(err)
+	raw := unitGrant(t)
+	signed := proofGrant(t, raw)
+	r, e := a.Check(context.Background(), raw, a.Policy.AgentName, xonly(2), 500)
+	if e != nil || r.Verdict != kernel.Refused || r.Reason != "NODE_UNAVAILABLE" || r.GrantID != signed.ID() || r.AgentName != a.Policy.AgentName || r.LandlordName != a.Policy.LandlordName || r.CheckedAt != 500 || r.Closed || !reflect.DeepEqual(r.Scope, signed.Grant.Scope) {
+		t.Fatalf("v3 mapping: %+v %v", r, e)
 	}
-	sum := sha256.Sum256(raw)
-	if r.Verdict != kernel.Refused || r.Admits() || r.CertificateSHA256 != hex.EncodeToString(sum[:]) ||
-		r.StationName != "id/test-agent" || r.CheckedAt != 500 || r.Reason == "" {
-		t.Fatalf("mapped receipt wrong: %+v", r)
+	foreign, _ := a.Check(context.Background(), raw, a.Policy.AgentName, xonly(3), 500)
+	if foreign.Reason != "GRANTEE_MISMATCH" || foreign.Admits() {
+		t.Fatalf("foreign: %+v", foreign)
+	}
+	for _, bad := range [][]byte{[]byte("not JSON"), legacyEnvelope(t, signed.Grant)} {
+		got, _ := a.Check(context.Background(), bad, a.Policy.AgentName, xonly(2), 500)
+		if got.Verdict != kernel.Refused || got.Reason != "CANONICAL_ENCODING" || got.GrantID != "" || got.Closed {
+			t.Fatalf("malformed/v2: %+v", got)
+		}
 	}
 }
 
-// TestPresentRejectsBadID proves Present refuses before any cache
-// write when the presented id is not the SHA-256 of the bytes, and
-// nothing becomes cached for the sender.
+// Wrong ID refuses before caching; the correct ID reaches Check and missing
+// node refuses without caching. Changing only locator preserves the stable ID.
 func TestPresentRejectsBadID(t *testing.T) {
 	a := newAdapter(t)
-	sender := xonly(2)
-	r, err := a.Present(context.Background(), []byte("envelope-ish"),
-		strings.Repeat("0", 64), "id/test-agent", sender, 500)
-	if err != nil {
-		t.Fatal(err)
+	raw := unitGrant(t)
+	signed := proofGrant(t, raw)
+	r, e := a.Present(context.Background(), raw, strings.Repeat("0", 64), a.Policy.AgentName, xonly(2), 500)
+	if e != nil || r.Verdict != kernel.Refused || r.Reason != "PRESENTATION_ID" {
+		t.Fatalf("wrong id: %+v %v", r, e)
 	}
-	if r.Verdict != kernel.Refused || r.Reason != "PRESENTATION_ID" {
-		t.Fatalf("bad-id present = %+v, want refused/PRESENTATION_ID", r)
+	r, e = a.Present(context.Background(), raw, signed.ID(), a.Policy.AgentName, xonly(2), 500)
+	if e != nil || r.Reason != "NODE_UNAVAILABLE" || r.Admits() {
+		t.Fatalf("correct id without node: %+v %v", r, e)
 	}
-	if _, err := a.CachedCertificate(sender); !errors.Is(err, kernel.ErrNoPresentation) {
-		t.Fatalf("cache after refused present: err = %v, want ErrNoPresentation", err)
+	if _, e = a.CachedGrant(xonly(2)); !errors.Is(e, kernel.ErrNoPresentation) {
+		t.Fatalf("refused cache insertion: %v", e)
+	}
+	changed, e := rental.PresentIssuedGrant(jsonBytes(t, signed), strings.Repeat("f", 64))
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, proof := range [][]byte{raw, changed} {
+		id, e := kernel.PresentationID(proof)
+		if e != nil || id != signed.ID() {
+			t.Fatalf("locator affected ID: %s %v", id, e)
+		}
 	}
 }
 
-// TestCachedCertificateAbsent proves the absent-cache kernel error
-// maps to kernel.ErrNoPresentation so the gateway can demand an
-// inline presentation.
-func TestCachedCertificateAbsent(t *testing.T) {
-	a := newAdapter(t)
-	if _, err := a.CachedCertificate(xonly(9)); !errors.Is(err, kernel.ErrNoPresentation) {
-		t.Fatalf("absent cache err = %v, want ErrNoPresentation", err)
+// A valid v2 certificate is a negative fixture only; no compatibility path.
+func legacyEnvelope(t *testing.T, g rental.Grant) []byte {
+	t.Helper()
+	c := rental.DetachedCertificate{Version: 2, Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, IssuerKey: g.IssuerKey, GranteeKey: g.GranteeKey, ContractSHA256: g.ContractSHA256, Scope: g.Scope, NotBefore: g.NotBefore, NotAfter: g.NotAfter, Seal: g.Seal}
+	b, e := c.Canonical()
+	if e != nil {
+		t.Fatal(e)
 	}
+	key := make([]byte, 32)
+	key[31] = 1
+	k, _ := btcec.PrivKeyFromBytes(key)
+	return jsonBytes(t, rental.DetachedEnvelope{Certificate: c, Signature: signHash(t, k, rental.Hash(b))})
 }

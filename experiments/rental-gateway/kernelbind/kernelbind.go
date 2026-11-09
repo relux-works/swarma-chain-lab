@@ -1,4 +1,4 @@
-// Package kernelbind binds the landed detached-grant kernel
+// Package kernelbind binds the landed K1 v3 grant kernel
 // (relux.works/swarma-chain-lab/experiments/rental, LIP-0003) to
 // the gateway's kernel boundary:
 //
@@ -6,7 +6,7 @@
 //	  senderPubkey, nowUnix) rental.Receipt
 //	rental.Present(ctx, node, policy, envelopeBytes, id, agentName,
 //	  senderPubkey, nowUnix) rental.Receipt
-//	rental.CachedCertificate(policy, senderPubkey) ([]byte, string, error)
+//	rental.CachedGrant(policy, senderPubkey) ([]byte, string, error)
 //
 // The mapping is a field copy: the kernel owns every chain
 // decision. This stays a separate nested module so the gateway
@@ -23,7 +23,7 @@ import (
 	singleuse "relux.works/swarma-chain-lab/experiments/single-use"
 )
 
-// Adapter binds the real detached kernel. It implements both
+// Adapter binds the real v3 kernel. It implements both
 // kernel.Checker and kernel.Presenter.
 type Adapter struct {
 	Node   singleuse.Node
@@ -35,13 +35,14 @@ var (
 	_ kernel.Presenter = (*Adapter)(nil)
 )
 
-// New builds an Adapter with the detached policy pins: regtest
+// New builds an Adapter with the v3 policy pins: regtest
 // network + genesis are fixed by the kernel profile, the seal
 // script is derived from the pinned issuer (grant) key, and
 // stateDir is the kernel's own durable store (presentation cache,
-// seal index, per-certificate state). It must be an absolute,
-// cleaned path (the kernel enforces this again).
-func New(node singleuse.Node, stateDir, agentName, issuerPubkey string) (*Adapter, error) {
+// seal index, per-grant state). It must be an absolute,
+// cleaned path (the kernel enforces this again). FundingScript is deliberately
+// absent: the gateway checks grants but never funds issuance.
+func New(node singleuse.Node, stateDir, agentName, landlordName, issuerPubkey string) (*Adapter, error) {
 	script, err := rental.GrantSealScript(issuerPubkey)
 	if err != nil {
 		return nil, fmt.Errorf("kernelbind: issuer key: %w", err)
@@ -49,29 +50,31 @@ func New(node singleuse.Node, stateDir, agentName, issuerPubkey string) (*Adapte
 	return &Adapter{
 		Node: node,
 		Policy: rental.Policy{
-			Network:    "regtest",
-			Genesis:    singleuse.RegtestGenesis,
-			AgentName:  agentName,
-			SealScript: script,
-			StateDir:   stateDir,
+			Network:      "regtest",
+			Genesis:      singleuse.RegtestGenesis,
+			AgentName:    agentName,
+			LandlordName: landlordName,
+			SealScript:   script,
+			StateDir:     stateDir,
 		},
 	}, nil
 }
 
 func mapReceipt(r rental.Receipt) kernel.Receipt {
 	return kernel.Receipt{
-		Verdict:           r.Verdict,
-		Reason:            r.Reason,
-		CertificateSHA256: r.CertificateSHA256,
-		StationName:       r.StationName, // v2 carries the agent name here
-		CheckedAt:         r.CheckedAt,
-		Closed:            r.Closed,
-		Scope:             r.Scope,
-		BudgetSat:         r.BudgetSat,
+		Verdict:      r.Verdict,
+		Reason:       r.Reason,
+		GrantID:      r.GrantID,
+		AgentName:    r.AgentName,
+		LandlordName: r.LandlordName,
+		CheckedAt:    r.CheckedAt,
+		Closed:       r.Closed,
+		Scope:        r.Scope,
+		BudgetSat:    r.BudgetSat,
 	}
 }
 
-// Check implements kernel.Checker against the detached kernel. The
+// Check implements kernel.Checker against the v3 kernel. The
 // kernel never errors; every failure arrives as a pending/refused
 // receipt, and only live admits.
 func (a *Adapter) Check(ctx context.Context, envelopeBytes []byte, agentName, senderPubkey string, nowUnix int64) (kernel.Receipt, error) {
@@ -86,12 +89,12 @@ func (a *Adapter) Present(ctx context.Context, envelopeBytes []byte, id, agentNa
 	return mapReceipt(rental.Present(ctx, a.Node, a.Policy, envelopeBytes, id, agentName, senderPubkey, nowUnix)), nil
 }
 
-// CachedCertificate implements kernel.Presenter: it returns the
+// CachedGrant implements kernel.Presenter: it returns the
 // cached public envelope bytes for a sender (never a verdict —
 // every message is still Checked fresh), or
 // kernel.ErrNoPresentation when the sender has presented nothing.
-func (a *Adapter) CachedCertificate(senderPubkey string) ([]byte, error) {
-	raw, _, err := rental.CachedCertificate(a.Policy, senderPubkey)
+func (a *Adapter) CachedGrant(senderPubkey string) ([]byte, error) {
+	raw, _, err := rental.CachedGrant(a.Policy, senderPubkey)
 	if err != nil {
 		if err.Error() == "PRESENTATION_ABSENT" {
 			return nil, kernel.ErrNoPresentation
