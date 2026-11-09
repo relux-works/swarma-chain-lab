@@ -4,6 +4,8 @@ on:
     paths:
       - 'experiments/rental-executor/**'
       - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/rental-executor.yml'
@@ -12,6 +14,8 @@ on:
     paths:
       - 'experiments/rental-executor/**'
       - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/rental-executor.yml'

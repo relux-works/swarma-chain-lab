@@ -3,6 +3,7 @@ module relux.works/swarma-chain-lab/experiments/rental-booking
 go 1.26.0
 
 require (
+	relux.works/swarma-chain-lab/experiments/payment-chain v0.0.0
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcutil v1.1.5
 )
@@ -23,3 +24,5 @@ require (
 replace relux.works/swarma-chain-lab/experiments/single-use => ../single-use
 
 replace relux.works/swarma-chain-lab/experiments/sealwatch => ../sealwatch
+
+replace relux.works/swarma-chain-lab/experiments/payment-chain => ../payment-chain

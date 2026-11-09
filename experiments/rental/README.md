@@ -166,3 +166,29 @@ and requires each intended test assertion to fail. Build failures, panics and
 skips do not count. Its fresh `run-*` directory contains logs and `results.json`
 with source hashes and exact replacements. Core roots include private wallets;
 export only logs/results and each root's `public/` evidence, never `private/`.
+
+## Payment contract v2 development
+
+`VerifyIssuancePackageV2` independently authenticates the version2 payment wire;
+`AdmitIssuanceV2` selects a trusted per-coin observer and checks current payment
+bytes/block membership. Both are read-only gates. `IssueGrantWithNodes` connects v2
+payments to the shared durable grant issuer, keeping Namecoin identity/seal/
+funding on its explicit node and fee admission on the trusted per-coin map.
+Use separate `payment-observer` and `payment-issuer` RPC principals/secrets.
+`payment_admission` carries the fee coin and atom-denominated observation;
+`budget_sat` remains NMC execution authority. The legacy `IssueGrant` API and
+completed bare-plan replay remain available. See
+[the v2 wire contract](../rental-booking/PAYMENT-V2.md). Run
+`GOWORK=off go test -race -count=1 ./...` for independent consumer and legacy
+regression tests. Frozen public input vectors are in `testdata/payment-v2/`.
+
+
+`TestCorePaymentLifecycle` exercises actual ServiceV2 bookings and independent
+issuer admission on pinned BTC/LTC/NMC regtest payment nodes (txindex=0,
+prune=550), plus a distinct Namecoin identity/funding node. Enable P1_REGTEST=1
+and M1_REGTEST=1; supply fresh absolute P1_RUN_ROOT and M1_RUN_ROOT, explicit
+P1_{BTC,LTC,NMC}_{DAEMON,CLI} and M1_CORE_{DAEMON,CLI} binary paths. Run
+`GOWORK=off go test -race -count=1 -run '^TestCorePaymentLifecycle$' -v .`.
+Each run preserves private credentials/wallets/logs separately from public
+control/result/process metadata under its configured roots. Never publish the
+private subdirectories. Routine CI skips this opt-in genuine-node lane.

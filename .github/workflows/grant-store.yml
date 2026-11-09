@@ -5,6 +5,8 @@ on:
     paths:
       - 'experiments/grant-store/**'
       - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/rental-gateway/nostr/**'
       - 'experiments/rental-gateway/go.*'
       - 'experiments/single-use/**'
@@ -15,6 +17,8 @@ on:
     paths:
       - 'experiments/grant-store/**'
       - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/rental-gateway/nostr/**'
       - 'experiments/rental-gateway/go.*'
       - 'experiments/single-use/**'

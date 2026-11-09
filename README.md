@@ -117,3 +117,18 @@ store with mandatory signed uploads/downloads and per-blob readers. From
 The module README documents loopback CLI configuration, limits, grant helpers,
 replay/ACL persistence, and the scope of the local checks. Build and guard
 artifacts stay in `.temp/`; private state/key files are never delivery artifacts.
+
+## Multi-coin booking payments (P1 laboratory)
+
+`experiments/payment-chain` defines closed BTC/LTC/NMC regtest profiles,
+watch-only derivation, frozen USD quotes and bounded independent payment reads.
+`rental-booking.ServiceV2` owns one durable calendar with per-coin indices;
+`rental.IssueGrantWithNodes` authenticates v2 signed bytes and checks payment on
+separate issuer routes before the existing grant burns/signatures. NMC execution
+budget and Namecoin grant authority remain separate from the fee currency.
+
+Run `GOWORK=off go test -race ./...` and `go vet ./...` in payment-chain,
+rental-booking and rental. The genuine-node TestCorePaymentLifecycle entrypoint,
+pinned binary inputs, private/public output separation and supported replacement
+limits are documented in the rental and payment-chain READMEs. Existing v1 CLI
+entrypoints and frozen wire regressions remain available; v2 is a library API.

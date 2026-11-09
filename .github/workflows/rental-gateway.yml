@@ -8,6 +8,8 @@ on:
     paths:
       - 'experiments/rental-gateway/**'
       - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/rental-gateway.yml'
@@ -16,6 +18,8 @@ on:
     paths:
       - 'experiments/rental-gateway/**'
       - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/rental-gateway.yml'

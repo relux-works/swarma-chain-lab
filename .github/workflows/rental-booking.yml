@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/rental-booking.yml'
@@ -11,6 +12,7 @@ on:
     branches: [main]
     paths:
       - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/rental-booking.yml'

@@ -10,6 +10,7 @@ require (
 require (
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	golang.org/x/sys v0.47.0 // indirect
+	relux.works/swarma-chain-lab/experiments/payment-chain v0.0.0 // indirect
 )
 
 require (
@@ -28,3 +29,7 @@ replace relux.works/swarma-chain-lab/experiments/single-use => ../single-use
 replace relux.works/swarma-chain-lab/experiments/sealwatch => ../sealwatch
 
 replace relux.works/swarma-chain-lab/experiments/rental => ../rental
+
+replace relux.works/swarma-chain-lab/experiments/payment-chain => ../payment-chain
+
+replace relux.works/swarma-chain-lab/experiments/rental-booking => ../rental-booking

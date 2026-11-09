@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/rental.yml'
@@ -11,6 +13,8 @@ on:
     branches: [main]
     paths:
       - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/rental.yml'
@@ -27,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [rental, single-use]
+        module: [rental, single-use, payment-chain]
     defaults:
       run:
         working-directory: experiments/${{ matrix.module }}
@@ -54,4 +58,7 @@ jobs:
         run: |
           go vet ./...
           go test -race ./...
-          go build -trimpath -o "$RUNNER_TEMP/bin/" ./cmd/...
+          go build -trimpath ./...
+          if [ -d cmd ]; then
+            go build -trimpath -o "$RUNNER_TEMP/bin/" ./cmd/...
+          fi

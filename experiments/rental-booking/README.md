@@ -309,3 +309,24 @@ configuration. The method allocates no address and writes no state; `Book`
 rechecks availability. The site-free NIP-17 consumer lives in
 `../rental-gateway/kernelbind/bookingbind`; signed wire formats remain unchanged.
 Run its focused controls with `go test -race -run '^TestCatalogue' -count=1 .`.
+
+## Payment contract v2 development
+
+[PAYMENT-V2.md](PAYMENT-V2.md) specifies the separate BTC/LTC/NMC signed wire
+APIs and their tests. The existing service and CLI remain v1 pending the global
+v2 calendar and issuer integration. Run `GOWORK=off go test -race -count=1 ./...`
+for both v1 regression fixtures and v2 signature/binding controls.
+
+The [adapter API](ADAPTER-API.md) fixes the closed coin parser, integer quote
+surface and opaque canonical v2 contract handle for E1. It distinguishes these
+ready types from the pending ServiceV2/calendar integration.
+
+
+ServiceV2 provides the additive multi-coin library API described in
+[ADAPTER-API.md](ADAPTER-API.md). It uses a fresh state root and preserves v1
+wire/CLI behavior. One lock and atomic state file own all enabled coin calendars;
+per-coin xpub indices and frozen quotes are reserved with the interval. Run
+`GOWORK=off go test -race -count=1 -run '^(TestLedgerV2|TestCatalogueV2)' .`
+for contention, refusal/state preservation, threshold, sticky revoke and read-only
+catalogue controls. Genuine cross-module Core coverage is in rental's
+TestCorePaymentLifecycle. State roots and RPC secrets remain local/private.

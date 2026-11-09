@@ -11,27 +11,29 @@ import (
 )
 
 type GrantIssueResult struct {
-	Verdict     string          `json:"verdict"`
-	Reason      string          `json:"reason"`
-	GrantID     string          `json:"grant_id,omitempty"`
-	SignedGrant json.RawMessage `json:"signed_grant,omitempty"`
-	Plan        *Plan           `json:"plan,omitempty"`
-	Admission   Admission       `json:"admission"`
-	Replay      bool            `json:"replay"`
+	Verdict          string          `json:"verdict"`
+	Reason           string          `json:"reason"`
+	GrantID          string          `json:"grant_id,omitempty"`
+	SignedGrant      json.RawMessage `json:"signed_grant,omitempty"`
+	Plan             *Plan           `json:"plan,omitempty"`
+	Admission        Admission       `json:"admission"`
+	Replay           bool            `json:"replay"`
+	PaymentAdmission *AdmissionV2    `json:"payment_admission,omitempty"`
 }
 type issuedGrant struct {
-	Version       int             `json:"version"`
-	Binding       string          `json:"binding"`
-	RequestSHA256 string          `json:"request_sha256"`
-	PackageSHA256 string          `json:"package_sha256"`
-	SpecSHA256    string          `json:"spec_sha256"`
-	BookingID     string          `json:"booking_id"`
-	Seal          Point           `json:"seal"`
-	Phase         string          `json:"phase"`
-	GrantID       string          `json:"grant_id"`
-	SignedGrant   json.RawMessage `json:"signed_grant,omitempty"`
-	Plan          *Plan           `json:"plan,omitempty"`
-	Admission     Admission       `json:"admission"`
+	Version          int             `json:"version"`
+	Binding          string          `json:"binding"`
+	RequestSHA256    string          `json:"request_sha256"`
+	PackageSHA256    string          `json:"package_sha256"`
+	SpecSHA256       string          `json:"spec_sha256"`
+	BookingID        string          `json:"booking_id"`
+	Seal             Point           `json:"seal"`
+	Phase            string          `json:"phase"`
+	GrantID          string          `json:"grant_id"`
+	SignedGrant      json.RawMessage `json:"signed_grant,omitempty"`
+	Plan             *Plan           `json:"plan,omitempty"`
+	Admission        Admission       `json:"admission"`
+	PaymentAdmission *AdmissionV2    `json:"payment_admission,omitempty"`
 }
 
 // IssueGrant prepares a signed v3 grant and unsigned issuance plan. Both
@@ -41,21 +43,31 @@ type issuedGrant struct {
 func IssueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publication []byte, pool Point, spec PlanSpec, keyPath string, now int64) GrantIssueResult {
 	return issueGrant(ctx, node, p, request, publication, pool, spec, keyPath, now, nil)
 }
-func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publication []byte, pool Point, spec PlanSpec, keyPath string, now int64, hook func(string)) (result GrantIssueResult) {
+func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publication []byte, pool Point, spec PlanSpec, keyPath string, now int64, hook func(string)) GrantIssueResult {
+	return issueGrantRouted(ctx, node, p, request, publication, pool, spec, keyPath, now, hook, nil)
+}
+func issueGrantRouted(ctx context.Context, node su.Node, p IssuerPolicy, request, publication []byte, pool Point, spec PlanSpec, keyPath string, now int64, hook func(string), payment *grantPaymentRoute) (result GrantIssueResult) {
 	started := time.Now()
 	result.Verdict = "refused"
 	refuse := func(e error) GrantIssueResult { result.Reason = e.Error(); return result }
 	if e := p.Policy.validateGrantFunding(); e != nil {
 		return refuse(e)
 	}
-	var claimed IssuanceRequest
-	if canonical(request, &claimed) != nil || !digest(claimed.BookingID) || !digest(pool.TxID) {
+	claimed, claimErr := decodeGrantIntent(request, payment != nil)
+	if claimErr != nil || !digest(claimed.BookingID) || !digest(pool.TxID) {
 		return refuse(bad("ISSUANCE_REQUEST"))
 	}
 	if _, _, e := grantFundingShape(p.Policy, spec, pool, true); e != nil {
 		return refuse(e)
 	}
 	binding, _ := json.Marshal(struct{ Network, Genesis, Agent, Landlord, Script, Funding, Provider string }{p.Policy.Network, p.Policy.Genesis, p.Policy.AgentName, p.Policy.LandlordName, p.Policy.SealScript, p.Policy.FundingScript, p.ProviderPubkey})
+	if payment != nil {
+		binding, _ = json.Marshal(struct {
+			Identity       json.RawMessage
+			PaymentVersion int
+			Policies       map[string]PaymentAdmissionPolicy
+		}{binding, 2, payment.policies})
+	}
 	sb, _ := json.Marshal(spec)
 	record := issuedGrant{Version: 3, Binding: Hash(binding), RequestSHA256: Hash(request), PackageSHA256: Hash(publication), SpecSHA256: Hash(sb), BookingID: claimed.BookingID, Seal: pool, Phase: "reserved"}
 	bookingKey, _ := json.Marshal(struct{ Network, Genesis, BookingID string }{p.Policy.Network, p.Policy.Genesis, claimed.BookingID})
@@ -115,6 +127,14 @@ func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publ
 		result.GrantID = old.GrantID
 		result.SignedGrant = old.SignedGrant
 		result.Plan = old.Plan
+		if payment != nil {
+			if !validStoredPaymentAdmission(old.PaymentAdmission, request) {
+				return refuse(bad("ISSUANCE_JOURNAL_CORRUPT"))
+			}
+		} else if old.PaymentAdmission != nil {
+			return refuse(bad("ISSUANCE_JOURNAL_CORRUPT"))
+		}
+		result.PaymentAdmission = old.PaymentAdmission
 		result.Admission = old.Admission
 		result.Replay = true
 		return result
@@ -165,7 +185,7 @@ func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publ
 	admissionPolicy.Policy.StationScript = script
 	admissionPolicy.Policy.IssuerPubkey = lb.Grant
 	admissionPolicy.Policy.AgentPubkey = ab.Nostr
-	req, pack, e := VerifyIssuancePackage(admissionPolicy, request, publication, now)
+	req, pack, e := verifyGrantIntent(admissionPolicy, payment, request, publication, now)
 	if e != nil {
 		return refuse(e)
 	}
@@ -221,9 +241,24 @@ func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publ
 			return refuse(e)
 		}
 	}
-	result.Admission = AdmitIssuance(ctx, node, admissionPolicy, request, publication, now+int64(time.Since(started)/time.Second))
-	if result.Admission.Verdict != "admit" {
-		return refuse(bad(result.Admission.Reason))
+	admit := func() error {
+		at := now + int64(time.Since(started)/time.Second)
+		if payment == nil {
+			result.Admission = AdmitIssuance(ctx, node, admissionPolicy, request, publication, at)
+			if result.Admission.Verdict != "admit" {
+				return bad(result.Admission.Reason)
+			}
+		} else {
+			a := AdmitIssuanceV2(ctx, payment.nodes, IssuerPolicyV2{IssuerPolicy: admissionPolicy, PaymentPolicies: payment.policies}, request, publication, at)
+			result.PaymentAdmission = &a
+			if a.Verdict != "admit" {
+				return bad(a.Reason)
+			}
+		}
+		return nil
+	}
+	if e = admit(); e != nil {
+		return refuse(e)
 	}
 	for _, n := range []su.NameView{agent, landlord} {
 		again, e := currentName(o, n.Name)
@@ -252,6 +287,13 @@ func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publ
 	if e = o.Stable(); e != nil {
 		return refuse(e)
 	}
+	// The payment chain may differ from the Namecoin identity/funding chain.
+	// Refresh its independent observation after the final identity/funding pass.
+	if payment != nil {
+		if e = admit(); e != nil {
+			return refuse(e)
+		}
+	}
 	window := func() error {
 		current := now + int64(time.Since(started)/time.Second)
 		if current >= pack.HoldExpiresAt {
@@ -277,6 +319,7 @@ func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publ
 		}
 	}
 	record.Admission = result.Admission
+	record.PaymentAdmission = result.PaymentAdmission
 	reserved, _ := json.Marshal(record)
 	for _, name := range []string{bookingName, poolName, recordName} {
 		if e = store.Write(name, reserved); e != nil {
@@ -299,7 +342,7 @@ func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publ
 	if e = window(); e != nil {
 		return refuse(e)
 	}
-	g := Grant{Version: 3, Network: p.Policy.Network, Genesis: p.Policy.Genesis, AgentName: p.Policy.AgentName, LandlordName: p.Policy.LandlordName, IssuerKey: lb.Grant, GranteeKey: req.RenterPubkey, GranteeName: pack.Contract.RenterName, ContractSHA256: req.ContractSHA256, Scope: req.Scope, NotBefore: req.NotBefore, NotAfter: req.NotAfter, Seal: pool, Consent: GrantConsent{req.ContractSHA256, pack.Consent, hex.EncodeToString(consentSig.Serialize())}}
+	g := Grant{Version: 3, Network: p.Policy.Network, Genesis: p.Policy.Genesis, AgentName: p.Policy.AgentName, LandlordName: p.Policy.LandlordName, IssuerKey: lb.Grant, GranteeKey: req.RenterPubkey, GranteeName: pack.RenterName, ContractSHA256: req.ContractSHA256, Scope: req.Scope, NotBefore: req.NotBefore, NotAfter: req.NotAfter, Seal: pool, Consent: GrantConsent{req.ContractSHA256, pack.Consent, hex.EncodeToString(consentSig.Serialize())}}
 	if req.BudgetSat != 0 {
 		budget := req.BudgetSat
 		g.Budget = &budget

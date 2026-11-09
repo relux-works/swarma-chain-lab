@@ -4,6 +4,8 @@ on:
     paths:
       - 'experiments/agent-wallet/**'
       - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/agent-wallet.yml'
@@ -12,6 +14,8 @@ on:
     paths:
       - 'experiments/agent-wallet/**'
       - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/agent-wallet.yml'
