@@ -9,7 +9,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
+	"strings"
 )
 
 const browserScript = `const out=document.getElementById('out');let current;
@@ -20,23 +22,40 @@ const pageHTML = `<!doctype html><html lang="en"><meta charset="utf-8"><title>Re
 
 type HTTPHandler struct {
 	s      *Service
+	v2     *ServiceV2
+	script string
 	origin string
 	page   *template.Template
 	csp    string
 }
 
 func NewHTTPHandler(s *Service, origin string) (*HTTPHandler, error) {
+	return newHTTPHandler(s, nil, origin)
+}
+
+// NewHTTPHandlerV2 exposes the same bounded routes with independently typed v2
+// contracts. It does not reinterpret v1 exchange requests or choose a coin.
+func NewHTTPHandlerV2(s *ServiceV2, origin string) (*HTTPHandler, error) {
+	return newHTTPHandler(nil, s, origin)
+}
+func newHTTPHandler(s *Service, v2 *ServiceV2, origin string) (*HTTPHandler, error) {
 	u, e := url.Parse(origin)
-	if s == nil || e != nil || u.Scheme != "http" || !LoopbackAddress(u.Host) || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+	if (s == nil && v2 == nil) || e != nil || u.Scheme != "http" || !LoopbackAddress(u.Host) || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
 		return nil, refuse("HTTP_ORIGIN")
 	}
-	t, e := template.New("booking").Parse(pageHTML)
+	html, script := pageHTML, browserScript
+	if v2 != nil {
+		html = strings.Replace(html, "exact NMC amount", "exact amount in the selected coin", 1)
+		html = strings.Replace(html, `<button id="book">`, `<p><label>Payment coin <select id="coin">{{range .Coins}}<option value="{{.}}">{{.}}</option>{{end}}</select></label></p><button id="book">`, 1)
+		script = strings.Replace(script, "slot_id:document", "coin:document.getElementById('coin').value,slot_id:document", 1)
+	}
+	t, e := template.New("booking").Parse(html)
 	if e != nil {
 		return nil, e
 	}
-	sum := sha256.Sum256([]byte(browserScript))
+	sum := sha256.Sum256([]byte(script))
 	csp := "default-src 'none'; script-src 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
-	return &HTTPHandler{s, origin, t, csp}, nil
+	return &HTTPHandler{s: s, v2: v2, origin: origin, page: t, csp: csp, script: script}, nil
 }
 func respond(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -88,7 +107,12 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			httpFail(w, 400, "CATALOGUE_BOUNDS")
 			return
 		}
-		c, e := h.s.Catalogue(until, limit)
+		var c any
+		if h.v2 != nil {
+			c, e = h.v2.Catalogue(until, limit)
+		} else {
+			c, e = h.s.Catalogue(until, limit)
+		}
 		if e != nil {
 			httpFail(w, 400, "CATALOGUE_BOUNDS")
 			return
@@ -96,14 +120,43 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(w, 200, c)
 	case r.Method == "GET" && r.URL.Path == "/":
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_ = h.page.Execute(w, struct {
+		data := struct {
 			Privacy     string
 			Slots       []Slot
 			Price       int64
 			StartWindow int64
+			Coins       []string
 			Script      template.JS
-		}{PrivacyNotice, h.s.cfg.Slots, h.s.cfg.PriceUSDCents, h.s.cfg.MinStartNowRemainingSeconds, template.JS(browserScript)})
+		}{Privacy: PrivacyNotice, Script: template.JS(h.script)}
+		if h.v2 != nil {
+			data.Slots = h.v2.cfg.Slots
+			data.Price = h.v2.cfg.PriceUSDCents
+			data.StartWindow = h.v2.cfg.MinStartNowRemainingSeconds
+			for coin := range h.v2.cfg.Coins {
+				data.Coins = append(data.Coins, coin)
+			}
+			sort.Strings(data.Coins)
+		} else {
+			data.Slots = h.s.cfg.Slots
+			data.Price = h.s.cfg.PriceUSDCents
+			data.StartWindow = h.s.cfg.MinStartNowRemainingSeconds
+		}
+		_ = h.page.Execute(w, data)
 	case r.Method == "POST" && r.URL.Path == "/book":
+		if h.v2 != nil {
+			var in BookInputV2
+			if e := decodeBody(w, r, &in); e != nil {
+				httpFail(w, 400, e.Error())
+				return
+			}
+			b, e := h.v2.Book(ctx, in)
+			if e != nil {
+				httpFail(w, 409, e.Error())
+				return
+			}
+			respond(w, 201, map[string]any{"booking": b, "contract_sha256": b.Contract.Hash()})
+			return
+		}
 		var in BookInput
 		if e := decodeBody(w, r, &in); e != nil {
 			httpFail(w, 400, e.Error())
@@ -124,7 +177,13 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			httpFail(w, 400, e.Error())
 			return
 		}
-		b, e := h.s.AcceptConsent(ctx, in.BookingID, in.Event)
+		var b any
+		var e error
+		if h.v2 != nil {
+			b, e = h.v2.AcceptConsent(ctx, in.BookingID, in.Event)
+		} else {
+			b, e = h.s.AcceptConsent(ctx, in.BookingID, in.Event)
+		}
 		if e != nil {
 			httpFail(w, 409, e.Error())
 			return
@@ -136,7 +195,13 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			httpFail(w, 400, "BOOKING_ID")
 			return
 		}
-		b, e := h.s.Get(id)
+		var b any
+		var e error
+		if h.v2 != nil {
+			b, e = h.v2.Get(id)
+		} else {
+			b, e = h.s.Get(id)
+		}
 		if e != nil {
 			httpFail(w, 404, e.Error())
 			return

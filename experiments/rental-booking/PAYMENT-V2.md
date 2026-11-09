@@ -41,8 +41,8 @@ latter selects a payment node only from a trusted per-coin map after package
 authentication, then independently checks current payment evidence. It emits
 no signature or journal mutation. IssueGrantWithNodes connects this gate to the existing durable grant issuer.
 
-The existing booking CLI continues to use the v1 API. ServiceV2 provides the
-v2 library API with one cross-coin calendar, per-coin counters, frozen terms,
+The booking CLI selects ServiceV2 explicitly through its versioned config;
+legacy flat configs keep v1. ServiceV2 provides the v2 library and HTTP API with one cross-coin calendar, per-coin counters, frozen terms,
 restart validation and immutable outbox requests. Configured confirmation
 minima default to one when omitted; an explicitly signed zero always refuses.
 NewIssuerRPC requires the payment-issuer principal; NewRPC uses the separate

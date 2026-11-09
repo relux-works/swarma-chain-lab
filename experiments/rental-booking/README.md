@@ -313,13 +313,13 @@ Run its focused controls with `go test -race -run '^TestCatalogue' -count=1 .`.
 ## Payment contract v2 development
 
 [PAYMENT-V2.md](PAYMENT-V2.md) specifies the separate BTC/LTC/NMC signed wire
-APIs and their tests. The existing service and CLI remain v1 pending the global
-v2 calendar and issuer integration. Run `GOWORK=off go test -race -count=1 ./...`
+APIs and their tests. The legacy service remains v1; the CLI also serves ServiceV2 through an
+explicit versioned configuration. Run `GOWORK=off go test -race -count=1 ./...`
 for both v1 regression fixtures and v2 signature/binding controls.
 
 The [adapter API](ADAPTER-API.md) fixes the closed coin parser, integer quote
 surface and opaque canonical v2 contract handle for E1. It distinguishes these
-ready types from the pending ServiceV2/calendar integration.
+signed wire types from ServiceV2 calendar policy and HTTP transport.
 
 
 ServiceV2 provides the additive multi-coin library API described in
@@ -339,4 +339,40 @@ contains template/profile/privacy pins and available slots; it contains no rente
 keys or payment addresses. The existing Host gate and no-store policy apply.
 `TestHTTPCatalogue` exercises the real handler, invalid neighbouring requests and
 the held-slot exclusion. This endpoint supplies the gateway's v1 adapter and does
-not add a v2 HTTP API.
+not reinterpret a v2 HTTP contract as a v1 exchange hold.
+
+## Config-selected ServiceV2 HTTP
+
+The existing CLI command and flat v1 config remain supported. A new wrapper
+selects v2 explicitly: `service_version: 2`, `config: <ConfigV2>`, and
+`payment_route_files: {"btc": "...", "ltc": "...", "nmc": "..."}` containing
+exactly the enabled coin set. Unknown versions, duplicate fields, mixed layouts
+and missing/extra payment routes refuse with CONFIG_SCHEMA before key/route use.
+Each payment route is a separate read-only payment-observer credential accepted
+by payment-chain.NewRPC. `-route` remains the independent Namecoin identity route.
+Use a fresh private state root; v1 state is not migrated.
+
+```sh
+go build -o .temp/rental-booking ./cmd/rental-booking
+.temp/rental-booking -config service-v2.json -profile profile.txt \
+  -provider-key provider.key -route identity-route.json \
+  -listen 127.0.0.1:8080 -relay ws://127.0.0.1:8081 -poll 2s
+```
+
+NewHTTPHandlerV2 exposes the same GET /, GET /catalogue, POST /book,
+POST /consent and GET /booking routes with the same loopback Host/Origin,
+strict body and catalogue bounds. Book requires an explicit coin and returns
+BookingV2 plus its exact contract hash. Consent signs that complete v2 contract;
+the page adds a coin selector and its matching CSP hash. V1-shaped requests do
+not silently choose NMC. Responses preserve the original package event.
+The global calendar, rate/address reservation and confirmation policy remain
+ServiceV2's authority. These tests do not select or automate a browser extension.
+
+The gateway exchange adapter and HTTP client still use v1 booking types.
+They cannot consume V2 contracts without a separate typed integration; this
+serve path does not claim multi-coin exchange qualification.
+
+Run `go test -race -count=1 ./...` for both versions and the CLI selector.
+Targeted controls use `M3_MUTATIONS=1 M3_MUTATION_ROOT=<new-absolute-directory>
+go test -run '^TestGuardRemovalControls/(v2-http-origin|v2-service-version)$' .`;
+the directory holds isolated mutation copies and exact assertion logs.

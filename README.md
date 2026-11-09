@@ -131,7 +131,10 @@ Run `GOWORK=off go test -race ./...` and `go vet ./...` in payment-chain,
 rental-booking and rental. The genuine-node TestCorePaymentLifecycle entrypoint,
 pinned binary inputs, private/public output separation and supported replacement
 limits are documented in the rental and payment-chain READMEs. Existing v1 CLI
-entrypoints and frozen wire regressions remain available; v2 is a library API.
+entrypoints and frozen wire regressions remain available. The booking CLI also
+serves ServiceV2 through an explicit versioned config; see its
+[HTTP configuration](experiments/rental-booking/README.md#config-selected-servicev2-http).
+The gateway exchange client remains typed for v1.
 
 ### SG1 landlord signer service
 

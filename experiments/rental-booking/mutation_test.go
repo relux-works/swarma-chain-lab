@@ -31,6 +31,9 @@ func TestGuardRemovalControls(t *testing.T) {
 		t.Fatal(e)
 	}
 	plants := []guardPlant{
+		{"v2-http-origin", "http.go", "if r.Method == \"POST\" && r.Header.Get(\"Origin\") != h.origin {", "if false && r.Method == \"POST\" && r.Header.Get(\"Origin\") != h.origin {", "TestHTTPV2/btc/origin", "v2 HTTP guard changed state or accepted", false},
+		{"v2-service-version", "cmd/rental-booking/config.go", "c.ServiceVersion != 2", "false", "TestServiceConfigSelection/unknown-version", "ambiguous service config accepted", false},
+
 		{"start-window-entry", "service.go", "if s.startWindowClosed(*slot, now) {", "if false && s.startWindowClosed(*slot, now) {", "TestStartNowRemainingWindow/below", "remaining-window refusal/state", false},
 		{"start-window-node-delay", "service.go", "if s.startWindowClosed(*slot, later) {", "if false && s.startWindowClosed(*slot, later) {", "TestStartNowRemainingWindow/node_delay", "remaining-window refusal/state", false},
 		{"surplus-amount", "service.go", "surplus = r.Payment.ValueSat - b.Contract.PriceNMCSat", "surplus = 0", "TestGenuineCoreSurplus/over", "selected surplus/review not recorded", true},
@@ -110,7 +113,7 @@ func TestGuardRemovalControls(t *testing.T) {
 	for _, p := range plants {
 		t.Run(p.name, func(t *testing.T) {
 			dir := filepath.Join(root, p.name)
-			for _, module := range []string{"rental-booking", "single-use", "sealwatch"} {
+			for _, module := range []string{"rental-booking", "single-use", "sealwatch", "payment-chain"} {
 				if e := copyTree(filepath.Join(source, module), filepath.Join(dir, module)); e != nil {
 					t.Fatal(e)
 				}
@@ -130,7 +133,11 @@ func TestGuardRemovalControls(t *testing.T) {
 			ctx, c := context.WithTimeout(context.Background(), 90*time.Second)
 			defer c()
 			selector := "^" + strings.ReplaceAll(p.selector, "/", "$/^") + "$"
-			cmd := exec.CommandContext(ctx, "go", "test", "-count=1", "-run", selector, ".")
+			pkg := "."
+			if strings.HasPrefix(p.file, "cmd/") {
+				pkg = "./" + filepath.Dir(p.file)
+			}
+			cmd := exec.CommandContext(ctx, "go", "test", "-count=1", "-run", selector, pkg)
 			cmd.Dir = filepath.Join(dir, "rental-booking")
 			for _, v := range os.Environ() {
 				if !strings.HasPrefix(v, "M3_") {

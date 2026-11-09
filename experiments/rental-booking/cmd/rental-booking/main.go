@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
+	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
 	booking "relux.works/swarma-chain-lab/experiments/rental-booking"
 	singleuse "relux.works/swarma-chain-lab/experiments/single-use"
 )
@@ -35,8 +36,8 @@ func run() error {
 	if e != nil {
 		return fmt.Errorf("CONFIG_FILE")
 	}
-	var cfg booking.Config
-	if booking.Strict(raw, &cfg) != nil {
+	cfg, e := parseConfig(raw)
+	if e != nil {
 		return fmt.Errorf("CONFIG_SCHEMA")
 	}
 	prof, e := read(*profile, 1<<20)
@@ -74,7 +75,7 @@ func run() error {
 	if booking.Strict(raw, &route) != nil {
 		return fmt.Errorf("ROUTE_SCHEMA")
 	}
-	node, e := singleuse.NewOperatorRPC(route, "regtest", singleuse.RegtestGenesis, cfg.StateDir)
+	node, e := singleuse.NewOperatorRPC(route, "regtest", singleuse.RegtestGenesis, cfg.stateDir())
 	if e != nil {
 		return fmt.Errorf("READ_ONLY_ROUTE")
 	}
@@ -82,9 +83,42 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	service, e := booking.NewService(cfg, prof, key, node, relay, time.Now)
-	if e != nil {
-		return e
+	var service interface {
+		Close()
+		PublishPending(context.Context) error
+		Refresh(context.Context) error
+	}
+	var makeHandler func(string) (http.Handler, error)
+	if cfg.v2 != nil {
+		nodes := map[string]booking.Node{}
+		for coin, path := range cfg.v2.PaymentRouteFiles {
+			raw, e := read(path, 64<<10)
+			if e != nil {
+				return fmt.Errorf("PAYMENT_ROUTE_FILE")
+			}
+			var route pc.Route
+			if booking.Strict(raw, &route) != nil {
+				return fmt.Errorf("PAYMENT_ROUTE_SCHEMA")
+			}
+			rpc, e := pc.NewRPC(route)
+			if e != nil {
+				return fmt.Errorf("PAYMENT_READ_ONLY_ROUTE")
+			}
+			nodes[coin] = rpc
+		}
+		v2, e := booking.NewServiceV2(cfg.v2.Config, prof, key, nodes, node, relay, time.Now)
+		if e != nil {
+			return e
+		}
+		service = v2
+		makeHandler = func(origin string) (http.Handler, error) { return booking.NewHTTPHandlerV2(v2, origin) }
+	} else {
+		v1, e := booking.NewService(cfg.v1, prof, key, node, relay, time.Now)
+		if e != nil {
+			return e
+		}
+		service = v1
+		makeHandler = func(origin string) (http.Handler, error) { return booking.NewHTTPHandler(v1, origin) }
 	}
 	defer service.Close()
 	listener, e := net.Listen("tcp", *listen)
@@ -92,7 +126,7 @@ func run() error {
 		return fmt.Errorf("LISTEN")
 	}
 	defer listener.Close()
-	handler, e := booking.NewHTTPHandler(service, "http://"+listener.Addr().String())
+	handler, e := makeHandler("http://" + listener.Addr().String())
 	if e != nil {
 		return e
 	}
