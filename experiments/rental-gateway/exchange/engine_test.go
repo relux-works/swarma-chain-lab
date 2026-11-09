@@ -909,3 +909,27 @@ func TestServiceCoinRefusalText(t *testing.T) {
 		t.Fatal("coin retry neighbor")
 	}
 }
+
+// Actual encrypted pay replies preserve the backend minimum (legacy one and
+// V2 two), without converting that display into payment/issuance authority.
+// This fixture checks serialization; adapter tests establish the source value.
+func TestPayConfirmationDisplay(t *testing.T) {
+	for _, minimum := range []int64{1, 2} {
+		t.Run(strconv.FormatInt(minimum, 10), func(t *testing.T) {
+			f := fixtureNew(t)
+			f.b.hold.MinConfirmations = minimum
+			f.held(t)
+			f.send(f.consent(t, nil))
+			text := f.last(t)
+			var payment struct {
+				MinConfirmations int64 `json:"min_confirmations"`
+			}
+			if !strings.HasPrefix(text, "pay\n") || json.Unmarshal([]byte(strings.TrimPrefix(text, "pay\n")), &payment) != nil || payment.MinConfirmations != minimum {
+				t.Fatal("pay confirmation display")
+			}
+			if f.b.hold.Issuable || f.registered != 0 {
+				t.Fatal("pay display authorized issuance")
+			}
+		})
+	}
+}

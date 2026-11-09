@@ -210,3 +210,32 @@ func TestAdapterContractIdentity(t *testing.T) {
 		t.Fatal("valid identity neighbour")
 	}
 }
+
+// V1 Service.Refresh requires one active-chain payment confirmation for both
+// policies. The test-mode adapter reports that minimum through book, consent
+// and status without changing the signed contract or claiming unpaid issuance.
+func TestLegacyConfirmationDisplay(t *testing.T) {
+	f := setup(t)
+	h := f.book(t)
+	check := func(got exchange.Hold) {
+		t.Helper()
+		if got.MinConfirmations != 1 {
+			t.Fatal("legacy confirmation display", got.MinConfirmations)
+		}
+		if got.Issuable || !bytes.Equal(got.Contract, h.Contract) || got.ContractSHA256 != h.ContractSHA256 {
+			t.Fatal("display changed contract or admission")
+		}
+	}
+	check(h)
+	consent := f.consent(t, h)
+	got, e := f.a.Consent(context.Background(), h.BookingID, raw(consent))
+	if e != nil {
+		t.Fatal(e)
+	}
+	check(got)
+	got, e = f.a.Status(context.Background(), h.BookingID)
+	if e != nil {
+		t.Fatal(e)
+	}
+	check(got)
+}

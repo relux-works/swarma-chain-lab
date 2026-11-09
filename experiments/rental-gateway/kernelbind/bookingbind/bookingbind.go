@@ -118,7 +118,8 @@ func (a *Adapter) hold(b booking.Booking) (exchange.Hold, error) {
 	if c.Validate() != nil || c.AgentPubkey != a.AgentPubkey || c.StationName != a.AgentName || b.HoldExpiresAt <= b.HoldCreatedAt {
 		return exchange.Hold{}, errors.New("booking response binding")
 	}
-	h := exchange.Hold{BookingID: c.BookingID, ContractSHA256: c.Hash(), Sender: c.RenterPubkey, AgentName: a.AgentName, LandlordName: a.LandlordName, StationName: c.StationName, NotBefore: c.NotBefore, NotAfter: c.NotAfter, Expires: b.HoldExpiresAt, Coin: exchange.NMC, Address: c.PaymentAddress, AmountAtomic: c.PriceNMCSat, Contract: append([]byte{}, c.Bytes()...), Issuable: b.Issuance != nil, Revoked: b.Revoke != nil}
+	// Legacy Service.Refresh admits payment only after one active confirmation.
+	h := exchange.Hold{BookingID: c.BookingID, ContractSHA256: c.Hash(), Sender: c.RenterPubkey, AgentName: a.AgentName, LandlordName: a.LandlordName, StationName: c.StationName, NotBefore: c.NotBefore, NotAfter: c.NotAfter, Expires: b.HoldExpiresAt, Coin: exchange.NMC, Address: c.PaymentAddress, AmountAtomic: c.PriceNMCSat, MinConfirmations: 1, Contract: append([]byte{}, c.Bytes()...), Issuable: b.Issuance != nil, Revoked: b.Revoke != nil}
 	if b.Package != nil {
 		h.ConsentID = b.Package.Consent.ID
 	}

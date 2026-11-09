@@ -311,3 +311,7 @@ BTC/LTC Core payment checks: set `G6_REGTEST=1`, a fresh absolute
 Each coin's isolated node stores public lifecycle evidence under
 `$G6_RUN_ROOT/<coin>/public` and private node/wallet data under `private`.
 Never publish the private directory.
+
+Legacy V1 test-mode payment instructions report the service's fixed minimum of
+one active-chain confirmation. V2 reports the minimum frozen in its contract;
+these display values do not replace the service's payment admission checks.

@@ -24,6 +24,8 @@ type plant struct {
 }
 
 var plants = []plant{
+	{"legacy_confirmation_display", "binding", "bookingbind/bookingbind.go", "MinConfirmations: 1", "MinConfirmations: 0", "./bookingbind", "TestLegacyConfirmationDisplay", "legacy confirmation display"},
+	{"pay_confirmation_display", "gateway", "exchange/engine.go", "h.AmountAtomic, h.MinConfirmations, h.Expires", "h.AmountAtomic, 0, h.Expires", "./exchange", "TestPayConfirmationDisplay", "pay confirmation display"},
 	{"offered_coin", "gateway", "kernelbind/bookingbind/v2.go", "if !slices.Contains(a.PaymentCoins, s.Coin) {", "if !slices.Contains(a.PaymentCoins, s.Coin) && false {", "./cmd/gateway", "TestAdapterV2HTTP", "adapter coin guard missing"},
 	{"consent_binding", "gateway", "kernelbind/bookingbind/v2.go", "booking.CheckConsentV2(b.Contract, ev, b.HoldCreatedAt, b.HoldExpiresAt, a.Now().Unix()) != nil", "booking.CheckConsentV2(b.Contract, ev, b.HoldCreatedAt, b.HoldExpiresAt, a.Now().Unix()) != nil && false", "./cmd/gateway", "TestAdapterV2HTTP", "adapter consent guard missing"},
 	{"implicit_coin", "gateway", "exchange/engine.go", "words := strings.Split(text, \" \")", "words := strings.Split(text, \" \"); if len(words)==3 {words=append(words,\"nmc\")}", "./exchange", "TestExplicitCoinSelection", "implicit coin accepted"},
