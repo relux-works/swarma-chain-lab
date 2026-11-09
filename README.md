@@ -319,3 +319,11 @@ For later releases, choose new versions for changed modules and update their
 consumers explicitly; validate the complete selected graph before tagging.
 Logs, consumer fixtures, mirrors and release artifacts belong under task-scoped
 `.temp/` directories and must not contain credentials or private runtime state.
+
+## N1 identity and discovery tools
+
+The rental module supports [typed optional N1 identity values](experiments/rental/N1-VALUES.md)
+and an isolated local d/ mirror builder/checker. From `experiments/rental`, run
+`go run ./cmd/name-discovery -inventory testdata/n1-values/inventory.json -record testdata/n1-values/record.json` to check the public fixture. Validation
+commands and `.temp/` evidence locations are documented in that profile.
+Authority stays in id/; every verifier must be upgraded before changing names.

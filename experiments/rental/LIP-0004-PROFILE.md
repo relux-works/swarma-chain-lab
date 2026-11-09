@@ -5,12 +5,17 @@ public LIP publication, wallet-spending approval or deployment instruction.
 
 ## Identities and custody
 
-Exact compact name values, in the displayed order:
+Historical compact name values, in the displayed order:
 
 ```json
 {"swarma":{"landlord":{"grant":"<x-only grant key>"}}}
 {"swarma":{"agent":{"nostr":"<x-only Nostr key>","landlord":"id/landlord"}}}
 ```
+
+An optional typed `nostr` member may precede `swarma`; its exact root-only
+N1 schema, independent landlord social key, agent-key equality and 520-byte
+bound are defined in [N1 name values](N1-VALUES.md). The historical builders
+remain unchanged. The separate `d/` mirror is never authority.
 
 Parsers reject missing, aliased, extra, duplicate, reordered and malformed fields.
 Cold name-owner scripts are independent of these public keys. The seal script

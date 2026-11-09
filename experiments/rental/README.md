@@ -34,6 +34,10 @@ and [integration limits](UNRESOLVED_QUESTIONS.md). [LIP-0003](LIP-0003-PROFILE.m
 records the explicit v2 regression profile. Earlier CIP drafts are historical;
 these laboratory profiles do not publish or amend the public specifications.
 
+Optional N1 social metadata and the separate local d/ discovery sync tool are
+defined in [N1 name values](N1-VALUES.md), with exact publisher fixtures and the
+required consumer-upgrade-before-name-update procedure.
+
 ## Tools and exact entry points
 
 Go 1.26.8; macOS/Linux (flock and fsync). From this module:
@@ -43,10 +47,13 @@ go mod verify
 go vet ./...
 go test -race ./...
 go run .scripts/l5-guards.go -out .temp/l5-guards
+go run .scripts/n1-guards.go -out .temp/n1-guards
+go run .scripts/n1-dependencies.go -out .temp/n1-dependencies
 mkdir -p .temp/bin
 go build -trimpath -o .temp/bin/rental-kernel ./cmd/rental-kernel
 go build -trimpath -o .temp/bin/rental-plan ./cmd/rental-plan
 go build -trimpath -o .temp/bin/rental-issue ./cmd/rental-issue
+go build -trimpath -o .temp/bin/name-discovery ./cmd/name-discovery
 ```
 
 `testdata/` contains official BIP-340 vectors, independently generated M3 wire
