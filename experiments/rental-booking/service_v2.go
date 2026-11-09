@@ -13,6 +13,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // CoinConfig contains a watch-only branch and trusted quote policy. Current
@@ -26,6 +27,8 @@ type CoinConfig struct {
 	MinConfirmations   int64  `json:"min_confirmations"`
 }
 type ConfigV2 struct {
+	Network                     string                `json:"network,omitempty"`
+	Genesis                     string                `json:"genesis,omitempty"`
 	StateDir                    string                `json:"state_dir"`
 	AgentPubkey                 string                `json:"agent_pubkey"`
 	ProviderPubkey              string                `json:"provider_pubkey"`
@@ -38,6 +41,52 @@ type ConfigV2 struct {
 	Coins                       map[string]CoinConfig `json:"coins"`
 	Limits                      Limits                `json:"limits"`
 }
+
+// NetworkPins preserves legacy v2 regtest configuration only when both fields
+// are absent. Main always requires an explicit network and matching genesis.
+func (c ConfigV2) NetworkPins() (string, string) {
+	if c.Network == "" && c.Genesis == "" {
+		return "regtest", su.RegtestGenesis
+	}
+	return c.Network, c.Genesis
+}
+
+func (c ConfigV2) paymentProfile(coin string) (pc.Profile, error) {
+	network, genesis := c.NetworkPins()
+	if !su.NetworkPinned(network, genesis) {
+		return pc.Profile{}, refuse("NETWORK_PIN")
+	}
+	if network == "regtest" {
+		return pc.ForCoin(coin)
+	}
+	return pc.ForNetwork(coin, network, genesis)
+}
+
+// ValidateNetworkProfile is safe before loading keys or opening state. It
+// rejects main defaults and unsupported coins; slot policy remains explicit.
+func (c ConfigV2) ValidateNetworkProfile() error {
+	network, genesis := c.NetworkPins()
+	if !su.NetworkPinned(network, genesis) {
+		return refuse("NETWORK_PIN")
+	}
+	if network != "main" {
+		return nil
+	}
+	if len(c.Coins) != 1 || c.HoldSeconds < 1200 || c.HoldSeconds > 1800 || c.MinStartNowRemainingSeconds < 1 || c.MinStartNowRemainingSeconds > 3600 || c.PriceUSDCents < 1 || c.Template.BudgetSat < 1 || !c.Limits.valid() {
+		return refuse("MAIN_PROFILE_REQUIRED")
+	}
+	for coin, policy := range c.Coins {
+		p, err := c.paymentProfile(coin)
+		if err != nil || policy.MinConfirmations < 1 || policy.MinConfirmations > 2016 || policy.MaxRateAgeSeconds < 1 || policy.USDMicrosPerCoin < 1 || policy.RateAsOf < 1 {
+			return refuse("MAIN_PAYMENT_POLICY")
+		}
+		if _, err = pc.NewAddressDeriver(p, policy.PublicBranch, policy.PublicBranchSHA256); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type BookInputV2 struct {
 	SlotID              string  `json:"slot_id"`
 	Coin                pc.Coin `json:"coin"`
@@ -111,6 +160,9 @@ func NewServiceV2(cfg ConfigV2, profile []byte, key *btcec.PrivateKey, paymentNo
 		return nil, refuse("SERVICE_CONFIG")
 	}
 	cfg = owned
+	if err := cfg.ValidateNetworkProfile(); err != nil {
+		return nil, err
+	}
 	if cfg.HoldSeconds == 0 {
 		cfg.HoldSeconds = DefaultHoldSeconds
 	}
@@ -147,7 +199,7 @@ func NewServiceV2(cfg ConfigV2, profile []byte, key *btcec.PrivateKey, paymentNo
 			c.MinConfirmations = 1
 			cfg.Coins[coin] = c
 		}
-		p, e := pc.ForCoin(coin)
+		p, e := cfg.paymentProfile(coin)
 		if e != nil {
 			return nil, e
 		}
@@ -172,9 +224,11 @@ func NewServiceV2(cfg ConfigV2, profile []byte, key *btcec.PrivateKey, paymentNo
 	s.store = f
 	s.key, _ = btcec.PrivKeyFromBytes(key.Serialize())
 	binding := Hash(canonical(struct {
+		Network                   string `json:"network,omitempty"`
+		Genesis                   string `json:"genesis,omitempty"`
 		Provider, Agent, Template string
 		Coins                     map[string]pin
-	}{cfg.ProviderPubkey, cfg.AgentPubkey, cfg.TemplateSHA256, pins}))
+	}{cfg.Network, cfg.Genesis, cfg.ProviderPubkey, cfg.AgentPubkey, cfg.TemplateSHA256, pins}))
 	raw, e := f.read("state.json", 8<<20)
 	if e != nil {
 		s.Close()
@@ -285,7 +339,7 @@ func (s *ServiceV2) Book(ctx context.Context, in BookInputV2) (BookingV2, error)
 	if len(s.state.Bookings) >= 4096 {
 		return BookingV2{}, refuse("STATE_CAPACITY")
 	}
-	p, _ := pc.ForCoin(coin)
+	p, _ := s.cfg.paymentProfile(coin)
 	if _, e = pc.Quote(p, s.cfg.PriceUSDCents, cc.USDMicrosPerCoin, cc.RateAsOf, cc.MaxRateAgeSeconds, now); e != nil {
 		return BookingV2{}, e
 	}
@@ -293,7 +347,8 @@ func (s *ServiceV2) Book(ctx context.Context, in BookInputV2) (BookingV2, error)
 		if s.nameNode == nil {
 			return BookingV2{}, refuse("RENTER_NAME_NODE")
 		}
-		if e = CheckRenterName(ctx, s.nameNode, s.cfg.Limits, in.RenterName, in.RenterPubkey); e != nil {
+		network, genesis := s.cfg.NetworkPins()
+		if e = CheckRenterNameForNetwork(ctx, s.nameNode, s.cfg.Limits, in.RenterName, in.RenterPubkey, network, genesis); e != nil {
 			return BookingV2{}, e
 		}
 	}
@@ -469,7 +524,7 @@ func (s *ServiceV2) Refresh(ctx context.Context) error {
 	sort.Strings(coins)
 	snaps := map[string]pc.Snapshot{}
 	for _, coin := range coins {
-		p, _ := pc.ForCoin(coin)
+		p, _ := s.cfg.paymentProfile(coin)
 		snap, e := pc.Discover(ctx, s.nodes[coin], p, pc.Limits(s.cfg.Limits), targets[coin])
 		if e != nil {
 			return e

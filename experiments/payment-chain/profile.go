@@ -1,4 +1,4 @@
-// Package paymentchain observes booking fees on explicitly routed regtest nodes.
+// Package paymentchain observes booking fees on explicitly pinned nodes.
 // It does not sign, spend, reserve execution authority or mutate a node.
 package paymentchain
 
@@ -41,6 +41,10 @@ type Profile struct {
 	DustAtoms int64  `json:"dust_atoms"`
 }
 
+const NamecoinMainGenesis = "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770"
+
+// ForCoin preserves the original regtest-only selector. Mainnet callers must
+// supply both the network and its genesis through ForNetwork.
 func ForCoin(coin string) (Profile, error) {
 	p := Profile{Coin: coin, Network: "regtest", Genesis: "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206", MaxAtoms: 21000000 * 100000000}
 	switch coin {
@@ -59,8 +63,24 @@ func ForCoin(coin string) (Profile, error) {
 	}
 	return p, nil
 }
+
+func ForNetwork(coin, network, genesis string) (Profile, error) {
+	p, err := ForCoin(coin)
+	if err != nil {
+		return Profile{}, err
+	}
+	if network == "main" && coin == "nmc" && genesis == NamecoinMainGenesis {
+		p.Network, p.Genesis = network, genesis
+		return p, nil
+	}
+	if network != p.Network || genesis != p.Genesis {
+		return Profile{}, refuse("COIN_PROFILE")
+	}
+	return p, nil
+}
+
 func (p Profile) Validate() error {
-	want, e := ForCoin(p.Coin)
+	want, e := ForNetwork(p.Coin, p.Network, p.Genesis)
 	if e != nil || p != want {
 		return refuse("COIN_PROFILE")
 	}
@@ -74,6 +94,10 @@ func (p Profile) validScript(s string) bool {
 }
 func (p Profile) params() chaincfg.Params {
 	v := chaincfg.RegressionNetParams
+	if p.Network == "main" {
+		v = chaincfg.MainNetParams
+		v.PubKeyHashAddrID, v.ScriptHashAddrID, v.PrivateKeyID = 52, 13, 180
+	}
 	v.Bech32HRPSegwit = p.HRP
 	return v
 }
@@ -95,6 +119,9 @@ func NewAddressDeriver(p Profile, branch, pin string) (*AddressDeriver, error) {
 	k, e := hdkeychain.NewKeyFromString(branch)
 	params := p.params()
 	if e != nil || k.IsPrivate() || !k.IsForNet(&params) {
+		if p.Network == "main" {
+			return nil, refuse("WATCH_ONLY_MAIN_KEY")
+		}
 		return nil, refuse("WATCH_ONLY_REGTEST_KEY")
 	}
 	return &AddressDeriver{p, k}, nil
@@ -200,7 +227,7 @@ func Quote(p Profile, cents, micros, asOf, maxAge, now int64) (int64, error) {
 // ValidateAt binds the signed quote to its hold-creation time and trusted policy.
 // A later admission does not expire a quote frozen within a valid hold.
 func (t Terms) ValidateAt(holdCreated, maxAge, minConfirmations int64) error {
-	p, e := ForCoin(t.Coin)
+	p, e := ForNetwork(t.Coin, t.Network, t.Genesis)
 	if e != nil || t.Network != p.Network || t.Genesis != p.Genesis {
 		return refuse("PAYMENT_PROFILE")
 	}

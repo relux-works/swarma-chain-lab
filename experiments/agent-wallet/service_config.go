@@ -14,6 +14,8 @@ import (
 )
 
 type ServiceConfig struct {
+	Network        string `json:"network,omitempty"`
+	Genesis        string `json:"genesis,omitempty"`
 	Version        int    `json:"version"`
 	Service        string `json:"service"`
 	Socket         string `json:"socket"`
@@ -76,6 +78,10 @@ func LoadServiceConfig(path string) (ServiceConfig, error) {
 	return c, nil
 }
 func validServiceConfig(c ServiceConfig) error {
+	network, genesis := serviceNetworkPins(c.Network, c.Genesis)
+	if !su.NetworkPinned(network, genesis) {
+		return fail("SERVICE_NETWORK_PIN")
+	}
 	if c.Version != 1 || c.Service != WalletServiceID || c.PeerUID == 0 || int(c.PeerUID) == os.Getuid() || os.Getuid() == 0 || c.SocketGID == 0 || c.SkewSeconds < 1 || c.SkewSeconds > 300 || c.TimeoutSeconds < 1 || c.TimeoutSeconds > 60 || !hexN(c.Grantee, 32) {
 		return fail("SERVICE_CONFIG")
 	}
@@ -105,4 +111,11 @@ func validServiceConfig(c ServiceConfig) error {
 		return fail("SERVICE_PATH")
 	}
 	return nil
+}
+
+func serviceNetworkPins(network, genesis string) (string, string) {
+	if network == "" && genesis == "" {
+		return "regtest", su.RegtestGenesis
+	}
+	return network, genesis
 }

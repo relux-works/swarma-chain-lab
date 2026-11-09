@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"encoding/binary"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"io"
 	"net"
 	"os"
@@ -102,7 +103,11 @@ func (s *ActionService) serveConnection(ctx context.Context, c *net.UnixConn) {
 // ExchangeAction checks both the kernel-supplied service UID and its pinned
 // receipt key. The client opens no wallet configuration or effect credential.
 func ExchangeAction(ctx context.Context, socket string, serviceUID uint32, receiptKey string, raw []byte) ([]byte, error) {
-	v, e := ParseAction(raw, WalletServiceID)
+	return ExchangeActionForNetwork(ctx, socket, serviceUID, receiptKey, raw, "regtest", su.RegtestGenesis)
+}
+
+func ExchangeActionForNetwork(ctx context.Context, socket string, serviceUID uint32, receiptKey string, raw []byte, network, genesis string) ([]byte, error) {
+	v, e := ParseActionForNetwork(raw, WalletServiceID, network, genesis)
 	if e != nil {
 		return nil, e
 	}

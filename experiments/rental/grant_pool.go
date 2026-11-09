@@ -42,7 +42,7 @@ func makeGrantPoolPlan(p Policy, s PlanSpec) (Plan, error) {
 	default:
 		return Plan{}, bad("PLAN_KIND")
 	}
-	plan := Plan{Version: 3, Network: p.Network, Genesis: p.Genesis, Kind: s.Kind, Offline: true, TransactionVersion: 2, Inputs: s.Inputs, FeeRate: 200, RequiredReview: "Offline unsigned pool plan. Recheck actual prevouts, separate funding/change script, selected seal, reservations and custody immediately before signing. No broadcast authority."}
+	plan := Plan{Version: 3, Network: p.Network, Genesis: p.Genesis, Kind: s.Kind, Offline: true, TransactionVersion: 2, Inputs: s.Inputs, FeeRate: p.GrantFeeRate(), RequiredReview: "Offline unsigned pool plan. Recheck actual prevouts, separate funding/change script, selected seal, reservations and custody immediately before signing. No broadcast authority."}
 	add := func(value int64, script, role string) {
 		tx.Outputs = append(tx.Outputs, su.Output{Value: value, Script: mustDecodeKey(script)})
 		plan.Outputs = append(plan.Outputs, su.PlanOutput{ValueSat: value, Script: script, Role: role})
@@ -53,7 +53,7 @@ func makeGrantPoolPlan(p Policy, s PlanSpec) (Plan, error) {
 		}
 	}
 	add(0, p.FundingScript, "change")
-	size, fee, change, e := su.ReserveLegacyFee(tx, total)
+	size, fee, change, e := su.ReserveFee(tx, total, p.GrantFeeRate())
 	if e != nil {
 		return Plan{}, e
 	}

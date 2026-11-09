@@ -82,7 +82,7 @@ func VerifyIssuancePackageV2(p IssuerPolicyV2, request, event []byte, now int64)
 	var publication Event
 	var pack PackageV2
 	fail := func(code string) (IssuanceRequestV2, PackageV2, error) { return r, pack, bad(code) }
-	if p.Policy.validate() != nil || !pubkey(p.ProviderPubkey) {
+	if !su.NetworkPinned(p.Policy.Network, p.Policy.Genesis) || p.Policy.validateIssuerFields() != nil || !pubkey(p.ProviderPubkey) {
 		return fail("ISSUER_POLICY")
 	}
 	if canonical(request, &r) != nil || r.Version != 2 || !digest(r.BookingID) || !digest(r.PaymentTxID) || !digest(r.ObservedTipHash) || !digest(r.PackageEventID) || !digest(r.ContractSHA256) || !validGrantScope(r.Scope) {
@@ -134,6 +134,11 @@ func VerifyIssuancePackageV2(p IssuerPolicyV2, request, event []byte, now int64)
 		return fail("CONTRACT_FIELDS")
 	}
 	paymentPolicy, ok := p.PaymentPolicies[c.Payment.Coin]
+	// Authenticated payment terms cannot switch the trusted identity network.
+	// Main admission is NMC-only; regtest retains its three coin profiles.
+	if r.PaymentNetwork != p.Policy.Network || (p.Policy.Network == "main" && (r.PaymentCoin != "nmc" || r.PaymentGenesis != p.Policy.Genesis)) {
+		return fail("PAYMENT_PROFILE")
+	}
 	if !ok {
 		return fail("PAYMENT_POLICY")
 	}

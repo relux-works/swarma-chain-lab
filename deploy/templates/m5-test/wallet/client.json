@@ -1,0 +1,10 @@
+{
+  "genesis": "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770",
+  "key_file": "PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH",
+  "network": "main",
+  "receipt_key": "PLACEHOLDER_RECEIPT_XONLY_PUBLIC_KEY",
+  "service": "wallet.nmc",
+  "service_uid": "PLACEHOLDER_WALLET_UID_INTEGER",
+  "socket": "/run/swarma-wallet/wallet.sock",
+  "version": 1
+}

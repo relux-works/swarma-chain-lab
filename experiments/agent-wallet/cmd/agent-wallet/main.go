@@ -44,7 +44,8 @@ func run(args []string, out io.Writer) int {
 	if e != nil {
 		return refuse(wallet.ActionErrorReason(e))
 	}
-	r, e := wallet.ParseActionRequest(raw)
+	network, genesis := c.NetworkPins()
+	r, e := wallet.ParseActionRequestForNetwork(raw, network, genesis)
 	if e != nil {
 		return refuse(wallet.ActionErrorReason(e))
 	}
@@ -56,13 +57,13 @@ func run(args []string, out io.Writer) int {
 	if *use != "" {
 		proof = &wallet.ActionProof{UseTxID: *use}
 	}
-	signed, e := wallet.SignAction(r, key, proof)
+	signed, e := wallet.SignActionForNetwork(r, key, proof, network, genesis)
 	if e != nil {
 		return refuse(wallet.ActionErrorReason(e))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	reply, e := wallet.ExchangeAction(ctx, c.Socket, c.ServiceUID, c.ReceiptKey, signed)
+	reply, e := wallet.ExchangeActionForNetwork(ctx, c.Socket, c.ServiceUID, c.ReceiptKey, signed, network, genesis)
 	if e != nil {
 		return refuse(wallet.ActionErrorReason(e))
 	}

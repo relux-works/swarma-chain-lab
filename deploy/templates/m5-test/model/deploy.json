@@ -1,0 +1,12 @@
+{
+  "binary_sha256": "PLACEHOLDER_BINARY_SHA256",
+  "commit": "PLACEHOLDER_FULL_COMMIT",
+  "config": "/etc/swarma/model/service.json",
+  "genesis": "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770",
+  "listen": "127.0.0.1:8443",
+  "network": "main",
+  "release_version": "PLACEHOLDER_RELEASE_VERSION",
+  "service": "model",
+  "state_dir": "/var/lib/swarma-model",
+  "version": 1
+}

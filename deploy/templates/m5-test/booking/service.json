@@ -1,0 +1,59 @@
+{
+  "config": {
+    "agent_pubkey": "PLACEHOLDER_AGENT_PUBLIC_KEY",
+    "coins": {
+      "nmc": {
+        "max_rate_age_seconds": 300,
+        "min_confirmations": 1,
+        "public_branch": "PLACEHOLDER_NMC_MAIN_XPUB_BRANCH",
+        "public_branch_sha256": "PLACEHOLDER_BRANCH_SHA256",
+        "rate_as_of": "PLACEHOLDER_RATE_UTC_EPOCH_INTEGER",
+        "usd_micros_per_coin": "PLACEHOLDER_APPROVED_RATE_INTEGER"
+      }
+    },
+    "genesis": "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770",
+    "hold_seconds": 1800,
+    "limits": {
+      "max_blocks": 2016,
+      "max_bytes": 33554432,
+      "max_calls": 10000,
+      "max_mempool": 10000
+    },
+    "min_start_now_remaining_seconds": 1500,
+    "network": "main",
+    "price_usd_cents": 1000,
+    "provider_pubkey": "PLACEHOLDER_PROVIDER_PUBLIC_KEY",
+    "slots": [
+      {
+        "id": "demo-60",
+        "not_after": "PLACEHOLDER_START_PLUS_3600_INTEGER",
+        "not_before": "PLACEHOLDER_START_UTC_EPOCH_INTEGER",
+        "payment_policy": "advance",
+        "station_name": "id/PLACEHOLDER_AGENT_NAME"
+      }
+    ],
+    "state_dir": "/var/lib/swarma-booking",
+    "template": {
+      "allowed": [
+        "deliver",
+        "pay"
+      ],
+      "budget_sat": 3000000,
+      "forbidden": [
+        "publish",
+        "repository.push",
+        "secret.release"
+      ],
+      "id": "demo-60",
+      "profile_id": "PLACEHOLDER_PROFILE_ID",
+      "profile_sha256": "PLACEHOLDER_PROFILE_SHA256",
+      "profile_version": "PLACEHOLDER_PROFILE_VERSION",
+      "version": 1
+    },
+    "template_sha256": "PLACEHOLDER_TEMPLATE_SHA256"
+  },
+  "payment_route_files": {
+    "nmc": "/etc/swarma/booking/payment-nmc.json"
+  },
+  "service_version": 2
+}

@@ -1,0 +1,23 @@
+{
+  "backlog": 32,
+  "frames_per_ip_minute": 600,
+  "frames_per_minute": 120,
+  "future_seconds": 300,
+  "known_pubkeys": [],
+  "max_connections": 32,
+  "max_connections_per_ip": 8,
+  "max_event_bytes": 65536,
+  "max_events": 1024,
+  "max_ips": 1024,
+  "max_store_bytes": 33554432,
+  "public_url": "wss://PLACEHOLDER_RELAY_DOMAIN/",
+  "queue": 64,
+  "require_read_auth": false,
+  "require_write_auth": false,
+  "restrict_gift_wrap_reads": false,
+  "retention_seconds": 604800,
+  "state_dir": "/var/lib/swarma-relay",
+  "subscriptions": 8,
+  "trusted_proxy_ip": "127.0.0.1",
+  "unknown_pow_bits": 0
+}

@@ -88,8 +88,25 @@ type Wallet struct {
 }
 
 func Open(c Config) (*Wallet, error) {
-	if c.Version != 1 || c.Network != "regtest" || c.Genesis != su.RegtestGenesis || c.Policy.Network != c.Network || c.Policy.Genesis != c.Genesis || c.FeeRate < 1 || c.FeeRate > 1000 {
+	// Legacy direct execution remains regtest-only. Main is opened exclusively
+	// by the isolated action service, whose public action set excludes names.
+	if c.Network != "regtest" || c.Genesis != su.RegtestGenesis {
 		return nil, fail("CONFIG_REGTEST_ONLY")
+	}
+	return openWallet(c)
+}
+
+func (c Config) validateNetwork() error {
+	if c.Version != 1 || !su.NetworkPinned(c.Network, c.Genesis) || c.Policy.Network != c.Network || c.Policy.Genesis != c.Genesis || c.FeeRate < 1 || c.FeeRate > 1000 {
+		return fail("CONFIG_REGTEST_ONLY")
+	}
+	_, err := addressScriptForNetwork(c.ChangeAddress, c.Network, c.Genesis)
+	return err
+}
+
+func openWallet(c Config) (*Wallet, error) {
+	if err := c.validateNetwork(); err != nil {
+		return nil, err
 	}
 	for _, p := range []string{c.StateDir, c.ObjectsDir, c.WalletDir, c.MemoryZone, c.Policy.StateDir} {
 		if !filepath.IsAbs(p) || filepath.Clean(p) != p {
@@ -99,7 +116,7 @@ func Open(c Config) (*Wallet, error) {
 	if c.StateDir == c.Policy.StateDir || c.StateDir == c.WalletDir || c.StateDir == c.MemoryZone {
 		return nil, fail("CONFIG_PATH_SEPARATION")
 	}
-	if _, e := addressScript(c.ChangeAddress); e != nil {
+	if _, e := addressScriptForNetwork(c.ChangeAddress, c.Network, c.Genesis); e != nil {
 		return nil, e
 	}
 	for _, r := range []su.Route{c.Wallet.Route, c.Broadcast} {
@@ -250,6 +267,9 @@ func refuse(e error) Receipt {
 func (w *Wallet) Execute(ctx context.Context, grantRaw, termsRaw, requestRaw []byte, useTxID string) Receipt {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.config.Network == "main" {
+		return refuse(fail("LEGACY_REGTEST_ONLY"))
+	}
 	if w.poisoned {
 		return refuse(fail("STATE_UNAVAILABLE"))
 	}
@@ -263,11 +283,14 @@ func (w *Wallet) Execute(ctx context.Context, grantRaw, termsRaw, requestRaw []b
 // Caller holds w.mu and has verified the applicable signature. W1 commits its
 // signed event; LIP-0006 commits unsigned request bytes, never a fabricated event.
 func (w *Wallet) executeAuthenticated(ctx context.Context, grantRaw, termsRaw []byte, r Request, sender string, created int64, requestRaw []byte, useTxID string, beforeEffect func(Record) error) Receipt {
+	if w.config.Network == "main" && r.Action != "pay" {
+		return refuse(fail("MAIN_ACTION_UNSUPPORTED"))
+	}
 	g, e := w.authority.Parse(grantRaw)
 	if e != nil {
 		return refuse(e)
 	}
-	t, e := termsFor(g, termsRaw)
+	t, e := w.termsFor(g, termsRaw)
 	if e != nil {
 		return refuse(e)
 	}
@@ -430,6 +453,9 @@ func (w *Wallet) executeAuthenticated(ctx context.Context, grantRaw, termsRaw []
 func (w *Wallet) nameReady(ctx context.Context, r Record) error {
 	o := su.NewReadObservation(ctx, w.node)
 	defer o.Close()
+	if w.config.Network == "main" {
+		return fail("MAIN_ACTION_UNSUPPORTED")
+	}
 	if e := o.Start("regtest", su.RegtestGenesis); e != nil {
 		return e
 	}
@@ -456,7 +482,7 @@ func (w *Wallet) Budget(ctx context.Context, raw, termsRaw []byte) (Budget, erro
 	if e != nil {
 		return b, e
 	}
-	t, e := termsFor(g, termsRaw)
+	t, e := w.termsFor(g, termsRaw)
 	if e != nil {
 		return b, e
 	}

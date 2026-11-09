@@ -9,6 +9,8 @@ import (
 )
 
 type ActionClientConfig struct {
+	Network    string `json:"network,omitempty"`
+	Genesis    string `json:"genesis,omitempty"`
 	Version    int    `json:"version"`
 	Service    string `json:"service"`
 	Socket     string `json:"socket"`
@@ -27,6 +29,10 @@ func LoadActionClientConfig(path string) (ActionClientConfig, error) {
 	if su.StrictInput(b, &c) != nil || c.Version != 1 || c.Service != WalletServiceID || c.ServiceUID == 0 || !hexN(c.ReceiptKey, 32) {
 		return c, fail("CLIENT_CONFIG")
 	}
+	network, genesis := c.NetworkPins()
+	if !su.NetworkPinned(network, genesis) {
+		return c, fail("CLIENT_NETWORK_PIN")
+	}
 	for _, p := range []string{c.Socket, c.KeyFile} {
 		if !filepath.IsAbs(p) || filepath.Clean(p) != p {
 			return c, fail("CLIENT_CONFIG")
@@ -39,11 +45,19 @@ func LoadActionClientConfig(path string) (ActionClientConfig, error) {
 	return c, nil
 }
 func ParseActionRequest(raw []byte) (ActionRequest, error) {
+	return ParseActionRequestForNetwork(raw, "regtest", su.RegtestGenesis)
+}
+
+func ParseActionRequestForNetwork(raw []byte, network, genesis string) (ActionRequest, error) {
 	var r ActionRequest
 	if strict(raw, &r) != nil {
 		return r, fail("ACTION_SCHEMA")
 	}
-	_, e := actionFields(r, WalletServiceID)
+	_, e := actionFieldsForNetwork(r, WalletServiceID, network, genesis)
 	return r, e
+}
+
+func (c ActionClientConfig) NetworkPins() (string, string) {
+	return serviceNetworkPins(c.Network, c.Genesis)
 }
 func ActionErrorReason(e error) string { return safeCode(e) }

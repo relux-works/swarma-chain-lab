@@ -1,4 +1,4 @@
-// Package signerservice implements the regtest landlord custody loop. It has
+// Package signerservice implements the explicitly pinned landlord custody loop. It has
 // exactly three transaction templates and no arbitrary signing endpoint.
 package signerservice
 
@@ -52,6 +52,7 @@ func (c Caps) validate() error {
 }
 
 type Config struct {
+	Spending              *SpendingCaps                            `json:"spending,omitempty"`
 	PresentationDir       string                                   `json:"presentation_dir,omitempty"`
 	Profile               string                                   `json:"profile"`
 	PaymentPolicies       map[string]rental.PaymentAdmissionPolicy `json:"payment_policies,omitempty"`
@@ -65,9 +66,16 @@ type Config struct {
 
 func (c Config) validate() error {
 	p := c.Policy.Policy
-	// This unit never enables mainnet, even with non-placeholder cap values.
-	if p.Network != "regtest" || p.Genesis != su.RegtestGenesis {
+	if !su.NetworkPinned(p.Network, p.Genesis) {
 		return fail("REGTEST_ONLY")
+	}
+	if p.Network == "main" && (c.Profile != "v2" || c.Spending == nil || p.FeeRate < 1 || p.FeeRate > 1000) {
+		return fail("MAIN_PROFILE_REQUIRED")
+	}
+	if c.Spending != nil {
+		if e := c.Spending.validate(); e != nil {
+			return e
+		}
 	}
 	if c.PresentationDir != "" {
 		if e := presentationRoot(c.PresentationDir); e != nil {
@@ -85,6 +93,15 @@ func (c Config) validate() error {
 			return fail("PAYMENT_POLICY")
 		}
 		for coin, p := range c.PaymentPolicies {
+			if c.Policy.Policy.Network == "main" && coin != "nmc" {
+				return fail("PAYMENT_POLICY")
+			}
+			if c.Policy.Policy.Network == "main" {
+				l := p.Limits
+				if p.MinConfirmations > 2016 || l.MaxBlocks < 1 || l.MaxBlocks > 2016 || l.MaxMempool < 1 || l.MaxMempool > 100000 || l.MaxCalls < 1 || l.MaxCalls > 200000 || l.MaxBytes < 1 || l.MaxBytes > 512<<20 {
+					return fail("PAYMENT_POLICY")
+				}
+			}
 			if (coin != "btc" && coin != "ltc" && coin != "nmc") || p.MinConfirmations < 1 || p.MaxRateAgeSeconds < 1 {
 				return fail("PAYMENT_POLICY")
 			}

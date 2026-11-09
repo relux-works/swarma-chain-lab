@@ -14,7 +14,7 @@ import (
 
 var (
 	ErrPolicy      = errors.New("deploy: invalid policy")
-	ErrNetwork     = errors.New("deploy: regtest required")
+	ErrNetwork     = errors.New("deploy: explicit supported network/genesis required")
 	ErrPlaceholder = errors.New("deploy: unresolved placeholder")
 )
 
@@ -22,6 +22,7 @@ var (
 // Validation checks deployment pins/references only; it never opens credentials,
 // probes nodes, creates state, or replaces the service's native startup checks.
 type Policy struct {
+	Genesis          string `json:"genesis,omitempty"`
 	Version          int    `json:"version"`
 	Network          string `json:"network"`
 	Service          string `json:"service"`
@@ -89,7 +90,7 @@ func Validate(raw []byte) (Policy, error) {
 	if d.Decode(&extra) != io.EOF {
 		return Policy{}, ErrPolicy
 	}
-	if p.Network != "regtest" {
+	if !deploymentNetwork(p.Network, p.Genesis) {
 		return Policy{}, ErrNetwork
 	}
 	for _, marker := range []string{"PLACEHOLDER", "CHANGE_ME", "<", ">", "@VERSION@", "${"} {
@@ -112,7 +113,7 @@ func Validate(raw []byte) (Policy, error) {
 	case "booking":
 		if p.Profile != configRoot+"/profile.bin" || p.ProviderKey != root+"/provider.hex" || p.Route != configRoot+"/operator-route.json" ||
 			!pathUnder(p.NodeCLI, "/opt/namecoin") || !strings.HasSuffix(p.NodeCLI, "/bin/namecoin-cli") || !exactHex(p.NodeCLISHA256, 32) ||
-			p.RPCConfig != root+"/rpc/namecoin.conf" || p.RPCClientDataDir != root+"/rpc/client" || p.RPCEndpoint != "127.0.0.1:18443" || p.Listen != "127.0.0.1:18819" {
+			p.RPCConfig != root+"/rpc/namecoin.conf" || p.RPCClientDataDir != root+"/rpc/client" || !localEndpoint(p.RPCEndpoint) || (p.Network == "regtest" && p.RPCEndpoint != "127.0.0.1:18443") || p.Listen != "127.0.0.1:18819" {
 			return Policy{}, ErrPolicy
 		}
 		u, e := url.Parse(p.Relay)
@@ -157,12 +158,25 @@ func ValidatePublicJSON(raw []byte) error {
 	check = func(v any) error {
 		switch x := v.(type) {
 		case map[string]any:
-			for k, v := range x {
-				switch strings.ToLower(k) {
-				case "network":
-					if v != "regtest" {
+			for key, value := range x {
+				if strings.EqualFold(key, "network") {
+					network, ok := value.(string)
+					genesis := ""
+					for k, v := range x {
+						if strings.EqualFold(k, "genesis") {
+							genesis, ok = v.(string)
+							if !ok {
+								return ErrNetwork
+							}
+						}
+					}
+					if !ok || !deploymentNetwork(network, genesis) {
 						return ErrNetwork
 					}
+				}
+			}
+			for k, v := range x {
+				switch strings.ToLower(k) {
 				case "password", "rpcpassword", "rpcauth", "private_key", "secret":
 					return ErrPolicy
 				}

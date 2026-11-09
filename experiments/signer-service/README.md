@@ -1,10 +1,11 @@
 # Swarma signer service (SG1)
 
-Regtest landlord custody service with exactly three transaction templates:
+Namecoin landlord custody service with exactly three transaction templates:
 `grant-issue`, `revoke`, and `refill`. It runs under its own OS user/state root,
 uses its own Namecoin node and independently rechecks payment through trusted
 P1 issuer routes. There is no arbitrary signing, executor, execproxy, sweep,
-station update, renewal, end-session or destroy endpoint. Mainnet always refuses.
+station update, renewal, end-session or destroy endpoint. Main requires explicit
+Namecoin network/genesis pins, the v2 profile, a fee rate and spending caps.
 
 The service calls the existing K1/P1 issuer and L5 planners; it does not copy
 an issuer or kernel implementation. The real V2 binding is `issuer_v2.go`:
@@ -17,7 +18,8 @@ Build `cmd/swarma-signer` and supply `-config /absolute/private/config.json`.
 The configuration is the `FileConfig` JSON type in `config_file.go`; its nested
 `config` is the `Config` type in `types.go`. Required inputs are explicit:
 
-- `config.profile`: `v2` or `v1-nmc`; network and genesis are pinned to NMC regtest.
+- `config.profile`: `v2` on explicitly pinned NMC main or regtest; `v1-nmc`
+  remains regtest-only.
 - `config.policy`: existing rental `IssuerPolicy`, with separate issuer state,
   landlord/agent names, provider key, grant key and seal/funding scripts.
 - `config.payment_policies`: V2 per-coin confirmation/rate-age/observation limits.
@@ -58,7 +60,18 @@ rotation refuses while pending. Reconfiguration/migration is outside this unit.
 Budget means sum of grant `budget_sat` authority, separate from fee/funding debit.
 Zero budget (K1's unbounded authority) is refused. Pending/uncertain reservations
 remain charged across window rollover; retries of the same operation do not
-charge twice. Mainnet refuses even when every cap has a non-default value.
+charge twice. Main has no default spending caps or fee rate.
+
+Main requires `config.spending` with positive `moved_per_tx`, `moved_day` and
+`enrolled_hot`, plus `config.policy.policy.fee_rate` (1..1000 atoms/vB). Movement
+is non-change funded outputs plus reserved fee; only the exact pinned funding
+change is excluded. Issue, refill and revoke share UTC calendar-day accounting.
+Pending/uncertain reservations remain charged across rollover and restart. The
+hot cap covers enrolled inventory and custody outputs of accepted transactions,
+including reserved seals; it cannot constrain out-of-band funding. Infra owns
+funding and monitoring. There is no automatic sweep or ledger reset.
+See [M5 test config](../../deploy/templates/m5-test/README.md) for explicit test
+values and operator inputs. Local fixtures do not qualify a live mainnet route.
 
 ## Pull outbox contract
 

@@ -1,0 +1,21 @@
+{
+  "binary_sha256": "PLACEHOLDER_BINARY_SHA256",
+  "commit": "PLACEHOLDER_FULL_COMMIT",
+  "config": "/etc/swarma/booking/service.json",
+  "genesis": "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770",
+  "listen": "127.0.0.1:18819",
+  "network": "main",
+  "node_cli": "/opt/namecoin/PLACEHOLDER_VERSION/bin/namecoin-cli",
+  "node_cli_sha256": "PLACEHOLDER_LINUX_CLI_SHA256",
+  "profile": "/etc/swarma/booking/profile.bin",
+  "provider_key": "/var/lib/swarma-booking/provider.hex",
+  "relay": "ws://127.0.0.1:18818",
+  "release_version": "PLACEHOLDER_RELEASE_VERSION",
+  "route": "/etc/swarma/booking/operator-route.json",
+  "rpc_client_datadir": "/var/lib/swarma-booking/rpc/client",
+  "rpc_config": "/var/lib/swarma-booking/rpc/namecoin.conf",
+  "rpc_endpoint": "127.0.0.1:PLACEHOLDER_NMC_RPC_PORT",
+  "service": "booking",
+  "state_dir": "/var/lib/swarma-booking",
+  "version": 1
+}

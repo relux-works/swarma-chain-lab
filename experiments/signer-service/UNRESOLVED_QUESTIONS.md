@@ -1,13 +1,15 @@
 # Deployment and follow-up boundaries
 
-- Mainnet is unconditionally disabled. Owner-provided production cap values do
-  not enable it; production admission/custody needs a separate reviewed unit.
+- Explicit NMC-main configuration is supported; live node/custody qualification,
+  funding and monitoring remain separate operator work. No local test grants
+  spending authority. The hot cap measures enrolled exposure, not total wallet
+  balance; out-of-band custody funding needs external monitoring.
 - Remote pull/mTLS must preserve the original signed kind8182 PackageEvent.
   The local V2 exporter now emits the exact SG1 intake and companion event.
 - Cross-host distribution of confirmed public presentations remains external;
   enabling the publisher on an existing custody ledger needs an explicit
   configuration-migration design. This unit never resets that binding.
-- The64-record ledger/inventory/intake bounds are intentional regtest limits.
+- The64-record ledger/inventory/intake bounds are intentional bounded limits.
   A production retention/archival/migration design must preserve all burns,
   historical seal keys, unresolved reservations, caps and source checkpoints.
 - Confirmed grant-key rotation freezes this custody configuration. There is no

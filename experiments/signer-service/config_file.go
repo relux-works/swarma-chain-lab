@@ -37,8 +37,8 @@ func readJSON(path string, v any) error {
 	return nil
 }
 
-// RunFile loads only explicitly named private files. Mainnet admission is
-// rejected before reading either RPC credentials or signing keys.
+// RunFile validates explicit network and cap policy before reading RPC
+// credentials or signing keys. Main has no implicit spending configuration.
 func RunFile(ctx context.Context, path string, once bool, report func(Result)) error {
 	var f FileConfig
 	if e := readJSON(path, &f); e != nil {
@@ -64,7 +64,7 @@ func RunFile(ctx context.Context, path string, once bool, report func(Result)) e
 	if e != nil {
 		return e
 	}
-	broadcaster, e := NewRPCBroadcast(writeRoute, readRoute)
+	broadcaster, e := NewRPCBroadcastForNetwork(writeRoute, readRoute, f.Config.Policy.Policy.Network, f.Config.Policy.Policy.Genesis)
 	if e != nil {
 		return e
 	}

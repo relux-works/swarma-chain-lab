@@ -13,7 +13,19 @@ func (p Policy) validateGrantFunding() error {
 	if !p2pkh(p.FundingScript) || p.FundingScript == p.SealScript {
 		return bad("FUNDING_POLICY")
 	}
+	if p.FeeRate < 0 || p.FeeRate > 1000 || (p.Network == "main" && p.FeeRate == 0) {
+		return bad("FEE_RATE")
+	}
 	return nil
+}
+
+// GrantFeeRate retains historical regtest bytes; main funding validation
+// requires a positive explicit rate before this projection can be used.
+func (p Policy) GrantFeeRate() int64 {
+	if p.Network == "regtest" && p.FeeRate == 0 {
+		return 200
+	}
+	return p.FeeRate
 }
 
 // grantFunding validates offline input facts and prepares the bounded fee
@@ -29,6 +41,9 @@ func grantFundingShape(p Policy, s PlanSpec, pool Point, legacy bool) (su.Transa
 	var total int64
 	if e := p.validateGrantFunding(); e != nil {
 		return tx, 0, e
+	}
+	if legacy && p.Network != "regtest" {
+		return tx, 0, bad("LEGACY_REGTEST_ONLY")
 	}
 	if s.Kind != "grant-issue" || s.ChangeScript != p.FundingScript || len(s.Inputs) < 1 || len(s.Inputs) > 16 || s.Count != 0 || s.ValueSat != 0 {
 		return tx, 0, bad("ISSUANCE_TEMPLATE")
@@ -59,7 +74,7 @@ func grantFundingShape(p Policy, s PlanSpec, pool Point, legacy bool) (su.Transa
 		size = 34
 	}
 	tx.Outputs = []su.Output{{Value: 0, Script: make([]byte, size)}, {Value: 0, Script: mustDecodeKey(p.FundingScript)}}
-	if _, _, _, e := su.ReserveLegacyFee(tx, total); e != nil {
+	if _, _, _, e := su.ReserveFee(tx, total, p.GrantFeeRate()); e != nil {
 		return tx, 0, e
 	}
 	return tx, total, nil
@@ -105,11 +120,11 @@ func makeGrantIssuancePlan(p Policy, s PlanSpec, raw []byte, legacy bool) (Plan,
 	}
 	rootScript := hex.EncodeToString(framed)
 	tx.Outputs[0].Script = framed
-	size, fee, change, e := su.ReserveLegacyFee(tx, total)
+	size, fee, change, e := su.ReserveFee(tx, total, p.GrantFeeRate())
 	if e != nil {
 		return result, e
 	}
-	return Plan{Version: 3, Network: p.Network, Genesis: p.Genesis, Kind: "grant-issue", Offline: true, TransactionVersion: 2, Inputs: s.Inputs, Outputs: []su.PlanOutput{{ValueSat: 0, Script: rootScript, Role: "issuance-commitment"}, {ValueSat: change, Script: p.FundingScript, Role: "change"}}, FeeRate: 200, FeeSat: fee, MaxSignedVBytes: size, GrantID: signed.ID(), RequiredReview: "Unsigned issuance plan only. Independently verify current funding prevouts, separate funding/change script, pool reservations, custody and exact transaction before signing; no broadcast authority."}, nil
+	return Plan{Version: 3, Network: p.Network, Genesis: p.Genesis, Kind: "grant-issue", Offline: true, TransactionVersion: 2, Inputs: s.Inputs, Outputs: []su.PlanOutput{{ValueSat: 0, Script: rootScript, Role: "issuance-commitment"}, {ValueSat: change, Script: p.FundingScript, Role: "change"}}, FeeRate: p.GrantFeeRate(), FeeSat: fee, MaxSignedVBytes: size, GrantID: signed.ID(), RequiredReview: "Unsigned issuance plan only. Independently verify current funding prevouts, separate funding/change script, pool reservations, custody and exact transaction before signing; no broadcast authority."}, nil
 }
 
 // matchesIssuedGrantPlan validates completed-record replay only. Compare every

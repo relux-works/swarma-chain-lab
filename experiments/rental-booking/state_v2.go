@@ -1,8 +1,8 @@
 package booking
 
 import (
-	"math"
 	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	"math"
 )
 
 // Validate persisted invariants before exporting any package or request. Version
@@ -23,7 +23,8 @@ func (s *ServiceV2) validateStateV2() error {
 		c := b.Contract
 		coin := c.Payment.Coin
 		policy, ok := s.cfg.Coins[coin]
-		if !ok || c.Validate() != nil || c.Payment.ValidateAt(b.HoldCreatedAt, policy.MaxRateAgeSeconds, policy.MinConfirmations) != nil {
+		profile, profileErr := s.cfg.paymentProfile(coin)
+		if !ok || profileErr != nil || c.Payment.Network != profile.Network || c.Payment.Genesis != profile.Genesis || c.Validate() != nil || c.Payment.ValidateAt(b.HoldCreatedAt, policy.MaxRateAgeSeconds, policy.MinConfirmations) != nil {
 			return refuse("STATE_CORRUPT")
 		}
 		address, script, e := s.derivers[coin].Address(b.AddressIndex)
@@ -42,7 +43,6 @@ func (s *ServiceV2) validateStateV2() error {
 		if b.Status != "pending" && b.Status != "paid" && b.Status != "expired" && b.Status != "revoked" {
 			return refuse("STATE_CORRUPT")
 		}
-		profile, _ := pc.ForCoin(coin)
 		points := map[string]ReceiptV2{}
 		selected := 0
 		for _, r := range b.Receipts {

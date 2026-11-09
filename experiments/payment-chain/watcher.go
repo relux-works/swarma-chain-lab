@@ -78,7 +78,7 @@ func (o *observation) tip() (Tip, error) {
 	var ibd bool
 	// Core 28 can report headers below blocks after reconsiderblock. Header
 	// progress is not an active-chain proof; bind observations to block hashes.
-	if sealwatch.ProjectJSON(b, map[string]any{"chain": &chain, "bestblockhash": &best, "blocks": &height, "headers": &headers, "initialblockdownload": &ibd}, nil) != nil || chain != "regtest" || !hexSize(best, 32) || height < 0 || height > 2147483647 || headers < 0 || ibd {
+	if sealwatch.ProjectJSON(b, map[string]any{"chain": &chain, "bestblockhash": &best, "blocks": &height, "headers": &headers, "initialblockdownload": &ibd}, nil) != nil || chain != o.profile.Network || !hexSize(best, 32) || height < 0 || height > 2147483647 || headers < 0 || ibd {
 		return Tip{}, refuse("NODE_CHAIN")
 	}
 	b, e = o.read("getblockhash", 0)

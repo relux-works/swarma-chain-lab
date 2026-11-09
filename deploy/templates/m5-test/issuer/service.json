@@ -1,0 +1,65 @@
+{
+  "booking_outbox": "/var/lib/swarma-issuer/intake/booking",
+  "broadcast_route_file": "/etc/swarma/issuer/broadcast-route.json",
+  "config": {
+    "caps": {
+      "budget_day": 10000000,
+      "budget_hour": 6000000,
+      "count_day": 12,
+      "count_hour": 4,
+      "fee_per_tx": 200000,
+      "low_water": 2,
+      "refill_count": 4,
+      "refill_value": 800000,
+      "seal_value": 200000
+    },
+    "funding_key_path": "/etc/swarma/issuer/funding.key",
+    "grant_key_path": "/etc/swarma/issuer/grant.key",
+    "payment_policies": {
+      "nmc": {
+        "limits": {
+          "max_blocks": 2016,
+          "max_bytes": 33554432,
+          "max_calls": 10000,
+          "max_mempool": 10000
+        },
+        "max_rate_age_seconds": 300,
+        "min_confirmations": 1
+      }
+    },
+    "policy": {
+      "policy": {
+        "agent_name": "PLACEHOLDER_AGENT_NAME",
+        "agent_pubkey": "PLACEHOLDER_AGENT_XONLY_PUBKEY",
+        "fee_rate": 200,
+        "funding_script": "PLACEHOLDER_FUNDING_P2PKH_SCRIPT",
+        "genesis": "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770",
+        "issuer_pubkey": "PLACEHOLDER_ISSUER_XONLY_PUBKEY",
+        "landlord_name": "PLACEHOLDER_LANDLORD_NAME",
+        "network": "main",
+        "seal_script": "PLACEHOLDER_ISSUER_P2PKH_SCRIPT",
+        "state_dir": "/var/lib/swarma-issuer/issuance",
+        "station_name": "PLACEHOLDER_AGENT_NAME",
+        "station_script": "PLACEHOLDER_STATION_P2PKH_SCRIPT"
+      },
+      "provider_pubkey": "PLACEHOLDER_PROVIDER_XONLY_PUBKEY"
+    },
+    "presentation_dir": "/var/lib/swarma-issuer/presentations",
+    "profile": "v2",
+    "spending": {
+      "enrolled_hot": 20000000,
+      "moved_day": 10000000,
+      "moved_per_tx": 1000000
+    },
+    "state_dir": "/var/lib/swarma-issuer/ledger"
+  },
+  "interval_seconds": 2,
+  "operator_outbox": "/var/lib/swarma-issuer/intake/operator",
+  "payment_route_files": {
+    "nmc": "/etc/swarma/issuer/payment-nmc.json"
+  },
+  "read_route_file": "/etc/swarma/issuer/read-route.json",
+  "store_agent_reader": "PLACEHOLDER_AGENT_READER_PUBKEY",
+  "store_landlord_reader": "PLACEHOLDER_LANDLORD_READER_PUBKEY",
+  "store_url": "http://127.0.0.1:8091"
+}

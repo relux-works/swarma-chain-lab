@@ -152,7 +152,7 @@ func loopURL(s, scheme string) bool {
 	return e == nil && ip != nil && ip.IsLoopback() && pe == nil && p > 0 && p <= 65535 && u.String() == s
 }
 func (c serveConfig) validate(allowTest bool) error {
-	if c.Version != 1 || (c.Mode != "regtest" && c.Mode != "test") || c.Kernel.Network != "regtest" || c.Kernel.Genesis != su.RegtestGenesis {
+	if c.Version != 1 || (c.Mode != "regtest" && c.Mode != "test" && c.Mode != "main") || !su.NetworkPinned(c.Kernel.Network, c.Kernel.Genesis) || (c.Mode == "main") != (c.Kernel.Network == "main") {
 		return errConfig
 	}
 	if c.Mode == "test" && !allowTest {
@@ -178,7 +178,7 @@ func (c serveConfig) validate(allowTest bool) error {
 	if ip == nil || !ip.IsLoopback() || c.Kernel.RPCPort < 1 || c.Kernel.RPCPort > 65535 {
 		return errConfig
 	}
-	if !c.ModelProxy.valid() || (c.ModelProxy != nil && c.Station.Driver != "manager") {
+	if !c.ModelProxy.valid() || (c.ModelProxy != nil && c.Station.Driver != "manager") || (c.Mode == "main" && (c.ModelProxy == nil || *c.ModelProxy.ServerUID == 0)) {
 		return errConfig
 	}
 	if !gateway.ValidRelayAuth(c.RelayAuth) || (c.RelayReplayLimit != 0 && (c.RelayReplayLimit < 2 || c.RelayReplayLimit > 4096)) {
@@ -196,6 +196,9 @@ func (c serveConfig) validate(allowTest bool) error {
 		return errConfig
 	}
 	for _, coin := range c.Exchange.PaymentCoins {
+		if c.Mode == "main" && coin != exchange.NMC {
+			return errConfig
+		}
 		if _, e := exchange.ParseCoin(string(coin)); e != nil || seenCoins[coin] {
 			return errConfig
 		}

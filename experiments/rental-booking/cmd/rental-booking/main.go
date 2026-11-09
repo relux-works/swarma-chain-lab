@@ -75,7 +75,11 @@ func run() error {
 	if booking.Strict(raw, &route) != nil {
 		return fmt.Errorf("ROUTE_SCHEMA")
 	}
-	node, e := singleuse.NewOperatorRPC(route, "regtest", singleuse.RegtestGenesis, cfg.stateDir())
+	network, genesis := "regtest", singleuse.RegtestGenesis
+	if cfg.v2 != nil {
+		network, genesis = cfg.v2.Config.NetworkPins()
+	}
+	node, e := singleuse.NewOperatorRPC(route, network, genesis, cfg.stateDir())
 	if e != nil {
 		return fmt.Errorf("READ_ONLY_ROUTE")
 	}

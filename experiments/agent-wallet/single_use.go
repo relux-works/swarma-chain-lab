@@ -51,10 +51,10 @@ func parseOneoff(raw []byte) (OneoffEnvelope, error) {
 		return env, fail("ONEOFF_SCHEMA")
 	}
 	g := env.Grant
-	if g.Version != 1 || g.Network != "regtest" || g.Genesis != su.RegtestGenesis || !strings.HasPrefix(g.Agent, "id/") || !strings.HasPrefix(g.Landlord, "id/") || !ascii(g.Agent, 255) || !ascii(g.Landlord, 255) || !hexN(g.Issuer, 32) || !hexN(g.Grantee, 32) || g.Issuer == g.Grantee || !hexN(g.Seal.TxID, 32) || g.NotBefore < 0 || g.NotAfter <= g.NotBefore || g.Amount < 1 || g.Amount > MaxMoney || g.FeeLimit < 1 || g.FeeLimit > MaxFee || g.Amount > MaxMoney-g.FeeLimit {
+	if g.Version != 1 || !su.NetworkPinned(g.Network, g.Genesis) || !strings.HasPrefix(g.Agent, "id/") || !strings.HasPrefix(g.Landlord, "id/") || !ascii(g.Agent, 255) || !ascii(g.Landlord, 255) || !hexN(g.Issuer, 32) || !hexN(g.Grantee, 32) || g.Issuer == g.Grantee || !hexN(g.Seal.TxID, 32) || g.NotBefore < 0 || g.NotAfter <= g.NotBefore || g.Amount < 1 || g.Amount > MaxMoney || g.FeeLimit < 1 || g.FeeLimit > MaxFee || g.Amount > MaxMoney-g.FeeLimit {
 		return env, fail("ONEOFF_FIELDS")
 	}
-	if _, e := addressScript(g.Address); e != nil {
+	if _, e := addressScriptForNetwork(g.Address, g.Network, g.Genesis); e != nil {
 		return env, e
 	}
 	if _, _, e := su.SealScript("02"+g.Issuer, "02"+g.Grantee); e != nil {
@@ -82,7 +82,8 @@ func (a CombinedAuthority) Parse(raw []byte) (Grant, error) {
 		return Grant{}, e
 	}
 	g := env.Grant
-	if g.Agent != a.Agent || g.Landlord != a.Landlord {
+	network, genesis := a.networkPins()
+	if g.Agent != a.Agent || g.Landlord != a.Landlord || g.Network != network || g.Genesis != genesis {
 		return Grant{}, fail("ONEOFF_POLICY")
 	}
 	return Grant{Kind: "single-use", ID: Hash(raw), Agent: g.Agent, Grantee: g.Grantee, Issuer: g.Issuer, Landlord: g.Landlord, Scope: []string{"pay"}, Budget: g.Amount + g.FeeLimit, NotBefore: g.NotBefore, NotAfter: g.NotAfter, Seal: g.Seal, Recipient: g.Address, Amount: g.Amount, FeeLimit: g.FeeLimit}, nil
@@ -146,7 +147,8 @@ func (a CombinedAuthority) Check(ctx context.Context, raw []byte, sender string,
 		}
 		observation := su.NewReadObservation(ctx, a.Kernel.Node)
 		defer observation.Close()
-		if e = observation.Start("regtest", su.RegtestGenesis); e != nil {
+		network, genesis := a.networkPins()
+		if e = observation.Start(network, genesis); e != nil {
 			return e
 		}
 		old, err := observation.Active(state.Generation.Block)
@@ -179,6 +181,14 @@ func (a CombinedAuthority) Check(ctx context.Context, raw []byte, sender string,
 	return nil
 }
 func termsFor(g Grant, raw []byte) (Terms, error) {
+	return termsForNetwork(g, raw, "regtest", su.RegtestGenesis)
+}
+
+func (w *Wallet) termsFor(g Grant, raw []byte) (Terms, error) {
+	return termsForNetwork(g, raw, w.config.Network, w.config.Genesis)
+}
+
+func termsForNetwork(g Grant, raw []byte, network, genesis string) (Terms, error) {
 	if g.Kind == "single-use" {
 		if len(raw) != 0 {
 			return Terms{}, fail("ONEOFF_EXTRA_TERMS")
@@ -188,7 +198,15 @@ func termsFor(g Grant, raw []byte) (Terms, error) {
 	if Hash(raw) != g.Contract {
 		return Terms{}, fail("CONTRACT_HASH")
 	}
-	return ParseTerms(raw, g.Budget)
+	return parseTermsForNetwork(raw, g.Budget, network, genesis)
+}
+
+func (a CombinedAuthority) networkPins() (string, string) {
+	p := a.Kernel.Policy
+	if p.Network == "" && p.Genesis == "" {
+		return "regtest", su.RegtestGenesis
+	}
+	return p.Network, p.Genesis
 }
 
 // checkUse reuses W3's raw signature attribution and exact request commitment.
@@ -199,7 +217,7 @@ func (w *Wallet) checkUse(ctx context.Context, g Grant, request []byte, txid str
 	}
 	o := su.NewReadObservation(ctx, w.node)
 	defer o.Close()
-	if e := o.Start("regtest", su.RegtestGenesis); e != nil {
+	if e := o.Start(w.config.Network, w.config.Genesis); e != nil {
 		return e
 	}
 	funding, ftx, e := o.Transaction(g.Seal.TxID)

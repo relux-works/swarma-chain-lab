@@ -1,6 +1,6 @@
 # W2 wallet service: LIP-0006 v1 profile
 
-Experimental, regtest only. `agent-walletd` owns the RPC configuration, public
+Experimental, with explicit NMC-main or regtest network/genesis pins. `agent-walletd` owns the RPC configuration, public
 grant mirror, journals and receipt key under a dedicated non-root OS user.
 `agent-wallet` is now a signing Unix-socket client. It holds only the grantee
 action key, service UID/key pins and socket path. `agent-wallet-legacy` preserves
@@ -43,7 +43,7 @@ bytes. Never fabricate a Nostr event or commit the wrapper instead.
 
 | Action | Params, exact field order | Grant |
 | --- | --- | --- |
-| `spend` | `{"to":"REGTEST_P2PKH","amount_sat":INTEGER,"fee_limit_sat":INTEGER}` | `{"kind":"standing","id":"64_HEX"}` or `single-use` |
+| `spend` | `{"to":"NETWORK_P2PKH","amount_sat":INTEGER,"fee_limit_sat":INTEGER}` | `{"kind":"standing","id":"64_HEX"}` or `single-use` |
 | `balance`, `history`, `receive` | `{}` | `{"kind":"none"}` |
 | `budget` | `{}` | `standing` or `single-use`, with stable ID |
 
@@ -67,7 +67,7 @@ resolving the grant. Skew never replaces the grant's own validity window.
 Grant IDs resolve only in the service-controlled object directory; request paths
 and arbitrary RPCs are not accepted. Malformed or mismatching public objects
 return OBJECT_HASH rather than a direct W1 parser error. Grant grantee/kind and
-contract terms bind before the shared W1 executor. Each read verifies the regtest
+contract terms bind before the shared W1 executor. Each read verifies the configured
 network/genesis. Signed no-grant reads do not imply spending authority. `budget`
 reports live=false when authority is not live; a successful query is not a grant.
 `receive` allocates an address and therefore reserves durably before calling RPC.

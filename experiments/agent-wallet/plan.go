@@ -119,11 +119,11 @@ func sameUnsigned(a, b *wire.MsgTx) bool {
 // are checked against their own-node prevouts and the exact approved outputs.
 func (w *Wallet) buildPlan(ctx context.Context, g Grant, t Terms, r Request, prior *Record) (plan, error) {
 	var p plan
-	recipient, e := addressScript(r.Address)
+	recipient, e := addressScriptForNetwork(r.Address, w.config.Network, w.config.Genesis)
 	if e != nil {
 		return p, e
 	}
-	change, e := addressScript(w.config.ChangeAddress)
+	change, e := addressScriptForNetwork(w.config.ChangeAddress, w.config.Network, w.config.Genesis)
 	if e != nil {
 		return p, e
 	}

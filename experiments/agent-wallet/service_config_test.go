@@ -22,7 +22,7 @@ func TestActionServiceConfig(t *testing.T) {
 		t.Fatal(e)
 	}
 	_, pub := testKey(2)
-	c := ServiceConfig{1, WalletServiceID, filepath.Join(run, "wallet.sock"), uint32(os.Getgid()), uint32(os.Getuid() + 1), pub, 60, 2, filepath.Join(root, "state"), filepath.Join(root, "wallet.json"), filepath.Join(root, "receipt.key")}
+	c := ServiceConfig{Version: 1, Service: WalletServiceID, Socket: filepath.Join(run, "wallet.sock"), SocketGID: uint32(os.Getgid()), PeerUID: uint32(os.Getuid() + 1), Grantee: pub, SkewSeconds: 60, TimeoutSeconds: 2, StateDir: filepath.Join(root, "state"), WalletConfig: filepath.Join(root, "wallet.json"), ReceiptKeyFile: filepath.Join(root, "receipt.key")}
 	if e = validServiceConfig(c); e != nil {
 		t.Fatal("service config neighbor", e)
 	}

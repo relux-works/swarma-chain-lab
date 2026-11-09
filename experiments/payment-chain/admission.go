@@ -33,7 +33,7 @@ func Admit(ctx context.Context, node Node, limits Limits, terms Terms, claimed P
 	if holdCreated <= 0 || holdExpires <= holdCreated || now < holdCreated || now >= holdExpires {
 		return deny("HOLD_EXPIRED")
 	}
-	p, _ := ForCoin(terms.Coin)
+	p, _ := ForNetwork(terms.Coin, terms.Network, terms.Genesis)
 	if node == nil || !limits.valid() {
 		return deny("NODE_CONFIG")
 	}

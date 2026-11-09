@@ -103,6 +103,11 @@ func main() {
 	must(e)
 	defer os.RemoveAll(scratch)
 	plants := []plant{
+		{"main_missing_native", "main_profile.go", "if len(inputs) != want {\n\t\treturn ErrPolicy", "if len(inputs) != want {\n\t\treturn nil", ".", "^TestMainServiceProfiles$/^store$", "incomplete native accepted"},
+		{"main_daily_cap", "issuer_config.go", "c.MovedDay >= c.MovedPerTx", "true", ".", "^TestMainNativeRefusals$", "want deploy: invalid policy got <nil>"},
+		{"main_gateway_model", "gateway_config.go", "c.Requests == 0", "false", ".", "^TestMainNativeRefusals$/^gateway$/^model_proxy.caps.requests$", "got <nil>"},
+		{"main_store_bound", "main_profile.go", "c.MaxBlobs < 1", "false", ".", "^TestMainNativeRefusals$/^store$/^max_blobs$", "got <nil>"},
+		{"main_booking_depth", "main_profile.go", "coin.MinConfirmations < 1", "false", ".", "^TestMainNativeRefusals$/^booking$/^config.coins.nmc.min_confirmations$", "got <nil>"},
 		{"payload_pinned_required", "services.go", "return validatePayloadInputs(inputs)", "return nil", ".", "^TestPayloadPairing$/^messages$/^missing-config$", "unpinned payload deployment accepted"},
 		{"payload_dialect", "payload_pair.go", "p.Dialect != want", "false && p.Dialect != want", ".", "^TestPayloadPairing$/^responses$/^legacy$", "unpinned payload deployment accepted"},
 		{"payload_profile", "payload_pair.go", "p.Dialect != want", "false && p.Dialect != want", ".", "^TestPayloadPairing$/^messages$/^dialect$", "unpinned payload deployment accepted"},

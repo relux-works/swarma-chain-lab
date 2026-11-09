@@ -43,6 +43,13 @@ var (
 // cleaned path (the kernel enforces this again). FundingScript is deliberately
 // absent: the gateway checks grants but never funds issuance.
 func New(node singleuse.Node, stateDir, agentName, landlordName, issuerPubkey string) (*Adapter, error) {
+	return NewForNetwork(node, stateDir, agentName, landlordName, issuerPubkey, "regtest", singleuse.RegtestGenesis)
+}
+
+func NewForNetwork(node singleuse.Node, stateDir, agentName, landlordName, issuerPubkey, network, genesis string) (*Adapter, error) {
+	if !singleuse.NetworkPinned(network, genesis) {
+		return nil, fmt.Errorf("kernelbind: NETWORK_PIN")
+	}
 	script, err := rental.GrantSealScript(issuerPubkey)
 	if err != nil {
 		return nil, fmt.Errorf("kernelbind: issuer key: %w", err)
@@ -50,8 +57,8 @@ func New(node singleuse.Node, stateDir, agentName, landlordName, issuerPubkey st
 	return &Adapter{
 		Node: node,
 		Policy: rental.Policy{
-			Network:      "regtest",
-			Genesis:      singleuse.RegtestGenesis,
+			Network:      network,
+			Genesis:      genesis,
 			AgentName:    agentName,
 			LandlordName: landlordName,
 			SealScript:   script,

@@ -45,7 +45,7 @@ func (w *Wallet) Receive(ctx context.Context) (string, error) {
 	if e := call(ctx, w.wallet, "getnewaddress", &a, "", "legacy"); e != nil {
 		return "", e
 	}
-	if _, e := addressScript(a); e != nil {
+	if _, e := addressScriptForNetwork(a, w.config.Network, w.config.Genesis); e != nil {
 		return "", e
 	}
 	return a, nil

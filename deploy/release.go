@@ -1,4 +1,4 @@
-// Package deploy prepares local, unsigned regtest release artifacts. It never
+// Package deploy prepares local, unsigned release artifacts. It never
 // installs a service, signs a release, reads custody files or deploys to a host.
 package deploy
 
@@ -57,15 +57,15 @@ type Manifest struct {
 type ReleaseInput struct{ Repo, Commit, Out string }
 
 var releaseArtifacts = []Artifact{
-	{Service: "gateway", Module: "experiments/rental-gateway", Package: "./cmd/gateway", Binary: "bin/gateway", Status: "regtest-preparation", Screening: "off", Reason: "operator-pinned payload and remote manager required; host execution is a separate gate"},
-	{Service: "booking", Module: "experiments/rental-booking", Package: "./cmd/rental-booking", Binary: "bin/rental-booking", Status: "regtest-preparation"},
-	{Service: "store", Module: "experiments/grant-store", Package: "./cmd/grant-store", Binary: "bin/grant-store", Status: "regtest-preparation"},
-	{Service: "relay", Module: "experiments/relay", Package: "./cmd/swarma-relay", Binary: "bin/swarma-relay", Status: "regtest-preparation", Reason: "loopback behind explicit trusted reverse proxy; gift-wrap read AUTH awaits gateway client integration"},
-	{Service: "issuer", Module: "experiments/signer-service", Package: "./cmd/swarma-signer", Binary: "bin/swarma-signer", Status: "regtest-preparation", Reason: "owner-provisioned custody and private intake required; no signer activation implied"},
-	{Service: "model", Module: "experiments/model-proxy", Package: "./cmd/model-proxy", Binary: "bin/model-proxy", Status: "regtest-preparation", Reason: "owner-approved model prices, caps and API credential required; Linux peer-credential administration"},
-	{Service: "stations", Module: "experiments/station-lifecycle", Package: "./cmd/station-manager", Binary: "bin/station-manager", Status: "regtest-preparation", Reason: "ordinary Linux transport; independently installed root helper and policy required"},
-	{Service: "payload", Module: "experiments/station-payload", Package: "./cmd/station-payload", Binary: "bin/station-payload", Status: "regtest-preparation", Reason: "scripted consumer only; per-slot launch belongs to the root helper policy, no standalone unit"},
-	{Service: "wallet", Module: "experiments/agent-wallet", Package: "./cmd/agent-walletd", Binary: "bin/agent-walletd", Status: "regtest-preparation", Reason: "separate service UID, per-agent socket group, receipt key and private wallet RPC configuration required; host custody smoke remains separate"},
+	{Service: "gateway", Module: "experiments/rental-gateway", Package: "./cmd/gateway", Binary: "bin/gateway", Status: "configuration-preparation", Screening: "off", Reason: "operator-pinned payload and remote manager required; host execution is a separate gate"},
+	{Service: "booking", Module: "experiments/rental-booking", Package: "./cmd/rental-booking", Binary: "bin/rental-booking", Status: "configuration-preparation"},
+	{Service: "store", Module: "experiments/grant-store", Package: "./cmd/grant-store", Binary: "bin/grant-store", Status: "configuration-preparation"},
+	{Service: "relay", Module: "experiments/relay", Package: "./cmd/swarma-relay", Binary: "bin/swarma-relay", Status: "configuration-preparation", Reason: "loopback behind explicit trusted reverse proxy; gift-wrap read AUTH awaits gateway client integration"},
+	{Service: "issuer", Module: "experiments/signer-service", Package: "./cmd/swarma-signer", Binary: "bin/swarma-signer", Status: "configuration-preparation", Reason: "owner-provisioned custody and private intake required; no signer activation implied"},
+	{Service: "model", Module: "experiments/model-proxy", Package: "./cmd/model-proxy", Binary: "bin/model-proxy", Status: "configuration-preparation", Reason: "owner-approved model prices, caps and API credential required; Linux peer-credential administration"},
+	{Service: "stations", Module: "experiments/station-lifecycle", Package: "./cmd/station-manager", Binary: "bin/station-manager", Status: "configuration-preparation", Reason: "ordinary Linux transport; independently installed root helper and policy required"},
+	{Service: "payload", Module: "experiments/station-payload", Package: "./cmd/station-payload", Binary: "bin/station-payload", Status: "configuration-preparation", Reason: "scripted consumer only; per-slot launch belongs to the root helper policy, no standalone unit"},
+	{Service: "wallet", Module: "experiments/agent-wallet", Package: "./cmd/agent-walletd", Binary: "bin/agent-walletd", Status: "configuration-preparation", Reason: "separate service UID, per-agent socket group, receipt key and private wallet RPC configuration required; host custody smoke remains separate"},
 }
 
 type buildFunc func(context.Context, string, string, string, Artifact) ([]byte, error)

@@ -32,6 +32,9 @@ func gatewayOptions(v map[string]any) error {
 			}
 			seen[coin] = true
 		}
+		if v["mode"] == "main" && (len(coins) != 1 || coins[0] != "nmc") {
+			return ErrNetwork
+		}
 		if version == json.Number("1") && (len(coins) != 1 || coins[0] != "nmc") {
 			return ErrPolicy
 		}
@@ -72,6 +75,9 @@ func gatewayOptions(v map[string]any) error {
 		return ErrPolicy
 	}
 	if !filepath.IsAbs(m.AdminSocket) || filepath.Clean(m.AdminSocket) != m.AdminSocket || m.AdminSocket == "/" || len(m.AdminSocket) > 100 || strings.ContainsAny(m.AdminSocket, "\x00\r\n") || m.ServerUID == nil || !exactHex(m.CertSHA256, 32) {
+		return ErrPolicy
+	}
+	if v["mode"] == "main" && *m.ServerUID == 0 {
 		return ErrPolicy
 	}
 	if m.CertSHA256 == strings.Repeat(m.CertSHA256[:2], 32) {

@@ -1,4 +1,4 @@
-// Package wallet implements a regtest-only, grant-checked wallet client.
+// Package wallet implements a grant-checked wallet client and isolated service.
 package wallet
 
 import (
@@ -56,9 +56,24 @@ func ascii(s string, max int) bool {
 	return true
 }
 func addressScript(address string) ([]byte, error) {
-	a, e := btcutil.DecodeAddress(address, &chaincfg.RegressionNetParams)
-	if e != nil || !a.IsForNet(&chaincfg.RegressionNetParams) || a.EncodeAddress() != address {
-		return nil, fail("ADDRESS_REGTEST")
+	return addressScriptForNetwork(address, "regtest", su.RegtestGenesis)
+}
+
+func addressScriptForNetwork(address, network, genesis string) ([]byte, error) {
+	if !su.NetworkPinned(network, genesis) {
+		return nil, fail("NETWORK_PIN")
+	}
+	params := chaincfg.RegressionNetParams
+	code := "ADDRESS_REGTEST"
+	if network == "main" {
+		params = chaincfg.MainNetParams
+		params.PubKeyHashAddrID, params.ScriptHashAddrID, params.PrivateKeyID = 52, 13, 180
+		params.Bech32HRPSegwit = "nc"
+		code = "ADDRESS_MAIN"
+	}
+	a, e := btcutil.DecodeAddress(address, &params)
+	if e != nil || !a.IsForNet(&params) || a.EncodeAddress() != address {
+		return nil, fail(code)
 	}
 	if _, ok := a.(*btcutil.AddressPubKeyHash); !ok {
 		return nil, fail("ADDRESS_P2PKH_ONLY")
@@ -162,6 +177,10 @@ type Terms struct {
 }
 
 func ParseTerms(raw []byte, total int64) (Terms, error) {
+	return parseTermsForNetwork(raw, total, "regtest", su.RegtestGenesis)
+}
+
+func parseTermsForNetwork(raw []byte, total int64, network, genesis string) (Terms, error) {
 	var t Terms
 	if strict(raw, &t) != nil || t.Version != 1 || t.Recipients == nil || len(t.Recipients) > 32 || !slices.IsSorted(t.Recipients) {
 		return t, fail("CONTRACT_SCHEMA")
@@ -170,7 +189,7 @@ func ParseTerms(raw []byte, total int64) (Terms, error) {
 		return t, fail("CONTRACT_BUDGET")
 	}
 	for i, a := range t.Recipients {
-		if _, e := addressScript(a); e != nil {
+		if _, e := addressScriptForNetwork(a, network, genesis); e != nil {
 			return t, e
 		}
 		if i > 0 && a == t.Recipients[i-1] {

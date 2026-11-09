@@ -3,6 +3,7 @@ package deploy
 import "strings"
 
 const regtestGenesis = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+const mainGenesis = "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770"
 const maxMoney int64 = 21000000 * 100000000
 
 type issuerCaps struct {
@@ -32,6 +33,7 @@ type issuerPoint struct {
 	Vout uint32 `json:"vout"`
 }
 type issuerPolicy struct {
+	FeeRate        int64         `json:"fee_rate,omitempty"`
 	Network        string        `json:"network"`
 	Genesis        string        `json:"genesis"`
 	IssuerPubkey   string        `json:"issuer_pubkey"`
@@ -48,6 +50,7 @@ type issuerPolicy struct {
 type issuerConfig struct {
 	PaymentRouteFiles map[string]string `json:"payment_route_files,omitempty"`
 	Config            struct {
+		Spending        *spendingCaps            `json:"spending,omitempty"`
 		PresentationDir string                   `json:"presentation_dir,omitempty"`
 		Profile         string                   `json:"profile"`
 		PaymentPolicies map[string]paymentPolicy `json:"payment_policies,omitempty"`
@@ -92,8 +95,14 @@ func validateIssuer(raw []byte) error {
 	if c.Profile != "v2" || c.StateDir != "/var/lib/swarma-issuer/ledger" || p.StateDir != "/var/lib/swarma-issuer/issuance" || c.PresentationDir != "/var/lib/swarma-issuer/presentations" || c.GrantKeyPath != "/etc/swarma/issuer/grant.key" || c.FundingKeyPath != "/etc/swarma/issuer/funding.key" || f.ReadRouteFile != "/etc/swarma/issuer/read-route.json" || f.BroadcastRouteFile != "/etc/swarma/issuer/broadcast-route.json" || f.BookingOutbox != "/var/lib/swarma-issuer/intake/booking" || f.OperatorOutbox != "/var/lib/swarma-issuer/intake/operator" || f.IntervalSeconds < 1 || f.IntervalSeconds > 3600 {
 		return ErrPolicy
 	}
-	if p.Network != "regtest" || p.Genesis != regtestGenesis {
+	if !deploymentNetwork(p.Network, p.Genesis) || p.Genesis == "" {
 		return ErrNetwork
+	}
+	if p.Network == "main" && (c.Spending == nil || !c.Spending.valid() || p.FeeRate < 1 || p.FeeRate > 1000) {
+		return ErrPolicy
+	}
+	if c.Spending != nil && !c.Spending.valid() {
+		return ErrPolicy
 	}
 	if !digestPin(p.IssuerPubkey) || !digestPin(p.AgentPubkey) || !digestPin(c.Policy.ProviderPubkey) || !identityName(p.AgentName) || !identityName(p.LandlordName) || p.AgentName == p.LandlordName || !identityName(p.StationName) || !p2pkhScript(p.StationScript) || !p2pkhScript(p.SealScript) || !p2pkhScript(p.FundingScript) || p.FundingScript == p.SealScript {
 		return ErrPolicy
@@ -111,6 +120,9 @@ func validateIssuer(raw []byte) error {
 		return ErrPolicy
 	}
 	for coin, policy := range c.PaymentPolicies {
+		if p.Network == "main" && coin != "nmc" {
+			return ErrPolicy
+		}
 		if coin != "btc" && coin != "ltc" && coin != "nmc" {
 			return ErrPolicy
 		}
@@ -133,11 +145,16 @@ func validateIssuer(raw []byte) error {
 		}
 	}
 	seen := map[issuerPoint]bool{}
+	var enrolled int64
 	for _, in := range f.Inventory {
 		if !digestPin(in.Point.TxID) || in.ValueSat < 1 || in.ValueSat > maxMoney || seen[in.Point] {
 			return ErrPolicy
 		}
 		seen[in.Point] = true
+		if in.ValueSat > maxMoney-enrolled {
+			return ErrPolicy
+		}
+		enrolled += in.ValueSat
 		if in.Role == "seal" {
 			if in.Script != p.SealScript {
 				return ErrPolicy
@@ -150,5 +167,18 @@ func validateIssuer(raw []byte) error {
 			return ErrPolicy
 		}
 	}
+	if c.Spending != nil && enrolled > c.Spending.EnrolledHot {
+		return ErrPolicy
+	}
 	return nil
+}
+
+type spendingCaps struct {
+	MovedPerTx  int64 `json:"moved_per_tx"`
+	MovedDay    int64 `json:"moved_day"`
+	EnrolledHot int64 `json:"enrolled_hot"`
+}
+
+func (c spendingCaps) valid() bool {
+	return c.MovedPerTx > 0 && c.MovedDay >= c.MovedPerTx && c.MovedDay <= maxMoney && c.EnrolledHot > 0 && c.EnrolledHot <= maxMoney
 }

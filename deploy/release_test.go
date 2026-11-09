@@ -206,7 +206,7 @@ func TestReleaseIntegration(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(m.Artifacts) != 9 || len(m.Pending) != 1 || m.Pending[0].Service != "courier" || m.Artifacts[0].Status != "regtest-preparation" || m.Artifacts[0].Screening != "off" || m.Artifacts[3].Service != "relay" {
+	if len(m.Artifacts) != 9 || len(m.Pending) != 1 || m.Pending[0].Service != "courier" || m.Artifacts[0].Status != "configuration-preparation" || m.Artifacts[0].Screening != "off" || m.Artifacts[3].Service != "relay" {
 		t.Fatal("manifest service readiness mismatch")
 	}
 	for _, a := range m.Artifacts {

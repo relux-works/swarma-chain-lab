@@ -33,6 +33,10 @@ func (p Policy) validateDetached() error {
 	if p.Network != "regtest" || p.Genesis != su.RegtestGenesis {
 		return bad("REGTEST_ONLY")
 	}
+	return p.validateDetachedFields()
+}
+
+func (p Policy) validateDetachedFields() error {
 	if !station(p.AgentName) || !p2pkh(p.SealScript) || !filepath.IsAbs(p.StateDir) || filepath.Clean(p.StateDir) != p.StateDir {
 		return bad("DETACHED_POLICY")
 	}

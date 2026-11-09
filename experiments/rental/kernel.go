@@ -26,6 +26,7 @@ type Policy struct {
 	LandlordName   string  `json:"landlord_name,omitempty"`
 	KnownPoolSeals []Point `json:"known_pool_seals,omitempty"`
 	FundingScript  string  `json:"funding_script,omitempty"`
+	FeeRate        int64   `json:"fee_rate,omitempty"`
 }
 type Anchor struct {
 	TxID   string `json:"txid"`
@@ -63,6 +64,10 @@ func (p Policy) validate() error {
 	if p.Network != "regtest" || p.Genesis != su.RegtestGenesis {
 		return bad("REGTEST_ONLY")
 	}
+	return p.validateIssuerFields()
+}
+
+func (p Policy) validateIssuerFields() error {
 	if !pubkey(p.IssuerPubkey) || !pubkey(p.AgentPubkey) || !station(p.StationName) || !p2pkh(p.StationScript) || !filepath.IsAbs(p.StateDir) || filepath.Clean(p.StateDir) != p.StateDir {
 		return bad("POLICY_INPUT")
 	}

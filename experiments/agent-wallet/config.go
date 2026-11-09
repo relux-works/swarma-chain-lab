@@ -62,7 +62,7 @@ func LoadGrant(c Config, reference string) ([]byte, error) {
 		if e != nil {
 			return nil, e
 		}
-		a := CombinedAuthority{Agent: c.Policy.AgentName, Landlord: c.Policy.LandlordName}
+		a := CombinedAuthority{Kernel: KernelAuthority{Policy: c.Policy}, Agent: c.Policy.AgentName, Landlord: c.Policy.LandlordName}
 		g, parseErr := a.Parse(b)
 		if parseErr != nil || g.ID != reference {
 			return nil, fail("OBJECT_HASH")

@@ -16,7 +16,10 @@ func newService(s string) bool {
 // New service descriptors contain only installation identity. Native files are
 // checked separately; this does not read secrets or attest host ownership.
 func validateServicePolicy(p Policy) (Policy, error) {
-	want := Policy{Version: 1, Network: "regtest", Service: p.Service, ReleaseVersion: p.ReleaseVersion, Commit: p.Commit, BinarySHA256: p.BinarySHA256}
+	if !deploymentNetwork(p.Network, p.Genesis) {
+		return Policy{}, ErrNetwork
+	}
+	want := Policy{Version: 1, Network: p.Network, Genesis: p.Genesis, Service: p.Service, ReleaseVersion: p.ReleaseVersion, Commit: p.Commit, BinarySHA256: p.BinarySHA256}
 	if p.Service != "payload" {
 		want.StateDir = "/var/lib/swarma-" + p.Service
 		want.Config = "/etc/swarma/" + p.Service + "/service.json"
@@ -37,6 +40,14 @@ func validateServicePolicy(p Policy) (Policy, error) {
 // config. Payload requires a pinned argv pairing record followed by the actual
 // public model config. Older services retain their supplemental-file contract.
 func ValidateServiceInputs(p Policy, inputs [][]byte) error {
+	if !deploymentNetwork(p.Network, p.Genesis) {
+		return ErrNetwork
+	}
+	if p.Network == "main" {
+		if e := validateMainInputs(p, inputs); e != nil {
+			return e
+		}
+	}
 	if !newService(p.Service) {
 		for _, raw := range inputs {
 			if e := ValidatePublicJSON(raw); e != nil {

@@ -53,6 +53,13 @@ func OpenActionService(c ServiceConfig) (*ActionService, error) {
 	if e != nil {
 		return nil, e
 	}
+	if e := wc.validateNetwork(); e != nil {
+		return nil, e
+	}
+	network, genesis := serviceNetworkPins(c.Network, c.Genesis)
+	if wc.Network != network || wc.Genesis != genesis {
+		return nil, fail("SERVICE_WALLET_NETWORK")
+	}
 	if c.StateDir == wc.StateDir || c.StateDir == wc.Policy.StateDir || c.StateDir == wc.ObjectsDir || c.StateDir == wc.WalletDir || c.StateDir == wc.MemoryZone {
 		return nil, fail("SERVICE_PATH")
 	}
@@ -71,7 +78,7 @@ func OpenActionService(c ServiceConfig) (*ActionService, error) {
 	if hex.EncodeToString(schnorr.SerializePubKey(key.PubKey())) == c.Grantee {
 		return nil, fail("SERVICE_KEY_SEPARATION")
 	}
-	w, e := Open(wc)
+	w, e := openWallet(wc)
 	if e != nil {
 		return nil, e
 	}
@@ -104,7 +111,7 @@ func openActionService(c ServiceConfig, w *Wallet, key *btcec.PrivateKey) (*Acti
 		seen := map[string]bool{}
 		if e == nil {
 			for index, entry := range s.state.Entries {
-				_, fieldErr := actionFields(entry.Request, c.Service)
+				_, fieldErr := actionFieldsForNetwork(entry.Request, c.Service, w.config.Network, w.config.Genesis)
 				if fieldErr != nil || entry.Request.Grantee != c.Grantee || entry.Hash != Hash(canonical(entry.Request)) || seen[entry.Request.Nonce] || entry.Peer.UID != c.PeerUID {
 					e = fail("SERVICE_JOURNAL_ENTRY")
 					break
@@ -176,7 +183,7 @@ func (s *ActionService) finish(index int, height int64, verdict, reason string, 
 func (s *ActionService) observe(ctx context.Context) (int64, error) {
 	o := su.NewReadObservation(ctx, s.wallet.node)
 	defer o.Close()
-	if e := o.Start("regtest", su.RegtestGenesis); e != nil {
+	if e := o.Start(s.wallet.config.Network, s.wallet.config.Genesis); e != nil {
 		return 0, e
 	}
 	return o.Tip().Blocks, nil
@@ -190,7 +197,7 @@ func (s *ActionService) handle(ctx context.Context, raw []byte, peer PeerIdentit
 	if peer.UID != s.config.PeerUID {
 		return reject(Hash(raw), "SERVICE_PEER")
 	}
-	v, e := ParseAction(raw, s.config.Service)
+	v, e := ParseActionForNetwork(raw, s.config.Service, s.wallet.config.Network, s.wallet.config.Genesis)
 	if e != nil {
 		return reject(Hash(raw), safeCode(e))
 	}

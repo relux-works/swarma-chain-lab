@@ -4,7 +4,10 @@
 `agent-walletd` holds custody in a separate non-root service user. See
 [SERVICE.md](SERVICE.md) for exact LIP-0006 bytes, supported actions, deployment,
 recovery and the limits of local same-UID test evidence. W2 v1 supports spend,
-balance/history/receive and budget; name operations are deferred.
+balance/history/receive and budget; name operations are deferred. W2 main
+requires explicit matching network/genesis in service, client and private wallet
+configuration, a matching nested policy and positive fee rate. Legacy entrypoints
+remain regtest-only. See [M5 test config](../../deploy/templates/m5-test/README.md).
 
 The following documents the retained **`agent-wallet-legacy`** W1 command.
 

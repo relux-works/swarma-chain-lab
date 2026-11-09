@@ -145,7 +145,7 @@ func TestCoreActionClient(t *testing.T) {
 	key, _ := testKey(2)
 	keyPath := filepath.Join(l.private, "client.key")
 	os.WriteFile(keyPath, []byte(hex.EncodeToString(key.Serialize())), 0600)
-	cfg := ActionClientConfig{1, WalletServiceID, s.config.Socket, uint32(os.Getuid()), s.pub, keyPath}
+	cfg := ActionClientConfig{Version: 1, Service: WalletServiceID, Socket: s.config.Socket, ServiceUID: uint32(os.Getuid()), ReceiptKey: s.pub, KeyFile: keyPath}
 	cfgPath := filepath.Join(l.root, "client.json")
 	os.WriteFile(cfgPath, canonical(cfg), 0600)
 	r := actionFixture(t, "balance")

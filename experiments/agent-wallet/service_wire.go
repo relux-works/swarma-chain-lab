@@ -8,6 +8,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 const MaxActionFrame = 65536
@@ -53,7 +54,14 @@ func ActionDigest(r ActionRequest) string {
 	return Hash(append([]byte("swarma-action-v1"), h...))
 }
 func actionFields(r ActionRequest, service string) (SpendParams, error) {
+	return actionFieldsForNetwork(r, service, "regtest", su.RegtestGenesis)
+}
+
+func actionFieldsForNetwork(r ActionRequest, service, network, genesis string) (SpendParams, error) {
 	var p SpendParams
+	if !su.NetworkPinned(network, genesis) {
+		return p, fail("NETWORK_PIN")
+	}
 	if r.Version != 1 || r.Service != service || service != WalletServiceID || !hexN(r.Nonce, 16) || r.CreatedAt <= 0 || !hexN(r.Grantee, 32) {
 		return p, fail("ACTION_SCHEMA")
 	}
@@ -62,7 +70,7 @@ func actionFields(r ActionRequest, service string) (SpendParams, error) {
 		if strict(r.Params, &p) != nil || p.Amount < 1 || p.Amount > MaxMoney || p.FeeLimit < 1 || p.FeeLimit > MaxFee || p.Amount > MaxMoney-p.FeeLimit {
 			return p, fail("ACTION_PARAMS")
 		}
-		if _, e := addressScript(p.To); e != nil {
+		if _, e := addressScriptForNetwork(p.To, network, genesis); e != nil {
 			return p, e
 		}
 	case "balance", "receive", "history", "budget":
@@ -82,13 +90,17 @@ func actionFields(r ActionRequest, service string) (SpendParams, error) {
 	return p, nil
 }
 func ParseAction(raw []byte, service string) (VerifiedAction, error) {
+	return ParseActionForNetwork(raw, service, "regtest", su.RegtestGenesis)
+}
+
+func ParseActionForNetwork(raw []byte, service, network, genesis string) (VerifiedAction, error) {
 	var v VerifiedAction
 	if len(raw) > MaxActionFrame || strict(raw, &v.Envelope) != nil {
 		return v, fail("ACTION_SCHEMA")
 	}
 	e := v.Envelope
 	r := e.Request
-	p, err := actionFields(r, service)
+	p, err := actionFieldsForNetwork(r, service, network, genesis)
 	if err != nil {
 		return VerifiedAction{}, err
 	}
@@ -104,6 +116,13 @@ func ParseAction(raw []byte, service string) (VerifiedAction, error) {
 	return v, nil
 }
 func SignAction(r ActionRequest, key *btcec.PrivateKey, proof *ActionProof) ([]byte, error) {
+	return SignActionForNetwork(r, key, proof, "regtest", su.RegtestGenesis)
+}
+
+func SignActionForNetwork(r ActionRequest, key *btcec.PrivateKey, proof *ActionProof, network, genesis string) ([]byte, error) {
+	if _, err := actionFieldsForNetwork(r, r.Service, network, genesis); err != nil {
+		return nil, err
+	}
 	if key == nil || r.Grantee != hex.EncodeToString(schnorr.SerializePubKey(key.PubKey())) {
 		return nil, fail("ACTION_KEY")
 	}
@@ -113,7 +132,7 @@ func SignAction(r ActionRequest, key *btcec.PrivateKey, proof *ActionProof) ([]b
 		return nil, fail("ACTION_SIGN")
 	}
 	raw := canonical(ActionEnvelope{r, hex.EncodeToString(sig.Serialize()), proof})
-	if _, e = ParseAction(raw, r.Service); e != nil {
+	if _, e = ParseActionForNetwork(raw, r.Service, network, genesis); e != nil {
 		return nil, e
 	}
 	return raw, nil

@@ -1,10 +1,15 @@
 # Rental booking laboratory (M3)
 
-**Regtest experiment, not a public service or spending authorization.** A Go
+**Experimental; configuration support is not spending authorization.** A Go
 booking/contract service with a bounded read-only Namecoin payment watcher,
 NIP-07 signing page and a minimal local Nostr relay. It holds only a disposable
 provider Nostr signing key and a pinned **public** HD branch; no chain signing
-key, wallet RPC, mainnet route, external relay or real renter key is needed.
+key, wallet RPC, mainnet route, external relay or real renter key is needed for
+the regtest fixtures. ServiceV2 also supports explicit NMC-main network/genesis
+pins, one NMC payment profile, an explicit public xpub branch, rate/depth/limits,
+and positive price/budget/window values. Missing pins preserve regtest only;
+BTC/LTC main refuse. Configuration and stored payment terms must agree. See the
+[M5 test template](../../deploy/templates/m5-test/README.md) for demo-60 values.
 
 ## Flow and guarantees
 

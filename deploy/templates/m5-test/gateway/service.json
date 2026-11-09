@@ -1,0 +1,82 @@
+{
+  "agent_key_file": "/var/lib/swarma-gateway/agent.key",
+  "agent_pubkey": "PLACEHOLDER_AGENT_PUBKEY",
+  "exchange": {
+    "booking_url": "http://127.0.0.1:18819",
+    "booking_version": 2,
+    "burst": 4,
+    "call_milliseconds": 2000,
+    "known_seconds": 3600,
+    "max_clients": 16,
+    "max_replay": 16,
+    "message_age_seconds": 300,
+    "payment_coins": [
+      "nmc"
+    ],
+    "poll_milliseconds": 1000,
+    "pow_bits": 16,
+    "presentations_dir": "/var/lib/swarma-gateway/presentations",
+    "privacy_sha256": "PLACEHOLDER_PRIVACY_SHA256",
+    "profile_sha256": "PLACEHOLDER_PROFILE_SHA256",
+    "queue_size": 32,
+    "refill_seconds": 10,
+    "state_dir": "/var/lib/swarma-gateway/exchange",
+    "template_sha256": "PLACEHOLDER_TEMPLATE_SHA256"
+  },
+  "journal_dir": "/var/lib/swarma-gateway/journal",
+  "kernel": {
+    "agent_name": "PLACEHOLDER_AGENT_NAME",
+    "genesis": "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770",
+    "issuer_pubkey": "PLACEHOLDER_ISSUER_PUBKEY",
+    "kind": "real",
+    "landlord_name": "PLACEHOLDER_LANDLORD_NAME",
+    "network": "main",
+    "rpc_host": "127.0.0.1",
+    "rpc_port": "PLACEHOLDER_NMC_RPC_PORT_INTEGER",
+    "rpc_route_file": "/etc/swarma/gateway/observer.json",
+    "seal_script": "PLACEHOLDER_SEAL_SCRIPT",
+    "state_dir": "/var/lib/swarma-gateway/kernel",
+    "stub_verdict": ""
+  },
+  "mode": "main",
+  "model_proxy": {
+    "admin_socket": "/run/swarma-model/admin.sock",
+    "caps": {
+      "cost_nano_usd": 3000000000,
+      "input_tokens": 4000000,
+      "max_tokens": 8192,
+      "output_tokens": 300000,
+      "requests": 200
+    },
+    "cert_sha256": "PLACEHOLDER_MODEL_LEAF_SHA256",
+    "origin": "https://PLACEHOLDER_MODEL_HOST:8443",
+    "server_uid": "PLACEHOLDER_MODEL_UID_INTEGER"
+  },
+  "relay_auth": "off",
+  "relay_url": "ws://127.0.0.1:18818",
+  "screening": "off",
+  "station": {
+    "driver": "manager",
+    "manager": {
+      "listen": "PLACEHOLDER_GATEWAY_IP:9443",
+      "payload_id": "PLACEHOLDER_PAYLOAD_ID",
+      "payload_listen": "PLACEHOLDER_GATEWAY_IP:9444",
+      "payload_sha256": "PLACEHOLDER_PAYLOAD_SHA256",
+      "slot_max": 64,
+      "slot_min": 1,
+      "start_milliseconds": 2000,
+      "state_dir": "/var/lib/swarma-gateway/broker",
+      "tls": {
+        "cert_file": "/etc/swarma/gateway/server.pem",
+        "cert_sha256": "PLACEHOLDER_GATEWAY_CERT_SHA256",
+        "key_file": "/etc/swarma/gateway/server.key",
+        "manager_ca_file": "/etc/swarma/gateway/manager-ca.pem",
+        "manager_cert_sha256": "PLACEHOLDER_MANAGER_CERT_SHA256"
+      }
+    },
+    "root": "",
+    "stub_agent": false
+  },
+  "station_socket": "",
+  "version": 1
+}

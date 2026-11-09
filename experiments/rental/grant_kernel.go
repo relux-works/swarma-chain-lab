@@ -29,7 +29,10 @@ type seenGrantSeal struct {
 }
 
 func (p Policy) validateGrant() error {
-	if e := p.validateDetached(); e != nil {
+	if !su.NetworkPinned(p.Network, p.Genesis) {
+		return bad("NETWORK_PIN")
+	}
+	if e := p.validateDetachedFields(); e != nil {
 		return e
 	}
 	if !station(p.LandlordName) || p.LandlordName == p.AgentName {

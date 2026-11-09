@@ -40,6 +40,9 @@ func parseConfig(raw []byte) (selectedConfig, error) {
 			return selectedConfig{}, errConfig
 		}
 	}
+	if c.Config.ValidateNetworkProfile() != nil {
+		return selectedConfig{}, errConfig
+	}
 	return selectedConfig{v2: &c}, nil
 }
 

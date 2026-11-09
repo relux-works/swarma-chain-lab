@@ -52,7 +52,7 @@ embedded in the manifest. A successful build is not a deployment acceptance.
 ## Public configuration validation
 
 `validate -config` checks a separate public deployment policy JSON, rather than
-injecting extra fields into native service config. It always refuses mainnet,
+injecting extra fields into native service config. It refuses missing or inconsistent network/genesis pins,
 unresolved placeholders, invalid/duplicate/unknown fields, wildcard listeners,
 foreign writable/credential paths and unpinned node CLI references. Complete
 gateway/booking/store/relay regtest descriptors accept without opening referenced files.
@@ -136,7 +136,7 @@ until a supported matching route is configured and qualified.
 `deploy-kit validate -public` checks the AUTH mode and refuses a partial/null
 model section, unknown fields, invalid UID/caps or non-manager selection. Integer
 limits retain uint64 precision. Native `gateway validate` independently checks
-the same boundary before startup effects. The kit still refuses mainnet and all
+the same boundary before startup effects. Main requires the explicit NMC profile and model caps. The kit refuses all
 unresolved placeholders. See the gateway's [configuration contract](../experiments/rental-gateway/RELAY_MODEL.md)
 for the Linux socket ownership/peer checks and bootstrap lifecycle.
 
@@ -177,7 +177,7 @@ dialect, either direction of profile mismatch, unknown model or endpoint/pin
 drift refuses before deployment. The pairing describes the exact pinned launch
 argv; the payload independently checks it at startup using `-dialect` and
 `-model-config`. Legacy omitted-dialect startup is test-only and unqualified.
-The existing main-network refusal remains unchanged. Its executable is launched solely by Infra's reviewed
+The main profile requires the same explicit payload/model pairing. Its executable is launched solely by Infra's reviewed
 root policy; [POLICY-NEEDS.md](templates/payload/POLICY-NEEDS.md) is a table of
 requirements, not an installable policy fragment.
 
@@ -187,8 +187,8 @@ values with JSON integers, retain field order, and sort the model-name map by ke
 Do not pretty-print those files or pass a generic alphabetically sorted object.
 The signer permits ordinary JSON whitespace. Every placeholder remains inert:
 no production model/rate/cap or numerical UID is selected by this kit. Synthetic
-test caps are not operator proposals or approval. The kit refuses mainnet even
-with fully filled values, consistent with the signer regtest-only boundary.
+test caps are not operator proposals or approval. Explicit main configurations use the separate [M5 test config](templates/m5-test/README.md);
+all monetary limits come from configuration, with no mainnet defaults.
 
 The new structural validators check closed fields, explicit private file
 references, key/public digest shape, per-coin route matching, cap/price arithmetic,

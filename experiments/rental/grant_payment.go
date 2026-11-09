@@ -79,7 +79,7 @@ func validStoredPaymentAdmission(a *AdmissionV2, request []byte) bool {
 	if a == nil || canonical(request, &r) != nil || a.Verdict != "admit" || a.Reason != "PAYMENT_AND_PACKAGE_CURRENT" || a.BookingID != r.BookingID || a.ContractSHA256 != r.ContractSHA256 || a.Coin != r.PaymentCoin || a.Network != r.PaymentNetwork || a.Genesis != r.PaymentGenesis || a.CheckedAt <= 0 || a.Observation == nil {
 		return false
 	}
-	profile, e := pc.ForCoin(a.Coin)
+	profile, e := pc.ForNetwork(a.Coin, a.Network, a.Genesis)
 	if e != nil || profile.Network != a.Network || profile.Genesis != a.Genesis {
 		return false
 	}

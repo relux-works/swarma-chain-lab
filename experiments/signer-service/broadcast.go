@@ -18,12 +18,20 @@ import (
 // The daemon must whitelist sendrawtransaction only for sg1-broadcaster. It
 // never imports a key, asks a wallet to sign, mines, or follows a remote route.
 type RPCBroadcast struct {
-	route  su.Route
-	read   su.Node
-	client *http.Client
+	network, genesis string
+	route            su.Route
+	read             su.Node
+	client           *http.Client
 }
 
 func NewRPCBroadcast(route su.Route, observerRoute su.Route) (*RPCBroadcast, error) {
+	return NewRPCBroadcastForNetwork(route, observerRoute, "regtest", su.RegtestGenesis)
+}
+
+func NewRPCBroadcastForNetwork(route su.Route, observerRoute su.Route, network, genesis string) (*RPCBroadcast, error) {
+	if !su.NetworkPinned(network, genesis) {
+		return nil, fail("BROADCAST_NETWORK_PIN")
+	}
 	node, e := su.NewRPC(observerRoute)
 	if e != nil || route.Host != observerRoute.Host || route.Port != observerRoute.Port {
 		return nil, fail("BROADCAST_NODE_PIN")
@@ -32,7 +40,7 @@ func NewRPCBroadcast(route su.Route, observerRoute su.Route) (*RPCBroadcast, err
 	if ip == nil || !ip.IsLoopback() || route.Port < 1 || route.Port > 65535 || route.Username != "sg1-broadcaster" || len(route.Password) < 16 || len(route.Password) > 256 || node == nil {
 		return nil, fail("BROADCAST_ROUTE")
 	}
-	return &RPCBroadcast{route, node, &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return fail("REDIRECT") }}}, nil
+	return &RPCBroadcast{network, genesis, route, node, &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return fail("REDIRECT") }}}, nil
 }
 func (b *RPCBroadcast) Send(ctx context.Context, raw []byte) (string, error) {
 	tx, e := su.DecodeTransaction(raw)
@@ -41,7 +49,7 @@ func (b *RPCBroadcast) Send(ctx context.Context, raw []byte) (string, error) {
 	}
 	o := su.NewReadObservation(ctx, b.read)
 	defer o.Close()
-	if e = o.Start("regtest", su.RegtestGenesis); e != nil {
+	if e = o.Start(b.network, b.genesis); e != nil {
 		return "", e
 	}
 	// Observation also recovers an already accepted tx after a lost ACK. Equality

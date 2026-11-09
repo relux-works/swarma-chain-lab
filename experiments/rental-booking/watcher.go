@@ -29,10 +29,11 @@ type Tip struct {
 	Height int64  `json:"height"`
 }
 type observation struct {
-	ctx          context.Context
-	node         Node
-	limits       Limits
-	calls, bytes int
+	network, genesis string
+	ctx              context.Context
+	node             Node
+	limits           Limits
+	calls, bytes     int
 }
 
 func (o *observation) read(method string, args ...any) (json.RawMessage, error) {
@@ -51,6 +52,13 @@ func (o *observation) read(method string, args ...any) (json.RawMessage, error) 
 	return raw, nil
 }
 func (o *observation) tip() (Tip, error) {
+	network, pinnedGenesis := o.network, o.genesis
+	if network == "" && pinnedGenesis == "" {
+		network, pinnedGenesis = "regtest", singleuse.RegtestGenesis
+	}
+	if !singleuse.NetworkPinned(network, pinnedGenesis) {
+		return Tip{}, refuse("NETWORK_PIN")
+	}
 	b, e := o.read("getblockchaininfo")
 	if e != nil {
 		return Tip{}, e
@@ -60,7 +68,7 @@ func (o *observation) tip() (Tip, error) {
 	var ibd bool
 	// Core 28 can report headers below blocks after reconsiderblock. Header
 	// progress is not an active-chain proof; bind observations to block hashes.
-	if sealwatch.ProjectJSON(b, map[string]any{"chain": &chain, "bestblockhash": &best, "blocks": &height, "headers": &headers, "initialblockdownload": &ibd}, nil) != nil || chain != "regtest" || !hexSize(best, 32) || height < 0 || headers < 0 || ibd {
+	if sealwatch.ProjectJSON(b, map[string]any{"chain": &chain, "bestblockhash": &best, "blocks": &height, "headers": &headers, "initialblockdownload": &ibd}, nil) != nil || chain != network || !hexSize(best, 32) || height < 0 || headers < 0 || ibd {
 		return Tip{}, refuse("NODE_CHAIN")
 	}
 	b, e = o.read("getblockhash", 0)
@@ -68,7 +76,7 @@ func (o *observation) tip() (Tip, error) {
 		return Tip{}, e
 	}
 	var genesis string
-	if json.Unmarshal(b, &genesis) != nil || genesis != singleuse.RegtestGenesis {
+	if json.Unmarshal(b, &genesis) != nil || genesis != pinnedGenesis {
 		return Tip{}, refuse("NODE_GENESIS")
 	}
 	return Tip{best, height}, nil
@@ -286,10 +294,17 @@ func Discover(ctx context.Context, node Node, limits Limits, targets map[string]
 	return out, nil
 }
 func CheckRenterName(ctx context.Context, node Node, limits Limits, name, key string) error {
+	return CheckRenterNameForNetwork(ctx, node, limits, name, key, "regtest", singleuse.RegtestGenesis)
+}
+
+func CheckRenterNameForNetwork(ctx context.Context, node Node, limits Limits, name, key, network, genesis string) error {
+	if !singleuse.NetworkPinned(network, genesis) || node == nil || !limits.valid() {
+		return refuse("NODE_CONFIG")
+	}
 	if !identifier(name) || !strings.HasPrefix(name, "id/") || !pubkey(key) {
 		return refuse("RENTER_NAME")
 	}
-	o := observation{ctx: ctx, node: node, limits: limits}
+	o := observation{ctx: ctx, node: node, limits: limits, network: network, genesis: genesis}
 	tip, e := o.tip()
 	if e != nil {
 		return e

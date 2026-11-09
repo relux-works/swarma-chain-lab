@@ -1,16 +1,21 @@
-# Regtest booking-payment observation
+# Booking-payment observation
 
 Development module for separately routed BTC, LTC and NMC booking fees. It
 never signs, spends, broadcasts or grants execution authority. The existing
 Namecoin seal verifier remains a separate module and profile.
 
-Closed profiles bind coin, regtest genesis, address family, monetary limits and
+Closed profiles bind coin, network/genesis, address family, monetary limits and
 runtime product/protocol tuple. BTC/NMC deliberately share regtest genesis and
 the Satoshi label; their pinned protocol versions differ. The tuple detects an
 accidentally swapped route, not a malicious daemon. Trusted routing and isolated
 read-only credentials remain required. Unknown protocol upgrades fail closed.
 
-`NewAddressDeriver` accepts a hash-pinned public tpub branch, derives only
+`ForCoin` preserves the original regtest profiles. `ForNetwork` additionally
+admits NMC with explicit `main` and the exact Namecoin genesis; BTC/LTC main
+refuse. Neither missing network nor missing genesis selects main.
+
+`NewAddressDeriver` accepts a hash-pinned public tpub branch on regtest (xpub on
+NMC main), derives only
 non-hardened children, and returns canonical P2PKH (NMC) or P2WPKH (BTC/LTC).
 Callers must atomically reserve each per-coin index with the global calendar
 before exposing an address. This module owns no reservation ledger.

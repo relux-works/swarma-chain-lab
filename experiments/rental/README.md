@@ -1,6 +1,6 @@
 # Landlord rental grants laboratory
 
-This **regtest-only** implementation prepares landlord-signed v3 grants,
+This implementation prepares landlord-signed v3 grants,
 checks two Namecoin identities and a confirmed per-grant consent commitment,
 and plans unsigned issuance/pool transactions. The agent name points to its
 landlord; only the landlord name carries the grant key. No command signs or
@@ -85,7 +85,8 @@ Kernel exits 0/live, 2/pending, 1/refused. No unconfirmed issuance is live.
 `--at UNIX_SECONDS` supplies a trusted regtest clock; `checked_at` records its
 start, while elapsed expiry is rechecked. Kernel `--operator-route` selects an
 existing hash-pinned CLI observer. Routes and keys stay in private local files.
-All runtime policies reject mainnet. The authenticated sender is the **inner
+V3 grant policies admit explicitly pinned NMC main and regtest; main funding
+planners require an explicit fee rate. Legacy v1/v2 policies remain regtest-only. The authenticated sender is the **inner
 NIP-17 seal key**, not an outer gift-wrap key.
 
 Policy pins `network`, `genesis`, `agent_name`, `landlord_name`, `seal_script`

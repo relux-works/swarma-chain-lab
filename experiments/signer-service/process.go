@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"time"
 
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
@@ -65,7 +66,7 @@ func (x *Engine) process(ctx context.Context, raw []byte, source SourceClass, no
 		if e != nil {
 			return Result{}, e
 		}
-		if intent.BookingID != claimed.BookingID || !digest(intent.ContractSHA256) || !digest(intent.PaymentTxID) || !digest(intent.PaymentGenesis) || intent.PaymentNetwork != "regtest" {
+		if intent.BookingID != claimed.BookingID || !digest(intent.ContractSHA256) || !digest(intent.PaymentTxID) || !x.paymentProfile(intent.PaymentCoin, intent.PaymentNetwork, intent.PaymentGenesis) {
 			return Result{}, fail("ISSUER_INTENT")
 		}
 		// Budget zero omits the K1 bound, so this capped service refuses it rather
@@ -97,6 +98,9 @@ func (x *Engine) process(ctx context.Context, raw []byte, source SourceClass, no
 		if fee > x.cfg.Caps.FeePerTx {
 			return Result{}, fail("FEE_CAP")
 		}
+		if e = x.capSpending(fee, now, ""); e != nil {
+			return Result{}, e
+		}
 		if e = x.identity(ctx); e != nil {
 			return Result{}, e
 		}
@@ -126,7 +130,7 @@ func (x *Engine) revoke(ctx context.Context, r Revoke, source SourceClass, now i
 		return Result{}, fail("REVOKE_BINDING")
 	}
 	if source == BookingSource {
-		if r.Version != 2 || r.Reason != "payment_reorged" || !digest(r.PaymentTxID) || !digest(r.PaymentGenesis) || !digest(r.ObservedTipHash) || r.PaymentNetwork != "regtest" || (r.PaymentCoin != "nmc" && r.PaymentCoin != "btc" && r.PaymentCoin != "ltc") {
+		if r.Version != 2 || r.Reason != "payment_reorged" || !digest(r.PaymentTxID) || !digest(r.ObservedTipHash) || !x.paymentProfile(r.PaymentCoin, r.PaymentNetwork, r.PaymentGenesis) {
 			return Result{}, fail("REVOKE_AUTHORITY")
 		}
 	} else if r.Reason != "operator" {
@@ -175,6 +179,9 @@ func (x *Engine) revoke(ctx context.Context, r Revoke, source SourceClass, now i
 	}
 	if plan.FeeSat > x.cfg.Caps.FeePerTx {
 		return Result{}, fail("FEE_CAP")
+	}
+	if e = x.checkPlanSpending(plan, now, ""); e != nil {
+		return Result{}, e
 	}
 	if e = x.observe(ctx, []su.PlanInput{seal}); e != nil {
 		return Result{}, e
@@ -244,6 +251,9 @@ func (x *Engine) Refill(ctx context.Context, now int64) (Result, error) {
 	if plan.FeeSat > c.FeePerTx {
 		return Result{}, fail("FEE_CAP")
 	}
+	if e = x.checkPlanSpending(plan, now, ""); e != nil {
+		return Result{}, e
+	}
 	if e = x.observe(ctx, []su.PlanInput{fund}); e != nil {
 		return Result{}, e
 	}
@@ -270,6 +280,14 @@ func (x *Engine) advance(ctx context.Context, j int, now int64) (Result, error) 
 	}
 	if op.Kind == "grant-issue" && x.find(hash([]byte("revoke/"+op.Intent.BookingID))) >= 0 {
 		return result(), fail("BOOKING_REVOKED")
+	}
+	if !terminalSpend(r) {
+		if e = x.chargeSpendingAt(j, current()); e != nil {
+			return result(), e
+		}
+		if e = x.capExposure(x.state.Inventory); e != nil {
+			return result(), e
+		}
 	}
 	if r.Phase == "reserved" {
 		if op.Kind != "grant-issue" {
@@ -343,6 +361,15 @@ func (x *Engine) advance(ctx context.Context, j int, now int64) (Result, error) 
 		if e != nil || !bytes.Equal(encode(want), encode(r.Plan)) || want.FeeSat > x.cfg.Caps.FeePerTx {
 			return result(), fail("SIGNING_TEMPLATE")
 		}
+		if e = x.checkPlanSpending(want, current(), op.ID); e != nil {
+			return result(), e
+		}
+		if x.cfg.Spending != nil {
+			moved, err := movedByPlan(want, x.cfg.Policy.Policy.FundingScript)
+			if err != nil || moved != x.state.Operations[j].MovedAtoms {
+				return result(), fail("RESERVED_MOVEMENT")
+			}
+		}
 		path, script := x.cfg.FundingKeyPath, x.cfg.Policy.Policy.FundingScript
 		if op.Kind == "revoke" {
 			path, script = x.cfg.GrantKeyPath, x.cfg.Policy.Policy.SealScript
@@ -385,6 +412,9 @@ func (x *Engine) advance(ctx context.Context, j int, now int64) (Result, error) 
 		x.at("signed")
 	}
 	if r.Phase == "signed" {
+		if e = x.chargeSpendingAt(j, current()); e != nil {
+			return result(), e
+		}
 		raw, _ := hex.DecodeString(r.RawTx)
 		// A lost ACK can only retry these exact durable bytes, never re-sign.
 		id, e := x.broadcaster.Send(ctx, raw)
@@ -394,6 +424,9 @@ func (x *Engine) advance(ctx context.Context, j int, now int64) (Result, error) 
 		}
 		if id != r.TxID {
 			return result(), fail("BROADCAST_TXID")
+		}
+		if e = x.chargeSpendingAt(j, current()); e != nil {
+			return result(), e
 		}
 		r.Phase = "broadcast"
 		if e = x.save(j, r); e != nil {
@@ -480,4 +513,12 @@ func (x *Engine) chargeAt(j int, now int64) error {
 	s.Operations[j].At = now
 	s.LastTime = now
 	return x.commit(s)
+}
+
+func (x *Engine) paymentProfile(coin, network, genesis string) bool {
+	if network != x.cfg.Policy.Policy.Network {
+		return false
+	}
+	_, err := pc.ForNetwork(coin, network, genesis)
+	return err == nil
 }

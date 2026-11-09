@@ -18,6 +18,8 @@ type Inventory struct {
 	Reserved string       `json:"reserved,omitempty"`
 }
 type operation struct {
+	MovedAtoms int64  `json:"moved_atoms,omitempty"`
+	SpendAt    int64  `json:"spend_at,omitempty"`
 	SourceID   string `json:"source_id,omitempty"`
 	SourceHash string `json:"source_hash,omitempty"`
 	ID         string `json:"id"`
@@ -175,6 +177,12 @@ func (x *Engine) readRecord(op operation) (record, error) {
 	if r.Phase != "reserved" && r.Plan == nil {
 		return r, fail("RECORD_PLAN")
 	}
+	if x.cfg.Spending != nil {
+		moved, e := x.movement(r.Spec)
+		if e != nil || op.MovedAtoms != moved || op.SpendAt < 1 || op.SpendAt > x.state.LastTime {
+			return r, fail("RECORD_SPENDING")
+		}
+	}
 	if r.Phase == "signed" || r.Phase == "broadcast" || r.Phase == "stored" {
 		raw, e := hex.DecodeString(r.RawTx)
 		if e != nil {
@@ -297,6 +305,9 @@ func (x *Engine) Enroll(ctx context.Context, inputs []su.PlanInput, now int64) e
 			return e
 		}
 		s.Inventory = append(s.Inventory, Inventory{Input: in})
+	}
+	if e := x.capExposure(s.Inventory); e != nil {
+		return e
 	}
 	if e := x.observe(ctx, inputs); e != nil {
 		return e
@@ -426,6 +437,19 @@ func (x *Engine) reserve(op operation, r record, points []su.Point) error {
 	if len(x.state.Operations) >= MaxRecords {
 		return fail("OPERATION_BOUND")
 	}
+	if x.cfg.Spending != nil {
+		moved, e := x.movement(r.Spec)
+		if e != nil {
+			return e
+		}
+		if e = x.capSpending(moved, op.At, ""); e != nil {
+			return e
+		}
+		if e = x.capExposure(x.state.Inventory); e != nil {
+			return e
+		}
+		op.MovedAtoms, op.SpendAt = moved, op.At
+	}
 	s := cloneState(x.state)
 	for _, pt := range points {
 		found := false
@@ -479,7 +503,7 @@ func (x *Engine) feeProjection(spec rental.PlanSpec) (int64, error) {
 	}
 	script, _ := hex.DecodeString(x.cfg.Policy.Policy.FundingScript)
 	tx.Outputs = []su.Output{{Script: make([]byte, oplocator.IssuanceBlobScriptBytes)}, {Script: script}}
-	_, fee, _, e := su.ReserveLegacyFee(tx, total)
+	_, fee, _, e := su.ReserveFee(tx, total, x.cfg.Policy.Policy.GrantFeeRate())
 	return fee, e
 }
 

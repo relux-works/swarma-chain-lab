@@ -1,0 +1,15 @@
+{
+  "binary_sha256": "PLACEHOLDER_GATEWAY_SHA256",
+  "commit": "PLACEHOLDER_COMMIT",
+  "config": "/etc/swarma/gateway/service.json",
+  "genesis": "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770",
+  "listen": "PLACEHOLDER_GATEWAY_IP:9444",
+  "manager_listen": "PLACEHOLDER_GATEWAY_IP:9443",
+  "network": "main",
+  "release_version": "PLACEHOLDER_RELEASE",
+  "screening": "off",
+  "service": "gateway",
+  "state_dir": "/var/lib/swarma-gateway",
+  "station_driver": "manager",
+  "version": 1
+}

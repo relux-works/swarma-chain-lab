@@ -45,6 +45,11 @@ func newHTTPHandler(s *Service, v2 *ServiceV2, origin string) (*HTTPHandler, err
 	}
 	html, script := pageHTML, browserScript
 	if v2 != nil {
+		if network, _ := v2.cfg.NetworkPins(); network == "main" {
+			html = strings.ReplaceAll(html, "Rental booking regtest", "Rental booking — Namecoin mainnet")
+			html = strings.ReplaceAll(html, "Rental booking — regtest", "Rental booking — Namecoin mainnet")
+			html = strings.Replace(html, "Local experiment. Payments use disposable regtest coins.", "M5 test rental. Payments use real NMC on Namecoin mainnet.", 1)
+		}
 		html = strings.Replace(html, "exact NMC amount", "exact amount in the selected coin", 1)
 		html = strings.Replace(html, `<button id="book">`, `<p><label>Payment coin <select id="coin">{{range .Coins}}<option value="{{.}}">{{.}}</option>{{end}}</select></label></p><button id="book">`, 1)
 		script = strings.Replace(script, "slot_id:document", "coin:document.getElementById('coin').value,slot_id:document", 1)

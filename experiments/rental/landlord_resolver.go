@@ -12,8 +12,8 @@ import (
 // stateless current-name read cannot remember unseen rotations or rotate-back.
 func ResolveLandlordGrantKey(ctx context.Context, node su.Node, p Policy, landlordName string) (string, Anchor, error) {
 	refuse := func(e error) (string, Anchor, error) { return "", Anchor{}, e }
-	if p.Network != "regtest" || p.Genesis != su.RegtestGenesis {
-		return refuse(bad("REGTEST_ONLY"))
+	if !su.NetworkPinned(p.Network, p.Genesis) {
+		return refuse(bad("NETWORK_PIN"))
 	}
 	if !station(p.LandlordName) || landlordName != p.LandlordName {
 		return refuse(bad("LANDLORD_POLICY"))
