@@ -1,5 +1,13 @@
 # IT2: payload startup can precede gateway admission readiness
 
+**Historical evidence on G6.** SR1 (`2b37db7c`) resolved this product gap;
+RK1 (`14e35bbc`) resolved the later relay-idle expiry failure. The text below
+describes the original failed runs and the original expected-defect witness,
+preserved in their sealed packets. The current witness instead checks SR1
+admission with a wrong-credential negative control; its control restores the old
+gate. See README for current commands. Full composition outcomes remain bound
+to each resumed run, not inferred from these fixes.
+
 The full NMC rehearsal remains blocked. Two genuine-Core runs at signed harness
 head `ab358652dd334ea3ecd69a119eadc095b3af2ac7`, on product G6
 `d2fb89c10bd5c901de2afa8ecac415825fe472b5`, reached native SG1 confirmed

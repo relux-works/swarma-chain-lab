@@ -1,10 +1,9 @@
 # Remaining composition qualification
 
-- **Blocking: payload startup ordering.** See [the IT2 gap](GAP-IT2-STARTUP.md).
-  Genuine-Core revoke and expiry attempts can lose the payload before the first
-  model request. The deterministic TLS/PL1 witness reproduces the pre-start
-  Hello rejection beside a successful post-start control. Product fix and both
-  full reruns are required; this harness supplies evidence, not a workaround.
+- SR1 resolved the [historical startup gap](GAP-IT2-STARTUP.md); RK1 resolved
+  relay-idle termination. Both full genuine-Core variants must be qualified
+  on those exact landed product sources. Read the run-specific public result;
+  the positive TLS/HMAC startup witness alone does not prove composition.
 - The full path here selects NMC. BTC/LTC payment-adapter/Core evidence belongs
   to G6; a complete BTC/LTC rental/model run is not claimed by this harness.
 - A real Linux deployment, root helper, isolation/wipe and final rented-agent

@@ -17,8 +17,6 @@ import (
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
 	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
-	payload "relux.works/swarma-chain-lab/experiments/station-payload"
 )
 
 type orderingDriver struct {
@@ -41,10 +39,8 @@ type orderingPublisher struct{}
 
 func (orderingPublisher) Publish(context.Context, *nostr.Event) error { return nil }
 
-// This is an expected-defect ordering witness, not a passing full rehearsal.
-// While StartSession is still running, real gateway TLS/HMAC admission rejects
-// Hello as "session not started" and real PL1 Run terminates with ErrChannel.
-// After StartSession returns, the same credential gets a System handshake.
+// During an active durable Starting attempt, real TLS/HMAC admission accepts
+// the correct credential and refuses a wrong one; admission also works Started.
 // Kernel/driver/publisher are explicit stubs; this does not prove Core admission.
 func TestStartupOrderingWitness(t *testing.T) {
 	root := t.TempDir()
@@ -84,7 +80,7 @@ func TestStartupOrderingWitness(t *testing.T) {
 			t.Error("ordering server did not stop")
 		}
 	}()
-	hello := func() *stationlink.Frame {
+	hello := func(credential []byte) *stationlink.Frame {
 		t.Helper()
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -92,34 +88,26 @@ func TestStartupOrderingWitness(t *testing.T) {
 		checked(t, e, "ordering payload dial")
 		defer conn.Close()
 		_ = conn.SetDeadline(time.Now().Add(2 * time.Second))
-		frame, e := stationlink.NewClient(conn).Hello(id, name, secret)
+		frame, e := stationlink.NewClient(conn).Hello(id, name, credential)
 		checked(t, e, "ordering Hello")
 		return frame
 	}
 	driver.start = func() error {
 		s, ok := store.Get(id)
-		if !ok || s.Started || s.ChannelSecretHex == "" {
+		if !ok || s.Started || !s.Starting || s.ChannelSecretHex == "" {
 			t.Fatal("ordering precondition")
 		}
-		frame := hello()
-		if frame.Type != stationlink.TypeError || frame.Reason != "session not started" {
-			t.Fatal("pre-start Hello was not refused at the exact gate")
+		if frame := hello(secret); frame.Type != stationlink.TypeSystem {
+			t.Fatal("active Starting Hello was not admitted")
 		}
-		bootstrap, e := gatewaybind.EncodeBootstrap(gatewaybind.PayloadBootstrap{V: 1, BookingID: id, StationName: name, ChannelSecret: lifecycle.Secret(secret)})
-		checked(t, e, "ordering bootstrap")
-		client, e := payload.New(bootstrap, payload.Options{})
-		checked(t, e, "ordering payload")
-		defer client.Close()
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		if e = client.Run(ctx, listener.Addr().String(), p.serverPin, roots); e != payload.ErrChannel {
-			t.Fatal("pre-start PL1 Run did not terminate with PAYLOAD_CHANNEL")
+		if frame := hello([]byte(strings.Repeat("y", 32))); frame.Type != stationlink.TypeError || frame.Reason != "authentication failed" {
+			t.Fatal("active Starting accepted wrong credential")
 		}
 		return nil
 	}
 	checked(t, g.StartSlot(context.Background(), id), "ordering native start")
-	if frame := hello(); frame.Type != stationlink.TypeSystem {
+	if frame := hello(secret); frame.Type != stationlink.TypeSystem {
 		t.Fatal("post-start Hello positive control refused")
 	}
-	t.Log("witness: pre-return Hello=session not started and PL1 Run=PAYLOAD_CHANNEL; identical post-return credential authenticates")
+	t.Log("witness: active Starting admits correct TLS/HMAC credential, refuses wrong credential, and identical credential authenticates after start")
 }

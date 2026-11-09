@@ -74,6 +74,7 @@ func runComposition(t *testing.T, partial bool) {
 	var rc map[string]any
 	l.template("relay", &rc)
 	rc["state_dir"], rc["public_url"], rc["trusted_proxy_ip"] = l.dir("relay"), relayURL, ""
+	rc["read_timeout_milliseconds"], rc["ping_interval_milliseconds"] = 90000, 30000
 	l.spawn("relay", "-listen", relayAddr, "-config", l.json("relay.json", rc, 0600))
 	l.await("relay", func() bool {
 		c, _, e := websocket.DefaultDialer.Dial(relayURL, nil)
@@ -103,6 +104,10 @@ func runComposition(t *testing.T, partial bool) {
 	tmpl := booking.Template{Version: 1, ID: "demo", ProfileID: "rehearsal", ProfileVersion: "1", ProfileSHA256: booking.Hash(profile), Allowed: []string{"deliver"}, Forbidden: []string{"pay", "publish", "repository.push", "secret.release"}, BudgetSat: 1000000}
 	now := time.Now().Unix()
 	cfg := booking.ConfigV2{StateDir: l.dir("booking"), AgentPubkey: agent.PubKeyHex(), ProviderPubkey: provider.PubKeyHex(), HoldSeconds: 1800, PriceUSDCents: 100, Template: tmpl, TemplateSHA256: booking.Hash(encoded(tmpl)), Slots: []booking.Slot{{ID: "one", StationName: agentName, NotBefore: now + 60, NotAfter: now + 160, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{"nmc": {PublicBranch: public.String(), PublicBranchSHA256: booking.Hash([]byte(public.String())), USDMicrosPerCoin: 100000000, RateAsOf: now, MaxRateAgeSeconds: 7200, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}
+	if scenario == "expiry" {
+		// Leave more than the real 90-second relay deadline after model controls.
+		cfg.Slots[0].NotAfter = now + 210
+	}
 	observer := filepath.Join(l.private, "booking-node.conf")
 	l.write(observer, []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", l.read.Username, l.read.Password, l.read.Port)), 0600)
 	operator := su.OperatorRoute{Network: "regtest", Genesis: su.RegtestGenesis, NodeCLI: l.cli, NodeCLISHA256: cliPin, NodeConfig: observer, NodeDataDir: l.nodeDir}
@@ -214,7 +219,7 @@ func runComposition(t *testing.T, partial bool) {
 		l.await("partial durable start", func() bool { return l.slot(contract.BookingID).Started })
 		l.evidence["stage"] = "partial expiry: durable start; first model reply not required"
 		deadline := time.Unix(contract.NotAfter+25, 0)
-		for !l.slot(contract.BookingID).Destroyed {
+		for !l.slot(contract.BookingID).Ended {
 			if time.Now().After(deadline) {
 				t.Fatal("partial expiry cleanup deadline")
 			}
@@ -263,19 +268,34 @@ func runComposition(t *testing.T, partial bool) {
 	l.secret([]byte(boot.ChannelSecret))
 	l.checkProxyRefusal(p, boot, "wrong-pin")
 	before := len(l.slot(contract.BookingID).SeenRumorIDs)
+	idleStart := time.Now()
+	if scenario == "expiry" && time.Until(time.Unix(contract.NotAfter, 0)) <= 90*time.Second {
+		t.Fatal("fixture cannot establish application idle beyond relay read deadline")
+	}
 	if scenario == "revoke" {
 		l.revokeNative(signerConfig, contract, proof)
 		conversation.send("must not reach revoked slot", false)
 	}
-	deadline := time.Now().Add(120 * time.Second)
+	deadline := time.Unix(contract.NotAfter+25, 0)
+	if scenario == "revoke" {
+		deadline = time.Now().Add(30 * time.Second)
+	}
 	for !l.slot(contract.BookingID).Ended {
 		if time.Now().After(deadline) {
 			t.Fatal("slot closure deadline")
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+	ended := l.slot(contract.BookingID)
+	idle := time.Since(idleStart)
+	if ended.ChannelSecretHex != "" {
+		t.Fatal("ended slot retained channel credential")
+	}
+	if scenario == "expiry" && (ended.EndReason != "not_after" || idle <= 90*time.Second || time.Now().Unix() < contract.NotAfter) {
+		t.Fatal("expiry did not cross relay idle deadline and end at not_after")
+	}
 	l.await("owned helper cleanup", helper.destroyed)
-	l.await("gateway cleanup journal", func() bool { return l.slot(contract.BookingID).Destroyed })
+	l.evidence["closure"] = map[string]any{"journal_ended": ended.Ended, "journal_destroyed": ended.Destroyed, "reason": ended.EndReason, "channel_cleared": true, "helper_bootstrap_removed": true, "application_idle_milliseconds": idle.Milliseconds(), "relay_read_deadline_milliseconds": 90000}
 	l.checkProxyRefusal(p, boot, "revoked-or-expired")
 	if upstreamCalls.Load() != 2 || len(l.slot(contract.BookingID).SeenRumorIDs) != before {
 		t.Fatal("closed grant produced a new delivery")

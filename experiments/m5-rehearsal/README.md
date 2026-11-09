@@ -14,7 +14,12 @@ signs, broadcasts, stores the grant in S1 and publishes the confirmed presentati
 The harness never creates a replacement booking Item or grant presentation.
 At `not_before`, the gateway starts the real manager and payload path. Two model
 requests reach a fake HTTPS upstream through the real MP1 Service; further
-requests return the fixed cap refusal. The expiry variant waits for `not_after`.
+requests return the fixed cap refusal. The expiry variant waits for `not_after`
+through more than 90 seconds without application messages, beyond the explicitly
+configured relay read deadline; normal WebSocket heartbeats remain enabled.
+It requires End, cleared channel credentials, helper cleanup and closed model
+credentials. Journal Destroyed is recorded separately: Tick does not run the
+explicit closer.
 The revoke variant sends a native operator revoke Item to the actual SG1 CLI,
 checks that the exact issued seal is spent, then probes the closed grant.
 
@@ -123,11 +128,23 @@ are intentionally incompatible with a G6 gateway and are not a fallback.
 
 ## Current result
 
-The full rehearsal is blocked by the [payload startup ordering gap](GAP-IT2-STARTUP.md).
-`TestStartupOrderingWitness` and its bounded control make the ordering reviewable
-without converting a failed full run into success. The default test command runs
-this isolated witness alongside the scanner; Core and release builds remain
-explicit opt-ins. A separate product fix and both full reruns are still required.
+The [historical startup ordering gap](GAP-IT2-STARTUP.md) was fixed by SR1; RK1
+keeps expiry alive through relay idle periods and transport loss. The resumed
+full runs use these landed product sources. Read each public result for the
+runtime outcome; dependency landing alone does not prove composition success.
+`TestStartupOrderingWitness` now asserts real TLS/HMAC admission while a durable
+Starting attempt is active, refuses a wrong credential, and admits the identical
+correct credential after Started. Its explicit kernel/driver stubs do not prove
+Core or native payload execution. The bounded control restores the old Hello
+gate and must fail at `active Starting Hello was not admitted`.
+
+```sh
+go test -race -run '^TestStartupOrderingWitness$' -count=1 -v -timeout 30s
+go run .scripts/plant-startup-gate.go /absolute/repo /absolute/new-gate-control
+go test -overlay /absolute/new-gate-control/overlay.json -race \
+  -run '^TestStartupOrderingWitness$' -count=1 -v -timeout 30s
+# The last command must exit 1 at the exact admission assertion above.
+```
 
 ## Independent partial legs while startup is blocked
 
