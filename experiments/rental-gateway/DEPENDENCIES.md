@@ -22,3 +22,8 @@ Test-vector provenance: BIP-340 vector 0 (bitcoin/bips), official
 NIP-44 v2 valid/invalid vectors (noble/nostr test vectors as carried
 in multiple implementations), one published NIP-01 event
 (id `dc90c95f…`) for id/signature recomputation.
+
+The nested `kernelbind/` module additionally depends only on
+in-tree siblings (`experiments/rental`, `experiments/single-use`,
+`experiments/sealwatch` via replaces) and this module; see its
+`go.mod`.

@@ -21,7 +21,15 @@ Toolchain: `go 1.26.0` module (recorded run: go1.26.0 darwin/arm64
 via GOTOOLCHAIN=auto). All tests are offline and localhost-only; the
 test relay binds `127.0.0.1` on an ephemeral port.
 
-Local run (stub kernel until M1 binds via `kernelbind/`):
+The nested `kernelbind/` module (real detached kernel binding)
+builds and tests the same way from its own directory. Its
+genuine-Core end-to-end test is opt-in and skipped unless
+`GW_E2E_REGTEST=1` with `GW_E2E_RUN_ROOT`, `GW_E2E_CORE_DAEMON` and
+`GW_E2E_CORE_CLI` point at a fresh run dir and the pinned Core
+binaries.
+
+Local run (stub kernel; the real kernel binds library-side via
+`kernelbind/`):
 
 ```sh
 .temp/gateway keygen -out .temp/agent.key        # prints the agent npub hex
@@ -43,9 +51,28 @@ local-test driver launches per station.
   go-nostr v0.52.3 in scratch during development.
 - **Inbound order (fixed):** strict unwrap (sender = inner seal key,
   never the gift-wrap key) -> active-slot lookup -> slot window +
-  durable replay journal -> fresh kernel `Check` (only `live`
-  admits; errors refuse) -> screening (only explicit allow delivers;
-  error/timeout/malformed refuse) -> station delivery queue.
+  durable replay journal -> grant check -> lazy station start ->
+  screening (only explicit allow delivers; error/timeout/malformed
+  refuse) -> station delivery queue.
+- **Inline presentation (detached grants):** the renter attaches
+  one rumor tag `["grant-cert", <sha256 hex id>, <base64 envelope>]`
+  (exact canonical detached-envelope bytes, ≤16384) to its first
+  message. The gateway runs kernel `Present` (a fresh `Check`
+  inside; only `live` admits the bytes into the kernel's bounded
+  64-sender cache; same-sender replacement only via a new live
+  presentation; a 65th sender is refused). Later messages are
+  `Check`ed fresh against the cached bytes — the cache is never a
+  verdict — or against a slot-stored envelope when one was
+  pre-provisioned. No known bytes refuse as `presentation_required`.
+  Malformed tags refuse that message before screening (no strike,
+  rumor id not burned). Presentation refusals DM the renter a
+  deterministic gateway text (fixed strings, never the model). The
+  tag is stripped: screening and the station only see content. The
+  first live verdict for an in-window slot lazily starts that
+  grantee's station instance (one per slot; many grantees in
+  parallel). The tag's wire shape lives in one small function
+  (`parseGrantPresentation`) so a future grant format swaps it
+  mechanically.
 - **Screening outcomes (§5.0):** only an explicit model REFUSE
   spends a strike (counter fsynced before acting; warning DM +
   station notice; second strike ends the slot; counter survives
@@ -68,13 +95,19 @@ local-test driver launches per station.
   Agent-signed station replies additionally require a fresh live
   kernel check (current grantees only, no outbound screening); the
   final message is the deliberate exemption.
-- **Kernel boundary:** `kernel.Checker` mirrors the frozen M1
-  interface; `kernel.Stub` serves unit tests, the nested
+- **Kernel boundary:** `kernel.Checker` + `kernel.Presenter` bind
+  the landed detached-grant kernel (M1-04, LIP-0003):
+  `Check`/`Present`/`CachedCertificate` over detached certificate
+  envelopes. `kernel.Stub` serves unit tests; the nested
   `kernelbind/` module binds the real `experiments/rental` package
-  once M1 lands. The genuine-Core regtest end-to-end test is
-  **pending a shared landing of both modules on main**; the
-  stub-kernel relay end-to-end test runs now. A kernel read failure
-  refuses the message but never durably closes anything gateway-side.
+  in-tree (`kernelbind.New` pins regtest + genesis, derives the
+  seal script from the issuer grant key, and takes the agent name
+  and kernel state dir — which must exist at mode 0700). The
+  genuine-Core regtest end-to-end (two grants present inline,
+  separate instances, one seal spent, the other keeps talking)
+  lives in `kernelbind/core_e2e_test.go`, opt-in via env. A kernel
+  read failure refuses the message but never durably closes
+  anything gateway-side.
 - **Station channel:** stations initiate every connection (separate
   VM in deployment): pull deliveries, push replies, one
   length-prefixed-JSON protocol over `net.Conn` — unix socket
@@ -102,15 +135,19 @@ local-test driver launches per station.
   written 0600 exclusive, revoked at Destroy; local random minting
   is a test-only fallback. Create rolls back on partial failure.
   Destroy removes home + token + channel secret; retention §5.2.
-- **Station names** are passed through to the kernel, which pins
-  them against trusted policy; the `id/swarma-station-*` prefix is a
-  deployment convention here, never a trust rule.
+- **Names:** the kernel pins the rented agent's name
+  (`Policy.AgentName`, gateway config `AgentName`) against the
+  certificate and the on-chain name value. Station names are only
+  the stationlink binding names; the `id/swarma-station-*` prefix
+  is a deployment convention here, never a trust rule.
 
 ## Limitations
 
 - Stub kernel in `cmd/gateway serve` (`-stub-verdict`): local demos
-  and tests only. Production wiring needs `kernelbind` + M1 policy
-  pins and a real relay set.
+  and tests only. The real kernel binds through `kernelbind`
+  (library-side, exercised by the genuine-Core e2e); a production
+  serve binary must additionally wire `kernelbind.New` + a node
+  route and a real relay set.
 - No relay redundancy/reconnect backoff yet (single relay client).
 - Screening is an interface + stub; the real model call lands with
   its own prompt/host pinning outside this experiment.
