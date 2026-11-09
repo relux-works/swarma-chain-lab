@@ -94,7 +94,7 @@ func run() error {
 		return e
 	}
 	defer os.RemoveAll(work)
-	for _, name := range []string{"rental-gateway", "rental", "single-use", "sealwatch"} {
+	for _, name := range []string{"rental-gateway", "rental", "single-use", "sealwatch", "payment-chain", "rental-booking"} {
 		if e = os.Symlink(filepath.Join(filepath.Dir(root), name), filepath.Join(work, name)); e != nil {
 			return e
 		}
