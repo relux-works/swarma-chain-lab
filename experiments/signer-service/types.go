@@ -52,6 +52,7 @@ func (c Caps) validate() error {
 }
 
 type Config struct {
+	PresentationDir       string                                   `json:"presentation_dir,omitempty"`
 	Profile               string                                   `json:"profile"`
 	PaymentPolicies       map[string]rental.PaymentAdmissionPolicy `json:"payment_policies,omitempty"`
 	Policy                rental.IssuerPolicy                      `json:"policy"`
@@ -67,6 +68,11 @@ func (c Config) validate() error {
 	// This unit never enables mainnet, even with non-placeholder cap values.
 	if p.Network != "regtest" || p.Genesis != su.RegtestGenesis {
 		return fail("REGTEST_ONLY")
+	}
+	if c.PresentationDir != "" {
+		if e := presentationRoot(c.PresentationDir); e != nil {
+			return e
+		}
 	}
 	if c.Profile != "v1-nmc" && c.Profile != "v2" {
 		return fail("ISSUER_PROFILE_UNAVAILABLE")

@@ -422,6 +422,12 @@ func (x *Engine) advance(ctx context.Context, j int, now int64) (Result, error) 
 		}
 		x.at("stored")
 	}
+	if r.Phase == "stored" && op.Kind == "grant-issue" && x.cfg.PresentationDir != "" {
+		if e = x.publishConfirmed(ctx, op, r); e != nil {
+			return result(), e
+		}
+		x.at("presentation_written")
+	}
 	return result(), nil
 }
 func (x *Engine) trackOutputs(j int, r record, now int64) error {

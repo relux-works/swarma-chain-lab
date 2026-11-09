@@ -21,10 +21,10 @@ import (
 type paymentRelay struct{}
 
 func (paymentRelay) Publish(_ context.Context, e booking.Event) error { return e.Verify() }
-func serviceBooking(t *testing.T, l *coreLab, lab *paymentCoreLab, coin string) *booking.ServiceV2 {
+func serviceBookingConfig(t *testing.T, l *coreLab, coin string, now int64) (booking.ConfigV2, []byte) {
 	t.Helper()
 	profile := []byte("public signer service integration profile")
-	provider, providerPub, _ := testKey(4)
+	_, providerPub, _ := testKey(4)
 	p := l.cfg.Policy.Policy
 	template := booking.Template{Version: 1, ID: "demo", ProfileID: "test", ProfileVersion: "1", ProfileSHA256: hash(profile), Allowed: []string{"pay"}, Forbidden: []string{"deliver", "publish", "repository.push", "secret.release"}, BudgetSat: 10000}
 	seed := sha256.Sum256([]byte("public signer service xpub/" + coin))
@@ -40,7 +40,13 @@ func serviceBooking(t *testing.T, l *coreLab, lab *paymentCoreLab, coin string) 
 	if e = os.Mkdir(root, 0700); e != nil {
 		t.Fatal(e)
 	}
-	cfg := booking.ConfigV2{StateDir: root, AgentPubkey: p.AgentPubkey, ProviderPubkey: providerPub, HoldSeconds: 1200, PriceUSDCents: 1, Template: template, TemplateSHA256: hash(eventBytes(template)), Slots: []booking.Slot{{ID: "slot", StationName: p.AgentName, NotBefore: 501, NotAfter: 4101, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{coin: {PublicBranch: branch.String(), PublicBranchSHA256: hash([]byte(branch.String())), USDMicrosPerCoin: 1000000, RateAsOf: 500, MaxRateAgeSeconds: 60, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 2016, MaxMempool: 100000, MaxCalls: 200000, MaxBytes: 512 << 20}}
+	cfg := booking.ConfigV2{StateDir: root, AgentPubkey: p.AgentPubkey, ProviderPubkey: providerPub, HoldSeconds: 1200, PriceUSDCents: 1, Template: template, TemplateSHA256: hash(eventBytes(template)), Slots: []booking.Slot{{ID: "slot", StationName: p.AgentName, NotBefore: now + 1, NotAfter: now + 3601, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{coin: {PublicBranch: branch.String(), PublicBranchSHA256: hash([]byte(branch.String())), USDMicrosPerCoin: 1000000, RateAsOf: now, MaxRateAgeSeconds: 60, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 2016, MaxMempool: 100000, MaxCalls: 200000, MaxBytes: 512 << 20}}
+	return cfg, profile
+}
+func serviceBooking(t *testing.T, l *coreLab, lab *paymentCoreLab, coin string) *booking.ServiceV2 {
+	t.Helper()
+	cfg, profile := serviceBookingConfig(t, l, coin, 500)
+	provider, _, _ := testKey(4)
 	s, e := booking.NewServiceV2(cfg, profile, provider, map[string]booking.Node{coin: lab.read}, l.observer, paymentRelay{}, func() time.Time { return time.Unix(500, 0) })
 	if e != nil {
 		t.Fatal(e)

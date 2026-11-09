@@ -22,6 +22,10 @@ The configuration is the `FileConfig` JSON type in `config_file.go`; its nested
   landlord/agent names, provider key, grant key and seal/funding scripts.
 - `config.payment_policies`: V2 per-coin confirmation/rate-age/observation limits.
 - `config.state_dir`: service ledger root, distinct from K1's `policy.state_dir`.
+- `config.presentation_dir`: optional canonical absolute public output directory,
+  existing mode0755 and owned by the signer uid; included in the ledger binding.
+  Omit it to preserve the original custody-only behavior. Do not change the
+  binding of an existing ledger to enable it; provision a fresh configured root.
 - `config.grant_key_path` and `config.funding_key_path`: exactly 32 binary scalar
   bytes, regular single-link files, current uid, mode0600, no symlink components.
   Both P2PKH scripts use even-y compressed public points. The transaction signer
@@ -167,3 +171,53 @@ The explicit SG1 v1 input contract remains available for other provisioned sourc
 `TestCoreV2Payments` exercises actual exporter → FileSource → Engine.Pull → P1
 issuance for BTC/LTC/NMC, plus malformed/partial/duplicate file refusals and
 repeat intake. `TestLegacyBookingRootRefused` checks the closed no-index boundary.
+
+### Confirmed presentation publication
+
+With `config.presentation_dir` configured, a stored grant retries publication on
+subsequent service steps. `stored` still means an S1 receipt, not confirmation.
+Until its exact durable transaction has at least one confirmation on the own
+Namecoin active chain, publication returns `PRESENTATION_UNCONFIRMED` (or the
+closed node-observation refusal) and creates no file. The observation binds raw
+transaction bytes/txid, active block and transaction membership, and an unchanged
+tip. The durable record already binds that transaction to the exact signed plan
+and grant commitment. Publication does not wait for the rental start time.
+
+A successful observation writes canonical GrantPresentation bytes to
+`<booking_id>.json`, mode0644, with file fsync, an atomic no-replace rename and
+directory fsync. Existing identical bytes are idempotent; conflicting/partial or
+unsafe existing files refuse and remain untouched. Symlink and hardlink outputs
+are forbidden. Temporary files do not match booking IDs and are ignored by the
+gateway. Restart rechecks confirmation and reconciles the same output; it never
+re-signs to recover publication. A failed final fsync may leave the exact file
+visible; retry verifies it and fsyncs again. Linux uses renameat2(RENAME_NOREPLACE),
+Darwin renameatx_np(RENAME_EXCL); unsupported filesystem semantics fail closed.
+
+The actual gateway command and these integration tests share
+`rental-gateway/presentationdir.Open`. No file copy or handwritten presentation
+bridges the producer/consumer test. A published proof is immutable issuance
+history: later reorg, expiry or revocation does not delete it. Every action still
+requires the gateway kernel's current chain/time/seal checks. This output is
+public metadata, not a secret; cross-host distribution remains an external
+adapter and is not enabled here.
+
+```sh
+# Build the actual booking process from this source tree.
+(cd ../rental-booking && go build -trimpath -o ../signer-service/.temp/booking-cli ./cmd/rental-booking)
+# Use fresh absolute roots and the pinned SG1_* Core binaries documented above.
+SG1_REGTEST=1 BG1_BOOKING_CLI="$PWD/.temp/booking-cli" \
+  SG1_RUN_ROOT="$PWD/.temp/composition-core" \
+  go test -race -count=1 -run '^TestCoreBookingComposition$' -v .
+go test -race -count=1 -run '^TestPresentation' .
+go run .scripts/sg1-guards.go -out .temp/publication-guards
+# The same binary env is required by these genuine-Core guard controls:
+go run .scripts/sg1-guards.go -core -only presentation_confirmation -out .temp/confirmation-guard
+go run .scripts/sg1-guards.go -core -only presentation_stability -out .temp/stability-guard
+```
+
+The full process fixture uses BTC payment and separate Namecoin identity/issuance
+nodes. It covers HTTP booking/consent, actual watcher/export, CLI restart,
+unconfirmed and orphan absence, active-membership/stable-tip refusals, confirmed
+publication read by the gateway and signer restart. TestCoreV2Payments separately
+covers the exporter/issuer seam for BTC, LTC and NMC. Fixture wallets are disposable
+regtest-only; runtime credentials stay in private evidence directories.

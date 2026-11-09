@@ -257,3 +257,15 @@ Public SHA256 pins reject repeated-byte placeholders before startup effects.
 [SERVE-SURVEY.md](SERVE-SURVEY.md) preserves the initial constructor evidence;
 [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) records resolved boundaries and
 the remaining payload/host deployment dependencies.
+
+### Shared issued-presentation directory
+
+The gateway command uses `presentationdir.Open` for the configured read-only
+presentation directory. SG1 can publish canonical `<booking_id>.json` files there
+after active-chain commitment confirmation; its publisher writes mode0644 in an
+owner0755 directory. The reader retains its existing bounds, no-follow leaf
+behavior and pending-on-absence contract. It grants no authority by itself:
+bookingbind and the live kernel still validate bindings, signatures and chain
+state. Cross-host file distribution is a deployment adapter. Run
+`go test -race ./cmd/gateway ./presentationdir`; the producer-to-reader genuine
+Core process fixture lives in signer-service's `TestCoreBookingComposition`.

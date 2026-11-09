@@ -25,6 +25,9 @@ type plant struct {
 }
 
 var plants = []plant{
+	{"presentation_conflict", "presentation.go", "!bytes.Equal(b, raw)", "false && !bytes.Equal(b, raw)", ".", "TestPresentationRefusals/conflict", "unsafe presentation published or overwritten", false},
+	{"presentation_confirmation", "presentation.go", "return fail(\"PRESENTATION_UNCONFIRMED\")", "return publishPresentation(ctx,x.cfg.PresentationDir,op.Intent.BookingID,r.Presentation)", ".", "TestCoreBookingComposition", "unconfirmed publication gate", true},
+	{"presentation_stability", "presentation.go", "if e = o.Stable(); e != nil {", "if e = nil; e != nil {", ".", "TestCoreBookingComposition", "untrusted confirmation published", true},
 	{"mainnet", "types.go", "if p.Network != \"regtest\" || p.Genesis != su.RegtestGenesis {", "if (p.Network != \"regtest\" || p.Genesis != su.RegtestGenesis) && false {", ".", "TestStartupNetwork", "want REGTEST_ONLY", false},
 	{"key_pin", "keys.go", "e != nil || actual != script", "e != nil || (actual != script && false)", ".", "TestKeyCustody/wrong-key", "unsafe key accepted", false},
 	{"cursor_zero", "outbox.go", "c = fileCursor{}", "// removed zero initialization", ".", "TestFileSource", "want OUTBOX_CURSOR", false},

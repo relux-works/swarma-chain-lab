@@ -25,6 +25,7 @@ type paymentCoreLab struct {
 	t                                               *testing.T
 	root, private, public, cli, daemon, conf, miner string
 	profile                                         pc.Profile
+	readRoute                                       pc.Route
 	node                                            *exec.Cmd
 	log                                             *os.File
 	read                                            su.Node
@@ -200,7 +201,8 @@ func newPaymentCoreLab(t *testing.T, coin string) *paymentCoreLab {
 	if !ready {
 		t.Fatal("Core startup timeout; private node.log retained")
 	}
-	l.read, e = pc.NewRPC(pc.Route{Host: "127.0.0.1", Port: port, Username: "payment-observer", Password: password})
+	l.readRoute = pc.Route{Host: "127.0.0.1", Port: port, Username: "payment-observer", Password: password}
+	l.read, e = pc.NewRPC(l.readRoute)
 	if e != nil {
 		t.Fatal(e)
 	}
