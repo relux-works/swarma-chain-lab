@@ -18,7 +18,7 @@ require (
 
 require (
 	relux.works/swarma-chain-lab/experiments/model-proxy v0.0.0
-	relux.works/swarma-chain-lab/experiments/payment-chain v0.0.0 // indirect
+	relux.works/swarma-chain-lab/experiments/payment-chain v0.0.0
 	relux.works/swarma-chain-lab/experiments/sealwatch v0.0.0 // indirect
 )
 
@@ -46,3 +46,12 @@ replace relux.works/swarma-chain-lab/experiments/station-lifecycle => ../station
 replace relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind => ../station-lifecycle/gatewaybind
 
 replace relux.works/swarma-chain-lab/experiments/model-proxy => ../model-proxy
+
+require (
+	relux.works/swarma-chain-lab/experiments/grant-store v0.0.0
+	relux.works/swarma-chain-lab/experiments/signer-service v0.0.0
+)
+
+replace relux.works/swarma-chain-lab/experiments/signer-service => ../signer-service
+
+replace relux.works/swarma-chain-lab/experiments/grant-store => ../grant-store

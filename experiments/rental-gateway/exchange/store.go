@@ -140,7 +140,7 @@ func (d *disk) valid(v *client) bool {
 		return false
 	}
 	switch v.PendingKind {
-	case "", "terms", "help", "book_pending", "unavailable", "contract", "pay", "issued", "ready", "not_live", "not_yet":
+	case "", "terms", "help", "book_pending", "unavailable", "coin_not_offered", "contract", "pay", "issued", "ready", "not_live", "not_yet":
 	default:
 		return false
 	}

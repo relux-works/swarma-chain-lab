@@ -235,6 +235,11 @@ func newCoreLab(t *testing.T, agentNostrPub string) *coreLab {
 	}
 	l.conf = filepath.Join(l.private, "namecoin.conf")
 	cfg := fmt.Sprintf("server=1\ndeprecatedrpc=create_bdb\nlisten=0\ndnsseed=0\ndiscover=0\nnetworkactive=0\ntxindex=1\npersistmempool=0\nfallbackfee=0.002\nacceptnonstdtxn=1\nnameencoding=ascii\nvalueencoding=ascii\nrpcwhitelistdefault=0\nrpcauth=w3-observer:%s$%x\nrpcwhitelist=w3-observer:getblockchaininfo,getblockhash,getblockheader,getrawtransaction,gettxout,name_show,getrawmempool,getblock\n[regtest]\nrpcbind=127.0.0.1\nrpcallowip=127.0.0.1\nrpcport=%d\n", salt, mac.Sum(nil), port)
+	cfg += fmt.Sprintf("\nrpcauth=sg1-broadcaster:%s$%x\nrpcwhitelist=sg1-broadcaster:sendrawtransaction\n", salt, mac.Sum(nil))
+	for _, user := range []string{"payment-observer", "payment-issuer"} {
+		cfg += fmt.Sprintf("\nrpcauth=%s:%s$%x\nrpcwhitelist=%s:getnetworkinfo,getblockchaininfo,getblockhash,getblockheader,getblock,getrawtransaction,getrawmempool\n", user, salt, mac.Sum(nil), user)
+	}
+
 	if e = os.WriteFile(l.conf, []byte(cfg), 0600); e != nil {
 		t.Fatal(e)
 	}

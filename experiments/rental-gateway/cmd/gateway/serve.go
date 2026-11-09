@@ -129,10 +129,19 @@ func serve(parent context.Context, c serveConfig) error {
 	client := newBookingClient(c.Exchange.BookingURL, c.Exchange.PrivacySHA256, c.Exchange.TemplateSHA256, c.Exchange.ProfileSHA256, time.Duration(c.Exchange.CallMilliseconds)*time.Millisecond)
 	defer client.close()
 	// Check public booking pins at startup, before creating gateway state.
-	if _, e = client.Catalogue(time.Now().Unix()+86400, 16); e != nil {
-		return errBooking
+	var backend exchange.Backend
+	if c.Exchange.BookingVersion == 1 {
+		if _, e = client.Catalogue(time.Now().Unix()+86400, 16); e != nil {
+			return errBooking
+		}
+		backend = &bookingbind.Adapter{Service: client, AgentName: c.Kernel.AgentName, LandlordName: c.Kernel.LandlordName, AgentPubkey: c.AgentPubkey, Now: time.Now}
+	} else {
+		v2 := &bookingV2Client{client}
+		if _, e = v2.Catalogue(time.Now().Unix()+86400, 16); e != nil {
+			return errBooking
+		}
+		backend = &bookingbind.AdapterV2{ServiceV2: v2, AgentName: c.Kernel.AgentName, LandlordName: c.Kernel.LandlordName, AgentPubkey: c.AgentPubkey, Now: time.Now, PaymentCoins: c.Exchange.PaymentCoins}
 	}
-	backend := &bookingbind.Adapter{Service: client, AgentName: c.Kernel.AgentName, LandlordName: c.Kernel.LandlordName, AgentPubkey: c.AgentPubkey, Now: time.Now}
 	for _, dir := range []string{c.JournalDir, c.Kernel.StateDir, c.Exchange.StateDir, c.stationStateDir()} {
 		if e = privateDir(dir); e != nil {
 			return e

@@ -6,6 +6,8 @@ env:
 on:
   pull_request:
     paths:
+      - 'experiments/signer-service/**'
+      - 'experiments/grant-store/**'
       - 'experiments/model-proxy/**'
       - 'experiments/rental-gateway/**'
       - 'experiments/station-lifecycle/**'
@@ -19,6 +21,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'experiments/signer-service/**'
+      - 'experiments/grant-store/**'
       - 'experiments/model-proxy/**'
       - 'experiments/rental-gateway/**'
       - 'experiments/station-lifecycle/**'
@@ -63,6 +67,7 @@ jobs:
           go vet ./...
           go test -race ./...
           go build -trimpath -o "$RUNNER_TEMP/bin/" ./cmd/...
+          go run .scripts/g6-guards.go -out "$RUNNER_TEMP/g6-guards"
           go run .scripts/gw1-guards.go -out "$RUNNER_TEMP/gw1-guards"
 
   kernelbind:

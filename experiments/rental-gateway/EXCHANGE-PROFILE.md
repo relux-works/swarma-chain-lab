@@ -17,20 +17,22 @@ never a renter identity. Duplicate/malformed nonce tags refuse.
 | Command | Required state | Response |
 | --- | --- | --- |
 | `terms` | Non-grantee; no pending reply or issued pre-window hold | `terms\n` followed by the terms JSON below |
-| `book <template> <slot> [coin]` | Terms delivered; no unexpired hold | `contract\n` followed by contract JSON |
+| `book <template> <slot> <coin>` | Terms delivered; no unexpired hold | `contract\n` followed by contract JSON |
 | `consent <canonical kind-8181 event JSON>` | Active hold belonging to this sender | `pay\n` followed by payment JSON |
 | Automatic issuance notification | Booking consent/payment accepted; issuer supplied a grant | `issued\n` followed by grant JSON and its window |
 | Slot-start timer | Normal current-time kernel Check says live | `ready` |
 
-Omitted coin means `nmc`. The adapter's closed coin set is `nmc`, `btc`, `ltc`;
-unsupported configured routes refuse without booking. Contract bytes are
+Coin is mandatory. The adapter's closed coin set is `nmc`, `btc`, `ltc`;
+a valid coin not offered for this template gets the fixed text
+`Payment coin not offered for this template.` without a booking effect.
+Other malformed selections get help. Contract bytes are
 opaque to the exchange; one booking adapter owns v1/v2 interpretation.
 
-Every admitted malformed/out-of-order/unsupported command gets exactly (subject
+Every other admitted malformed/out-of-order/unsupported command gets exactly (subject
 to the pending-reply and issued pre-window rules below):
 
 ```text
-Rental exchange: send terms, then book <template> <slot> [coin], then consent <signed kind-8181 event JSON>. Booking acknowledges the privacy notice shown in terms. Wait for ready before sending a message with your grant.
+Rental exchange: send terms, then book <template> <slot> <coin>, then consent <signed kind-8181 event JSON>. Booking acknowledges the privacy notice shown in terms. Wait for ready before sending a message with your grant.
 ```
 
 Overload, bad work and replay are silent drops, not amplification responses.
@@ -40,11 +42,11 @@ No untrusted error strings or model output are signed as exchange responses.
 Response JSON is compact, fixed field order, no HTML escaping, with these fields:
 
 - Terms: `agent_name`, `landlord_name`, `privacy_notice`, `privacy_sha256`,
-  `templates` (id, template pin, profile id/version/pin, USD cents, slot lengths),
+  `templates` (id, template pin, profile id/version/pin, USD cents, slot lengths, provisioned coins for V2),
   `slots` (id, template id, start/end, available coins), `pow_bits`.
 - Contract: `booking_id`, `contract_sha256`, `contract_base64`, `hold_expires_at`.
   Base64 preserves the exact canonical signed-wire input, including escaping.
-- Payment: `booking_id`, `coin`, `address`, `amount_atomic`, `hold_expires_at`.
+- Payment: `booking_id`, `coin`, `address`, `amount_atomic`, `min_confirmations`, `hold_expires_at`.
 - Issued: `booking_id`, `grant_id`, `presentation_base64`, `not_before`, `not_after`, `notice`.
   This notice says the slot starts at `not_before` and does not vouch for live
   authority. The presentation is

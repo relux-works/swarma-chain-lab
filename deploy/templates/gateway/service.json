@@ -38,7 +38,11 @@
     "known_seconds": 3600,
     "message_age_seconds": 300,
     "poll_milliseconds": 1000,
-    "call_milliseconds": 2000
+    "call_milliseconds": 2000,
+    "booking_version": 2,
+    "payment_coins": [
+      "nmc"
+    ]
   },
   "station": {
     "driver": "manager",

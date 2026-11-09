@@ -166,7 +166,7 @@ validation refuses. Stop only the recorded process PID.
 
 ## Limitations
 
-- The CLI wires the real kernel, v1 exchange and remote station-lifecycle
+- The CLI wires the real kernel, typed V2 exchange and remote station-lifecycle
   adapter. The operator supplies the pinned real payload and Linux helper;
   local tests do not establish host deployment or Linux isolation.
 - No relay redundancy/reconnect backoff yet (single relay client).
@@ -194,8 +194,9 @@ Library wiring (the CLI instantiates the same interfaces):
 
 1. Construct the separate booking service, with its own provider signing key,
    private state and watcher/publication scheduling. `kernelbind/bookingbind.Adapter`
-   maps its read-only Catalogue and Book/AcceptConsent/Get methods. Its v1 backend
-   supports NMC only; BTC/LTC are closed interface values with no v1 payment route.
+   maps its read-only Catalogue and Book/AcceptConsent/Get methods. AdapterV2
+   supports explicit NMC/BTC/LTC selections offered by config. The legacy V1
+   adapter supports NMC only and remains confined to test-mode wiring.
 2. Supply `bookingbind.Grants` with a `PresentationSource` that reads already-issued
    presentations by booking ID from the external issuer. The exchange neither
    invokes issuance nor publishes to S1. The source has no signing or wallet API.
@@ -278,3 +279,35 @@ Core process fixture lives in signer-service's `TestCoreBookingComposition`.
 settings retain AUTH off and bootstrap v1. From this module, run
 `go run .scripts/ga1-guards.go -out .temp/ga1-guards` for the bounded AUTH/config/pin
 controls; logs and source hashes are written under that output directory.
+
+### V2 booking exchange (G6)
+
+Deploy `exchange.booking_version: 2` with an explicit `payment_coins` list that
+matches the pinned template's ServiceV2 coin configuration. The HTTP client uses
+existing catalogue/book/consent/status routes and validates typed V2 responses;
+there is no downgrade or retry of an ambiguous booking. CatalogueV2 has no coin
+list, so this is operator-provisioned metadata; see the deploy smoke check.
+
+Send `book <template> <slot> <coin>` with an explicit `nmc`, `btc` or `ltc` offered
+in terms. The contract response contains the exact canonical V2 bytes and hash.
+Consent uses the existing kind-8181 wire and `CheckConsentV2`; the protocol's
+`t` tag remains `swarma-rental-consent-v1`. The payment response adds
+`min_confirmations` alongside address, atomic amount and coin, all frozen by the
+contract. No renter input or upstream error is echoed. An unavailable coin gets
+a fixed response, and cannot create a hold. Legacy V1 binding is test-only.
+
+Validation commands from this module: `go test -race ./...`,
+`go run .scripts/g6-guards.go -out .temp/g6-guards`, and existing GW1/GA1 guard
+commands. `GW1_REGTEST=1` with the documented pinned Core binaries and a fresh
+`GW1_RUN_ROOT` runs `go test -race ./cmd/gateway -run '^TestCoreServe$'`: the
+actual CLI consumes V2 HTTP, exporter, SG1 and confirmed presentations before
+issuing `ready`; the station remains an explicit local test fixture. Evidence
+and isolated Core state go under the supplied `.temp/` root.
+
+BTC/LTC Core payment checks: set `G6_REGTEST=1`, a fresh absolute
+`G6_RUN_ROOT`, and `G6_BTC_DAEMON`, `G6_BTC_CLI`, `G6_LTC_DAEMON`,
+`G6_LTC_CLI` to the repository-pinned binaries, then run
+`go test -race ./cmd/gateway -run '^TestCoreV2BookingPayments$' -count=1`.
+Each coin's isolated node stores public lifecycle evidence under
+`$G6_RUN_ROOT/<coin>/public` and private node/wallet data under `private`.
+Never publish the private directory.

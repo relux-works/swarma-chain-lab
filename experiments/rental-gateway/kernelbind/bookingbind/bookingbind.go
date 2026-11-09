@@ -1,5 +1,5 @@
-// Package bookingbind adapts the landed v1 booking service to the opaque E1
-// exchange interface. Future contract v2 conversion belongs only in this adapter.
+// Package bookingbind binds typed booking services to the opaque exchange.
+// Adapter is the legacy V1 test binding; AdapterV2 is the deployment binding.
 package bookingbind
 
 import (

@@ -69,7 +69,7 @@ func (c *bookingClient) call(ctx context.Context, method, path string, in, out a
 		}
 		if method == "POST" && path == "/book" && resp.StatusCode == 409 && booking.Strict(b, &failure) == nil {
 			switch failure.Error {
-			case "CAPACITY_FULL", "SLOT_UNAVAILABLE", "SLOT_REMAINING_WINDOW", "BOOKING_CLOCK_CHANGED", "PRIVACY_REQUIRED", "RENTER_KEY":
+			case "COIN_UNAVAILABLE", "CAPACITY_FULL", "SLOT_UNAVAILABLE", "SLOT_REMAINING_WINDOW", "BOOKING_CLOCK_CHANGED", "PRIVACY_REQUIRED", "RENTER_KEY":
 				return errors.New(failure.Error)
 			}
 		}

@@ -63,3 +63,28 @@ func TestGatewayOptions(t *testing.T) {
 		t.Fatal("cap placeholder accepted", e)
 	}
 }
+
+// Explicit V2 and its provisioned closed coin set pass; omission, guessed coins
+// and V1 in a real deployment fail. V1 is admitted only in explicit test mode.
+func TestGatewayBookingVersion(t *testing.T) {
+	check := func(mode string, version any, coins any) error {
+		raw, _ := json.Marshal(map[string]any{"mode": mode, "exchange": map[string]any{"booking_version": version, "payment_coins": coins}})
+		return ValidatePublicJSON(raw)
+	}
+	for _, coins := range []any{[]string{"nmc"}, []string{"btc", "ltc", "nmc"}} {
+		if e := check("regtest", 2, coins); e != nil {
+			t.Fatal("V2 config", e)
+		}
+	}
+	for _, tc := range []struct {
+		version any
+		coins   any
+	}{{nil, []string{"nmc"}}, {1, []string{"nmc"}}, {"2", []string{"nmc"}}, {3, []string{"nmc"}}, {2, nil}, {2, []string{}}, {2, []string{"NMC"}}, {2, []string{"eth"}}, {2, []string{"nmc", "nmc"}}} {
+		if e := check("regtest", tc.version, tc.coins); e != ErrPolicy {
+			t.Fatal("booking deployment guard missing", tc, e)
+		}
+	}
+	if e := check("test", 1, []string{"nmc"}); e != nil {
+		t.Fatal("explicit V1 test", e)
+	}
+}

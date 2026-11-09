@@ -138,7 +138,9 @@ limits are documented in the rental and payment-chain READMEs. Existing v1 CLI
 entrypoints and frozen wire regressions remain available. The booking CLI also
 serves ServiceV2 through an explicit versioned config; see its
 [HTTP configuration](experiments/rental-booking/README.md#config-selected-servicev2-http).
-The gateway exchange client remains typed for v1.
+The gateway exchange uses typed V2 HTTP with an explicit offered coin and frozen
+payment terms; legacy V1 is confined to test mode. See the
+[gateway V2 binding](experiments/rental-gateway/README.md#v2-booking-exchange-g6).
 
 ### SG1 landlord signer service
 
@@ -149,8 +151,9 @@ funding-only pool refill. It persists reservations, caps, signed transaction
 bytes and S1 upload receipts; uncertain signing refuses recovery by re-signing.
 Booking ServiceV2 emits its exact indexed intake. An optional signer publisher
 writes canonical booking-ID presentations after active-chain confirmation; the
-gateway's shared directory reader consumes those bytes. Cross-host transport
-and the gateway exchange's V2 typed integration remain separate work.
+gateway's shared directory reader consumes those bytes. The V2 exchange-to-SG1
+path is exercised on isolated genuine Core; cross-host transport remains
+separate provisioning work.
 The module README documents private configuration, Go CLI/build/test commands,
 three-chain Core fixtures and guard controls. Local evidence belongs under
 `.temp/` or an explicitly configured isolated run root; no mainnet/deployment

@@ -56,22 +56,24 @@ type kernelConfig struct {
 	RPCRouteFile string `json:"rpc_route_file"`
 }
 type exchangeConfig struct {
-	StateDir          string `json:"state_dir"`
-	BookingURL        string `json:"booking_url"`
-	PresentationsDir  string `json:"presentations_dir"`
-	PrivacySHA256     string `json:"privacy_sha256"`
-	TemplateSHA256    string `json:"template_sha256"`
-	ProfileSHA256     string `json:"profile_sha256"`
-	PowBits           int    `json:"pow_bits"`
-	MaxClients        int    `json:"max_clients"`
-	QueueSize         int    `json:"queue_size"`
-	Burst             int    `json:"burst"`
-	MaxReplay         int    `json:"max_replay"`
-	RefillSeconds     int64  `json:"refill_seconds"`
-	KnownSeconds      int64  `json:"known_seconds"`
-	MessageAgeSeconds int64  `json:"message_age_seconds"`
-	PollMilliseconds  int64  `json:"poll_milliseconds"`
-	CallMilliseconds  int64  `json:"call_milliseconds"`
+	BookingVersion    int             `json:"booking_version"`
+	PaymentCoins      []exchange.Coin `json:"payment_coins"`
+	StateDir          string          `json:"state_dir"`
+	BookingURL        string          `json:"booking_url"`
+	PresentationsDir  string          `json:"presentations_dir"`
+	PrivacySHA256     string          `json:"privacy_sha256"`
+	TemplateSHA256    string          `json:"template_sha256"`
+	ProfileSHA256     string          `json:"profile_sha256"`
+	PowBits           int             `json:"pow_bits"`
+	MaxClients        int             `json:"max_clients"`
+	QueueSize         int             `json:"queue_size"`
+	Burst             int             `json:"burst"`
+	MaxReplay         int             `json:"max_replay"`
+	RefillSeconds     int64           `json:"refill_seconds"`
+	KnownSeconds      int64           `json:"known_seconds"`
+	MessageAgeSeconds int64           `json:"message_age_seconds"`
+	PollMilliseconds  int64           `json:"poll_milliseconds"`
+	CallMilliseconds  int64           `json:"call_milliseconds"`
 }
 type stationConfig struct {
 	Driver    string         `json:"driver"`
@@ -180,6 +182,23 @@ func (c serveConfig) validate(allowTest bool) error {
 	}
 	if !gateway.ValidRelayAuth(c.RelayAuth) {
 		return errConfig
+	}
+	if c.Exchange.BookingVersion == 1 {
+		if c.Mode != "test" || !allowTest || len(c.Exchange.PaymentCoins) != 1 || c.Exchange.PaymentCoins[0] != exchange.NMC {
+			return errMode
+		}
+	} else if c.Exchange.BookingVersion != 2 {
+		return errConfig
+	}
+	seenCoins := map[exchange.Coin]bool{}
+	if len(c.Exchange.PaymentCoins) < 1 || len(c.Exchange.PaymentCoins) > 3 {
+		return errConfig
+	}
+	for _, coin := range c.Exchange.PaymentCoins {
+		if _, e := exchange.ParseCoin(string(coin)); e != nil || seenCoins[coin] {
+			return errConfig
+		}
+		seenCoins[coin] = true
 	}
 	if !loopURL(c.RelayURL, "ws") || !loopURL(c.Exchange.BookingURL, "http") {
 		return errConfig

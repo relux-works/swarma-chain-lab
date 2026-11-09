@@ -19,6 +19,10 @@ type Coin string
 
 // ErrRejected means the backend definitively performed no booking effect.
 // Unknown errors are ambiguous and must never trigger a second Book call.
+var ErrCoinNotOffered = errors.New("coin not offered")
+
+const CoinNotOffered = "Payment coin not offered for this template."
+
 var ErrRejected = errors.New("booking rejected without effect")
 
 const (
@@ -35,13 +39,14 @@ func ParseCoin(s string) (Coin, error) {
 	return "", errors.New("unsupported coin")
 }
 
-const Help = "Rental exchange: send terms, then book <template> <slot> [coin], then consent <signed kind-8181 event JSON>. Booking acknowledges the privacy notice shown in terms. Wait for ready before sending a message with your grant."
+const Help = "Rental exchange: send terms, then book <template> <slot> <coin>, then consent <signed kind-8181 event JSON>. Booking acknowledges the privacy notice shown in terms. Wait for ready before sending a message with your grant."
 const BookPending = "Booking pending reconciliation. Wait or retry terms; do not repeat the booking."
 const Unavailable = "Rental exchange unavailable; retry later."
 const NotYet = "Rental slot has not started yet."
 const NotLive = "Rental grant is not live; try again later."
 
 type Template struct {
+	Coins          []Coin  `json:"coins,omitempty"`
 	ID             string  `json:"id"`
 	SHA256         string  `json:"template_sha256"`
 	ProfileID      string  `json:"profile_id"`
@@ -70,22 +75,23 @@ type Terms struct {
 // Hold carries verified metadata and exact opaque contract bytes. Only the
 // adapter may interpret or produce the signed contract/consent wire.
 type Hold struct {
-	BookingID      string `json:"booking_id"`
-	ContractSHA256 string `json:"contract_sha256"`
-	Sender         string `json:"sender"`
-	AgentName      string `json:"agent_name"`
-	LandlordName   string `json:"landlord_name"`
-	StationName    string `json:"station_name"`
-	NotBefore      int64  `json:"not_before"`
-	NotAfter       int64  `json:"not_after"`
-	Expires        int64  `json:"expires"`
-	Coin           Coin   `json:"coin"`
-	Address        string `json:"address"`
-	AmountAtomic   int64  `json:"amount_atomic"`
-	Contract       []byte `json:"-"`
-	ConsentID      string `json:"consent_id,omitempty"`
-	Issuable       bool   `json:"issuable"`
-	Revoked        bool   `json:"revoked"`
+	BookingID        string `json:"booking_id"`
+	ContractSHA256   string `json:"contract_sha256"`
+	Sender           string `json:"sender"`
+	AgentName        string `json:"agent_name"`
+	LandlordName     string `json:"landlord_name"`
+	StationName      string `json:"station_name"`
+	NotBefore        int64  `json:"not_before"`
+	NotAfter         int64  `json:"not_after"`
+	Expires          int64  `json:"expires"`
+	Coin             Coin   `json:"coin"`
+	Address          string `json:"address"`
+	AmountAtomic     int64  `json:"amount_atomic"`
+	MinConfirmations int64  `json:"min_confirmations"`
+	Contract         []byte `json:"-"`
+	ConsentID        string `json:"consent_id,omitempty"`
+	Issuable         bool   `json:"issuable"`
+	Revoked          bool   `json:"revoked"`
 }
 type Selection struct {
 	Template, Slot string
@@ -166,5 +172,5 @@ func (h Hold) valid(c Config, sender string) bool {
 	return e == nil && digest(h.BookingID) && digest(h.ContractSHA256) && h.Sender == sender && h.AgentName == c.AgentName && h.LandlordName == c.LandlordName && identifier(h.StationName) && h.NotBefore > 0 && h.NotAfter > h.NotBefore && h.NotAfter-h.NotBefore <= 3600 && h.Expires > 0 && h.Expires <= h.NotAfter && len(h.Address) >= 1 && len(h.Address) <= 128 && h.AmountAtomic > 0
 }
 func sameHold(a, b Hold) bool {
-	return a.BookingID == b.BookingID && a.ContractSHA256 == b.ContractSHA256 && a.Sender == b.Sender && a.AgentName == b.AgentName && a.LandlordName == b.LandlordName && a.StationName == b.StationName && a.NotBefore == b.NotBefore && a.NotAfter == b.NotAfter && a.Expires == b.Expires && a.Coin == b.Coin && a.Address == b.Address && a.AmountAtomic == b.AmountAtomic
+	return a.BookingID == b.BookingID && a.ContractSHA256 == b.ContractSHA256 && a.Sender == b.Sender && a.AgentName == b.AgentName && a.LandlordName == b.LandlordName && a.StationName == b.StationName && a.NotBefore == b.NotBefore && a.NotAfter == b.NotAfter && a.Expires == b.Expires && a.Coin == b.Coin && a.Address == b.Address && a.AmountAtomic == b.AmountAtomic && a.MinConfirmations == b.MinConfirmations
 }

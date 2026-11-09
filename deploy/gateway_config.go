@@ -8,9 +8,35 @@ import (
 	"strings"
 )
 
-// Validate only the optional GA1 boundary here. The service remains responsible
+// Validate exchange version/coins and the optional GA1 boundary here. The service remains responsible
 // for full native startup validation; this check never reads socket/key files.
 func gatewayOptions(v map[string]any) error {
+	if x, present := v["exchange"]; present {
+		e, ok := x.(map[string]any)
+		if !ok {
+			return ErrPolicy
+		}
+		version := e["booking_version"]
+		if version != json.Number("2") && !(version == json.Number("1") && v["mode"] == "test") {
+			return ErrPolicy
+		}
+		coins, ok := e["payment_coins"].([]any)
+		if !ok || len(coins) < 1 || len(coins) > 3 {
+			return ErrPolicy
+		}
+		seen := map[string]bool{}
+		for _, value := range coins {
+			coin, ok := value.(string)
+			if !ok || (coin != "nmc" && coin != "btc" && coin != "ltc") || seen[coin] {
+				return ErrPolicy
+			}
+			seen[coin] = true
+		}
+		if version == json.Number("1") && (len(coins) != 1 || coins[0] != "nmc") {
+			return ErrPolicy
+		}
+	}
+
 	if x, ok := v["relay_auth"]; ok {
 		if x != "off" && x != "when_challenged" && x != "required" {
 			return ErrPolicy

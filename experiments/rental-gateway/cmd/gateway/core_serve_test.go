@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	pc "relux.works/swarma-chain-lab/experiments/payment-chain"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,7 +29,7 @@ import (
 )
 
 // Genuine pinned Core, the actual serve CLI, real HTTP booking/consent/payment
-// watcher and real issuer prove the full encrypted exchange-to-station route.
+// watcher, actual V2 exporter and SG1 custody loop prove the full encrypted exchange-to-station route.
 // Local-test is explicit and screening is off; this does not execute LinuxUser.
 // Foreign consent and pre-grant messages create no station. A real spent seal
 // closes the cached grant and cannot deliver a second station message.
@@ -80,15 +81,19 @@ func TestCoreServe(t *testing.T) {
 	profile := []byte("public CLI laboratory profile\n")
 	tmpl := booking.Template{Version: 1, ID: "demo", ProfileID: "lab", ProfileVersion: "1", ProfileSHA256: booking.Hash(profile), Allowed: []string{"deliver", "pay"}, Forbidden: []string{"publish", "repository.push", "secret.release"}, BudgetSat: 1000000}
 	now := time.Now().Unix()
-	cfg := booking.Config{StateDir: mkdir("booking"), PublicBranch: public.String(), PublicBranchSHA256: booking.Hash([]byte(public.String())), AgentPubkey: agent.PubKeyHex(), ProviderPubkey: provider.PubKeyHex(), HoldSeconds: 1200, PriceUSDCents: 100, USDMicrosPerNMC: 100000000, RateAsOf: now, MaxRateAge: 7200, Template: tmpl, TemplateSHA256: booking.Hash(jsonCanonical(tmpl)), Slots: []booking.Slot{{ID: "one", StationName: e2eAgentName, NotBefore: now + 30, NotAfter: now + 600, PaymentPolicy: "advance"}}, Limits: booking.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}
+	cfg := booking.ConfigV2{StateDir: mkdir("booking"), AgentPubkey: agent.PubKeyHex(), ProviderPubkey: provider.PubKeyHex(), HoldSeconds: 1200, PriceUSDCents: 100, Template: tmpl, TemplateSHA256: booking.Hash(jsonCanonical(tmpl)), Slots: []booking.Slot{{ID: "one", StationName: e2eAgentName, NotBefore: now + 45, NotAfter: now + 600, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{"nmc": {PublicBranch: public.String(), PublicBranchSHA256: booking.Hash([]byte(public.String())), USDMicrosPerCoin: 100000000, RateAsOf: now, MaxRateAgeSeconds: 7200, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}
 	pk, _ := btcec.PrivKeyFromBytes(provider.Bytes())
-	service, e := booking.NewService(cfg, profile, pk, l.observer, packagePublisher{}, time.Now)
+	paymentNode, e := pc.NewRPC(pc.Route{Host: l.route.Host, Port: l.route.Port, Username: "payment-observer", Password: l.route.Password})
+	if e != nil {
+		t.Fatal(e)
+	}
+	service, e := booking.NewServiceV2(cfg, profile, pk, map[string]booking.Node{"nmc": paymentNode}, l.observer, packagePublisher{}, time.Now)
 	if e != nil {
 		t.Fatal(e)
 	}
 	defer service.Close()
 	server := httptest.NewUnstartedServer(nil)
-	handler, e := booking.NewHTTPHandler(service, "http://"+server.Listener.Addr().String())
+	handler, e := booking.NewHTTPHandlerV2(service, "http://"+server.Listener.Addr().String())
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -122,9 +127,13 @@ func TestCoreServe(t *testing.T) {
 	c.Kernel.RPCHost = l.route.Host
 	c.Kernel.RPCPort = l.route.Port
 	c.Kernel.RPCRouteFile = filepath.Join(l.private, "observer.json")
+	c.Exchange.BookingVersion = 2
 	c.Exchange.StateDir = filepath.Join(l.private, "exchange")
 	c.Exchange.BookingURL = server.URL
 	c.Exchange.PresentationsDir = mkdir("presentations")
+	if e = os.Chmod(c.Exchange.PresentationsDir, 0755); e != nil {
+		t.Fatal(e)
+	}
 	c.Exchange.TemplateSHA256 = cfg.TemplateSHA256
 	c.Exchange.ProfileSHA256 = tmpl.ProfileSHA256
 	c.Exchange.Burst = 16
@@ -246,7 +255,7 @@ func TestCoreServe(t *testing.T) {
 				if strings.HasPrefix(u.Rumor.Content, prefix) {
 					return u.Rumor.Content
 				}
-				t.Fatalf("unexpected fixed response while waiting for %q", prefix)
+				t.Fatalf("unexpected response type %q while waiting for %q", strings.SplitN(u.Rumor.Content, "\n", 2)[0], prefix)
 			case <-timer.C:
 				t.Fatalf("missing response %q (private log retained)", prefix)
 			}
@@ -261,7 +270,7 @@ func TestCoreServe(t *testing.T) {
 	if e != nil || len(entries) != 0 {
 		t.Fatal("non-grantee started station")
 	}
-	send(renter, "book demo one", false, nil)
+	send(renter, "book demo one nmc", false, nil)
 	var reply struct {
 		BookingID string `json:"booking_id"`
 		Hash      string `json:"contract_sha256"`
@@ -274,13 +283,13 @@ func TestCoreServe(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	var contract booking.Contract
+	var contract booking.ContractV2
 	if booking.Strict(raw, &contract) != nil || contract.Hash() != reply.Hash || contract.BookingID != reply.BookingID || contract.RenterPubkey != renter.PubKeyHex() {
 		t.Fatal("contract binding")
 	}
 	wrong, _ := nostr.GeneratePrivKey()
 	wk, _ := btcec.PrivKeyFromBytes(wrong.Bytes())
-	bad := booking.Consent(contract, time.Now().Unix())
+	bad := booking.ConsentV2(contract, time.Now().Unix())
 	if e = bad.Sign(wk); e != nil {
 		t.Fatal(e)
 	}
@@ -293,20 +302,29 @@ func TestCoreServe(t *testing.T) {
 		t.Fatal("foreign consent changed booking")
 	}
 	rk, _ := btcec.PrivKeyFromBytes(renter.Bytes())
-	consent := booking.Consent(contract, time.Now().Unix())
+	consent := booking.ConsentV2(contract, time.Now().Unix())
 	if e = consent.Sign(rk); e != nil {
 		t.Fatal(e)
 	}
 	send(renter, "consent "+string(jsonCanonical(consent)), false, nil)
 	var pay struct {
-		Address string `json:"address"`
-		Amount  int64  `json:"amount_atomic"`
-		Coin    string `json:"coin"`
+		Address          string `json:"address"`
+		Amount           int64  `json:"amount_atomic"`
+		Coin             string `json:"coin"`
+		MinConfirmations int64  `json:"min_confirmations"`
 	}
-	if json.Unmarshal([]byte(strings.TrimPrefix(receive("pay\n"), "pay\n")), &pay) != nil || pay.Address != contract.PaymentAddress || pay.Amount != contract.PriceNMCSat || pay.Coin != "nmc" {
+	if json.Unmarshal([]byte(strings.TrimPrefix(receive("pay\n"), "pay\n")), &pay) != nil || pay.Address != contract.Payment.Address || pay.Amount != contract.Payment.AmountAtoms || pay.Coin != "nmc" || pay.MinConfirmations != 2 {
 		t.Fatal("pay binding")
 	}
 	l.rpc("issuer", "sendtoaddress", pay.Address, su.Coins(pay.Amount))
+	l.mine(1)
+	if e = service.Refresh(ctx); e != nil {
+		t.Fatal(e)
+	}
+	under, e := service.Get(contract.BookingID)
+	if e != nil || under.Issuance != nil {
+		t.Fatal("underconfirmed payment issued")
+	}
 	l.mine(1)
 	if e = service.Refresh(ctx); e != nil {
 		t.Fatal(e)
@@ -315,12 +333,7 @@ func TestCoreServe(t *testing.T) {
 	if e != nil || b.Issuance == nil {
 		t.Fatal("real payment missing issuance")
 	}
-	proof := l.issueBooking(b, provider.PubKeyHex())
-	tmp := filepath.Join(c.Exchange.PresentationsDir, "pending")
-	write(tmp, proof, 0600)
-	if e = os.Rename(tmp, filepath.Join(c.Exchange.PresentationsDir, contract.BookingID+".json")); e != nil {
-		t.Fatal(e)
-	}
+	proof := l.issueBookingV2(b, provider.PubKeyHex(), cfg.StateDir, c.Exchange.PresentationsDir)
 	receive("issued\n")
 	snapshot := func() *journal.Slot {
 		t.Helper()
@@ -385,5 +398,5 @@ func TestCoreServe(t *testing.T) {
 	if strings.Contains(string(data), "DATA RACE") || strings.Contains(string(data), hex.EncodeToString(agent.Bytes())) || strings.Contains(string(data), l.route.Password) {
 		t.Fatal("race or credential logging")
 	}
-	t.Log("actual CLI: exchange, foreign-consent refusal, real payment/issuance, station echo and fresh spent-seal closure pass")
+	t.Log("actual CLI: exchange, foreign-consent refusal, real V2 payment/exporter/SG1 issuance, station echo and fresh spent-seal closure pass")
 }

@@ -2,7 +2,7 @@
 
 `gateway serve -config /absolute/path/to/gateway.json` replaces the old flag-based
 stub demo. The constructor wires a read-only Namecoin observer into the real
-`kernelbind.Adapter`, the v1 HTTP booking client into `bookingbind.Adapter` and
+`kernelbind.Adapter`, the typed V2 HTTP booking client into `bookingbind.AdapterV2` and
 `exchange.Engine`, an external public presentation directory into
 `bookingbind.Grants`, and explicit `screen.Off`. No provider/issuer key or wallet
 API belongs to the gateway. Privacy is the exact signed booking constant, pinned
@@ -71,7 +71,7 @@ all test-mode configs unless `-allow-test` is deliberately supplied.
 
 ## Booking and public issuance handoff
 
-The HTTP client uses the existing v1 book/consent/status routes plus bounded
+The HTTP client uses the existing ServiceV2 book/consent/status routes plus bounded
 read-only `GET /catalogue`. It verifies the returned signed-contract and
 catalogue pins, uses bounded requests/responses and timeouts, and follows neither
 redirects nor proxies. Its HTTP timeout uses the configured exchange call budget,

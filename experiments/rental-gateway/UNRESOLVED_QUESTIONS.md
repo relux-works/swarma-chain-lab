@@ -6,9 +6,11 @@ implementation and command evidence are described in [SERVE.md](SERVE.md).
 Resolved boundaries:
 
 - Booking uses a bounded read-only catalogue HTTP endpoint and a thin client
-  for existing v1 routes. The provider key remains outside the gateway. V2 is
-  not a constructor-only switch and remains separate work. Privacy must match
-  the signed v1 constant.
+  for typed ServiceV2 routes. The provider key remains outside the gateway.
+  Explicit booking version and offered coins are provisioned alongside the
+  template hash; the coin list must match ServiceV2 config because its catalogue
+  does not advertise it. V1 is test-only. Privacy matches the existing signed
+  constant; V2 consent keeps the established kind-8181 tag.
 - An operator-pinned read-only directory supplies public presentations by booking
   ID through atomic external publication. The gateway cannot issue grants.
 - The remote station manager connects out to a gateway mTLS poll endpoint;

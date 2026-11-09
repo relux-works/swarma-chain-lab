@@ -174,7 +174,7 @@ func (f *fixture) held(t *testing.T) {
 	if !strings.HasPrefix(f.last(t), "terms\n") {
 		t.Fatal("terms")
 	}
-	f.send("book demo one")
+	f.send("book demo one nmc")
 	if !strings.HasPrefix(f.last(t), "contract\n") {
 		t.Fatal("book", f.last(t))
 	}
@@ -256,7 +256,7 @@ func TestExchangeBindingRefusals(t *testing.T) {
 				ev.Sig = strings.Repeat("0", 128)
 				command = "consent " + string(canonical(ev))
 			case "duplicate_booking":
-				command = "book demo one"
+				command = "book demo one nmc"
 			case "unsupported_coin":
 				command = "book demo one btc"
 			case "expired_hold":
@@ -418,13 +418,13 @@ func TestExchangeManyKeys(t *testing.T) {
 	if len(f.e.disk.clients) != 2 {
 		t.Fatal("restart changed client bound")
 	}
-	f.send("book demo one")
+	f.send("book demo one nmc")
 	if f.b.books != 1 || !strings.HasPrefix(f.last(t), "contract\n") {
 		t.Fatal("honest booking refused")
 	}
 	honest := f.renter.PubKeyHex()
 	f.renter = first
-	f.send("book demo one")
+	f.send("book demo one nmc")
 	if f.b.books != 1 || f.last(t) != Help || f.e.disk.clients[honest].Phase != "held" {
 		t.Fatal("evicted key reused old terms or displaced booking")
 	}
@@ -557,7 +557,7 @@ func TestExchangeOutboxRestart(t *testing.T) {
 	if len(f.p.events) != 1 || f.p.events[0].ID != id {
 		t.Fatal("outbox event changed on restart")
 	}
-	f.send("book demo one")
+	f.send("book demo one nmc")
 	if f.b.books != 1 {
 		t.Fatal("book neighbor")
 	}
@@ -574,7 +574,7 @@ func TestExchangeBookingRecovery(t *testing.T) {
 			if ambiguous {
 				f.b.failBook = errors.New("uncertain")
 			}
-			f.send("book demo one")
+			f.send("book demo one nmc")
 			// The dedicated pending-text test checks the ambiguous first reply;
 			// this recovery witness must reach the second Book attempt.
 			if !ambiguous && f.last(t) != Unavailable {
@@ -583,7 +583,7 @@ func TestExchangeBookingRecovery(t *testing.T) {
 			f.e.Close()
 			f.open(t)
 			f.b.failBook = nil
-			f.send("book demo one")
+			f.send("book demo one nmc")
 			if ambiguous {
 				if f.b.books != 1 || f.last(t) != BookPending {
 					t.Fatal("uncertain booking repeated")
@@ -791,7 +791,7 @@ func TestExchangeEvictedReplay(t *testing.T) {
 	f.c.MaxClients = 1
 	f.open(t)
 	original := f.renter
-	oldBook := f.rumor("book demo one", true)
+	oldBook := f.rumor("book demo one nmc", true)
 	f.e.process(context.Background(), oldBook)
 	if f.last(t) != Help || f.b.books != 0 {
 		t.Fatal("book without terms")
@@ -826,7 +826,7 @@ func TestExchangeEvictedReplay(t *testing.T) {
 	if !strings.HasPrefix(f.last(t), "terms\n") || f.b.books != 0 {
 		t.Fatal("valid-work replay was not a harmless terms response")
 	}
-	f.send("book demo one")
+	f.send("book demo one nmc")
 	if f.b.books != 1 || !strings.HasPrefix(f.last(t), "contract\n") {
 		t.Fatal("fresh terms booking neighbor refused")
 	}
@@ -837,12 +837,12 @@ func TestExchangeEvictedReplay(t *testing.T) {
 // echoes or repeated Book calls occur. A failed publish retries the exact wrap.
 func TestExchangePendingText(t *testing.T) {
 	const expected = "Booking pending reconciliation. Wait or retry terms; do not repeat the booking."
-	for _, input := range []string{"book demo one", "book attacker-private-marker slot", "consent attacker-private-marker", "attacker-private-marker"} {
+	for _, input := range []string{"book demo one nmc", "book attacker-private-marker slot", "consent attacker-private-marker", "attacker-private-marker"} {
 		t.Run(input, func(t *testing.T) {
 			f := fixtureNew(t)
 			f.send("terms")
 			f.b.failBook = errors.New("backend-private-marker")
-			f.send("book demo one")
+			f.send("book demo one nmc")
 			if f.last(t) != expected {
 				t.Fatal("pending text mismatch", f.last(t))
 			}
@@ -871,5 +871,41 @@ func TestExchangePendingText(t *testing.T) {
 				t.Fatal("pending reply changed on restart")
 			}
 		})
+	}
+}
+
+// Even after valid terms, omitted coin is not guessed. An unoffered coin gets
+// fixed text without calling Book; the explicit offered coin remains usable.
+func TestExplicitCoinSelection(t *testing.T) {
+	f := fixtureNew(t)
+	f.send("terms")
+	f.send("book demo one")
+	if f.last(t) != Help || f.b.books != 0 {
+		t.Fatal("implicit coin accepted")
+	}
+	f.send("book demo one btc")
+	if f.last(t) != CoinNotOffered || f.b.books != 0 {
+		t.Fatalf("unoffered coin effect/text: %q books=%d", f.last(t), f.b.books)
+	}
+	f.send("book demo one nmc")
+	if !strings.HasPrefix(f.last(t), "contract\n") || f.b.books != 1 {
+		t.Fatal("explicit coin neighbor")
+	}
+}
+
+// A configured coin later refused by the service gets the same fixed text;
+// definitive no-effect rejection clears pending state and permits a valid retry.
+func TestServiceCoinRefusalText(t *testing.T) {
+	f := fixtureNew(t)
+	f.send("terms")
+	f.b.failBook = errors.Join(ErrRejected, ErrCoinNotOffered)
+	f.send("book demo one nmc")
+	if f.last(t) != CoinNotOffered || f.e.disk.clients[f.renter.PubKeyHex()].Phase != "" {
+		t.Fatal("service coin refusal text/state")
+	}
+	f.b.failBook = nil
+	f.send("book demo one nmc")
+	if !strings.HasPrefix(f.last(t), "contract\n") {
+		t.Fatal("coin retry neighbor")
 	}
 }

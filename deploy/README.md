@@ -127,3 +127,27 @@ limits retain uint64 precision. Native `gateway validate` independently checks
 the same boundary before startup effects. The kit still refuses mainnet and all
 unresolved placeholders. See the gateway's [configuration contract](../experiments/rental-gateway/RELAY_MODEL.md)
 for the Linux socket ownership/peer checks and bootstrap lifecycle.
+
+### Booking V2 exchange configuration
+
+Gateway `exchange.booking_version` must be `2` for deployment. Set
+`exchange.payment_coins` explicitly to the nonempty, duplicate-free subset of
+`nmc`, `btc`, `ltc` offered by the booking service. The example template enables
+NMC only. Provision this list alongside `template_sha256`: it must equal the
+keys of the matching booking service's `ConfigV2.Coins`. CatalogueV2 does not
+advertise that list; the gateway neither guesses it nor probes by creating holds.
+The service remains authoritative and rejects unavailable coins before a hold.
+
+Host smoke check: compare the gateway's `exchange.payment_coins` with the keys
+of booking config `config.coins` as sets, and compare their template hashes,
+before enabling the exchange. A mismatch blocks rollout; successful catalogue
+access alone does not prove the two services use the same booking version.
+Check an explicit `book <template> <slot> <coin>` request and its frozen version-2
+contract, then verify the payment reply's coin, amount in atoms, address and
+minimum confirmations against that contract. Never reinterpret a V1 response.
+
+`booking_version: 1` is legacy NMC test wiring only. It requires gateway
+`mode: test`, the explicit test-mode CLI flag, and `payment_coins: ["nmc"]`;
+native deployment validation rejects it. Switching an existing exchange between
+versions requires a new exchange state directory; existing holds and ambiguous
+bookings must be reconciled using their original service, not converted.

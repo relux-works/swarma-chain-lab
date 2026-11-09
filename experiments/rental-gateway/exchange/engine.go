@@ -303,7 +303,7 @@ func (e *Engine) terms(ctx context.Context, v *client) {
 }
 func (e *Engine) book(ctx context.Context, v *client, text string) {
 	words := strings.Split(text, " ")
-	if len(words) < 3 || len(words) > 4 || words[0] != "book" || !identifier(words[1]) || !identifier(words[2]) || v.TermsPin == "" || v.Phase == "book_pending" || v.Phase == "consent_pending" {
+	if len(words) != 4 || words[0] != "book" || !identifier(words[1]) || !identifier(words[2]) || v.TermsPin == "" || v.Phase == "book_pending" || v.Phase == "consent_pending" {
 		e.respond(ctx, v, "help", Help)
 		return
 	}
@@ -312,14 +312,10 @@ func (e *Engine) book(ctx context.Context, v *client, text string) {
 		e.respond(ctx, v, "help", Help)
 		return
 	}
-	coin := NMC
-	var err error
-	if len(words) == 4 {
-		coin, err = ParseCoin(words[3])
-		if err != nil {
-			e.respond(ctx, v, "help", Help)
-			return
-		}
+	coin, err := ParseCoin(words[3])
+	if err != nil {
+		e.respond(ctx, v, "help", Help)
+		return
 	}
 	t, err := e.catalogue(ctx)
 	if err != nil {
@@ -327,12 +323,18 @@ func (e *Engine) book(ctx context.Context, v *client, text string) {
 		return
 	}
 	available := false
+	slotFound := false
 	for _, s := range t.Slots {
 		if s.ID == words[2] && s.TemplateID == words[1] {
+			slotFound = true
 			for _, c := range s.Coins {
 				available = available || c == coin
 			}
 		}
+	}
+	if slotFound && !available {
+		e.respond(ctx, v, "coin_not_offered", CoinNotOffered)
+		return
 	}
 	if !available || termsPin(t) != v.TermsPin {
 		e.respond(ctx, v, "help", Help)
@@ -350,7 +352,11 @@ func (e *Engine) book(ctx context.Context, v *client, text string) {
 	if err != nil {
 		if errors.Is(err, ErrRejected) {
 			v.Phase = ""
-			e.respond(ctx, v, "unavailable", Unavailable)
+			if errors.Is(err, ErrCoinNotOffered) {
+				e.respond(ctx, v, "coin_not_offered", CoinNotOffered)
+			} else {
+				e.respond(ctx, v, "unavailable", Unavailable)
+			}
 			return
 		}
 		e.respond(ctx, v, "book_pending", BookPending)
@@ -401,12 +407,13 @@ func (e *Engine) consent(ctx context.Context, v *client, raw []byte) {
 	v.Hold = &h
 	v.Phase = "consented"
 	payload := struct {
-		BookingID string `json:"booking_id"`
-		Coin      Coin   `json:"coin"`
-		Address   string `json:"address"`
-		Amount    int64  `json:"amount_atomic"`
-		Expires   int64  `json:"hold_expires_at"`
-	}{h.BookingID, h.Coin, h.Address, h.AmountAtomic, h.Expires}
+		BookingID        string `json:"booking_id"`
+		Coin             Coin   `json:"coin"`
+		Address          string `json:"address"`
+		Amount           int64  `json:"amount_atomic"`
+		MinConfirmations int64  `json:"min_confirmations"`
+		Expires          int64  `json:"hold_expires_at"`
+	}{h.BookingID, h.Coin, h.Address, h.AmountAtomic, h.MinConfirmations, h.Expires}
 	e.respond(ctx, v, "pay", "pay\n"+string(canonical(payload)))
 }
 func (e *Engine) poll(ctx context.Context) {
