@@ -53,6 +53,12 @@ Expired events are pruned on new writes, restart and a one-minute maintenance
 tick, including idle periods. Live events are never evicted to admit another
 event. Config bounds cap stored bytes/count, event size, connections, retained IP
 buckets, frames per minute, subscriptions, filters, backlog and outbound queues.
+The WebSocket read limit remains `max_event_bytes + 1024`; configuration refuses
+values below 65,949 bytes (therefore `max_event_bytes` must be at least 64,925).
+This fits four 16 KiB filters, a 64-byte subscription ID and the REQ command,
+including their worst-case JSON escaping and compact outer framing. Whitespace
+inside filters counts toward their 16 KiB bound; additional outer whitespace
+still consumes the configured transport budget. Default configuration is valid.
 Fixed windows count malformed messages and control-frame pings/pongs too.
 Disconnect retains the IP budget until its window ends; full IP tables refuse
 new addresses instead of growing. A full outbound queue disconnects only that

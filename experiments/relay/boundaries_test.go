@@ -78,7 +78,7 @@ func TestSlowPeer(t *testing.T) {
 // connection without disabling a different client.
 func TestWireRefusals(t *testing.T) {
 	cfg := fixtureConfig(t)
-	cfg.MaxEventBytes = 1024
+	cfg.MaxEventBytes = 64925
 	r, url := serve(t, cfg)
 	c, _ := dial(t, url)
 	for _, change := range []string{"signature", "kind", "past", "future", "size", "duplicate"} {
@@ -95,7 +95,7 @@ func TestWireRefusals(t *testing.T) {
 		case "future":
 			raw, _ = json.Marshal(event(t, 8182, time.Now().Unix()+cfg.FutureSeconds+2))
 		case "size":
-			v.Content = strings.Repeat("z", 1025)
+			v.Content = strings.Repeat("z", cfg.MaxEventBytes+1)
 			if e := key(t).SignEvent(v); e != nil {
 				t.Fatal(e)
 			}
@@ -224,5 +224,57 @@ func TestConfigAndHTTP(t *testing.T) {
 		if w.Code != 404 {
 			t.Fatal("extra HTTP surface")
 		}
+	}
+}
+
+// The largest compact REQ permits four full 16KiB filters and worst-case JSON
+// escaping of a 64-byte ID and "REQ". Exact derived read capacity loads and
+// serves it; one byte less refuses before any state directory is created.
+// Arbitrary additional envelope whitespace remains transport-bounded.
+func TestRequestReadLimit(t *testing.T) {
+	const frameBytes = 65949 // 4*16384 + 64*6 + 3*6 + 2+2+2+5
+	cfg := fixtureConfig(t)
+	cfg.MaxEventBytes = frameBytes - 1024
+	raw, _ := json.Marshal(cfg)
+	if _, e := ParseConfig(raw); e != nil {
+		t.Fatal("REQ boundary refused", e)
+	}
+	bad := cfg
+	bad.MaxEventBytes--
+	raw, _ = json.Marshal(bad)
+	if _, e := ParseConfig(raw); e == nil || e.Error() != "CONFIG_LIMIT" {
+		t.Fatal("short REQ read limit accepted", e)
+	}
+	if r, e := New(bad, time.Now); e == nil || e.Error() != "CONFIG_LIMIT" {
+		if r != nil {
+			r.Close()
+		}
+		t.Fatal("short REQ limit opened state", e)
+	}
+	if _, e := os.Stat(cfg.StateDir); !os.IsNotExist(e) {
+		t.Fatal("rejected REQ limit created state")
+	}
+	_, url := serve(t, cfg)
+	c, _ := dial(t, url)
+	filter := "{" + strings.Repeat(" ", 16382) + "}"
+	id := strings.Repeat(`\u0001`, 64)
+	frame := `["\u0052\u0045\u0051","` + id + `",` + strings.Repeat(filter+",", 3) + filter + "]"
+	if len(frame) != frameBytes {
+		t.Fatal("REQ fixture boundary size", len(frame))
+	}
+	if e := c.WriteMessage(websocket.TextMessage, []byte(frame)); e != nil {
+		t.Fatal(e)
+	}
+	var m []any
+	c.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if e := c.ReadJSON(&m); e != nil {
+		t.Fatal("maximal REQ not served", e)
+	}
+	if len(m) != 2 || m[0] != "EOSE" || m[1] != strings.Repeat("\x01", 64) {
+		t.Fatal("maximal REQ not served")
+	}
+	send(t, c, []any{"REQ", "neighbor", map[string]any{}})
+	if read(t, c)[0] != "EOSE" {
+		t.Fatal("REQ connection not reusable")
 	}
 }

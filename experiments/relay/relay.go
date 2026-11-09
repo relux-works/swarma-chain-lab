@@ -241,7 +241,7 @@ func (r *Relay) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.mu.Unlock()
 		r.wg.Done()
 	}()
-	ws.SetReadLimit(int64(r.cfg.MaxEventBytes + 1024))
+	ws.SetReadLimit(r.cfg.websocketReadLimit())
 	_ = ws.SetReadDeadline(time.Now().Add(90 * time.Second))
 	// Control-frame floods are not a second unmetered path. Count pings/pongs
 	// through the same per-connection/IP admission as application frames.
@@ -448,7 +448,7 @@ func (r *Relay) subscribe(p *peer, msg []json.RawMessage) {
 	defer r.mu.Unlock()
 	// Replacing an ID always removes its old subscription, even when refused.
 	delete(p.subs, id)
-	if len(msg) < 3 || len(msg) > 6 || id == "" || len(id) > 64 {
+	if len(msg) < 3 || len(msg) > maxFilters+2 || id == "" || len(id) > maxSubscriptionIDBytes {
 		refuse("invalid: subscription")
 		return
 	}

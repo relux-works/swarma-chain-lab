@@ -21,6 +21,8 @@ import (
 type plant struct{ Name, Module, File, Old, New, Test, Witness string }
 
 var plants = []plant{
+	{"req_read_config", "relay", "config.go", "if c.websocketReadLimit() < maxRequestBytes {", "if false && c.websocketReadLimit() < maxRequestBytes {", "TestRequestReadLimit", "short REQ read limit accepted"},
+	{"req_read_wire", "relay", "relay.go", "ws.SetReadLimit(r.cfg.websocketReadLimit())", "ws.SetReadLimit(r.cfg.websocketReadLimit()-1)", "TestRequestReadLimit", "maximal REQ not served"},
 	{"event_bytes", "relay", "store.go", "len(raw) > c.MaxEventBytes", "false && len(raw) > c.MaxEventBytes", "TestWireRefusals", "invalid ACK"},
 	{"optional_auth_order", "relay", "relay.go", "challenged := r.cfg.RequireWriteAuth || r.cfg.RequireReadAuth || r.cfg.RestrictGiftWrapReads || r.cfg.UnknownPowBits > 0", "challenged := true", "TestBookingPublisher", "booking first ACK"},
 	{"signature", "relay", "store.go", "nostr.VerifySignature(e) != nil", "(false && nostr.VerifySignature(e) != nil)", "TestStoreRefusals", "bad signature"},

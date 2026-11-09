@@ -18,7 +18,7 @@ type filter struct {
 
 func parseFilter(raw []byte) (filter, error) {
 	var f filter
-	if len(raw) > 16384 || strict(raw, &f) != nil {
+	if len(raw) > maxFilterBytes || strict(raw, &f) != nil {
 		return f, fail("FILTER")
 	}
 	// Objects only: decoding another JSON type into a struct is not a filter.

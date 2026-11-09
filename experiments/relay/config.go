@@ -13,6 +13,18 @@ import (
 	"strings"
 )
 
+const (
+	maxFilters             = 4
+	maxFilterBytes         = 16384
+	maxSubscriptionIDBytes = 64
+	// Compact outer framing: brackets, maximally escaped command and ID, commas.
+	// Whitespace inside each filter is already counted in maxFilterBytes; extra
+	// outer whitespace remains subject to the configured WebSocket read limit.
+	maxRequestBytes int64 = 2 + (2 + 6*int64(len("REQ"))) + (2 + 6*maxSubscriptionIDBytes) + (maxFilters + 1) + maxFilters*maxFilterBytes
+)
+
+func (c Config) websocketReadLimit() int64 { return int64(c.MaxEventBytes) + 1024 }
+
 type Config struct {
 	StateDir              string   `json:"state_dir"`
 	PublicURL             string   `json:"public_url"`
@@ -77,6 +89,9 @@ func (c Config) Validate() error {
 		seen[key] = true
 	}
 	if c.MaxEventBytes < 1024 || c.MaxEventBytes > 131072 || c.MaxEvents < 1 || c.MaxEvents > 4096 || c.MaxStoreBytes < c.MaxEventBytes+1024 || c.MaxStoreBytes > 64<<20 || c.RetentionSeconds < 1 || c.RetentionSeconds > 30*86400 || c.FutureSeconds < 0 || c.FutureSeconds > 600 || c.MaxConnections < 1 || c.MaxConnections > 128 || c.MaxConnectionsPerIP < 1 || c.MaxConnectionsPerIP > c.MaxConnections || c.MaxIPs < c.MaxConnections || c.MaxIPs > 8192 || c.FramesPerMinute < 1 || c.FramesPerMinute > 10000 || c.FramesPerIPMinute < c.FramesPerMinute || c.FramesPerIPMinute > 100000 || c.Subscriptions < 1 || c.Subscriptions > 32 || c.Queue < 3 || c.Queue > 1024 || c.Backlog < 1 || c.Backlog > c.Queue-2 || int64(c.MaxConnections)*int64(c.Queue)*int64(c.MaxEventBytes) > 256<<20 {
+		return fail("CONFIG_LIMIT")
+	}
+	if c.websocketReadLimit() < maxRequestBytes {
 		return fail("CONFIG_LIMIT")
 	}
 	return nil
