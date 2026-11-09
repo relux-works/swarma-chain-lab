@@ -1,6 +1,7 @@
 name: Scripted station payload checks
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths: ['experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
   push:
     branches: [main]
@@ -14,7 +15,7 @@ jobs:
   payload:
     strategy:
       matrix:
-        os: [ubuntu-22.04, macos-14]
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && '["ubuntu-22.04","macos-14"]' || '["ubuntu-22.04"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -45,3 +46,30 @@ jobs:
           go -C experiments/m5-rehearsal mod verify
           go -C experiments/m5-rehearsal vet ./...
           go -C experiments/m5-rehearsal test -race -count=1 ./...
+  darwin-build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Fetch pinned dependencies
+        run: go -C experiments/station-payload mod download
+      - name: Cross-build Darwin payload and inspect symbols
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOFLAGS: '-mod=readonly'
+        run: |
+          go -C experiments/station-payload build -trimpath -o .temp/station-payload-darwin ./cmd/station-payload
+          go tool nm experiments/station-payload/.temp/station-payload-darwin > experiments/station-payload/.temp/darwin-symbols.txt
+          grep -q ' T main.main$' experiments/station-payload/.temp/darwin-symbols.txt
