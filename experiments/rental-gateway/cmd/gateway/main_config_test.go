@@ -16,16 +16,35 @@ func TestMainConfig(t *testing.T) {
 	c.ModelProxy = modelConfig(t)
 	uid := uint32(1200)
 	c.ModelProxy.ServerUID = &uid
-	if err := c.validate(false); err != nil { t.Fatal("complete main config", err) }
-	for _, mutate := range []func(*serveConfig){
-		func(c *serveConfig) { c.Kernel.Genesis = su.RegtestGenesis },
-		func(c *serveConfig) { c.Mode = "regtest" },
-		func(c *serveConfig) { c.ModelProxy = nil },
-		func(c *serveConfig) { c.Exchange.PaymentCoins = []exchange.Coin{exchange.BTC} },
-		func(c *serveConfig) { c.Exchange.PaymentCoins = []exchange.Coin{exchange.LTC} },
-		func(c *serveConfig) { c.Kernel.Kind = "stub"; c.Kernel.StubVerdict = "live" },
+	if err := c.validate(false); err != nil {
+		t.Fatal("complete main config", err)
+	}
+	for _, tc := range []struct {
+		name   string
+		mutate func(*serveConfig)
+	}{
+		{"genesis", func(c *serveConfig) { c.Kernel.Genesis = su.RegtestGenesis }},
+		{"mode", func(c *serveConfig) { c.Mode = "regtest" }},
+		{"model-missing", func(c *serveConfig) { c.ModelProxy = nil }},
+		{"root-model-uid", func(c *serveConfig) {
+			model := *c.ModelProxy
+			uid := uint32(0)
+			model.ServerUID = &uid
+			c.ModelProxy = &model
+		}},
+		{"btc", func(c *serveConfig) { c.Exchange.PaymentCoins = []exchange.Coin{exchange.BTC} }},
+		{"ltc", func(c *serveConfig) { c.Exchange.PaymentCoins = []exchange.Coin{exchange.LTC} }},
+		{"stub", func(c *serveConfig) { c.Kernel.Kind = "stub"; c.Kernel.StubVerdict = "live" }},
 	} {
-		bad := c; mutate(&bad)
-		if bad.validate(false) == nil { t.Fatal("incomplete main config admitted") }
+		t.Run(tc.name, func(t *testing.T) {
+			bad := c
+			tc.mutate(&bad)
+			if bad.validate(false) != errConfig && tc.name != "stub" {
+				t.Fatal("incomplete main config admitted")
+			}
+			if tc.name == "stub" && bad.validate(false) != errMode {
+				t.Fatal("incomplete main config admitted")
+			}
+		})
 	}
 }
