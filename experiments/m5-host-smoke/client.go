@@ -50,25 +50,8 @@ func connect(ctx context.Context, url, agent string) (*conversation, error) {
 	go func() {
 		defer close(c.done)
 		e := c.peer.RunGiftWraps(ctx, key.PubKeyHex(), func(_ context.Context, ev *nostr.Event) {
-			u, e := nostr.UnwrapDM(ev, key)
-			if e != nil || u.SenderHex != agent || u.Rumor == nil || u.Rumor.CreatedAt < c.started || u.Rumor.CreatedAt > time.Now().Add(5*time.Second).Unix() {
-				c.fail("REPLY_AUTH")
-				return
-			}
-			c.mu.Lock()
-			defer c.mu.Unlock()
-			if c.seen[u.Rumor.ID] {
-				return
-			}
-			if len(c.seen) >= 1024 {
-				c.fail("REPLY_LIMIT")
-				return
-			}
-			c.seen[u.Rumor.ID] = true
-			select {
-			case c.inbox <- u.Rumor.Content:
-			default:
-				c.fail("REPLY_OVERFLOW")
+			if e := c.accept(ev); e != nil {
+				c.fail(code(e))
 			}
 		})
 		if ctx.Err() == nil && e != nil {
@@ -221,4 +204,40 @@ func get(ctx context.Context, origin, path string, v any) error {
 		return refuse("HTTP_BODY")
 	}
 	return Strict(raw, v)
+}
+
+func (c *conversation) accept(ev *nostr.Event) error {
+	u, e := nostr.UnwrapDM(ev, c.key)
+	if e != nil || u.SenderHex != c.agent || u.Rumor == nil || u.Rumor.CreatedAt < c.started || u.Rumor.CreatedAt > time.Now().Add(5*time.Second).Unix() {
+		return refuse("REPLY_AUTH")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.seen[u.Rumor.ID] {
+		return nil
+	}
+	if len(c.seen) >= 1024 {
+		return refuse("REPLY_LIMIT")
+	}
+	c.seen[u.Rumor.ID] = true
+	select {
+	case c.inbox <- u.Rumor.Content:
+		return nil
+	default:
+		return refuse("REPLY_OVERFLOW")
+	}
+}
+
+// No unsolicited payload text may be hidden in the inbox during closure.
+func (c *conversation) quiet(scenario string) error {
+	for {
+		select {
+		case s := <-c.inbox:
+			if scenario != "revoke" || s != exchange.NotLive {
+				return refuse("UNEXPECTED_CLOSED_REPLY")
+			}
+		default:
+			return c.healthy()
+		}
+	}
 }

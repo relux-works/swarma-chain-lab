@@ -3,11 +3,11 @@ module github.com/relux-works/swarma-chain-lab/experiments/m5-rehearsal
 go 1.26.0
 
 require (
-	github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke v0.1.0
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcec/v2 v2.3.5
 	github.com/btcsuite/btcd/btcutil v1.1.5
 	github.com/gorilla/websocket v1.5.3
+	github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke v0.1.0
 	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.1.0
 	github.com/relux-works/swarma-chain-lab/experiments/rental v0.1.0
 	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.1.0

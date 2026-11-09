@@ -163,10 +163,26 @@ func (l *lab) hostRunner(scenario string, cfg booking.ConfigV2, relayURL, bookin
 			// checked exact gettxout object -> literal null. Keep the fixture locator.
 			var txs []string
 			checked(t, json.Unmarshal(l.rpc("", "getrawmempool"), &txs), "revoke mempool")
-			if len(txs) != 1 {
-				t.Fatal("runner revoke mempool locator")
+			for _, txid := range txs {
+				var tx struct {
+					Vin []struct {
+						TxID string `json:"txid"`
+						Vout uint32 `json:"vout"`
+					} `json:"vin"`
+				}
+				checked(t, json.Unmarshal(l.rpc("", "getrawtransaction", txid, true), &tx), "revoke transaction shape")
+				for _, input := range tx.Vin {
+					if input.TxID == q.Grant.SignedGrant.Grant.Seal.TxID && input.Vout == q.Grant.SignedGrant.Grant.Seal.Vout {
+						if r.Hashes["spend_txid"] != "" {
+							t.Fatal("duplicate seal spender")
+						}
+						r.Hashes["spend_txid"] = txid
+					}
+				}
 			}
-			r.Hashes["spend_txid"] = txs[0]
+			if r.Hashes["spend_txid"] == "" {
+				t.Fatal("runner exact seal spender missing")
+			}
 			r.Hashes["selected_block"] = str(t, l.rpc("", "getbestblockhash"))
 		case "close":
 			tick := time.NewTicker(100 * time.Millisecond)

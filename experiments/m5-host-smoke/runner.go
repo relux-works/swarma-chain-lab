@@ -145,12 +145,7 @@ func (r *runner) drive(ctx context.Context) error {
 	if e = peer.send(ctx, book+" nmc", 0, p.pace); e != nil {
 		return e
 	}
-	var reply struct {
-		ID       string `json:"booking_id"`
-		Hash     string `json:"contract_sha256"`
-		Contract string `json:"contract_base64"`
-		Expires  int64  `json:"hold_expires_at"`
-	}
+	var reply contractEnvelope
 	if e = peer.object(ctx, "contract", &reply, 15*time.Second); e != nil {
 		return e
 	}
@@ -209,19 +204,12 @@ func (r *runner) drive(ctx context.Context) error {
 	if e = peer.send(ctx, good, 0, p.pace); e != nil {
 		return e
 	}
-	var pay struct {
-		BookingID string `json:"booking_id"`
-		Expires   int64  `json:"hold_expires_at"`
-		Address   string `json:"address"`
-		Amount    int64  `json:"amount_atomic"`
-		Coin      string `json:"coin"`
-		Min       int64  `json:"min_confirmations"`
-	}
+	var pay paymentEnvelope
 	if e = peer.object(ctx, "pay", &pay, 15*time.Second); e != nil {
 		return e
 	}
-	if pay.BookingID != contract.BookingID || pay.Expires != reply.Expires || pay.Expires <= time.Now().Unix() || pay.Address != contract.Payment.Address || pay.Amount != contract.Payment.AmountAtoms || pay.Coin != "nmc" || pay.Min != p.depth {
-		return refuse("PAYMENT_BOUND")
+	if e = checkPaymentEnvelope(pay, contract, reply.Expires, p.depth, time.Now().Unix()); e != nil {
+		return e
 	}
 	r.mark("payment_bound")
 	if _, e = r.observe(ctx, "pregrant", time.Now().Add(2*time.Minute)); e != nil {
@@ -336,19 +324,19 @@ func (r *runner) drive(ctx context.Context) error {
 	if e != nil {
 		return e
 	}
-	if c.Scenario == "expiry" && (closure.ObservedMS < contract.NotAfter*1000 || time.Since(idleStart) <= 90*time.Second) {
-		return refuse("EXPIRY_TIME")
+	if e = checkClosure(c.Scenario, contract.NotAfter, closure.ObservedMS, time.Since(idleStart), time.Now()); e != nil {
+		return e
 	}
 	r.report.ApplicationIdleMS = time.Since(idleStart).Milliseconds()
 	r.report.ClosureLatencyMS = closure.ObservedMS - closureBase.UnixMilli()
-	if e = peer.healthy(); e != nil {
+	if e = peer.quiet(c.Scenario); e != nil {
 		return e
 	}
 	r.mark("closure_timing")
 	if _, e = r.observe(ctx, "restart", time.Now().Add(5*time.Minute)); e != nil {
 		return e
 	}
-	if e = peer.healthy(); e != nil {
+	if e = peer.quiet(c.Scenario); e != nil {
 		return e
 	}
 	return nil
