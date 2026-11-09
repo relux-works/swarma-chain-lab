@@ -237,4 +237,30 @@ func TestCoreActionFinalCheck(t *testing.T) {
 	got, _ = socketRequest(t, s, r)
 	expectAction(t, got, "refused", "GRANT_SEAL_SPENT")
 	l.save("socket-final-check.json", got)
+	// Confirmation and a fresh process handle cannot reopen the revoked grant.
+	l.mine(1)
+	f.stop()
+	w, e := Open(c)
+	if e != nil {
+		t.Fatal(e)
+	}
+	w.clock = func() int64 { return 500 }
+	key, _ := testKey(7)
+	x, e := openActionService(s.config, w, key)
+	if e != nil {
+		w.Close()
+		t.Fatal(e)
+	}
+	x.clock = func() int64 { return 500 }
+	stop := runExistingSocket(t, x)
+	defer stop()
+	before, _ := os.ReadFile(filepath.Join(c.StateDir, "wallet.json"))
+	poolBefore := string(l.rpc("", "getrawmempool"))
+	r.Nonce = "cccccccccccccccccccccccccccccccc"
+	got, _ = socketRequest(t, x, r)
+	expectAction(t, got, "refused", "GRANT_SEAL_SPENT")
+	after, _ := os.ReadFile(filepath.Join(c.StateDir, "wallet.json"))
+	if !bytes.Equal(before, after) || poolBefore != string(l.rpc("", "getrawmempool")) {
+		t.Fatal("confirmed revoke reopened effect")
+	}
 }

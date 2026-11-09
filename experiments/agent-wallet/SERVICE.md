@@ -151,7 +151,8 @@ these templates do not implement a multi-tenant wallet.
 
 Unit/race/vet checks use the README commands. Genuine Core socket suites are
 TestCoreActionStanding, Oneoff, Refusals, OneoffBindings, Crash, FinalCheck,
-Transport, Client, State, StateLimits, SealFunding and Rotation (each name has
+Transport, Client, State, StateLimits, SealFunding, Rotation, Startup and
+WireRefusals (each name has
 the TestCoreAction prefix). Run each separately with a fresh W1_RUN_ROOT and
 the README's exact Core pins. They exercise actual sockets and kernel credentials
 under one UID using an unexported test constructor, not production startup.
