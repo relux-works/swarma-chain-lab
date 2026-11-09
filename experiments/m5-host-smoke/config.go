@@ -51,6 +51,7 @@ type Config struct {
 	ProfileSHA256     string   `json:"profile_sha256"`
 	ProfileID         string   `json:"profile_id"`
 	ProfileVersion    string   `json:"profile_version"`
+	PayloadSHA256     string   `json:"payload_sha256"`
 	EvidenceSHA256    string   `json:"evidence_sha256"`
 	EnvironmentSHA256 string   `json:"environment_sha256"`
 	Allowed           []string `json:"allowed"`
@@ -77,7 +78,7 @@ func (c Config) validate(p profile) error {
 	if c.Scenario != "expiry" && c.Scenario != "revoke" {
 		return refuse("CONFIG_SCENARIO")
 	}
-	for _, s := range []string{c.AgentPubkey, c.IssuerPubkey, c.TemplateSHA256, c.ProfileSHA256, c.EvidenceSHA256, c.EnvironmentSHA256} {
+	for _, s := range []string{c.AgentPubkey, c.IssuerPubkey, c.TemplateSHA256, c.ProfileSHA256, c.EvidenceSHA256, c.EnvironmentSHA256, c.PayloadSHA256} {
 		if !digest(s) {
 			return refuse("CONFIG_PIN")
 		}

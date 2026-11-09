@@ -2,7 +2,9 @@ package smoke
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -240,3 +242,106 @@ func TestHostOnlyObservationBoundary(t *testing.T) {
 		}
 	}
 }
+
+// A syntactically valid but different payload digest cannot accompany a positive
+// executable claim. The request pins the approved artifact before handoff.
+func TestObservedPayloadPin(t *testing.T) {
+	for _, wrong := range []bool{false, true} {
+		c, _, _ := publicFixture(t)
+		r := runner{c: c, p: host(), seenRumors: -1, report: Report{RunID: strings.Repeat("1", 64), ConfigSHA256: strings.Repeat("2", 64)}}
+		r.op = OperatorFunc(func(_ context.Context, q Request) (Receipt, error) {
+			if q.Hashes["payload_binary"] != c.PayloadSHA256 {
+				t.Fatal("payload pin missing")
+			}
+			got := Receipt{RequestSHA256: q.SHA256(), ObservedMS: time.Now().UnixMilli(), Checks: map[string]bool{}, Numbers: map[string]int64{}, Hashes: map[string]string{}}
+			for _, k := range q.Checks {
+				got.Checks[k] = true
+			}
+			for k, v := range q.Numbers {
+				if v < 0 {
+					v = 1000
+				}
+				got.Numbers[k] = v
+			}
+			for k, v := range q.Hashes {
+				if v == "" {
+					v = strings.Repeat("3", 64)
+				}
+				got.Hashes[k] = v
+			}
+			if wrong {
+				got.Hashes["payload_binary"] = strings.Repeat("4", 64)
+			}
+			return got, nil
+		})
+		_, e := r.observe(context.Background(), "running", time.Now().Add(time.Second))
+		if wrong {
+			wantCode(t, e, "HASH_payload_binary")
+		} else if e != nil {
+			t.Fatal(e)
+		}
+	}
+}
+
+// Inventory intake binds exact bytes and payload pin. A different valid hash,
+// missing host/role and free-form metadata cannot masquerade as approved input.
+func TestInventoryBindings(t *testing.T) {
+	h := strings.Repeat("1", 64)
+	v := Inventory{Source: strings.Repeat("1", 40), Tree: strings.Repeat("2", 40), Helper: h, StoragePolicySHA256: h, Binaries: map[string]string{}, Configs: map[string]string{}, Hosts: map[string]HostVersion{}}
+	for _, role := range []string{"booking", "gateway", "store", "relay", "model", "wallet", "signer", "manager", "payload"} {
+		v.Binaries[role] = h
+		v.Configs[role] = h
+	}
+	for _, host := range []string{"exec1", "demo1", "stations1"} {
+		v.Hosts[host] = HostVersion{"6.8.0", "255"}
+	}
+	if e := v.validate(); e != nil {
+		t.Fatal(e)
+	}
+	for _, mode := range []string{"valid", "hash", "payload", "host", "metadata"} {
+		t.Run(mode, func(t *testing.T) {
+			var copy Inventory
+			_ = json.Unmarshal(encode(v), &copy)
+			if mode == "host" {
+				delete(copy.Hosts, "exec1")
+			}
+			if mode == "metadata" {
+				copy.Hosts["exec1"] = HostVersion{"secret canary", "255"}
+			}
+			root := t.TempDir()
+			path := filepath.Join(root, "inventory.json")
+			raw := encode(copy)
+			if e := os.WriteFile(path, raw, 0600); e != nil {
+				t.Fatal(e)
+			}
+			files, e := NewFiles(filepath.Join(root, "packet"))
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer files.Close()
+			want := hashBytes(raw)
+			payload := h
+			if mode == "hash" {
+				want = strings.Repeat("3", 64)
+			}
+			if mode == "payload" {
+				payload = strings.Repeat("4", 64)
+			}
+			e = files.AddInventory(path, want, payload)
+			if mode == "valid" {
+				if e != nil {
+					t.Fatal(e)
+				}
+			} else {
+				if e == nil {
+					t.Fatal("invalid inventory accepted")
+				}
+				if _, e = os.Stat(filepath.Join(root, "packet", "inventory.json")); !os.IsNotExist(e) {
+					t.Fatal("invalid inventory persisted")
+				}
+			}
+		})
+	}
+}
+
+func hashBytes(b []byte) string { return fmt.Sprintf("%x", sha256.Sum256(b)) }

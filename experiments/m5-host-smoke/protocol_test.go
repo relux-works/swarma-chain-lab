@@ -36,7 +36,7 @@ func publicFixture(t *testing.T) (Config, booking.ContractV2, exchange.Terms) {
 	}
 	h := strings.Repeat("1", 64)
 	now := time.Now().Unix()
-	c := Config{Scenario: "expiry", Relay: "ws://127.0.0.1:9991", Booking: "http://127.0.0.1:9992", AgentPubkey: key.PubKeyHex(), IssuerPubkey: issuer.PubKeyHex(), AgentName: "id/agent", LandlordName: "id/landlord", TemplateSHA256: h, ProfileSHA256: h, ProfileID: "demo", ProfileVersion: "1", EvidenceSHA256: h, EnvironmentSHA256: h, Allowed: []string{"deliver"}, Forbidden: []string{"pay", "publish", "repository.push", "secret.release"}, BudgetSat: 1000000, NotBefore: now + 300, NotAfter: now + 3900}
+	c := Config{Scenario: "expiry", Relay: "ws://127.0.0.1:9991", Booking: "http://127.0.0.1:9992", AgentPubkey: key.PubKeyHex(), IssuerPubkey: issuer.PubKeyHex(), AgentName: "id/agent", LandlordName: "id/landlord", TemplateSHA256: h, ProfileSHA256: h, ProfileID: "demo", ProfileVersion: "1", EvidenceSHA256: h, PayloadSHA256: h, EnvironmentSHA256: h, Allowed: []string{"deliver"}, Forbidden: []string{"pay", "publish", "repository.push", "secret.release"}, BudgetSat: 1000000, NotBefore: now + 300, NotAfter: now + 3900}
 	master, e := hdkeychain.NewMaster([]byte(strings.Repeat("a", 32)), &chaincfg.RegressionNetParams)
 	if e != nil {
 		t.Fatal(e)

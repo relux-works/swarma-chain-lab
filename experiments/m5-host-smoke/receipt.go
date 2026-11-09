@@ -143,6 +143,9 @@ func requirements(stage string, p profile, scenario string) ([]string, map[strin
 }
 func (r *runner) observe(ctx context.Context, stage string, deadline time.Time) (Receipt, error) {
 	checks, nums, hashes := requirements(stage, r.p, r.c.Scenario)
+	if stage == "running" {
+		hashes["payload_binary"] = r.c.PayloadSHA256
+	}
 	if stage == "preflight" {
 		hashes["manifest"] = r.c.EvidenceSHA256
 	}

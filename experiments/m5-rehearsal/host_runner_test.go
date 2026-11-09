@@ -28,7 +28,7 @@ func TestHostRunnerComposition(t *testing.T) { runComposition(t, false, "host-ru
 
 func (l *lab) hostRunner(scenario string, cfg booking.ConfigV2, relayURL, bookingURL, issuer, signerConfig, presentations, modelState, gatewayConfig string, p tlsPaths, helper *fakeHelper, managerProcess, gatewayProcess *process, calls *atomic.Int32) {
 	t := l.t
-	c := smoke.Config{Scenario: scenario, Relay: relayURL, Booking: bookingURL, AgentPubkey: cfg.AgentPubkey, IssuerPubkey: issuer, AgentName: agentName, LandlordName: landlordName, TemplateSHA256: cfg.TemplateSHA256, ProfileSHA256: cfg.Template.ProfileSHA256, ProfileID: cfg.Template.ProfileID, ProfileVersion: cfg.Template.ProfileVersion, EvidenceSHA256: rental.Hash([]byte("IT2 fixture inventory; NOT a host manifest")), EnvironmentSHA256: rental.Hash([]byte(l.root)), Allowed: cfg.Template.Allowed, Forbidden: cfg.Template.Forbidden, BudgetSat: cfg.Template.BudgetSat, NotBefore: cfg.Slots[0].NotBefore, NotAfter: cfg.Slots[0].NotAfter}
+	c := smoke.Config{Scenario: scenario, Relay: relayURL, Booking: bookingURL, AgentPubkey: cfg.AgentPubkey, IssuerPubkey: issuer, AgentName: agentName, LandlordName: landlordName, TemplateSHA256: cfg.TemplateSHA256, ProfileSHA256: cfg.Template.ProfileSHA256, ProfileID: cfg.Template.ProfileID, ProfileVersion: cfg.Template.ProfileVersion, PayloadSHA256: helper.hash, EvidenceSHA256: rental.Hash([]byte("IT2 fixture inventory; NOT a host manifest")), EnvironmentSHA256: rental.Hash([]byte(l.root)), Allowed: cfg.Template.Allowed, Forbidden: cfg.Template.Forbidden, BudgetSat: cfg.Template.BudgetSat, NotBefore: cfg.Slots[0].NotBefore, NotAfter: cfg.Slots[0].NotAfter}
 	var proof []byte
 	var boot gatewaybind.PayloadBootstrap
 	var paymentTX string
@@ -256,6 +256,7 @@ func (l *lab) hostRunner(scenario string, cfg booking.ConfigV2, relayURL, bookin
 	l.bins["gateway-restarted"] = l.bins["gateway"]
 	report, e := smoke.RunSelfTest(context.Background(), c, operator)
 	l.write(filepath.Join(l.public, "host-runner-self-test.json"), encoded(report), 0600)
+	l.write(filepath.Join(l.public, "host-runner-public-config.json"), encoded(c), 0600)
 	checked(t, e, "runner self-test: "+report.Failure)
 	if report.Outcome != "PASS_SELF_TEST" || report.Mode != "self-test" {
 		t.Fatal("runner mislabeled fixture as host")

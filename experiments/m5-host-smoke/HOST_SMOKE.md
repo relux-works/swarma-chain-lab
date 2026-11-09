@@ -12,7 +12,7 @@ receipt.** Infra must prepare it before the timed scenario begins.
 Config JSON fields are defined by `Config` in config.go. Supply all fields:
 scenario (`expiry` or `revoke`), relay and booking origins, agent_pubkey,
 issuer_pubkey, agent_name, landlord_name, template_sha256, profile_sha256,
-profile_id, profile_version, evidence_sha256, environment_sha256, allowed,
+profile_id, profile_version, payload_sha256, evidence_sha256, environment_sha256, allowed,
 forbidden, budget_sat, not_before and not_after. Hashes are lowercase hex.
 Copy exact approved template scope/budget/pins; do not invent defaults.
 not_before must be in the future with time for the operator preflight and
@@ -31,7 +31,9 @@ Inventory JSON (`Inventory` in files.go) supplies:
 - storage_policy_sha256: hash of the reviewed sanitized cleanup policy and its
   explicit physical-erasure limitations.
 
-Hash the exact inventory file bytes into config.evidence_sha256. The client
+Hash the exact inventory file bytes into config.evidence_sha256. Set
+config.payload_sha256 to the same inventory.binaries.payload hash; inventory
+intake and the running-stage receipt both enforce that equality. The client
 copies that exact validated inventory into the sealed packet. Source, tree,
 config and binary hashes do not by themselves prove signature validity or that
 those artifacts are running: those checks are explicit Infra preflight claims.

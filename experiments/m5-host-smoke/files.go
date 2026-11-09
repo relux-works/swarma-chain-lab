@@ -158,7 +158,7 @@ type HostVersion struct {
 	Systemd string `json:"systemd"`
 }
 
-func (f *Files) AddInventory(path, want string) error {
+func (f *Files) AddInventory(path, want, payload string) error {
 	root, e := os.OpenRoot(filepath.Dir(path))
 	if e != nil {
 		return refuse("INVENTORY_OPEN")
@@ -171,6 +171,9 @@ func (f *Files) AddInventory(path, want string) error {
 	var v Inventory
 	if Strict(b, &v) != nil || rental.Hash(b) != want {
 		return refuse("INVENTORY_BINDING")
+	}
+	if v.Binaries["payload"] != payload {
+		return refuse("INVENTORY_PAYLOAD")
 	}
 	if e = v.validate(); e != nil {
 		return e

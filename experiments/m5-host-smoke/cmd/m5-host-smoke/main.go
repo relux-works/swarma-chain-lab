@@ -36,7 +36,7 @@ func run() int {
 		fmt.Fprintln(os.Stderr, "CONFIG_REFUSED")
 		return 2
 	}
-	if files.AddInventory(*inventory, c.EvidenceSHA256) != nil {
+	if files.AddInventory(*inventory, c.EvidenceSHA256, c.PayloadSHA256) != nil {
 		fmt.Fprintln(os.Stderr, "INVENTORY_REFUSED")
 		return 2
 	}
