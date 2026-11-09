@@ -293,11 +293,25 @@ func (l *lab) revokeNative(config string, c booking.ContractV2, proof []byte) {
 	l.write(filepath.Join(cfg.OperatorOutbox, id+".json"), body, 0600)
 	l.write(filepath.Join(cfg.OperatorOutbox, "index.json"), encoded([]string{id}), 0600)
 	updated := l.json("signer-revoke.json", cfg, 0600)
-	l.signerCycle(updated)
 	presentation, e := rental.ParseGrantPresentation(proof)
 	checked(l.t, e, "revoke presentation")
 	point := presentation.SignedGrant.Grant.Seal
-	if string(bytes.TrimSpace(l.rpc("", "gettxout", point.TxID, point.Vout, true))) != "null" {
+	node, e := su.NewRPC(l.read)
+	checked(l.t, e, "seal observer")
+	observe := func() json.RawMessage {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		raw, e := node.Call(ctx, "gettxout", point.TxID, point.Vout, true)
+		checked(l.t, e, "fresh seal JSON-RPC")
+		return bytes.TrimSpace(raw)
+	}
+	// JSON-RPC preserves null. namecoin-cli renders a null result as empty stdout,
+	// so the generic CLI string adapter cannot establish spent-output semantics.
+	if raw := observe(); len(raw) == 0 || raw[0] != '{' {
+		l.t.Fatal("pre-revoke seal is not unspent")
+	}
+	l.signerCycle(updated)
+	if string(observe()) != "null" {
 		l.t.Fatal("SG1 revoke did not spend seal")
 	}
 	l.evidence["early_revoke"] = "native operator FileSource and SG1 CLI spent exact issued seal; no imported wallet key"
