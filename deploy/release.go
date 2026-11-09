@@ -61,6 +61,10 @@ var releaseArtifacts = []Artifact{
 	{Service: "booking", Module: "experiments/rental-booking", Package: "./cmd/rental-booking", Binary: "bin/rental-booking", Status: "regtest-preparation"},
 	{Service: "store", Module: "experiments/grant-store", Package: "./cmd/grant-store", Binary: "bin/grant-store", Status: "regtest-preparation"},
 	{Service: "relay", Module: "experiments/relay", Package: "./cmd/swarma-relay", Binary: "bin/swarma-relay", Status: "regtest-preparation", Reason: "loopback behind explicit trusted reverse proxy; gift-wrap read AUTH awaits gateway client integration"},
+	{Service: "issuer", Module: "experiments/signer-service", Package: "./cmd/swarma-signer", Binary: "bin/swarma-signer", Status: "regtest-preparation", Reason: "owner-provisioned custody and private intake required; no signer activation implied"},
+	{Service: "model", Module: "experiments/model-proxy", Package: "./cmd/model-proxy", Binary: "bin/model-proxy", Status: "regtest-preparation", Reason: "owner-approved model prices, caps and API credential required; Linux peer-credential administration"},
+	{Service: "stations", Module: "experiments/station-lifecycle", Package: "./cmd/station-manager", Binary: "bin/station-manager", Status: "regtest-preparation", Reason: "ordinary Linux transport; independently installed root helper and policy required"},
+	{Service: "payload", Module: "experiments/station-payload", Package: "./cmd/station-payload", Binary: "bin/station-payload", Status: "regtest-preparation", Reason: "scripted consumer only; per-slot launch belongs to the root helper policy, no standalone unit"},
 }
 
 type buildFunc func(context.Context, string, string, string, Artifact) ([]byte, error)
@@ -157,7 +161,6 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 		}
 	}
 	m := Manifest{Version: 1, Commit: in.Commit, GoVersion: GoVersion, GOOS: "linux", GOARCH: "amd64", CGOEnabled: "0", BuildFlags: []string{"-trimpath", "-buildvcs=false", "-mod=readonly"}, Artifacts: append([]Artifact(nil), releaseArtifacts...), Pending: []Artifact{
-		{Service: "signer", Status: "pending", Reason: "signer deployment integration not included in this kit"},
 		{Service: "courier", Status: "pending", Reason: "courier deployment integration not included in this kit"},
 	}}
 	stage := filepath.Join(work, "bundle")
@@ -179,7 +182,7 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 	if e = copyTemplates(filepath.Join(first, "deploy", "templates"), filepath.Join(stage, "templates")); e != nil {
 		return empty, ErrSource
 	}
-	for _, name := range []string{"SMOKE.md", "README.md"} {
+	for _, name := range []string{"SMOKE.md", "SMOKE-DK2.md", "README.md"} {
 		b, e := os.ReadFile(filepath.Join(first, "deploy", name))
 		if e != nil {
 			return empty, ErrSource

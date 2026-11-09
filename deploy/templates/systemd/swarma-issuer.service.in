@@ -1,0 +1,40 @@
+[Unit]
+Description=Swarma regtest custody loop
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=swarma-issuer
+Group=swarma-issuer
+UMask=0077
+WorkingDirectory=/var/lib/swarma-issuer
+StateDirectory=swarma-issuer
+StateDirectoryMode=0700
+ExecStart=/opt/swarma/issuer/@VERSION@/bin/swarma-signer -config /etc/swarma/issuer/service.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32
+ReadOnlyPaths=/etc/swarma/issuer
+ReadOnlyPaths=/var/lib/swarma-issuer/intake
+ReadWritePaths=/var/lib/swarma-issuer
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

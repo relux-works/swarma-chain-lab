@@ -97,6 +97,9 @@ func Validate(raw []byte) (Policy, error) {
 			return Policy{}, ErrPlaceholder
 		}
 	}
+	if newService(p.Service) {
+		return validateServicePolicy(p)
+	}
 	if p.Version != 1 || !label(p.ReleaseVersion) || !exactHex(p.Commit, 20) || !exactHex(p.BinarySHA256, 32) || (p.Service != "gateway" && !localEndpoint(p.Listen)) {
 		return Policy{}, ErrPolicy
 	}

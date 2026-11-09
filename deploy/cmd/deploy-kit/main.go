@@ -22,10 +22,12 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: deploy-kit build|validate [flags]")
+		return errors.New("usage: deploy-kit build|validate|check-coins [flags]")
 	}
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	switch args[0] {
+	case "check-coins":
+		return checkCoins(args[1:])
 	case "build":
 		repo := f.String("repo", "", "canonical clean repository root")
 		commit := f.String("commit", "", "exact HEAD commit SHA")
@@ -66,6 +68,7 @@ func run(args []string) error {
 		if e != nil {
 			return e
 		}
+		var publicInputs [][]byte
 		for _, path := range publicFiles {
 			file, e := os.Open(path)
 			if e != nil {
@@ -76,9 +79,10 @@ func run(args []string) error {
 			if readErr != nil || closeErr != nil {
 				return deploy.ErrPolicy
 			}
-			if e := deploy.ValidatePublicJSON(raw); e != nil {
-				return e
-			}
+			publicInputs = append(publicInputs, raw)
+		}
+		if e := deploy.ValidateServiceInputs(p, publicInputs); e != nil {
+			return e
 		}
 		return json.NewEncoder(os.Stdout).Encode(struct{ Status, Service, Network string }{"valid-public-policy", p.Service, p.Network})
 	default:

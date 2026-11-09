@@ -1,0 +1,11 @@
+{
+  "binary_sha256": "PLACEHOLDER_BINARY_SHA256",
+  "commit": "PLACEHOLDER_FULL_COMMIT",
+  "config": "",
+  "listen": "",
+  "network": "regtest",
+  "release_version": "PLACEHOLDER_RELEASE_VERSION",
+  "service": "payload",
+  "state_dir": "",
+  "version": 1
+}

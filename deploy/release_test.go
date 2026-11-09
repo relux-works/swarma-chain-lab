@@ -206,7 +206,7 @@ func TestReleaseIntegration(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(m.Artifacts) != 4 || len(m.Pending) != 2 || m.Artifacts[0].Status != "regtest-preparation" || m.Artifacts[0].Screening != "off" || m.Artifacts[3].Service != "relay" {
+	if len(m.Artifacts) != 8 || len(m.Pending) != 1 || m.Pending[0].Service != "courier" || m.Artifacts[0].Status != "regtest-preparation" || m.Artifacts[0].Screening != "off" || m.Artifacts[3].Service != "relay" {
 		t.Fatal("manifest service readiness mismatch")
 	}
 	for _, a := range m.Artifacts {
@@ -269,7 +269,7 @@ func TestReleaseIntegration(t *testing.T) {
 	result := struct {
 		Commit             string
 		Positive, Negative string
-	}{commit, "four independent Linux/amd64 ELF pairs match", "real source nondeterminism refused; no output; previous release unchanged"}
+	}{commit, "eight independent Linux/amd64 ELF pairs match", "real source nondeterminism refused; no output; previous release unchanged"}
 	b, _ := json.MarshalIndent(result, "", "  ")
 	if e = os.WriteFile(filepath.Join(out, "release-control.json"), b, 0600); e != nil {
 		t.Fatal(e)

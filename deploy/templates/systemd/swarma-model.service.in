@@ -1,0 +1,45 @@
+[Unit]
+Description=Swarma bounded per-slot model proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=swarma-model
+Group=swarma-model
+UMask=0077
+WorkingDirectory=/var/lib/swarma-model
+StateDirectory=swarma-model
+StateDirectoryMode=0700
+ExecStart=/opt/swarma/model/@VERSION@/bin/model-proxy -config /etc/swarma/model/service.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32
+IPAddressAllow=PLACEHOLDER_APPROVED_UPSTREAM_CIDR
+IPAddressAllow=PLACEHOLDER_STATIONS_CIDR
+ReadOnlyPaths=/etc/swarma/model
+ReadWritePaths=/var/lib/swarma-model
+RuntimeDirectory=swarma-model
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+ReadWritePaths=/run/swarma-model
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

@@ -208,3 +208,11 @@ not establish full M5 rental/issuance/signing/exchange acceptance. SG1/Courier/
 transport deployment is not in this kit. Infra and the lane
 must finish the separate genuine regtest end-to-end acceptance before any later
 mainnet decision. Ivan's exact GO and caps remain required for mainnet transactions.
+
+## DK2 additions
+
+The original sequence above covers the initial four services. Continue with
+[SMOKE-DK2.md](SMOKE-DK2.md) for the signer, model proxy, station manager and
+scripted payload. Use its eight-artifact checklist and native credential-mode
+table before starting those units. No new service is activated merely by
+building the release, and the payload has no standalone unit.

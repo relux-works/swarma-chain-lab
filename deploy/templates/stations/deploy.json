@@ -1,0 +1,11 @@
+{
+  "binary_sha256": "PLACEHOLDER_BINARY_SHA256",
+  "commit": "PLACEHOLDER_FULL_COMMIT",
+  "config": "/etc/swarma/stations/service.json",
+  "listen": "",
+  "network": "regtest",
+  "release_version": "PLACEHOLDER_RELEASE_VERSION",
+  "service": "stations",
+  "state_dir": "/var/lib/swarma-stations",
+  "version": 1
+}

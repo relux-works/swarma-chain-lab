@@ -33,3 +33,20 @@ The operator must explicitly supply proxy UID, admin socket ownership/access,
 HTTPS origin, leaf pin and every approved token/request/cost cap. The optional
 fragment deliberately supplies no numerical allowance. Production Unix peer
 qualification requires Linux; a compiled Linux binary is not acceptance evidence.
+
+## DK2 host prerequisites
+
+- Infra owns the unlanded slotd helper/root-policy schema and the actual per-slot
+  bootstrap/argv placement. The payload requirements table is not installable
+  policy and cannot establish a real Linux lifecycle/wipe.
+- Infra must provision a private append-only booking/operator intake mirror on
+  the signer host and confirmed presentation transport to the gateway. Native
+  signer S1 access is loopback HTTP only; an explicitly qualified local forwarding
+  route to the public store is required. No courier or network fallback is added.
+- Gateway and model proxy admin socket must share one host. Approved UID/group,
+  TLS, model table, prices, per-slot caps and provider/station egress CIDRs remain
+  deployment inputs. Existing socket/state is preserved on refusal.
+- Signer activation can process/refill funds. Exact owner approval and provisioned
+  caps/keys/inventory are prerequisites; `-once` is not a harmless config probe.
+- Mainnet remains refused by both kit and signer. All owner-unapproved proposal
+  values remain placeholders. Full host acceptance remains external to this kit.

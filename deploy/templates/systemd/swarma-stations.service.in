@@ -1,0 +1,41 @@
+[Unit]
+Description=Swarma station lifecycle manager
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=swarma-stations
+Group=swarma-stations
+UMask=0077
+WorkingDirectory=/var/lib/swarma-stations
+StateDirectory=swarma-stations
+StateDirectoryMode=0700
+ExecStart=/opt/swarma/stations/@VERSION@/bin/station-manager run --config /etc/swarma/stations/service.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32
+IPAddressAllow=PLACEHOLDER_GATEWAY_CIDR
+ReadOnlyPaths=/etc/swarma/stations
+ReadWritePaths=/var/lib/swarma-stations
+SupplementaryGroups=PLACEHOLDER_INFRA_SLOTD_GROUP
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target
