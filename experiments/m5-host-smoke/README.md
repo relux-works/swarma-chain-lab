@@ -42,7 +42,10 @@ umask 077
 The CLI fixes PoW16, demo-60, 1000 USD cents, 3600 seconds, depth1, 200 requests,
 25-second expiry and 30-second revoke closure limits. There is no acceleration,
 credential-file, arbitrary command or insecure-TLS option. Pre-grant messages
-are paced at ten seconds to respect the installed exchange rate limit. Relay
+are paced at ten seconds to respect the installed exchange rate limit. Every
+request also follows the previous reply by at least1.1 seconds: native replies
+have second-resolution timestamps and no request nonce, so identical replies
+otherwise share rumor IDs. Replay suppression remains enabled. Relay
 uses normal TLS trust and optional challenge authentication with the ephemeral
 renter key; plain transport is restricted to literal loopback addresses for
 approved forwarding. Booking redirects and credential-bearing URLs are refused.

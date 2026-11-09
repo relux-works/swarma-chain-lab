@@ -15,17 +15,18 @@ import (
 )
 
 type conversation struct {
-	peer     *gateway.RelayClient
-	key      *nostr.PrivKey
-	agent    string
-	inbox    chan string
-	fault    chan error
-	done     chan struct{}
-	cancel   context.CancelFunc
-	started  int64
-	lastSend time.Time
-	seen     map[string]bool
-	mu       sync.Mutex
+	peer      *gateway.RelayClient
+	key       *nostr.PrivKey
+	agent     string
+	inbox     chan string
+	fault     chan error
+	done      chan struct{}
+	cancel    context.CancelFunc
+	started   int64
+	lastSend  time.Time
+	lastReply time.Time
+	seen      map[string]bool
+	mu        sync.Mutex
 }
 
 func connect(ctx context.Context, url, agent string) (*conversation, error) {
@@ -123,7 +124,14 @@ func (c *conversation) send(ctx context.Context, text string, work int, pace tim
 	if e := c.healthy(); e != nil {
 		return e
 	}
-	if e := pause(ctx, time.Until(c.lastSend.Add(pace))); e != nil {
+	// Native replies carry second-resolution timestamps and no request nonce.
+	// Separate replies in time so distinct equal-content replies have distinct
+	// rumor IDs; do not weaken replay suppression to count them twice.
+	next := c.lastSend.Add(pace)
+	if replyFloor := c.lastReply.Add(1100 * time.Millisecond); replyFloor.After(next) {
+		next = replyFloor
+	}
+	if e := pause(ctx, time.Until(next)); e != nil {
 		return e
 	}
 	r := &nostr.Event{PubKey: c.key.PubKeyHex(), CreatedAt: time.Now().Unix(), Kind: nostr.KindRumor, Content: text, Tags: append([][]string{{"p", c.agent}}, tags...)}
@@ -162,6 +170,7 @@ func (c *conversation) receive(ctx context.Context, timeout time.Duration) (stri
 	defer t.Stop()
 	select {
 	case s := <-c.inbox:
+		c.lastReply = time.Now()
 		return s, nil
 	case e := <-c.fault:
 		return "", e
