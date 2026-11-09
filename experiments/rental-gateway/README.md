@@ -255,3 +255,11 @@ runs also create private wallet/node subdirectories; share only public evidence,
 never `private/`. No real funds, external relays or deployed station are tested.
 Relay-side IP/connection limits remain a deployment responsibility: NIP-01
 subscriptions expose no trustworthy originating client IP.
+
+## Real serve preparation
+
+[SERVE-SURVEY.md](SERVE-SURVEY.md) records the landed constructor chain, proposed
+strict config, and the booking transport, issuer handoff and Linux manager gaps.
+[UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) lists the integration decisions
+needed before replacing the current test-only serve wiring. This survey does
+not make the existing stub command deployable.
