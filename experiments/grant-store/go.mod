@@ -38,3 +38,5 @@ replace relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind => ..
 replace relux.works/swarma-chain-lab/experiments/station-lifecycle => ../station-lifecycle
 
 replace relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind => ../station-lifecycle/gatewaybind
+
+replace relux.works/swarma-chain-lab/experiments/model-proxy => ../model-proxy

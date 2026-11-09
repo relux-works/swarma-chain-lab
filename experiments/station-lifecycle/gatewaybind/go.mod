@@ -21,6 +21,7 @@ replace relux.works/swarma-chain-lab/experiments/single-use => ../../single-use
 replace relux.works/swarma-chain-lab/experiments/sealwatch => ../../sealwatch
 
 require (
+	relux.works/swarma-chain-lab/experiments/model-proxy v0.0.0
 	relux.works/swarma-chain-lab/experiments/rental-gateway v0.0.0
 	relux.works/swarma-chain-lab/experiments/station-lifecycle v0.0.0
 )
@@ -36,3 +37,5 @@ replace relux.works/swarma-chain-lab/experiments/rental => ../../rental
 replace relux.works/swarma-chain-lab/experiments/rental-booking => ../../rental-booking
 
 replace relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind => ../../rental-gateway/kernelbind
+
+replace relux.works/swarma-chain-lab/experiments/model-proxy => ../../model-proxy

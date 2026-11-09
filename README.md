@@ -167,3 +167,16 @@ rental-gateway adapter module. From `experiments/station-lifecycle`, run
 `(cd gatewaybind && go test -race ./...)`. The README documents private input
 configuration and external Linux/payload validation; local test/build evidence
 belongs in `.temp/`. No host deployment is performed by these commands.
+
+
+## Per-slot model proxy tools
+
+[Model proxy](experiments/model-proxy/README.md) adds an independent, bounded
+text Messages proxy with private per-slot bearers, conservative durable caps,
+SSE usage accounting and Linux peer-checked local administration. The optional
+station-lifecycle/gatewaybind registrar prepares bootstrap v2, activates before
+Start and revokes independently of Stop. Runtime and deployment remain external
+decisions. From `experiments/model-proxy`, run `go test -race ./...`,
+`go build -o .temp/model-proxy ./cmd/model-proxy`, and
+`go run .scripts/guards.go -out .temp/guards`; logs/binaries stay in `.temp/`.
+Tests use only a local fake upstream and synthetic keys.

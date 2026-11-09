@@ -31,7 +31,7 @@ var plants = []plant{
 
 	{"durable_intent", "core", "manager.go", "if e := m.save(); e != nil {\n\t\treturn recordStatus(r), e\n\t}\n\tbudget :=", "budget :=", ".", "TestManagerLifecycle", "host effect before durable intent"},
 	{"stop_dominates", "core", "broker.go", "b.fresh[key] = s.Phase == \"running\"", "b.fresh[key] = s.Phase == \"running\"; if s.Phase == \"running\" { r.Desired = \"start\" }", ".", "TestBrokerLifecycle", "late running ACK erased stop"},
-	{"bootstrap_version", "binding", "bootstrap.go", " || b.V != 1", "", ".", "TestBootstrapClosedSchema", "invalid bootstrap accepted"},
+	{"bootstrap_version", "binding", "bootstrap.go", "(b.V != 1 && b.V != 2) || ", "", ".", "TestBootstrapV2Schema", "invalid bootstrap accepted"},
 
 	{"slot_policy", "core", "manager.go", "if e := m.cfg.Range.validateSlot(s); e != nil {", "if e := m.cfg.Range.validateSlot(s); e != nil && false {", ".", "TestManagerRefusals/grant", "invalid slot allocated authority"},
 	{"payload_pin", "core", "manager.go", "if s.PayloadID != m.cfg.Payload.ID || s.PayloadSHA256 != m.cfg.Payload.SHA256 {", "if (s.PayloadID != m.cfg.Payload.ID || s.PayloadSHA256 != m.cfg.Payload.SHA256) && false {", ".", "TestManagerRefusals/payload", "invalid slot allocated authority"},
@@ -93,7 +93,7 @@ func run() error {
 		return e
 	}
 	defer os.RemoveAll(work)
-	for _, name := range []string{"single-use", "sealwatch", "rental", "rental-booking", "payment-chain"} {
+	for _, name := range []string{"single-use", "sealwatch", "rental", "rental-booking", "payment-chain", "model-proxy"} {
 		if e = os.Symlink(filepath.Join(filepath.Dir(root), name), filepath.Join(work, name)); e != nil {
 			return e
 		}

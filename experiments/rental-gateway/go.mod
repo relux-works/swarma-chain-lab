@@ -12,13 +12,14 @@ require (
 	relux.works/swarma-chain-lab/experiments/rental v0.0.0
 	relux.works/swarma-chain-lab/experiments/rental-booking v0.0.0
 	relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind v0.0.0
+	relux.works/swarma-chain-lab/experiments/station-lifecycle v0.0.0
 	relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind v0.0.0
 )
 
 require (
+	relux.works/swarma-chain-lab/experiments/model-proxy v0.0.0 // indirect
 	relux.works/swarma-chain-lab/experiments/payment-chain v0.0.0 // indirect
 	relux.works/swarma-chain-lab/experiments/sealwatch v0.0.0 // indirect
-	relux.works/swarma-chain-lab/experiments/station-lifecycle v0.0.0 // indirect
 )
 
 require (
@@ -43,3 +44,5 @@ replace relux.works/swarma-chain-lab/experiments/payment-chain => ../payment-cha
 replace relux.works/swarma-chain-lab/experiments/station-lifecycle => ../station-lifecycle
 
 replace relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind => ../station-lifecycle/gatewaybind
+
+replace relux.works/swarma-chain-lab/experiments/model-proxy => ../model-proxy

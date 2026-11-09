@@ -164,3 +164,16 @@ TLS, durable recovery and the gateway adapter with a stub kernel. Linux cross-bu
 checks compile compatibility only. They do not prove Linux user/systemd/nftables
 isolation, actual helper interoperability, real payload/model access or a deployed
 station. Required external checks are in [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md).
+
+
+### Optional model-proxy registration
+
+`gatewaybind.Config.ModelRegistrar` and `ModelCaps` opt into the independent
+[model proxy](../model-proxy/README.md). Prepare freezes an inactive credential
+in canonical flat bootstrap v2; Activate runs before manager Start; End/Destroy
+attempt Revoke and host Stop independently and keep the closer pending if either
+is uncertain. A missing registrar preserves v1. The core manager/helper stays
+opaque to model credentials. Enabling v2 requires a compatible payload consumer;
+existing broker profiles are not migrated implicitly. Consumer module roots
+must add their own local model-proxy replacement because Go replacements are
+not transitive.

@@ -4,20 +4,33 @@ package gatewaybind
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
 
+	proxy "relux.works/swarma-chain-lab/experiments/model-proxy"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/station"
 	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
+// ModelRegistrar is optional public-host local administration. The private
+// bootstrap is prepared before allocation, activated before Start and revoked
+// independently of host cleanup. No model API credential crosses this boundary.
+type ModelRegistrar interface {
+	Prepare(context.Context, proxy.Binding) (proxy.Credential, error)
+	Activate(context.Context, proxy.Binding) error
+	Revoke(context.Context, proxy.Binding) error
+}
 type Config struct {
+	ModelRegistrar    ModelRegistrar
+	ModelCaps         proxy.Caps
 	StateDir          string
 	Journal           *journal.Store
 	PayloadID         string
@@ -41,12 +54,40 @@ func New(c Config) (*Driver, error) {
 	if e != nil || len(pin) != 32 || hex.EncodeToString(pin) != c.ManagerCertSHA256 || c.Journal == nil {
 		return nil, errors.New("LIFECYCLE_CONFIG")
 	}
-	b, e := lifecycle.NewBroker(lifecycle.BrokerConfig{StateDir: c.StateDir, Range: lifecycle.Range{First: c.SlotMin, Last: c.SlotMax}, Payload: lifecycle.Payload{ID: c.PayloadID, SHA256: c.PayloadSHA256}, Now: c.Now, StartTimeout: c.StartTimeout, BootstrapProfile: "gateway-stationlink-v1", EncodeBootstrap: func(key string, secret lifecycle.Secret) (lifecycle.Secret, error) {
+	profile := "gateway-stationlink-v1"
+	if c.ModelRegistrar != nil {
+		if !c.ModelCaps.Valid() {
+			return nil, errors.New("MODEL_CONFIG")
+		}
+		raw, _ := json.Marshal([]any{"gateway-model-v2", c.ModelCaps})
+		digest := sha256.Sum256(raw)
+		profile = hex.EncodeToString(digest[:])
+	} else if c.ModelCaps != (proxy.Caps{}) {
+		return nil, errors.New("MODEL_CONFIG")
+	}
+	b, e := lifecycle.NewBroker(lifecycle.BrokerConfig{StateDir: c.StateDir, Range: lifecycle.Range{First: c.SlotMin, Last: c.SlotMax}, Payload: lifecycle.Payload{ID: c.PayloadID, SHA256: c.PayloadSHA256}, Now: c.Now, StartTimeout: c.StartTimeout, BootstrapProfile: profile, EncodeBootstrap: func(key string, secret lifecycle.Secret) (lifecycle.Secret, error) {
 		s, ok := c.Journal.Get(key)
 		if !ok || s.BookingID != key {
 			return nil, errors.New("LIFECYCLE_MAPPING")
 		}
-		return EncodeBootstrap(PayloadBootstrap{V: 1, BookingID: key, StationName: s.StationName, ChannelSecret: secret})
+		doc := PayloadBootstrap{V: 1, BookingID: key, StationName: s.StationName, ChannelSecret: secret}
+		if c.ModelRegistrar != nil {
+			binding, e := modelBinding(s, c.ModelCaps)
+			if e != nil {
+				return nil, e
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			credential, e := c.ModelRegistrar.Prepare(ctx, binding)
+			if e != nil || !credential.Valid() {
+				return nil, errors.New("MODEL_PREPARE")
+			}
+			doc.V = 2
+			doc.ModelBearer = credential.Bearer
+			doc.ModelEndpoint = credential.Endpoint.URL
+			doc.ModelCertSHA256 = credential.Endpoint.CertSHA256
+		}
+		return EncodeBootstrap(doc)
 	}})
 	if e != nil {
 		return nil, e
@@ -137,6 +178,18 @@ func (d *Driver) StartSession(ctx context.Context, st *station.Station, info sta
 	if s.Ended || s.Destroyed || info.NotAfter != s.NotAfter || info.RenterPubKey != s.RenterPubKey || info.ContractSHA256 != s.ContractSHA256 || subtle.ConstantTimeCompare(st.ChannelSecret, bootstrap.ChannelSecret) != 1 {
 		return errors.New("LIFECYCLE_SESSION")
 	}
+	if d.cfg.ModelRegistrar != nil {
+		binding, e := modelBinding(s, d.cfg.ModelCaps)
+		if e != nil {
+			return e
+		}
+		call, cancel := context.WithTimeout(ctx, 2*time.Second)
+		e = d.cfg.ModelRegistrar.Activate(call, binding)
+		cancel()
+		if e != nil {
+			return errors.New("MODEL_ACTIVATE")
+		}
+	}
 	if e = d.broker.SetStart(s.BookingID); e != nil {
 		return e
 	}
@@ -153,10 +206,20 @@ func (d *Driver) stop(ctx context.Context, st *station.Station) error {
 	if e != nil {
 		return station.ErrCleanupPending
 	}
+	var revokeErr error
+	if d.cfg.ModelRegistrar != nil {
+		binding, err := modelBinding(s, d.cfg.ModelCaps)
+		revokeErr = err
+		if err == nil {
+			call, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+			revokeErr = d.cfg.ModelRegistrar.Revoke(call, binding)
+			cancel()
+		}
+	}
 	if e = d.broker.SetStop(s.BookingID); e != nil {
 		return station.ErrCleanupPending
 	}
-	if _, e = d.broker.Wait(ctx, s.BookingID, "stopped"); e != nil {
+	if _, e = d.broker.Wait(ctx, s.BookingID, "stopped"); e != nil || revokeErr != nil {
 		return station.ErrCleanupPending
 	}
 	return nil
@@ -169,4 +232,20 @@ func (d *Driver) Destroy(ctx context.Context, st *station.Station) (station.Dest
 		return station.DestroyReport{}, e
 	}
 	return station.DestroyReport{Removed: []string{"remote slot resources (helper-confirmed destroyed or absent)"}, Kept: append([]string(nil), station.KeptElsewhere...)}, nil
+}
+
+func modelBinding(s *journal.Slot, caps proxy.Caps) (proxy.Binding, error) {
+	raw, e := base64.StdEncoding.DecodeString(s.CertificateB64)
+	if e != nil {
+		return proxy.Binding{}, errors.New("MODEL_BINDING")
+	}
+	grant, e := kernel.PresentationID(raw)
+	if e != nil {
+		return proxy.Binding{}, errors.New("MODEL_BINDING")
+	}
+	b := proxy.Binding{SlotID: s.BookingID, GrantID: grant, NotBefore: s.NotBefore, NotAfter: s.NotAfter, Caps: caps}
+	if !b.Valid() {
+		return proxy.Binding{}, errors.New("MODEL_BINDING")
+	}
+	return b, nil
 }

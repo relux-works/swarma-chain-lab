@@ -3,6 +3,7 @@ name: Signer service checks
 on:
   pull_request:
     paths:
+      - 'experiments/model-proxy/**'
       - 'experiments/signer-service/**'
       - 'experiments/grant-store/**'
       - 'experiments/rental/**'
@@ -16,6 +17,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'experiments/model-proxy/**'
       - 'experiments/signer-service/**'
       - 'experiments/grant-store/**'
       - 'experiments/rental/**'
