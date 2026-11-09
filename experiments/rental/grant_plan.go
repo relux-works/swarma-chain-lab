@@ -37,13 +37,33 @@ func grantFunding(p Policy, s PlanSpec, pool Point) (su.Transaction, int64, erro
 // The bare size is used only for validation of completed legacy records.
 // Fresh issuance must pass grantFunding's framed fee projection before burns.
 func grantFundingShape(p Policy, s PlanSpec, pool Point, legacy bool) (su.Transaction, int64, error) {
+	tx, total, e := grantFundingInputs(p, s, pool)
+	if e != nil {
+		return tx, total, e
+	}
+	if legacy && p.Network != "regtest" {
+		return tx, 0, bad("LEGACY_REGTEST_ONLY")
+	}
+	// Only size matters here; placeholders never escape as a returned plan.
+	size := oplocator.IssuanceBlobScriptBytes
+	if legacy {
+		size = 34
+	}
+	tx.Outputs = []su.Output{{Value: 0, Script: make([]byte, size)}, {Value: 0, Script: mustDecodeKey(p.FundingScript)}}
+	if _, _, _, e := su.ReserveFee(tx, total, p.GrantFeeRate()); e != nil {
+		return tx, 0, e
+	}
+	return tx, total, nil
+}
+
+// Funding roles and pool separation do not depend on the commitment encoding.
+// A bare fee projection is reserved for validation of completed regtest records;
+// using it as the shared preflight would reject every fresh main issuance.
+func grantFundingInputs(p Policy, s PlanSpec, pool Point) (su.Transaction, int64, error) {
 	tx := su.Transaction{Version: 2}
 	var total int64
 	if e := p.validateGrantFunding(); e != nil {
 		return tx, 0, e
-	}
-	if legacy && p.Network != "regtest" {
-		return tx, 0, bad("LEGACY_REGTEST_ONLY")
 	}
 	if s.Kind != "grant-issue" || s.ChangeScript != p.FundingScript || len(s.Inputs) < 1 || len(s.Inputs) > 16 || s.Count != 0 || s.ValueSat != 0 {
 		return tx, 0, bad("ISSUANCE_TEMPLATE")
@@ -67,15 +87,6 @@ func grantFundingShape(p Policy, s PlanSpec, pool Point, legacy bool) (su.Transa
 		seen[in.Point] = true
 		total += in.ValueSat
 		tx.Inputs = append(tx.Inputs, su.Input{Point: in.Point, Script: make([]byte, 140), Sequence: 0xfffffffe})
-	}
-	// Only size matters here; placeholders never escape as a returned plan.
-	size := oplocator.IssuanceBlobScriptBytes
-	if legacy {
-		size = 34
-	}
-	tx.Outputs = []su.Output{{Value: 0, Script: make([]byte, size)}, {Value: 0, Script: mustDecodeKey(p.FundingScript)}}
-	if _, _, _, e := su.ReserveFee(tx, total, p.GrantFeeRate()); e != nil {
-		return tx, 0, e
 	}
 	return tx, total, nil
 }
@@ -134,6 +145,9 @@ func matchesIssuedGrantPlan(p Policy, s PlanSpec, raw []byte, stored *Plan) bool
 		return false
 	}
 	for _, legacy := range []bool{false, true} {
+		if legacy && p.Network != "regtest" {
+			continue
+		}
 		plan, e := makeGrantIssuancePlan(p, s, raw, legacy)
 		if e == nil && sameJSON(plan, *stored) {
 			return true

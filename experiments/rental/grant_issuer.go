@@ -57,7 +57,9 @@ func issueGrantRouted(ctx context.Context, node su.Node, p IssuerPolicy, request
 	if claimErr != nil || !digest(claimed.BookingID) || !digest(pool.TxID) {
 		return refuse(bad("ISSUANCE_REQUEST"))
 	}
-	if _, _, e := grantFundingShape(p.Policy, spec, pool, true); e != nil {
+	// Check shared funding facts before touching the journal. Fee/framing is
+	// selected only after distinguishing a completed replay from fresh issuance.
+	if _, _, e := grantFundingInputs(p.Policy, spec, pool); e != nil {
 		return refuse(e)
 	}
 	binding, _ := json.Marshal(struct{ Network, Genesis, Agent, Landlord, Script, Funding, Provider string }{p.Policy.Network, p.Policy.Genesis, p.Policy.AgentName, p.Policy.LandlordName, p.Policy.SealScript, p.Policy.FundingScript, p.ProviderPubkey})

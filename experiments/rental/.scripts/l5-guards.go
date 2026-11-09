@@ -47,7 +47,8 @@ var plants = []plant{
 	{"kernel_return_count", "grant_kernel.go", "returns != 1 || matches != 1", "(returns != 1 && false) || matches != 1", ".", "TestCoreGrantLocator/two_returns", "two_returns: want refused/ISSUANCE_COMMITMENT", true},
 	{"issuer_replay_gate", "grant_issuer.go", "if !matchesIssuedGrantPlan(p.Policy, spec, old.SignedGrant, old.Plan) {", "if !matchesIssuedGrantPlan(p.Policy, spec, old.SignedGrant, old.Plan) && false {", ".", "TestCoreGrantLocatorReplay", "corrupt completed record escaped replay gate", true},
 	{"issuer_fresh_fee", "grant_issuer.go", "if _, _, e := grantFunding(p.Policy, spec, pool); e != nil {", "if _, _, e := grantFunding(p.Policy, spec, pool); e != nil && false {", ".", "TestCoreGrantLocatorReplay", "fresh fee boundary passed pre-sign gate", true},
-	{"issuer_old_fee", "grant_issuer.go", "grantFundingShape(p.Policy, spec, pool, true)", "grantFundingShape(p.Policy, spec, pool, false)", ".", "TestCoreGrantLocatorReplay", "FUNDING_OR_DUST_RESERVE", true},
+	{"issuer_old_fee", "grant_issuer.go", "grantFundingInputs(p.Policy, spec, pool)", "grantFunding(p.Policy, spec, pool)", ".", "TestCoreGrantLocatorReplay", "FUNDING_OR_DUST_RESERVE", true},
+	{"issuer_main_legacy", "grant_issuer.go", "grantFundingInputs(p.Policy, spec, pool)", "grantFundingShape(p.Policy, spec, pool, true)", ".", "TestMainPublicGrantFundingAdmission", "public main funding boundary", false},
 }
 
 type result struct {

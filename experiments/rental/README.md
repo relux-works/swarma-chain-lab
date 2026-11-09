@@ -16,8 +16,9 @@ for a separate executor, not authorization for an external effect.
 New issuance uses the LIP-0005 v0.1.3 two-direct-push frame:
 `6a03534c014201<commitment32>01<grant_id32>` (72 bytes). Checking accepts this
 exact issuance/blob binding or the exact historical `6a20<commitment32>` form.
-Completed journals replay either complete original plan byte-for-byte, including
-its fee; fresh preparation uses only the frame. See the v3 profile below for
+Completed regtest journals replay either complete original plan byte-for-byte,
+including its fee; main journals require the frame, and fresh preparation uses
+only the frame. See the v3 profile below for
 strict rejection rules and the reusable `oplocator` package's location types.
 
 V3 signatures use Grant.SigningHash() with the fixed swarma-grant-v3 prefix;
@@ -184,8 +185,11 @@ payments to the shared durable grant issuer, keeping Namecoin identity/seal/
 funding on its explicit node and fee admission on the trusted per-coin map.
 Use separate `payment-observer` and `payment-issuer` RPC principals/secrets.
 `payment_admission` carries the fee coin and atom-denominated observation;
-`budget_sat` remains NMC execution authority. The legacy `IssueGrant` API and
-completed bare-plan replay remain available. See
+`budget_sat` remains NMC execution authority. Main issuance requires the V2
+payment route `IssueGrantWithNodes`; the legacy payment API `IssueGrant` remains
+regtest-only (`ISSUER_POLICY` at package admission on main). Completed bare-plan
+replay remains available only on regtest. Shared preflight checks funding facts;
+fresh issuance then checks the framed fee before any burn or signature. See
 [the v2 wire contract](../rental-booking/PAYMENT-V2.md). Run
 `GOWORK=off go test -race -count=1 ./...` for independent consumer and legacy
 regression tests. Frozen public input vectors are in `testdata/payment-v2/`.
@@ -200,3 +204,25 @@ P1_{BTC,LTC,NMC}_{DAEMON,CLI} and M1_CORE_{DAEMON,CLI} binary paths. Run
 Each run preserves private credentials/wallets/logs separately from public
 control/result/process metadata under its configured roots. Never publish the
 private subdirectories. Routine CI skips this opt-in genuine-node lane.
+
+The [MA1-03 route audit](MAIN-ISSUANCE-AUDIT.md) distinguishes main-admitted
+routes from frozen regtest adapters. `TestMainPublicGrantFundingAdmission` is
+an offline public-entry regression. `TestCoreMainPublicGrantV2` additionally
+prepares a signed main-labelled V2 grant and checks exact replay, using isolated
+regtest nodes with explicit chain/genesis reply projections and re-signed public
+terms. It does not contact mainnet or broadcast the resulting plan.
+`TestCoreMainLegacyPaymentRefusal` pairs the V1 main refusal with regtest success.
+Run each test in a separate invocation with a new absolute `M1_RUN_ROOT`:
+
+```sh
+# Set M1_REGTEST=1, M1_CORE_DAEMON and M1_CORE_CLI as for the other Core tests.
+# For V2 also set P1_REGTEST=1, a fresh P1_RUN_ROOT, P1_NMC_DAEMON/P1_NMC_CLI.
+go test -race -count=1 -run '^TestCoreMainPublicGrantV2$' -v -timeout 5m .
+# Use another fresh M1_RUN_ROOT for this separate legacy boundary control.
+go test -race -count=1 -run '^TestCoreMainLegacyPaymentRefusal$' -v -timeout 5m .
+```
+
+Public results go under each configured root's `public/`; private fixture
+wallets and journals must not be exported. L5 controls include a mutation that
+restores unconditional bare preflight; the public-entry regression must detect
+it. The historical binary replay control separately preserves old regtest bytes.

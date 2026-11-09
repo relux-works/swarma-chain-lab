@@ -1,8 +1,12 @@
 # Remaining integration decisions
 
-- This laboratory is regtest-only. Production custody, deployment, signing
-  caps, funding reservations, payment sweeping, revocation broadcast and
-  availability remain separate work. An unsigned plan is not spending approval.
+- V3 grant verification and the V2 payment issuer admit explicitly pinned NMC
+  main and regtest. The legacy payment API `IssueGrant` stays regtest-only;
+  main uses `IssueGrantWithNodes`. The MA1-03 main issuance witness uses explicit
+  public reply projections over disposable regtest nodes, not mainnet consensus
+  or real custody. Production deployment and spending authorization remain
+  separate from this library; an unsigned plan is not spending approval. See
+  [the main route audit](MAIN-ISSUANCE-AUDIT.md) for admitted and refused paths.
 - Gateway/wallet adoption must migrate to the v3 policy and presentation wire,
   stable signed-grant ID, new receipt fields, authenticated inner sender and
   fresh Check for every action. Keeping the Go call shape does not migrate data.
