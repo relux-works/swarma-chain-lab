@@ -132,3 +132,15 @@ rental-booking and rental. The genuine-node TestCorePaymentLifecycle entrypoint,
 pinned binary inputs, private/public output separation and supported replacement
 limits are documented in the rental and payment-chain READMEs. Existing v1 CLI
 entrypoints and frozen wire regressions remain available; v2 is a library API.
+
+### SG1 landlord signer service
+
+[`experiments/signer-service`](experiments/signer-service/README.md) adds the
+regtest-only landlord custody loop: immutable outbox pull, genuine K1/P1 grant
+issuance and L5 commitment broadcast, sticky/operator seal revocation and
+funding-only pool refill. It persists reservations, caps, signed transaction
+bytes and S1 upload receipts; uncertain signing refuses recovery by re-signing.
+The module README documents private configuration, Go CLI/build/test commands,
+three-chain Core fixtures and guard controls. Local evidence belongs under
+`.temp/` or an explicitly configured isolated run root; no mainnet/deployment
+or executor authority is included. CI runs Go vet/race/build and non-Core guards.
