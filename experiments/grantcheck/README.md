@@ -77,6 +77,6 @@ never queue a live verdict as a reusable permission token.
 - `gofmt -l *.go .scripts/*.go` and `git diff --check` check formatting.
 
 This checkout uses in-tree replaces for the existing experimental modules.
-Tagged external publication is an orchestrator-owned release prerequisite in
+Tagged external publication is a release prerequisite owned by the maintainers in
 [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md); in-tree success alone does not
 prove a remote consumer can resolve the complete transitive module graph.

@@ -1,7 +1,7 @@
 # CG1: grant verification boundary for Courier
 
 Status: implementation baseline with integration-owner corrections. This note
-defines the Go library contract for the a2a-source owner; it does not claim Courier
+defines the Go library contract for the a2a maintainers; it does not claim Courier
 hooks are already installed. Base: chain-lab `c7dd20fa33c0d8827c73c4c847e3d60cbeb1e4c6`.
 The module is `experiments/grantcheck`: a verifier and routing decision, with no
 mailbox, transport send, messaging key, booking, exchange text or model capability.
@@ -25,8 +25,8 @@ Separate engine identities require separate private state roots. Binding these
 roots to the authenticated station is Courier's responsibility, tested at its
 integration boundary; a string passed by an untrusted station is not proof.
 
-Courier/a2a-source owns insertion of the following calls after C2+C3 and C4'/C5
-settle the per-identity engine boundary. CG1 changes no a2a-swarm source:
+The a2a maintainers own insertion of the following calls once Courier's
+per-identity engine boundary settles. CG1 changes no a2a-swarm source:
 
 | Direction | Call point | Only a live verdict permits |
 | --- | --- | --- |
@@ -282,7 +282,7 @@ Required controls, each with valid neighbours:
    route inbound to the separate exchange; malformed/foreign/read failures and
    pending identity transitions refuse. Outbound never routes to exchange.
 2. Accepted per-identity constructor + no identity selector on calls fits the
-   evolving Courier engine seam. Exact a2a method/type names remain a2a-source's.
+   evolving Courier engine seam. The a2a maintainers own exact a2a method/type names.
 3. In v1 Courier does not use S1 at all; it accepts only a full grant-cert.
    Any future resolver remains outside CG1. Failed explicit lookup must not
    be passed as nil/absence.
@@ -292,7 +292,7 @@ constraint was corrected after verifying that the landed K1/kernelbind graph
 requires Go 1.26: CG1 and the a2a-link fork use Go 1.26; upstream remains on
 Go 1.25.x and never imports chain-lab. Existing dependency directives remain
 unchanged. The fork's CI must run upstream's complete suite and transport
-conformance on Go 1.26; that integration work belongs to a2a-source.
+conformance on Go 1.26; that integration work belongs to the a2a maintainers.
 Module publication prerequisites are recorded in UNRESOLVED_QUESTIONS.md.
 E1 is not a dependency.
 

@@ -22,7 +22,7 @@ Evidence is retained in the task's `.temp/CG1-01/compat/` logs. The initial
 repository-root probe was a module-selection error and is not compatibility
 evidence; the direct kernelbind probe establishes the version refusal.
 
-Source resolved this by setting the a2a-link fork and CG1 to Go 1.26. Upstream
+The a2a maintainers resolved this by setting the a2a-link fork and CG1 to Go 1.26. Upstream
 a2a stays on Go 1.25.x and never imports chain-lab. No dependency migration,
 kernel duplication or toolchain workaround is needed. The early standalone
 routing test on Go 1.25 is not a compatibility claim for the complete checker.
@@ -33,4 +33,4 @@ Publication must also make the complete transitive module graph resolvable by an
 external consumer. In-tree relative replaces are not inherited by consumers;
 tagged versions and their repository/module-path resolution need validation
 before claiming that a2a-link can import CG1. No producer push/tag publication is
-authorized by this task. The orchestrator owns review and release coordination.
+authorized by this task. The maintainers own review and release coordination.
