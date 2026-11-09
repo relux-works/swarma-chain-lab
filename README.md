@@ -84,3 +84,14 @@ budget payments and separate Track B admin/claim sockets. It requires pinned M1
 `go test -race ./...`, `go vet ./...` and
 `go build -trimpath -o ../../.temp/rental-executor ./cmd/rental-executor`.
 See its README for exact Core/control environment and private/public artifacts.
+
+## Agent wallet and Curator skill draft
+
+[Agent wallet](experiments/agent-wallet/README.md) is the W1 regtest CLI for
+balance/receive/history, K1-authorized payments, fee-inclusive separate rental
+budgets, two-stage name registration and independent W3 single-use authority.
+From `experiments/agent-wallet`, run `go test -race ./...`, `go vet ./...` and
+`go build -trimpath -o ../../.temp/agent-wallet ./cmd/agent-wallet`.
+Its README lists exact Core/guard controls, bounded RPC routes and private/public
+artifact separation. The [skill draft](skills/namecoin-wallet/SKILL.md) requires
+Curator deployment to pin paths; it makes no sandbox or custody guarantee.

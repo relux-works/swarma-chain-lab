@@ -1,0 +1,227 @@
+[
+  {
+    "Name": "request-signature",
+    "File": "wire.go",
+    "Old": "if pe != nil || se != nil || !sig.Verify(id, pk) {",
+    "New": "if false && (pe != nil || se != nil || !sig.Verify(id, pk)) {",
+    "Selector": "TestEventControls/signature",
+    "Marker": "want REQUEST_SIGNATURE",
+    "Core": false
+  },
+  {
+    "Name": "request-id",
+    "File": "wire.go",
+    "Old": "if e.ID != e.Digest() {",
+    "New": "if false && e.ID != e.Digest() {",
+    "Selector": "TestEventControls/id",
+    "Marker": "want REQUEST_ID",
+    "Core": false
+  },
+  {
+    "Name": "request-fee",
+    "File": "wire.go",
+    "Old": "r.FeeLimit < 1 || r.FeeLimit > MaxFee",
+    "New": "false",
+    "Selector": "TestRequestControls/fee-zero",
+    "Marker": "want REQUEST_FIELDS",
+    "Core": false
+  },
+  {
+    "Name": "request-grantee",
+    "File": "grant.go",
+    "Old": "if r.GrantID != g.ID || s.Event.Pubkey != g.Grantee {",
+    "New": "if false && (r.GrantID != g.ID || s.Event.Pubkey != g.Grantee) {",
+    "Selector": "TestCoreWalletControls/other-grantee",
+    "Marker": "want REQUEST_GRANTEE_BINDING",
+    "Core": true
+  },
+  {
+    "Name": "scope",
+    "File": "grant.go",
+    "Old": "if !slices.Contains(g.Scope, r.Action) {",
+    "New": "if false && !slices.Contains(g.Scope, r.Action) {",
+    "Selector": "TestRequestBinding",
+    "Marker": "want GRANT_SCOPE",
+    "Core": false
+  },
+  {
+    "Name": "recipient",
+    "File": "grant.go",
+    "Old": "if !slices.Contains(t.Recipients, r.Address) {",
+    "New": "if false && !slices.Contains(t.Recipients, r.Address) {",
+    "Selector": "TestRequestBinding",
+    "Marker": "want ADDRESS_NOT_ALLOWED",
+    "Core": false
+  },
+  {
+    "Name": "total-budget",
+    "File": "wallet.go",
+    "Old": "if cost < 1 || cost > g.Budget || spend > g.Budget-names || cost > g.Budget-spend-names {",
+    "New": "if false && (cost < 1 || cost > g.Budget || spend > g.Budget-names || cost > g.Budget-spend-names) {",
+    "Selector": "TestBudgetAccounting",
+    "Marker": "total cap bypass",
+    "Core": false
+  },
+  {
+    "Name": "spend-budget",
+    "File": "wallet.go",
+    "Old": "if spend > t.SpendCap || cost > t.SpendCap-spend {",
+    "New": "if false && (spend > t.SpendCap || cost > t.SpendCap-spend) {",
+    "Selector": "TestBudgetAccounting",
+    "Marker": "spend cap bypass",
+    "Core": false
+  },
+  {
+    "Name": "name-count",
+    "File": "wallet.go",
+    "Old": "count >= t.NameCount ||",
+    "New": "false && count >= t.NameCount ||",
+    "Selector": "TestBudgetAccounting",
+    "Marker": "name count bypass",
+    "Core": false
+  },
+  {
+    "Name": "rpc-method",
+    "File": "rpc.go",
+    "Old": "if !n.methods[method] {",
+    "New": "if false && !n.methods[method] {",
+    "Selector": "TestWalletRPCBoundary",
+    "Marker": "bypassed allowlist",
+    "Core": false
+  },
+  {
+    "Name": "plan-target",
+    "File": "plan.go",
+    "Old": "if fundedTx.TxOut[0].Value != value || !bytes.Equal(fundedTx.TxOut[0].PkScript, target) {",
+    "New": "if false && (fundedTx.TxOut[0].Value != value || !bytes.Equal(fundedTx.TxOut[0].PkScript, target)) {",
+    "Selector": "TestCorePlanControls/target",
+    "Marker": "want PLAN_TARGET",
+    "Core": true
+  },
+  {
+    "Name": "plan-change",
+    "File": "plan.go",
+    "Old": "!bytes.Equal(fundedTx.TxOut[1].PkScript, change)",
+    "New": "false",
+    "Selector": "TestCorePlanControls/change",
+    "Marker": "want PLAN_CHANGE",
+    "Core": true
+  },
+  {
+    "Name": "fee-quote",
+    "File": "plan.go",
+    "Old": "p.Fee != quoted",
+    "New": "false && p.Fee != quoted",
+    "Selector": "TestCorePlanControls/fee-quote",
+    "Marker": "want FEE_LIMIT",
+    "Core": true
+  },
+  {
+    "Name": "signed-plan",
+    "File": "plan.go",
+    "Old": "e != nil || !sameUnsigned(fundedTx, signedTx)",
+    "New": "e != nil || false && !sameUnsigned(fundedTx, signedTx)",
+    "Selector": "TestCorePlanControls/signed-output",
+    "Marker": "want SIGNED_PLAN_CHANGED",
+    "Core": true
+  },
+  {
+    "Name": "signed-input",
+    "File": "plan.go",
+    "Old": "if e != nil || vm.Execute() != nil {",
+    "New": "if false && (e != nil || vm.Execute() != nil) {",
+    "Selector": "TestCorePlanControls/signature",
+    "Marker": "want SIGNED_INPUT_INVALID",
+    "Core": true
+  },
+  {
+    "Name": "name-maturity",
+    "File": "wallet.go",
+    "Old": "if view.Confirmations < 12 {",
+    "New": "if view.Confirmations < 1 {",
+    "Selector": "TestCoreNameRegistration",
+    "Marker": "want pending/NAME_PENDING",
+    "Core": true
+  },
+  {
+    "Name": "live-kernel",
+    "File": "grant.go",
+    "Old": "if r.Verdict != \"live\" {",
+    "New": "if false && r.Verdict != \"live\" {",
+    "Selector": "TestCoreRevocation",
+    "Marker": "pending-revoke-name revoked",
+    "Core": true
+  },
+  {
+    "Name": "oneoff-binding",
+    "File": "grant.go",
+    "Old": "if r.Action != \"pay\" || r.Amount != g.Amount || r.Address != g.Recipient || r.FeeLimit > g.FeeLimit {",
+    "New": "if false && (r.Action != \"pay\" || r.Amount != g.Amount || r.Address != g.Recipient || r.FeeLimit > g.FeeLimit) {",
+    "Selector": "TestCoreOneoff",
+    "Marker": "oneoff-exact-amount want",
+    "Core": true
+  },
+  {
+    "Name": "oneoff-maturity",
+    "File": "single_use.go",
+    "Old": "if view.Confirmations < 1 {",
+    "New": "if false && view.Confirmations < 1 {",
+    "Selector": "TestCoreOneoff",
+    "Marker": "mempool-use want",
+    "Core": true
+  },
+  {
+    "Name": "oneoff-commitment",
+    "File": "single_use.go",
+    "Old": "if e = su.RequestCommitment(tx, request); e != nil {",
+    "New": "if e = su.RequestCommitment(tx, request); false && e != nil {",
+    "Selector": "TestCoreOneoff",
+    "Marker": "wrong-commitment want",
+    "Core": true
+  },
+  {
+    "Name": "oneoff-attribution",
+    "File": "single_use.go",
+    "Old": "if who != \"grantee\" {",
+    "New": "if false && who != \"grantee\" {",
+    "Selector": "TestCoreOneoff",
+    "Marker": "issuer-revoked want",
+    "Core": true
+  },
+  {
+    "Name": "rotation-terminal",
+    "File": "single_use.go",
+    "Old": "if state.Closed {",
+    "New": "if false && state.Closed {",
+    "Selector": "TestCoreOneoff",
+    "Marker": "rotation-rollback-reopen want",
+    "Core": true
+  },
+  {
+    "Name": "journal-before-effect",
+    "File": "wallet.go",
+    "Old": "if e = w.persist(); e != nil {\n\t\treturn refuse(e)\n\t}",
+    "New": "if false {\n\t\treturn refuse(fail(\"PLANT\"))\n\t}",
+    "Selector": "TestCoreWalletCrash",
+    "Marker": "reservation missing after exit73",
+    "Core": true
+  },
+  {
+    "Name": "seal-script-funding",
+    "File": "plan.go",
+    "Old": "if err != nil || hex.EncodeToString(c.Script) == issuerScript || hex.EncodeToString(c.Script) == w.config.Policy.SealScript {",
+    "New": "if false && (err != nil || hex.EncodeToString(c.Script) == issuerScript || hex.EncodeToString(c.Script) == w.config.Policy.SealScript) {",
+    "Selector": "TestCoreSealFunding/stray",
+    "Marker": "seal funding want PLAN_SEAL_SCRIPT_INPUT",
+    "Core": true
+  },
+  {
+    "Name": "oneoff-domain",
+    "File": "single_use.go",
+    "Old": "rental.VerifySignature(g.Issuer, OneoffDigest(g), env.Signature)",
+    "New": "(rental.VerifySignature(g.Issuer, OneoffDigest(g), env.Signature) || rental.VerifySignature(g.Issuer, Hash(canonical(g)), env.Signature))",
+    "Selector": "TestCoreOneoff",
+    "Marker": "oneoff-untagged want",
+    "Core": true
+  }
+]
