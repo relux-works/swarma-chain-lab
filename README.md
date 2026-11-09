@@ -8,6 +8,10 @@ service, grant format, wallet, consensus implementation or deployment.
 
 Experiments live in `experiments/<name>/`:
 
+- [Rental Nostr relay](experiments/relay/README.md): bounded durable gift-wrap,
+  consent and package transport, NIP-42, relay-side IP limits and deployment
+  templates; AUTH client integration remains a separate follow-up.
+
 - [Mutual full-node grants](experiments/fullnode-trusts/README.md): closed-regtest
   mutual grants and ownership-lineage controls, plus finite T1/T1b collector
   source pending independent review and separate runtime admission.

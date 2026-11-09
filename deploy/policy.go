@@ -116,8 +116,12 @@ func Validate(raw []byte) (Policy, error) {
 		if e != nil || u.Scheme != "ws" || !localEndpoint(u.Host) || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
 			return Policy{}, ErrPolicy
 		}
-	case "store":
-		if p.Listen != "127.0.0.1:8091" || p.Profile != "" || p.ProviderKey != "" || p.Route != "" || p.NodeCLI != "" || p.NodeCLISHA256 != "" || p.RPCConfig != "" || p.RPCClientDataDir != "" || p.RPCEndpoint != "" || p.Relay != "" {
+	case "store", "relay":
+		port := "127.0.0.1:8091"
+		if p.Service == "relay" {
+			port = "127.0.0.1:18818"
+		}
+		if p.Listen != port || p.Profile != "" || p.ProviderKey != "" || p.Route != "" || p.NodeCLI != "" || p.NodeCLISHA256 != "" || p.RPCConfig != "" || p.RPCClientDataDir != "" || p.RPCEndpoint != "" || p.Relay != "" {
 			return Policy{}, ErrPolicy
 		}
 	case "gateway":

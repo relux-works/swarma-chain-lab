@@ -1,0 +1,34 @@
+[Unit]
+Description=Swarma bounded rental Nostr relay
+After=network.target
+
+[Service]
+Type=simple
+User=swarma-relay
+Group=swarma-relay
+UMask=0077
+WorkingDirectory=/var/lib/swarma-relay
+ExecStart=/opt/swarma/relay/@VERSION@/bin/swarma-relay -config /etc/swarma/relay/service.json -listen 127.0.0.1:18818
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32
+ReadWritePaths=/var/lib/swarma-relay
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

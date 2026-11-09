@@ -1,0 +1,46 @@
+name: Rental relay checks
+on:
+  pull_request:
+    paths: ['experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
+  push:
+    branches: [main]
+    paths: ['experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  GOWORK: 'off'
+jobs:
+  relay:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Fetch pinned dependencies
+        run: |
+          for module in relay station-lifecycle; do
+            go -C experiments/"$module" mod download
+            go -C experiments/"$module" mod verify
+          done
+      - name: Vet, race and guard controls
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          go -C experiments/relay vet ./...
+          go -C experiments/relay test -race -count=1 ./...
+          go -C experiments/relay run .scripts/guards.go -out .temp/guards
+          go -C experiments/station-lifecycle test -race -count=1 ./...
+          go -C experiments/station-lifecycle test -race -tags slotdfake -count=1 ./...
+          go -C experiments/station-lifecycle build -tags slotdfake ./cmd/station-manager

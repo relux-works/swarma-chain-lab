@@ -60,6 +60,7 @@ var releaseArtifacts = []Artifact{
 	{Service: "gateway", Module: "experiments/rental-gateway", Package: "./cmd/gateway", Binary: "bin/gateway", Status: "regtest-preparation", Screening: "off", Reason: "operator-pinned payload and remote manager required; host execution is a separate gate"},
 	{Service: "booking", Module: "experiments/rental-booking", Package: "./cmd/rental-booking", Binary: "bin/rental-booking", Status: "regtest-preparation"},
 	{Service: "store", Module: "experiments/grant-store", Package: "./cmd/grant-store", Binary: "bin/grant-store", Status: "regtest-preparation"},
+	{Service: "relay", Module: "experiments/relay", Package: "./cmd/swarma-relay", Binary: "bin/swarma-relay", Status: "regtest-preparation", Reason: "loopback behind explicit trusted reverse proxy; gift-wrap read AUTH awaits gateway client integration"},
 }
 
 type buildFunc func(context.Context, string, string, string, Artifact) ([]byte, error)
@@ -158,7 +159,6 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 	m := Manifest{Version: 1, Commit: in.Commit, GoVersion: GoVersion, GOOS: "linux", GOARCH: "amd64", CGOEnabled: "0", BuildFlags: []string{"-trimpath", "-buildvcs=false", "-mod=readonly"}, Artifacts: append([]Artifact(nil), releaseArtifacts...), Pending: []Artifact{
 		{Service: "signer", Status: "pending", Reason: "signer deployment integration not included in this kit"},
 		{Service: "courier", Status: "pending", Reason: "courier deployment integration not included in this kit"},
-		{Service: "nostr-transport", Status: "pending", Reason: "transport deployment integration not included in this kit"},
 	}}
 	stage := filepath.Join(work, "bundle")
 	if e = os.MkdirAll(filepath.Join(stage, "bin"), 0700); e != nil {

@@ -1,16 +1,16 @@
 # M5 deploy preparation (DK1)
 
 Go release tooling and public templates for regtest preparation. It builds
-gateway, rental-booking and grant-store from an exact clean HEAD twice, refuses
+gateway, rental-booking, grant-store and swarma-relay from an exact clean HEAD twice, refuses
 any byte difference, then emits an unsigned bundle with SHA256SUMS and a manifest.
 No source product changes, key creation, signing, installation or host deployment
 occur inside the tool. [SMOKE.md](SMOKE.md) is the separate Infra handoff plan.
 
 Gateway now wires the real kernel, E1 and remote station manager, with explicit
-screening off in its manifest row and native config. Gateway, booking and store
+screening off in its manifest row and native config. Gateway, booking, store and relay
 have systemd templates. The gateway still requires operator-pinned payload/TLS
-inputs and real Linux host acceptance; compilation is not deployment evidence. Signer,
-Courier/CG1 and Nostr transport are pending manifest rows with no guessed units.
+inputs and real Linux host acceptance; compilation is not deployment evidence.
+Signer and Courier/CG1 are pending manifest rows with no guessed units.
 
 ## Build contract
 
@@ -27,7 +27,7 @@ Two `git archive` extractions and separate build caches prevent a working-tree
 file or previous compiled output from standing in for the second build.
 Archive traversal/link entries refuse. Source cleanliness/HEAD are checked again
 before publication; existing output is preserved. The complete candidate is
-renamed into a new output directory only after all three binary pairs match.
+renamed into a new output directory only after all four binary pairs match.
 Temporary source/build trees are removed, including on refusal.
 
 Outputs: `bin/`, `templates/`, `README.md`, `SMOKE.md`, `manifest.json`,
@@ -43,7 +43,7 @@ embedded in the manifest. A successful build is not a deployment acceptance.
 injecting extra fields into native service config. It always refuses mainnet,
 unresolved placeholders, invalid/duplicate/unknown fields, wildcard listeners,
 foreign writable/credential paths and unpinned node CLI references. Complete
-gateway/booking/store regtest descriptors accept without opening referenced files.
+gateway/booking/store/relay regtest descriptors accept without opening referenced files.
 Gateway permits distinct literal unicast listener addresses and requires the
 manager driver and screening off. Its native `gateway validate -config` performs
 the full public schema/pin checks and rejects test mode without `-allow-test`.
@@ -58,6 +58,16 @@ values are sentinels to replace. See [SURVEY.md](SURVEY.md) for the landed nativ
 schemas and [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for deployment inputs.
 
 ## Tools and artifacts
+
+The relay templates are in `templates/relay/` and `templates/systemd/`.
+Caddy must overwrite `X-Real-IP` with the direct client's address; the relay
+trusts only its configured proxy peer. Direct local services without that header
+share the loopback budget. Run `bin/swarma-relay -config
+"$STAGING/relay/service.json" -check` as one command after substituting the public
+URL. The initial compatibility profile leaves AUTH restrictions and outer PoW
+off; E1 still checks inner work. Recipient privacy requires the pending gateway
+AUTH adapter before enabling restricted gift-wrap reads. See the
+[relay contract](../experiments/relay/README.md).
 
 - From `deploy/`: `go test -race ./...`, `go vet ./...`,
   `go build -trimpath -o ../.temp/deploy-kit ./cmd/deploy-kit`, and

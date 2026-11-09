@@ -159,6 +159,21 @@ this repository supplies no installation or sudo command.
 
 ## Evidence limits
 
+An explicit Darwin rehearsal build can use
+`go build -tags slotdfake -o .temp/station-manager-fake ./cmd/station-manager`.
+`go test -race -tags slotdfake ./...` drives the real manager poll loop through
+mTLS and the unchanged r4 stream codec into a fixture Unix helper. The socket
+must be owned by the caller, mode 0600 in a 0700 directory. A private regular
+file at `SOCKET.clock` supplies the canonical fixture `CreateFence`, for example
+`{"boot_id":"0f8e1c3a-6b2d-4e7f-9a1b-2c3d4e5f6a7b","issued_boottime_ns":"10000000000"}`.
+The harness owns clock advancement; no wall-clock substitute is inferred.
+`slotd.NewFakeClient` is exported only under `darwin && slotdfake`; untagged
+Darwin keeps the Linux-only refusal, and Linux always uses the production
+root-peer client and boot clock even with this tag. `TestFakeBuildBoundary`
+checks actual Go source selection, with the tagged Darwin positive control.
+There is no runtime fake flag or environment switch. Fake artifacts are local
+test outputs, excluded from the release builder.
+
 Tests exercise fake host/helper state, the actual r4 stream codec, actual loopback
 TLS, durable recovery and the gateway adapter with a stub kernel. Linux cross-build
 checks compile compatibility only. They do not prove Linux user/systemd/nftables

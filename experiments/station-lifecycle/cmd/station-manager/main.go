@@ -18,7 +18,6 @@ import (
 	"time"
 
 	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
-	"relux.works/swarma-chain-lab/experiments/station-lifecycle/slotd"
 )
 
 type config struct {
@@ -148,11 +147,11 @@ func run(ctx context.Context, args []string) error {
 	if args[0] == "check-config" {
 		return nil
 	}
-	helper, e := slotd.NewUnixClient(c.Socket)
+	host, e := newHost(c)
 	if e != nil {
 		return e
 	}
-	m, e := lifecycle.New(lifecycle.Config{StateDir: c.StateDir, Range: lifecycle.Range{First: c.SlotMin, Last: c.SlotMax}, Payload: lifecycle.Payload{ID: c.PayloadID, SHA256: c.PayloadSHA256}, Host: &slotd.Host{Client: helper, Now: time.Now, BootClock: slotd.SystemBootClock}, Now: time.Now})
+	m, e := lifecycle.New(lifecycle.Config{StateDir: c.StateDir, Range: lifecycle.Range{First: c.SlotMin, Last: c.SlotMax}, Payload: lifecycle.Payload{ID: c.PayloadID, SHA256: c.PayloadSHA256}, Host: host, Now: time.Now})
 	if e != nil {
 		return e
 	}

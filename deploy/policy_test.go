@@ -27,6 +27,9 @@ func validPolicy(service string) Policy {
 		p.Screening = "off"
 		p.StationDriver = "manager"
 	}
+	if service == "relay" {
+		p.Listen = "127.0.0.1:18818"
+	}
 	return p
 }
 func encoded(t *testing.T, v any) []byte {
@@ -42,7 +45,7 @@ func encoded(t *testing.T, v any) []byte {
 // files. Mainnet, unresolved values, wrong routes and foreign writable roots
 // reject with fixed error classes beside those valid neighbours.
 func TestPolicy(t *testing.T) {
-	for _, service := range []string{"booking", "store", "gateway"} {
+	for _, service := range []string{"booking", "store", "gateway", "relay"} {
 		t.Run(service, func(t *testing.T) {
 			p := validPolicy(service)
 			if got, e := Validate(encoded(t, p)); e != nil || got != p {
@@ -114,7 +117,7 @@ func TestPolicyFraming(t *testing.T) {
 // Shipped templates stay inert until their public pins are supplied. There is
 // all supported units retain the requested hardening and contain no secrets.
 func TestTemplates(t *testing.T) {
-	for _, service := range []string{"booking", "store", "gateway"} {
+	for _, service := range []string{"booking", "store", "gateway", "relay"} {
 		raw, e := os.ReadFile("templates/" + service + "/deploy.json")
 		if e != nil {
 			t.Fatal(e)

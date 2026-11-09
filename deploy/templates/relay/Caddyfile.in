@@ -1,0 +1,7 @@
+# Direct client-facing TLS proxy. Overwrite the untrusted header; do not append.
+# If another proxy is added in front, define its trust boundary separately.
+PLACEHOLDER_RELAY_DOMAIN {
+    reverse_proxy 127.0.0.1:18818 {
+        header_up X-Real-IP {remote_host}
+    }
+}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "network": "regtest",
+  "service": "relay",
+  "release_version": "PLACEHOLDER_RELEASE_VERSION",
+  "commit": "PLACEHOLDER_FULL_COMMIT",
+  "binary_sha256": "PLACEHOLDER_BINARY_SHA256",
+  "state_dir": "/var/lib/swarma-relay",
+  "listen": "127.0.0.1:18818",
+  "config": "/etc/swarma/relay/service.json"
+}
