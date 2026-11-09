@@ -197,8 +197,9 @@ checks private inputs and TLS pins. Match the manager's range and payload policy
 payloads need their operator-pinned gateway address, trust roots and leaf hash,
 then the private v1 bootstrap for stationlink HMAC. No scripted test payload is
 an approved rented-agent runtime. The manager/helper host is provisioned and
-accepted separately; this kit does not install it. The r2 binding keeps unknown
-cleanup pending instead of reporting success. Verify real remote start, expiry,
+accepted separately; this kit does not install it. Verify the helper implements
+the exact r4 boot_id/CLOCK_BOOTTIME freshness fence. Unknown cleanup stays
+pending until the stored binding or a valid fenced absence proves it. Verify real remote start, expiry,
 restart and cleanup against the host before claiming operational acceptance.
 
 This smoke establishes installed identity/hashes, regtest read route, process

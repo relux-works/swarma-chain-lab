@@ -22,9 +22,10 @@ Resolved boundaries:
 
 Remaining dependencies:
 
-1. The integrated signed `station-lifecycle/gatewaybind` adapter uses r2 safe
-   pending cleanup. A later helper CLOCK_BOOTTIME/boot_id freshness fence needs
-   its own versioned binding and validation; no r3/r4 compatibility is claimed.
+1. The integrated signed `station-lifecycle/gatewaybind` adapter uses the r4
+   CLOCK_BOOTTIME/boot_id freshness fence. The real Linux helper must implement
+   that exact contract; compilation/fake-helper tests do not prove host
+   interoperability. Legacy r2 attempts without a fence stay conservative.
 2. Host owners supply gateway/manager TLS material and pins, root-helper policy,
    executable payload, private RPC route, booking service, relay and public
    presentation transfer. No host provisioning is implied by this repository.

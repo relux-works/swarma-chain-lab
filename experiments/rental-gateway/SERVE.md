@@ -94,9 +94,12 @@ lock. Remote shutdown leaves durable reconciliation to the manager/helper; it
 does not claim that closing a socket destroyed a station.
 
 After restart, the adapter's Recoverer restores opaque handles for End/Destroy.
-The r2 helper boundary deliberately keeps uncertain cleanup pending: absent is
-clean only before any Start attempt; later cleanup needs the same binding's
-destroyed record. No wall-clock freshness workaround or r3/r4 support is implied.
+The r4 helper boundary persists boot_id/CLOCK_BOOTTIME before Create. Absence
+after an uncertain attempt proves cleanup only when its status probe begins
+after the saved boot-time fence (+6s), or a verified boot change invalidates the
+request. Busy, clock failures and foreign bindings remain pending. Legacy r2
+attempts without a stored fence still require this binding's destroyed record.
+No wall-clock freshness fallback is used; real r4 helper acceptance is a host gate.
 
 ## Tools and evidence
 

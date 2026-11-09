@@ -6,8 +6,9 @@ GW1 resolves the original stub-wiring blocker with real v3 kernel/E1 constructor
 remote station-lifecycle gatewaybind, explicit screening off and gateway templates.
 The operator still must choose/provision the real pinned payload and manager,
 TLS chains/leaf pins, observer route, public presentation transfer and approved
-station-host CIDR. The r2 helper binding retains uncertain cleanup as pending;
-newer protocol revisions need separate integration. Never enable the test driver
+station-host CIDR. The r4 helper binding uses persisted boot-time freshness for
+uncertain Create reconciliation; legacy no-fence attempts stay pending. Real
+helper compatibility still requires host acceptance. Never enable the test driver
 or stub kernel/screener as a production grant enforcer.
 
 ## Linux unit validation environment
