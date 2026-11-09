@@ -186,7 +186,7 @@ belongs in `.temp/`. No host deployment is performed by these commands.
 ## Per-slot model proxy tools
 
 [Model proxy](experiments/model-proxy/README.md) adds an independent, bounded
-text Messages proxy with private per-slot bearers, conservative durable caps,
+text Messages and optional function-tool Responses profiles with private per-slot bearers, conservative durable caps,
 SSE usage accounting and Linux peer-checked local administration. The optional
 station-lifecycle/gatewaybind registrar prepares bootstrap v2, activates before
 Start and revokes independently of Stop. Runtime and deployment remain external

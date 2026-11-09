@@ -23,6 +23,10 @@ func (s *Service) audit(id string, status int, code string, u Usage) {
 	}
 }
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, "/responses") {
+		s.serveResponses(w, r)
+		return
+	}
 	id := ""
 	reject := func(status int, code string) { refusal(w, status, code); s.audit(id, status, code, Usage{}) }
 	if r.Method != "POST" || r.URL.RawQuery != "" || r.URL.RawPath != "" || r.URL.Fragment != "" {
@@ -60,6 +64,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p, e := s.cfg.Dialect.Parse(raw)
 	if e != nil {
 		reject(400, "REQUEST")
+		return
+	}
+	if _, responses := s.cfg.ModelProfiles[p.Model]; responses {
+		reject(400, "PROFILE")
 		return
 	}
 	call, cancel, e := s.reserve(r.Context(), id, bearer, p)

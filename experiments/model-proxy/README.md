@@ -1,6 +1,6 @@
 # Minimal per-slot model proxy
 
-This module provides a bounded text-only Messages proxy for an approved rental
+This module provides bounded Messages and function-tool Responses profiles for an approved rental
 slot. It owns the upstream API key; the slot gets only a random, revocable
 bearer through its private bootstrap. It is independent of the rental gateway,
 Nostr, the station manager and the eventual rented-agent runtime.
@@ -37,6 +37,13 @@ Public ingress accepts only POST on the bound slot route and exactly one Bearer
 Authorization header. Unknown, other-route, prepared, expired, revoked and
 clock-invalid credentials refuse before generation. A stolen bearer remains
 transferable authority; a route check is not workload attestation.
+
+The optional OpenAI Responses profile uses the same bootstrap origin and bearer
+at `/slots/<booking_id>/v1/responses`. Its model ID must have an explicit
+`model_profiles` entry. Models without one retain Messages, and neither route
+can select a model assigned to the other profile. There is no models-discovery
+GET route. See [RESPONSES-PROFILE.md](RESPONSES-PROFILE.md) for the accepted wire
+subset, primary sources and the separate coding-harness qualification boundary.
 
 ## Reservation and accounting
 
@@ -107,6 +114,38 @@ redact formatting, while JSON encoding is used only on explicit private paths.
 
 ## Linux administration and configuration
 
+An optional final `model_profiles` field maps exact existing model IDs to
+`{"profile":"openai-responses-functions-default-v1","upstream":"https://api.openai.com/v1/responses"}`.
+Both fields are required; only this qualified profile is accepted. Each endpoint
+is pinned HTTPS without user info, query or fragment, ending in /v1/responses.
+The configured API credential must belong to every selected endpoint: use a
+separate service/state/credential for another provider account. No client header
+or request field can select that endpoint or credential.
+
+The legacy top-level `upstream` field remains required. In an all-Responses
+configuration it must be a Responses URL; generation selects the per-model
+endpoint. If any model remains Messages, the deploy validator still requires
+the Messages path for that top-level endpoint.
+
+Prices/context bounds remain in the existing `models` table. Profile settings
+are copied at construction and included in the durable configuration fingerprint.
+An omitted profile map preserves the old file and fingerprint bytes. Changing
+profiles after records exist is refused as fingerprint drift; do not delete
+state to force an upgrade. A real migration needs a separate plan preserving
+bearers and exposure. Messages implementations and regression fixtures are
+unchanged.
+
+Responses accepts at most 2 MiB requests, 256 KiB SSE frames and 8 MiB total
+replies. Text/refusal messages and declared function calls are validated against
+their item/content lifecycles. Final success is withheld until clean EOF and
+durable settlement; post-terminal frames, missing completion, unsupported
+reasoning/hosted-tool events, incomplete responses and invalid usage retain the
+full reservation. This profile injects store=false, background=false and
+service_tier=default. Cached input is charged at the full pinned input price;
+reasoning detail counters are included in output totals, not added twice.
+Reported usage above the reservation freezes before terminal release. It cannot
+prevent an upstream provider from violating its promised billing bounds.
+
 `Client` implements Prepare/Activate/Revoke over a local Unix socket. The server
 checks Linux SO_PEERCRED against one pinned caller UID; the client checks the
 socket and connected proxy UID. Parent directory must be proxy-owned 0750,
@@ -155,7 +194,7 @@ with injected registration transport and host. Real payload TLS and host effects
 are separate qualification gates.
 
 `.scripts/guards.go` copies only writable fixture modules under `.temp/`, runs
-positive baselines, then 17 representative guard mutations. It records commands,
+positive baselines, then MP1 and MP2 guard mutations. It records commands,
 owned PIDs, source hashes, exits and exact assertion witnesses in its evidence
 directory. Compile errors, unmatched mutations, panics and unrelated failures
 do not count as detections. `.github/workflows/model-proxy.yml` defines Linux

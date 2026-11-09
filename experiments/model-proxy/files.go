@@ -40,16 +40,17 @@ func ReadPrivateFile(path string, mode os.FileMode, limit int64) ([]byte, error)
 }
 
 type FileConfig struct {
-	StateDir    string           `json:"state_dir"`
-	Listen      string           `json:"listen"`
-	Endpoint    Endpoint         `json:"endpoint"`
-	TLSCert     string           `json:"tls_cert"`
-	TLSKey      string           `json:"tls_key"`
-	AdminSocket string           `json:"admin_socket"`
-	CallerUID   uint32           `json:"caller_uid"`
-	Upstream    string           `json:"upstream"`
-	APIKeyFile  string           `json:"api_key_file"`
-	Models      map[string]Model `json:"models"`
+	StateDir      string                  `json:"state_dir"`
+	Listen        string                  `json:"listen"`
+	Endpoint      Endpoint                `json:"endpoint"`
+	TLSCert       string                  `json:"tls_cert"`
+	TLSKey        string                  `json:"tls_key"`
+	AdminSocket   string                  `json:"admin_socket"`
+	CallerUID     uint32                  `json:"caller_uid"`
+	Upstream      string                  `json:"upstream"`
+	APIKeyFile    string                  `json:"api_key_file"`
+	Models        map[string]Model        `json:"models"`
+	ModelProfiles map[string]ModelProfile `json:"model_profiles,omitempty"`
 }
 
 func LoadConfig(path string) (FileConfig, error) {

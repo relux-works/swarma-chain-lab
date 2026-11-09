@@ -103,6 +103,10 @@ func main() {
 	must(e)
 	defer os.RemoveAll(scratch)
 	plants := []plant{
+		{"model_upstream_pair", "services.go", "upstreamValid = modelResponsesURL(c.Upstream)", "upstreamValid = true", ".", "^TestModelResponsesProfiles$/^mismatch$", "Responses public config guard missing"},
+		{"model_profile", "services.go", "p.Profile != \"openai-responses-functions-default-v1\"", "false", ".", "^TestModelResponsesProfiles$/^profile$", "Responses public config guard missing"},
+		{"model_profile_id", "services.go", "!exists || p.Profile", "(false && !exists) || p.Profile", ".", "^TestModelResponsesProfiles$/^model$", "Responses public config guard missing"},
+		{"model_profile_endpoint", "services.go", "!modelResponsesURL(p.Upstream)", "false", ".", "^TestModelResponsesProfiles$/^http$", "Responses public config guard missing"},
 		{"coin_version", "coins.go", "g.Exchange.Version != 2", "false", ".", "^TestPaymentCoinProvisioning$", "coin mismatch accepted"},
 		{"issuer_budget", "issuer_config.go", "caps.BudgetDay < caps.BudgetHour", "false", ".", "^TestIssuerConfigBoundaries$/^partial-caps$", "issuer guard missing"},
 		{"model_key", "services.go", `c.TLSKey != "/etc/swarma/model/tls.key"`, "false", ".", "^TestModelConfigBoundaries$/^tls-key$", "model guard missing"},

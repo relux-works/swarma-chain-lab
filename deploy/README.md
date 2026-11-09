@@ -16,6 +16,14 @@ has only a documented root-policy requirements table for Infra. Courier/CG1
 remains a pending manifest row. [SMOKE-DK2.md](SMOKE-DK2.md) gives the new services'
 install order and explicit external transport/host qualification gates.
 
+The model config validator also accepts the optional per-model
+`openai-responses-functions-default-v1` profile and its pinned HTTPS
+`/v1/responses` endpoint. Unknown profiles, unknown model IDs and unpinned
+endpoints refuse. With all models explicitly profiled, the required top-level
+`upstream` must use the Responses path. Legacy Messages config bytes remain
+unchanged. See the [Responses profile](../experiments/model-proxy/RESPONSES-PROFILE.md)
+for the wire subset and separate harness/TLS qualification requirements.
+
 ## Build contract
 
 Use Go1.26.8 and pre-download the landed modules' dependencies into the local

@@ -74,11 +74,20 @@ func New(c Config) (*Service, error) {
 	if c.Dialect == nil {
 		c.Dialect = Messages{}
 	}
+	profiles, e := validateProfiles(c)
+	if e != nil {
+		return nil, e
+	}
+	c.ModelProfiles = profiles
+	fingerprint := []any{c.Endpoint, c.Upstream, c.Models, c.Dialect.Profile()}
+	if len(profiles) != 0 {
+		fingerprint = append(fingerprint, profiles)
+	}
 	d, e := durable.Open(c.StateDir, "proxy.lock")
 	if e != nil {
 		return nil, fail("STATE_OPEN")
 	}
-	s := &Service{cfg: c, disk: d, cancel: map[string]context.CancelFunc{}, state: ledger{Version: 1, Config: sum(canonical([]any{c.Endpoint, c.Upstream, c.Models, c.Dialect.Profile()})), Records: map[string]record{}}}
+	s := &Service{cfg: c, disk: d, cancel: map[string]context.CancelFunc{}, state: ledger{Version: 1, Config: sum(canonical(fingerprint)), Records: map[string]record{}}}
 	raw, e := d.Read("registry.json", MaxBody)
 	if e != nil {
 		d.Close()

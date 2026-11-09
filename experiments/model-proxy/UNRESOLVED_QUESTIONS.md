@@ -1,9 +1,14 @@
 # Deployment decisions and qualification limits
 
-- The slot's real agent runtime and its compatibility with this deliberately
-  text-only API remain an owner decision. No shim pretending tool/image/MCP
-  support is included. Payload support for bootstrap v2 and normal TLS trust
-  plus leaf pin must land before optional lifecycle integration is enabled.
+- The OpenAI Responses profile supports a bounded stateless text/function-tool
+  subset. Actual Codex/Muse wire compatibility, reasoning items, provider models
+  discovery and bootstrap leaf-pin enforcement remain a separate integration
+  unit. The documented base URL/env configuration alone does not qualify a CLI.
+- A Meta Responses variant is deferred until sanitized protocol evidence is
+  available. Its reported post-completion subscription event, DONE marker and
+  non-v1 models route are not implemented or silently accepted by this profile.
+- Existing model-profile fingerprint changes require a deliberate state
+  migration. Never reset state to erase existing reservations or revive bearers.
 - The operator must choose exact model IDs, verified context-window bounds,
   standard/global integer prices and source notes. No production default model
   or price is selected. Guarantees depend on the provider honoring those pinned

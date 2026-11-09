@@ -139,6 +139,10 @@ type modelSpec struct {
 	OutputNanoUSD uint64 `json:"output_nano_usd"`
 	Source        string `json:"source"`
 }
+type modelProfileSpec struct {
+	Profile  string `json:"profile"`
+	Upstream string `json:"upstream"`
+}
 type modelConfig struct {
 	StateDir string `json:"state_dir"`
 	Listen   string `json:"listen"`
@@ -146,13 +150,19 @@ type modelConfig struct {
 		URL        string `json:"url"`
 		CertSHA256 string `json:"cert_sha256"`
 	} `json:"endpoint"`
-	TLSCert     string               `json:"tls_cert"`
-	TLSKey      string               `json:"tls_key"`
-	AdminSocket string               `json:"admin_socket"`
-	CallerUID   *uint32              `json:"caller_uid"`
-	Upstream    string               `json:"upstream"`
-	APIKeyFile  string               `json:"api_key_file"`
-	Models      map[string]modelSpec `json:"models"`
+	TLSCert       string                      `json:"tls_cert"`
+	TLSKey        string                      `json:"tls_key"`
+	AdminSocket   string                      `json:"admin_socket"`
+	CallerUID     *uint32                     `json:"caller_uid"`
+	Upstream      string                      `json:"upstream"`
+	APIKeyFile    string                      `json:"api_key_file"`
+	Models        map[string]modelSpec        `json:"models"`
+	ModelProfiles map[string]modelProfileSpec `json:"model_profiles,omitempty"`
+}
+
+func modelResponsesURL(raw string) bool {
+	u, e := url.Parse(raw)
+	return e == nil && strings.HasSuffix(u.Path, "/v1/responses") && tlsURL(raw, u.Path)
 }
 
 func validateModel(raw []byte, listen string) error {
@@ -160,7 +170,11 @@ func validateModel(raw []byte, listen string) error {
 	if e := serviceDecode(raw, &c, true); e != nil {
 		return e
 	}
-	if c.StateDir != "/var/lib/swarma-model" || c.Listen != listen || !stationEndpoint(c.Listen) || !tlsURL(c.Endpoint.URL, "") || !digestPin(c.Endpoint.CertSHA256) || c.TLSCert != "/etc/swarma/model/tls.pem" || c.TLSKey != "/etc/swarma/model/tls.key" || c.AdminSocket != "/run/swarma-model/admin.sock" || c.CallerUID == nil || *c.CallerUID == 0 || c.APIKeyFile != "/etc/swarma/model/api.key" || !tlsURL(c.Upstream, "/v1/messages") || len(c.Models) < 1 || len(c.Models) > 16 {
+	upstreamValid := tlsURL(c.Upstream, "/v1/messages")
+	if len(c.Models) > 0 && len(c.ModelProfiles) == len(c.Models) {
+		upstreamValid = modelResponsesURL(c.Upstream)
+	}
+	if c.StateDir != "/var/lib/swarma-model" || c.Listen != listen || !stationEndpoint(c.Listen) || !tlsURL(c.Endpoint.URL, "") || !digestPin(c.Endpoint.CertSHA256) || c.TLSCert != "/etc/swarma/model/tls.pem" || c.TLSKey != "/etc/swarma/model/tls.key" || c.AdminSocket != "/run/swarma-model/admin.sock" || c.CallerUID == nil || *c.CallerUID == 0 || c.APIKeyFile != "/etc/swarma/model/api.key" || !upstreamValid || len(c.Models) < 1 || len(c.Models) > 16 {
 		return ErrPolicy
 	}
 	_, port, _ := net.SplitHostPort(c.Listen)
@@ -177,6 +191,11 @@ func validateModel(raw []byte, listen string) error {
 		}
 		a, b := m.InputNanoUSD*m.ContextTokens, m.OutputNanoUSD*m.ContextTokens
 		if a > ^uint64(0)-b {
+			return ErrPolicy
+		}
+	}
+	for name, p := range c.ModelProfiles {
+		if _, exists := c.Models[name]; !exists || p.Profile != "openai-responses-functions-default-v1" || !modelResponsesURL(p.Upstream) {
 			return ErrPolicy
 		}
 	}

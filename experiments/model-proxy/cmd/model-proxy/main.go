@@ -75,7 +75,7 @@ func run() error {
 		return fmt.Errorf("LISTEN")
 	}
 	var mu sync.Mutex
-	s, e := proxy.New(proxy.Config{StateDir: c.StateDir, Endpoint: c.Endpoint, Upstream: c.Upstream, APIKey: proxy.Secret(key), Models: c.Models, Now: time.Now, Audit: func(a proxy.Audit) { mu.Lock(); defer mu.Unlock(); _ = json.NewEncoder(os.Stdout).Encode(a) }})
+	s, e := proxy.New(proxy.Config{StateDir: c.StateDir, Endpoint: c.Endpoint, Upstream: c.Upstream, APIKey: proxy.Secret(key), Models: c.Models, ModelProfiles: c.ModelProfiles, Now: time.Now, Audit: func(a proxy.Audit) { mu.Lock(); defer mu.Unlock(); _ = json.NewEncoder(os.Stdout).Encode(a) }})
 	if e != nil {
 		return e
 	}

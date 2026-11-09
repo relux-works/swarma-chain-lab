@@ -112,16 +112,17 @@ type Audit struct {
 	Usage      Usage
 }
 type Config struct {
-	StateDir  string
-	Endpoint  Endpoint
-	Upstream  string
-	APIKey    Secret
-	Models    map[string]Model
-	Now       func() time.Time
-	Timeout   time.Duration
-	Transport http.RoundTripper
-	Dialect   Dialect
-	Audit     func(Audit)
+	StateDir      string
+	Endpoint      Endpoint
+	Upstream      string
+	APIKey        Secret
+	Models        map[string]Model
+	ModelProfiles map[string]ModelProfile
+	Now           func() time.Time
+	Timeout       time.Duration
+	Transport     http.RoundTripper
+	Dialect       Dialect
+	Audit         func(Audit)
 }
 
 func validURL(raw string) bool {
