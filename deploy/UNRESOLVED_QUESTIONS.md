@@ -1,16 +1,14 @@
 # DK1 scope decisions
 
-## Gateway CLI is not an operational E1 service
+## Gateway runtime and host inputs
 
-At base5f148fb9, `cmd/gateway/serve.go` constructs a stub kernel (default live),
-stub screener and local-test station driver, with no E1/booking engine wiring.
-The request also forbids product code changes. A service template cannot make
-this executable into a real grant-checking exchange gateway.
-
-Resolved: package the existing binary as a non-startable reference, with manifest
-status blocked on real serve wiring. Supply no gateway unit. Booking/store units
-continue in DK1. Real v3 kernel/E1/station/screening wiring belongs to future GW1;
-its request follows separately. Never enable the stub as a real grant enforcer.
+GW1 resolves the original stub-wiring blocker with real v3 kernel/E1 constructors,
+remote station-lifecycle gatewaybind, explicit screening off and gateway templates.
+The operator still must choose/provision the real pinned payload and manager,
+TLS chains/leaf pins, observer route, public presentation transfer and approved
+station-host CIDR. The r2 helper binding retains uncertain cleanup as pending;
+newer protocol revisions need separate integration. Never enable the test driver
+or stub kernel/screener as a production grant enforcer.
 
 ## Linux unit validation environment
 

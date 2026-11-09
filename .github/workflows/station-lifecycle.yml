@@ -8,6 +8,10 @@ on:
     paths:
       - 'experiments/station-lifecycle/**'
       - 'experiments/rental-gateway/**'
+      - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
+      - 'deploy/templates/gateway/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/station-lifecycle.yml'
@@ -16,6 +20,10 @@ on:
     paths:
       - 'experiments/station-lifecycle/**'
       - 'experiments/rental-gateway/**'
+      - 'experiments/rental/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/payment-chain/**'
+      - 'deploy/templates/gateway/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/station-lifecycle.yml'

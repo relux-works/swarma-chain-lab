@@ -22,15 +22,16 @@ Resolved boundaries:
 
 Remaining dependencies:
 
-1. Integrate the signed `station-lifecycle/gatewaybind` adapter with its exact
-   numeric allocation-range contract. Its host helper protocol must expose
-   enough immutable binding and payload evidence; unsupported claims must refuse.
-2. Finish remote-mode config/listeners and deploy-kit gateway templates after
-   that adapter and deploy kit are available on the integration base. Until
-   then real manager startup refuses, and no deployable release is claimed.
-3. Host owners supply gateway/manager TLS material and pins, root-helper policy,
+1. The integrated signed `station-lifecycle/gatewaybind` adapter uses r2 safe
+   pending cleanup. A later helper CLOCK_BOOTTIME/boot_id freshness fence needs
+   its own versioned binding and validation; no r3/r4 compatibility is claimed.
+2. Host owners supply gateway/manager TLS material and pins, root-helper policy,
    executable payload, private RPC route, booking service, relay and public
    presentation transfer. No host provisioning is implied by this repository.
+3. A real rented-agent payload/runtime is still an external choice. Neither the
+   scripted local-test agent nor simulated manager reports are a production
+   payload. Gateway templates require an explicit payload label/hash and host
+   allowlist; there is no permissive default.
 
 Genuine-Core local CLI evidence is available under explicit test mode. Linux
 helper execution, systemd enforcement and deployment remain separately required

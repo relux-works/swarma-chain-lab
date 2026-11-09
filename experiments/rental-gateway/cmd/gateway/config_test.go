@@ -89,7 +89,7 @@ func TestConfigBoundary(t *testing.T) {
 		}, errMode},
 		{"regtest-stub-screen", func(c *serveConfig) { c.Mode = "regtest"; c.Station.Driver = "manager"; c.Screening = "stub" }, errMode},
 		{"regtest-stub-agent", func(c *serveConfig) { c.Mode = "regtest"; c.Station.Driver = "manager"; c.Station.StubAgent = true }, errMode},
-		{"manager-pending", func(c *serveConfig) { c.Mode = "regtest"; c.Station.Driver = "manager" }, errStation},
+		{"manager-missing", func(c *serveConfig) { c.Mode = "regtest"; c.Station.Driver = "manager" }, errConfig},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -157,5 +157,111 @@ func TestConfigFiles(t *testing.T) {
 		if _, _, e := configArgs(args, false); e == nil {
 			t.Fatal("legacy override accepted")
 		}
+	}
+}
+
+func remoteConfig(t *testing.T) serveConfig {
+	t.Helper()
+	c := testConfig(t)
+	c.Mode = "regtest"
+	c.StationSocket = ""
+	root := filepath.Dir(c.AgentKeyFile)
+	c.Station = stationConfig{Driver: "manager", Manager: &managerConfig{
+		StateDir: filepath.Join(root, "broker"), PayloadID: "rented-agent-v1", PayloadSHA256: strings.Repeat("3", 64), SlotMin: 1, SlotMax: 64, StartMilliseconds: 2000,
+		Listen: "127.0.0.1:9443", PayloadListen: "127.0.0.1:9444",
+		TLS: gatewayTLSConfig{CertFile: filepath.Join(root, "server.pem"), KeyFile: filepath.Join(root, "server.key"), ManagerCAFile: filepath.Join(root, "manager-ca.pem"), CertSHA256: strings.Repeat("4", 64), ManagerCertSHA256: strings.Repeat("5", 64)},
+	}}
+	return c
+}
+
+// A complete remote regtest config is deployment-valid; missing authority,
+// local-test knobs and invalid listener/range bounds refuse before any effects.
+func TestConfigRemote(t *testing.T) {
+	c := remoteConfig(t)
+	if e := c.validate(false); e != nil {
+		t.Fatal("valid remote config", e)
+	}
+	cases := []struct {
+		name   string
+		change func(*serveConfig)
+	}{
+		{"missing-manager", func(c *serveConfig) { c.Station.Manager = nil }},
+		{"local-root", func(c *serveConfig) { c.Station.Root = "/tmp/local" }},
+		{"local-socket", func(c *serveConfig) { c.StationSocket = "/tmp/local.sock" }},
+		{"stub-agent", func(c *serveConfig) { c.Station.StubAgent = true }},
+		{"stub-kernel", func(c *serveConfig) { c.Kernel.Kind = "stub"; c.Kernel.StubVerdict = "live" }},
+		{"stub-screen", func(c *serveConfig) { c.Screening = "stub" }},
+		{"missing-payload", func(c *serveConfig) { c.Station.Manager.PayloadSHA256 = "" }},
+		{"payload-id", func(c *serveConfig) { c.Station.Manager.PayloadID = "../payload" }},
+		{"payload-label", func(c *serveConfig) { c.Station.Manager.PayloadID = "Payload.V1" }},
+		{"negative-slot", func(c *serveConfig) { c.Station.Manager.SlotMin = -1 }},
+		{"slot-overflow", func(c *serveConfig) { c.Station.Manager.SlotMax = 10000 }},
+		{"slot-order", func(c *serveConfig) { c.Station.Manager.SlotMin = 65 }},
+		{"unbounded-start", func(c *serveConfig) { c.Station.Manager.StartMilliseconds = 5001 }},
+		{"missing-pin", func(c *serveConfig) { c.Station.Manager.TLS.ManagerCertSHA256 = "" }},
+		{"missing-server-pin", func(c *serveConfig) { c.Station.Manager.TLS.CertSHA256 = "" }},
+		{"relative-key", func(c *serveConfig) { c.Station.Manager.TLS.KeyFile = "key" }},
+		{"wildcard", func(c *serveConfig) { c.Station.Manager.Listen = "0.0.0.0:9443" }},
+		{"hostname", func(c *serveConfig) { c.Station.Manager.Listen = "localhost:9443" }},
+		{"shared-port", func(c *serveConfig) { c.Station.Manager.PayloadListen = c.Station.Manager.Listen }},
+		{"zero-port", func(c *serveConfig) { c.Station.Manager.PayloadListen = "127.0.0.1:0" }},
+		{"state-overlap", func(c *serveConfig) { c.Station.Manager.StateDir = c.JournalDir }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			bad := c
+			m := *c.Station.Manager
+			bad.Station.Manager = &m
+			tc.change(&bad)
+			if bad.validate(false) == nil || serve(context.Background(), bad) == nil {
+				t.Fatal("remote config guard missing")
+			}
+			entries, e := os.ReadDir(filepath.Dir(c.AgentKeyFile))
+			if e != nil || len(entries) != 0 {
+				t.Fatal("invalid remote config caused effects")
+			}
+		})
+	}
+}
+
+// The shipped public gateway template matches the native schema and remains
+// inert until all public pins are supplied; filling pins never enables stubs.
+func TestConfigDeployTemplate(t *testing.T) {
+	root, e := os.Getwd()
+	if e != nil {
+		t.Fatal(e)
+	}
+	var raw []byte
+	for i := 0; i < 6; i++ {
+		raw, e = os.ReadFile(filepath.Join(root, "deploy/templates/gateway/service.json"))
+		if e == nil {
+			break
+		}
+		root = filepath.Dir(root)
+	}
+	if e != nil {
+		t.Fatal("gateway template unavailable", e)
+	}
+	var c serveConfig
+	if booking.Strict(raw, &c) != nil {
+		t.Fatal("template schema mismatch")
+	}
+	if c.validate(false) == nil {
+		t.Fatal("unfilled template accepted")
+	}
+	base := remoteConfig(t)
+	replacements := map[string]string{
+		"PLACEHOLDER_AGENT_PUBKEY": base.AgentPubkey, "PLACEHOLDER_AGENT_NAME": base.Kernel.AgentName, "PLACEHOLDER_LANDLORD_NAME": base.Kernel.LandlordName,
+		"PLACEHOLDER_ISSUER_PUBKEY": base.Kernel.IssuerPubkey, "PLACEHOLDER_SEAL_SCRIPT": base.Kernel.SealScript, "PLACEHOLDER_PRIVACY_SHA256": base.Exchange.PrivacySHA256,
+		"PLACEHOLDER_TEMPLATE_SHA256": base.Exchange.TemplateSHA256, "PLACEHOLDER_PROFILE_SHA256": base.Exchange.ProfileSHA256,
+		"PLACEHOLDER_PAYLOAD_ID": base.Station.Manager.PayloadID, "PLACEHOLDER_PAYLOAD_SHA256": base.Station.Manager.PayloadSHA256,
+		"PLACEHOLDER_GATEWAY_IP": "192.0.2.10", "PLACEHOLDER_GATEWAY_CERT_SHA256": base.Station.Manager.TLS.CertSHA256, "PLACEHOLDER_MANAGER_CERT_SHA256": base.Station.Manager.TLS.ManagerCertSHA256,
+	}
+	filled := string(raw)
+	for k, v := range replacements {
+		filled = strings.ReplaceAll(filled, k, v)
+	}
+	if strings.Contains(filled, "PLACEHOLDER") || booking.Strict([]byte(filled), &c) != nil || c.validate(false) != nil {
+		t.Fatal("filled native template refused")
 	}
 }

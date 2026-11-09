@@ -22,7 +22,6 @@ import (
 
 var errConfig = errors.New("CONFIG_REFUSED")
 var errMode = errors.New("TEST_MODE_REQUIRED")
-var errStation = errors.New("STATION_MANAGER_UNAVAILABLE")
 
 type serveConfig struct {
 	Version       int            `json:"version"`
@@ -70,9 +69,36 @@ type exchangeConfig struct {
 	CallMilliseconds  int64  `json:"call_milliseconds"`
 }
 type stationConfig struct {
-	Driver    string `json:"driver"`
-	Root      string `json:"root"`
-	StubAgent bool   `json:"stub_agent"`
+	Driver    string         `json:"driver"`
+	Root      string         `json:"root"`
+	StubAgent bool           `json:"stub_agent"`
+	Manager   *managerConfig `json:"manager,omitempty"`
+}
+
+type managerConfig struct {
+	StateDir          string           `json:"state_dir"`
+	PayloadID         string           `json:"payload_id"`
+	PayloadSHA256     string           `json:"payload_sha256"`
+	SlotMin           int              `json:"slot_min"`
+	SlotMax           int              `json:"slot_max"`
+	StartMilliseconds int64            `json:"start_milliseconds"`
+	Listen            string           `json:"listen"`
+	PayloadListen     string           `json:"payload_listen"`
+	TLS               gatewayTLSConfig `json:"tls"`
+}
+
+func listenAddress(s string) bool {
+	h, p, e := net.SplitHostPort(s)
+	ip := net.ParseIP(h)
+	n, ne := strconv.Atoi(p)
+	return e == nil && ne == nil && n > 0 && n <= 65535 && strconv.Itoa(n) == p && ip != nil && !ip.IsUnspecified() && !ip.IsMulticast() && ip.String() == h
+}
+
+func (c serveConfig) stationStateDir() string {
+	if c.Station.Manager != nil {
+		return c.Station.Manager.StateDir
+	}
+	return c.Station.Root
 }
 
 func digest(s string) bool {
@@ -136,15 +162,12 @@ func (c serveConfig) validate(allowTest bool) error {
 	if c.Exchange.PrivacySHA256 != booking.Hash([]byte(booking.PrivacyNotice)) || !digest(c.Exchange.TemplateSHA256) || !digest(c.Exchange.ProfileSHA256) {
 		return errConfig
 	}
-	for _, p := range []string{c.AgentKeyFile, c.JournalDir, c.StationSocket, c.Kernel.StateDir, c.Kernel.RPCRouteFile, c.Exchange.StateDir, c.Exchange.PresentationsDir, c.Station.Root} {
+	for _, p := range []string{c.AgentKeyFile, c.JournalDir, c.Kernel.StateDir, c.Kernel.RPCRouteFile, c.Exchange.StateDir, c.Exchange.PresentationsDir, c.stationStateDir()} {
 		if !absPath(p) {
 			return errConfig
 		}
 	}
-	if len(c.StationSocket) > 100 {
-		return errConfig
-	}
-	dirs := []string{c.JournalDir, c.Kernel.StateDir, c.Exchange.StateDir, c.Exchange.PresentationsDir, c.Station.Root}
+	dirs := []string{c.JournalDir, c.Kernel.StateDir, c.Exchange.StateDir, c.Exchange.PresentationsDir, c.stationStateDir()}
 	for i, a := range dirs {
 		for j, b := range dirs {
 			if i != j && (a == b || strings.HasPrefix(a, b+string(filepath.Separator))) {
@@ -156,10 +179,34 @@ func (c serveConfig) validate(allowTest bool) error {
 	if x.PowBits < 1 || x.PowBits > 32 || x.MaxClients < 1 || x.MaxClients > 64 || x.QueueSize < 1 || x.QueueSize > 128 || x.Burst < 1 || x.Burst > 64 || x.MaxReplay < x.Burst || x.MaxReplay > 64 || x.RefillSeconds < 1 || x.RefillSeconds > 3600 || x.KnownSeconds < 1 || x.KnownSeconds > 86400 || x.MessageAgeSeconds < 1 || x.MessageAgeSeconds > 600 || x.PollMilliseconds < 10 || x.PollMilliseconds > 60000 || x.CallMilliseconds < 1 || x.CallMilliseconds > 5000 {
 		return errConfig
 	}
-	// The real station manager boundary is deliberately not invented here.
-	// Until its separate adapter lands, only explicit local test execution exists.
-	if c.Station.Driver != "local-test" || c.Mode != "test" {
-		return errStation
+	switch c.Station.Driver {
+	case "local-test":
+		if c.Mode != "test" || c.Station.Manager != nil || !absPath(c.StationSocket) || len(c.StationSocket) > 100 {
+			return errConfig
+		}
+	case "manager":
+		m := c.Station.Manager
+		if m == nil || c.Station.Root != "" || c.StationSocket != "" || c.Station.StubAgent {
+			return errConfig
+		}
+		if !digest(m.PayloadSHA256) || len(m.PayloadID) < 1 || len(m.PayloadID) > 64 || m.SlotMin < 0 || m.SlotMax > 9999 || m.SlotMin > m.SlotMax || m.StartMilliseconds < 1 || m.StartMilliseconds > 5000 || !listenAddress(m.Listen) || !listenAddress(m.PayloadListen) || m.Listen == m.PayloadListen {
+			return errConfig
+		}
+		for _, ch := range m.PayloadID {
+			if !(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || strings.ContainsRune("-_", ch)) {
+				return errConfig
+			}
+		}
+		if !digest(m.TLS.CertSHA256) || !digest(m.TLS.ManagerCertSHA256) {
+			return errConfig
+		}
+		for _, p := range []string{m.TLS.CertFile, m.TLS.KeyFile, m.TLS.ManagerCAFile} {
+			if !absPath(p) {
+				return errConfig
+			}
+		}
+	default:
+		return errConfig
 	}
 	return nil
 }

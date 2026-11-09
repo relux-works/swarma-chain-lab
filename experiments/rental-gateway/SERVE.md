@@ -8,11 +8,12 @@ stub demo. The constructor wires a read-only Namecoin observer into the real
 API belongs to the gateway. Privacy is the exact signed booking constant, pinned
 by its hash; arbitrary replacement text is refused.
 
-The remote station integration is in progress. Current serve accepts only
-`mode=test` with `station.driver=local-test`; a remote manager selection refuses
-with `STATION_MANAGER_UNAVAILABLE`. The independent TLS boundary is implemented
-and tested but is not yet a listening manager route. This checkpoint is not a
-deployable gateway and does not lift the deploy kit's blocked status.
+`mode=regtest` uses `station.driver=manager`: the signed station-lifecycle
+gatewaybind adapter persists allocations and waits for authenticated manager
+reports. Separate listeners provide manager mTLS and payload server TLS followed
+by stationlink HMAC. `mode=test` additionally permits the local-test driver.
+The deploy kit supplies gateway templates; operator payload, helper policy and
+real Linux host acceptance remain required before deployment.
 
 ## Public config and protected inputs
 
@@ -20,7 +21,8 @@ Config version1 is strict JSON: unknown, duplicate or aliased fields and trailin
 JSON refuse. The config is at most64KiB and contains file references and public
 pins only. All local paths are canonical absolute paths. State directories are
 0700 and distinct; symlink ancestry refuses before creating state through it.
-The socket is a fresh Unix path; startup never unlinks an existing endpoint.
+The local-test socket is a fresh Unix path; startup never unlinks an existing
+endpoint. Remote mode requires an empty station_socket and station.root.
 
 Required top-level fields are `version`, `mode`, `agent_key_file`, `agent_pubkey`,
 `relay_url`, `journal_dir`, `station_socket`, `screening`, `kernel`, `exchange`
@@ -36,15 +38,24 @@ and `station`. The typed schema is in `cmd/gateway/config.go`.
   signed privacy/template/profile hashes, proof-of-work bits, client/queue/burst/
   replay bounds and explicit refill/expiry/message-age/poll/call intervals. The
   validator rejects out-of-range values; no implicit zero defaults weaken them.
-- `station`: driver, private root and explicit test stub-agent selection. Remote
-  station config will consume the separate manager adapter, without duplicating
-  the host helper's root-owned user, home, egress or resource policy.
+- `station`: driver and either local-test root/stub_agent, or `manager` containing
+  private broker state_dir, payload_id/payload_sha256, inclusive slot_min/slot_max
+  within 0..9999, start_milliseconds (1..5000), separate listen/payload_listen
+  literal unicast IP:port addresses, and TLS cert_file/key_file/cert_sha256 plus
+  manager_ca_file/manager_cert_sha256. No wildcard/hostname/zero port or shared
+  endpoint is accepted. Payload labels match the lifecycle lower-case label
+  contract. Root-owned user/home/egress/resource policy is never mirrored here.
 
 The agent key file is exactly0600 and must match `agent_pubkey`. The read-only
 RPC route is exactly0400. Both must be regular bounded files with canonical
 parents and no symlink leaves; errors do not echo their contents. Booking and
 relay origins are numeric loopback routes. The gateway private inputs and journal
 (including per-slot channel secrets) must never be included in evidence packets.
+The gateway TLS key is exactly0400; certificates/CA files must not be group/other
+writable. Server leaf hash and validity are checked before state/listener effects.
+The manager must present a verified client chain and the exact pinned leaf;
+payloads receive no manager certificate or key. Their own trust roots, gateway
+address and leaf pin are operator-pinned inputs outside the private bootstrap.
 
 `screening=off` is logged at startup. It allows content only after grant authority
 has passed; cancellation still refuses. The existing `screen.Screener` interface
@@ -75,6 +86,17 @@ Four fixed inbound workers and a bounded queue keep kernel/manager waits off the
 relay ACK pump. Saturation drops the inbound event without claiming delivery.
 The exchange retains its separate worker/queue. Shutdown cancels workers, closes
 tracked sockets, stops only owned local test children and closes dependencies.
+Manager HTTP admits at most4 simultaneous connections, with bounded header/body/
+write/idle timeouts and a 64KiB protocol body limit. Payload admits at most32
+connections with 5-second idle read/write deadlines; neither route has plaintext
+fallback. A partial listener startup releases its earlier listener and broker
+lock. Remote shutdown leaves durable reconciliation to the manager/helper; it
+does not claim that closing a socket destroyed a station.
+
+After restart, the adapter's Recoverer restores opaque handles for End/Destroy.
+The r2 helper boundary deliberately keeps uncertain cleanup pending: absent is
+clean only before any Start attempt; later cleanup needs the same binding's
+destroyed record. No wall-clock freshness workaround or r3/r4 support is implied.
 
 ## Tools and evidence
 
@@ -84,7 +106,7 @@ From `experiments/rental-gateway`, use Go1.26.8:
 GOTOOLCHAIN=go1.26.8 GOWORK=off go test -race ./...
 GOTOOLCHAIN=go1.26.8 GOWORK=off go vet ./...
 GOTOOLCHAIN=go1.26.8 GOWORK=off go build -trimpath -o .temp/gateway ./cmd/gateway
-.temp/gateway validate -config /absolute/path/to/gateway.json -allow-test
+.temp/gateway validate -config /absolute/path/to/gateway.json
 GOTOOLCHAIN=go1.26.8 GOWORK=off go run .scripts/gw1-guards.go -out .temp/gw1-guards
 ```
 

@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "mode": "regtest",
+  "agent_key_file": "/var/lib/swarma-gateway/agent.key",
+  "agent_pubkey": "PLACEHOLDER_AGENT_PUBKEY",
+  "relay_url": "ws://127.0.0.1:18818",
+  "journal_dir": "/var/lib/swarma-gateway/journal",
+  "station_socket": "",
+  "screening": "off",
+  "kernel": {
+    "kind": "real",
+    "stub_verdict": "",
+    "network": "regtest",
+    "genesis": "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206",
+    "agent_name": "PLACEHOLDER_AGENT_NAME",
+    "landlord_name": "PLACEHOLDER_LANDLORD_NAME",
+    "issuer_pubkey": "PLACEHOLDER_ISSUER_PUBKEY",
+    "seal_script": "PLACEHOLDER_SEAL_SCRIPT",
+    "state_dir": "/var/lib/swarma-gateway/kernel",
+    "rpc_host": "127.0.0.1",
+    "rpc_port": 18443,
+    "rpc_route_file": "/etc/swarma/gateway/observer.json"
+  },
+  "exchange": {
+    "state_dir": "/var/lib/swarma-gateway/exchange",
+    "booking_url": "http://127.0.0.1:18819",
+    "presentations_dir": "/var/lib/swarma-gateway/presentations",
+    "privacy_sha256": "PLACEHOLDER_PRIVACY_SHA256",
+    "template_sha256": "PLACEHOLDER_TEMPLATE_SHA256",
+    "profile_sha256": "PLACEHOLDER_PROFILE_SHA256",
+    "pow_bits": 16,
+    "max_clients": 16,
+    "queue_size": 32,
+    "burst": 4,
+    "max_replay": 16,
+    "refill_seconds": 10,
+    "known_seconds": 3600,
+    "message_age_seconds": 300,
+    "poll_milliseconds": 1000,
+    "call_milliseconds": 2000
+  },
+  "station": {
+    "driver": "manager",
+    "root": "",
+    "stub_agent": false,
+    "manager": {
+      "state_dir": "/var/lib/swarma-gateway/broker",
+      "payload_id": "PLACEHOLDER_PAYLOAD_ID",
+      "payload_sha256": "PLACEHOLDER_PAYLOAD_SHA256",
+      "slot_min": 1,
+      "slot_max": 64,
+      "start_milliseconds": 2000,
+      "listen": "PLACEHOLDER_GATEWAY_IP:9443",
+      "payload_listen": "PLACEHOLDER_GATEWAY_IP:9444",
+      "tls": {
+        "cert_file": "/etc/swarma/gateway/server.pem",
+        "key_file": "/etc/swarma/gateway/server.key",
+        "cert_sha256": "PLACEHOLDER_GATEWAY_CERT_SHA256",
+        "manager_ca_file": "/etc/swarma/gateway/manager-ca.pem",
+        "manager_cert_sha256": "PLACEHOLDER_MANAGER_CERT_SHA256"
+      }
+    }
+  }
+}

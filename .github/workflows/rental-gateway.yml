@@ -7,6 +7,8 @@ on:
   pull_request:
     paths:
       - 'experiments/rental-gateway/**'
+      - 'experiments/station-lifecycle/**'
+      - 'deploy/templates/gateway/**'
       - 'experiments/rental/**'
       - 'experiments/rental-booking/**'
       - 'experiments/payment-chain/**'
@@ -17,6 +19,8 @@ on:
     branches: [main]
     paths:
       - 'experiments/rental-gateway/**'
+      - 'experiments/station-lifecycle/**'
+      - 'deploy/templates/gateway/**'
       - 'experiments/rental/**'
       - 'experiments/rental-booking/**'
       - 'experiments/payment-chain/**'

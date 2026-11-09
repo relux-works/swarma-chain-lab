@@ -10,7 +10,7 @@ require (
 )
 
 require (
-	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	relux.works/swarma-chain-lab/experiments/single-use v0.0.0 // indirect
@@ -28,3 +28,11 @@ require (
 replace relux.works/swarma-chain-lab/experiments/rental-gateway => ../../rental-gateway
 
 replace relux.works/swarma-chain-lab/experiments/station-lifecycle => ../
+
+replace relux.works/swarma-chain-lab/experiments/payment-chain => ../../payment-chain
+
+replace relux.works/swarma-chain-lab/experiments/rental => ../../rental
+
+replace relux.works/swarma-chain-lab/experiments/rental-booking => ../../rental-booking
+
+replace relux.works/swarma-chain-lab/experiments/rental-gateway/kernelbind => ../../rental-gateway/kernelbind

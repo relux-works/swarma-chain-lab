@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -71,6 +72,14 @@ func serve(parent context.Context, c serveConfig) error {
 	if e := c.validate(true); e != nil {
 		return e
 	}
+	var managerTLS, payloadTLS *tls.Config
+	if c.Station.Driver == "manager" {
+		var e error
+		managerTLS, payloadTLS, e = gatewayTLS(c.Station.Manager.TLS)
+		if e != nil {
+			return e
+		}
+	}
 	keyBytes, e := readFile(c.AgentKeyFile, 65, 0600)
 	if e != nil {
 		return errConfig
@@ -124,7 +133,7 @@ func serve(parent context.Context, c serveConfig) error {
 		return errBooking
 	}
 	backend := &bookingbind.Adapter{Service: client, AgentName: c.Kernel.AgentName, LandlordName: c.Kernel.LandlordName, AgentPubkey: c.AgentPubkey, Now: time.Now}
-	for _, dir := range []string{c.JournalDir, c.Kernel.StateDir, c.Exchange.StateDir, c.Station.Root} {
+	for _, dir := range []string{c.JournalDir, c.Kernel.StateDir, c.Exchange.StateDir, c.stationStateDir()} {
 		if e = privateDir(dir); e != nil {
 			return e
 		}
@@ -145,33 +154,23 @@ func serve(parent context.Context, c serveConfig) error {
 		return errors.New("RELAY_UNAVAILABLE")
 	}
 	defer relay.Close()
-	driver := &testDriver{LocalTestDriver: &station.LocalTestDriver{Root: c.Station.Root}}
-	if c.Station.StubAgent {
-		self, e := os.Executable()
-		if e != nil {
-			return errConfig
-		}
-		driver.StubCommand = []string{self, "station-stub"}
+	runtime, e := newStationRuntime(c, store, managerTLS, payloadTLS)
+	if e != nil {
+		return e
 	}
-	defer driver.close()
-	gw, e := gateway.New(gateway.Config{AgentKey: key, AgentName: c.Kernel.AgentName, Kernel: checker, Presenter: presenter, Screener: screener, Journal: store, Publisher: relay, Driver: driver, Endpoint: c.StationSocket, Exchange: eng, PullTimeout: time.Second})
+	defer runtime.close()
+	gw, e := gateway.New(gateway.Config{AgentKey: key, AgentName: c.Kernel.AgentName, Kernel: checker, Presenter: presenter, Screener: screener, Journal: store, Publisher: relay, Driver: runtime.driver, Endpoint: runtime.endpoint, Exchange: eng, PullTimeout: time.Second})
 	if e != nil {
 		return errors.New("GATEWAY_CONSTRUCTION")
 	}
-	// Never unlink an existing endpoint; an operator must establish ownership.
-	if e = privateDir(filepath.Dir(c.StationSocket)); e != nil {
-		return e
-	}
-	ln, e := net.Listen("unix", c.StationSocket)
-	if e != nil {
-		return errors.New("STATION_LISTEN")
-	}
-	connections := &trackedListener{Listener: ln, conns: map[net.Conn]bool{}}
-	defer connections.closeAll()
 	var workers sync.WaitGroup
 	workers.Add(3)
-	errs := make(chan error, 2)
-	go func() { defer workers.Done(); errs <- gw.ServeStations(connections) }()
+	errs := make(chan error, 3)
+	go func() { defer workers.Done(); errs <- gw.ServeStations(runtime.payload) }()
+	if runtime.manager != nil {
+		workers.Add(1)
+		go func() { defer workers.Done(); errs <- runtime.manager.Serve(runtime.managerListener) }()
+	}
 	go func() {
 		defer workers.Done()
 		ticker := time.NewTicker(time.Second)
@@ -185,7 +184,7 @@ func serve(parent context.Context, c serveConfig) error {
 			}
 		}
 	}()
-	defer func() { cancel(); relay.Close(); connections.closeAll(); workers.Wait() }()
+	defer func() { cancel(); relay.Close(); runtime.closeTransports(); workers.Wait() }()
 	inbound := newInbound(ctx, c.Exchange.QueueSize, func(ctx context.Context, ev *nostr.Event) {
 		r := gw.HandleGiftWrap(ctx, ev)
 		fmt.Fprintf(os.Stderr, "gateway: inbound delivered=%t refused=%t exchange=%t\n", r.Delivered, r.Refused, r.ExchangeQueued)
@@ -280,14 +279,29 @@ func (d *testDriver) close() {
 
 type trackedListener struct {
 	net.Listener
-	mu     sync.Mutex
-	conns  map[net.Conn]bool
-	closed bool
+	mu      sync.Mutex
+	conns   map[net.Conn]bool
+	closed  bool
+	limit   int
+	timeout time.Duration
 }
 type trackedConn struct {
 	net.Conn
 	owner *trackedListener
 	once  sync.Once
+}
+
+func (c *trackedConn) Read(p []byte) (int, error) {
+	if c.owner.timeout > 0 {
+		_ = c.Conn.SetReadDeadline(time.Now().Add(c.owner.timeout))
+	}
+	return c.Conn.Read(p)
+}
+func (c *trackedConn) Write(p []byte) (int, error) {
+	if c.owner.timeout > 0 {
+		_ = c.Conn.SetWriteDeadline(time.Now().Add(c.owner.timeout))
+	}
+	return c.Conn.Write(p)
 }
 
 func (c *trackedConn) Close() error {
@@ -296,19 +310,27 @@ func (c *trackedConn) Close() error {
 	return e
 }
 func (l *trackedListener) Accept() (net.Conn, error) {
-	c, e := l.Listener.Accept()
-	if e != nil {
-		return nil, e
+	for {
+		c, e := l.Listener.Accept()
+		if e != nil {
+			return nil, e
+		}
+		l.mu.Lock()
+		if l.closed {
+			l.mu.Unlock()
+			c.Close()
+			return nil, net.ErrClosed
+		}
+		if l.limit > 0 && len(l.conns) >= l.limit {
+			l.mu.Unlock()
+			c.Close()
+			continue
+		}
+		w := &trackedConn{Conn: c, owner: l}
+		l.conns[w] = true
+		l.mu.Unlock()
+		return w, nil
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.closed {
-		c.Close()
-		return nil, net.ErrClosed
-	}
-	w := &trackedConn{Conn: c, owner: l}
-	l.conns[w] = true
-	return w, nil
 }
 func (l *trackedListener) closeAll() {
 	_ = l.Listener.Close()

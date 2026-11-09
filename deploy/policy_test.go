@@ -21,6 +21,12 @@ func validPolicy(service string) Policy {
 		p.RPCEndpoint = "127.0.0.1:18443"
 		p.Relay = "ws://127.0.0.1:18818"
 	}
+	if service == "gateway" {
+		p.Listen = "127.0.0.1:9444"
+		p.ManagerListen = "127.0.0.1:9443"
+		p.Screening = "off"
+		p.StationDriver = "manager"
+	}
 	return p
 }
 func encoded(t *testing.T, v any) []byte {
@@ -36,7 +42,7 @@ func encoded(t *testing.T, v any) []byte {
 // files. Mainnet, unresolved values, wrong routes and foreign writable roots
 // reject with fixed error classes beside those valid neighbours.
 func TestPolicy(t *testing.T) {
-	for _, service := range []string{"booking", "store"} {
+	for _, service := range []string{"booking", "store", "gateway"} {
 		t.Run(service, func(t *testing.T) {
 			p := validPolicy(service)
 			if got, e := Validate(encoded(t, p)); e != nil || got != p {
@@ -57,7 +63,7 @@ func TestPolicy(t *testing.T) {
 				{"wildcard-listen", func(p *Policy) { p.Listen = "0.0.0.0:8091" }, ErrPolicy},
 				{"foreign-state", func(p *Policy) { p.StateDir = "/var/lib/namecoind-regtest" }, ErrPolicy},
 				{"foreign-config", func(p *Policy) { p.Config = "/tmp/config" }, ErrPolicy},
-				{"blocked-gateway", func(p *Policy) { p.Service = "gateway" }, ErrPolicy},
+				{"unknown-service", func(p *Policy) { p.Service = "unknown" }, ErrPolicy},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					x := p
@@ -106,9 +112,9 @@ func TestPolicyFraming(t *testing.T) {
 }
 
 // Shipped templates stay inert until their public pins are supplied. There is
-// no runnable gateway unit; all supported units retain the requested hardening.
+// all supported units retain the requested hardening and contain no secrets.
 func TestTemplates(t *testing.T) {
-	for _, service := range []string{"booking", "store"} {
+	for _, service := range []string{"booking", "store", "gateway"} {
 		raw, e := os.ReadFile("templates/" + service + "/deploy.json")
 		if e != nil {
 			t.Fatal(e)
@@ -131,8 +137,28 @@ func TestTemplates(t *testing.T) {
 			}
 		}
 	}
-	if _, e := os.Stat("templates/systemd/swarma-gateway.service.in"); !os.IsNotExist(e) {
-		t.Fatal("stub gateway unit shipped")
+}
+
+// Gateway policy requires the real manager and explicit screening off. Separate
+// pinned listener inputs cannot be replaced by wildcards, shared endpoints or
+// a test driver, while an operator-selected literal host address is accepted.
+func TestGatewayPolicy(t *testing.T) {
+	base := validPolicy("gateway")
+	for _, change := range []func(*Policy){
+		func(p *Policy) { p.Screening = "stub" }, func(p *Policy) { p.Screening = "" }, func(p *Policy) { p.StationDriver = "local-test" },
+		func(p *Policy) { p.ManagerListen = p.Listen }, func(p *Policy) { p.ManagerListen = "0.0.0.0:9443" }, func(p *Policy) { p.Listen = "localhost:9444" },
+		func(p *Policy) { p.ProviderKey = "/var/lib/swarma-gateway/key" },
+	} {
+		p := base
+		change(&p)
+		if _, e := Validate(encoded(t, p)); e != ErrPolicy {
+			t.Fatal("gateway policy guard missing")
+		}
+	}
+	base.Listen = "192.0.2.10:9444"
+	base.ManagerListen = "192.0.2.10:9443"
+	if _, e := Validate(encoded(t, base)); e != nil {
+		t.Fatal("literal gateway host refused", e)
 	}
 }
 

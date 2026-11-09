@@ -2,7 +2,7 @@
 
 This is a plan for Infra, not evidence of a host deployment. The public host runs
 linux/amd64. Nothing here authorizes a mainnet transaction, creates wallet keys,
-changes custody, or starts the blocked gateway. Keep existing state and keys.
+changes custody, or bypasses host acceptance. Keep existing state and keys.
 Signer, Courier and Nostr transport are pending manifest rows, not services to
 guess or install from this kit.
 
@@ -20,7 +20,7 @@ go run ./cmd/deploy-kit build -repo "$SOURCE_ROOT" -commit "$REVIEWED_COMMIT" -o
 The program builds all three requested Linux binaries twice with separate source
 trees and build caches. It emits bin/, native public config/unit templates,
 README, this plan, manifest.json and SHA256SUMS, but never signs. Gateway's
-artifact is explicitly blocked/non-startable. The manifest's Go version, commit,
+regtest-preparation row explicitly records screening off. The manifest's Go version, commit,
 target and every binary hash must match the approved handoff.
 
 The release signer uses the approved signing environment/key and namespace;
@@ -51,12 +51,13 @@ is deployable or that gateway grants are enforced.
 
 ## 3. Infra: prepare existing service identities and public configuration
 
-Confirm service users `swarma-booking` and `swarma-store`. For the chosen release
+Confirm service users `swarma-gateway`, `swarma-booking` and `swarma-store`. For the chosen release
 version, install the matching binaries into:
 
 ```text
 /opt/swarma/booking/VERSION/bin/rental-booking
 /opt/swarma/store/VERSION/bin/grant-store
+/opt/swarma/gateway/VERSION/bin/gateway
 ```
 
 Directories and binaries are root-owned; binaries mode0755. Public native JSON,
@@ -104,14 +105,17 @@ startup performs the final checks. No validator result authorizes a mainnet run.
 
 ## 4. Infra: systemd validation before any service start
 
-Replace only @VERSION@ in the two provided `.service.in` files and stage them as
-`/etc/systemd/system/swarma-booking.service` and `swarma-store.service` using the
-normal reviewed Infra installation procedure. There is no gateway unit.
+Replace @VERSION@ in the three provided `.service.in` files; gateway additionally
+requires PLACEHOLDER_STATION_HOST_CIDR from the approved host network policy.
+Stage the gateway, booking and store units through the reviewed Infra procedure.
+Gateway allows loopback plus that station-host CIDR, with no arbitrary egress
+exception. Ensure its literal listen addresses, ports and approved incoming
+manager/payload routes match the rendered native config and deployment policy.
 
-On the public host, before starting either service:
+On the public host, before starting services:
 
 ```sh
-systemd-analyze verify /etc/systemd/system/swarma-booking.service /etc/systemd/system/swarma-store.service
+systemd-analyze verify /etc/systemd/system/swarma-gateway.service /etc/systemd/system/swarma-booking.service /etc/systemd/system/swarma-store.service
 systemctl daemon-reload
 ```
 
@@ -176,9 +180,30 @@ remains Infra's required gate. No Lima VM is created for it.
 
 ## 6. Acceptance boundary
 
+Gateway needs separate preparation before its first start. Fill every gateway
+native-config and deployment-policy placeholder; use real pinned regtest agent,
+landlord/issuer/seal, booking and payload facts. Supply the 0600 agent key,
+0400 observer route and TLS server key through their existing custody flow.
+Provision private 0700 state directories, the read-only atomic presentation
+source, server certificate/manager CA and exact leaf pins. Run both validators:
+
+```sh
+deploy-kit validate -config "$STAGING/gateway/deploy.json" -public "$STAGING/gateway/service.json"
+gateway validate -config "$STAGING/gateway/service.json"
+```
+
+The native validator rejects test mode and local/stub selections. Startup also
+checks private inputs and TLS pins. Match the manager's range and payload policy;
+payloads need their operator-pinned gateway address, trust roots and leaf hash,
+then the private v1 bootstrap for stationlink HMAC. No scripted test payload is
+an approved rented-agent runtime. The manager/helper host is provisioned and
+accepted separately; this kit does not install it. The r2 binding keeps unknown
+cleanup pending instead of reporting success. Verify real remote start, expiry,
+restart and cleanup against the host before claiming operational acceptance.
+
 This smoke establishes installed identity/hashes, regtest read route, process
 availability, loopback listener bounds and S1's unsigned-access refusal. It does
-not establish full M5 rental/issuance/signing/exchange acceptance. Gateway remains
-blocked pending GW1; SG1/Courier/transport are not in this kit. Infra and the lane
+not establish full M5 rental/issuance/signing/exchange acceptance. SG1/Courier/
+transport deployment is not in this kit. Infra and the lane
 must finish the separate genuine regtest end-to-end acceptance before any later
 mainnet decision. Ivan's exact GO and caps remain required for mainnet transactions.

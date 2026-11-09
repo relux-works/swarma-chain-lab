@@ -11,6 +11,7 @@ on:
     paths:
       - 'deploy/**'
       - 'experiments/rental-gateway/**'
+      - 'experiments/station-lifecycle/**'
       - 'experiments/rental-booking/**'
       - 'experiments/grant-store/**'
       - 'experiments/rental/**'
@@ -23,6 +24,7 @@ on:
     paths:
       - 'deploy/**'
       - 'experiments/rental-gateway/**'
+      - 'experiments/station-lifecycle/**'
       - 'experiments/rental-booking/**'
       - 'experiments/grant-store/**'
       - 'experiments/rental/**'

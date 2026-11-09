@@ -1,0 +1,36 @@
+[Unit]
+Description=Swarma regtest grant gateway (screening off)
+After=network.target
+
+[Service]
+Type=simple
+User=swarma-gateway
+Group=swarma-gateway
+UMask=0077
+WorkingDirectory=/var/lib/swarma-gateway
+ExecStartPre=/opt/swarma/gateway/@VERSION@/bin/gateway validate -config /etc/swarma/gateway/service.json
+ExecStart=/opt/swarma/gateway/@VERSION@/bin/gateway serve -config /etc/swarma/gateway/service.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32
+IPAddressAllow=PLACEHOLDER_STATION_HOST_CIDR
+ReadWritePaths=/var/lib/swarma-gateway
+MemoryMax=512M
+TasksMax=128
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

@@ -25,12 +25,16 @@ type plant struct {
 }
 
 var plants = []plant{
+	{"remote_local_root", "gateway", "cmd/gateway/config.go", " || c.Station.Root != \"\"", "", "./cmd/gateway", "TestConfigRemote/local-root", "remote config guard missing", false},
+	{"remote_connection_bound", "gateway", "cmd/gateway/serve.go", "if l.limit > 0 && len(l.conns) >= l.limit {", "if l.limit > 0 && len(l.conns) >= l.limit && false {", "./cmd/gateway", "TestRemoteConnectionBounds", "excess connection not refused", false},
+	{"remote_idle_deadline", "gateway", "cmd/gateway/serve.go", "if c.owner.timeout > 0 {\n\t\t_ = c.Conn.SetReadDeadline", "if c.owner.timeout > 0 && false {\n\t\t_ = c.Conn.SetReadDeadline", "./cmd/gateway", "TestRemoteConnectionBounds", "idle deadline not enforced", false},
+	{"remote_startup_cleanup", "gateway", "cmd/gateway/station_runtime.go", "if err != nil {\n\t\t\tr.close()", "if err != nil && false {\n\t\t\tr.close()", "./cmd/gateway", "TestRemoteStartupRollback", "partial payload listener leaked", false},
 	{"booking_deadline", "gateway", "cmd/gateway/booking.go", "Timeout:       timeout,", "Timeout:       max(timeout, time.Second),", "./cmd/gateway", "TestBookingClientDeadline", "booking call budget ignored", false},
 	{"mainnet", "gateway", "cmd/gateway/config.go", " || c.Kernel.Network != \"regtest\"", "", "./cmd/gateway", "TestConfigBoundary/mainnet", "config guard missing", false},
 	{"genesis", "gateway", "cmd/gateway/config.go", " || c.Kernel.Genesis != su.RegtestGenesis", " || (c.Kernel.Genesis != su.RegtestGenesis && false)", "./cmd/gateway", "TestConfigBoundary/genesis", "config guard missing", false},
 	{"privacy_pin", "gateway", "cmd/gateway/config.go", "c.Exchange.PrivacySHA256 != booking.Hash([]byte(booking.PrivacyNotice)) || ", "(c.Exchange.PrivacySHA256 != booking.Hash([]byte(booking.PrivacyNotice)) && false) || ", "./cmd/gateway", "TestConfigBoundary/privacy", "config guard missing", false},
 	{"test_mode_validator", "gateway", "cmd/gateway/config.go", "if c.Mode == \"test\" && !allowTest {", "if c.Mode == \"test\" && !allowTest && false {", "./cmd/gateway", "TestConfigBoundary", "deployment validator accepted test mode", false},
-	{"production_stubs", "gateway", "cmd/gateway/config.go", "if c.Mode != \"test\" && (", "if false && (", "./cmd/gateway", "TestConfigBoundary/regtest-stub-screen", "config guard missing", false},
+	{"production_stubs", "gateway", "cmd/gateway/config.go", "if c.Mode != \"test\" && (", "if false && (", "./cmd/gateway", "TestConfigRemote/stub-screen", "remote config guard missing", false},
 	{"implicit_stub", "gateway", "cmd/gateway/config.go", "(c.Kernel.Kind == \"real\" && c.Kernel.StubVerdict != \"\")", "(c.Kernel.Kind == \"real\" && c.Kernel.StubVerdict != \"\" && false)", "./cmd/gateway", "TestConfigBoundary/implicit-stub", "config guard missing", false},
 	{"secret_permissions", "gateway", "cmd/gateway/config.go", "(perm != 0 && st.Mode().Perm() != perm)", "(perm != 0 && st.Mode().Perm() != perm && false)", "./cmd/gateway", "TestConfigFiles", "wrong secret mode accepted", false},
 	{"config_symlink", "gateway", "cmd/gateway/config.go", "os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK", "os.O_RDONLY|syscall.O_NONBLOCK", "./cmd/gateway", "TestConfigFiles", "symlink config accepted", false},
@@ -93,10 +97,13 @@ func run() error {
 		return e
 	}
 	defer os.RemoveAll(work)
-	for _, name := range []string{"rental", "single-use", "sealwatch", "payment-chain"} {
+	for _, name := range []string{"rental", "single-use", "sealwatch", "payment-chain", "station-lifecycle"} {
 		if e = os.Symlink(filepath.Join(filepath.Dir(root), name), filepath.Join(work, name)); e != nil {
 			return e
 		}
+	}
+	if e = copyModule(filepath.Join(filepath.Dir(filepath.Dir(root)), "deploy"), filepath.Join(work, "deploy")); e != nil {
+		return e
 	}
 	for _, name := range []string{"rental-gateway", "rental-booking"} {
 		if e = copyModule(filepath.Join(filepath.Dir(root), name), filepath.Join(work, name)); e != nil {
@@ -138,7 +145,7 @@ func run() error {
 		}
 		return code, b, nil
 	}
-	for _, b := range []struct{ module, pkg, test string }{{"gateway", "./cmd/gateway", "Test(Config.*|BookingClient.*|PresentationDirectory|InboundDoesNotBlockRelayACK|PrivateDirNoRedirectedEffects|GatewayTLSAuthority)"}, {"gateway", "./screen", "TestOff"}, {"booking", ".", "TestHTTPCatalogue"}} {
+	for _, b := range []struct{ module, pkg, test string }{{"gateway", "./cmd/gateway", "Test(Config.*|Remote.*|BookingClient.*|PresentationDirectory|InboundDoesNotBlockRelayACK|PrivateDirNoRedirectedEffects|GatewayTLSAuthority)"}, {"gateway", "./screen", "TestOff"}, {"booking", ".", "TestHTTPCatalogue"}} {
 		code, _, e := runTest("baseline-"+b.module+strings.ReplaceAll(b.pkg, "/", "-"), b.module, b.pkg, b.test, false)
 		if e != nil || code != 0 {
 			return fmt.Errorf("baseline %s/%s exit %d: %v", b.module, b.pkg, code, e)

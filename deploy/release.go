@@ -31,13 +31,14 @@ var (
 )
 
 type Artifact struct {
-	Service string `json:"service"`
-	Module  string `json:"module,omitempty"`
-	Package string `json:"package,omitempty"`
-	Binary  string `json:"binary,omitempty"`
-	SHA256  string `json:"sha256,omitempty"`
-	Status  string `json:"status"`
-	Reason  string `json:"reason,omitempty"`
+	Service   string `json:"service"`
+	Module    string `json:"module,omitempty"`
+	Package   string `json:"package,omitempty"`
+	Binary    string `json:"binary,omitempty"`
+	SHA256    string `json:"sha256,omitempty"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason,omitempty"`
+	Screening string `json:"screening,omitempty"`
 }
 type Manifest struct {
 	Version    int        `json:"version"`
@@ -56,7 +57,7 @@ type Manifest struct {
 type ReleaseInput struct{ Repo, Commit, Out string }
 
 var releaseArtifacts = []Artifact{
-	{Service: "gateway", Module: "experiments/rental-gateway", Package: "./cmd/gateway", Binary: "bin/gateway", Status: "blocked", Reason: "real serve wiring absent; non-startable reference only"},
+	{Service: "gateway", Module: "experiments/rental-gateway", Package: "./cmd/gateway", Binary: "bin/gateway", Status: "regtest-preparation", Screening: "off", Reason: "operator-pinned payload and remote manager required; host execution is a separate gate"},
 	{Service: "booking", Module: "experiments/rental-booking", Package: "./cmd/rental-booking", Binary: "bin/rental-booking", Status: "regtest-preparation"},
 	{Service: "store", Module: "experiments/grant-store", Package: "./cmd/grant-store", Binary: "bin/grant-store", Status: "regtest-preparation"},
 }
@@ -155,9 +156,9 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 		}
 	}
 	m := Manifest{Version: 1, Commit: in.Commit, GoVersion: GoVersion, GOOS: "linux", GOARCH: "amd64", CGOEnabled: "0", BuildFlags: []string{"-trimpath", "-buildvcs=false", "-mod=readonly"}, Artifacts: append([]Artifact(nil), releaseArtifacts...), Pending: []Artifact{
-		{Service: "signer", Status: "pending", Reason: "SG1 not landed at release baseline"},
-		{Service: "courier", Status: "pending", Reason: "Courier/CG1 integration not landed at release baseline"},
-		{Service: "nostr-transport", Status: "pending", Reason: "transport deployment integration not landed at release baseline"},
+		{Service: "signer", Status: "pending", Reason: "signer deployment integration not included in this kit"},
+		{Service: "courier", Status: "pending", Reason: "courier deployment integration not included in this kit"},
+		{Service: "nostr-transport", Status: "pending", Reason: "transport deployment integration not included in this kit"},
 	}}
 	stage := filepath.Join(work, "bundle")
 	if e = os.MkdirAll(filepath.Join(stage, "bin"), 0700); e != nil {

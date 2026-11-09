@@ -166,9 +166,9 @@ validation refuses. Stop only the recorded process PID.
 
 ## Limitations
 
-- The CLI wires the real kernel and v1 exchange. The remote station manager
-  adapter is still an integration dependency; current serve accepts only the
-  explicit local test route. No deployable station runtime is claimed yet.
+- The CLI wires the real kernel, v1 exchange and remote station-lifecycle
+  adapter. The operator supplies the pinned real payload and Linux helper;
+  local tests do not establish host deployment or Linux isolation.
 - No relay redundancy/reconnect backoff yet (single relay client).
 - Screening has an explicit logged `off` implementation and the existing
   `screen.Screener` injection boundary. A model proxy is not provided.
@@ -253,4 +253,4 @@ subscriptions expose no trustworthy originating client IP.
 adapter, read-only issuer handoff, bounded inbound workers and controls.
 [SERVE-SURVEY.md](SERVE-SURVEY.md) preserves the initial constructor evidence;
 [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) records resolved boundaries and
-the remaining remote station/deployment dependencies.
+the remaining payload/host deployment dependencies.

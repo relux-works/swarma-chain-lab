@@ -35,3 +35,7 @@ replace relux.works/swarma-chain-lab/experiments/sealwatch => ../sealwatch
 replace relux.works/swarma-chain-lab/experiments/rental-booking => ../rental-booking
 
 replace relux.works/swarma-chain-lab/experiments/payment-chain => ../payment-chain
+
+replace relux.works/swarma-chain-lab/experiments/station-lifecycle => ../station-lifecycle
+
+replace relux.works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind => ../station-lifecycle/gatewaybind

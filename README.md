@@ -151,9 +151,10 @@ or executor authority is included. CI runs Go vet/race/build and non-Core guards
 from a clean exact commit into an unsigned linux/amd64 bundle, with manifest and
 SHA256SUMS. From `deploy/`, run `go test -race ./...`, `go vet ./...` and
 `go run ./cmd/deploy-kit build -repo "$SOURCE_ROOT" -commit "$REVIEWED_COMMIT" -out "$RELEASE_DIR"`.
-Its public validator, booking/store unit templates and Infra smoke plan are
-documented there. Gateway remains a blocked reference with no runnable unit;
-no host deployment or mainnet action is part of this tooling. Release outputs
+Its public validator, gateway/booking/store unit templates and Infra smoke plan
+are documented there. Gateway uses real grant/exchange/manager wiring with
+screening off; operator payload and Linux host acceptance remain required.
+No host deployment or mainnet action is part of this tooling. Release outputs
 use a new directory outside the source checkout; task logs stay in `.temp/`.
 
 ## Demo station lifecycle tools

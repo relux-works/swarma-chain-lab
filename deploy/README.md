@@ -6,9 +6,10 @@ any byte difference, then emits an unsigned bundle with SHA256SUMS and a manifes
 No source product changes, key creation, signing, installation or host deployment
 occur inside the tool. [SMOKE.md](SMOKE.md) is the separate Infra handoff plan.
 
-Gateway is a blocked, non-startable reference in the manifest: its current CLI
-still uses a stub kernel and does not wire E1. There is no gateway unit. Real
-serve wiring belongs to GW1. Only booking/store have systemd templates. Signer,
+Gateway now wires the real kernel, E1 and remote station manager, with explicit
+screening off in its manifest row and native config. Gateway, booking and store
+have systemd templates. The gateway still requires operator-pinned payload/TLS
+inputs and real Linux host acceptance; compilation is not deployment evidence. Signer,
 Courier/CG1 and Nostr transport are pending manifest rows with no guessed units.
 
 ## Build contract
@@ -42,7 +43,10 @@ embedded in the manifest. A successful build is not a deployment acceptance.
 injecting extra fields into native service config. It always refuses mainnet,
 unresolved placeholders, invalid/duplicate/unknown fields, wildcard listeners,
 foreign writable/credential paths and unpinned node CLI references. Complete
-booking/store regtest descriptors accept without opening any referenced file.
+gateway/booking/store regtest descriptors accept without opening referenced files.
+Gateway permits distinct literal unicast listener addresses and requires the
+manager driver and screening off. Its native `gateway validate -config` performs
+the full public schema/pin checks and rejects test mode without `-allow-test`.
 Use repeated `-public` for every staged native public JSON file; those extra
 files receive bounded JSON/duplicate/placeholder/network/inline-secret checks.
 Native service schema, profile/key/clock checks still run at service startup;
@@ -65,7 +69,9 @@ schemas and [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for deployment in
 - `go run ./cmd/deploy-kit validate -config "$STAGING/booking/deploy.json"
   -public "$STAGING/booking/service.json" -public "$STAGING/booking/operator-route.json"`
   validates staged public booking inputs without reading credentials. The store
-  equivalent uses its descriptor and service.json. Enter each as one command.
+  equivalent uses its descriptor and service.json, as does gateway. For gateway,
+  also run `bin/gateway validate -config "$STAGING/gateway/service.json"`.
+  Enter each as one command.
 - `DK1_RELEASE_TEST=1 DK1_RELEASE_REPO="$CLEAN_SOURCE_ROOT"
   DK1_RELEASE_OUT="$NEW_EVIDENCE_PARENT" go test -count=1 -timeout 20m
   -run '^TestReleaseIntegration$' -v .` runs actual double Linux builds and a

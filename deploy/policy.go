@@ -40,6 +40,9 @@ type Policy struct {
 	RPCClientDataDir string `json:"rpc_client_datadir,omitempty"`
 	RPCEndpoint      string `json:"rpc_endpoint,omitempty"`
 	Relay            string `json:"relay,omitempty"`
+	ManagerListen    string `json:"manager_listen,omitempty"`
+	Screening        string `json:"screening,omitempty"`
+	StationDriver    string `json:"station_driver,omitempty"`
 }
 
 func label(s string) bool {
@@ -57,6 +60,12 @@ func localEndpoint(s string) bool {
 	h, p, e := net.SplitHostPort(s)
 	n, ne := strconv.Atoi(p)
 	return e == nil && ne == nil && n > 0 && n <= 65535 && strconv.Itoa(n) == p && h == "127.0.0.1"
+}
+func stationEndpoint(s string) bool {
+	h, p, e := net.SplitHostPort(s)
+	n, ne := strconv.Atoi(p)
+	ip := net.ParseIP(h)
+	return e == nil && ne == nil && n > 0 && n <= 65535 && strconv.Itoa(n) == p && ip != nil && ip.String() == h && !ip.IsUnspecified() && !ip.IsMulticast()
 }
 func pathUnder(path, parent string) bool {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
@@ -88,7 +97,7 @@ func Validate(raw []byte) (Policy, error) {
 			return Policy{}, ErrPlaceholder
 		}
 	}
-	if p.Version != 1 || !label(p.ReleaseVersion) || !exactHex(p.Commit, 20) || !exactHex(p.BinarySHA256, 32) || !localEndpoint(p.Listen) {
+	if p.Version != 1 || !label(p.ReleaseVersion) || !exactHex(p.Commit, 20) || !exactHex(p.BinarySHA256, 32) || (p.Service != "gateway" && !localEndpoint(p.Listen)) {
 		return Policy{}, ErrPolicy
 	}
 	root := "/var/lib/swarma-" + p.Service
@@ -111,7 +120,14 @@ func Validate(raw []byte) (Policy, error) {
 		if p.Listen != "127.0.0.1:8091" || p.Profile != "" || p.ProviderKey != "" || p.Route != "" || p.NodeCLI != "" || p.NodeCLISHA256 != "" || p.RPCConfig != "" || p.RPCClientDataDir != "" || p.RPCEndpoint != "" || p.Relay != "" {
 			return Policy{}, ErrPolicy
 		}
+	case "gateway":
+		if !stationEndpoint(p.Listen) || !stationEndpoint(p.ManagerListen) || p.Listen == p.ManagerListen || p.Screening != "off" || p.StationDriver != "manager" || p.Profile != "" || p.ProviderKey != "" || p.Route != "" || p.NodeCLI != "" || p.NodeCLISHA256 != "" || p.RPCConfig != "" || p.RPCClientDataDir != "" || p.RPCEndpoint != "" || p.Relay != "" {
+			return Policy{}, ErrPolicy
+		}
 	default:
+		return Policy{}, ErrPolicy
+	}
+	if p.Service != "gateway" && (p.ManagerListen != "" || p.Screening != "" || p.StationDriver != "") {
 		return Policy{}, ErrPolicy
 	}
 	return p, nil
