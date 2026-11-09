@@ -217,14 +217,16 @@ Run `go -C experiments/relay test -race ./...` and
 
 ### Full composition rehearsal
 
-[m5-rehearsal](experiments/m5-rehearsal/README.md) prepares expiry and native-SG1
-seal-revocation scenarios through V2 exchange, real relay, manager and scripted
-model payload. Its documented macOS helper/admin seams are rehearsal-only.
+[m5-rehearsal](experiments/m5-rehearsal/README.md) passed both full genuine-Core
+NMC expiry and native-SG1 seal-revocation scenarios on product `14e35bbc`, through
+V2 exchange, real relay, manager and scripted model payload. The approved macOS
+helper/admin substitutions remain rehearsal-only; these results do not qualify
+Linux isolation, physical wipe or a paid external model.
 Use the module's opt-in Go commands for release-isolation controls and fresh
 Core runs; public receipts stay separate from private fixture trees. A build or
 preparation result is not evidence that the full runtime scenario passed.
 
-The current full rehearsal exposes a
-[payload startup ordering gap](experiments/m5-rehearsal/GAP-IT2-STARTUP.md).
-Its deterministic witness passes by reproducing the defect; revoke and expiry
-full-path completion remain blocked pending a separate product fix.
+The [startup ordering gap](experiments/m5-rehearsal/GAP-IT2-STARTUP.md) records
+historical failures. SR1 fixed startup admission; RK1 fixed relay liveness and
+expiry across transport loss. The current witness checks admission during an
+active Starting attempt, including rejection of an incorrect credential.
