@@ -261,7 +261,8 @@ the remaining payload/host deployment dependencies.
 ### Shared issued-presentation directory
 
 The gateway command uses `presentationdir.Open` for the configured read-only
-presentation directory. SG1 can publish canonical `<booking_id>.json` files there
+presentation directory. Direct callers also reject the filesystem root and paths
+containing NUL, CR or LF before filesystem access. SG1 can publish canonical `<booking_id>.json` files there
 after active-chain commitment confirmation; its publisher writes mode0644 in an
 owner0755 directory. The reader retains its existing bounds, no-follow leaf
 behavior and pending-on-absence contract. It grants no authority by itself:

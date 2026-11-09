@@ -34,6 +34,8 @@ var plants = []plant{
 	{"registrar_wiring", "gateway", "cmd/gateway/model_proxy.go", "if p := c.ModelProxy; p != nil {", "if p := c.ModelProxy; p != nil && false {", "./cmd/gateway", "TestModelRuntimeWiring", "runtime omitted registrar"},
 	{"registrar_caps", "gateway", "cmd/gateway/model_proxy.go", " && m.Caps.Valid()", " && (m.Caps.Valid() || true)", "./cmd/gateway", "TestModelProxyConfig", "partial model config accepted"},
 	{"deploy_partial", "deploy", "policy.go", "return gatewayOptions(v.(map[string]any))", "return nil", ".", "TestGatewayOptions", "partial model section accepted"},
+	{"presentation_root", "gateway", "presentationdir/directory.go", "path == string(filepath.Separator)", "(path == string(filepath.Separator) && false)", "./presentationdir", "TestOpenPathBoundary/root", "forbidden source path accepted"},
+	{"presentation_control", "gateway", "presentationdir/directory.go", "strings.ContainsAny(path, \"\\x00\\r\\n\")", "(strings.ContainsAny(path, \"\\x00\\r\\n\") && false)", "./presentationdir", "TestOpenPathBoundary/lf", "forbidden source path accepted"},
 }
 
 type result struct {
@@ -124,7 +126,7 @@ func run() error {
 		}
 		return code, b, nil
 	}
-	for _, b := range []struct{ module, pkg, test string }{{"gateway", "./gateway", "TestRelay.*"}, {"gateway", "./cmd/gateway", "TestModel.*"}, {"deploy", ".", "TestGatewayOptions"}} {
+	for _, b := range []struct{ module, pkg, test string }{{"gateway", "./gateway", "TestRelay.*"}, {"gateway", "./cmd/gateway", "TestModel.*"}, {"deploy", ".", "TestGatewayOptions"}, {"gateway", "./presentationdir", "TestOpenPathBoundary"}} {
 		code, _, e := runTest("baseline-"+b.module+strings.ReplaceAll(b.pkg, "/", "-"), b.module, b.pkg, b.test)
 		if e != nil || code != 0 {
 			return fmt.Errorf("baseline %s exit %d: %v", b.module, code, e)

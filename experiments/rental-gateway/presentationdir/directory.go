@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -18,6 +19,9 @@ var ErrSource = errors.New("PRESENTATION_SOURCE")
 type Directory struct{ root *os.File }
 
 func Open(path string) (*Directory, error) {
+	if path == string(filepath.Separator) || strings.ContainsAny(path, "\x00\r\n") {
+		return nil, ErrSource
+	}
 	actual, e := filepath.EvalSymlinks(path)
 	if e != nil || (!filepath.IsAbs(path) || filepath.Clean(path) != path) || actual != path {
 		return nil, ErrSource
