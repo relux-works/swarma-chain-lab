@@ -10,7 +10,7 @@ require (
 require (
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.1.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.47.0
 )
 
 require (

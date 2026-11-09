@@ -1,0 +1,39 @@
+[Unit]
+Description=Swarma regtest grant-gated agent wallet
+After=network.target
+
+[Service]
+Type=simple
+User=swarma-wallet
+Group=swarma-wallet-peer
+UMask=0077
+StateDirectory=swarma-wallet
+StateDirectoryMode=0700
+RuntimeDirectory=swarma-wallet
+RuntimeDirectoryMode=0750
+WorkingDirectory=/var/lib/swarma-wallet
+ExecStart=/opt/swarma/wallet/@VERSION@/bin/agent-walletd --config /etc/swarma/wallet/service.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=65s
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32
+ReadOnlyPaths=/etc/swarma/wallet
+ReadWritePaths=/var/lib/swarma-wallet /run/swarma-wallet
+MemoryMax=256M
+TasksMax=64
+LimitNOFILE=256
+
+[Install]
+WantedBy=multi-user.target

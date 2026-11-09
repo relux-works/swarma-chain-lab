@@ -257,6 +257,12 @@ func (w *Wallet) Execute(ctx context.Context, grantRaw, termsRaw, requestRaw []b
 	if e != nil {
 		return refuse(e)
 	}
+	return w.executeAuthenticated(ctx, grantRaw, termsRaw, s.Request, s.Event.Pubkey, s.Event.CreatedAt, requestRaw, useTxID, nil)
+}
+
+// Caller holds w.mu and has verified the applicable signature. W1 commits its
+// signed event; LIP-0006 commits unsigned request bytes, never a fabricated event.
+func (w *Wallet) executeAuthenticated(ctx context.Context, grantRaw, termsRaw []byte, r Request, sender string, created int64, requestRaw []byte, useTxID string, beforeEffect func(Record) error) Receipt {
 	g, e := w.authority.Parse(grantRaw)
 	if e != nil {
 		return refuse(e)
@@ -265,10 +271,9 @@ func (w *Wallet) Execute(ctx context.Context, grantRaw, termsRaw, requestRaw []b
 	if e != nil {
 		return refuse(e)
 	}
-	if e = bindRequest(g, t, s, w.clock()); e != nil {
+	if e = bindAuthenticatedRequest(g, t, r, sender, created, w.clock()); e != nil {
 		return refuse(e)
 	}
-	r := s.Request
 	w.grantRaw = append([]byte{}, grantRaw...)
 	index := -1
 	for i, prior := range w.state.Records {
@@ -379,6 +384,26 @@ func (w *Wallet) Execute(ctx context.Context, grantRaw, termsRaw, requestRaw []b
 	}
 	if w.hook != nil {
 		w.hook("after-reservation")
+	}
+	// W2 adds a durable service reservation and rechecks after reservation.
+	// The historical entrypoint retains its existing protocol behavior.
+	if beforeEffect != nil {
+		if e = beforeEffect(rec); e != nil {
+			return receipt(rec, "uncertain", "SERVICE_RESERVATION_UNCERTAIN")
+		}
+		if e = w.authority.Check(ctx, grantRaw, g.Grantee, w.clock()); e != nil {
+			return receipt(rec, "refused", e.Error())
+		}
+		if g.Kind == "single-use" {
+			if e = w.checkUse(ctx, g, requestRaw, useTxID); e != nil {
+				return receipt(rec, "refused", e.Error())
+			}
+		}
+		for _, point := range p.Inputs {
+			if _, e = readCoin(ctx, w.node, point); e != nil {
+				return receipt(rec, "refused", e.Error())
+			}
+		}
 	}
 	var txid string
 	if e = call(ctx, w.broadcast, "sendrawtransaction", &txid, p.Raw); e != nil || txid != p.TxID {

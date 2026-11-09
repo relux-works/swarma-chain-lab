@@ -1,5 +1,10 @@
 # Wallet public input formats
 
+This file specifies the retained W1 legacy event/CLI format. The default
+`agent-wallet` command uses the separate [LIP-0006 service profile](SERVICE.md).
+A W1 signed event and an unsigned W2 request are not interchangeable single-use
+commitments.
+
 All signed public objects use exact compact JSON emitted by Go `json.Marshal`,
 including field order below, with no trailing newline. Duplicate/unknown fields,
 null arrays, aliases and noncanonical encodings refuse. Numbers are integers.

@@ -1,0 +1,5 @@
+# Provisioning input only. Replace the one approved caller; never grant broad membership.
+u swarma-wallet - "Swarma grant-gated wallet" /var/lib/swarma-wallet /usr/sbin/nologin
+g swarma-wallet-peer -
+m swarma-wallet swarma-wallet-peer
+m PLACEHOLDER_AGENT_USER swarma-wallet-peer

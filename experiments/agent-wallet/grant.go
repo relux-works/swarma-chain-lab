@@ -44,17 +44,21 @@ func (k KernelAuthority) Check(ctx context.Context, raw []byte, sender string, n
 	return nil
 }
 func bindRequest(g Grant, t Terms, s SignedRequest, now int64) error {
-	r := s.Request
+	return bindAuthenticatedRequest(g, t, s.Request, s.Event.Pubkey, s.Event.CreatedAt, now)
+}
+
+// Both frontends authenticate their own wire format before entering this path.
+func bindAuthenticatedRequest(g Grant, t Terms, r Request, sender string, created, now int64) error {
 	if g.Kind == "single-use" {
 		if r.Action != "pay" || r.Amount != g.Amount || r.Address != g.Recipient || r.FeeLimit > g.FeeLimit {
 			return fail("ONEOFF_REQUEST_BINDING")
 		}
 
 	}
-	if r.GrantID != g.ID || s.Event.Pubkey != g.Grantee {
+	if r.GrantID != g.ID || sender != g.Grantee {
 		return fail("REQUEST_GRANTEE_BINDING")
 	}
-	if s.Event.CreatedAt < g.NotBefore || s.Event.CreatedAt >= g.NotAfter || s.Event.CreatedAt > now {
+	if created < g.NotBefore || created >= g.NotAfter || created > now {
 		return fail("REQUEST_TIME")
 	}
 	if !slices.Contains(g.Scope, r.Action) {

@@ -2,7 +2,7 @@
 
 Go release tooling and public templates for regtest preparation. It builds
 gateway, rental-booking, grant-store, swarma-relay, swarma-signer, model-proxy,
-station-manager and station-payload from an exact clean HEAD twice, refuses
+station-manager, station-payload and agent-walletd from an exact clean HEAD twice, refuses
 any byte difference, then emits an unsigned bundle with SHA256SUMS and a manifest.
 No source product changes, key creation, signing, installation or host deployment
 occur inside the tool. [SMOKE.md](SMOKE.md) is the separate Infra handoff plan.
@@ -39,7 +39,7 @@ Two `git archive` extractions and separate build caches prevent a working-tree
 file or previous compiled output from standing in for the second build.
 Archive traversal/link entries refuse. Source cleanliness/HEAD are checked again
 before publication; existing output is preserved. The complete candidate is
-renamed into a new output directory only after all eight binary pairs match.
+renamed into a new output directory only after all nine binary pairs match.
 Temporary source/build trees are removed, including on refusal.
 
 Outputs: `bin/`, `templates/`, `README.md`, `SMOKE.md`, `SMOKE-DK2.md`, `manifest.json`,
@@ -222,6 +222,25 @@ service user unless noted. State roots and private mirrors are separate from
 | `/etc/swarma/stations/gateway-ca.pem` | `swarma-stations` | 0400 | 0700 | manager `readPrivate`, CA parsing |
 | Infra-selected per-slot bootstrap file | that slot's user | 0600 | 0700 | payload exact-mode proxy `ReadPrivateFile` plus closed bootstrap codec |
 | Infra-selected per-slot CA bundle | that slot's user | 0600 | 0700 | payload exact-mode proxy `ReadPrivateFile`, normal TLS trust plus pins |
+| `/etc/swarma/wallet/service.json` | `swarma-wallet` | 0600 | 0700 | wallet service `privateBytes`, closed service config |
+| `/etc/swarma/wallet/wallet.json` | `swarma-wallet` | 0600 | 0700 | W1 `LoadConfig`, private RPC routes; never client-readable |
+| `/etc/swarma/wallet/receipt.key` (64 lowercase hex characters, no newline) | `swarma-wallet` | 0600 | 0700 | `LoadActionKey`, distinct from the pinned grantee key |
+
+Wallet W2 uses `templates/wallet/{deploy,service}.json` and the separate
+`swarma-wallet.service.in`, sysusers and tmpfiles templates. Replace the numerical
+UID/GID/key placeholders with approved per-agent pins; add only that agent to
+the socket group. `/run/swarma-wallet` is service-owned0750, socket0660;
+wallet/service/kernel/object roots remain private0700. The client receives only
+its own action key and public service UID/receipt-key/socket pins, never the
+private wallet configuration. Build `cmd/agent-wallet` separately from the same
+reviewed head for the agent; it is not an additional daemon in the release.
+Run `deploy-kit validate -config WALLET_DEPLOY_JSON -public WALLET_SERVICE_JSON`
+before native startup. This is structural validation and opens no private files.
+The daemon requires a different peer UID, exact file modes and regtest authority.
+Before rollout, Infra must prove that the agent cannot read the wallet
+credential/journal or connect to another agent's socket, alongside a successful
+own-agent action. Template tests and cross-builds do not prove host isolation.
+See the [wire and recovery profile](../experiments/agent-wallet/SERVICE.md).
 
 All these loaders also require regular single-link files owned by the process;
 model/manager/payload reject symlink path components. Signer key paths and source

@@ -65,6 +65,7 @@ var releaseArtifacts = []Artifact{
 	{Service: "model", Module: "experiments/model-proxy", Package: "./cmd/model-proxy", Binary: "bin/model-proxy", Status: "regtest-preparation", Reason: "owner-approved model prices, caps and API credential required; Linux peer-credential administration"},
 	{Service: "stations", Module: "experiments/station-lifecycle", Package: "./cmd/station-manager", Binary: "bin/station-manager", Status: "regtest-preparation", Reason: "ordinary Linux transport; independently installed root helper and policy required"},
 	{Service: "payload", Module: "experiments/station-payload", Package: "./cmd/station-payload", Binary: "bin/station-payload", Status: "regtest-preparation", Reason: "scripted consumer only; per-slot launch belongs to the root helper policy, no standalone unit"},
+	{Service: "wallet", Module: "experiments/agent-wallet", Package: "./cmd/agent-walletd", Binary: "bin/agent-walletd", Status: "regtest-preparation", Reason: "separate service UID, per-agent socket group, receipt key and private wallet RPC configuration required; host custody smoke remains separate"},
 }
 
 type buildFunc func(context.Context, string, string, string, Artifact) ([]byte, error)

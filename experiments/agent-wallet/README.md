@@ -1,4 +1,12 @@
-# Agent wallet experiment (W1)
+# Agent wallet experiments (W1 / W2)
+
+**W2 changes the default CLI.** `agent-wallet` is now a signing socket client;
+`agent-walletd` holds custody in a separate non-root service user. See
+[SERVICE.md](SERVICE.md) for exact LIP-0006 bytes, supported actions, deployment,
+recovery and the limits of local same-UID test evidence. W2 v1 supports spend,
+balance/history/receive and budget; name operations are deferred.
+
+The following documents the retained **`agent-wallet-legacy`** W1 command.
 
 **Experimental, regtest only.** A bounded Go CLI checks authority before using
 an agent's hot wallet. It supports ordinary payments, two-stage name registration
@@ -18,20 +26,20 @@ Build from this module, with the sibling dependencies present:
 ```sh
 go test -race ./...
 go vet ./...
-go build -trimpath -o ../../.temp/agent-wallet ./cmd/agent-wallet
+go build -trimpath -o ../../.temp/agent-wallet-legacy ./cmd/agent-wallet-legacy
 ```
 
 The operator supplies a private config; the agent receives only its installed
 path and public grant/request files. Global `--config` precedes the command:
 
 ```sh
-agent-wallet --config CONFIG balance
-agent-wallet --config CONFIG receive
-agent-wallet --config CONFIG history
-agent-wallet --config CONFIG budget --grant GRANT_FILE_OR_ID
-agent-wallet --config CONFIG spend --grant GRANT_FILE_OR_ID --request REQUEST
-agent-wallet --config CONFIG spend --grant ONEOFF_GRANT --request REQUEST --use-txid TXID
-agent-wallet --config CONFIG name-register --grant GRANT_FILE_OR_ID --request REQUEST
+agent-wallet-legacy --config CONFIG balance
+agent-wallet-legacy --config CONFIG receive
+agent-wallet-legacy --config CONFIG history
+agent-wallet-legacy --config CONFIG budget --grant GRANT_FILE_OR_ID
+agent-wallet-legacy --config CONFIG spend --grant GRANT_FILE_OR_ID --request REQUEST
+agent-wallet-legacy --config CONFIG spend --grant ONEOFF_GRANT --request REQUEST --use-txid TXID
+agent-wallet-legacy --config CONFIG name-register --grant GRANT_FILE_OR_ID --request REQUEST
 ```
 
 Balance/history report atoms (100,000,000 per NMC). History projects at most 50

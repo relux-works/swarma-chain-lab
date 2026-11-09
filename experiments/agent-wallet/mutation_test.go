@@ -39,6 +39,12 @@ func TestGuardPlants(t *testing.T) {
 	if json.Unmarshal(raw, &plants) != nil || len(plants) < 20 {
 		t.Fatal("plant manifest")
 	}
+	serviceRaw, e := os.ReadFile("testdata/service-mutations.json")
+	var servicePlants []plant
+	if e != nil || json.Unmarshal(serviceRaw, &servicePlants) != nil || len(servicePlants) < 15 {
+		t.Fatal("service plant manifest")
+	}
+	plants = append(plants, servicePlants...)
 	cwd, e := os.Getwd()
 	if e != nil {
 		t.Fatal(e)
@@ -78,7 +84,7 @@ func TestGuardPlants(t *testing.T) {
 	for _, p := range plants {
 		t.Run(p.Name, func(t *testing.T) {
 			dir := filepath.Join(root, p.Name)
-			for _, name := range []string{"rental", "single-use", "sealwatch"} {
+			for _, name := range []string{"rental", "single-use", "sealwatch", "payment-chain", "rental-booking"} {
 				if e := copyTree(filepath.Join(deps, name), filepath.Join(dir, name)); e != nil {
 					t.Fatal(e)
 				}

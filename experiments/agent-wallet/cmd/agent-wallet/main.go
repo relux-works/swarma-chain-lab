@@ -1,3 +1,4 @@
+// agent-wallet is a signing socket client. It has no wallet RPC credential.
 package main
 
 import (
@@ -5,133 +6,73 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	wallet "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet"
 )
 
-func main()      { os.Exit(run(os.Args[1:])) }
-func emit(v any) { json.NewEncoder(os.Stdout).Encode(v) }
-func refused(code string) int {
-	emit(wallet.Receipt{Status: "refused", Reason: code, Message: wallet.Explain(code)})
-	return 2
-}
-func run(args []string) int {
-	fs := flag.NewFlagSet("agent-wallet", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	config := fs.String("config", "", "private operator configuration file")
-	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "agent-wallet --config FILE balance|receive|history|budget|spend|name-register\nMutations require --grant FILE_OR_SHA256 --request FILE; one-off use proof: --use-txid TXID.")
+func main() { os.Exit(run(os.Args[1:], os.Stdout)) }
+func run(args []string, out io.Writer) int {
+	f := flag.NewFlagSet("agent-wallet", flag.ContinueOnError)
+	f.SetOutput(io.Discard)
+	config := f.String("config", "", "client pins JSON")
+	request := f.String("request", "", "unsigned canonical LIP-0006 request JSON")
+	use := f.String("use-txid", "", "optional single-use proof locator")
+	refuse := func(code string) int {
+		json.NewEncoder(out).Encode(struct {
+			Error string `json:"error"`
+		}{code})
+		return 2
 	}
-	if e := fs.Parse(args); e != nil {
+	if e := f.Parse(args); e != nil {
 		if e == flag.ErrHelp {
+			fmt.Fprintln(out, "agent-wallet --config CLIENT.json --request REQUEST.json [--use-txid TXID]")
 			return 0
 		}
-		return refused("CLI_ARGUMENTS")
+		return refuse("CLI_ARGUMENTS")
 	}
-	rest := fs.Args()
-	if *config == "" || len(rest) < 1 {
-		return refused("CLI_ARGUMENTS")
+	if f.NArg() != 0 || *config == "" || *request == "" {
+		return refuse("CLI_ARGUMENTS")
 	}
-	command := rest[0]
-	cf := flag.NewFlagSet(command, flag.ContinueOnError)
-	cf.SetOutput(os.Stderr)
-	grant := cf.String("grant", "", "public signed grant file or exact SHA256")
-	request := cf.String("request", "", "public grantee-signed request file")
-	use := cf.String("use-txid", "", "confirmed W3 use transaction locator")
-	if cf.Parse(rest[1:]) != nil || len(cf.Args()) != 0 {
-		return refused("CLI_ARGUMENTS")
-	}
-	switch command {
-	case "balance", "receive", "history":
-		if *grant != "" || *request != "" || *use != "" {
-			return refused("CLI_ARGUMENTS")
-		}
-	case "budget":
-		if *grant == "" || *request != "" || *use != "" {
-			return refused("CLI_ARGUMENTS")
-		}
-	case "spend", "name-register":
-		if *grant == "" || *request == "" {
-			return refused("CLI_ARGUMENTS")
-		}
-	default:
-		return refused("CLI_COMMAND")
-	}
-	c, e := wallet.LoadConfig(*config)
+	c, e := wallet.LoadActionClientConfig(*config)
 	if e != nil {
-		return refused(e.Error())
+		return refuse(wallet.ActionErrorReason(e))
 	}
-	w, e := wallet.Open(c)
+	raw, e := wallet.PublicObject(*request)
 	if e != nil {
-		return refused(e.Error())
+		return refuse(wallet.ActionErrorReason(e))
 	}
-	defer w.Close()
+	r, e := wallet.ParseActionRequest(raw)
+	if e != nil {
+		return refuse(wallet.ActionErrorReason(e))
+	}
+	key, e := wallet.LoadActionKey(c.KeyFile)
+	if e != nil {
+		return refuse(wallet.ActionErrorReason(e))
+	}
+	var proof *wallet.ActionProof
+	if *use != "" {
+		proof = &wallet.ActionProof{UseTxID: *use}
+	}
+	signed, e := wallet.SignAction(r, key, proof)
+	if e != nil {
+		return refuse(wallet.ActionErrorReason(e))
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	switch command {
-	case "balance":
-		v, e := w.Balance(ctx)
-		if e != nil {
-			return refused(e.Error())
-		}
-		emit(v)
-		return 0
-	case "receive":
-		v, e := w.Receive(ctx)
-		if e != nil {
-			return refused(e.Error())
-		}
-		emit(map[string]string{"address": v})
-		return 0
-	case "history":
-		v, e := w.History(ctx)
-		if e != nil {
-			return refused(e.Error())
-		}
-		emit(v)
-		return 0
-	}
-	raw, e := wallet.LoadGrant(c, *grant)
+	reply, e := wallet.ExchangeAction(ctx, c.Socket, c.ServiceUID, c.ReceiptKey, signed)
 	if e != nil {
-		return refused(e.Error())
+		return refuse(wallet.ActionErrorReason(e))
 	}
-	g, e := w.Grant(raw)
-	if e != nil {
-		return refused(e.Error())
+	if _, e = fmt.Fprintln(out, string(reply)); e != nil {
+		return 2
 	}
-	terms, e := wallet.LoadTerms(c, g)
-	if e != nil {
-		return refused(e.Error())
-	}
-	if command == "budget" {
-		v, e := w.Budget(ctx, raw, terms)
-		if e != nil {
-			return refused(e.Error())
-		}
-		emit(v)
-		return 0
-	}
-	req, e := wallet.PublicObject(*request)
-	if e != nil {
-		return refused(e.Error())
-	}
-	signed, e := wallet.ParseRequest(req)
-	if e != nil {
-		return refused(e.Error())
-	}
-	want := "pay"
-	if command == "name-register" {
-		want = "names.register"
-	}
-	if signed.Request.Action != want {
-		return refused("CLI_ACTION_MISMATCH")
-	}
-	r := w.Execute(ctx, raw, terms, req, *use)
-	emit(r)
-	switch r.Status {
-	case "executed", "already-executed":
+	var receipt wallet.SignedActionReceipt
+	json.Unmarshal(reply, &receipt)
+	switch receipt.Receipt.Verdict {
+	case "executed":
 		return 0
 	case "pending":
 		return 3

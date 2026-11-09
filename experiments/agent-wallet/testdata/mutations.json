@@ -29,8 +29,8 @@
   {
     "Name": "request-grantee",
     "File": "grant.go",
-    "Old": "if r.GrantID != g.ID || s.Event.Pubkey != g.Grantee {",
-    "New": "if false && (r.GrantID != g.ID || s.Event.Pubkey != g.Grantee) {",
+    "Old": "if r.GrantID != g.ID || sender != g.Grantee {",
+    "New": "if false && (r.GrantID != g.ID || sender != g.Grantee) {",
     "Selector": "TestCoreWalletControls/other-grantee",
     "Marker": "want REQUEST_GRANTEE_BINDING",
     "Core": true

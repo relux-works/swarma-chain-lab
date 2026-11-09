@@ -10,7 +10,7 @@ import (
 )
 
 func newService(s string) bool {
-	return s == "issuer" || s == "model" || s == "stations" || s == "payload"
+	return s == "wallet" || s == "issuer" || s == "model" || s == "stations" || s == "payload"
 }
 
 // New service descriptors contain only installation identity. Native files are
@@ -62,6 +62,8 @@ func ValidateServiceInputs(p Policy, inputs [][]byte) error {
 		return e
 	}
 	switch p.Service {
+	case "wallet":
+		return validateWallet(raw)
 	case "issuer":
 		return validateIssuer(raw)
 	case "model":

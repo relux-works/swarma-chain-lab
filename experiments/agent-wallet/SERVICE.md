@@ -1,0 +1,170 @@
+# W2 wallet service: LIP-0006 v1 profile
+
+Experimental, regtest only. `agent-walletd` owns the RPC configuration, public
+grant mirror, journals and receipt key under a dedicated non-root OS user.
+`agent-wallet` is now a signing Unix-socket client. It holds only the grantee
+action key, service UID/key pins and socket path. `agent-wallet-legacy` preserves
+W1's same-user CLI for regression and explicit legacy deployments; it does not
+provide custody separation. Never give its private configuration to a W2 agent.
+
+## Transport and exact bytes
+
+One request and one response per Unix connection, each prefixed by a four-byte
+unsigned big-endian body length, 1..65536 bytes. No newline is part of the wire
+body. The service checks kernel peer credentials before reading a frame, records
+UID/GID, and applies a 1..60 second connection deadline. There is one configured
+grantee and peer UID per instance. Linux uses SO_PEERCRED; Darwin uses LOCAL_PEERCRED.
+The client checks the socket owner/mode, actual peer UID and pinned receipt key.
+The socket is 0660 in a canonical service-owned 0750 directory, with a dedicated
+per-agent group. An existing socket refuses startup; investigate it manually
+after establishing that its owner process exited. Do not add automatic unlink.
+
+All wire objects have exactly the field order below, compact JSON, no unknown,
+duplicate, omitted required, null, case-aliased or trailing fields/bytes. Integers
+use their canonical decimal form. Hex is lowercase. The request structure is:
+
+```json
+{"v":1,"service":"wallet.nmc","action":"balance","params":{},"grant":{"kind":"none"},"nonce":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","created_at":500,"grantee":"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"}
+```
+
+This is public test data, not a current request or authorization. `nonce` is
+16 random bytes encoded as 32 hex characters; `created_at` is positive Unix
+seconds. `grantee` is a BIP-340 x-only public key. `request_hash` is SHA256 of
+these exact unsigned request bytes. Sign BIP-340 over
+`SHA256(UTF8("swarma-action-v1") || binary32(request_hash))`. The digest does
+not use the ASCII hex hash and is not an 8184 event ID.
+
+Transport wraps this as `{"request":REQUEST,"signature":"128_HEX"}`. A
+single-use spend may append `,"proof":{"use_txid":"64_HEX"}` before the
+wrapper's closing brace. This locator is unsigned and outside request_hash;
+the service independently verifies its chain proof. It is forbidden for other
+actions/grant kinds. W3's OP_RETURN commitment is SHA256 of the unsigned request
+bytes. Never fabricate a Nostr event or commit the wrapper instead.
+
+| Action | Params, exact field order | Grant |
+| --- | --- | --- |
+| `spend` | `{"to":"REGTEST_P2PKH","amount_sat":INTEGER,"fee_limit_sat":INTEGER}` | `{"kind":"standing","id":"64_HEX"}` or `single-use` |
+| `balance`, `history`, `receive` | `{}` | `{"kind":"none"}` |
+| `budget` | `{}` | `standing` or `single-use`, with stable ID |
+
+Amounts are positive atoms; amount plus fee must fit MaxMoney. Fee is 1..MaxFee.
+Standing spend maps to W1 `pay`; all existing grant scope, recipient, window,
+fee-inclusive cumulative budget, plan and signature checks apply. Single-use
+requires the exact signed grant amount/recipient and no larger fee limit.
+Name registration and updates are rejected. Registration's separate reveal
+continuation is deferred to W2b; no duplicate-receipt workaround implements it.
+
+## Admission, authority and effects
+
+Validate peer, canonical schema/service, signature and pinned grantee first.
+Check the durable per-grantee nonce journal next. A different request hash under
+the same nonce refuses. A terminal duplicate returns the original signed receipt
+byte-for-byte, even outside skew or after authority expires. It never retries an
+effect. A pending duplicate re-observes the chain. Only first admission checks
+the configured 1..300 second skew, then persists admission telemetry before
+resolving the grant. Skew never replaces the grant's own validity window.
+
+Grant IDs resolve only in the service-controlled object directory; request paths
+and arbitrary RPCs are not accepted. Malformed or mismatching public objects
+return OBJECT_HASH rather than a direct W1 parser error. Grant grantee/kind and
+contract terms bind before the shared W1 executor. Each read verifies the regtest
+network/genesis. Signed no-grant reads do not imply spending authority. `budget`
+reports live=false when authority is not live; a successful query is not a grant.
+`receive` allocates an address and therefore reserves durably before calling RPC.
+
+Spending uses the original W1 checks, then reserves both the wallet plan/budget
+and service action before broadcast. After reservation it checks authority,
+single-use proof where applicable, and all input coins again. These observations
+are not atomic with broadcast; later chain changes remain possible. A final
+refusal retains the reservation. RPC timeouts and ambiguous outcomes do not
+authorize a retry. A missing single-use proof is terminal USE_PROOF_REQUIRED;
+USE_PENDING is pending and can advance with the same request after confirmation.
+
+The service nonce maps into W1's 32-byte nonce as SHA256 of UTF8
+`"swarma-action-nonce-v1" + grantee_hex + nonce_hex`; exact unsigned request bytes
+remain the W1 journal commitment. This does not change the legacy event codec.
+
+## Signed receipts and recovery
+
+Receipt field order: `v,service,grantee,request_hash,verdict,reason,effect,
+journal_seq,observed_height,peer`; peer fields are `uid,gid`. The wrapper contains
+`receipt,signature`. BIP-340 signs SHA256 of UTF8 `swarma-action-receipt-v1`
+followed by the canonical receipt bytes. The service key is distinct from the
+grantee key. Clients must pin it independently; no response supplies its own key.
+
+Verdicts: executed, pending, refused, uncertain. Reasons reuse W1/K1 codes with
+bounded ACTION_/SERVICE_ transport codes; no raw error, input or credential is
+echoed. Sequence is one-based admission order, or zero for pre-admission refusal.
+Observed height is a sampled regtest tip, not an atomic authorization snapshot;
+zero means unavailable/not observed. Spend effect contains txid when available,
+reserved_sat and phase; receive contains address; reads use their W1 projections.
+Malformed requests receive a refusal bound to SHA256(raw frame body), since no
+authenticated canonical request hash exists. Peer/framing failures close silently.
+
+The service journal has a lifetime lock, 0600 single-link files in a 0700 root,
+at most 32 entries and 65536 bytes, with 16384-byte receipt headroom. Oversize
+receipts become uncertain. Admission may stop before 32 entries when byte
+headroom runs out. No pruning or automatic reset restores consumed authority.
+Corruption/configuration/receipt-key changes refuse reopening. Write uncertainty
+poisons the live service. Crash after reservation returns durable uncertainty;
+the wallet-reserved/service-pending gap is also never rebroadcast. Receive
+reservations likewise never allocate twice. Preserve state and reconcile with
+the operator; do not change nonce, roots, keys or journal contents to retry.
+
+## Configuration and commands
+
+Build all three commands from this module; outputs are scratch artifacts:
+
+```sh
+go build -trimpath -o ../../.temp/agent-wallet ./cmd/agent-wallet
+go build -trimpath -o ../../.temp/agent-walletd ./cmd/agent-walletd
+go build -trimpath -o ../../.temp/agent-wallet-legacy ./cmd/agent-wallet-legacy
+agent-walletd --config SERVICE_CONFIG
+agent-wallet --config CLIENT_CONFIG --request UNSIGNED_CANONICAL_REQUEST
+agent-wallet --config CLIENT_CONFIG --request UNSIGNED_CANONICAL_REQUEST --use-txid TXID
+```
+
+Daemon config fields, in order: version,service,socket,socket_gid,peer_uid,
+grantee,skew_seconds,timeout_seconds,state_dir,wallet_config,receipt_key_file.
+`LoadServiceConfig` requires a private owner0600 single-link regular file. Native
+startup refuses root, the service's own UID as peer, group zero, noncanonical
+paths, wrong socket-directory ownership/group/mode and grantee/receipt-key reuse.
+The private wallet_config retains the W1 schema and separate RPC principals.
+The grant mirror is service-owned and not group/world writable. Operator-provision
+all parents without symlinks and without agent write access; private-file loaders
+reject final symlinks, but do not claim universal ancestor/rename-race protection.
+
+Client config fields: version,service,socket,service_uid,receipt_key,key_file.
+It is a closed public schema; RPC fields refuse. Receipt and grantee key files
+contain exactly 64 lowercase hexadecimal scalar characters, with no newline,
+owner0600, single link, no final symlink. Let the client read its own action key;
+never copy the daemon key or wallet credentials to the client. Exit codes are
+0 executed, 2 refused/client error, 3 pending, 4 uncertain. The printed verified
+receipt has a display newline; its wire body does not.
+
+See [deploy wallet templates](../../deploy/templates/wallet/) and the
+[deploy credential table](../../deploy/README.md). They prepare one service/agent
+instance. Provision separate users/groups/roots/ports for additional agents;
+these templates do not implement a multi-tenant wallet.
+
+## Evidence boundaries and checks
+
+Unit/race/vet checks use the README commands. Genuine Core socket suites are
+TestCoreActionStanding, Oneoff, Refusals, OneoffBindings, Crash, FinalCheck,
+Transport, Client, State, StateLimits, SealFunding and Rotation (each name has
+the TestCoreAction prefix). Run each separately with a fresh W1_RUN_ROOT and
+the README's exact Core pins. They exercise actual sockets and kernel credentials
+under one UID using an unexported test constructor, not production startup.
+There is no production same-UID/test-clock escape flag. They do not establish
+that a different OS user cannot read files. Linux cross-compilation and unit
+template checks are not OS custody or systemd enforcement evidence. Infra must
+test actual denied reads of credential/journal/other-agent socket and a positive
+own-agent request under separate UIDs before deployment. No users or services
+are created by these tests.
+
+The existing 25 W1 plants plus service-mutations.json exercise selected guards.
+The runner copies all five sibling dependencies and requires the intended
+compiled assertion failure; setup errors, skips, timeouts and crashes do not
+count. Redundant lower-level private-file defenses are covered by direct tests,
+not falsely claimed as killed by removal of only one of their checks. W1 names
+remain legacy regression coverage; all name actions are unsupported over W2.

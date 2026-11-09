@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// A freshly compiled production CLI uses the real clock and actual Core/K1.
+// The explicitly named W1 regression CLI uses the real clock and actual Core/K1.
 // File and stable-ID lookup, exact replay, all six commands and argument/cache/
 // config refusals are exercised; no test clock or authority shim enters the CLI.
 func TestCoreCLI(t *testing.T) {
@@ -18,7 +18,7 @@ func TestCoreCLI(t *testing.T) {
 	terms := Terms{Version: 1, Recipients: []string{testAddress(3)}, SpendCap: 1000000, NameCap: DefaultNameBudget, NameCount: 3}
 	raw, c := l.grant(terms, []string{"names.register", "pay"}, 4000000)
 	bin := filepath.Join(l.private, "agent-wallet")
-	build := exec.Command("go", "build", "-trimpath", "-o", bin, "./cmd/agent-wallet")
+	build := exec.Command("go", "build", "-trimpath", "-o", bin, "./cmd/agent-wallet-legacy")
 	if output, e := build.CombinedOutput(); e != nil {
 		t.Fatalf("CLI build %v %s", e, output)
 	}
@@ -26,7 +26,7 @@ func TestCoreCLI(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	l.save("cli-build.json", map[string]any{"sha256": Hash(b), "clock": "production wall clock", "command": "go build -trimpath -o agent-wallet ./cmd/agent-wallet"})
+	l.save("cli-build.json", map[string]any{"sha256": Hash(b), "clock": "production wall clock", "command": "go build -trimpath -o agent-wallet ./cmd/agent-wallet-legacy"})
 	config := filepath.Join(l.private, "wallet-config.json")
 	grant := filepath.Join(l.public, "grant.json")
 	request := filepath.Join(l.public, "request.json")

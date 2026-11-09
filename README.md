@@ -91,11 +91,14 @@ See its README for exact Core/control environment and private/public artifacts.
 
 ## Agent wallet and Curator skill draft
 
-[Agent wallet](experiments/agent-wallet/README.md) is the W1 regtest CLI for
-balance/receive/history, K1-authorized payments, fee-inclusive separate rental
-budgets, two-stage name registration and independent W3 single-use authority.
+[Agent wallet](experiments/agent-wallet/README.md) now provides the W2 signing
+socket client and `agent-walletd` with a separate service user. See its
+[LIP-0006 profile](experiments/agent-wallet/SERVICE.md) for spend/reads/budget,
+signed receipts, peer checks and durable recovery. The old W1 same-user CLI and
+two-stage name registration remain only in `agent-wallet-legacy`.
 From `experiments/agent-wallet`, run `go test -race ./...`, `go vet ./...` and
-`go build -trimpath -o ../../.temp/agent-wallet ./cmd/agent-wallet`.
+`go build -trimpath -o ../../.temp/agent-wallet ./cmd/agent-wallet`; build the
+daemon with `go build -trimpath -o ../../.temp/agent-walletd ./cmd/agent-walletd`.
 Its README lists exact Core/guard controls, bounded RPC routes and private/public
 artifact separation. The [skill draft](skills/namecoin-wallet/SKILL.md) requires
 Curator deployment to pin paths; it makes no sandbox or custody guarantee.

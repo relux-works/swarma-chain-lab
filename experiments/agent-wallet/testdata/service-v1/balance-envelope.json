@@ -1,0 +1,1 @@
+{"request":{"v":1,"service":"wallet.nmc","action":"balance","params":{},"grant":{"kind":"none"},"nonce":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","created_at":500,"grantee":"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"},"signature":"f31159e833fc48c68fb373b5fca942e0b91506b02823d890ecc80ce6281899f0fc0ebefabd3b5efda443c6c842b51e95adc4ed1b17727a964daafda5c81e87b5"}
