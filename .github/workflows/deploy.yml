@@ -15,6 +15,10 @@ on:
       - 'experiments/station-lifecycle/**'
       - 'experiments/rental-booking/**'
       - 'experiments/grant-store/**'
+      - 'experiments/signer-service/**'
+      - 'experiments/model-proxy/**'
+      - 'experiments/station-payload/**'
+      - 'experiments/agent-wallet/**'
       - 'experiments/rental/**'
       - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
@@ -29,6 +33,10 @@ on:
       - 'experiments/station-lifecycle/**'
       - 'experiments/rental-booking/**'
       - 'experiments/grant-store/**'
+      - 'experiments/signer-service/**'
+      - 'experiments/model-proxy/**'
+      - 'experiments/station-payload/**'
+      - 'experiments/agent-wallet/**'
       - 'experiments/rental/**'
       - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
@@ -62,7 +70,22 @@ jobs:
           GOPROXY: https://proxy.golang.org
           GOSUMDB: sum.golang.org
         run: |
-          for module in deploy experiments/rental-gateway experiments/rental-booking experiments/grant-store experiments/relay; do
+          modules=(deploy experiments/rental-gateway experiments/rental-booking experiments/grant-store experiments/relay
+            experiments/signer-service experiments/model-proxy experiments/station-lifecycle experiments/station-payload experiments/agent-wallet)
+          # Keep acquisition and both triggers aligned with the literal Module
+          # entries in release.go. An omitted module fails before offline builds.
+          release_modules="$(sed -n 's/.*Module: "\([^"]*\)".*/\1/p' release.go)"
+          test -n "$release_modules"
+          for module in $release_modules; do
+            case " ${modules[*]} " in
+              *" $module "*) ;;
+              *) echo "release module missing from dependency acquisition: $module"; exit 1 ;;
+            esac
+            if test "$(grep -Fxc "      - '$module/**'" "$GITHUB_WORKSPACE/.github/workflows/deploy.yml")" -ne 2; then
+              echo "release module missing from workflow path filters: $module"; exit 1
+            fi
+          done
+          for module in "${modules[@]}"; do
             go -C "$GITHUB_WORKSPACE/$module" mod download
             go -C "$GITHUB_WORKSPACE/$module" mod verify
           done
@@ -71,7 +94,7 @@ jobs:
           go vet ./...
           go test -race -count=1 ./...
           go build -trimpath -o "$RUNNER_TEMP/deploy-kit" ./cmd/deploy-kit
-      # No Core node or credentials are needed: the test builds all four
+      # No Core node or credentials are needed: the test builds all release
       # Linux/amd64 artifacts twice, then plants differing source in an isolated
       # second tree and requires refusal without partial output or lost release.
       - name: Offline double-build and nondeterminism controls
