@@ -65,8 +65,8 @@ trusts only its configured proxy peer. Direct local services without that header
 share the loopback budget. Run `bin/swarma-relay -config
 "$STAGING/relay/service.json" -check` as one command after substituting the public
 URL. The initial compatibility profile leaves AUTH restrictions and outer PoW
-off; E1 still checks inner work. Recipient privacy requires the pending gateway
-AUTH adapter before enabling restricted gift-wrap reads. See the
+off; E1 still checks inner work. Recipient privacy requires configured gateway
+AUTH and the exact URL binding below before restricted gift-wrap reads are enabled. See the
 [relay contract](../experiments/relay/README.md).
 
 - From `deploy/`: `go test -race ./...`, `go vet ./...`,
@@ -107,6 +107,19 @@ only with a compatible relay and the existing gateway signing key. The separate
 native `gateway/service.json`, not a standalone service configuration. Replace
 every placeholder with approved numeric UID/caps and exact origin/leaf pin before
 merging. Leave the section absent for bootstrap v1. There are no spending defaults.
+
+Before switching gateway AUTH on or restricting relay gift-wrap reads, configure
+`gateway.relay_url` byte-for-byte equal to the relay's `public_url`, including
+scheme, host, port and any trailing slash. The gateway signs its configured URL;
+RL1 compares that tag to `public_url` without normalization. A loopback `ws://`
+URL and a public-domain `wss://` URL do not match, even if they reach the same
+relay. The shipped templates deliberately differ and therefore cannot authenticate
+until aligned; mismatch fails closed. The current gateway CLI accepts only
+loopback `ws://` with no path, so a supported local AUTH profile must use that
+same exact URL on both sides (for example `ws://127.0.0.1:18818`, without `/`).
+Public `wss://` gateway connectivity requires separate transport/configuration
+work; changing only the template cannot enable it. Keep AUTH restrictions off
+until a supported matching route is configured and qualified.
 
 `deploy-kit validate -public` checks the AUTH mode and refuses a partial/null
 model section, unknown fields, invalid UID/caps or non-manager selection. Integer
