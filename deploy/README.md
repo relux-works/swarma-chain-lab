@@ -31,7 +31,7 @@ Temporary source/build trees are removed, including on refusal.
 
 Outputs: `bin/`, `templates/`, `README.md`, `SMOKE.md`, `manifest.json`,
 `SHA256SUMS`. Checksums cover every output file except the checksum file itself;
-the orchestrator signs that file separately with namespace `swarma-release`.
+the release signer signs that file separately with namespace `swarma-release`.
 The manifest records commit, Go version, target, flags, module/package, binary
 hash and readiness status. No timestamp, home path or build-directory path is
 embedded in the manifest. A successful build is not a deployment acceptance.

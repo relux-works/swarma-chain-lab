@@ -8,7 +8,7 @@ the Infra handoff; these artifacts are not another experimental service.
 
 The operator-approved layout is `/opt/swarma/<service>/<version>/bin`, config
 under `/etc/swarma/<service>/`, state under `/var/lib/swarma-<service>/`.
-All target VMs are linux/amd64. NMC regtest on demo1/exec1 uses user `nmc`, unit
+All target VMs are linux/amd64. NMC regtest on the public and signer hosts uses user `nmc`, unit
 `namecoind-regtest`, datadir `/var/lib/namecoind-regtest`, loopback RPC18443,
 and no P2P listener. This kit does not create or alter that node.
 
@@ -118,5 +118,5 @@ real runtime wiring exists.
 - `experiments/single-use/operator_route.go`: pinned CLI/file-reference boundary.
 - `experiments/grant-store/cmd/grant-store/main.go`, `store.go`, `http.go`: S1
   configuration, loopback listen, shutdown and signed access requirements.
-- The task's Infra M5 preparation note and request fix the host/users/layout;
+- The deployment preparation note and request fix the host/users/layout;
   this survey does not read actual deployment credentials or private configs.

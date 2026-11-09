@@ -1,6 +1,6 @@
 # Infra install and smoke plan (regtest only)
 
-This is a plan for Infra, not evidence of a host deployment. Target demo1 is
+This is a plan for Infra, not evidence of a host deployment. The public host runs
 linux/amd64. Nothing here authorizes a mainnet transaction, creates wallet keys,
 changes custody, or starts the blocked gateway. Keep existing state and keys.
 Signer, Courier and Nostr transport are pending manifest rows, not services to
@@ -9,7 +9,7 @@ guess or install from this kit.
 ## 1. Release workstation: build, review and sign
 
 Use a clean reviewed commit that contains this kit, Go1.26.8 and dependencies
-already downloaded and verified in the module cache. Do not build on demo1.
+already downloaded and verified in the module cache. Do not build on the public host.
 The commit must equal the clean checkout's HEAD. Choose a new absolute output
 directory outside the source repository. From `deploy/`:
 
@@ -23,7 +23,7 @@ README, this plan, manifest.json and SHA256SUMS, but never signs. Gateway's
 artifact is explicitly blocked/non-startable. The manifest's Go version, commit,
 target and every binary hash must match the approved handoff.
 
-The orchestrator uses the approved signing environment/key and namespace;
+The release signer uses the approved signing environment/key and namespace;
 replace `SIGNING_KEY` with that configured public signing-key reference:
 
 ```sh
@@ -108,7 +108,7 @@ Replace only @VERSION@ in the two provided `.service.in` files and stage them as
 `/etc/systemd/system/swarma-booking.service` and `swarma-store.service` using the
 normal reviewed Infra installation procedure. There is no gateway unit.
 
-On demo1, before starting either service:
+On the public host, before starting either service:
 
 ```sh
 systemd-analyze verify /etc/systemd/system/swarma-booking.service /etc/systemd/system/swarma-store.service

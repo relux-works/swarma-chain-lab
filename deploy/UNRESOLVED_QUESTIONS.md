@@ -16,8 +16,8 @@ its request follows separately. Never enable the stub as a real grant enforcer.
 
 No local Linux container runtime/systemd-analyze is available, and installed Lima
 has no instances. Report systemd-analyze verification as not run unless a usable
-authorized environment becomes available. The orchestrator explicitly prohibits
-creating a Lima VM for this task. Infra must run systemd-analyze verify on demo1
+authorized environment becomes available. The maintainers explicitly prohibit
+creating a Lima VM for this task. Infra must run systemd-analyze verify on the public host
 before the first start; SMOKE.md records that gate.
 
 ## Deployment inputs remain operator-owned
