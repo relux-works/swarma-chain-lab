@@ -1,7 +1,7 @@
 name: Scripted station payload checks
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     paths: ['experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
   push:
     branches: [main]
@@ -15,7 +15,7 @@ jobs:
   payload:
     strategy:
       matrix:
-        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && '["ubuntu-22.04","macos-14"]' || '["ubuntu-22.04"]') }}
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && '["ubuntu-22.04","macos-15"]' || '["ubuntu-22.04"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
