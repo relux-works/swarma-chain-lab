@@ -335,12 +335,20 @@ func (r *runner) drive(ctx context.Context) error {
 		return e
 	}
 	r.mark("closure_timing")
+	peer.restartAt = time.Now().Unix()
 	if _, e = r.observe(ctx, "restart", time.Now().Add(5*time.Minute)); e != nil {
+		return e
+	}
+	// A restarted gateway may asynchronously replay old input through its
+	// non-grantee exchange. Observe a bounded quiet interval without sending
+	// more application messages; allow only its exact fresh control refusals.
+	if e = pause(ctx, 2*time.Second); e != nil {
 		return e
 	}
 	if e = peer.quiet(c.Scenario, contract.NotAfter); e != nil {
 		return e
 	}
+	r.mark("restart_two_second_observation")
 	return nil
 }
 func checkTerms(c Config, p profile, t exchange.Terms) error {

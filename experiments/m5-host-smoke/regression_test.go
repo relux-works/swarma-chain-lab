@@ -236,3 +236,27 @@ func TestRevokeFallbackNotice(t *testing.T) {
 		}
 	}
 }
+
+// Restart replay may produce native exchange refusals in either scenario.
+// Only exact control text timestamped after the handoff is admitted; stale
+// control text and a real model payload remain forbidden.
+func TestRestartControlReplies(t *testing.T) {
+	now := time.Now().Unix()
+	for _, scenario := range []string{"expiry", "revoke"} {
+		for _, tc := range []struct {
+			m  received
+			ok bool
+		}{{received{exchange.Help, now}, true}, {received{exchange.NotLive, now}, true}, {received{exchange.Help, now - 1}, false}, {received{"model fixture reply", now}, false}} {
+			c := &conversation{lastRequestAt: now, restartAt: now, inbox: make(chan received, 1), fault: make(chan error, 1)}
+			c.inbox <- tc.m
+			e := c.quiet(scenario, now)
+			if tc.ok {
+				if e != nil || len(c.notices) != 1 || c.notices[0] != "restart_exchange_refusal" {
+					t.Fatal("restart control classification", e)
+				}
+			} else {
+				wantCode(t, e, "UNEXPECTED_CLOSED_REPLY")
+			}
+		}
+	}
+}

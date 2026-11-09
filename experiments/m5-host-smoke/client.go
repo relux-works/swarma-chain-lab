@@ -31,6 +31,7 @@ type conversation struct {
 	lastSend      time.Time
 	lastReply     time.Time
 	lastRequestAt int64
+	restartAt     int64
 	notices       []string
 	seen          map[string]bool
 	mu            sync.Mutex
@@ -241,24 +242,23 @@ func (c *conversation) quiet(scenario string, notAfter int64) error {
 	for {
 		select {
 		case s := <-c.inbox:
-			allowed := false
-			if scenario == "revoke" && s.at >= c.lastRequestAt {
-				switch s.content {
-				case exchange.NotLive:
-					allowed = true
-					c.notices = append(c.notices, "revoke_not_live")
-				case exchange.Help:
-					allowed = true
-					c.notices = append(c.notices, "revoke_exchange_help")
+			kind := ""
+			switch {
+			case c.restartAt > 0 && s.at >= c.restartAt && (s.content == exchange.Help || s.content == exchange.NotLive):
+				kind = "restart_exchange_refusal"
+			case scenario == "revoke" && s.at >= c.lastRequestAt:
+				if s.content == exchange.Help {
+					kind = "revoke_exchange_help"
+				} else if s.content == exchange.NotLive {
+					kind = "revoke_not_live"
 				}
+			case scenario == "expiry" && s.content == "slot ended" && s.at >= notAfter && time.Now().Unix() >= notAfter:
+				kind = "expiry_slot_ended"
 			}
-			if scenario == "expiry" && s.content == "slot ended" && s.at >= notAfter && time.Now().Unix() >= notAfter {
-				allowed = true
-				c.notices = append(c.notices, "expiry_slot_ended")
-			}
-			if !allowed {
+			if kind == "" {
 				return refuse("UNEXPECTED_CLOSED_REPLY")
 			}
+			c.notices = append(c.notices, kind)
 		default:
 			return c.healthy()
 		}

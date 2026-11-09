@@ -118,7 +118,11 @@ during expiry idle. The authenticated native `slot ended` notice is permitted on
 not_after. After the revoke probe, exact native exchange Help or NotLive may
 arrive through the non-grantee fallback; require its timestamp at/after the
 probe. Record the observed fixed notice kind separately. These control replies
-are not payload delivery; other unsolicited payload replies fail. Normal WebSocket heartbeats
+are not payload delivery. A restarted gateway may replay earlier inputs through
+that same non-grantee fallback; exact Help/NotLive created at/after the restart
+handoff are recorded separately. The client then observes a bounded two-second
+interval without application messages. Other unsolicited payload replies fail;
+this interval is an observation, not a promise about all future traffic. Normal WebSocket heartbeats
 continue. A disconnect or replay
 overflow is a failed liveness observation, not a reason to retry into success.
 For revoke, capture spend time promptly; do not reset its deadline when the
