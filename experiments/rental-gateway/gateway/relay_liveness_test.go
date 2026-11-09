@@ -205,7 +205,8 @@ func TestReplayKeepsLiveInbox(t *testing.T) {
 		}
 		return e
 	}
-	newer, older, live := mk(time.Now().Unix()-10), mk(time.Now().Unix()-11), mk(time.Now().Unix())
+	now := time.Now().Unix()
+	newer, older, live := mk(now-10), mk(now-11), mk(now)
 	url := authFixture(t, func(c *websocket.Conn, _ string) {
 		typ, _ := authRead(c)
 		if typ != "REQ" {
