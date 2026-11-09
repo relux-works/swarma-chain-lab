@@ -1,7 +1,8 @@
 # Real gateway serve: landed constructor and deployment survey
 
 Baseline: `30c35534d484ea3c82ee02f511e97af5ef828069`, including P1 and CG1.
-This is a source survey and proposed wiring contract, not implemented runtime.
+This preserves the initial source survey and proposed wiring contract. See
+[SERVE.md](SERVE.md) for the later implementation and remaining dependencies.
 The existing command builds with Go1.26.8 on darwin/arm64. No service, Linux user,
 VM, wallet, node or host configuration was started or changed for this survey.
 

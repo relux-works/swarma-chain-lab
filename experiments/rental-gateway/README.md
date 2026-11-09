@@ -41,18 +41,11 @@ Only the harness's isolated regtest wallet is used. Public issuance results,
 presentations and `node.pid` are written at the run root; private node data
 and temporary signing inputs remain under `private/` and must not be shared.
 
-Local run (stub kernel; the real kernel binds library-side via
-`kernelbind/`):
-
-```sh
-.temp/gateway keygen -out .temp/agent.key        # prints the agent npub hex
-.temp/gateway serve -key .temp/agent.key -journal .temp/journal \
-  -relay ws://127.0.0.1:<test-relay-port> -station-unix .temp/gateway.sock \
-  -stations-root .temp/stations -slot-file slot.json -stub-agent
-```
-
-Stop by PID. `gateway station-stub` is the scripted agent the
-local-test driver launches per station.
+The CLI now takes one strict public config. See [SERVE.md](SERVE.md) for its
+constructor chain, file permissions, current integration boundary and commands.
+Legacy serve flags are rejected. The explicit local test route uses the real
+kernel and exchange; optional stubs require `mode=test`, which deployment
+validation refuses. Stop only the recorded process PID.
 
 ## Design pins
 
@@ -173,14 +166,12 @@ local-test driver launches per station.
 
 ## Limitations
 
-- Stub kernel in `cmd/gateway serve` (`-stub-verdict`): local demos
-  and tests only. The real kernel binds through `kernelbind`
-  (library-side, exercised by the genuine-Core e2e); a production
-  serve binary must additionally wire `kernelbind.New` + a node
-  route and a real relay set.
+- The CLI wires the real kernel and v1 exchange. The remote station manager
+  adapter is still an integration dependency; current serve accepts only the
+  explicit local test route. No deployable station runtime is claimed yet.
 - No relay redundancy/reconnect backoff yet (single relay client).
-- Screening is an interface + stub; the real model call lands with
-  its own prompt/host pinning outside this experiment.
+- Screening has an explicit logged `off` implementation and the existing
+  `screen.Screener` injection boundary. A model proxy is not provided.
 - The renter channel sits behind the `Transport` (Publisher)
   boundary so it can move to an a2a transport later; no a2a code
   exists in this milestone.
@@ -199,7 +190,7 @@ for limits.
 Live grantees bypass the exchange. A full exchange queue drops immediately;
 booking calls and exchange publication run off the relay read/ACK pump.
 
-Library wiring (the existing `cmd/gateway serve` remains a stub demo):
+Library wiring (the CLI instantiates the same interfaces):
 
 1. Construct the separate booking service, with its own provider signing key,
    private state and watcher/publication scheduling. `kernelbind/bookingbind.Adapter`
@@ -256,10 +247,10 @@ never `private/`. No real funds, external relays or deployed station are tested.
 Relay-side IP/connection limits remain a deployment responsibility: NIP-01
 subscriptions expose no trustworthy originating client IP.
 
-## Real serve preparation
+## Configured serve
 
-[SERVE-SURVEY.md](SERVE-SURVEY.md) records the landed constructor chain, proposed
-strict config, and the booking transport, issuer handoff and Linux manager gaps.
-[UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) lists the integration decisions
-needed before replacing the current test-only serve wiring. This survey does
-not make the existing stub command deployable.
+[SERVE.md](SERVE.md) documents the strict config, real kernel and HTTP booking
+adapter, read-only issuer handoff, bounded inbound workers and controls.
+[SERVE-SURVEY.md](SERVE-SURVEY.md) preserves the initial constructor evidence;
+[UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) records resolved boundaries and
+the remaining remote station/deployment dependencies.

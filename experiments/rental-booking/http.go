@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 const browserScript = `const out=document.getElementById('out');let current;
@@ -71,6 +72,28 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5e9)
 	defer cancel()
 	switch {
+	case r.Method == "GET" && r.URL.Path == "/catalogue":
+		if len(r.URL.RawQuery) > 128 {
+			httpFail(w, 400, "CATALOGUE_BOUNDS")
+			return
+		}
+		q, e := url.ParseQuery(r.URL.RawQuery)
+		if e != nil || len(q) != 2 || len(q["until"]) != 1 || len(q["limit"]) != 1 {
+			httpFail(w, 400, "CATALOGUE_BOUNDS")
+			return
+		}
+		until, e1 := strconv.ParseInt(q.Get("until"), 10, 64)
+		limit, e2 := strconv.Atoi(q.Get("limit"))
+		if e1 != nil || e2 != nil {
+			httpFail(w, 400, "CATALOGUE_BOUNDS")
+			return
+		}
+		c, e := h.s.Catalogue(until, limit)
+		if e != nil {
+			httpFail(w, 400, "CATALOGUE_BOUNDS")
+			return
+		}
+		respond(w, 200, c)
 	case r.Method == "GET" && r.URL.Path == "/":
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_ = h.page.Execute(w, struct {

@@ -330,3 +330,13 @@ per-coin xpub indices and frozen quotes are reserved with the interval. Run
 for contention, refusal/state preservation, threshold, sticky revoke and read-only
 catalogue controls. Genuine cross-module Core coverage is in rental's
 TestCorePaymentLifecycle. State roots and RPC secrets remain local/private.
+
+The HTTP adapter also exposes `GET /catalogue?until=UNIX_SECONDS&limit=N` with
+exactly one of each parameter, a 128-byte query bound, `N` in1..64, and the
+service-owned future horizon of at most seven days. Invalid bounds or duplicate
+parameters return400 without reserving an address or changing holds. The snapshot
+contains template/profile/privacy pins and available slots; it contains no renter
+keys or payment addresses. The existing Host gate and no-store policy apply.
+`TestHTTPCatalogue` exercises the real handler, invalid neighbouring requests and
+the held-slot exclusion. This endpoint supplies the gateway's v1 adapter and does
+not add a v2 HTTP API.

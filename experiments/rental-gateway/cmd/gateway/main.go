@@ -1,9 +1,9 @@
-// Command gateway runs the rental gateway locally (regtest/stub
-// kernel) and provides the scripted station stub used by the
-// local-test driver:
+// Command gateway runs the configured regtest gateway and provides the
+// scripted station stub used only by the explicit local test mode:
 //
 //	gateway keygen -out agent.key
-//	gateway serve -key agent.key -journal ./journal -relay ws://127.0.0.1:7777 -station-unix ./gateway.sock -slot-file slot.json
+//	gateway serve -config /absolute/path/to/gateway.json
+//	gateway validate -config /absolute/path/to/gateway.json
 //	gateway station-stub   (env GATEWAY_SOCKET, SLOT_ID, STATION_NAME)
 //
 // Stop it by PID. It binds only what flags name; station sockets are
@@ -21,7 +21,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fatal("usage: gateway <keygen|serve|station-stub> [flags]")
+		fatal("usage: gateway <keygen|serve|validate|station-stub> [flags]")
 	}
 	var err error
 	switch os.Args[1] {
@@ -29,6 +29,8 @@ func main() {
 		err = runKeygen(os.Args[2:])
 	case "serve":
 		err = runServe(os.Args[2:])
+	case "validate":
+		err = runValidate(os.Args[2:])
 	case "station-stub":
 		err = runStationStub()
 	default:
