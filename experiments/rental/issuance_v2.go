@@ -91,7 +91,7 @@ func VerifyIssuancePackageV2(p IssuerPolicyV2, request, event []byte, now int64)
 	if r.StationName != p.Policy.StationName || r.AgentPubkey != p.Policy.AgentPubkey || !pubkey(r.RenterPubkey) || r.BudgetSat < 0 || r.BudgetSat > MaxMoney || r.NotBefore < 1 || r.NotAfter <= r.NotBefore || r.NotAfter-r.NotBefore > 3600 || now >= r.NotAfter {
 		return fail("ISSUANCE_BINDING")
 	}
-	if (r.PaymentPolicy != "advance" && r.PaymentPolicy != "start_now") || r.PaymentHeight < 1 || (r.PaymentHeight == 0 && r.PaymentBlockHash != "") || (r.PaymentHeight > 0 && !digest(r.PaymentBlockHash)) {
+	if (r.PaymentPolicy != "advance" && r.PaymentPolicy != "start_now") || r.PaymentHeight < 1 || (r.PaymentHeight > 0 && !digest(r.PaymentBlockHash)) {
 		return fail("PAYMENT_OBSERVATION")
 	}
 	// M3 emits unescaped printable-ASCII JSON for NIP-01 interoperability.
