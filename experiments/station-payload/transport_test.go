@@ -126,9 +126,10 @@ func TestScriptedSession(t *testing.T) {
 	}
 }
 
-// A correct TLS/pin request hits the source once. Redirects, malformed/oversized
-// errors and interrupted responses cannot cause retries, bearer forwarding, or
-// reflection of attacker-controlled diagnostics. No environment proxy is used.
+// Each nonterminal caller attempt hits the source once. Redirects, malformed/oversized
+// errors and interrupted responses cannot cause automatic retries, bearer forwarding, or
+// reflection of attacker-controlled diagnostics. Only exact CAP/AUTH latch;
+// other failures allow a later caller request. No environment proxy is used.
 func TestHTTPFailures(t *testing.T) {
 	for _, mode := range []string{"redirect", "malformed", "oversize", "truncated", "cap", "auth", "bad-status", "bad-success"} {
 		t.Run(mode, func(t *testing.T) {
@@ -199,7 +200,11 @@ func TestHTTPFailures(t *testing.T) {
 					t.Fatal("HTTP failure not fixed/terminal")
 				}
 			}
-			if hits.Load() != 1 || forwarded.Load() != 0 || proxied.Load() != 0 {
+			wantHits := int32(2)
+			if mode == "cap" || mode == "auth" {
+				wantHits = 1
+			}
+			if hits.Load() != wantHits || forwarded.Load() != 0 || proxied.Load() != 0 {
 				t.Fatal("request retried, redirected or used env proxy")
 			}
 		})
@@ -341,3 +346,46 @@ func TestChannelBounds(t *testing.T) {
 		})
 	}
 }
+
+// A lost response after a real proxy generation does not trigger an automatic
+// replay. A later caller request is charged separately; neither it nor another
+// attempt can bypass the same slot cap or reset the terminal CAP latch.
+func TestResponseLossAccounting(t *testing.T) {
+	f := newFixture(t)
+	c := f.client(t)
+	transport := c.http.Transport
+	calls := 0
+	c.http.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		res, e := transport.RoundTrip(r)
+		calls++
+		if e == nil && calls == 1 {
+			_, _ = io.Copy(io.Discard, res.Body)
+			res.Body.Close()
+			res.Body = io.NopCloser(strings.NewReader("{"))
+		}
+		return res, e
+	})
+	if out, e := c.Respond(context.Background(), prompt); out != "" || e != ErrResponse {
+		t.Fatal("lost response escaped", e)
+	}
+	st, e := f.s.Status(f.b.SlotID)
+	if e != nil || st.Exposure.Requests != 1 || f.requests.Load() != 1 || f.upstream.Load() != 1 {
+		t.Fatal("lost response retried or uncharged")
+	}
+	if out, e := c.Respond(context.Background(), prompt); e != nil || out != answer {
+		t.Fatal("nonterminal response failure latched", e)
+	}
+	for i := 0; i < 2; i++ {
+		if out, e := c.Respond(context.Background(), prompt); out != "" || e != Code("MODEL_CAP") {
+			t.Fatal("lost response bypassed cap", e)
+		}
+	}
+	st, e = f.s.Status(f.b.SlotID)
+	if e != nil || st.Exposure != (proxy.Counts{Input: 14, Output: 6, Requests: 2, Cost: 46}) || f.requests.Load() != 3 || f.upstream.Load() != 2 {
+		t.Fatal("response recovery changed accounting")
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

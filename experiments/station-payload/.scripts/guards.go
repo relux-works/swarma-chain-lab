@@ -21,6 +21,8 @@ import (
 type plant struct{ Name, Module, File, Old, New, Test, Witness string }
 
 var plants = []plant{
+	{"local_failure_latch", "station-payload", "client.go", "if err == Code(\"MODEL_CAP\") || err == Code(\"MODEL_AUTH\") {", "if err != nil {", "TestLocalFailureRecovery", "local failure latched"},
+	{"response_failure_latch", "station-payload", "client.go", "if err == Code(\"MODEL_CAP\") || err == Code(\"MODEL_AUTH\") {", "if err != nil {", "TestResponseLossAccounting", "nonterminal response failure latched"},
 	{"environment_proxy", "station-payload", "client.go", "Proxy: nil, DisableKeepAlives", "Proxy: http.ProxyFromEnvironment, DisableKeepAlives", "TestEnvironmentProxy", "environment proxy contacted or failure escaped"},
 	{"trust", "station-payload", "client.go", "tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, VerifyConnection: func(s tls.ConnectionState) error {\n\t\tif len(s.VerifiedChains) == 0 || len(s.PeerCertificates) == 0 {", "tlsConfig := &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS13, RootCAs: roots, VerifyConnection: func(s tls.ConnectionState) error {\n\t\tif len(s.PeerCertificates) == 0 {", "TestTLSBoundaries", "TLS boundary accepted"},
 	{"codec", "station-payload", "client.go", "if err != nil {\n\t\treturn nil, ErrBootstrap", "if false && err != nil {\n\t\treturn nil, ErrBootstrap", "TestBootstrapAndV1", "invalid bootstrap accepted"},

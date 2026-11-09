@@ -106,8 +106,9 @@ func (c *Client) Close() {
 }
 
 // Respond sends one text-only, non-streaming request, or preserves the v1 echo.
-// A model failure is terminal for this client: later deliveries get the same
-// fixed refusal without retries, budget changes or credential replacement.
+// Only fixed proxy CAP/AUTH refusals latch (AUTH includes expiry/revocation).
+// Other failures refuse this call; a later delivery makes a new accounted request.
+// No call automatically retries or changes budgets/credentials.
 func (c *Client) Respond(ctx context.Context, text string) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -121,7 +122,7 @@ func (c *Client) Respond(ctx context.Context, text string) (string, error) {
 		return "", ErrRequest
 	}
 	answer, err := c.generate(ctx, text)
-	if err != nil {
+	if err == Code("MODEL_CAP") || err == Code("MODEL_AUTH") {
 		c.terminal = err
 	}
 	return answer, err

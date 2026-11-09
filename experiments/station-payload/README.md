@@ -23,8 +23,13 @@ reviewed Messages dialect validates complete response content and usage.
 
 The client has no generation retry, redirect following, environment proxy,
 credential refresh or cap fallback. It disables connection reuse to avoid stale
-connection replay. A model error becomes terminal for that client instance:
-later deliveries receive the same fixed refusal without more HTTP requests.
+connection replay. Only the proxy's exact CAP/AUTH refusals become terminal for
+that client instance
+(AUTH also covers expiry/revocation); later deliveries receive the same fixed
+refusal without more HTTP requests. Local encoding/size failures, cancellation,
+transport errors and other response failures refuse one delivery. A later caller
+request uses the same credentials and remains subject to the proxy's unchanged
+accounting, including retained reservations for uncertain upstream outcomes.
 CAP maps to `MODEL_CAP`. Expired/revoked/prepared/invalid credentials intentionally
 share `MODEL_AUTH`, matching the proxy's authority boundary. Other recognized
 fixed proxy errors are prefixed `MODEL_`; unrecognized response bodies and

@@ -279,3 +279,54 @@ func TestRequestBounds(t *testing.T) {
 		t.Fatal("valid text neighbor", e)
 	}
 }
+
+// Local JSON expansion, raw bounds and pre-cancelled calls have no HTTP effect.
+// The same client remains usable; subsequent real proxy caps still latch.
+func TestLocalFailureRecovery(t *testing.T) {
+	for _, mode := range []string{"escaped-control", "escaped-html", "oversize", "utf8", "cancelled"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newFixture(t)
+			c := f.client(t)
+			ctx := context.Background()
+			text := strings.Repeat("\x01", 20000)
+			want := error(ErrRequest)
+			switch mode {
+			case "escaped-html":
+				text = strings.Repeat("<", 20000)
+			case "oversize":
+				text = strings.Repeat("x", MaxText+1)
+			case "utf8":
+				text = string([]byte{255})
+			case "cancelled":
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+				text = prompt
+				want = ErrTransport
+			}
+			for i := 0; i < 2; i++ {
+				if out, e := c.Respond(ctx, text); out != "" || e != want {
+					t.Fatal("local refusal changed", e)
+				}
+			}
+			st, e := f.s.Status(f.b.SlotID)
+			if e != nil || st.Exposure.Requests != 0 || f.requests.Load() != 0 || f.upstream.Load() != 0 {
+				t.Fatal("local failure had effects")
+			}
+			for i := 0; i < 2; i++ {
+				if out, e := c.Respond(context.Background(), prompt); e != nil || out != answer {
+					t.Fatal("local failure latched", e)
+				}
+			}
+			for i := 0; i < 2; i++ {
+				if out, e := c.Respond(context.Background(), prompt); out != "" || e != Code("MODEL_CAP") {
+					t.Fatal("recovery bypassed cap", e)
+				}
+			}
+			st, e = f.s.Status(f.b.SlotID)
+			if e != nil || st.Exposure.Requests != 2 || f.requests.Load() != 3 || f.upstream.Load() != 2 {
+				t.Fatal("recovery changed accounting or terminal retry")
+			}
+		})
+	}
+}
