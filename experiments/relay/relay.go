@@ -24,15 +24,16 @@ type bucket struct {
 	connections int
 }
 type peer struct {
-	ws        *websocket.Conn
-	out       chan []byte
-	done      chan struct{}
-	once      sync.Once
-	ip        string
-	challenge string
-	auth      map[string]bool
-	subs      map[string][]filter
-	quota     bucket
+	ws           *websocket.Conn
+	out          chan []byte
+	done         chan struct{}
+	once         sync.Once
+	ip           string
+	challenge    string
+	auth         map[string]bool
+	subs         map[string][]filter
+	quota        bucket
+	pingInterval time.Duration
 }
 
 func (p *peer) stop() { p.once.Do(func() { close(p.done); _ = p.ws.Close() }) }
@@ -51,10 +52,16 @@ func (p *peer) send(v any) {
 }
 func (p *peer) write() {
 	defer p.stop()
+	ticker := time.NewTicker(p.pingInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-p.done:
 			return
+		case <-ticker.C:
+			if p.ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(3*time.Second)) != nil {
+				return
+			}
 		case raw := <-p.out:
 			_ = p.ws.SetWriteDeadline(time.Now().Add(3 * time.Second))
 			if p.ws.WriteMessage(websocket.TextMessage, raw) != nil {
@@ -222,6 +229,7 @@ func (r *Relay) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	p := &peer{ws: ws, out: make(chan []byte, r.cfg.Queue), done: make(chan struct{}), ip: ip, challenge: encodinghex.EncodeToString(nonce), auth: map[string]bool{}, subs: map[string][]filter{}}
+	p.pingInterval = r.cfg.pingInterval()
 	r.mu.Lock()
 	if r.closed || len(r.peers) >= r.cfg.MaxConnections {
 		r.mu.Unlock()
@@ -242,7 +250,7 @@ func (r *Relay) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.wg.Done()
 	}()
 	ws.SetReadLimit(r.cfg.websocketReadLimit())
-	_ = ws.SetReadDeadline(time.Now().Add(90 * time.Second))
+	_ = ws.SetReadDeadline(time.Now().Add(r.cfg.readTimeout()))
 	// Control-frame floods are not a second unmetered path. Count pings/pongs
 	// through the same per-connection/IP admission as application frames.
 	ws.SetPingHandler(func(string) error {
@@ -255,7 +263,7 @@ func (r *Relay) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		if !r.allow(p) {
 			return fail("RATE")
 		}
-		return nil
+		return ws.SetReadDeadline(time.Now().Add(r.cfg.readTimeout()))
 	})
 	challenged := r.cfg.RequireWriteAuth || r.cfg.RequireReadAuth || r.cfg.RestrictGiftWrapReads || r.cfg.UnknownPowBits > 0
 	if challenged {
@@ -270,7 +278,7 @@ func (r *Relay) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			p.send([]any{"NOTICE", "rate-limited: frame quota"})
 			return
 		}
-		_ = ws.SetReadDeadline(time.Now().Add(90 * time.Second))
+		_ = ws.SetReadDeadline(time.Now().Add(r.cfg.readTimeout()))
 		if kind != websocket.TextMessage || !utf8.Valid(raw) {
 			p.send([]any{"NOTICE", "invalid: text frame required"})
 			continue

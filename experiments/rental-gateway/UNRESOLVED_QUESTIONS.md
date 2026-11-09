@@ -39,3 +39,10 @@ Remaining dependencies:
 Genuine-Core local CLI evidence is available under explicit test mode. Linux
 helper execution, systemd enforcement and deployment remain separately required
 verification; passing fake-host tests cannot stand in for those observations.
+
+RK1 reconnect is bounded NIP01 replay, not a delivery-ack protocol. Operators
+must align the gateway replay limit with the relay cap and retain enough history;
+equal-timestamp overflow is counted/logged and leaves the live subscription
+running. Universal recovery past retention, ingress overflow or unacknowledged
+application effects needs a future cursor/ack contract. Expiry End remains
+distinct from explicit closer DestroySlot completion.

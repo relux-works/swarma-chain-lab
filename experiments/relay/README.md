@@ -95,3 +95,28 @@ ships a systemd unit plus Caddy fragment; it performs no installation itself.
 Guard outputs belong under `.temp/`; persistent relay events belong only in the
 configured state root. Tests use synthetic keys and loopback fixtures. Hosted
 Linux execution and real deployment remain separate evidence.
+
+## Connection liveness and replay capacity
+
+The optional public `read_timeout_milliseconds` and `ping_interval_milliseconds`
+fields default to90000 and30000 when absent/zero. A read timeout is100..300000ms;
+a ping interval is at least10ms and strictly below the read timeout. The relay
+sends WebSocket pings from its existing writer. Only admitted data or an admitted
+pong refreshes the read deadline. Incoming ping/pong frames both consume the
+existing connection/IP frame budgets; heartbeat is not a quota bypass. Silent
+peers still expire. Size quotas, store retention and admission are unchanged.
+
+`backlog` is the configurable per-REQ replay cap (default32, at most queue-2).
+The gateway's `relay_replay_limit` must be no larger than that cap. NIP01 replay
+uses inclusive `since`/`until` bounds; a client cannot infer completeness when a
+third-party relay silently returns fewer events than the requested limit. A full
+page with one timestamp cannot be exhausted by timestamp pagination. The gateway
+counts/logs `REPLAY_OVERFLOW` and continues live traffic in that case. Retention,
+store capacity and ingress quotas still bound recoverability; this is not a
+cursor or end-to-end delivery-ack protocol.
+
+Run liveness/reconnect tests with `go test -race ./...`. Run the bounded RK1
+source-removal controls with `go run .scripts/rk1-guards.go`; an optional
+`-only NAME` selects one plant. Logs/results go under `.temp/rk1-guards/`.
+The harness copies relay and gateway sources before any mutation; compile errors,
+crashes and timeouts do not count as detected contract violations.

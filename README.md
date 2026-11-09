@@ -202,3 +202,15 @@ private bootstrap, retains scripted station controls and exercises the per-slot
 model proxy over verified, leaf-pinned TLS. Run its Go tests, guard controls and
 CLI using the commands in that module; artifacts belong under `.temp/`. It is a
 rehearsal fixture, not a selected rented-agent runtime or host deployment.
+
+### Relay liveness and reconnect controls
+
+The gateway keeps expiry running during relay transport outages, re-authenticates
+on reconnect, and pages NIP01 history with a NIP59-aware overlap. Equal-timestamp
+or bounded replay exhaustion reports `REPLAY_OVERFLOW` while live traffic
+continues. Capacity/retention and explicit closer limits are documented in
+`experiments/relay/README.md` and `experiments/rental-gateway/README.md`.
+Run `go -C experiments/relay test -race ./...` and
+`go -C experiments/rental-gateway test -race ./...`; the Go control runner
+`go -C experiments/relay run .scripts/rk1-guards.go` writes evidence under
+`experiments/relay/.temp/rk1-guards/` and mutates copied sources only.

@@ -346,3 +346,42 @@ Never publish the private directory.
 Legacy V1 test-mode payment instructions report the service's fixed minimum of
 one active-chain confirmation. V2 reports the minimum frozen in its contract;
 these display values do not replace the service's payment admission checks.
+
+## Relay recovery and expiry
+
+`serve` uses `RelayClient.RunGiftWraps`: transient dial/read/write losses reconnect
+with cancellable100ms exponential backoff capped at5s. The process and its
+one-second expiry Tick remain alive through initial relay unavailability and
+later disconnections. Config/authentication/policy/protocol failures remain fatal;
+there is no automatic retry of a rejected subscription or ambiguous publication.
+Publishing retains its one-attempt durable-ACK contract. Each replacement
+connection re-establishes the configured GA1 AUTH before a required-auth REQ.
+Both client and native relay ping every30s by default, with90s read liveness;
+only the reader changes read deadlines. The Go client exposes bounded duration
+options for other deployments/tests; serve uses the defaults.
+
+Recovery keeps the broad live inbox subscribed while a separate catchup
+subscription pages backward. The conservative `since` floor includes NIP59's
+48-hour outer-timestamp jitter, outage duration and a one-minute margin; an
+uncertain partial replay never advances it. Each full page requests the oldest
+outer timestamp inclusively as `until`. Existing journal rumor-ID/exchange dedup
+owns application effects, so overlapping wrappers are not new deliveries.
+`relay_replay_limit` defaults to32 (valid2..4096) and must not exceed the relay's
+configured per-REQ backlog cap. The native relay defaults to32. A silently lower
+third-party cap, expired/unretained events, full ingress queues or an unacknowledged
+application delivery cannot be repaired by timestamp replay alone.
+
+A full equal-timestamp page, a non-advancing boundary, the since boundary on a
+full page, or128 replay pages emits fixed `REPLAY_OVERFLOW`, increments
+`replay_overflows` in `relay_status`, ends catchup and keeps the live inbox.
+This explicitly reports uncertain history; it does not claim lossless catchup.
+Status also counts reconnects and contains no events, keys or credentials. A
+missing EOSE beyond the bounded10s page wait is a protocol failure. The future
+cursor/delivery-ack protocol is outside this unit.
+
+Expiry End clears the channel credential and marks `Ended/not_after` while the
+relay is unavailable. It does not imply the explicit closer `DestroySlot`
+operation completed. The tests exercise actual `serve` and journal transitions
+with explicit kernel/booking-node stubs; physical destruction and genuine Core
+remain separate evidence. Run `go test -race ./...`; RK1 guard commands and
+artifacts are documented in `../relay/README.md`.

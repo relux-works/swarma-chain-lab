@@ -70,6 +70,8 @@ func TestConfigBoundary(t *testing.T) {
 		{"rpc-port", func(c *serveConfig) { c.Kernel.RPCPort = 0 }, errConfig},
 		{"rpc-path", func(c *serveConfig) { c.Kernel.RPCRouteFile = "relative" }, errConfig},
 		{"relay", func(c *serveConfig) { c.RelayURL = "ws://example.com:7777" }, errConfig},
+		{"relay-page-small", func(c *serveConfig) { c.RelayReplayLimit = 1 }, errConfig},
+		{"relay-page-large", func(c *serveConfig) { c.RelayReplayLimit = 4097 }, errConfig},
 		{"booking-userinfo", func(c *serveConfig) { c.Exchange.BookingURL = "http://user@127.0.0.1:18819" }, errConfig},
 		{"privacy", func(c *serveConfig) { c.Exchange.PrivacySHA256 = strings.Repeat("0", 64) }, errConfig},
 		{"template", func(c *serveConfig) { c.Exchange.TemplateSHA256 = "" }, errConfig},

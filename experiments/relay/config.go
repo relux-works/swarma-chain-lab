@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -26,27 +27,43 @@ const (
 func (c Config) websocketReadLimit() int64 { return int64(c.MaxEventBytes) + 1024 }
 
 type Config struct {
-	StateDir              string   `json:"state_dir"`
-	PublicURL             string   `json:"public_url"`
-	TrustedProxyIP        string   `json:"trusted_proxy_ip"`
-	RequireWriteAuth      bool     `json:"require_write_auth"`
-	RequireReadAuth       bool     `json:"require_read_auth"`
-	RestrictGiftWrapReads bool     `json:"restrict_gift_wrap_reads"`
-	UnknownPowBits        int      `json:"unknown_pow_bits"`
-	KnownPubkeys          []string `json:"known_pubkeys"`
-	MaxEventBytes         int      `json:"max_event_bytes"`
-	MaxEvents             int      `json:"max_events"`
-	MaxStoreBytes         int      `json:"max_store_bytes"`
-	RetentionSeconds      int64    `json:"retention_seconds"`
-	FutureSeconds         int64    `json:"future_seconds"`
-	MaxConnections        int      `json:"max_connections"`
-	MaxConnectionsPerIP   int      `json:"max_connections_per_ip"`
-	MaxIPs                int      `json:"max_ips"`
-	FramesPerMinute       int      `json:"frames_per_minute"`
-	FramesPerIPMinute     int      `json:"frames_per_ip_minute"`
-	Subscriptions         int      `json:"subscriptions"`
-	Queue                 int      `json:"queue"`
-	Backlog               int      `json:"backlog"`
+	StateDir                 string   `json:"state_dir"`
+	PublicURL                string   `json:"public_url"`
+	TrustedProxyIP           string   `json:"trusted_proxy_ip"`
+	RequireWriteAuth         bool     `json:"require_write_auth"`
+	RequireReadAuth          bool     `json:"require_read_auth"`
+	RestrictGiftWrapReads    bool     `json:"restrict_gift_wrap_reads"`
+	UnknownPowBits           int      `json:"unknown_pow_bits"`
+	KnownPubkeys             []string `json:"known_pubkeys"`
+	MaxEventBytes            int      `json:"max_event_bytes"`
+	MaxEvents                int      `json:"max_events"`
+	MaxStoreBytes            int      `json:"max_store_bytes"`
+	RetentionSeconds         int64    `json:"retention_seconds"`
+	FutureSeconds            int64    `json:"future_seconds"`
+	MaxConnections           int      `json:"max_connections"`
+	MaxConnectionsPerIP      int      `json:"max_connections_per_ip"`
+	MaxIPs                   int      `json:"max_ips"`
+	FramesPerMinute          int      `json:"frames_per_minute"`
+	FramesPerIPMinute        int      `json:"frames_per_ip_minute"`
+	Subscriptions            int      `json:"subscriptions"`
+	Queue                    int      `json:"queue"`
+	Backlog                  int      `json:"backlog"`
+	ReadTimeoutMilliseconds  int      `json:"read_timeout_milliseconds,omitempty"`
+	PingIntervalMilliseconds int      `json:"ping_interval_milliseconds,omitempty"`
+}
+
+// Zero preserves the policy defaults in older deployment configurations.
+func (c Config) readTimeout() time.Duration {
+	if c.ReadTimeoutMilliseconds == 0 {
+		return 90 * time.Second
+	}
+	return time.Duration(c.ReadTimeoutMilliseconds) * time.Millisecond
+}
+func (c Config) pingInterval() time.Duration {
+	if c.PingIntervalMilliseconds == 0 {
+		return 30 * time.Second
+	}
+	return time.Duration(c.PingIntervalMilliseconds) * time.Millisecond
 }
 
 func Defaults(root, publicURL string) Config {
@@ -65,6 +82,9 @@ func hex(s string, n int) bool {
 	return true
 }
 func (c Config) Validate() error {
+	if c.ReadTimeoutMilliseconds < 0 || c.ReadTimeoutMilliseconds > 300000 || c.PingIntervalMilliseconds < 0 || c.PingIntervalMilliseconds > 300000 || c.readTimeout() < 100*time.Millisecond || c.pingInterval() < 10*time.Millisecond || c.pingInterval() >= c.readTimeout() {
+		return fail("CONFIG_LIVENESS")
+	}
 	u, e := url.Parse(c.PublicURL)
 	if e != nil || strings.Contains(c.PublicURL, "PLACEHOLDER") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" || u.Host == "" || (u.Path != "" && u.Path != "/") || (u.Scheme != "wss" && !(u.Scheme == "ws" && u.Hostname() == "127.0.0.1")) {
 		return fail("CONFIG_URL")

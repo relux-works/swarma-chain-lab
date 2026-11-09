@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -43,8 +44,16 @@ type RelayClient struct {
 	URL      string
 	Auth     string
 	AgentKey *nostr.PrivKey
-	mu       sync.Mutex
-	session  *relaySession
+	// Zero selects90s/30s liveness,100ms..5s reconnect and32-event pages.
+	ReadTimeout, PingInterval  time.Duration
+	ReconnectMin, ReconnectMax time.Duration
+	ReplayLimit                int
+	OnStatus                   func(RelayStatus)
+	mu                         sync.Mutex
+	session                    *relaySession
+	running                    bool
+	reconnects                 atomic.Uint64
+	replayOverflows            atomic.Uint64
 }
 
 // All state except writeMu is guarded by RelayClient.mu. Completion channels
@@ -61,13 +70,15 @@ type relaySession struct {
 	closed            chan error
 	authSeq, accepted uint64
 	authID            string
+	replay            map[string]*relayPage
+	pages             chan relayPage
 }
 
 func (c *RelayClient) enabled() bool {
 	return c.Auth == RelayAuthRequired || c.Auth == RelayAuthWhenChallenged
 }
 func (c *RelayClient) Dial(ctx context.Context) error {
-	if !ValidRelayAuth(c.Auth) {
+	if !ValidRelayAuth(c.Auth) || c.validateLiveness() != nil {
 		return ErrRelayConfig
 	}
 	if c.Auth == RelayAuthRequired && c.AgentKey == nil {
@@ -87,9 +98,12 @@ func (c *RelayClient) Dial(ctx context.Context) error {
 		return ErrRelayClosed
 	}
 	conn.SetReadLimit(1 << 20)
+	_ = conn.SetReadDeadline(time.Now().Add(c.readTimeout()))
+	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(time.Now().Add(c.readTimeout())) })
 	s := &relaySession{conn: conn, done: make(chan struct{}), changed: make(chan struct{}), waiters: map[string]chan error{}, closed: make(chan error, 1)}
 	c.session = s
 	go c.pump(s)
+	go c.heartbeat(s)
 	return nil
 }
 func (c *RelayClient) Close() {
@@ -183,6 +197,7 @@ func (c *RelayClient) pump(s *relaySession) {
 		if err != nil {
 			return
 		}
+		_ = s.conn.SetReadDeadline(time.Now().Add(c.readTimeout()))
 		var m []json.RawMessage
 		var typ string
 		if json.Unmarshal(raw, &m) != nil || len(m) < 2 || json.Unmarshal(m[0], &typ) != nil {
@@ -229,7 +244,7 @@ func (c *RelayClient) pump(s *relaySession) {
 			}
 		case "CLOSED":
 			var id, reason string
-			if len(m) != 3 || json.Unmarshal(m[1], &id) != nil || json.Unmarshal(m[2], &reason) != nil || id != "gw-inbox" {
+			if len(m) != 3 || json.Unmarshal(m[1], &id) != nil || json.Unmarshal(m[2], &reason) != nil || (id != "gw-inbox" && id != "gw-catchup") {
 				continue
 			}
 			select {
@@ -240,7 +255,7 @@ func (c *RelayClient) pump(s *relaySession) {
 			}
 		case "EVENT":
 			var sub string
-			if len(m) != 3 || json.Unmarshal(m[1], &sub) != nil || sub != "gw-inbox" {
+			if len(m) != 3 || json.Unmarshal(m[1], &sub) != nil || (sub != "gw-inbox" && sub != "gw-catchup") {
 				continue
 			}
 			ev, e := nostr.ParseEvent(m[2])
@@ -250,9 +265,39 @@ func (c *RelayClient) pump(s *relaySession) {
 			c.mu.Lock()
 			h, hctx := s.handler, s.hctx
 			allowed := (c.Auth != RelayAuthRequired || s.accepted > 0) && s.accepted == s.authSeq && s.err == nil
+			if sub == "gw-catchup" && s.replay[sub] == nil {
+				allowed = false
+			}
+			if allowed {
+				if p := s.replay[sub]; p != nil && !p.done {
+					p.observe(ev.CreatedAt)
+				}
+			}
 			c.mu.Unlock()
 			if h != nil && allowed {
 				h(hctx, ev)
+			}
+		case "EOSE":
+			var sub string
+			if len(m) != 2 || json.Unmarshal(m[1], &sub) != nil {
+				continue
+			}
+			c.mu.Lock()
+			p := s.replay[sub]
+			var page *relayPage
+			if p != nil && !p.done {
+				p.done = true
+				copy := *p
+				page = &copy
+			}
+			c.mu.Unlock()
+			if page != nil {
+				select {
+				case s.pages <- *page:
+				default:
+					c.stop(s, ErrRelayProtocol)
+					return
+				}
 			}
 		}
 	}

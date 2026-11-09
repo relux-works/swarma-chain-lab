@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -158,10 +159,7 @@ func serve(parent context.Context, c serveConfig) error {
 	}
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	relay := &gateway.RelayClient{URL: c.RelayURL, Auth: c.RelayAuth, AgentKey: key}
-	if e = relay.Dial(ctx); e != nil {
-		return errors.New("RELAY_UNAVAILABLE")
-	}
+	relay := &gateway.RelayClient{URL: c.RelayURL, Auth: c.RelayAuth, AgentKey: key, ReplayLimit: c.RelayReplayLimit, OnStatus: func(s gateway.RelayStatus) { _ = json.NewEncoder(os.Stderr).Encode(s) }}
 	defer relay.Close()
 	runtime, e := newStationRuntime(c, store, managerTLS, payloadTLS)
 	if e != nil {
@@ -215,7 +213,7 @@ func serve(parent context.Context, c serveConfig) error {
 	fmt.Fprintf(os.Stderr, "gateway: screening=%s mode=%s kernel=%s station=%s pid=%d\n", c.Screening, c.Mode, c.Kernel.Kind, c.Station.Driver, os.Getpid())
 	go func() {
 		defer workers.Done()
-		errs <- relay.SubscribeGiftWraps(ctx, gw.AgentPubKey(), func(ctx context.Context, ev *nostr.Event) {
+		errs <- relay.RunGiftWraps(ctx, gw.AgentPubKey(), func(ctx context.Context, ev *nostr.Event) {
 			inbound.offer(ev)
 		})
 	}()
