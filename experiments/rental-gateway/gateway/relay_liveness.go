@@ -51,6 +51,15 @@ func (c *RelayClient) backoffBounds() (time.Duration, time.Duration) {
 	}
 	return a, b
 }
+func nextReconnectDelay(delay, maximum time.Duration) time.Duration {
+	if delay < maximum {
+		delay *= 2
+		if delay > maximum {
+			delay = maximum
+		}
+	}
+	return delay
+}
 func (c *RelayClient) replayLimit() int {
 	if c.ReplayLimit == 0 {
 		return 32
@@ -156,12 +165,7 @@ func (c *RelayClient) RunGiftWraps(ctx context.Context, pubkey string, handler f
 			return ctx.Err()
 		case <-timer.C:
 		}
-		if delay < maximum {
-			delay *= 2
-			if delay > maximum {
-				delay = maximum
-			}
-		}
+		delay = nextReconnectDelay(delay, maximum)
 	}
 }
 

@@ -356,6 +356,11 @@ later disconnections. Config/authentication/policy/protocol failures remain fata
 there is no automatic retry of a rejected subscription or ambiguous publication.
 Publishing retains its one-attempt durable-ACK contract. Each replacement
 connection re-establishes the configured GA1 AUTH before a required-auth REQ.
+The reader records a permanent CLOSED refusal as the connection's terminal
+cause before reading again; a following EOF or write failure cannot downgrade
+that recorded cause to retryable transport loss. Auth-required CLOSED remains
+recoverable only when AUTH is enabled. A refusal not received before transport
+loss cannot be inferred from EOF.
 Both client and native relay ping every30s by default, with90s read liveness;
 only the reader changes read deadlines. The Go client exposes bounded duration
 options for other deployments/tests; serve uses the defaults.
@@ -385,3 +390,11 @@ operation completed. The tests exercise actual `serve` and journal transitions
 with explicit kernel/booking-node stubs; physical destruction and genuine Core
 remain separate evidence. Run `go test -race ./...`; RK1 guard commands and
 artifacts are documented in `../relay/README.md`.
+
+The refusal/EOF interleaving witness and constrained-scheduler repetition run
+from this module with
+`GOMAXPROCS=1 go test -race ./gateway -run '^(TestRelayRefusalBeforeConsumer|TestReconnectRefusalAndBackoff)$' -count=200`
+(repeat with `GOMAXPROCS=2`). The witness uses real WebSockets and waits for
+terminal publication before consuming the result; ordinary EOF is its positive
+transport control. Exact backoff capping is checked separately from the
+time-window retry count, which cannot assume a minimum scheduler throughput.

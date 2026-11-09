@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/websocket"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"net/http"
 	"net/http/httptest"
-	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -74,7 +74,8 @@ func TestClientHeartbeat(t *testing.T) {
 }
 
 // A permanent policy refusal is fatal and is never retried as transport loss.
-// Temporary HTTP/transport failures back off within a cap and cancel promptly.
+// Temporary HTTP/transport failures retry at a bounded rate and cancel promptly.
+// Exact exponential growth/capping is checked without scheduler throughput bounds.
 func TestReconnectRefusalAndBackoff(t *testing.T) {
 	var calls atomic.Int32
 	url := authFixture(t, func(c *websocket.Conn, _ string) {
@@ -87,7 +88,14 @@ func TestReconnectRefusalAndBackoff(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if e := c.RunGiftWraps(ctx, strings.Repeat("a", 64), func(context.Context, *nostr.Event) {}); e != ErrRelayRejected || calls.Load() != 1 || c.Status().Reconnects != 0 {
-		t.Fatal("fatal refusal retried")
+		t.Fatalf("fatal refusal retried: error=%v calls=%d reconnects=%d", e, calls.Load(), c.Status().Reconnects)
+	}
+	delay := 20 * time.Millisecond
+	for _, want := range []time.Duration{40 * time.Millisecond, 50 * time.Millisecond, 50 * time.Millisecond} {
+		delay = nextReconnectDelay(delay, 50*time.Millisecond)
+		if delay != want {
+			t.Fatalf("backoff was not capped and bounded: got=%v want=%v", delay, want)
+		}
 	}
 	calls.Store(0)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1); http.Error(w, "down", 503) }))
@@ -99,8 +107,8 @@ func TestReconnectRefusalAndBackoff(t *testing.T) {
 	if e := c.RunGiftWraps(ctx, strings.Repeat("a", 64), func(context.Context, *nostr.Event) {}); !errors.Is(e, context.DeadlineExceeded) {
 		t.Fatal("backoff cancellation")
 	}
-	if n := calls.Load(); n < 9 || n > 12 {
-		t.Fatalf("backoff was not capped and bounded: %d", n)
+	if n := calls.Load(); n < 2 || n > 12 {
+		t.Fatalf("backoff retry/rate bound: %d", n)
 	}
 }
 

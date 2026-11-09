@@ -120,6 +120,11 @@ func (c *RelayClient) stop(s *relaySession, err error) {
 	c.mu.Unlock()
 	_ = s.conn.Close()
 }
+func (c *RelayClient) sessionError(s *relaySession) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return s.err
+}
 func (c *RelayClient) failLocked(s *relaySession, err error) {
 	if s.err == nil {
 		s.err = err
@@ -134,13 +139,13 @@ func (c *RelayClient) write(s *relaySession, v any) error {
 	defer s.writeMu.Unlock()
 	select {
 	case <-s.done:
-		return ErrRelayClosed
+		return c.sessionError(s)
 	default:
 	}
 	_ = s.conn.SetWriteDeadline(time.Now().Add(relayTimeout))
 	if s.conn.WriteJSON(v) != nil {
 		c.stop(s, ErrRelayClosed)
-		return ErrRelayClosed
+		return c.sessionError(s)
 	}
 	return nil
 }
@@ -247,8 +252,16 @@ func (c *RelayClient) pump(s *relaySession) {
 			if len(m) != 3 || json.Unmarshal(m[1], &id) != nil || json.Unmarshal(m[2], &reason) != nil || (id != "gw-inbox" && id != "gw-catchup") {
 				continue
 			}
+			refusal := relayRefusal(reason)
+			if refusal != ErrRelayAuthRequired || !c.enabled() {
+				// Publish a fatal refusal as the terminal cause before the next
+				// read can observe EOF. A separate buffered notification races
+				// s.done and can otherwise turn this refusal into a reconnect.
+				c.stop(s, refusal)
+				return
+			}
 			select {
-			case s.closed <- relayRefusal(reason):
+			case s.closed <- refusal:
 			default:
 				c.stop(s, ErrRelayProtocol)
 				return
