@@ -1,0 +1,111 @@
+name: Deploy kit checks
+
+env:
+  GOWORK: 'off'
+  GOTOOLCHAIN: local
+  GOPROXY: 'off'
+  GOSUMDB: 'off'
+
+on:
+  pull_request:
+    paths:
+      - 'deploy/**'
+      - 'experiments/rental-gateway/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/grant-store/**'
+      - 'experiments/rental/**'
+      - 'experiments/payment-chain/**'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.github/workflows/deploy.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/**'
+      - 'experiments/rental-gateway/**'
+      - 'experiments/rental-booking/**'
+      - 'experiments/grant-store/**'
+      - 'experiments/rental/**'
+      - 'experiments/payment-chain/**'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: deploy
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      # Only dependency acquisition uses the network. The release builder
+      # itself forces local/offline toolchain and dependency resolution.
+      - name: Fetch and verify all release module dependencies
+        env:
+          GOPROXY: https://proxy.golang.org
+          GOSUMDB: sum.golang.org
+        run: |
+          for module in deploy experiments/rental-gateway experiments/rental-booking experiments/grant-store; do
+            go -C "$GITHUB_WORKSPACE/$module" mod download
+            go -C "$GITHUB_WORKSPACE/$module" mod verify
+          done
+      - name: Vet, race tests and CLI build
+        run: |
+          go vet ./...
+          go test -race -count=1 ./...
+          go build -trimpath -o "$RUNNER_TEMP/deploy-kit" ./cmd/deploy-kit
+      # No Core node or credentials are needed: the test builds all three
+      # Linux/amd64 artifacts twice, then plants differing source in an isolated
+      # second tree and requires refusal without partial output or lost release.
+      - name: Offline double-build and nondeterminism controls
+        env:
+          DK1_RELEASE_TEST: '1'
+          DK1_RELEASE_REPO: ${{ github.workspace }}
+          DK1_RELEASE_OUT: ${{ runner.temp }}/dk1-release
+        run: |
+          mkdir "$DK1_RELEASE_OUT"
+          go test -v -count=1 -timeout 20m -run '^TestReleaseIntegration$' .
+          (cd "$DK1_RELEASE_OUT/release" && sha256sum -c SHA256SUMS)
+      - name: Actual CLI acceptance and refusal controls
+        run: |
+          mkdir "$RUNNER_TEMP/dk1-cli"
+          commit="$(git rev-parse HEAD)"
+          store_hash="$(sha256sum "$RUNNER_TEMP/dk1-release/release/bin/grant-store" | cut -d ' ' -f 1)"
+          # Public policy fixtures reference the actual release; validate never
+          # opens the service/config paths or touches deployment credentials.
+          cat > "$RUNNER_TEMP/dk1-cli/valid.json" <<JSON
+          {"version":1,"network":"regtest","service":"store","release_version":"ci-regtest","commit":"$commit","binary_sha256":"$store_hash","state_dir":"/var/lib/swarma-store","listen":"127.0.0.1:8091","config":"/etc/swarma/store/service.json"}
+          JSON
+          "$RUNNER_TEMP/deploy-kit" validate -config "$RUNNER_TEMP/dk1-cli/valid.json" > "$RUNNER_TEMP/dk1-cli/valid.log" 2>&1
+          grep -Fx '{"Status":"valid-public-policy","Service":"store","Network":"regtest"}' "$RUNNER_TEMP/dk1-cli/valid.log"
+          sed 's/"network":"regtest"/"network":"main"/' "$RUNNER_TEMP/dk1-cli/valid.json" > "$RUNNER_TEMP/dk1-cli/mainnet.json"
+          sed "s/$store_hash/PLACEHOLDER/" "$RUNNER_TEMP/dk1-cli/valid.json" > "$RUNNER_TEMP/dk1-cli/placeholder.json"
+          sed "s/$store_hash/PLACEHOLDER/" "$RUNNER_TEMP/dk1-cli/mainnet.json" > "$RUNNER_TEMP/dk1-cli/mainnet-placeholder.json"
+          sed 's/{"version"/{"unexpected":"ci-private-marker","version"/' "$RUNNER_TEMP/dk1-cli/valid.json" > "$RUNNER_TEMP/dk1-cli/unknown.json"
+          expect_refusal() {
+            local name="$1" expected="$2" code=0
+            "$RUNNER_TEMP/deploy-kit" validate -config "$RUNNER_TEMP/dk1-cli/$name.json" > "$RUNNER_TEMP/dk1-cli/$name.log" 2>&1 || code=$?
+            test "$code" -eq 1
+            grep -Fx "$expected" "$RUNNER_TEMP/dk1-cli/$name.log"
+            if grep -Fq 'ci-private-marker' "$RUNNER_TEMP/dk1-cli/$name.log"; then
+              return 1
+            fi
+          }
+          expect_refusal mainnet 'deploy: regtest required'
+          expect_refusal placeholder 'deploy: unresolved placeholder'
+          expect_refusal mainnet-placeholder 'deploy: regtest required'
+          expect_refusal unknown 'deploy: invalid policy'
+          test -z "$(git status --porcelain)"
