@@ -212,3 +212,31 @@ func TestFileMissingAndPositive(t *testing.T) {
 		})
 	}
 }
+
+// A named operator rejection retains its exact fixed gate in the report;
+// unrecognized adapter errors cannot smuggle arbitrary text into evidence.
+func TestOperatorFailureCodes(t *testing.T) {
+	q, _ := receiptFixture("close", "expiry", host())
+	wantCode(t, operatorFailure(q, refuse("CHECK_channel_cleared")), "OPERATOR_close_CHECK_channel_cleared")
+	wantCode(t, operatorFailure(q, refuse("JSON_SCHEMA")), "OPERATOR_close_JSON_SCHEMA")
+	wantCode(t, operatorFailure(q, refuse("secret-canary")), "OPERATOR_close")
+}
+
+// The Darwin adapter cannot claim a remote mirror or observed Starting
+// transition. Both assertions remain required in the real host profile.
+func TestHostOnlyObservationBoundary(t *testing.T) {
+	for _, tc := range []struct{ stage, key string }{{"issue", "mirror_hash_index_equal"}, {"issue", "running_signer_consumed"}, {"running", "starting_then_started"}, {"revoke", "single_running_signer"}, {"preflight", "release_signature"}} {
+		contains := func(p profile) bool {
+			checks, _, _ := requirements(tc.stage, p, "revoke")
+			for _, v := range checks {
+				if v == tc.key {
+					return true
+				}
+			}
+			return false
+		}
+		if !contains(host()) || contains(rehearsal(Config{NotBefore: 100, NotAfter: 300})) {
+			t.Fatal("host/self-test observation boundary", tc.key)
+		}
+	}
+}

@@ -83,8 +83,8 @@ func requirements(stage string, p profile, scenario string) ([]string, map[strin
 		"preflight":           {"isolated_regtest", "public_configs", "coin_sets", "own_node_routes", "converged_selected_block", "fixture_responses_policy", "no_existing_slot"},
 		"pregrant":            {"no_gateway_slot", "foreign_consent_unchanged"},
 		"unconfirmed_payment": {"exact_payment", "payment_unconfirmed", "issuance_absent", "presentation_absent", "no_gateway_slot"},
-		"issue":               {"payment_confirmed", "original_outbox", "mirror_hash_index_equal", "native_signer", "unconfirmed_presentation_absent", "seal_confirmed", "own_node_ancestry", "converged_payment_seal"},
-		"running":             {"starting_then_started", "bootstrap_payload_bound", "payload_executable", "wrong_credential_auth", "wrong_pin_transport", "no_negative_upstream", "neighbor_valid"},
+		"issue":               {"payment_confirmed", "original_outbox", "native_signer", "unconfirmed_presentation_absent", "seal_confirmed", "own_node_ancestry", "converged_payment_seal"},
+		"running":             {"started", "bootstrap_payload_bound", "payload_executable", "wrong_credential_auth", "wrong_pin_transport", "no_negative_upstream", "neighbor_valid"},
 		"caps":                {"responses_shape", "no_pending", "private_closure_probe_retained"},
 		"revoke":              {"native_v2_revoke", "seal_before_object", "seal_after_json_null", "converged_spend"},
 		"close":               {"journal_ended", "channel_cleared", "model_revoked", "no_pending", "fresh_closed_auth", "closed_auth_no_text", "wrong_pin_transport", "no_new_delivery", "helper_owned_cleanup", "pid_ended"},
@@ -97,9 +97,9 @@ func requirements(stage string, p profile, scenario string) ([]string, map[strin
 	if p.mode == "host" {
 		extra := map[string][]string{
 			"preflight": {"release_signature", "exact_release_binaries", "linux_units_active", "real_helper_reviewed", "uid_separation", "ownership_modes", "egress_policy", "mtls_pins", "admin_valid_peer", "admin_wrong_uid_refused", "helper_valid_peer", "helper_wrong_uid_refused", "helper_wrong_policy_refused", "no_overlay_or_fake"},
-			"issue":     {"running_signer_consumed"},
+			"issue":     {"running_signer_consumed", "mirror_hash_index_equal"},
 			"revoke":    {"append_only_intake", "single_running_signer"},
-			"running":   {"linux_admin_prepare_activate", "real_r4_create_start", "slot_linux_uid", "slot_cgroup", "bootstrap_0600", "slot_no_custody_access"},
+			"running":   {"starting_then_started", "linux_admin_prepare_activate", "real_r4_create_start", "slot_linux_uid", "slot_cgroup", "bootstrap_0600", "slot_no_custody_access"},
 			"close":     {"cgroup_ended", "slot_access_revoked", "storage_policy_completed", "physical_erasure_limits_recorded", "helper_independent_cleanup"},
 		}[stage]
 		checks = append(checks, extra...)
@@ -173,4 +173,27 @@ func (r *runner) observe(ctx context.Context, stage string, deadline time.Time) 
 	r.lastReceipt = receipt.ObservedMS
 	r.report.Operator = append(r.report.Operator, Attestation{q, receipt})
 	return receipt, nil
+}
+
+// Propagate only fixed checker codes. Arbitrary operator/tool errors may contain
+// private paths or credentials and must never enter a report.
+func operatorFailure(q Request, e error) error {
+	allowed := []string{"JSON_SIZE", "JSON_SHAPE", "JSON_TRAILING", "JSON_SCHEMA", "RECEIPT_BINDING", "RECEIPT_TIME", "RECEIPT_FIELDS", "RECEIPT_FILE", "RECEIPT_MISSING", "OUTPUT_CREATE", "OUTPUT_WRITE"}
+	for _, k := range q.Checks {
+		allowed = append(allowed, "CHECK_"+k)
+	}
+	for k := range q.Numbers {
+		allowed = append(allowed, "NUMBER_"+k)
+	}
+	for k := range q.Hashes {
+		allowed = append(allowed, "HASH_"+k)
+	}
+	if c, ok := e.(Code); ok {
+		for _, name := range allowed {
+			if string(c) == name {
+				return refuse("OPERATOR_" + q.Stage + "_" + name)
+			}
+		}
+	}
+	return refuse("OPERATOR_" + q.Stage)
 }

@@ -154,8 +154,8 @@ func TestTermsPlantsAndExactReplies(t *testing.T) {
 		})
 	}
 	for _, reply := range []string{"ready", "ready injected-canary"} {
-		peer := conversation{inbox: make(chan string, 1), fault: make(chan error, 1)}
-		peer.inbox <- reply
+		peer := conversation{inbox: make(chan received, 1), fault: make(chan error, 1)}
+		peer.inbox <- received{reply, time.Now().Unix()}
 		e := peer.expect(context.Background(), "ready", time.Second)
 		if reply == "ready" {
 			if e != nil {

@@ -64,7 +64,7 @@ func TestNativeReplyIdentityAndAuthentication(t *testing.T) {
 	agent, _ := nostr.GeneratePrivKey()
 	other, _ := nostr.GeneratePrivKey()
 	now := time.Now().Unix()
-	c := &conversation{key: renter, agent: agent.PubKeyHex(), started: now - 1, seen: map[string]bool{}, inbox: make(chan string, 16), fault: make(chan error, 1)}
+	c := &conversation{key: renter, agent: agent.PubKeyHex(), started: now - 1, seen: map[string]bool{}, inbox: make(chan received, 16), fault: make(chan error, 1)}
 	first, r1, e := nostr.WrapDM(agent, renter.PubKeyHex(), exchange.Help, nil, now)
 	if e != nil {
 		t.Fatal(e)
@@ -121,12 +121,12 @@ func TestClosureAndQuietPlants(t *testing.T) {
 	for _, tc := range []struct {
 		scenario, text string
 		valid          bool
-	}{{"expiry", "", true}, {"revoke", exchange.NotLive, true}, {"expiry", exchange.NotLive, false}, {"revoke", "model fixture reply", false}, {"expiry", "model fixture reply", false}} {
-		c := &conversation{inbox: make(chan string, 1), fault: make(chan error, 1)}
+	}{{"expiry", "", true}, {"expiry", "slot ended", true}, {"revoke", exchange.NotLive, true}, {"expiry", exchange.NotLive, false}, {"revoke", "model fixture reply", false}, {"expiry", "model fixture reply", false}} {
+		c := &conversation{inbox: make(chan received, 1), fault: make(chan error, 1)}
 		if tc.text != "" {
-			c.inbox <- tc.text
+			c.inbox <- received{tc.text, end}
 		}
-		e := c.quiet(tc.scenario)
+		e := c.quiet(tc.scenario, end)
 		if tc.valid {
 			if e != nil {
 				t.Fatal(e)
@@ -193,7 +193,8 @@ func TestPresentationSignatureAndBindingPlants(t *testing.T) {
 		t.Fatal("signature plant accepted")
 	}
 	for name, mutate := range map[string]func(*rental.Grant){
-		"network": func(g *rental.Grant) { g.Network = "main" }, "genesis": func(g *rental.Grant) { g.Genesis = strings.Repeat("4", 64) }, "agent": func(g *rental.Grant) { g.AgentName = "id/other" }, "landlord": func(g *rental.Grant) { g.LandlordName = "id/other" }, "issuer": func(g *rental.Grant) { g.IssuerKey = renter.PubKeyHex() }, "renter": func(g *rental.Grant) { g.GranteeKey = issuer.PubKeyHex() }, "contract": func(g *rental.Grant) { g.ContractSHA256 = strings.Repeat("4", 64) }, "start": func(g *rental.Grant) { g.NotBefore++ }, "end": func(g *rental.Grant) { g.NotAfter++ }, "scope": func(g *rental.Grant) { g.Scope = []string{"pay"} }, "budget": func(g *rental.Grant) { n := budget + 1; g.Budget = &n }, "booking": func(g *rental.Grant) { g.Consent.ConsentEvent.Tags[2][1] = strings.Repeat("4", 64) }, "privacy": func(g *rental.Grant) { g.Consent.ConsentEvent.Tags[3][1] = strings.Repeat("4", 64) },
+		"network": func(g *rental.Grant) { g.Network = "main" }, "genesis": func(g *rental.Grant) { g.Genesis = strings.Repeat("4", 64) }, "agent": func(g *rental.Grant) { g.AgentName = "id/other" }, "landlord": func(g *rental.Grant) { g.LandlordName = "id/other" }, "issuer": func(g *rental.Grant) { g.IssuerKey = renter.PubKeyHex() }, "renter": func(g *rental.Grant) { g.GranteeKey = issuer.PubKeyHex() },
+		"renter_name": func(g *rental.Grant) { g.GranteeName = "id/other" }, "contract": func(g *rental.Grant) { g.ContractSHA256 = strings.Repeat("4", 64) }, "start": func(g *rental.Grant) { g.NotBefore++ }, "end": func(g *rental.Grant) { g.NotAfter++ }, "scope": func(g *rental.Grant) { g.Scope = []string{"pay"} }, "budget": func(g *rental.Grant) { n := budget + 1; g.Budget = &n }, "booking": func(g *rental.Grant) { g.Consent.ConsentEvent.Tags[2][1] = strings.Repeat("4", 64) }, "privacy": func(g *rental.Grant) { g.Consent.ConsentEvent.Tags[3][1] = strings.Repeat("4", 64) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			var bad rental.GrantPresentation
@@ -201,5 +202,16 @@ func TestPresentationSignatureAndBindingPlants(t *testing.T) {
 			mutate(&bad.SignedGrant.Grant)
 			wantCode(t, checkGrant(c, v, bad), "GRANT_BINDING")
 		})
+	}
+}
+
+// A native-looking end notice signed before not_after remains invalid even if
+// delivered after expiry; an arbitrary prefix cannot stand in for the notice.
+func TestPrematureExpiryNotice(t *testing.T) {
+	now := time.Now().Unix()
+	for _, m := range []received{{"slot ended", now - 1}, {"slot ended injected", now}} {
+		c := &conversation{inbox: make(chan received, 1), fault: make(chan error, 1)}
+		c.inbox <- m
+		wantCode(t, c.quiet("expiry", now), "UNEXPECTED_CLOSED_REPLY")
 	}
 }

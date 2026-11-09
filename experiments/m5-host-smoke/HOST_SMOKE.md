@@ -75,7 +75,8 @@ umask 077
 sha256sum -- "$REQUEST"       # use the hash, never change request bytes
 # Obtain selected observations with the approved commands below.
 date -u +%s%3N               # timestamp AFTER the corresponding observations
-# Write the five-field JSON to a fresh mode0600 temporary file, then atomically:
+# Write the five-field JSON to a fresh mode0600 temporary file INSIDE PACKET
+# (same filesystem), then atomically:
 mv -- "$PREPARED_RECEIPT" "$PACKET/NN-STAGE.incoming.json"
 ```
 
@@ -111,7 +112,9 @@ not only one sample. `responses_shape` attests that resulting observation.
 
 The expiry close request is issued before the idle wait finishes so Infra's
 prepared watcher can meet the deadline. Do not send extra application probes
-during expiry idle. Normal WebSocket heartbeats continue. A disconnect or replay
+during expiry idle. The authenticated native `slot ended` notice is permitted only at/after
+not_after; other unsolicited payload replies fail. Normal WebSocket heartbeats
+continue. A disconnect or replay
 overflow is a failed liveness observation, not a reason to retry into success.
 For revoke, capture spend time promptly; do not reset its deadline when the
 receipt is copied or the operator returns to the terminal.

@@ -14,11 +14,16 @@ import (
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 )
 
+type received struct {
+	content string
+	at      int64
+}
+
 type conversation struct {
 	peer      *gateway.RelayClient
 	key       *nostr.PrivKey
 	agent     string
-	inbox     chan string
+	inbox     chan received
 	fault     chan error
 	done      chan struct{}
 	cancel    context.CancelFunc
@@ -35,7 +40,7 @@ func connect(ctx context.Context, url, agent string) (*conversation, error) {
 		return nil, refuse("RENTER_KEY")
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	c := &conversation{key: key, agent: agent, inbox: make(chan string, 256), fault: make(chan error, 1), done: make(chan struct{}), cancel: cancel, started: time.Now().Unix(), seen: map[string]bool{}}
+	c := &conversation{key: key, agent: agent, inbox: make(chan received, 256), fault: make(chan error, 1), done: make(chan struct{}), cancel: cancel, started: time.Now().Unix(), seen: map[string]bool{}}
 	live := make(chan struct{}, 1)
 	c.peer = &gateway.RelayClient{URL: url, Auth: gateway.RelayAuthWhenChallenged, AgentKey: key, OnStatus: func(s gateway.RelayStatus) {
 		if s.Reason == "RELAY_LIVE" {
@@ -154,7 +159,7 @@ func (c *conversation) receive(ctx context.Context, timeout time.Duration) (stri
 	select {
 	case s := <-c.inbox:
 		c.lastReply = time.Now()
-		return s, nil
+		return s.content, nil
 	case e := <-c.fault:
 		return "", e
 	case <-ctx.Done():
@@ -221,7 +226,7 @@ func (c *conversation) accept(ev *nostr.Event) error {
 	}
 	c.seen[u.Rumor.ID] = true
 	select {
-	case c.inbox <- u.Rumor.Content:
+	case c.inbox <- received{u.Rumor.Content, u.Rumor.CreatedAt}:
 		return nil
 	default:
 		return refuse("REPLY_OVERFLOW")
@@ -229,11 +234,15 @@ func (c *conversation) accept(ev *nostr.Event) error {
 }
 
 // No unsolicited payload text may be hidden in the inbox during closure.
-func (c *conversation) quiet(scenario string) error {
+func (c *conversation) quiet(scenario string, notAfter int64) error {
 	for {
 		select {
 		case s := <-c.inbox:
-			if scenario != "revoke" || s != exchange.NotLive {
+			allowed := scenario == "revoke" && s.content == exchange.NotLive
+			if scenario == "expiry" && s.content == "slot ended" && s.at >= notAfter && time.Now().Unix() >= notAfter {
+				allowed = true
+			}
+			if !allowed {
 				return refuse("UNEXPECTED_CLOSED_REPLY")
 			}
 		default:

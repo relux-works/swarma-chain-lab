@@ -329,14 +329,14 @@ func (r *runner) drive(ctx context.Context) error {
 	}
 	r.report.ApplicationIdleMS = time.Since(idleStart).Milliseconds()
 	r.report.ClosureLatencyMS = closure.ObservedMS - closureBase.UnixMilli()
-	if e = peer.quiet(c.Scenario); e != nil {
+	if e = peer.quiet(c.Scenario, contract.NotAfter); e != nil {
 		return e
 	}
 	r.mark("closure_timing")
 	if _, e = r.observe(ctx, "restart", time.Now().Add(5*time.Minute)); e != nil {
 		return e
 	}
-	if e = peer.quiet(c.Scenario); e != nil {
+	if e = peer.quiet(c.Scenario, contract.NotAfter); e != nil {
 		return e
 	}
 	return nil
@@ -370,7 +370,7 @@ func checkContract(c Config, p profile, v booking.ContractV2, renter string) err
 }
 func checkGrant(c Config, v booking.ContractV2, p rental.GrantPresentation) error {
 	g := p.SignedGrant.Grant
-	if g.Network != "regtest" || g.Genesis != su.RegtestGenesis || g.IssuerKey != c.IssuerPubkey || g.GranteeKey != v.RenterPubkey || g.AgentName != c.AgentName || g.LandlordName != c.LandlordName || g.ContractSHA256 != v.Hash() || g.NotBefore != v.NotBefore || g.NotAfter != v.NotAfter || g.BudgetSat() != v.BudgetSat || !same(g.Scope, v.Allowed) || g.Consent.ConsentEvent.Tags[2][1] != v.BookingID || g.Consent.ConsentEvent.Tags[3][1] != privacy() {
+	if g.Network != "regtest" || g.Genesis != su.RegtestGenesis || g.IssuerKey != c.IssuerPubkey || g.GranteeKey != v.RenterPubkey || g.GranteeName != v.RenterName || g.AgentName != c.AgentName || g.LandlordName != c.LandlordName || g.ContractSHA256 != v.Hash() || g.NotBefore != v.NotBefore || g.NotAfter != v.NotAfter || g.BudgetSat() != v.BudgetSat || !same(g.Scope, v.Allowed) || g.Consent.ConsentEvent.Tags[2][1] != v.BookingID || g.Consent.ConsentEvent.Tags[3][1] != privacy() {
 		return refuse("GRANT_BINDING")
 	}
 	return nil
