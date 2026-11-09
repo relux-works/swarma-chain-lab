@@ -1,0 +1,11 @@
+{
+  "root": "/var/lib/swarma-store",
+  "public_url": "http://127.0.0.1:8091",
+  "writers": ["PLACEHOLDER_LANDLORD_PUBLIC_KEY"],
+  "max_blob_bytes": 1048576,
+  "max_blobs": 128,
+  "max_total_bytes": 67108864,
+  "max_replay": 512,
+  "max_replay_per_key": 32,
+  "skew_seconds": 30
+}

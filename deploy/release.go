@@ -1,0 +1,354 @@
+// Package deploy prepares local, unsigned regtest release artifacts. It never
+// installs a service, signs a release, reads custody files or deploys to a host.
+package deploy
+
+import (
+	"archive/tar"
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+const GoVersion = "go1.26.8"
+
+var (
+	ErrInput     = errors.New("deploy: invalid input")
+	ErrDirty     = errors.New("deploy: checkout must be clean")
+	ErrSource    = errors.New("deploy: source unavailable")
+	ErrToolchain = errors.New("deploy: toolchain mismatch")
+	ErrBuild     = errors.New("deploy: build failed")
+	ErrDifferent = errors.New("deploy: builds differ")
+	ErrOutput    = errors.New("deploy: output unavailable")
+)
+
+type Artifact struct {
+	Service string `json:"service"`
+	Module  string `json:"module,omitempty"`
+	Package string `json:"package,omitempty"`
+	Binary  string `json:"binary,omitempty"`
+	SHA256  string `json:"sha256,omitempty"`
+	Status  string `json:"status"`
+	Reason  string `json:"reason,omitempty"`
+}
+type Manifest struct {
+	Version    int        `json:"version"`
+	Commit     string     `json:"commit"`
+	GoVersion  string     `json:"go_version"`
+	GOOS       string     `json:"goos"`
+	GOARCH     string     `json:"goarch"`
+	CGOEnabled string     `json:"cgo_enabled"`
+	BuildFlags []string   `json:"build_flags"`
+	Artifacts  []Artifact `json:"artifacts"`
+	Pending    []Artifact `json:"pending"`
+}
+
+// ReleaseInput accepts an exact full commit SHA, not a mutable branch/ref. Out
+// must not exist and must have an existing canonical parent outside Repo.
+type ReleaseInput struct{ Repo, Commit, Out string }
+
+var releaseArtifacts = []Artifact{
+	{Service: "gateway", Module: "experiments/rental-gateway", Package: "./cmd/gateway", Binary: "bin/gateway", Status: "blocked", Reason: "real serve wiring absent; non-startable reference only"},
+	{Service: "booking", Module: "experiments/rental-booking", Package: "./cmd/rental-booking", Binary: "bin/rental-booking", Status: "regtest-preparation"},
+	{Service: "store", Module: "experiments/grant-store", Package: "./cmd/grant-store", Binary: "bin/grant-store", Status: "regtest-preparation"},
+}
+
+type buildFunc func(context.Context, string, string, string, Artifact) ([]byte, error)
+
+func exactHex(s string, n int) bool {
+	if len(s) != n*2 {
+		return false
+	}
+	b, e := hex.DecodeString(s)
+	return e == nil && hex.EncodeToString(b) == s
+}
+func digest(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
+func canonicalDir(path string) bool {
+	p, e := filepath.EvalSymlinks(path)
+	st, se := os.Stat(path)
+	return e == nil && se == nil && st.IsDir() && filepath.IsAbs(path) && filepath.Clean(path) == path && p == path
+}
+
+// BuildRelease builds both independent source trees with separate build caches.
+// Nothing is published unless every binary matches and the source is still clean.
+func BuildRelease(ctx context.Context, in ReleaseInput) (Manifest, error) {
+	return buildRelease(ctx, in, buildGo)
+}
+
+func command(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
+	c := exec.CommandContext(ctx, name, args...)
+	c.Dir = dir
+	c.Env = env
+	// Error strings/diagnostics may contain operator paths or environment data;
+	// callers return a fixed error class instead of propagating subprocess text.
+	return c.Output()
+}
+func git(ctx context.Context, repo string, args ...string) ([]byte, error) {
+	return command(ctx, repo, os.Environ(), "git", args...)
+}
+func clean(ctx context.Context, repo string) error {
+	b, e := git(ctx, repo, "status", "--porcelain=v1", "--untracked-files=all")
+	if e != nil {
+		return ErrSource
+	}
+	if len(b) != 0 {
+		return ErrDirty
+	}
+	return nil
+}
+func goEnv(cache string) []string {
+	e := append(os.Environ(), "GOENV=off", "GOTOOLCHAIN=local", "GOWORK=off", "GOFLAGS=", "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0", "GOEXPERIMENT=", "GOAMD64=v1", "GOPROXY=off", "GOSUMDB=off")
+	if cache != "" {
+		e = append(e, "GOCACHE="+cache)
+	}
+	return e
+}
+
+func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manifest, error) {
+	var empty Manifest
+	if ctx == nil || !exactHex(in.Commit, 20) || !canonicalDir(in.Repo) || !filepath.IsAbs(in.Out) || filepath.Clean(in.Out) != in.Out || !canonicalDir(filepath.Dir(in.Out)) {
+		return empty, ErrInput
+	}
+	rel, e := filepath.Rel(in.Repo, in.Out)
+	if e != nil || rel == "." || rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return empty, ErrInput
+	}
+	if _, e = os.Lstat(in.Out); !os.IsNotExist(e) {
+		return empty, ErrOutput
+	}
+	top, e := git(ctx, in.Repo, "rev-parse", "--show-toplevel")
+	if e != nil || strings.TrimSpace(string(top)) != in.Repo {
+		return empty, ErrInput
+	}
+	if e = clean(ctx, in.Repo); e != nil {
+		return empty, e
+	}
+	head, e := git(ctx, in.Repo, "rev-parse", "HEAD")
+	if e != nil || strings.TrimSpace(string(head)) != in.Commit {
+		return empty, ErrSource
+	}
+	version, e := command(ctx, in.Repo, goEnv(""), "go", "env", "GOVERSION")
+	if e != nil || strings.TrimSpace(string(version)) != GoVersion {
+		return empty, ErrToolchain
+	}
+	work, e := os.MkdirTemp(filepath.Dir(in.Out), ".swarma-release-")
+	if e != nil {
+		return empty, ErrOutput
+	}
+	defer os.RemoveAll(work)
+	archive := filepath.Join(work, "source.tar")
+	if _, e = git(ctx, in.Repo, "archive", "--format=tar", "--output="+archive, in.Commit); e != nil {
+		return empty, ErrSource
+	}
+	first, second := filepath.Join(work, "first"), filepath.Join(work, "second")
+	for _, root := range []string{first, second} {
+		if e = extract(archive, root); e != nil {
+			return empty, ErrSource
+		}
+	}
+	m := Manifest{Version: 1, Commit: in.Commit, GoVersion: GoVersion, GOOS: "linux", GOARCH: "amd64", CGOEnabled: "0", BuildFlags: []string{"-trimpath", "-buildvcs=false", "-mod=readonly"}, Artifacts: append([]Artifact(nil), releaseArtifacts...), Pending: []Artifact{
+		{Service: "signer", Status: "pending", Reason: "SG1 not landed at release baseline"},
+		{Service: "courier", Status: "pending", Reason: "Courier/CG1 integration not landed at release baseline"},
+		{Service: "nostr-transport", Status: "pending", Reason: "transport deployment integration not landed at release baseline"},
+	}}
+	stage := filepath.Join(work, "bundle")
+	if e = os.MkdirAll(filepath.Join(stage, "bin"), 0700); e != nil {
+		return empty, ErrOutput
+	}
+	for i, a := range m.Artifacts {
+		one, e := buildPair(ctx, work, first, second, a, build)
+		if e != nil {
+			return empty, e
+		}
+		m.Artifacts[i].SHA256 = digest(one)
+		if e = os.WriteFile(filepath.Join(stage, a.Binary), one, 0755); e != nil {
+			return empty, ErrOutput
+		}
+	}
+	// Deploy templates are exact committed public source, never an operator's
+	// substituted configuration or credential files from the working checkout.
+	if e = copyTemplates(filepath.Join(first, "deploy", "templates"), filepath.Join(stage, "templates")); e != nil {
+		return empty, ErrSource
+	}
+	for _, name := range []string{"SMOKE.md", "README.md"} {
+		b, e := os.ReadFile(filepath.Join(first, "deploy", name))
+		if e != nil {
+			return empty, ErrSource
+		}
+		if e = os.WriteFile(filepath.Join(stage, name), b, 0644); e != nil {
+			return empty, ErrOutput
+		}
+	}
+	b, e := json.MarshalIndent(m, "", "  ")
+	if e != nil {
+		return empty, ErrOutput
+	}
+	if e = os.WriteFile(filepath.Join(stage, "manifest.json"), append(b, '\n'), 0644); e != nil {
+		return empty, ErrOutput
+	}
+	if e = writeSums(stage); e != nil {
+		return empty, ErrOutput
+	}
+	if e = clean(ctx, in.Repo); e != nil {
+		return empty, e
+	}
+	head, e = git(ctx, in.Repo, "rev-parse", "HEAD")
+	if e != nil || strings.TrimSpace(string(head)) != in.Commit {
+		return empty, ErrSource
+	}
+	// The directory contains a complete unsigned bundle before its name appears.
+	if _, e = os.Lstat(in.Out); !os.IsNotExist(e) {
+		return empty, ErrOutput
+	}
+	if e = os.Rename(stage, in.Out); e != nil {
+		return empty, ErrOutput
+	}
+	return m, nil
+}
+
+func buildPair(ctx context.Context, work, first, second string, a Artifact, build buildFunc) ([]byte, error) {
+	one, e := build(ctx, first, filepath.Join(work, "cache-first"), filepath.Join(work, "binary-first"), a)
+	if e != nil {
+		return nil, ErrBuild
+	}
+	two, e := build(ctx, second, filepath.Join(work, "cache-second"), filepath.Join(work, "binary-second"), a)
+	if e != nil {
+		return nil, ErrBuild
+	}
+	if len(one) == 0 || !bytes.Equal(one, two) {
+		return nil, ErrDifferent
+	}
+	return one, nil
+}
+
+func buildGo(ctx context.Context, root, cache, out string, a Artifact) ([]byte, error) {
+	dir := filepath.Join(root, filepath.FromSlash(a.Module))
+	if _, e := command(ctx, dir, goEnv(cache), "go", "mod", "verify"); e != nil {
+		return nil, ErrBuild
+	}
+	if _, e := command(ctx, dir, goEnv(cache), "go", "build", "-trimpath", "-buildvcs=false", "-mod=readonly", "-o", out, a.Package); e != nil {
+		return nil, ErrBuild
+	}
+	b, e := os.ReadFile(out)
+	if e != nil {
+		return nil, ErrBuild
+	}
+	return b, nil
+}
+
+func extract(archive, root string) error {
+	if e := os.Mkdir(root, 0700); e != nil {
+		return e
+	}
+	f, e := os.Open(archive)
+	if e != nil {
+		return e
+	}
+	defer f.Close()
+	r := tar.NewReader(f)
+	var total int64
+	for {
+		h, e := r.Next()
+		if e == io.EOF {
+			return nil
+		}
+		if e != nil {
+			return e
+		}
+		name := strings.TrimSuffix(h.Name, "/")
+		if name == "" || !filepath.IsLocal(name) || filepath.ToSlash(filepath.Clean(name)) != name || h.Size < 0 || h.Size > 128<<20 {
+			return ErrSource
+		}
+		total += h.Size
+		if total > 1<<30 {
+			return ErrSource
+		}
+		path := filepath.Join(root, filepath.FromSlash(name))
+		switch h.Typeflag {
+		case tar.TypeXGlobalHeader:
+			continue
+		case tar.TypeDir:
+			if e = os.MkdirAll(path, 0700); e != nil {
+				return e
+			}
+		case tar.TypeReg:
+			if e = os.MkdirAll(filepath.Dir(path), 0700); e != nil {
+				return e
+			}
+			out, e := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.FileMode(h.Mode)&0777)
+			if e != nil {
+				return e
+			}
+			_, e = io.CopyN(out, r, h.Size)
+			ce := out.Close()
+			if e != nil {
+				return e
+			}
+			if ce != nil {
+				return ce
+			}
+		default:
+			return ErrSource
+		}
+	}
+}
+func copyTemplates(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d os.DirEntry, e error) error {
+		if e != nil {
+			return e
+		}
+		rel, e := filepath.Rel(src, path)
+		if e != nil {
+			return e
+		}
+		if d.IsDir() {
+			return os.MkdirAll(filepath.Join(dst, rel), 0755)
+		}
+		if !d.Type().IsRegular() {
+			return ErrSource
+		}
+		b, e := os.ReadFile(path)
+		if e != nil {
+			return e
+		}
+		return os.WriteFile(filepath.Join(dst, rel), b, 0644)
+	})
+}
+func writeSums(root string) error {
+	var names []string
+	e := filepath.WalkDir(root, func(path string, d os.DirEntry, e error) error {
+		if e != nil {
+			return e
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, e := filepath.Rel(root, path)
+		if e != nil {
+			return e
+		}
+		names = append(names, filepath.ToSlash(rel))
+		return nil
+	})
+	if e != nil {
+		return e
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	for _, name := range names {
+		raw, e := os.ReadFile(filepath.Join(root, name))
+		if e != nil {
+			return e
+		}
+		b.WriteString(digest(raw) + "  " + name + "\n")
+	}
+	return os.WriteFile(filepath.Join(root, "SHA256SUMS"), []byte(b.String()), 0644)
+}

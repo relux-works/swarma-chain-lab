@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "network": "regtest",
+  "service": "store",
+  "release_version": "PLACEHOLDER_RELEASE_VERSION",
+  "commit": "PLACEHOLDER_FULL_COMMIT",
+  "binary_sha256": "PLACEHOLDER_BINARY_SHA256",
+  "state_dir": "/var/lib/swarma-store",
+  "listen": "127.0.0.1:8091",
+  "config": "/etc/swarma/store/service.json"
+}

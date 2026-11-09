@@ -1,0 +1,35 @@
+[Unit]
+Description=Swarma regtest booking and payment observer
+After=network.target namecoind-regtest.service
+Requires=namecoind-regtest.service
+
+[Service]
+Type=simple
+User=swarma-booking
+Group=swarma-booking
+UMask=0077
+WorkingDirectory=/var/lib/swarma-booking
+ExecStart=/opt/swarma/booking/@VERSION@/bin/rental-booking -config /etc/swarma/booking/service.json -profile /etc/swarma/booking/profile.bin -provider-key /var/lib/swarma-booking/provider.hex -route /etc/swarma/booking/operator-route.json -listen 127.0.0.1:18819 -relay ws://127.0.0.1:18818 -poll 2s
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32
+ReadWritePaths=/var/lib/swarma-booking
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

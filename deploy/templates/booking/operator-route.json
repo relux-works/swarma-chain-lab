@@ -1,0 +1,8 @@
+{
+  "Network": "regtest",
+  "Genesis": "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206",
+  "NodeCLI": "/opt/namecoin/PLACEHOLDER_VERSION/bin/namecoin-cli",
+  "NodeCLISHA256": "PLACEHOLDER_LINUX_CLI_SHA256",
+  "NodeConfig": "/var/lib/swarma-booking/rpc/namecoin.conf",
+  "NodeDataDir": "/var/lib/swarma-booking/rpc/client"
+}

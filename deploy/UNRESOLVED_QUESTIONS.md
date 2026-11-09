@@ -7,14 +7,23 @@ stub screener and local-test station driver, with no E1/booking engine wiring.
 The request also forbids product code changes. A service template cannot make
 this executable into a real grant-checking exchange gateway.
 
-The survey recommends building it as a demo-only artifact and marking its M5
-runtime/unit blocked until a separately tracked real entrypoint lands. Runnable
-units can be supplied now for booking/store. The orchestrator has been asked to
-confirm this scope or request a non-startable gateway reference template. Do not
-silently enable the stub in a service claimed to enforce real grants.
+Resolved: package the existing binary as a non-startable reference, with manifest
+status blocked on real serve wiring. Supply no gateway unit. Booking/store units
+continue in DK1. Real v3 kernel/E1/station/screening wiring belongs to future GW1;
+its request follows separately. Never enable the stub as a real grant enforcer.
 
 ## Linux unit validation environment
 
 No local Linux container runtime/systemd-analyze is available, and installed Lima
 has no instances. Report systemd-analyze verification as not run unless a usable
-authorized environment becomes available. No VM/host provisioning is implied.
+authorized environment becomes available. The orchestrator explicitly prohibits
+creating a Lima VM for this task. Infra must run systemd-analyze verify on demo1
+before the first start; SMOKE.md records that gate.
+
+## Deployment inputs remain operator-owned
+
+Template keys/hashes, branch/profile pins, calendar/rate data, release version,
+pinned Linux namecoin-cli, provider key,0400 RPC config and existing relay are
+not guessed by this kit. Infra resolves them through the agreed custody and
+installation flow. The public validator does not certify unseen native files or
+credential contents. No live host or mainnet action is part of DK1 delivery.

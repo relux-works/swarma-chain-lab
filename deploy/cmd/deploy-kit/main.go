@@ -1,0 +1,98 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"relux.works/swarma-chain-lab/deploy"
+)
+
+func main() {
+	if e := run(os.Args[1:]); e != nil {
+		fmt.Fprintln(os.Stderr, e)
+		os.Exit(1)
+	}
+}
+func run(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: deploy-kit build|validate [flags]")
+	}
+	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
+	switch args[0] {
+	case "build":
+		repo := f.String("repo", "", "canonical clean repository root")
+		commit := f.String("commit", "", "exact HEAD commit SHA")
+		out := f.String("out", "", "new absolute release directory outside repository")
+		if e := f.Parse(args[1:]); e != nil {
+			return e
+		}
+		if f.NArg() != 0 {
+			return deploy.ErrInput
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		m, e := deploy.BuildRelease(ctx, deploy.ReleaseInput{Repo: *repo, Commit: *commit, Out: *out})
+		if e != nil {
+			return e
+		}
+		return json.NewEncoder(os.Stdout).Encode(m)
+	case "validate":
+		path := f.String("config", "", "public deploy policy JSON (not credential file)")
+		var publicFiles paths
+		f.Var(&publicFiles, "public", "additional native public JSON file; repeat for each file, never credentials")
+		if e := f.Parse(args[1:]); e != nil {
+			return e
+		}
+		if f.NArg() != 0 {
+			return deploy.ErrInput
+		}
+		file, e := os.Open(*path)
+		if e != nil {
+			return deploy.ErrPolicy
+		}
+		defer file.Close()
+		raw, e := io.ReadAll(io.LimitReader(file, 16385))
+		if e != nil {
+			return deploy.ErrPolicy
+		}
+		p, e := deploy.Validate(raw)
+		if e != nil {
+			return e
+		}
+		for _, path := range publicFiles {
+			file, e := os.Open(path)
+			if e != nil {
+				return deploy.ErrPolicy
+			}
+			raw, readErr := io.ReadAll(io.LimitReader(file, (1<<20)+1))
+			closeErr := file.Close()
+			if readErr != nil || closeErr != nil {
+				return deploy.ErrPolicy
+			}
+			if e := deploy.ValidatePublicJSON(raw); e != nil {
+				return e
+			}
+		}
+		return json.NewEncoder(os.Stdout).Encode(struct{ Status, Service, Network string }{"valid-public-policy", p.Service, p.Network})
+	default:
+		return errors.New("unknown deploy-kit command")
+	}
+}
+
+type paths []string
+
+func (p *paths) String() string { return "public JSON paths" }
+func (p *paths) Set(value string) error {
+	if len(*p) >= 8 {
+		return deploy.ErrInput
+	}
+	*p = append(*p, value)
+	return nil
+}

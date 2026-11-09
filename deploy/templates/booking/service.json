@@ -1,0 +1,32 @@
+{
+  "state_dir": "/var/lib/swarma-booking",
+  "public_branch": "PLACEHOLDER_REGTEST_PUBLIC_BRANCH",
+  "public_branch_sha256": "PLACEHOLDER_BRANCH_SHA256",
+  "agent_pubkey": "PLACEHOLDER_AGENT_PUBLIC_KEY",
+  "provider_pubkey": "PLACEHOLDER_PROVIDER_PUBLIC_KEY",
+  "hold_seconds": 1800,
+  "min_start_now_remaining_seconds": 1500,
+  "price_usd_cents": 100,
+  "usd_micros_per_nmc": 0,
+  "rate_as_of": 0,
+  "max_rate_age_seconds": 300,
+  "template": {
+    "version": 1,
+    "id": "PLACEHOLDER_TEMPLATE_ID",
+    "profile_id": "PLACEHOLDER_PROFILE_ID",
+    "profile_version": "PLACEHOLDER_PROFILE_VERSION",
+    "profile_sha256": "PLACEHOLDER_PROFILE_SHA256",
+    "allowed": ["deliver"],
+    "forbidden": ["pay", "publish", "repository.push", "secret.release"],
+    "budget_sat": 0
+  },
+  "template_sha256": "PLACEHOLDER_TEMPLATE_SHA256",
+  "slots": [{
+    "id": "PLACEHOLDER_SLOT_ID",
+    "station_name": "id/PLACEHOLDER_AGENT_NAME",
+    "not_before": 0,
+    "not_after": 0,
+    "payment_policy": "advance"
+  }],
+  "limits": {"max_blocks": 2016, "max_mempool": 10000, "max_calls": 10000, "max_bytes": 33554432}
+}

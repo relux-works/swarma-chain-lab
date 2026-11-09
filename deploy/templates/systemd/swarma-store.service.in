@@ -1,0 +1,34 @@
+[Unit]
+Description=Swarma regtest signed grant store
+After=network.target
+
+[Service]
+Type=simple
+User=swarma-store
+Group=swarma-store
+UMask=0077
+WorkingDirectory=/var/lib/swarma-store
+ExecStart=/opt/swarma/store/@VERSION@/bin/grant-store serve -config /etc/swarma/store/service.json -listen 127.0.0.1:8091
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32
+ReadWritePaths=/var/lib/swarma-store
+MemoryMax=256M
+TasksMax=64
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target
