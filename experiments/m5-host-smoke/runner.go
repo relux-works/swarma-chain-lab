@@ -73,7 +73,7 @@ func run(ctx context.Context, c Config, op Operator, p profile) (Report, error) 
 	}
 	r := runner{seenRumors: -1, c: c, p: p, op: op, report: Report{Version: 1, RunID: id, Mode: p.mode, Scenario: c.Scenario, Outcome: "FAIL", ConfigSHA256: rental.Hash(encode(c)), EnvironmentSHA256: c.EnvironmentSHA256, StartedMS: time.Now().UnixMilli(), Client: []Observation{}, Operator: []Attestation{}, Limits: []string{"Operator receipts are assertions, not independently verified host evidence.", "No physical erasure claim. Infra must retain and review underlying sanitized observations."}}}
 	if p.mode == "self-test" {
-		r.report.Limits = append(r.report.Limits, "Darwin runner self-test: fake helper and registrar overlay; no Linux UID, peer or storage acceptance.")
+		r.report.Limits = append(r.report.Limits, "Darwin runner self-test: fake helper, registrar overlay, one Core/shared outbox and fixture-only signer cycles; no Linux UID, peer, remote mirror, running signer or storage acceptance.")
 	}
 	if e = c.validate(p); e == nil {
 		if op == nil {
@@ -149,6 +149,7 @@ func (r *runner) drive(ctx context.Context) error {
 		ID       string `json:"booking_id"`
 		Hash     string `json:"contract_sha256"`
 		Contract string `json:"contract_base64"`
+		Expires  int64  `json:"hold_expires_at"`
 	}
 	if e = peer.object(ctx, "contract", &reply, 15*time.Second); e != nil {
 		return e
@@ -161,7 +162,7 @@ func (r *runner) drive(ctx context.Context) error {
 	if e = Strict(raw, &contract); e != nil {
 		return e
 	}
-	if !bytes.Equal(raw, contract.Bytes()) || reply.Hash != contract.Hash() || reply.ID != contract.BookingID {
+	if reply.Expires <= time.Now().Unix() || !bytes.Equal(raw, contract.Bytes()) || reply.Hash != contract.Hash() || reply.ID != contract.BookingID {
 		return refuse("CONTRACT_CANONICAL")
 	}
 	if e = checkContract(c, p, contract, peer.key.PubKeyHex()); e != nil {
@@ -197,7 +198,7 @@ func (r *runner) drive(ctx context.Context) error {
 	if e = get(ctx, c.Booking, "/booking?id="+contract.BookingID, &before); e != nil {
 		return e
 	}
-	if before.Package != nil || before.Issuance != nil || before.Contract.Hash() != contract.Hash() {
+	if before.Package != nil || before.Issuance != nil || before.Contract.Hash() != contract.Hash() || before.HoldExpiresAt != reply.Expires {
 		return refuse("FOREIGN_CONSENT_STATE")
 	}
 	r.mark("foreign_consent_preserved")
@@ -209,15 +210,17 @@ func (r *runner) drive(ctx context.Context) error {
 		return e
 	}
 	var pay struct {
-		Address string `json:"address"`
-		Amount  int64  `json:"amount_atomic"`
-		Coin    string `json:"coin"`
-		Min     int64  `json:"min_confirmations"`
+		BookingID string `json:"booking_id"`
+		Expires   int64  `json:"hold_expires_at"`
+		Address   string `json:"address"`
+		Amount    int64  `json:"amount_atomic"`
+		Coin      string `json:"coin"`
+		Min       int64  `json:"min_confirmations"`
 	}
 	if e = peer.object(ctx, "pay", &pay, 15*time.Second); e != nil {
 		return e
 	}
-	if pay.Address != contract.Payment.Address || pay.Amount != contract.Payment.AmountAtoms || pay.Coin != "nmc" || pay.Min != p.depth {
+	if pay.BookingID != contract.BookingID || pay.Expires != reply.Expires || pay.Expires <= time.Now().Unix() || pay.Address != contract.Payment.Address || pay.Amount != contract.Payment.AmountAtoms || pay.Coin != "nmc" || pay.Min != p.depth {
 		return refuse("PAYMENT_BOUND")
 	}
 	r.mark("payment_bound")
