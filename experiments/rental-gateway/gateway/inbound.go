@@ -248,6 +248,8 @@ type connState struct {
 	pendingStation string
 	nonceHex       string
 	boundSlot      string
+	conn           net.Conn
+	cancel         context.CancelFunc
 }
 
 // ServeStations accepts station-initiated connections until the
@@ -269,9 +271,10 @@ func (g *Gateway) ServeStations(ln net.Listener) error {
 // connection can never rebind (RM2 B1).
 func (g *Gateway) HandleStationConn(conn net.Conn) {
 	defer conn.Close()
-	state := &connState{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	state := &connState{conn: conn, cancel: cancel}
 	defer g.unbind(state)
-	ctx := context.Background()
 	for {
 		frame, err := stationlink.ReadFrame(conn)
 		if err != nil {
@@ -314,9 +317,24 @@ func (g *Gateway) stationRequest(ctx context.Context, state *connState, frame *s
 	if state.boundSlot == "" {
 		return deny("authentication required first")
 	}
+	// The launch may complete its handshake before StartSession returns. No
+	// application request runs until its durable promotion succeeds.
+	g.mu.Lock()
+	done := g.starting[state.boundSlot]
+	g.mu.Unlock()
+	if done != nil {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return deny("session cancelled")
+		}
+	}
 	slot, ok := g.cfg.Journal.Get(state.boundSlot)
 	if !ok || slot.Destroyed {
 		return deny("station destroyed")
+	}
+	if !slot.Started && !slot.Ended {
+		return deny("session not started")
 	}
 	switch frame.Type {
 	case stationlink.TypePull:
@@ -325,6 +343,8 @@ func (g *Gateway) stationRequest(ctx context.Context, state *connState, frame *s
 		}
 		q := g.queueFor(slot.ID)
 		select {
+		case <-ctx.Done():
+			return deny("session cancelled")
 		case f := <-q:
 			return f
 		case <-time.After(g.cfg.PullTimeout):
@@ -372,6 +392,8 @@ func (g *Gateway) stationHello(state *connState, frame *stationlink.Frame,
 	if state.boundSlot != "" {
 		return deny("already bound; rebind refused")
 	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	slot, ok := g.cfg.Journal.Get(frame.SlotID)
 	if !ok {
 		return deny("unknown slot")
@@ -382,7 +404,7 @@ func (g *Gateway) stationHello(state *connState, frame *stationlink.Frame,
 	if slot.Ended {
 		return &stationlink.Frame{Type: stationlink.TypeEnd, SlotID: slot.ID, Reason: slot.EndReason}
 	}
-	if !slot.Started {
+	if !slot.Started && !(slot.Starting && g.starting[slot.ID] != nil) {
 		return deny("session not started")
 	}
 	if frame.StationName != slot.StationName {
@@ -391,9 +413,7 @@ func (g *Gateway) stationHello(state *connState, frame *stationlink.Frame,
 	if slot.ChannelSecretHex == "" {
 		return deny("no channel credential registered")
 	}
-	g.mu.Lock()
 	_, alreadyBound := g.bound[slot.ID]
-	g.mu.Unlock()
 	if alreadyBound {
 		return deny("slot already bound")
 	}
@@ -420,21 +440,25 @@ func (g *Gateway) stationAuth(state *connState, frame *stationlink.Frame,
 	if pendingSlot == "" || frame.SlotID != pendingSlot || frame.StationName != pendingStation {
 		return deny("authentication failed")
 	}
+	// Recheck readiness and credential under the same lock as failure revocation;
+	// a challenge issued before a failed start cannot create a later binding.
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	slot, ok := g.cfg.Journal.Get(pendingSlot)
-	if !ok || slot.Destroyed || slot.Ended || slot.ChannelSecretHex == "" {
+	if !ok || slot.Destroyed || slot.Ended || slot.ChannelSecretHex == "" || frame.StationName != slot.StationName {
+		return deny("authentication failed")
+	}
+	if !slot.Started && !(slot.Starting && g.starting[slot.ID] != nil) {
 		return deny("authentication failed")
 	}
 	secret, err := hex.DecodeString(slot.ChannelSecretHex)
 	if err != nil || !stationlink.VerifyResponse(secret, nonceHex, pendingSlot, pendingStation, frame.Response) {
 		return deny("authentication failed")
 	}
-	g.mu.Lock()
 	if _, taken := g.bound[slot.ID]; taken {
-		g.mu.Unlock()
 		return deny("slot already bound")
 	}
 	g.bound[slot.ID] = state
-	g.mu.Unlock()
 	state.boundSlot = slot.ID
 	return &stationlink.Frame{
 		Type: stationlink.TypeSystem, SlotID: slot.ID,

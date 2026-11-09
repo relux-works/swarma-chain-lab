@@ -47,6 +47,37 @@ Legacy serve flags are rejected. The explicit local test route uses the real
 kernel and exchange; optional stubs require `mode=test`, which deployment
 validation refuses. Stop only the recorded process PID.
 
+Station launch records durable `starting` before invoking the driver. A payload
+may complete TLS/HMAC admission during that call; its application requests wait
+until the journal promotes the slot to `started`. A failed launch closes the
+bound connection and destroys the station, including when the caller cancelled
+or journal writes failed. Failed cleanup is reported, never presented as success.
+Starting admission also requires a live attempt in this gateway process, so a
+crash-left record cannot authenticate. At startup the CLI serves manager RPC
+first, then destroys interrupted launches through `RecoverStarting` and the
+existing durable closer recovery, before serving payload/renter traffic. A
+recovery error stops startup with `GATEWAY_START_RECOVERY`; payload execution is
+never replayed. Existing terminal, credential and single-binding rules remain.
+
+The startup regression uses real TLS/HMAC and an explicitly stubbed driver that
+waits for Hello inside `StartSession`. It proves early admission, delayed first
+request, failed-request suppression, slot isolation and crash recovery; it does
+not claim genuine Core, model API or remote helper execution. Reproduce it and
+the bounded guard-removal controls from this module:
+
+```sh
+go test -race -count=1 -run '^TestStartup' ./gateway ./journal
+go test -race -count=1 -run '^TestServeStartupRecovery$' ./cmd/gateway
+go run .scripts/sr1-guards.go -out .temp/sr1-guards
+```
+
+The guard runner modifies copied fixtures only and stores logs, source hashes
+and mutation verdicts under the output directory. Its fsync probes wrap the real
+file/directory `Sync` calls in the copy, verify their order for both start marks,
+and detect removed calls. This is call-path evidence, not a storage power-loss
+test. Bounded negative read deadlines test the pending-request barrier; there
+are no launch sleeps, retries, polling or payload reconnects in the fix.
+
 ## Design pins
 
 - **Nostr layer:** own small subset on `btcec/v2` (BIP-340, NIP-01

@@ -12,6 +12,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -93,12 +94,13 @@ type Gateway struct {
 	mu       sync.Mutex
 	stations map[string]*station.Station
 	queues   map[string]chan *stationlink.Frame
-	bound    map[string]*connState // slot id -> live authenticated station binding
+	bound    map[string]*connState    // slot id -> live authenticated station binding
+	starting map[string]chan struct{} // live launch completion; absent after restart/failure
 
 	opMu     sync.Mutex
 	inFlight map[string]*opCall // slot\x00kind\x00op id -> running closer operation
 
-	startMu sync.Mutex // serializes lazy station starts (first live presentation)
+	startMu sync.Mutex // serializes explicit/lazy starts and startup recovery
 }
 
 // New validates config and builds a Gateway.
@@ -119,6 +121,7 @@ func New(cfg Config) (*Gateway, error) {
 	g := &Gateway{cfg: cfg, stations: map[string]*station.Station{},
 		queues:   map[string]chan *stationlink.Frame{},
 		bound:    map[string]*connState{},
+		starting: map[string]chan struct{}{},
 		inFlight: map[string]*opCall{}}
 	if cfg.Exchange != nil {
 		if cfg.AgentName != cfg.Exchange.AgentName() {
@@ -168,6 +171,8 @@ func (g *Gateway) RegisterSlot(spec SlotSpec) error {
 // on 0-conf-payment slots) never start a session: start-now changes
 // payment eligibility only, per the M1 decisions.
 func (g *Gateway) StartSlot(ctx context.Context, slotID string) error {
+	g.startMu.Lock()
+	defer g.startMu.Unlock()
 	slot, ok := g.cfg.Journal.Get(slotID)
 	if !ok {
 		return fmt.Errorf("gateway: no slot %s", slotID)
@@ -175,7 +180,7 @@ func (g *Gateway) StartSlot(ctx context.Context, slotID string) error {
 	if slot.Ended || slot.Destroyed {
 		return fmt.Errorf("gateway: slot %s ended", slotID)
 	}
-	if slot.Started {
+	if slot.Started || slot.Starting {
 		return fmt.Errorf("gateway: slot %s already started", slotID)
 	}
 	now := g.cfg.Now().Unix()
@@ -222,21 +227,83 @@ func (g *Gateway) startStation(ctx context.Context, slot *journal.Slot) error {
 		_, _ = g.cfg.Driver.Destroy(ctx, st)
 		return fmt.Errorf("gateway: register station handle: %w", err)
 	}
+	g.mu.Lock()
+	g.stations[slot.ID] = st
+	err = g.cfg.Journal.MarkStarting(slot.ID)
+	if err == nil {
+		g.starting[slot.ID] = make(chan struct{})
+	}
+	g.mu.Unlock()
+	if err != nil {
+		return g.failStart(ctx, slot.ID, st, fmt.Errorf("gateway: journal starting: %w", err))
+	}
 	info := station.SessionInfo{
 		RenterPubKey: slot.RenterPubKey, ContractSHA256: slot.ContractSHA256,
 		NotAfter: slot.NotAfter, GatewayEndpoint: g.cfg.Endpoint,
 	}
 	if err := g.cfg.Driver.StartSession(ctx, st, info); err != nil {
-		_, _ = g.cfg.Driver.Destroy(ctx, st)
-		return fmt.Errorf("gateway: start session: %w", err)
+		return g.failStart(ctx, slot.ID, st, fmt.Errorf("gateway: start session: %w", err))
 	}
 	if err := g.cfg.Journal.MarkStarted(slot.ID); err != nil {
-		_, _ = g.cfg.Driver.Destroy(ctx, st)
-		return fmt.Errorf("gateway: journal started: %w", err)
+		return g.failStart(ctx, slot.ID, st, fmt.Errorf("gateway: journal started: %w", err))
 	}
 	g.mu.Lock()
-	g.stations[slot.ID] = st
+	close(g.starting[slot.ID])
+	delete(g.starting, slot.ID)
 	g.mu.Unlock()
+	return nil
+}
+
+// failStart revokes admission before I/O. Cleanup still runs if persistence fails
+// or the initiating caller cancelled; errors preserve uncertainty for recovery.
+func (g *Gateway) failStart(ctx context.Context, id string, st *station.Station, cause error) error {
+	g.mu.Lock()
+	bound := g.bound[id]
+	delete(g.bound, id)
+	if done := g.starting[id]; done != nil {
+		close(done)
+		delete(g.starting, id)
+	}
+	g.mu.Unlock()
+	if bound != nil {
+		bound.cancel()
+		_ = bound.conn.Close()
+	}
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	endErr := g.cfg.Journal.MarkEnded(id, "start_failed")
+	_, destroyErr := g.cfg.Driver.Destroy(cleanup, st)
+	var recordErr error
+	if destroyErr == nil {
+		recordErr = g.cfg.Journal.MarkDestroyed(id)
+		g.mu.Lock()
+		delete(g.stations, id)
+		g.mu.Unlock()
+	}
+	return errors.Join(cause, endErr, destroyErr, recordErr)
+}
+
+// RecoverStarting destroys interrupted launches using durable driver handles and
+// the existing recorded closer operation. Run after manager RPC is serving but
+// before accepting renter traffic. A new Gateway admits no orphan Starting slot,
+// including when recovery cannot finish. Payload execution is never replayed.
+func (g *Gateway) RecoverStarting(ctx context.Context) error {
+	g.startMu.Lock()
+	defer g.startMu.Unlock()
+	for _, slot := range g.cfg.Journal.All() {
+		if slot.Starting {
+			opID := "startup-recovery"
+			for _, op := range slot.Operations {
+				if op.Kind == journal.OpDestroy && op.State == journal.OpStateStarted {
+					opID = op.OpID // resume a closer's crash-left operation too
+					break
+				}
+			}
+			if _, _, err := g.DestroySlot(ctx, slot.ID, opID); err != nil {
+				return fmt.Errorf("gateway: interrupted start recovery: %w", err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -252,6 +319,9 @@ func (g *Gateway) ensureStarted(ctx context.Context, slot *journal.Slot) error {
 	}
 	if fresh.Started {
 		return nil
+	}
+	if fresh.Starting {
+		return fmt.Errorf("gateway: interrupted start requires recovery")
 	}
 	if err := g.startStation(ctx, fresh); err != nil {
 		return err

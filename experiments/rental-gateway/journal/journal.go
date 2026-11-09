@@ -26,6 +26,7 @@ type Slot struct {
 	NotBefore      int64    `json:"not_before"`
 	NotAfter       int64    `json:"not_after"` // half-open: [NotBefore, NotAfter)
 	Started        bool     `json:"started"`
+	Starting       bool     `json:"starting,omitempty"` // retained on failed start until destruction
 	SeenRumorIDs   []string `json:"seen_rumor_ids"`
 	Refusals       int      `json:"refusals"`
 	Ended          bool     `json:"ended"`
@@ -283,9 +284,26 @@ func (st *Store) SetChannelSecret(id, secretHex, tokenSHA256 string) error {
 	})
 }
 
-// MarkStarted durably records session start.
+// MarkStarting durably records launch intent before the driver can run a payload.
+func (st *Store) MarkStarting(id string) error {
+	return st.updateChecked(id, func(s *Slot) error {
+		if s.Starting || s.Started || s.Ended || s.Destroyed || s.ChannelSecretHex == "" {
+			return fmt.Errorf("journal: slot cannot start")
+		}
+		s.Starting = true
+		return nil
+	})
+}
+
+// MarkStarted promotes a pending launch; concurrent end must never be undone.
 func (st *Store) MarkStarted(id string) error {
-	return st.update(id, func(s *Slot) { s.Started = true })
+	return st.updateChecked(id, func(s *Slot) error {
+		if !s.Starting || s.Started || s.Ended || s.Destroyed {
+			return fmt.Errorf("journal: slot cannot promote")
+		}
+		s.Starting, s.Started = false, true
+		return nil
+	})
 }
 
 // MarkEnded durably records slot end with a reason. Idempotent: a
@@ -305,6 +323,7 @@ func (st *Store) MarkDestroyed(id string) error {
 	return st.update(id, func(s *Slot) {
 		s.Ended = true
 		s.Destroyed = true
+		s.Starting = false
 		s.ChannelSecretHex = ""
 		if s.EndReason == "" {
 			s.EndReason = "destroyed"
@@ -313,6 +332,10 @@ func (st *Store) MarkDestroyed(id string) error {
 }
 
 func (st *Store) update(id string, fn func(*Slot)) error {
+	return st.updateChecked(id, func(s *Slot) error { fn(s); return nil })
+}
+
+func (st *Store) updateChecked(id string, fn func(*Slot) error) error {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	s, ok := st.slots[id]
@@ -320,7 +343,10 @@ func (st *Store) update(id string, fn func(*Slot)) error {
 		return fmt.Errorf("journal: no slot %s", id)
 	}
 	backup := *s // seen map is never mutated by update callers
-	fn(s)
+	if err := fn(s); err != nil {
+		*s = backup
+		return err
+	}
 	if err := st.persistLocked(s); err != nil {
 		seen := s.seen
 		*s = backup

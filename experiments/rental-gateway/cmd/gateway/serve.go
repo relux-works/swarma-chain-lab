@@ -173,13 +173,22 @@ func serve(parent context.Context, c serveConfig) error {
 		return errors.New("GATEWAY_CONSTRUCTION")
 	}
 	var workers sync.WaitGroup
-	workers.Add(3)
 	errs := make(chan error, 3)
-	go func() { defer workers.Done(); errs <- gw.ServeStations(runtime.payload) }()
+	defer func() { cancel(); relay.Close(); runtime.closeTransports(); workers.Wait() }()
 	if runtime.manager != nil {
 		workers.Add(1)
 		go func() { defer workers.Done(); errs <- runtime.manager.Serve(runtime.managerListener) }()
 	}
+	// Remote Destroy needs manager RPC; payload/renter traffic starts only after
+	// interrupted launches have been reconciled, without replaying execution.
+	recoveryCtx, recoveryCancel := context.WithTimeout(ctx, 30*time.Second)
+	e = gw.RecoverStarting(recoveryCtx)
+	recoveryCancel()
+	if e != nil {
+		return errors.New("GATEWAY_START_RECOVERY")
+	}
+	workers.Add(3)
+	go func() { defer workers.Done(); errs <- gw.ServeStations(runtime.payload) }()
 	go func() {
 		defer workers.Done()
 		ticker := time.NewTicker(time.Second)
@@ -193,7 +202,6 @@ func serve(parent context.Context, c serveConfig) error {
 			}
 		}
 	}()
-	defer func() { cancel(); relay.Close(); runtime.closeTransports(); workers.Wait() }()
 	inbound := newInbound(ctx, c.Exchange.QueueSize, func(ctx context.Context, ev *nostr.Event) {
 		r := gw.HandleGiftWrap(ctx, ev)
 		fmt.Fprintf(os.Stderr, "gateway: inbound delivered=%t refused=%t exchange=%t\n", r.Delivered, r.Refused, r.ExchangeQueued)
