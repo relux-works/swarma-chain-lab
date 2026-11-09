@@ -41,6 +41,20 @@ state. A new runtime experiment requires its own admitted isolation and bounds.
 
 Licensed under [Apache-2.0](LICENSE); see [NOTICE](NOTICE) and experiment notices.
 
+## Public repository hygiene tools
+
+Run `python3 -B .github/scripts/check-public-hygiene.py` from the repository root
+to reject Matrix IDs outside the exact example-domain allowlist. The guard
+scans Git-tracked filenames and contents, including common URL/JSON/HTML escapes
+and dot obfuscations; stage new files before checking. Diagnostics go to the
+terminal without printing the identifier. It does not scan history or detect
+all secrets, arbitrary encodings or private names on example domains.
+Run `python3 -B -m unittest discover -s .github/scripts -p 'test_public_hygiene.py' -v`
+for paired examples, rejection controls and an isolated tracked-file plant.
+The `public-hygiene` CI job runs both on every pull request and main push.
+Any saved local logs belong in `.temp/`. Historical Git objects are unchanged;
+replacing a current-tree identifier does not erase its publication history.
+
 ## Single-use grant tools
 
 [Single-use grants](experiments/single-use/README.md) provides a Go

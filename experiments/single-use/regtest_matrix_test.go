@@ -13,6 +13,10 @@ import (
 
 func (l *coreLab) signedRequest(label string, change func(map[string]any)) []byte {
 	l.t.Helper()
+	key := os.Getenv("SUG_CORE_REQUESTER_KEY")
+	if !filepath.IsAbs(key) {
+		l.t.Fatal("absolute SUG_CORE_REQUESTER_KEY required")
+	}
 	var envelope map[string]string
 	if e := json.Unmarshal(l.request, &envelope); e != nil {
 		l.t.Fatal(e)
@@ -51,11 +55,6 @@ func (l *coreLab) signedRequest(label string, change func(map[string]any)) []byt
 	if e != nil {
 		l.t.Fatal("prepare request", e)
 	}
-	home, e := os.UserHomeDir()
-	if e != nil {
-		l.t.Fatal(e)
-	}
-	key := filepath.Join(home, "Werkstatt/grants-keys/ivan/requester.pk8")
 	args := []string{"request", "--payload", path, "--requester-spki", pubPath, "--key", key, "--digest", string(digest)}
 	signed, e := exec.Command(l.signer, args...).Output()
 	if e != nil {

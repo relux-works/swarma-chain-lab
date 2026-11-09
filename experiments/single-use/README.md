@@ -130,6 +130,7 @@ export W3_CORE_CLI=/pinned/namecoin-cli W3_CORE_DAEMON=/pinned/namecoind
 export W3_EXECUTOR=/clean-head/single-use W3_LAB_SIGNER=/pinned/labtestsigner
 export W3_PUBLIC_VERIFIER=/pinned/swarma-keyvault
 export W3_PUBLIC_FIXTURE=/public/certificate-cycle2
+export SUG_CORE_REQUESTER_KEY=/private/admitted-requester.pk8
 go test -count=1 -v -run '^TestGenuineCoreMatrix$' .
 ```
 
@@ -137,7 +138,8 @@ The harness refuses an existing root, pins Core tool hashes, creates its own
 no-peer regtest node and two throwaway wallets, and stops only its recorded PID.
 The public fixture directory supplies certificate.json, request.json and
 enrollment.json. The lab signer uses the previously admitted throwaway P-256
-requester key in place; no key material is read/exported by the harness. The
+requester key at the explicit absolute `SUG_CORE_REQUESTER_KEY` path in place;
+there is no home-directory default. No key material is read/exported by the harness. The
 public verifier and signer are separately pinned dependencies, not built here.
 Per-run `public/` holds commands, exit codes, receipts, control results and node
 lifecycle. `private/` holds wallets, cookie, routes, node logs and executor state;

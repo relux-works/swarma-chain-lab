@@ -4,10 +4,10 @@ This harness prepares composition of the unchanged KeyVault verifier with a
 Namecoin wrapper, ephemeral test signer, T1 seal/anchor adapter and seal watcher.
 It does not implement those components. It runs no repository operation.
 
-The fixed owner is `@alexis:gr.relux.works`; the target is
+The fixed owner is `@operator:example.invalid`; the target is
 `relux-works/matrix-grants-poc-261031`, and the test action is verification of
-`repository.create`. Names are `id/swarma-poc-alexis` and
-`id/swarma-poc-ivan-agent`. Existing certificate, enrollment and request formats
+`repository.create`. Names are `id/swarma-poc-operator` and
+`id/swarma-poc-requester`. Existing certificate, enrollment and request formats
 remain unchanged. The mirror direction and BIP47 are outside this slice.
 
 ## Runnable admission

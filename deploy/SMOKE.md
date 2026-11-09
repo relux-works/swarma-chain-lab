@@ -207,7 +207,7 @@ availability, loopback listener bounds and S1's unsigned-access refusal. It does
 not establish full M5 rental/issuance/signing/exchange acceptance. SG1/Courier/
 transport deployment is not in this kit. Infra and the lane
 must finish the separate genuine regtest end-to-end acceptance before any later
-mainnet decision. Ivan's exact GO and caps remain required for mainnet transactions.
+mainnet decision. The owner's exact GO and caps remain required for mainnet transactions.
 
 ## DK2 additions
 

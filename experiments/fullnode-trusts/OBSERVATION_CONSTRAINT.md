@@ -92,7 +92,7 @@ Reentry resets neither start nor deadline. Higher observation throughput can
 reach the unchanged global 2100-call ceiling sooner; it does not authorize a
 counter reset or a separate per-phase/series allowance.
 
-The funding cash-flow revision, Ivan-only funding, maximum 1 NMC cap, and
+The funding cash-flow revision, owner-only funding, maximum 1 NMC cap, and
 source-bound exact-raw GO before every broadcast remain intact. This source
 neither authorizes runtime nor supplies a live launcher. Independent review
 and a new exact marker are required for this changed source.

@@ -10,6 +10,22 @@ permissions:
   contents: read
 
 jobs:
+  public-hygiene:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        with:
+          python-version: '3.14.4'
+          check-latest: false
+      - name: Check public identifiers and detector controls
+        run: |
+          python3 -B .github/scripts/check-public-hygiene.py
+          python3 -B -m unittest discover -s .github/scripts -p 'test_public_hygiene.py' -v
+
   offline:
     name: ${{ matrix.suite }}
     runs-on: ubuntu-22.04

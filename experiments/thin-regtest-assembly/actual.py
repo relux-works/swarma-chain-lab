@@ -184,7 +184,7 @@ def bridge(mode,policy,binding,request='request.json'):
    if birth(p.pid)==item['birth']:os.killpg(p.pid,signal.SIGKILL)
    p.wait(timeout=3);finish(p,item)
 def sign_request(index):
- req={'type':'grants-local-operation-1','request_id':'actual-request-'+str(index),'certificate_id':'actual-alexis-to-ivan-agent','entry_id':'repo-create','cycle_id':'codex-dm','operation_use_id':'codex-dm/create','subject':subject,'audience':audience,'action':'repository.create','target':{'organization':'relux-works','name':'matrix-grants-poc-261031','visibility':'private'},'expires_at':'2026-11-08T14:00:00Z'}
+ req={'type':'grants-local-operation-1','request_id':'actual-request-'+str(index),'certificate_id':'actual-operator-to-requester','entry_id':'repo-create','cycle_id':'codex-dm','operation_use_id':'codex-dm/create','subject':subject,'audience':audience,'action':'repository.create','target':{'organization':'relux-works','name':'matrix-grants-poc-261031','visibility':'private'},'expires_at':'2026-11-08T14:00:00Z'}
  save('operation.json',req)
  digest,_=run('requester',['/bin/labtestsigner','prepare-request','--payload','/public/operation.json','--requester-spki','/public/requester.der'])
  signed,_=run('requester',['/bin/labtestsigner','request','--payload','/public/operation.json','--requester-spki','/public/requester.der','--digest',digest.decode(),'--key','/private/keys/requester.pk8'])
@@ -206,12 +206,12 @@ try:
   probe="import os; own='/actors/"+role+"/private/custody-sentinel'; other='/actors/"+other+"/private/custody-sentinel'; assert open(own).read()=='own-test-sentinel'; denied=False\ntry: f=open(other); f.close()\nexcept PermissionError: denied=True\nassert denied; assert not os.path.exists('/home/agent'); assert 'SSH_AUTH_SOCK' not in os.environ; print('own sentinel allowed; other actor denied; no host home or agent environment')"
   out,_=run(role,['/usr/bin/python3','-I','-c',probe])
   reg_stage('actor-filesystem-custody-control',role=role,result=out.decode().strip())
- subject={'account_mxid':'@ivan-agent:example.invalid','device_id':'LAB-IVAN-AGENT'}
+ subject={'account_mxid':'@requester:example.invalid','device_id':'LAB-REQUESTER'}
  audience={'deployment_id':'lab-thin-slice','executor_id':'lab-verify-only'}
  cycle={'cycle_id':'codex-dm','runtime':'codex','channel':'encrypted-dm'}
- draft={'certificate_id':'actual-alexis-to-ivan-agent','subject':subject,'audience':audience,'cycles':[cycle],'not_before':'2026-11-07T14:00:00Z','expires_at':'2026-11-09T14:00:00Z','organization':'relux-works','name':'matrix-grants-poc-261031'}
+ draft={'certificate_id':'actual-operator-to-requester','subject':subject,'audience':audience,'cycles':[cycle],'not_before':'2026-11-07T14:00:00Z','expires_at':'2026-11-09T14:00:00Z','organization':'relux-works','name':'matrix-grants-poc-261031'}
  save('draft.json',draft)
- payload,review=run('owner',['/bin/keyvault','grants','local-prepare','--plan','/public/draft.json','--owner-mxid','@alexis:gr.relux.works','--issuer-spki-der','/public/owner.der','--requester-spki-der','/public/requester.der'])
+ payload,review=run('owner',['/bin/keyvault','grants','local-prepare','--plan','/public/draft.json','--owner-mxid','@operator:example.invalid','--issuer-spki-der','/public/owner.der','--requester-spki-der','/public/requester.der'])
  (PUBLIC/'prepared.json').write_bytes(payload)
  digest=H(b'swarma-grants/local-certificate/1\n'+payload)
  assert digest.encode() in review
@@ -253,7 +253,7 @@ try:
  net=rpc('getnetworkinfo');assert net['connections']==0
  reg_stage('regtest-allocated-funds',reserved_principal_sat=reserved['value_sat'],selected_total_owner_sat=100000000,reserved_locked=True,network=network()['chain'],node_connections=net['connections'])
  names={};reservations={}
- for role,address,key,name in [('issuer',issuer_address,'owner','id/swarma-poc-alexis'),('requester',requester_address,'requester','id/swarma-poc-ivan-agent')]:
+ for role,address,key,name in [('issuer',issuer_address,'owner','id/swarma-poc-operator'),('requester',requester_address,'requester','id/swarma-poc-requester')]:
   nonce=os.urandom(20).hex()
   raw=builder(role,address,[],[{address:Decimal('0.01')}],name_op={'op':'name_new','name':name,'rand':nonce})
   txid=send(raw);reservations[role]=(point(txid,address,True),nonce,name,key,address)
@@ -334,7 +334,7 @@ try:
  assert final['watch']['state']=='FINALREVOKED' and not final_refusal['verified']
  new_request=sign_request(2)
  # Cryptographic validity is checked independently using real unchanged CLI.
- config={'type':'grants-local-enrollment-2','owner_mxid':'@alexis:gr.relux.works','owner_spki':base64.urlsafe_b64encode(owner_der).decode().rstrip('='),'requester_spki':base64.urlsafe_b64encode(requester_der).decode().rstrip('='),'subject':subject,'audience':audience,'cycle':cycle,'organization':'relux-works','name':'matrix-grants-poc-261031','state_dir':'/private/ABSENT-STATE','gh_path':'/private/ABSENT-PROVIDER'}
+ config={'type':'grants-local-enrollment-2','owner_mxid':'@operator:example.invalid','owner_spki':base64.urlsafe_b64encode(owner_der).decode().rstrip('='),'requester_spki':base64.urlsafe_b64encode(requester_der).decode().rstrip('='),'subject':subject,'audience':audience,'cycle':cycle,'organization':'relux-works','name':'matrix-grants-poc-261031','state_dir':'/private/ABSENT-STATE','gh_path':'/private/ABSENT-PROVIDER'}
  # CLI requires an owner-private config, so copy only this public-pin configuration into verifier custody.
  config_path=P('/private/actors/verifier/private/config.json');config_path.write_text(json.dumps(config,separators=(',',':'),sort_keys=True));os.chmod(config_path,0o600)
  valid,_=run('verifier',['/bin/keyvault','grants','verify','--config','/private/config.json','--certificate','/public/certificate.json','--request','/public/request2.json','--at',stamp()])

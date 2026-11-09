@@ -201,7 +201,7 @@ reserve 100000 sat) A должен закончить с 489000 sat. Поэто�
 Если фактический fee funder превышает эту planning line, пересчитать record
 через `funding.funder_record`. Само превышение 50600 sat не блокирует опыт,
 пока совокупная сумма остаётся далеко ниже неизменного cap 1 NMC.
-Финансирует только Ivan; размер recipient funding и caps опыта не растут.
+Only the owner funds the experiment; recipient funding and experimental caps do not increase.
 Она совпадает с финальной алгеброй только после проверки всех префиксов.
 
 Для одного T1 такая финальная алгебра дала бы 2878800 sat, но оставила бы A

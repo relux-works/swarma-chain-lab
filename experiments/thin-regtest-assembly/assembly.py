@@ -21,9 +21,9 @@ COMPONENTS = ('wrapper', 'signer', 'anchor', 'watcher')
 STAGES = ('publish_names', 'issue_certificate', 'anchor_certificate_and_seal',
           'sign_request', 'verify_admit', 'spend_seal',
           'verify_mempool_refuse', 'mine_one_block', 'verify_one_block_refuse')
-OWNER = '@alexis:gr.relux.works'
+OWNER = '@operator:example.invalid'
 TARGET = 'relux-works/matrix-grants-poc-261031'
-NAMES = ['id/swarma-poc-alexis', 'id/swarma-poc-ivan-agent']
+NAMES = ['id/swarma-poc-operator', 'id/swarma-poc-requester']
 MAX_BYTES = 24 * 1024 * 1024
 
 

@@ -62,7 +62,7 @@ class GateControls(unittest.TestCase):
         self.assertEqual(a.admit(self.plan, acceptance=self.acceptance)['status'], 'MISSING_OR_REFUSED')
 
     def test_fixed_scope_guards(self):
-        for key, bad in [('network','main'), ('owner_mxid','ivan'), ('target','other/repo'),
+        for key, bad in [('network','main'), ('owner_mxid','other-operator'), ('target','other/repo'),
                          ('names',['d/wrong']), ('action','repository.delete')]:
             with self.subTest(key=key):
                 plan=copy.deepcopy(self.plan); plan[key]=bad

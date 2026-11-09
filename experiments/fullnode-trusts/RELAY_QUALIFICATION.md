@@ -62,7 +62,7 @@ background wallet/relay behavior qualified first. This is a proposal only;
 no parameter, permission, connection or node is changed. Enabling it would
 still not replace the independently authenticated remote mempool receipt.
 
-Each exact raw transaction still needs Meta GO; only Ivan funds it; the total
+Each exact raw transaction still needs Meta GO; only the owner funds it; the total
 cap remains 1 NMC. The six-block window and all earlier time, call and byte
 bounds apply independently of whether relay evidence is available. Earlier
 bounds can stop a stalled chain before it produces six blocks. Reorgs stop;
