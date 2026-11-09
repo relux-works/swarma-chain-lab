@@ -190,13 +190,16 @@ func serve(parent context.Context, c serveConfig) error {
 		fmt.Fprintf(os.Stderr, "gateway: inbound delivered=%t refused=%t exchange=%t\n", r.Delivered, r.Refused, r.ExchangeQueued)
 	})
 	defer inbound.close()
+	workers.Go(func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		inbound.reportStatus(os.Stderr, ticker.C)
+	})
 	fmt.Fprintf(os.Stderr, "gateway: screening=%s mode=%s kernel=%s station=%s pid=%d\n", c.Screening, c.Mode, c.Kernel.Kind, c.Station.Driver, os.Getpid())
 	go func() {
 		defer workers.Done()
 		errs <- relay.SubscribeGiftWraps(ctx, gw.AgentPubKey(), func(ctx context.Context, ev *nostr.Event) {
-			if !inbound.offer(ev) {
-				fmt.Fprintln(os.Stderr, "gateway: inbound queue unavailable")
-			}
+			inbound.offer(ev)
 		})
 	}()
 	select {

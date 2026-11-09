@@ -84,6 +84,13 @@ hosts remains an operator adapter, not gateway issuance code.
 
 Four fixed inbound workers and a bounded queue keep kernel/manager waits off the
 relay ACK pump. Saturation drops the inbound event without claiming delivery.
+Structured stderr JSON with `kind=inbound_status` reports process-local cumulative
+`admitted` and `dropped_full` counts, instantaneous `queued`, configured `capacity`,
+and `worker_limit=4`. It is emitted at startup, every30seconds, and shutdown by a
+separate worker; the relay callback performs no status I/O. Nil events and offers
+after cancellation are refused without counting as saturation. Counters reset on
+restart, fields are sampled independently, and admission does not mean delivery.
+At most `capacity+4` events can be queued or executing; no automatic retry is added.
 The exchange retains its separate worker/queue. Shutdown cancels workers, closes
 tracked sockets, stops only owned local test children and closes dependencies.
 Manager HTTP admits at most4 simultaneous connections, with bounded header/body/

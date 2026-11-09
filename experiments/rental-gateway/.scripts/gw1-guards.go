@@ -25,6 +25,7 @@ type plant struct {
 }
 
 var plants = []plant{
+	{"inbound_drop_counter", "gateway", "cmd/gateway/inbound.go", "q.droppedFull.Add(1)", "q.droppedFull.Add(0)", "./cmd/gateway", "TestInboundStatusBounds", "saturation accounting", false},
 	{"remote_local_root", "gateway", "cmd/gateway/config.go", " || c.Station.Root != \"\"", "", "./cmd/gateway", "TestConfigRemote/local-root", "remote config guard missing", false},
 	{"remote_connection_bound", "gateway", "cmd/gateway/serve.go", "if l.limit > 0 && len(l.conns) >= l.limit {", "if l.limit > 0 && len(l.conns) >= l.limit && false {", "./cmd/gateway", "TestRemoteConnectionBounds", "excess connection not refused", false},
 	{"remote_idle_deadline", "gateway", "cmd/gateway/serve.go", "if c.owner.timeout > 0 {\n\t\t_ = c.Conn.SetReadDeadline", "if c.owner.timeout > 0 && false {\n\t\t_ = c.Conn.SetReadDeadline", "./cmd/gateway", "TestRemoteConnectionBounds", "idle deadline not enforced", false},
@@ -145,7 +146,7 @@ func run() error {
 		}
 		return code, b, nil
 	}
-	for _, b := range []struct{ module, pkg, test string }{{"gateway", "./cmd/gateway", "Test(Config.*|Remote.*|BookingClient.*|PresentationDirectory|InboundDoesNotBlockRelayACK|PrivateDirNoRedirectedEffects|GatewayTLSAuthority)"}, {"gateway", "./screen", "TestOff"}, {"booking", ".", "TestHTTPCatalogue"}} {
+	for _, b := range []struct{ module, pkg, test string }{{"gateway", "./cmd/gateway", "Test(Config.*|Remote.*|BookingClient.*|PresentationDirectory|Inbound.*|PrivateDirNoRedirectedEffects|GatewayTLSAuthority)"}, {"gateway", "./screen", "TestOff"}, {"booking", ".", "TestHTTPCatalogue"}} {
 		code, _, e := runTest("baseline-"+b.module+strings.ReplaceAll(b.pkg, "/", "-"), b.module, b.pkg, b.test, false)
 		if e != nil || code != 0 {
 			return fmt.Errorf("baseline %s/%s exit %d: %v", b.module, b.pkg, code, e)
