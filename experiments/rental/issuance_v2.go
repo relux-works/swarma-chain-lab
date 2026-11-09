@@ -30,6 +30,7 @@ type ContractV2 struct {
 	Payment        paymentchain.Terms `json:"payment"`
 	PaymentPolicy  string             `json:"payment_policy"`
 	PrivacySHA256  string             `json:"privacy_sha256"`
+	ModelCaps      *ModelCaps         `json:"model_caps,omitempty"`
 }
 
 type IssuanceRequestV2 struct {
@@ -129,6 +130,9 @@ func VerifyIssuancePackageV2(p IssuerPolicyV2, request, event []byte, now int64)
 		if slices.Contains(c.Forbidden, v) {
 			return fail("CONTRACT_SCOPE")
 		}
+	}
+	if c.ModelCaps != nil && !c.ModelCaps.valid() {
+		return fail("CONTRACT_MODEL_CAPS")
 	}
 	if !digest(c.TemplateSHA256) || !digest(c.ProfileSHA256) || !digest(c.PrivacySHA256) || c.TemplateID == "" || c.ProfileID == "" || c.ProfileVersion == "" {
 		return fail("CONTRACT_FIELDS")

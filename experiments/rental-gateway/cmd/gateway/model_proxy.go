@@ -8,6 +8,7 @@ import (
 	"time"
 
 	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
 	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
 )
@@ -25,8 +26,19 @@ func (m *modelProxyConfig) valid() bool {
 	if m == nil {
 		return true
 	}
+	if !bookingModelCaps(m).Valid() {
+		return false
+	}
 	u, e := url.Parse(m.Origin)
 	return absPath(m.AdminSocket) && len(m.AdminSocket) <= 100 && m.ServerUID != nil && pinDigest(m.CertSHA256) && m.Caps.Valid() && e == nil && u.Scheme == "https" && u.Hostname() != "" && u.Path == "" && u.RawPath == "" && u.User == nil && u.RawQuery == "" && !u.ForceQuery && u.Fragment == "" && u.Opaque == "" && u.String() == m.Origin && u.Host == strings.ToLower(u.Host) && !strings.Contains(m.Origin, "#")
+}
+
+func bookingModelCaps(m *modelProxyConfig) *booking.ModelCaps {
+	if m == nil {
+		return nil
+	}
+	c := m.Caps
+	return &booking.ModelCaps{InputTokens: c.InputTokens, OutputTokens: c.OutputTokens, Requests: c.Requests, MaxTokens: c.MaxTokens, CostNanoUSD: c.CostNanoUSD, DefaultMaxOutputTokens: c.DefaultMaxOutputTokens}
 }
 
 type pinnedRegistrar struct {

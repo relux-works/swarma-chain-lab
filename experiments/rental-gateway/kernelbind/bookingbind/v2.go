@@ -39,6 +39,12 @@ func (a *AdapterV2) Catalogue(ctx context.Context) (exchange.Terms, error) {
 		return exchange.Terms{}, e
 	}
 	t := exchange.Terms{AgentName: a.AgentName, LandlordName: a.LandlordName, PrivacyNotice: c.PrivacyNotice, PrivacySHA256: c.PrivacySHA256, Templates: []exchange.Template{{ID: c.Template.ID, SHA256: c.TemplateSHA256, ProfileID: c.Template.ProfileID, ProfileVersion: c.Template.ProfileVersion, ProfileSHA256: c.Template.ProfileSHA256, PriceUSDCents: c.PriceUSDCents, SlotLengths: c.SlotLengths, Coins: append([]exchange.Coin{}, a.PaymentCoins...)}}, Slots: []exchange.Slot{}}
+	if c.Template.ModelCaps != nil {
+		if !c.Template.ModelCaps.Valid() {
+			return exchange.Terms{}, errors.New("booking model caps")
+		}
+		t.Templates[0].ModelTerms = c.Template.ModelCaps.Text()
+	}
 	for _, s := range c.Slots {
 		if s.StationName != a.AgentName {
 			continue

@@ -226,3 +226,7 @@ Public results go under each configured root's `public/`; private fixture
 wallets and journals must not be exported. L5 controls include a mutation that
 restores unconditional bare preflight; the public-entry regression must detect
 it. The historical binary replay control separately preserves old regtest bytes.
+
+## Signed model limits
+
+The independent ContractV2 decoder also authenticates and validates optional `model_caps`; non-model vectors remain byte-identical. See [signed model limits](../rental-booking/MODEL-CAPS.md). The extension does not change MA1-03 funding or main-network admission.

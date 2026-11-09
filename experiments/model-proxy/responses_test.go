@@ -24,7 +24,7 @@ type responsesHarness struct {
 	reply func(http.ResponseWriter, *http.Request)
 }
 
-func responsesFixture(t *testing.T) *responsesHarness {
+func responsesFixture(t *testing.T, defaultLimit ...uint64) *responsesHarness {
 	t.Helper()
 	h := &responsesHarness{}
 	h.now.Store(100)
@@ -66,7 +66,10 @@ func responsesFixture(t *testing.T) *responsesHarness {
 		t.Fatal(e)
 	}
 	t.Cleanup(func() { h.s.Close() })
-	h.b = Binding{strings.Repeat("b", 64), strings.Repeat("c", 64), 90, 1000, Caps{1000, 1000, 10, 10, 10000}}
+	h.b = Binding{strings.Repeat("b", 64), strings.Repeat("c", 64), 90, 1000, Caps{1000, 1000, 10, 10, 10000, 0}}
+	if len(defaultLimit) > 0 {
+		h.b.Caps.DefaultMaxOutputTokens = defaultLimit[0]
+	}
 	h.cred, e = h.s.Prepare(h.b)
 	if e != nil {
 		t.Fatal(e)

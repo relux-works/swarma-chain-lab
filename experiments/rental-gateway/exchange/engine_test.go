@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -75,6 +76,7 @@ type fixture struct {
 	agent, renter       *nostr.PrivKey
 	now                 int64
 	seq                 int
+	registeredContract  []byte
 	registered, checked int
 	live                bool
 	dir                 string
@@ -115,7 +117,7 @@ func (f *fixture) open(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e = e
-	err = e.Bind(f.agent, f.p, Hooks{Register: func(context.Context, Issued) error { f.registered++; return nil }, Check: func(_ context.Context, _ Hold, now int64) (bool, error) {
+	err = e.Bind(f.agent, f.p, Hooks{Register: func(_ context.Context, i Issued) error { f.registered++; f.registeredContract = i.Contract; return nil }, Check: func(_ context.Context, _ Hold, now int64) (bool, error) {
 		f.checked++
 		if now != f.now {
 			t.Error("fabricated clock")
@@ -929,6 +931,34 @@ func TestPayConfirmationDisplay(t *testing.T) {
 			}
 			if f.b.hold.Issuable || f.registered != 0 {
 				t.Fatal("pay display authorized issuance")
+			}
+		})
+	}
+}
+
+// Fresh status contract bytes must match the consent-bound hash before
+// registration. The grant source cannot substitute its own bytes; the hook
+// receives an owned copy of the validated booking contract.
+func TestIssuedContractHandoff(t *testing.T) {
+	for _, bad := range [][]byte{nil, []byte("changed"), make([]byte, 8193)} {
+		t.Run(fmt.Sprintf("size-%d", len(bad)), func(t *testing.T) {
+			f := fixtureNew(t)
+			f.paid(t)
+			good := append([]byte(nil), f.b.hold.Contract...)
+			f.b.hold.Contract = bad
+			f.e.poll(context.Background())
+			if f.registered != 0 {
+				t.Fatal("invalid status contract registered")
+			}
+			f.b.hold.Contract = append([]byte(nil), good...)
+			f.source.issued.Contract = []byte("untrusted source copy")
+			f.e.poll(context.Background())
+			if f.registered != 1 || !bytes.Equal(f.registeredContract, good) {
+				t.Fatal("validated contract not handed off")
+			}
+			f.b.hold.Contract[0] ^= 1
+			if !bytes.Equal(f.registeredContract, good) {
+				t.Fatal("registration shares mutable contract bytes")
 			}
 		})
 	}

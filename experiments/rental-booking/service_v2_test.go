@@ -104,7 +104,7 @@ type ledgerFixture struct {
 func newLedger(t *testing.T) *ledgerFixture {
 	t.Helper()
 	f := &ledgerFixture{profile: []byte("ledger fixture profile"), provider: testKey(2), renter: testKey(3), nodes: map[string]Node{}, concrete: map[string]*ledgerNode{}, relay: &memoryRelay{}, now: 2000000000}
-	template := Template{1, "demo", "curator-test", "1.0.0", Hash(f.profile), []string{"deliver", "pay"}, []string{"publish", "repository.push", "secret.release"}, 10000}
+	template := Template{Version: 1, ID: "demo", ProfileID: "curator-test", ProfileVersion: "1.0.0", ProfileSHA256: Hash(f.profile), Allowed: []string{"deliver", "pay"}, Forbidden: []string{"publish", "repository.push", "secret.release"}, BudgetSat: 10000}
 	branch := fixtureBranch(t)
 	f.cfg = ConfigV2{StateDir: privateDir(t), AgentPubkey: keyHex(testKey(4)), ProviderPubkey: keyHex(f.provider), HoldSeconds: 1200, PriceUSDCents: 100, Template: template, TemplateSHA256: Hash(canonical(template)), Coins: map[string]CoinConfig{}, Limits: Limits{512, 2000, 10000, 64 << 20}}
 	for i, coin := range []string{"btc", "ltc", "nmc"} {

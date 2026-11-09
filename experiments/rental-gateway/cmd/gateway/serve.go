@@ -128,6 +128,7 @@ func serve(parent context.Context, c serveConfig) error {
 	}
 	defer presentations.Close()
 	client := newBookingClient(c.Exchange.BookingURL, c.Exchange.PrivacySHA256, c.Exchange.TemplateSHA256, c.Exchange.ProfileSHA256, time.Duration(c.Exchange.CallMilliseconds)*time.Millisecond)
+	client.modelCaps = bookingModelCaps(c.ModelProxy)
 	defer client.close()
 	// Check public booking pins at startup, before creating gateway state.
 	var backend exchange.Backend

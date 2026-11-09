@@ -271,7 +271,7 @@ func TestReservationOverflow(t *testing.T) {
 			top := ^uint64(0)
 			h.s.mu.Lock()
 			r := h.s.state.Records[h.b.SlotID]
-			r.Binding.Caps = Caps{top, top, top, 10, top}
+			r.Binding.Caps = Caps{top, top, top, 10, top, 0}
 			switch kind {
 			case "input":
 				r.Exposure.Input = top - 99

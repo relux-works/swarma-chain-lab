@@ -29,3 +29,8 @@ No mainnet or public deployment is authorized by this regtest module.
 - Pre-checkpoint and post-slot payments require the operator inventory/sweep
   process documented in README; the watcher does not discover them. Renter name
   binding remains a booking-time attribution; authority is always the key.
+
+## CC1 deployment decisions
+
+- CH1-B output-default injection is separate work; current Responses requires an explicit limit.
+- Operator migration/provisioning must preserve old model-slot cleanup and booking receiving-branch/index continuity. CC1 does not migrate live config-only rentals or authorize resetting state.

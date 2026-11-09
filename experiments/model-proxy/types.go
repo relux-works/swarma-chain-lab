@@ -55,10 +55,13 @@ type Caps struct {
 	Requests     uint64 `json:"requests"`
 	MaxTokens    uint64 `json:"max_tokens"`
 	CostNanoUSD  uint64 `json:"cost_nano_usd"`
+	// Signed future coding-profile default. Zero preserves old non-contract
+	// bindings; the current Responses parser still requires an explicit limit.
+	DefaultMaxOutputTokens uint64 `json:"default_max_output_tokens,omitempty"`
 }
 
 func (c Caps) Valid() bool {
-	return c.InputTokens > 0 && c.OutputTokens > 0 && c.Requests > 0 && c.MaxTokens > 0 && c.MaxTokens <= c.OutputTokens && c.CostNanoUSD > 0
+	return c.InputTokens > 0 && c.OutputTokens > 0 && c.Requests > 0 && c.MaxTokens > 0 && c.MaxTokens <= c.OutputTokens && c.CostNanoUSD > 0 && c.DefaultMaxOutputTokens <= c.MaxTokens
 }
 
 type Binding struct {

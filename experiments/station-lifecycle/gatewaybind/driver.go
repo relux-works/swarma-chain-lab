@@ -4,11 +4,9 @@ package gatewaybind
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -56,12 +54,12 @@ func New(c Config) (*Driver, error) {
 	}
 	profile := "gateway-stationlink-v1"
 	if c.ModelRegistrar != nil {
-		if !c.ModelCaps.Valid() {
+		if !c.ModelCaps.Valid() || c.ModelCaps.DefaultMaxOutputTokens == 0 {
 			return nil, errors.New("MODEL_CONFIG")
 		}
-		raw, _ := json.Marshal([]any{"gateway-model-v2", c.ModelCaps})
-		digest := sha256.Sum256(raw)
-		profile = hex.EncodeToString(digest[:])
+		// The journal binds each slot's exact signed caps. Config changes may
+		// refuse new activation but must not prevent cleanup of older slots.
+		profile = "gateway-model-contract-v3"
 	} else if c.ModelCaps != (proxy.Caps{}) {
 		return nil, errors.New("MODEL_CONFIG")
 	}
@@ -139,6 +137,11 @@ func (d *Driver) Create(ctx context.Context, spec station.SlotSpec) (*station.St
 	if s.Ended || s.Destroyed {
 		return nil, errors.New("LIFECYCLE_TERMINAL")
 	}
+	if d.cfg.ModelRegistrar != nil {
+		if _, e = modelBinding(s, d.cfg.ModelCaps); e != nil {
+			return nil, e
+		}
+	}
 	v, e := d.broker.Allocate(s.BookingID, grant, s.NotBefore, s.NotAfter)
 	if e != nil {
 		return nil, e
@@ -208,7 +211,7 @@ func (d *Driver) stop(ctx context.Context, st *station.Station) error {
 	}
 	var revokeErr error
 	if d.cfg.ModelRegistrar != nil {
-		binding, err := modelBinding(s, d.cfg.ModelCaps)
+		binding, err := boundModelBinding(s)
 		revokeErr = err
 		if err == nil {
 			call, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
@@ -235,17 +238,12 @@ func (d *Driver) Destroy(ctx context.Context, st *station.Station) (station.Dest
 }
 
 func modelBinding(s *journal.Slot, caps proxy.Caps) (proxy.Binding, error) {
-	raw, e := base64.StdEncoding.DecodeString(s.CertificateB64)
+	b, e := boundModelBinding(s)
 	if e != nil {
-		return proxy.Binding{}, errors.New("MODEL_BINDING")
+		return proxy.Binding{}, e
 	}
-	grant, e := kernel.PresentationID(raw)
-	if e != nil {
-		return proxy.Binding{}, errors.New("MODEL_BINDING")
-	}
-	b := proxy.Binding{SlotID: s.BookingID, GrantID: grant, NotBefore: s.NotBefore, NotAfter: s.NotAfter, Caps: caps}
-	if !b.Valid() {
-		return proxy.Binding{}, errors.New("MODEL_BINDING")
+	if b.Caps != caps {
+		return proxy.Binding{}, errors.New("MODEL_CAPS_MISMATCH")
 	}
 	return b, nil
 }

@@ -413,3 +413,7 @@ restart, corruption and orphan recovery. The signer-service `TestCoreV2Payments`
 reads this real exporter through FileSource and durable Engine.Pull on all three
 pinned regtest coins, including malformed/partial/duplicate source controls.
 Guard controls `outbox-prefix` and `outbox-bytes` use the mutation command above.
+
+## Signed model limits
+
+Model-enabled Templatev2 and ContractV2 carry six exact signed limits, including a disclosed future output default. Config/template equality is required before state or node effects. See [MODEL-CAPS.md](MODEL-CAPS.md) for canonical order, page/consent binding, compatibility, upgrade gates and deployment commands.

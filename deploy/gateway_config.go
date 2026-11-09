@@ -9,17 +9,11 @@ import (
 )
 
 type gatewayModelProxy struct {
-	AdminSocket string  `json:"admin_socket"`
-	ServerUID   *uint32 `json:"server_uid"`
-	Origin      string  `json:"origin"`
-	CertSHA256  string  `json:"cert_sha256"`
-	Caps        struct {
-		InputTokens  uint64 `json:"input_tokens"`
-		OutputTokens uint64 `json:"output_tokens"`
-		Requests     uint64 `json:"requests"`
-		MaxTokens    uint64 `json:"max_tokens"`
-		CostNanoUSD  uint64 `json:"cost_nano_usd"`
-	} `json:"caps"`
+	AdminSocket string    `json:"admin_socket"`
+	ServerUID   *uint32   `json:"server_uid"`
+	Origin      string    `json:"origin"`
+	CertSHA256  string    `json:"cert_sha256"`
+	Caps        modelCaps `json:"caps"`
 }
 
 // Validate exchange version/coins and the optional GA1 boundary here. The service remains responsible
@@ -90,7 +84,7 @@ func gatewayOptions(v map[string]any) error {
 		return ErrPolicy
 	}
 	c := m.Caps
-	if c.InputTokens == 0 || c.OutputTokens == 0 || c.Requests == 0 || c.MaxTokens == 0 || c.MaxTokens > c.OutputTokens || c.CostNanoUSD == 0 {
+	if !c.valid() {
 		return ErrPolicy
 	}
 	station, ok := v["station"].(map[string]any)

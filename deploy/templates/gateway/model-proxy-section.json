@@ -9,7 +9,8 @@
       "output_tokens": "PLACEHOLDER_OUTPUT_TOKENS",
       "requests": "PLACEHOLDER_REQUESTS",
       "max_tokens": "PLACEHOLDER_MAX_TOKENS",
-      "cost_nano_usd": "PLACEHOLDER_COST_NANO_USD"
+      "cost_nano_usd": "PLACEHOLDER_COST_NANO_USD",
+      "default_max_output_tokens": "PLACEHOLDER_DEFAULT_MAX_OUTPUT_TOKENS"
     }
   }
 }

@@ -2,7 +2,9 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
@@ -32,13 +34,17 @@ func (g *Gateway) registerIssued(ctx context.Context, i exchange.Issued) error {
 	if err != nil || id != i.GrantID || i.AgentName != g.cfg.AgentName {
 		return errors.New("issued binding")
 	}
+	contractHash := sha256.Sum256(i.Contract)
+	if len(i.Contract) < 1 || len(i.Contract) > 8192 || hex.EncodeToString(contractHash[:]) != i.ContractSHA256 {
+		return errors.New("issued contract binding")
+	}
 	if old, ok := g.cfg.Journal.Get(i.BookingID); ok {
-		if old.RenterPubKey != i.Sender || old.ContractSHA256 != i.ContractSHA256 || old.NotBefore != i.NotBefore || old.NotAfter != i.NotAfter || old.CertificateB64 != base64.StdEncoding.EncodeToString(i.Presentation) || old.StationName != i.StationName {
+		if old.RenterPubKey != i.Sender || old.ContractSHA256 != i.ContractSHA256 || (old.ContractB64 != "" && old.ContractB64 != base64.StdEncoding.EncodeToString(i.Contract)) || old.NotBefore != i.NotBefore || old.NotAfter != i.NotAfter || old.CertificateB64 != base64.StdEncoding.EncodeToString(i.Presentation) || old.StationName != i.StationName {
 			return errors.New("issued slot conflict")
 		}
 		return nil // preserve Started/Ended/Destroyed and all durable replay facts
 	}
-	return g.RegisterSlot(SlotSpec{ID: i.BookingID, StationName: i.StationName, RenterPubKey: i.Sender, Certificate: i.Presentation, ContractSHA256: i.ContractSHA256, BookingID: i.BookingID, NotBefore: i.NotBefore, NotAfter: i.NotAfter})
+	return g.RegisterSlot(SlotSpec{ID: i.BookingID, StationName: i.StationName, RenterPubKey: i.Sender, Certificate: i.Presentation, ContractSHA256: i.ContractSHA256, Contract: i.Contract, BookingID: i.BookingID, NotBefore: i.NotBefore, NotAfter: i.NotAfter})
 }
 func (g *Gateway) checkExchangeGrant(ctx context.Context, h exchange.Hold, now int64) (bool, error) {
 	slot, ok := g.cfg.Journal.Get(h.BookingID)

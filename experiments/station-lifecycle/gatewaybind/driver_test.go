@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
@@ -73,7 +74,7 @@ func privateDir(t *testing.T) string {
 	}
 	return p
 }
-func setup(t *testing.T) *fixture {
+func setup(t *testing.T, model ...proxy.Caps) *fixture {
 	t.Helper()
 	f := &fixture{id: strings.Repeat("b", 64), jdir: filepath.Join(privateDir(t), "journal"), host: &fakeHost{}}
 	j, e := journal.Open(f.jdir)
@@ -108,7 +109,11 @@ func setup(t *testing.T) *fixture {
 	// Canonical transport framing only. Stub kernel deliberately limits this test
 	// to gateway/lifecycle composition; this is not a signed-grant proof.
 	raw := []byte(`{"signed_grant":{"grant":{"version":3},"signature":"` + strings.Repeat("0", 128) + `"},"issuance":{"txid":"` + strings.Repeat("0", 64) + `"}}`)
-	if e = f.g.RegisterSlot(gateway.SlotSpec{ID: f.id, BookingID: f.id, StationName: "id/fixture", RenterPubKey: renter.PubKeyHex(), Certificate: raw, ContractSHA256: strings.Repeat("d", 64), NotBefore: 90, NotAfter: 200}); e != nil {
+	slot := gateway.SlotSpec{ID: f.id, BookingID: f.id, StationName: "id/fixture", RenterPubKey: renter.PubKeyHex(), Certificate: raw, ContractSHA256: strings.Repeat("d", 64), NotBefore: 90, NotAfter: 200}
+	if len(model) == 1 {
+		fixtureModelContract(t, &slot, agent.PubKeyHex(), model[0])
+	}
+	if e = f.g.RegisterSlot(slot); e != nil {
 		t.Fatal(e)
 	}
 	return f

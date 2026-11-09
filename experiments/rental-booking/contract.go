@@ -90,19 +90,23 @@ func actionPartition(allow, deny []string) bool {
 }
 
 type Template struct {
-	Version        int      `json:"version"`
-	ID             string   `json:"id"`
-	ProfileID      string   `json:"profile_id"`
-	ProfileVersion string   `json:"profile_version"`
-	ProfileSHA256  string   `json:"profile_sha256"`
-	Allowed        []string `json:"allowed"`
-	Forbidden      []string `json:"forbidden"`
-	BudgetSat      int64    `json:"budget_sat"`
+	Version        int        `json:"version"`
+	ID             string     `json:"id"`
+	ProfileID      string     `json:"profile_id"`
+	ProfileVersion string     `json:"profile_version"`
+	ProfileSHA256  string     `json:"profile_sha256"`
+	Allowed        []string   `json:"allowed"`
+	Forbidden      []string   `json:"forbidden"`
+	BudgetSat      int64      `json:"budget_sat"`
+	ModelCaps      *ModelCaps `json:"model_caps,omitempty"`
 }
 
 func (t Template) Validate(profile []byte, pin string) error {
-	if t.Version != 1 || !identifier(t.ID) || !identifier(t.ProfileID) || !identifier(t.ProfileVersion) || !hexSize(t.ProfileSHA256, 32) || Hash(profile) != t.ProfileSHA256 || Hash(canonical(t)) != pin {
+	if (t.Version != 1 && t.Version != 2) || !identifier(t.ID) || !identifier(t.ProfileID) || !identifier(t.ProfileVersion) || !hexSize(t.ProfileSHA256, 32) || Hash(profile) != t.ProfileSHA256 || Hash(canonical(t)) != pin {
 		return refuse("TEMPLATE_PROFILE_PIN")
+	}
+	if t.Version == 1 && t.ModelCaps != nil || t.Version == 2 && (t.ModelCaps == nil || !t.ModelCaps.Valid()) {
+		return refuse("TEMPLATE_MODEL_CAPS")
 	}
 	if !actionPartition(t.Allowed, t.Forbidden) || t.BudgetSat < 0 || t.BudgetSat > 21000000*100000000 {
 		return refuse("TEMPLATE_SCOPE")

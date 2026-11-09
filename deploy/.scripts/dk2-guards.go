@@ -103,10 +103,10 @@ func main() {
 	must(e)
 	defer os.RemoveAll(scratch)
 	plants := []plant{
-		{"main_model_precision", "main_schemas.go", "*gatewayModelProxy", "map[string]any", ".", "^TestMainModelIntegerPrecision$", "exact uint64 cap rejected"},
+		{"main_model_precision", "model_terms.go", "n > (1<<53)-1", "false", ".", "^TestMainModelIntegerPrecision$", "browser-inexact cap accepted"},
 		{"main_missing_native", "main_profile.go", "if len(inputs) != want {\n\t\treturn ErrPolicy", "if len(inputs) != want {\n\t\treturn nil", ".", "^TestMainServiceProfiles$/^store$", "incomplete native accepted"},
 		{"main_daily_cap", "issuer_config.go", "c.MovedDay >= c.MovedPerTx", "true", ".", "^TestMainNativeRefusals$", "want deploy: invalid policy got <nil>"},
-		{"main_gateway_model", "gateway_config.go", "c.Requests == 0", "false", ".", "^TestMainNativeRefusals$/^gateway$/^model_proxy.caps.requests$", "got <nil>"},
+		{"main_gateway_model", "gateway_config.go", "!c.valid()", "(false && !c.valid())", ".", "^TestMainNativeRefusals$/^gateway$/^model_proxy.caps.requests$", "got <nil>"},
 		{"main_store_bound", "main_profile.go", "c.MaxBlobs < 1", "false", ".", "^TestMainNativeRefusals$/^store$/^max_blobs$", "got <nil>"},
 		{"main_booking_depth", "main_profile.go", "coin.MinConfirmations < 1", "false", ".", "^TestMainNativeRefusals$/^booking$/^config.coins.nmc.min_confirmations$", "got <nil>"},
 		{"payload_pinned_required", "services.go", "return validatePayloadInputs(inputs)", "return nil", ".", "^TestPayloadPairing$/^messages$/^missing-config$", "unpinned payload deployment accepted"},

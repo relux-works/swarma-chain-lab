@@ -40,6 +40,7 @@ type ConfigV2 struct {
 	Slots                       []Slot                `json:"slots"`
 	Coins                       map[string]CoinConfig `json:"coins"`
 	Limits                      Limits                `json:"limits"`
+	ModelCaps                   *ModelCaps            `json:"model_caps,omitempty"`
 }
 
 // NetworkPins preserves legacy v2 regtest configuration only when both fields
@@ -177,6 +178,9 @@ func NewServiceV2(cfg ConfigV2, profile []byte, key *btcec.PrivateKey, paymentNo
 	}
 	if e := cfg.Template.Validate(profile, cfg.TemplateSHA256); e != nil {
 		return nil, e
+	}
+	if !EqualModelCaps(cfg.ModelCaps, cfg.Template.ModelCaps) {
+		return nil, refuse("MODEL_CAPS_MISMATCH")
 	}
 	if len(cfg.Slots) < 1 || len(cfg.Slots) > 1000 {
 		return nil, refuse("CALENDAR_CONFIG")
@@ -382,6 +386,7 @@ func (s *ServiceV2) Book(ctx context.Context, in BookInputV2) (BookingV2, error)
 	}
 	t := s.cfg.Template
 	c := ContractV2{Version: 2, BookingID: hex.EncodeToString(random[:]), RenterPubkey: in.RenterPubkey, RenterName: in.RenterName, AgentPubkey: s.cfg.AgentPubkey, StationName: slot.StationName, NotBefore: slot.NotBefore, NotAfter: slot.NotAfter, Allowed: append([]string{}, t.Allowed...), Forbidden: append([]string{}, t.Forbidden...), BudgetSat: t.BudgetSat, TemplateID: t.ID, TemplateSHA256: s.cfg.TemplateSHA256, ProfileID: t.ProfileID, ProfileVersion: t.ProfileVersion, ProfileSHA256: t.ProfileSHA256, Payment: pc.Terms{Coin: coin, Network: p.Network, Genesis: p.Genesis, PriceUSDCents: s.cfg.PriceUSDCents, USDMicrosPerCoin: cc.USDMicrosPerCoin, RateAsOf: cc.RateAsOf, MaxRateAgeSeconds: cc.MaxRateAgeSeconds, AmountAtoms: amount, Address: address, MinConfirmations: cc.MinConfirmations}, PaymentPolicy: slot.PaymentPolicy, PrivacySHA256: Hash([]byte(PrivacyNotice))}
+	c.ModelCaps = copyModelCaps(t.ModelCaps)
 	if e = c.Validate(); e != nil {
 		return BookingV2{}, e
 	}

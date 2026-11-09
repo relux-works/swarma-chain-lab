@@ -23,6 +23,7 @@ type Slot struct {
 	CertificateB64 string   `json:"certificate_b64"`
 	BookingID      string   `json:"booking_id,omitempty"` // M3 booking id (Track B key)
 	ContractSHA256 string   `json:"contract_sha256"`
+	ContractB64    string   `json:"contract_b64,omitempty"` // exact consent-bound bytes; retained for model revocation
 	NotBefore      int64    `json:"not_before"`
 	NotAfter       int64    `json:"not_after"` // half-open: [NotBefore, NotAfter)
 	Started        bool     `json:"started"`

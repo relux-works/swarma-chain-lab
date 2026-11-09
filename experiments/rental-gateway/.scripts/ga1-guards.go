@@ -32,7 +32,7 @@ var plants = []plant{
 	{"auth_closed_code", "gateway", "gateway/relayclient.go", "return ErrRelayRejected\n}", "return errors.New(reason)\n}", "./gateway", "TestRelayAuthRetry/EVENT/off/restricted:", "closed refusal"},
 	{"registrar_pin", "gateway", "cmd/gateway/model_proxy.go", "credential.Endpoint != r.endpoint", "(credential.Endpoint != r.endpoint && false)", "./cmd/gateway", "TestModelConfiguredLifecycle/wrong-pin", "endpoint pin guard missing"},
 	{"registrar_wiring", "gateway", "cmd/gateway/model_proxy.go", "if p := c.ModelProxy; p != nil {", "if p := c.ModelProxy; p != nil && false {", "./cmd/gateway", "TestModelRuntimeWiring", "runtime omitted registrar"},
-	{"registrar_caps", "gateway", "cmd/gateway/model_proxy.go", " && m.Caps.Valid()", " && (m.Caps.Valid() || true)", "./cmd/gateway", "TestModelProxyConfig", "partial model config accepted"},
+	{"registrar_caps", "gateway", "cmd/gateway/model_proxy.go", "!bookingModelCaps(m).Valid()", "false", "./cmd/gateway", "TestModelProxyConfig", "model config guard missing"},
 	{"deploy_partial", "deploy", "policy.go", "return gatewayOptions(v.(map[string]any))", "return nil", ".", "TestGatewayOptions", "partial model section accepted"},
 	{"presentation_root", "gateway", "presentationdir/directory.go", "path == string(filepath.Separator)", "(path == string(filepath.Separator) && false)", "./presentationdir", "TestOpenPathBoundary/root", "forbidden source path accepted"},
 	{"presentation_control", "gateway", "presentationdir/directory.go", "strings.ContainsAny(path, \"\\x00\\r\\n\")", "(strings.ContainsAny(path, \"\\x00\\r\\n\") && false)", "./presentationdir", "TestOpenPathBoundary/lf", "forbidden source path accepted"},

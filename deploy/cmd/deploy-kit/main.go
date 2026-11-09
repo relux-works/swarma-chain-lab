@@ -22,10 +22,12 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: deploy-kit build|validate|check-coins [flags]")
+		return errors.New("usage: deploy-kit build|validate|check-coins|check-model-terms [flags]")
 	}
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	switch args[0] {
+	case "check-model-terms":
+		return checkModelTerms(args[1:])
 	case "check-coins":
 		return checkCoins(args[1:])
 	case "build":

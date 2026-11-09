@@ -128,6 +128,9 @@ func NewService(cfg Config, profile []byte, key *btcec.PrivateKey, node Node, re
 	if e := cfg.Template.Validate(profile, cfg.TemplateSHA256); e != nil {
 		return nil, e
 	}
+	if cfg.Template.Version != 1 {
+		return nil, refuse("MODEL_CONTRACT_V2_REQUIRED")
+	}
 	if len(cfg.Slots) == 0 || len(cfg.Slots) > 1000 {
 		return nil, refuse("CALENDAR_CONFIG")
 	}

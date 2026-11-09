@@ -48,9 +48,25 @@
       "profile_id": "PLACEHOLDER_PROFILE_ID",
       "profile_sha256": "PLACEHOLDER_PROFILE_SHA256",
       "profile_version": "PLACEHOLDER_PROFILE_VERSION",
-      "version": 1
+      "version": 2,
+      "model_caps": {
+        "input_tokens": 4000000,
+        "output_tokens": 300000,
+        "requests": 200,
+        "max_tokens": 8192,
+        "cost_nano_usd": 3000000000,
+        "default_max_output_tokens": 8192
+      }
     },
-    "template_sha256": "PLACEHOLDER_TEMPLATE_SHA256"
+    "template_sha256": "PLACEHOLDER_TEMPLATE_SHA256",
+    "model_caps": {
+      "input_tokens": 4000000,
+      "output_tokens": 300000,
+      "requests": 200,
+      "max_tokens": 8192,
+      "cost_nano_usd": 3000000000,
+      "default_max_output_tokens": 8192
+    }
   },
   "payment_route_files": {
     "nmc": "/etc/swarma/booking/payment-nmc.json"

@@ -70,6 +70,7 @@ type SlotSpec struct {
 	RenterPubKey   string // grantee key, 64 lower hex
 	Certificate    []byte // signed rental certificate envelope bytes
 	ContractSHA256 string
+	Contract       []byte
 	BookingID      string // M3 booking id, 64 lower hex (Track B key); may be empty locally
 	NotBefore      int64
 	NotAfter       int64 // half-open end
@@ -159,6 +160,7 @@ func (g *Gateway) RegisterSlot(spec SlotSpec) error {
 		RenterPubKey:   spec.RenterPubKey,
 		CertificateB64: base64.StdEncoding.EncodeToString(spec.Certificate),
 		ContractSHA256: spec.ContractSHA256,
+		ContractB64:    base64.StdEncoding.EncodeToString(spec.Contract),
 		BookingID:      spec.BookingID,
 		NotBefore:      spec.NotBefore,
 		NotAfter:       spec.NotAfter,

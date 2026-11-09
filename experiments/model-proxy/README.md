@@ -200,3 +200,7 @@ directory. Compile errors, unmatched mutations, panics and unrelated failures
 do not count as detections. `.github/workflows/model-proxy.yml` defines Linux
 CI, including the peer-credential tests; local evidence does not claim a hosted
 CI pass. See [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for remaining gates.
+
+## Signed model limits
+
+Binding.Caps retains the optional signed `default_max_output_tokens`. A positive value must not exceed MaxTokens; zero preserves old non-contract bindings. CC1 does not inject defaults: Responses still requires an explicit client limit. See [contract binding and upgrade boundary](../rental-booking/MODEL-CAPS.md).

@@ -89,26 +89,18 @@ func validateMainInputs(p Policy, inputs [][]byte) error {
 type mainBooking struct {
 	ServiceVersion int `json:"service_version"`
 	Config         struct {
-		Network                     string `json:"network,omitempty"`
-		Genesis                     string `json:"genesis,omitempty"`
-		StateDir                    string `json:"state_dir"`
-		AgentPubkey                 string `json:"agent_pubkey"`
-		ProviderPubkey              string `json:"provider_pubkey"`
-		HoldSeconds                 int64  `json:"hold_seconds"`
-		MinStartNowRemainingSeconds int64  `json:"min_start_now_remaining_seconds"`
-		PriceUSDCents               int64  `json:"price_usd_cents"`
-		Template                    struct {
-			Version        int      `json:"version"`
-			ID             string   `json:"id"`
-			ProfileID      string   `json:"profile_id"`
-			ProfileVersion string   `json:"profile_version"`
-			ProfileSHA256  string   `json:"profile_sha256"`
-			Allowed        []string `json:"allowed"`
-			Forbidden      []string `json:"forbidden"`
-			BudgetSat      int64    `json:"budget_sat"`
-		} `json:"template"`
-		TemplateSHA256 string `json:"template_sha256"`
-		Slots          []struct {
+		Network                     string          `json:"network,omitempty"`
+		Genesis                     string          `json:"genesis,omitempty"`
+		StateDir                    string          `json:"state_dir"`
+		AgentPubkey                 string          `json:"agent_pubkey"`
+		ProviderPubkey              string          `json:"provider_pubkey"`
+		HoldSeconds                 int64           `json:"hold_seconds"`
+		MinStartNowRemainingSeconds int64           `json:"min_start_now_remaining_seconds"`
+		PriceUSDCents               int64           `json:"price_usd_cents"`
+		Template                    bookingTemplate `json:"template"`
+		ModelCaps                   *modelCaps      `json:"model_caps,omitempty"`
+		TemplateSHA256              string          `json:"template_sha256"`
+		Slots                       []struct {
 			ID            string `json:"id"`
 			StationName   string `json:"station_name"`
 			NotBefore     int64  `json:"not_before"`
@@ -137,7 +129,7 @@ func validateMainBooking(raw []byte) error {
 	if b.ServiceVersion != 2 || c.Network != "main" || c.Genesis != mainGenesis {
 		return ErrNetwork
 	}
-	if c.StateDir != "/var/lib/swarma-booking" || !digestPin(c.AgentPubkey) || !digestPin(c.ProviderPubkey) || c.HoldSeconds < 1200 || c.HoldSeconds > 1800 || c.MinStartNowRemainingSeconds < 1 || c.MinStartNowRemainingSeconds > 3600 || c.PriceUSDCents < 1 || c.Template.Version != 1 || !label(c.Template.ID) || !label(c.Template.ProfileID) || !label(c.Template.ProfileVersion) || !digestPin(c.Template.ProfileSHA256) || !digestPin(c.TemplateSHA256) || c.Template.BudgetSat < 1 || c.Template.BudgetSat > maxMoney || len(c.Template.Allowed) == 0 || len(c.Template.Forbidden) == 0 || len(c.Slots) < 1 || len(c.Slots) > 1000 || len(c.Coins) != 1 || len(b.PaymentRouteFiles) != 1 || b.PaymentRouteFiles["nmc"] != "/etc/swarma/booking/payment-nmc.json" {
+	if c.StateDir != "/var/lib/swarma-booking" || !digestPin(c.AgentPubkey) || !digestPin(c.ProviderPubkey) || c.HoldSeconds < 1200 || c.HoldSeconds > 1800 || c.MinStartNowRemainingSeconds < 1 || c.MinStartNowRemainingSeconds > 3600 || c.PriceUSDCents < 1 || !templateCapsMatch(c.Template, c.ModelCaps) || !label(c.Template.ID) || !label(c.Template.ProfileID) || !label(c.Template.ProfileVersion) || !digestPin(c.Template.ProfileSHA256) || !digestPin(c.TemplateSHA256) || c.Template.BudgetSat < 1 || c.Template.BudgetSat > maxMoney || len(c.Template.Allowed) == 0 || len(c.Template.Forbidden) == 0 || len(c.Slots) < 1 || len(c.Slots) > 1000 || len(c.Coins) != 1 || len(b.PaymentRouteFiles) != 1 || b.PaymentRouteFiles["nmc"] != "/etc/swarma/booking/payment-nmc.json" {
 		return ErrPolicy
 	}
 	coin, ok := c.Coins["nmc"]

@@ -25,6 +25,7 @@ func (s *ServiceV2) Catalogue(until int64, limit int) (CatalogueV2, error) {
 		return CatalogueV2{}, refuse("CATALOGUE_BOUNDS")
 	}
 	t := s.cfg.Template
+	t.ModelCaps = copyModelCaps(t.ModelCaps)
 	t.Allowed = append([]string{}, t.Allowed...)
 	t.Forbidden = append([]string{}, t.Forbidden...)
 	out := CatalogueV2{Template: t, TemplateSHA256: s.cfg.TemplateSHA256, PriceUSDCents: s.cfg.PriceUSDCents, SlotLengths: []int64{}, Slots: []Slot{}, PrivacyNotice: PrivacyNotice, PrivacySHA256: Hash([]byte(PrivacyNotice))}

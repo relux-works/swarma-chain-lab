@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
+	"fmt"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind/bookingbind"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +42,9 @@ func (n bookingV2Node) Call(ctx context.Context, method string, args ...any) (js
 	return (bookingTestNode{}).Call(ctx, method, args...)
 }
 func bookingV2Fixture(t *testing.T, coin string, nodes ...booking.Node) (*bookingV2Client, *booking.ServiceV2, *btcec.PrivateKey, string, string) {
+	return bookingV2FixtureWithCaps(t, coin, nil, nodes...)
+}
+func bookingV2FixtureWithCaps(t *testing.T, coin string, caps *booking.ModelCaps, nodes ...booking.Node) (*bookingV2Client, *booking.ServiceV2, *btcec.PrivateKey, string, string) {
 	t.Helper()
 	provider, _ := nostr.GeneratePrivKey()
 	agent, _ := nostr.GeneratePrivKey()
@@ -56,8 +61,12 @@ func bookingV2Fixture(t *testing.T, coin string, nodes ...booking.Node) (*bookin
 	}
 	profile := []byte("public V2 booking fixture\n")
 	tmpl := booking.Template{Version: 1, ID: "demo", ProfileID: "fixture", ProfileVersion: "1", ProfileSHA256: booking.Hash(profile), Allowed: []string{"deliver", "pay"}, Forbidden: []string{"publish", "repository.push", "secret.release"}, BudgetSat: 10000}
+	if caps != nil {
+		tmpl.Version = 2
+		tmpl.ModelCaps = caps
+	}
 	now := time.Now().Unix()
-	cfg := booking.ConfigV2{StateDir: testRoot(t), AgentPubkey: agent.PubKeyHex(), ProviderPubkey: provider.PubKeyHex(), HoldSeconds: 1200, PriceUSDCents: 100, Template: tmpl, TemplateSHA256: booking.Hash(jsonCanonical(tmpl)), Slots: []booking.Slot{{ID: "one", StationName: "id/test-agent", NotBefore: now + 3600, NotAfter: now + 7200, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{coin: {PublicBranch: branch.String(), PublicBranchSHA256: booking.Hash([]byte(branch.String())), USDMicrosPerCoin: 1000000, RateAsOf: now, MaxRateAgeSeconds: 7200, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}
+	cfg := booking.ConfigV2{ModelCaps: caps, StateDir: testRoot(t), AgentPubkey: agent.PubKeyHex(), ProviderPubkey: provider.PubKeyHex(), HoldSeconds: 1200, PriceUSDCents: 100, Template: tmpl, TemplateSHA256: booking.Hash(jsonCanonical(tmpl)), Slots: []booking.Slot{{ID: "one", StationName: "id/test-agent", NotBefore: now + 3600, NotAfter: now + 7200, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{coin: {PublicBranch: branch.String(), PublicBranchSHA256: booking.Hash([]byte(branch.String())), USDMicrosPerCoin: 1000000, RateAsOf: now, MaxRateAgeSeconds: 7200, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}
 	var node booking.Node = bookingV2Node{coin}
 	if len(nodes) > 0 {
 		node = nodes[0]
@@ -76,6 +85,7 @@ func bookingV2Fixture(t *testing.T, coin string, nodes ...booking.Node) (*bookin
 	srv.Start()
 	t.Cleanup(srv.Close)
 	c := newBookingV2Client(srv.URL, booking.Hash([]byte(booking.PrivacyNotice)), cfg.TemplateSHA256, tmpl.ProfileSHA256, 2*time.Second)
+	c.modelCaps = caps
 	t.Cleanup(c.close)
 	return c, svc, rk, renter.PubKeyHex(), agent.PubKeyHex()
 }
@@ -285,5 +295,45 @@ func TestBookingV2ResponseBindings(t *testing.T) {
 				t.Fatal("V2 response binding accepted", kind, e)
 			}
 		})
+	}
+}
+
+// Real booking HTTP publishes signed model terms. The native gateway refuses
+// both larger and smaller config caps at catalogue/get, including the default;
+// matched terms remain readable. This does not exercise payment or issuance.
+func TestBookingV2ModelCapsBinding(t *testing.T) {
+	caps := &booking.ModelCaps{InputTokens: 1000, OutputTokens: 100, Requests: 10, MaxTokens: 10, CostNanoUSD: 10000, DefaultMaxOutputTokens: 5}
+	c, _, _, pub, _ := bookingV2FixtureWithCaps(t, "nmc", caps)
+	if _, e := c.Catalogue(time.Now().Unix()+86400, 16); e != nil {
+		t.Fatal("valid model catalogue", e)
+	}
+	b, e := c.Book(context.Background(), booking.BookInputV2{SlotID: "one", Coin: "nmc", RenterPubkey: pub, PrivacyAcknowledged: true})
+	if e != nil {
+		t.Fatal(e)
+	}
+	for i := 0; i < reflect.TypeOf(*caps).NumField(); i++ {
+		for _, delta := range []int64{-1, 1} {
+			t.Run(fmt.Sprintf("%s/%d", reflect.TypeOf(*caps).Field(i).Name, delta), func(t *testing.T) {
+				changed := *caps
+				v := reflect.ValueOf(&changed).Elem().Field(i)
+				v.SetUint(uint64(int64(v.Uint()) + delta))
+				c.modelCaps = &changed
+				if _, e := c.Catalogue(time.Now().Unix()+86400, 16); e != errBooking {
+					t.Fatal("catalogue cap mismatch", e)
+				}
+				if _, e := c.Get(b.Contract.BookingID); e != errBooking {
+					t.Fatal("contract cap mismatch", e)
+				}
+				c.modelCaps = caps
+				got, e := c.Get(b.Contract.BookingID)
+				if e != nil || got.Contract.Hash() != b.Contract.Hash() {
+					t.Fatal("valid contract neighbor", e)
+				}
+			})
+		}
+	}
+	c.modelCaps = nil
+	if _, e := c.Catalogue(time.Now().Unix()+86400, 16); e != errBooking {
+		t.Fatal("model contract admitted without model config", e)
 	}
 }

@@ -461,8 +461,13 @@ func (e *Engine) issue(ctx context.Context, v *client) {
 	if err != nil || issued == nil || issued.BookingID != h.BookingID || issued.ContractSHA256 != h.ContractSHA256 || issued.Sender != h.Sender || issued.AgentName != h.AgentName || issued.LandlordName != h.LandlordName || issued.StationName != h.StationName || issued.NotBefore != h.NotBefore || issued.NotAfter != h.NotAfter || !digest(issued.GrantID) || len(issued.Presentation) < 1 || len(issued.Presentation) > 16384 {
 		return
 	}
+	if len(h.Contract) < 1 || len(h.Contract) > 8192 || hash(h.Contract) != h.ContractSHA256 {
+		return
+	}
+	bound := *issued
+	bound.Contract = append([]byte(nil), h.Contract...)
 	c, cancel = e.call(ctx)
-	err = e.hooks.Register(c, *issued)
+	err = e.hooks.Register(c, bound)
 	cancel()
 	if err != nil {
 		return

@@ -17,6 +17,8 @@ import (
 	"time"
 
 	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
 	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
@@ -25,7 +27,7 @@ import (
 
 func modelConfig(t *testing.T) *modelProxyConfig {
 	uid := uint32(os.Getuid())
-	return &modelProxyConfig{AdminSocket: filepath.Join(testRoot(t), "admin.sock"), ServerUID: &uid, Origin: "https://proxy.example", CertSHA256: strings.Repeat("0123456789abcdef", 4), Caps: proxy.Caps{InputTokens: 1000, OutputTokens: 100, Requests: 10, MaxTokens: 10, CostNanoUSD: 10000}}
+	return &modelProxyConfig{AdminSocket: filepath.Join(testRoot(t), "admin.sock"), ServerUID: &uid, Origin: "https://proxy.example", CertSHA256: strings.Repeat("0123456789abcdef", 4), Caps: proxy.Caps{InputTokens: 1000, OutputTokens: 100, Requests: 10, MaxTokens: 10, CostNanoUSD: 10000, DefaultMaxOutputTokens: 5}}
 }
 
 // Every explicit field is required; nil preserves v1. Bad config refuses before
@@ -52,7 +54,7 @@ func TestModelProxyConfig(t *testing.T) {
 		}
 	}
 	for _, change := range []func(*modelProxyConfig){
-		func(m *modelProxyConfig) { m.AdminSocket = "relative" }, func(m *modelProxyConfig) { m.ServerUID = nil }, func(m *modelProxyConfig) { m.Origin += "/path" }, func(m *modelProxyConfig) { m.CertSHA256 = strings.Repeat("0", 64) }, func(m *modelProxyConfig) { m.Caps.MaxTokens = 101 }, func(m *modelProxyConfig) { m.Caps.CostNanoUSD = 0 },
+		func(m *modelProxyConfig) { m.AdminSocket = "relative" }, func(m *modelProxyConfig) { m.ServerUID = nil }, func(m *modelProxyConfig) { m.Origin += "/path" }, func(m *modelProxyConfig) { m.CertSHA256 = strings.Repeat("0", 64) }, func(m *modelProxyConfig) { m.Caps.MaxTokens = 101 }, func(m *modelProxyConfig) { m.Caps.CostNanoUSD = 0 }, func(m *modelProxyConfig) { m.Caps.DefaultMaxOutputTokens = 0 }, func(m *modelProxyConfig) { m.Caps.DefaultMaxOutputTokens = 11 },
 	} {
 		bad := c
 		v := *c.ModelProxy
@@ -116,8 +118,17 @@ func (r *serviceRegistrar) Revoke(_ context.Context, b proxy.Binding) error   { 
 func modelSlot(t *testing.T, j *journal.Store, now int64) (station.SlotSpec, station.SessionInfo) {
 	t.Helper()
 	id := strings.Repeat("b", 64)
-	cert := []byte(`{"signed_grant":{"grant":{"version":3},"signature":"` + strings.Repeat("0", 128) + `"},"issuance":{"txid":"` + strings.Repeat("0", 64) + `"}}`)
-	s := &journal.Slot{ID: id, BookingID: id, StationName: "id/model-fixture", RenterPubKey: strings.Repeat("c", 64), CertificateB64: base64.StdEncoding.EncodeToString(cert), ContractSHA256: strings.Repeat("d", 64), NotBefore: now, NotAfter: now + 100}
+	// Canonical contract + matching grant fields; this wiring fixture does not
+	// exercise kernel signature or chain verification.
+	pub := "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+	caps := modelConfig(t).Caps
+	c := booking.ContractV2{Version: 2, BookingID: id, RenterPubkey: pub, AgentPubkey: pub, StationName: "id/model-fixture", NotBefore: now, NotAfter: now + 100, Allowed: []string{"deliver"}, Forbidden: []string{"pay", "publish", "repository.push", "secret.release"}, TemplateID: "model", TemplateSHA256: booking.Hash([]byte("model template")), ProfileID: "model", ProfileVersion: "2", ProfileSHA256: booking.Hash([]byte("model profile")), Payment: pc.Terms{Coin: "nmc", Network: "regtest", Genesis: "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206", PriceUSDCents: 100, USDMicrosPerCoin: 1000000, RateAsOf: 90, MaxRateAgeSeconds: 60, AmountAtoms: 100000000, Address: "muowReuD37GjLG1KPJxYR7RGf5C9tZc3z6", MinConfirmations: 2}, PaymentPolicy: "advance", PrivacySHA256: booking.Hash([]byte(booking.PrivacyNotice)), ModelCaps: &booking.ModelCaps{InputTokens: caps.InputTokens, OutputTokens: caps.OutputTokens, Requests: caps.Requests, MaxTokens: caps.MaxTokens, CostNanoUSD: caps.CostNanoUSD, DefaultMaxOutputTokens: caps.DefaultMaxOutputTokens}}
+	if e := c.Validate(); e != nil {
+		t.Fatal(e)
+	}
+	grant, _ := json.Marshal(map[string]any{"version": 3, "contract_sha256": c.Hash(), "grantee_key": c.RenterPubkey, "agent_name": c.StationName, "not_before": c.NotBefore, "not_after": c.NotAfter})
+	cert := []byte(`{"signed_grant":{"grant":` + string(grant) + `,"signature":"` + strings.Repeat("0", 128) + `"},"issuance":{"txid":"` + strings.Repeat("0", 64) + `"}}`)
+	s := &journal.Slot{ID: id, BookingID: id, StationName: c.StationName, RenterPubKey: pub, CertificateB64: base64.StdEncoding.EncodeToString(cert), ContractSHA256: c.Hash(), ContractB64: base64.StdEncoding.EncodeToString(c.Bytes()), NotBefore: now, NotAfter: now + 100}
 	if e := j.Put(s); e != nil {
 		t.Fatal(e)
 	}

@@ -106,9 +106,10 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	checked(t, e, "branch master")
 	public, e := master.Neuter()
 	checked(t, e, "public branch")
-	tmpl := booking.Template{Version: 1, ID: "demo", ProfileID: "rehearsal", ProfileVersion: "1", ProfileSHA256: booking.Hash(profile), Allowed: []string{"deliver"}, Forbidden: []string{"pay", "publish", "repository.push", "secret.release"}, BudgetSat: 1000000}
+	modelCaps := &booking.ModelCaps{InputTokens: 1000, OutputTokens: 100, Requests: 2, MaxTokens: 16, CostNanoUSD: 10000, DefaultMaxOutputTokens: 16}
+	tmpl := booking.Template{Version: 2, ModelCaps: modelCaps, ID: "demo", ProfileID: "rehearsal", ProfileVersion: "1", ProfileSHA256: booking.Hash(profile), Allowed: []string{"deliver"}, Forbidden: []string{"pay", "publish", "repository.push", "secret.release"}, BudgetSat: 1000000}
 	now := time.Now().Unix()
-	cfg := booking.ConfigV2{StateDir: l.dir("booking"), AgentPubkey: agent.PubKeyHex(), ProviderPubkey: provider.PubKeyHex(), HoldSeconds: 1800, PriceUSDCents: 100, Template: tmpl, TemplateSHA256: booking.Hash(encoded(tmpl)), Slots: []booking.Slot{{ID: "one", StationName: agentName, NotBefore: now + 60, NotAfter: now + 160, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{"nmc": {PublicBranch: public.String(), PublicBranchSHA256: booking.Hash([]byte(public.String())), USDMicrosPerCoin: 100000000, RateAsOf: now, MaxRateAgeSeconds: 7200, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}
+	cfg := booking.ConfigV2{ModelCaps: modelCaps, StateDir: l.dir("booking"), AgentPubkey: agent.PubKeyHex(), ProviderPubkey: provider.PubKeyHex(), HoldSeconds: 1800, PriceUSDCents: 100, Template: tmpl, TemplateSHA256: booking.Hash(encoded(tmpl)), Slots: []booking.Slot{{ID: "one", StationName: agentName, NotBefore: now + 60, NotAfter: now + 160, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{"nmc": {PublicBranch: public.String(), PublicBranchSHA256: booking.Hash([]byte(public.String())), USDMicrosPerCoin: 100000000, RateAsOf: now, MaxRateAgeSeconds: 7200, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}
 	if scenario == "expiry" {
 		// Leave more than the real 90-second relay deadline after model controls.
 		cfg.Slots[0].NotAfter = now + 210
@@ -170,7 +171,7 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	mt["cert_file"], mt["key_file"], mt["cert_sha256"], mt["manager_ca_file"], mt["manager_cert_sha256"] = p.server, p.key, p.serverPin, p.ca, p.clientPin
 	admin := filepath.Join(l.private, "model.sock")
 	modelState := l.dir("model")
-	gc["model_proxy"] = map[string]any{"admin_socket": admin, "server_uid": os.Geteuid(), "origin": "https://" + modelAddr, "cert_sha256": p.serverPin, "caps": proxy.Caps{InputTokens: 1000, OutputTokens: 100, Requests: 2, MaxTokens: 16, CostNanoUSD: 10000}}
+	gc["model_proxy"] = map[string]any{"admin_socket": admin, "server_uid": os.Geteuid(), "origin": "https://" + modelAddr, "cert_sha256": p.serverPin, "caps": proxy.Caps{InputTokens: 1000, OutputTokens: 100, Requests: 2, MaxTokens: 16, CostNanoUSD: 10000, DefaultMaxOutputTokens: 16}}
 	l.write(admin+".rehearsal.json", encoded(map[string]any{"StateDir": modelState, "Upstream": upstream.URL + "/v1/messages", "APIKey": apiKey, "CA": p.ca, "Cert": p.server, "Key": p.key, "Models": map[string]proxy.Model{"fixture": {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic rehearsal pricing"}}}), 0600)
 	if l.responses {
 		l.configureResponses(admin, upstream.URL, "https://"+modelAddr, p.serverPin)

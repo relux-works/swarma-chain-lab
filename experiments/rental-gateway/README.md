@@ -398,3 +398,7 @@ from this module with
 terminal publication before consuming the result; ordinary EOF is its positive
 transport control. Exact backoff capping is checked separately from the
 time-window retry count, which cannot assume a minimum scheduler throughput.
+
+## Signed model limits
+
+Model-enabled gateway startup and slot start require exact equality with the six renter-signed contract caps. Canonical contract bytes are retained in the journal and used to reconstruct the original revoke binding after a config change. See [signed model limits and migration limits](../rental-booking/MODEL-CAPS.md).

@@ -287,3 +287,7 @@ compares the explicit G6/ServiceV2 coin sets and prints only `COIN_SETS_MATCH` o
 success. It rejects legacy versions, duplicate/unknown coins and unequal sets;
 it does not validate all native fields or probe a payment node. Run it on the
 installed public-host inputs after G6 lands and after either config changes.
+
+## Signed model limits
+
+`deploy-kit check-model-terms -booking FILE -profile FILE -gateway FILE -model FILE -payload FILE` verifies public signed-cap and template/profile/payload bindings after individual native validation. Success prints `MODEL_TERMS_MATCH`; failures exit1. No credentials or referenced host paths are read. See [CC1 terms](../experiments/rental-booking/MODEL-CAPS.md). M5 model configs require the positive signed default as well as the original five caps.

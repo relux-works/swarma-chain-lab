@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"net/url"
 	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -26,6 +26,9 @@ func (c *bookingV2Client) Catalogue(until int64, limit int) (booking.CatalogueV2
 		return booking.CatalogueV2{}, e
 	}
 	if out.PrivacyNotice != booking.PrivacyNotice || out.PrivacySHA256 != c.privacy || out.TemplateSHA256 != c.template || out.Template.ProfileSHA256 != c.profile || booking.Hash(jsonCanonical(out.Template)) != c.template || len(out.Slots) > limit {
+		return booking.CatalogueV2{}, errBooking
+	}
+	if !booking.EqualModelCaps(out.Template.ModelCaps, c.modelCaps) || (out.Template.Version != 1 && out.Template.Version != 2) || (out.Template.Version == 2) != (out.Template.ModelCaps != nil) {
 		return booking.CatalogueV2{}, errBooking
 	}
 	return out, nil
@@ -77,6 +80,9 @@ func (c *bookingV2Client) Get(id string) (booking.BookingV2, error) {
 }
 func (c *bookingV2Client) check(b booking.BookingV2) error {
 	if b.Contract.Validate() != nil || b.Contract.PrivacySHA256 != c.privacy || b.Contract.TemplateSHA256 != c.template || b.Contract.ProfileSHA256 != c.profile {
+		return errBooking
+	}
+	if !booking.EqualModelCaps(b.Contract.ModelCaps, c.modelCaps) {
 		return errBooking
 	}
 	return nil

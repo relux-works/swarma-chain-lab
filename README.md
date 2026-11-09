@@ -350,3 +350,7 @@ and an isolated local d/ mirror builder/checker. From `experiments/rental`, run
 `go run ./cmd/name-discovery -inventory testdata/n1-values/inventory.json -record testdata/n1-values/record.json` to check the public fixture. Validation
 commands and `.temp/` evidence locations are documented in that profile.
 Authority stays in id/; every verifier must be upgraded before changing names.
+
+## Signed model limits
+
+Model-enabled rentals bind six model limits in the renter-signed ContractV2. See [signed model limits](experiments/rental-booking/MODEL-CAPS.md) for the wire, upgrade boundary, public preflight and control commands. The repository tool `.scripts/cc1-guards.go` runs bounded Go-overlay controls; use `go run .scripts/cc1-guards.go -out /absolute/new-cc1-evidence` from the root. Logs and hash/exit/PID records go to that new scratch directory.

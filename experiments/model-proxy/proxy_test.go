@@ -64,7 +64,7 @@ func fixture(t *testing.T) *harness {
 		t.Fatal(e)
 	}
 	t.Cleanup(func() { h.s.Close() })
-	h.b = Binding{strings.Repeat("b", 64), strings.Repeat("c", 64), 90, 1000, Caps{1000, 1000, 10, 10, 10000}}
+	h.b = Binding{strings.Repeat("b", 64), strings.Repeat("c", 64), 90, 1000, Caps{1000, 1000, 10, 10, 10000, 0}}
 	h.cred, e = h.s.Prepare(h.b)
 	if e != nil {
 		t.Fatal(e)
@@ -193,7 +193,7 @@ func TestCaps(t *testing.T) {
 	for _, kind := range []string{"input", "output", "requests", "cost", "per-request"} {
 		t.Run(kind, func(t *testing.T) {
 			h := fixture(t)
-			caps := Caps{100, 10, 1, 10, 230}
+			caps := Caps{100, 10, 1, 10, 230, 0}
 			set := func(c Caps, prior Counts) {
 				h.s.mu.Lock()
 				r := h.s.state.Records[h.b.SlotID]

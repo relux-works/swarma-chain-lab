@@ -23,11 +23,15 @@ type ContractV2 struct {
 	Payment        paymentchain.Terms `json:"payment"`
 	PaymentPolicy  string             `json:"payment_policy"`
 	PrivacySHA256  string             `json:"privacy_sha256"`
+	ModelCaps      *ModelCaps         `json:"model_caps,omitempty"`
 }
 
 func (c ContractV2) Bytes() []byte { return canonical(c) }
 func (c ContractV2) Hash() string  { return Hash(c.Bytes()) }
 func (c ContractV2) Validate() error {
+	if c.ModelCaps != nil && !c.ModelCaps.Valid() {
+		return refuse("CONTRACT_MODEL_CAPS")
+	}
 	if c.Version != 2 || !hexSize(c.BookingID, 32) || !pubkey(c.RenterPubkey) || !pubkey(c.AgentPubkey) || !stationName(c.StationName) || c.RenterName != "" && !identifier(c.RenterName) {
 		return refuse("CONTRACT_IDENTITY")
 	}

@@ -43,6 +43,7 @@
     "admin_socket": "/run/swarma-model/admin.sock",
     "caps": {
       "cost_nano_usd": 3000000000,
+      "default_max_output_tokens": 8192,
       "input_tokens": 4000000,
       "max_tokens": 8192,
       "output_tokens": 300000,

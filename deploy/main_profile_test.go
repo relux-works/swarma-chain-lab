@@ -232,8 +232,8 @@ func TestM5TemplateValues(t *testing.T) {
 	}
 }
 
-// Main structural decoding retains exact uint64 model caps beyond float64's
-// integer precision. Overflow still refuses through the native cap projection.
+// Signed model terms admit the largest browser-exact integer and refuse the
+// next integer and uint64 overflow without rounding or truncation.
 func TestMainModelIntegerPrecision(t *testing.T) {
 	raw := mainInputs(t, "gateway")[0]
 	var c map[string]any
@@ -243,10 +243,14 @@ func TestMainModelIntegerPrecision(t *testing.T) {
 		t.Fatal(e)
 	}
 	caps := c["model_proxy"].(map[string]any)["caps"].(map[string]any)
-	caps["requests"] = json.Number("9007199254740993")
-	caps["cost_nano_usd"] = json.Number("18446744073709551615")
+	caps["requests"] = json.Number("9007199254740991")
+	caps["cost_nano_usd"] = json.Number("9007199254740991")
 	if e := ValidateServiceInputs(mainPolicy("gateway"), [][]byte{encoded(t, c)}); e != nil {
-		t.Fatal("exact uint64 cap rejected", e)
+		t.Fatal("browser-exact cap rejected", e)
+	}
+	caps["cost_nano_usd"] = json.Number("9007199254740992")
+	if e := ValidateServiceInputs(mainPolicy("gateway"), [][]byte{encoded(t, c)}); e != ErrPolicy {
+		t.Fatal("browser-inexact cap accepted", e)
 	}
 	caps["cost_nano_usd"] = json.Number("18446744073709551616")
 	if e := ValidateServiceInputs(mainPolicy("gateway"), [][]byte{encoded(t, c)}); e != ErrPolicy {

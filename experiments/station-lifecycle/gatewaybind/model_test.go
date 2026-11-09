@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
@@ -83,9 +86,33 @@ func (r *registrar) Revoke(ctx context.Context, b proxy.Binding) error {
 	}
 	return r.service.Revoke(b)
 }
+func fixtureModelCaps() proxy.Caps {
+	return proxy.Caps{InputTokens: 1000, OutputTokens: 100, Requests: 10, MaxTokens: 10, CostNanoUSD: 10000, DefaultMaxOutputTokens: 5}
+}
+
+// A canonical, consent-addressable contract and matching grant fields exercise
+// adapter binding. The existing stub kernel does not prove signatures/chain.
+func fixtureModelContract(t *testing.T, s *gateway.SlotSpec, agent string, caps proxy.Caps) {
+	t.Helper()
+	c := booking.ContractV2{Version: 2, BookingID: s.BookingID, RenterPubkey: s.RenterPubKey, AgentPubkey: agent, StationName: s.StationName, NotBefore: s.NotBefore, NotAfter: s.NotAfter, Allowed: []string{"deliver"}, Forbidden: []string{"pay", "publish", "repository.push", "secret.release"}, TemplateID: "model", TemplateSHA256: booking.Hash([]byte("model template")), ProfileID: "model", ProfileVersion: "2", ProfileSHA256: booking.Hash([]byte("model profile")), Payment: pc.Terms{Coin: "nmc", Network: "regtest", Genesis: "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206", PriceUSDCents: 100, USDMicrosPerCoin: 1000000, RateAsOf: 90, MaxRateAgeSeconds: 60, AmountAtoms: 100000000, Address: "muowReuD37GjLG1KPJxYR7RGf5C9tZc3z6", MinConfirmations: 2}, PaymentPolicy: "advance", PrivacySHA256: booking.Hash([]byte(booking.PrivacyNotice)), ModelCaps: &booking.ModelCaps{InputTokens: caps.InputTokens, OutputTokens: caps.OutputTokens, Requests: caps.Requests, MaxTokens: caps.MaxTokens, CostNanoUSD: caps.CostNanoUSD, DefaultMaxOutputTokens: caps.DefaultMaxOutputTokens}}
+	if e := c.Validate(); e != nil {
+		t.Fatal(e)
+	}
+	s.Contract, s.ContractSHA256 = c.Bytes(), c.Hash()
+	grant, _ := json.Marshal(struct {
+		Version  int    `json:"version"`
+		Contract string `json:"contract_sha256"`
+		Grantee  string `json:"grantee_key"`
+		Agent    string `json:"agent_name"`
+		Before   int64  `json:"not_before"`
+		After    int64  `json:"not_after"`
+	}{3, c.Hash(), c.RenterPubkey, c.StationName, c.NotBefore, c.NotAfter})
+	s.Certificate = []byte(`{"signed_grant":{"grant":` + string(grant) + `,"signature":"` + strings.Repeat("0", 128) + `"},"issuance":{"txid":"` + strings.Repeat("0", 64) + `"}}`)
+}
+
 func modelFixture(t *testing.T) (*fixture, *registrar) {
 	t.Helper()
-	f := setup(t)
+	f := setup(t, fixtureModelCaps())
 	f.d.Close()
 	s, e := proxy.New(proxy.Config{StateDir: privateDir(t), Endpoint: proxy.Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("d", 64)}, Upstream: "https://upstream.example/v1/messages", APIKey: "synthetic-test-key", Models: map[string]proxy.Model{"test-model": {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic fixture"}}, Now: f.c.Now})
 	if e != nil {
@@ -94,7 +121,7 @@ func modelFixture(t *testing.T) (*fixture, *registrar) {
 	t.Cleanup(func() { s.Close() })
 	r := &registrar{service: s}
 	f.c.ModelRegistrar = r
-	f.c.ModelCaps = proxy.Caps{InputTokens: 1000, OutputTokens: 100, Requests: 10, MaxTokens: 10, CostNanoUSD: 10000}
+	f.c.ModelCaps = fixtureModelCaps()
 	f.d, e = New(f.c)
 	if e != nil {
 		t.Fatal(e)

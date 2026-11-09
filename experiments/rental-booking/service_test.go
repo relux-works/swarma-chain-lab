@@ -66,7 +66,7 @@ func testKey(v byte) *btcec.PrivateKey {
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	f := &fixture{profile: []byte("public test profile\n"), provider: testKey(2), renter: testKey(3), node: &staticNode{}, relay: &memoryRelay{}, now: 2000000000}
-	template := Template{1, "demo", "curator-test", "1.0.0", Hash(f.profile), []string{"deliver", "pay"}, []string{"publish", "repository.push", "secret.release"}, 10000}
+	template := Template{Version: 1, ID: "demo", ProfileID: "curator-test", ProfileVersion: "1.0.0", ProfileSHA256: Hash(f.profile), Allowed: []string{"deliver", "pay"}, Forbidden: []string{"publish", "repository.push", "secret.release"}, BudgetSat: 10000}
 	branch := fixtureBranch(t)
 	f.cfg = Config{StateDir: privateDir(t), PublicBranch: branch, PublicBranchSHA256: Hash([]byte(branch)), AgentPubkey: keyHex(testKey(4)), ProviderPubkey: keyHex(f.provider), HoldSeconds: 1200, PriceUSDCents: 100, USDMicrosPerNMC: 1000000, RateAsOf: f.now, MaxRateAge: 7200, Template: template, TemplateSHA256: Hash(canonical(template)), Slots: []Slot{{"one", "id/station-one", f.now + 3600, f.now + 7200, "advance"}, {"two", "id/station-two", f.now + 3600, f.now + 7200, "advance"}}, Limits: Limits{512, 2000, 10000, 64 << 20}}
 	var e error

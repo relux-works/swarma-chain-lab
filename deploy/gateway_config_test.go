@@ -8,11 +8,11 @@ import (
 )
 
 func modelPublic() map[string]any {
-	return map[string]any{"station": map[string]any{"driver": "manager"}, "relay_auth": "required", "model_proxy": map[string]any{"admin_socket": "/run/swarma-model-proxy/admin.sock", "server_uid": 1001, "origin": "https://proxy.example", "cert_sha256": strings.Repeat("0123456789abcdef", 4), "caps": map[string]any{"input_tokens": 1000, "output_tokens": 100, "requests": 10, "max_tokens": 10, "cost_nano_usd": 10000}}}
+	return map[string]any{"station": map[string]any{"driver": "manager"}, "relay_auth": "required", "model_proxy": map[string]any{"admin_socket": "/run/swarma-model-proxy/admin.sock", "server_uid": 1001, "origin": "https://proxy.example", "cert_sha256": strings.Repeat("0123456789abcdef", 4), "caps": map[string]any{"input_tokens": 1000, "output_tokens": 100, "requests": 10, "max_tokens": 10, "cost_nano_usd": 10000, "default_max_output_tokens": 5}}}
 }
 
 // The deploy preflight accepts explicit complete values, preserving integers
-// above float64 precision. Omission leaves v1; partial/null/placeholder authority
+// within browser-exact precision. Omission leaves v1; partial/null/placeholder authority
 // and non-manager wiring fail before any installer action.
 func TestGatewayOptions(t *testing.T) {
 	check := func(v any) error { raw, _ := json.Marshal(v); return ValidatePublicJSON(raw) }
@@ -31,7 +31,7 @@ func TestGatewayOptions(t *testing.T) {
 			t.Fatal("partial model section accepted", name, e)
 		}
 	}
-	for _, name := range []string{"input_tokens", "output_tokens", "requests", "max_tokens", "cost_nano_usd"} {
+	for _, name := range []string{"input_tokens", "output_tokens", "requests", "max_tokens", "cost_nano_usd", "default_max_output_tokens"} {
 		v := modelPublic()
 		delete(v["model_proxy"].(map[string]any)["caps"].(map[string]any), name)
 		if e := check(v); !errors.Is(e, ErrPolicy) {
@@ -54,9 +54,9 @@ func TestGatewayOptions(t *testing.T) {
 		}
 	}
 	v = modelPublic()
-	v["model_proxy"].(map[string]any)["caps"].(map[string]any)["cost_nano_usd"] = json.Number("18446744073709551615")
+	v["model_proxy"].(map[string]any)["caps"].(map[string]any)["cost_nano_usd"] = json.Number("9007199254740991")
 	if e := check(v); e != nil {
-		t.Fatal("uint64 precision lost", e)
+		t.Fatal("browser-exact boundary refused", e)
 	}
 	v["model_proxy"].(map[string]any)["caps"].(map[string]any)["cost_nano_usd"] = "PLACEHOLDER_COST"
 	if e := check(v); e != ErrPlaceholder {

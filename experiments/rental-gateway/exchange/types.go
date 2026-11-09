@@ -54,6 +54,7 @@ type Template struct {
 	ProfileSHA256  string  `json:"profile_sha256"`
 	PriceUSDCents  int64   `json:"price_usd_cents"`
 	SlotLengths    []int64 `json:"slot_lengths"`
+	ModelTerms     string  `json:"model_terms,omitempty"`
 }
 type Slot struct {
 	ID         string `json:"id"`
@@ -110,6 +111,7 @@ type Issued struct {
 	BookingID, ContractSHA256, Sender, AgentName, LandlordName, StationName, GrantID string
 	NotBefore, NotAfter                                                              int64
 	Presentation                                                                     []byte
+	Contract                                                                         []byte
 }
 type GrantSource interface {
 	Lookup(context.Context, Hold) (*Issued, error)
