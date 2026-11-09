@@ -1,0 +1,47 @@
+name: Scripted station payload checks
+on:
+  pull_request:
+    paths: ['experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
+  push:
+    branches: [main]
+    paths: ['experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  GOWORK: 'off'
+jobs:
+  payload:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Fetch pinned dependencies
+        run: |
+          go -C experiments/station-payload mod download
+          go -C experiments/m5-rehearsal mod download
+      - name: Verify, vet, race, controls and build
+        env:
+          GOTOOLCHAIN: local
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOFLAGS: '-mod=readonly'
+        run: |
+          go -C experiments/station-payload mod verify
+          go -C experiments/station-payload vet ./...
+          go -C experiments/station-payload test -race -count=1 ./...
+          go -C experiments/station-payload run .scripts/guards.go -out .temp/guards
+          go -C experiments/station-payload build -o .temp/station-payload ./cmd/station-payload
+          go -C experiments/m5-rehearsal mod verify
+          go -C experiments/m5-rehearsal vet ./...
+          go -C experiments/m5-rehearsal test -race -count=1 ./...

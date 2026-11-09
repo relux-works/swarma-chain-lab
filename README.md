@@ -191,3 +191,11 @@ decisions. From `experiments/model-proxy`, run `go test -race ./...`,
 `go build -o .temp/model-proxy ./cmd/model-proxy`, and
 `go run .scripts/guards.go -out .temp/guards`; logs/binaries stay in `.temp/`.
 Tests use only a local fake upstream and synthetic keys.
+
+### Scripted station payload
+
+[station-payload](experiments/station-payload/README.md) consumes canonical v1/v2
+private bootstrap, retains scripted station controls and exercises the per-slot
+model proxy over verified, leaf-pinned TLS. Run its Go tests, guard controls and
+CLI using the commands in that module; artifacts belong under `.temp/`. It is a
+rehearsal fixture, not a selected rented-agent runtime or host deployment.
