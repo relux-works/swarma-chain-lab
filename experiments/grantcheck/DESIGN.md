@@ -1,0 +1,281 @@
+# CG1: grant verification boundary for Courier
+
+Status: design handoff before implementation. This note defines a proposed Go
+library contract for the a2a-source integration owner; it does not claim Courier
+hooks are already installed. Base: chain-lab `c7dd20fa33c0d8827c73c4c847e3d60cbeb1e4c6`.
+The module is `experiments/grantcheck`: a verifier and routing decision, with no
+mailbox, transport send, messaging key, booking, exchange text or model capability.
+
+## 1. Ownership and integration boundary
+
+Courier authenticates the station and resolves its identity, configured connection
+and store before invoking this library. The checker belongs to that resolved
+per-identity engine. A request's `--as`, profile or connection fingerprint may be
+assertions checked by Courier, never selectors supplied to the checker. No global
+"current identity", fallback engine, cross-station cache, or request-controlled
+node route/state directory is permitted.
+
+The trusted engine constructor pins the Courier identity, rented agent Namecoin
+name, landlord Namecoin name, issuer grant key, canonical private state directory,
+verifier clock and read-only node. The library copies that configuration, builds
+the landed `kernelbind.Adapter`, and does not expose mutable policy. Identity and
+policy binding are persisted separately from K1's own records. Opening the same
+state root with a different identity or pins fails; it never relabels a cache.
+Separate engine identities require separate private state roots. Binding these
+roots to the authenticated station is Courier's responsibility, tested at its
+integration boundary; a string passed by an untrusted station is not proof.
+
+Courier/a2a-source owns insertion of the following calls after C2+C3 and C4'/C5
+settle the per-identity engine boundary. CG1 changes no a2a-swarm source:
+
+| Direction | Call point | Only a live verdict permits |
+| --- | --- | --- |
+| Inbound | After transport authentication and strict presentation extraction, before mailbox persistence/wake/model dispatch | Write the authenticated message to that identity's agent inbox |
+| Outbound | After resolving the station's requested recipient in the same identity, immediately before agent-key signing/publication | Sign/send that reply to that exact grantee |
+
+An inbound `exchange` result may enqueue the authenticated message into the
+separate deterministic exchange's bounded admission path. It never permits inbox
+writes, waking the model, signing arbitrary replies or creating an instance.
+A `refused` result performs neither privileged action nor automatic exchange
+fallback. No outbound result is `exchange`.
+
+Outbound means agent-originated replies, not the exchange's fixed protocol
+responses. The exchange is separately trusted and rate-limited; routing a normal
+agent reply through it to bypass Outbound is forbidden. Scope returned by a live
+verdict is authenticated metadata, not authority to execute effects: executors
+still check action-specific grants independently.
+
+## 2. Proposed narrow API
+
+```go
+type Presentation struct {
+    GrantID string // exact lowercase SHA-256 of canonical signed_grant bytes
+    Bytes   []byte // full canonical v3 {signed_grant,issuance:{txid}}
+}
+
+type Verdict struct {
+    Decision  Decision // live | refused | exchange; closed enum
+    Code      Code     // closed fixed code; no received error text
+    GrantID   string
+    Scope     []string
+    NotBefore int64
+    NotAfter  int64
+    CheckedAt int64
+    Closed    bool
+}
+
+func New(Config) (*Checker, error)
+func (*Checker) Inbound(context.Context, string, *Presentation) Verdict
+func (*Checker) Outbound(context.Context, string) Verdict
+```
+
+The string parameter is a verified sender key inbound, an exact recipient key
+outbound. Require precisely 64 lowercase hex characters representing a valid
+BIP-340 key. In NIP-17 it is the verified inner seal signer, with the rumor key
+required to agree; it is never the gift-wrap's ephemeral signer, a body field,
+claimed display name, `p` tag sender, transport IP or supplied signature string.
+The library cannot authenticate a transport by inspecting this string; the
+transport adapter must establish that fact before calling it.
+
+Inbound `nil` means no presentation was supplied: consult only this identity's
+cached proof for this sender. A non-nil malformed/empty presentation is refused,
+never converted to absence and never replaced by a cached valid grant. Outbound
+has no presentation parameter: the agent cannot plant authority by attaching a
+new proof to its reply. It uses proof admitted by prior live inbound presentation.
+
+Config contains operator-owned identity/name/key pins, StateDir, read-only Node,
+and Now (default time.Now), not receive-time fields or messaging credentials.
+Each operation reads verifier time itself. A private persisted clock high-water
+rejects backward time across calls/restarts rather than reviving an expired grant.
+A deadline bounds checks (default/max 5s); cancellation and contention return fixed
+refusals. One admitted operation per checker/state root prevents unbounded internal
+queues or goroutine creation. Callers may shed/retry busy work; no cached live
+fallback is allowed. The node implementation must honor context cancellation.
+
+The adapter exposes no raw kernel errors or RPC bodies. New returns a fixed
+configuration/state error class rather than embedding paths, input bytes, keys or
+credentials. Verdict fields are bounded public metadata. Scope is returned only
+for live decisions and copied before return. Grant ID/window are reported only
+from successfully parsed, policy/sender-bound proof; they never confer authority
+on an exchange/refused result. Closed means K1 established durable closure, not
+"this call failed".
+
+## 3. Proof acquisition and validation
+
+Courier's transport boundary extracts at most one exact `grant-cert` rumor tag:
+`["grant-cert", grant_id, base64_presentation]`. Match M2-05's strict spelling,
+arity, lowercase 64-hex ID and base64 length bound before decoding. Reject duplicate
+tags and oversized encoded input before allocation. Decoded proof must be 1..16384
+bytes inclusive; 16385 is rejected before parsing or kernel/node/state work.
+
+The library repeats the decoded byte and key/ID bounds, uses the landed gateway
+`kernel.PresentationID` for strict v3 framing/ID, and uses the existing rental
+parser for signed metadata; it does not reimplement cryptography or signed wire.
+No v1/v2 fallback exists. Malformed, bad-ID or foreign-sender proof cannot fall
+back to an old cache entry. No message text is accepted by the library API.
+
+S1 is not a presentation oracle: `grant-store.Client.GetGrant` returns canonical
+**signed grant** bytes keyed by grant ID; it does not return the issuance locator.
+An operator-configured resolver must obtain the separate issuance txid and build
+the full presentation using the landed `rental.PresentIssuedGrant`. The locator is
+still untrusted and checked against the verifier's own chain by K1. Failure to
+resolve an explicitly requested object/locator is a refusal, not "no grant" or a
+reason to retry a different cached proof. Neither a store hit nor an issuer receipt
+is live authority. Never follow a received arbitrary URL, accept a mismatched S1
+hash, or use store access credentials from the rented agent. CG1 takes completed
+bounded bytes and performs no S1/network fetch itself.
+
+Explicit inbound presentation calls `kernelbind.Adapter.Present`, which runs
+K1 Check fresh and only then inserts/replaces the per-sender cache. Inbound cache
+hits and all outbound calls use `CachedGrant` followed by normal `Check` at current
+time. Metadata's grant ID must agree with the receipt and expected presentation
+ID. The wrapper adds no independent chain or revocation judgment.
+
+## 4. Closed routing and refusal codes
+
+The following is the proposed integration table to settle with a2a-source before
+code. All non-live rows deny inbox/sign/send. Unknown future K1 reasons map to
+`check_failed` (refused), never to live or an inferred absence of a grant.
+
+| Condition | Inbound decision/code | Outbound decision/code | Durable closed |
+| --- | --- | --- | --- |
+| Fresh K1 live, correct bindings and current window | live / live | live / live | false |
+| No supplied proof and cache genuinely absent | exchange / no_grant | refused / no_grant | false |
+| Well-formed owned grant before start | exchange / not_yet | refused / not_yet | false |
+| Owned grant at/after end | exchange / expired | refused / expired | false |
+| Proven seal spend (including mempool) | exchange / seal_spent | refused / seal_spent | true |
+| Confirmed forward landlord-key rotation | exchange / landlord_rotated | refused / landlord_rotated | true |
+| Confirmed forward agent-landlord pointer change | exchange / landlord_changed | refused / landlord_changed | true |
+| Pending landlord rotation/pointer change | refused / identity_pending | refused / identity_pending | false |
+| Unconfirmed issuance or seal | refused / grant_pending | refused / grant_pending | false |
+| Other grantee / wrong agent or landlord pin | refused / binding_mismatch | refused / binding_mismatch | false |
+| Malformed/legacy/bad signature/hash or missing locator | refused / invalid_presentation | refused / invalid_presentation | false |
+| Oversized decoded presentation | refused / oversize | refused / oversize | false |
+| Invalid peer key | refused / invalid_peer | refused / invalid_peer | false |
+| Node read/observation unavailable or unstable | refused / verifier_unavailable | refused / verifier_unavailable | false |
+| Corrupt/private-state/lock/cache-full failure | refused / state_unavailable | refused / state_unavailable | false |
+| Clock invalid/backwards or expires during wrapper work | refused / clock_invalid or expired | refused / clock_invalid or expired | false |
+| Context cancelled/deadline or checker busy | refused / cancelled or busy | refused / cancelled or busy | false |
+| Any unclassified receipt/error/inconsistent live metadata | refused / check_failed | refused / check_failed | false |
+
+These are fixed codes selected through exact allowlisted K1 reason mappings;
+no substring inference or passthrough of received error messages. For example,
+`PENDING_LANDLORD_ROTATION` is not `LANDLORD_KEY_ROTATED`. Without the prior observed
+name generation K1 may report a mismatch/unobserved transition instead of closure;
+CG1 must preserve refusal without inventing Closed. A backend error accompanying
+any apparent live receipt refuses. A closed receipt never admits, even if malformed
+adapter data also labels it live.
+
+Exchange routing is restricted to proof absence or specifically established
+non-live lifecycle states. Malicious presentation, an unavailable verifier or an
+unresolved identity transition must not be mistaken for proven no-grant status.
+The separate exchange may independently offer rentals through its own authenticated
+entry point; this library contains no exchange reply policy.
+
+## 5. Caching, time and observation limits
+
+K1's live-admitted cache contains public proof bytes only (64 senders, aggregate
+1 MiB in the landed profile). It never stores an authorization result for reuse.
+A denied new presentation does not overwrite a prior valid proof. Expired/closed
+bytes may remain for evidence/repeated checks; "cache never serves a closed grant"
+means no cached proof can produce permission without a fresh successful check.
+Do not delete K1 closure/seal-index history to recover capacity or revive service.
+These lifetime safety journals are distinct from the bounded presentation cache;
+CG1 makes no claim that retained historical records have a fixed total size.
+
+Each result is scoped to the exact operation, peer and resolved identity. After
+parsing/check/cache persistence, reread verifier time and refuse if the window
+ended or the clock moved backward before returning. Courier must not queue a live
+receipt for later signing, reuse it for a different recipient, or use it after an
+await/delay without another check. At window end there is no permission to receive
+or send and no expiry transaction is needed. Local closed state survives restart.
+
+A successful check is a bounded observation, not an atomic transaction with future
+chain state, mailbox commit or external relay publication. Courier keeps the
+check adjacent to the effect and repeats it after retries/reconnects or delayed
+work. CG1 cannot guarantee that a new revocation will not appear after return.
+No new signed token or synthetic future-time verdict is introduced to hide that
+race. Existing replay/idempotency policy remains Courier's responsibility.
+
+## 6. Verifier-owned node and custody
+
+Use the verifier's own pinned Namecoin Core regtest node, not an agent-provided
+endpoint or remote indexer verdict. Reuse `single-use.NewRPC` and the K1 observer:
+loopback literal IP, no redirects/proxy, bounded responses, explicit read-method
+allowlist (`getblockchaininfo`, `getblockhash`, `getblockheader`,
+`getrawtransaction`, `gettxout`, `name_show`, `getrawmempool`, `getblock`). The
+landed constructor currently requires the `w3-observer` username; no new route or
+username fallback is proposed here. Infra provisions that observer with read-only
+rpcauth/rpcwhitelist on the verifier host. Auth material stays in the Courier-owned
+private deployment configuration, outside this library's outputs and fixtures.
+
+No wallet RPC, private grant key, grant signing, seal-pool maintenance, transaction
+broadcast or funds leave their existing custody. The harness may use only its
+explicitly isolated regtest issuer/wallet to create evidence. No mainnet route or
+transaction is introduced. Deployment topology and provisioning are not CG1 code.
+
+## 7. Fixtures and executable controls
+
+The no-node package will contain versioned recorded **decision vectors**, not
+proofs of current chain liveness. Each vector records the trusted policy/time,
+direction, bounded presentation identity, expected decision/code/Closed/metadata,
+and genuine-Core producer provenance. Offline consumers can exercise their routing
+contract against deterministic fixtures. A live row never bypasses production New
+or returns authority without a node. Keep replay/fake-checker tooling test-only.
+
+The opt-in genuine-Core suite creates its own names, payments, authenticated
+booking package, K1 issuer-produced v3 grants and framed on-chain commitments.
+It records live, foreign grantee, expiry, not-yet, mempool seal spend, confirmed
+and pending landlord rotation, malformed, legacy and oversize results. It uses
+the real public CG1 API, including outbound and restart after closure. Reuse the
+landed issuer/kernel; do not hand-sign synthetic grants to stand in for issuance.
+Publish only public proof/receipt fixtures and exact node binary pins; exclude
+wallets, RPC secrets, private issuer keys and state containing transport secrets.
+
+Required controls, each with valid neighbours:
+
+- Correct identity/sender in and out; absent outbound recipient refused; one
+  identity's presentation/cache/state must not authorize another identity.
+- Another grantee's proof, malformed/v2/bad-ID/oversize rejected before kernel;
+  exactly 16384 accepted at the size gate while 16385 fails before I/O.
+- Start/end boundaries; clock rollback and expiry during check; no future clock
+  from transport or caller request.
+- Mempool seal spend and confirmed landlord rotation close durably; pending
+  rotation and read failures refuse without false closure; no cached live fallback.
+- Bad/new proof does not replace cache; live replacement works; restart retains
+  closure; state binding/private-directory failures refuse without partial writes.
+- Unknown/error-bearing/closed-live receipt cannot admit; errors containing a
+  planted sensitive marker never leak to verdict/error/log output.
+- Cancellation, bounded contention, no background goroutine/queue growth; no
+  inbox/sign/send/model side effect in the library.
+- Guard-removal plants must hit named assertions. Build failures, skips, unrelated
+  errors and crashes are not detection evidence. Offline fixture tests prove
+  adapter/routing behavior; genuine-Core production of the vectors proves their
+  provenance at that observed chain state, not perpetual liveness.
+
+## 8. Proposed integration decisions for the integration owner
+
+1. Accept the decision table: only absent/not-yet/expired/closed lifecycle states
+   route inbound to the separate exchange; malformed/foreign/read failures and
+   pending identity transitions refuse. Outbound never routes to exchange.
+2. Confirm the per-identity constructor + no identity selector on calls fits the
+   evolving Courier engine seam. Exact a2a method/type names remain a2a-source's.
+3. Confirm S1 resolution remains outside CG1 and supplies both verified signed
+   grant bytes and a separately checked issuance locator; a failed explicit
+   lookup must not be passed as nil/absence.
+
+These are proposed defaults for the integration owner to correct, not new K1 wire
+or authority. Per the task handoff, code starts after the orchestrator forwards
+this design; absent corrections, the narrow contract above is the implementation
+baseline. E1 is independently under review and is not an implementation dependency.
+
+## Source anchors
+
+- Landed authority: `../rental/grant_kernel.go`, `grant_presentation.go`,
+  `grant.go`, `grant_names.go`; framed commitment verification in `oplocator/`.
+- Existing binding: `../rental-gateway/kernelbind/kernelbind.go`; transport
+  framing: `../rental-gateway/kernel/presentation.go` and `gateway/presentation.go`.
+- Storage boundary: `../grant-store/grant.go` and its README (signed grant only).
+- Read-only node: `../single-use/node.go`; private storage: `single-use/durable`.
+- Courier constructor/isolation and inbound/outbound insertion points are the
+  integration requirements in the CG1 request, not claims about unlanded internals.
