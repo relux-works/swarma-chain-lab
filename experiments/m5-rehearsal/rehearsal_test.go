@@ -236,7 +236,7 @@ func TestLandedComposition(t *testing.T) {
 		t.Fatal("unexpected presentation")
 	}
 	l.evidence["signer_to_gateway_bridge"] = "not executed; signer ledger/S1 output is not the gateway booking-ID presentation directory"
-	l.evidence["full_scenario"] = "BLOCKED G6: gateway v1 booking request lacks V2 coin; V2 returns COIN_UNAVAILABLE and gateway BookPending; legacy paid v1 has no signer index. Issued/ready, slot delivery, expiry wipe and early revoke NOT RUN"
+	l.evidence["full_scenario"] = "BLOCKED G6: gateway v1 booking request lacks V2 coin; V2 returns COIN_PROFILE and gateway BookPending; legacy paid v1 has no signer index. Issued/ready, slot delivery, expiry wipe and early revoke NOT RUN"
 	l.evidence["non_grantee_control"] = "actual relay scenario: terms/foreign consent/valid consent create no gateway slot; live-grantee positive control blocked by missing issuance bridge"
 	l.evidence["outcome"] = "G6_booking_version_boundary_reproduced"
 	l.evidence["model_in_full_scenario"] = "NOT RUN: G6 prevents issuance/slot creation; separate station-payload tests exercise real proxy/fake upstream accounting"

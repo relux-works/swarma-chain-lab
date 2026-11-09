@@ -9,7 +9,7 @@ The target is the first unresolved seam, G6. Gateway exchange uses v1 booking
 requests. Legacy v1 can complete terms/consent/payment but intentionally produces
 no SG1 V2 index. Selecting the actual V2 CLI retains the catalogue shape, then
 the gateway's v1 Book request omits the payment coin: HTTP refuses with
-`COIN_UNAVAILABLE` and the exchange reports `BookPending`. The harness checks
+`COIN_PROFILE` and the exchange reports `BookPending`. The harness checks
 that no slot/hold was silently created, and uses a separate direct HTTP V2
 book/consent/payment as the positive control: its original exported Item is read
 by the actual signer FileSource. It does not convert the v1 contract, synthesize

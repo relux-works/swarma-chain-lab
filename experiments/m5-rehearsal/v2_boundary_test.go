@@ -42,6 +42,7 @@ func (l *lab) v2Diagnostic(v1 booking.Config, profile string, operator su.Operat
 		t.Fatal("G6 failed booking reserved the slot")
 	}
 	// Reproduce the exact v1 HTTP shape used by the command's bookingClient.
+	// The missing coin fails closed at Coin.Validate before configured-coin lookup.
 	legacy := booking.BookInput{SlotID: "one", RenterPubkey: renter.PubKeyHex(), PrivacyAcknowledged: true}
 	r, e := http.NewRequest("POST", origin+"/book", strings.NewReader(string(encoded(legacy))))
 	checked(t, e, "legacy HTTP request")
@@ -57,7 +58,7 @@ func (l *lab) v2Diagnostic(v1 booking.Config, profile string, operator su.Operat
 	var refusal struct {
 		Error string `json:"error"`
 	}
-	if res.StatusCode != 409 || booking.Strict(raw, &refusal) != nil || refusal.Error != "COIN_UNAVAILABLE" {
+	if res.StatusCode != 409 || booking.Strict(raw, &refusal) != nil || refusal.Error != "COIN_PROFILE" {
 		t.Fatal("G6 exact HTTP coin refusal not observed")
 	}
 	var held struct {
