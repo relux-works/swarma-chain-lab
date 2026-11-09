@@ -28,3 +28,11 @@ in-tree siblings (`experiments/rental`, `experiments/single-use`,
 `experiments/sealwatch` via replaces) and this module; see its
 `go.mod`. The adapter targets the landed K1 v3 API; no external or
 bench-local module replacement is needed.
+
+E1 adds the in-tree `single-use/durable` package to the root module for private,
+locked, fsynced state. The nested binding adds in-tree `rental-booking` and its
+already-pinned `btcd v0.24.2` / `btcutil v1.1.5` dependencies; its selected
+`chainhash` becomes v1.1.0, matching booking. The root gateway retains chainhash
+v1.0.1. HD derivation imports in binding tests use public regtest fixtures only.
+No external module replacement or new wallet/signing capability is exposed by
+`exchange` or `bookingbind`.

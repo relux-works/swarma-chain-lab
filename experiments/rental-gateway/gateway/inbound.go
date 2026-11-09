@@ -34,14 +34,17 @@ func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result 
 	slot, ok := g.cfg.Journal.ActiveByRenter(sender)
 	if !ok {
 		res.Refused, res.Reason = true, "no_active_slot"
-		return res
+		return g.nonGrantee(rumor, res)
 	}
 	res.SlotID = slot.ID
 	now := g.cfg.Now().Unix()
+	if now < slot.NotBefore && g.cfg.Exchange != nil {
+		return g.nonGrantee(rumor, res)
+	}
 	if now >= slot.NotAfter {
 		g.endSlot(ctx, slot.ID, "not_after", "slot ended")
 		res.Refused, res.Reason, res.SlotEnded = true, "slot_over", true
-		return res
+		return g.nonGrantee(rumor, res)
 	}
 
 	// (b) Rumor time inside the slot window. The durable seen
@@ -85,17 +88,20 @@ func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result 
 	}
 	if kerr != nil {
 		res.Refused, res.Reason = true, "kernel_error"
-		return res
+		return g.nonGrantee(rumor, res)
 	}
 	if receipt.Closed {
 		g.endSlot(ctx, slot.ID, "kernel_closed", "")
 		res.Refused, res.SlotEnded = true, true
 		res.Reason = fmt.Sprintf("kernel_closed:%s", receipt.Reason)
-		return res
+		return g.nonGrantee(rumor, res)
 	}
 	if !receipt.Admits() {
 		res.Refused = true
 		res.Reason = fmt.Sprintf("kernel_%s:%s", receipt.Verdict, receipt.Reason)
+		if g.cfg.Exchange != nil {
+			return g.nonGrantee(rumor, res)
+		}
 		// Presentation refusals get a deterministic gateway notice
 		// (fixed texts, never the screening model).
 		switch {

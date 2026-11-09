@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
@@ -58,6 +59,7 @@ type Config struct {
 	ScreenTimeout time.Duration
 	PullTimeout   time.Duration
 	Now           func() time.Time
+	Exchange      *exchange.Engine // optional deterministic non-grantee path; caller closes it
 }
 
 // SlotSpec registers one rental slot with the gateway.
@@ -74,13 +76,14 @@ type SlotSpec struct {
 
 // Result describes the outcome of handling one inbound gift wrap.
 type Result struct {
-	Delivered   bool
-	Refused     bool
-	Reason      string // precise refusal reason when Refused
-	SlotID      string
-	SenderHex   string
-	WarningSent bool
-	SlotEnded   bool
+	Delivered      bool
+	Refused        bool
+	Reason         string // precise refusal reason when Refused
+	SlotID         string
+	SenderHex      string
+	WarningSent    bool
+	SlotEnded      bool
+	ExchangeQueued bool
 }
 
 // Gateway is the message router and station manager front-end.
@@ -113,10 +116,19 @@ func New(cfg Config) (*Gateway, error) {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	return &Gateway{cfg: cfg, stations: map[string]*station.Station{},
+	g := &Gateway{cfg: cfg, stations: map[string]*station.Station{},
 		queues:   map[string]chan *stationlink.Frame{},
 		bound:    map[string]*connState{},
-		inFlight: map[string]*opCall{}}, nil
+		inFlight: map[string]*opCall{}}
+	if cfg.Exchange != nil {
+		if cfg.AgentName != cfg.Exchange.AgentName() {
+			return nil, fmt.Errorf("gateway: exchange agent name mismatch")
+		}
+		if err := cfg.Exchange.Bind(cfg.AgentKey, cfg.Publisher, exchange.Hooks{Register: g.registerIssued, Check: g.checkExchangeGrant}); err != nil {
+			return nil, err
+		}
+	}
+	return g, nil
 }
 
 // AgentPubKey returns the stable agent public identity (hex).
@@ -244,9 +256,12 @@ func (g *Gateway) ensureStarted(ctx context.Context, slot *journal.Slot) error {
 	if err := g.startStation(ctx, fresh); err != nil {
 		return err
 	}
-	// Best-effort "ready" notice, same as StartSlot sends; a publish
-	// failure must not block the message that triggered the start.
-	_ = g.dmRenter(ctx, fresh, "ready")
+	// With exchange enabled its current-time timer owns ready notification.
+	// Do not duplicate it or synchronously await relay OK from the read pump
+	// that delivered this first message. Legacy wiring retains its notice.
+	if g.cfg.Exchange == nil {
+		_ = g.dmRenter(ctx, fresh, "ready")
+	}
 	return nil
 }
 

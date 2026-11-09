@@ -297,3 +297,15 @@ start. Run the exact/over/under Core controls with a fresh test root and the sam
 Core variables above using `-run '^TestGenuineCoreSurplus$'`; unit boundary tests
 are `TestStartNowRemainingWindow` and `TestStartNowWindowConfig`. The full guard
 plant suite now includes amount, review, legacy backfill and both time checks.
+
+## Read-only gateway catalogue (E1)
+
+`Service.Catalogue(until, limit)` exposes the pinned template/profile, USD price,
+configured slot lengths, privacy notice and currently free slots. It uses the
+service clock, accepts at most a seven-day horizon and 1–64 results, sorts by
+start then ID, and excludes held/issued overlaps and ineligible start windows.
+`until` bounds slot start, not slot end. Returned slices cannot mutate service
+configuration. The method allocates no address and writes no state; `Book`
+rechecks availability. The site-free NIP-17 consumer lives in
+`../rental-gateway/kernelbind/bookingbind`; signed wire formats remain unchanged.
+Run its focused controls with `go test -race -run '^TestCatalogue' -count=1 .`.

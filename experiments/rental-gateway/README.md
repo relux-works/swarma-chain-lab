@@ -179,3 +179,69 @@ local-test driver launches per station.
 - The renter channel sits behind the `Transport` (Publisher)
   boundary so it can move to an a2a transport later; no a2a code
   exists in this milestone.
+
+## Deterministic rental exchange (E1)
+
+`exchange.Engine` optionally handles authenticated senders without a live grant.
+The conversation and exact texts are specified in [EXCHANGE-PROFILE.md](EXCHANGE-PROFILE.md).
+It requires first-contact inner-rumor NIP-13 work, bounds per-key buckets, replay
+history, clients and queue, and persists counters, holds and exact pending replies.
+Live grantees bypass the exchange. A full exchange queue drops immediately;
+booking calls and exchange publication run off the relay read/ACK pump.
+
+Library wiring (the existing `cmd/gateway serve` remains a stub demo):
+
+1. Construct the separate booking service, with its own provider signing key,
+   private state and watcher/publication scheduling. `kernelbind/bookingbind.Adapter`
+   maps its read-only Catalogue and Book/AcceptConsent/Get methods. Its v1 backend
+   supports NMC only; BTC/LTC are closed interface values with no v1 payment route.
+2. Supply `bookingbind.Grants` with a `PresentationSource` that reads already-issued
+   presentations by booking ID from the external issuer. The exchange neither
+   invokes issuance nor publishes to S1. The source has no signing or wallet API.
+3. Fill `exchange.DefaultConfig()` with the private canonical 0700 state directory,
+   pinned agent/landlord names, Backend and Grants; call `exchange.New`. Supply the
+   result as `gateway.Config.Exchange` and the same agent name as `Config.AgentName`.
+   `gateway.New` binds the messaging key, publisher and dormant-slot/current-kernel
+   hooks and starts one exchange worker. Close the engine before its dependencies.
+4. Supply the real `kernelbind.Adapter` as Kernel/Presenter. The issuer notification
+   registers a dormant slot and delivers the inline presentation. At the slot start,
+   a normal current-time Check emits `ready` only if live. Only a later admitted
+   renter message starts the instance. Exchange-enabled lazy start does not send
+   a second ready notice or await its relay ACK on the inbound read pump.
+
+The booking service's `Catalogue(until, limit)` is read-only, bounds slot starts by
+`until` (intersection with `[service-now, until)`), and lists configured slot lengths
+independently of current availability. No signed booking/rental wire changed.
+
+Additional tools and evidence (run Go commands with `GOTOOLCHAIN=go1.26.8`):
+
+```sh
+go test -race -count=1 ./exchange ./gateway
+cd kernelbind
+go test -race -count=1 ./bookingbind
+```
+
+From `kernelbind`, run each of `TestExchangeCoreLifecycle` and
+`TestExchangeCoreNonLive` using the Core environment shown above and a distinct
+fresh `GW_E2E_RUN_ROOT`. The first uses real booking, consent, regtest payment,
+watcher, issuer and kernel through the first station delivery; the second spends
+the real seal before start and proves refusal without an instance. Their NIP-17
+publication collector is local; the independent websocket test
+`TestExchangeSlowBackendDoesNotBlockRelayACK` exercises relay ACK concurrency.
+
+From `rental-gateway`, mutation controls run in private copied modules:
+
+```sh
+go run .scripts/e1-guards.go -out .temp/e1-guards
+GW_E2E_CORE_DAEMON=/absolute/path/to/namecoind \
+GW_E2E_CORE_CLI=/absolute/path/to/namecoin-cli \
+go run .scripts/e1-guards.go -core -out .temp/e1-guards-core
+```
+
+The runner requires offline cached dependencies, writes source/mutant hashes,
+exact changes, exit codes and assertion logs under its output directory, and
+rejects skips, build errors, panics and timeouts as detection evidence. Core
+runs also create private wallet/node subdirectories; share only public evidence,
+never `private/`. No real funds, external relays or deployed station are tested.
+Relay-side IP/connection limits remain a deployment responsibility: NIP-01
+subscriptions expose no trustworthy originating client IP.

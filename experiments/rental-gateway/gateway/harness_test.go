@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"relux.works/swarma-chain-lab/experiments/rental-gateway/exchange"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/gateway"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
@@ -109,6 +110,7 @@ type harness struct {
 	screenTO   time.Duration
 	presenter  bool
 	agentName  string
+	exchange   *exchange.Engine
 }
 
 type harnessOpts struct {
@@ -120,12 +122,13 @@ type harnessOpts struct {
 	presenter    bool   // wire the stub kernel also as kernel.Presenter
 	noCert       bool   // register the slot without stored certificate bytes
 	agentName    string // gateway AgentName pin (empty = slot station name)
+	exchange     *exchange.Engine
 }
 
 func newHarness(t *testing.T, opts harnessOpts) *harness {
 	t.Helper()
 	h := &harness{t: t, clock: &testClock{t: nowMid}, screenTO: opts.screenTO,
-		presenter: opts.presenter, agentName: opts.agentName}
+		presenter: opts.presenter, agentName: opts.agentName, exchange: opts.exchange}
 	if h.screenTO <= 0 {
 		h.screenTO = 2 * time.Second
 	}
@@ -195,7 +198,8 @@ func (h *harness) buildGateway() *gateway.Gateway {
 	gw, err := gateway.New(gateway.Config{
 		AgentKey: h.agent, Kernel: h.kern, Screener: h.scr,
 		Presenter: presenter, AgentName: h.agentName,
-		Journal: h.store, Publisher: h.pub, Driver: h.driver,
+		Exchange: h.exchange,
+		Journal:  h.store, Publisher: h.pub, Driver: h.driver,
 		Endpoint: h.sockPath, ScreenTimeout: h.screenTO,
 		PullTimeout: 150 * time.Millisecond, Now: h.clock.Now,
 	})
