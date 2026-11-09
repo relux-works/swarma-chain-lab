@@ -8,6 +8,20 @@ import (
 	"strings"
 )
 
+type gatewayModelProxy struct {
+	AdminSocket string  `json:"admin_socket"`
+	ServerUID   *uint32 `json:"server_uid"`
+	Origin      string  `json:"origin"`
+	CertSHA256  string  `json:"cert_sha256"`
+	Caps        struct {
+		InputTokens  uint64 `json:"input_tokens"`
+		OutputTokens uint64 `json:"output_tokens"`
+		Requests     uint64 `json:"requests"`
+		MaxTokens    uint64 `json:"max_tokens"`
+		CostNanoUSD  uint64 `json:"cost_nano_usd"`
+	} `json:"caps"`
+}
+
 // Validate exchange version/coins and the optional GA1 boundary here. The service remains responsible
 // for full native startup validation; this check never reads socket/key files.
 func gatewayOptions(v map[string]any) error {
@@ -56,19 +70,7 @@ func gatewayOptions(v map[string]any) error {
 	if e != nil {
 		return ErrPolicy
 	}
-	var m struct {
-		AdminSocket string  `json:"admin_socket"`
-		ServerUID   *uint32 `json:"server_uid"`
-		Origin      string  `json:"origin"`
-		CertSHA256  string  `json:"cert_sha256"`
-		Caps        struct {
-			InputTokens  uint64 `json:"input_tokens"`
-			OutputTokens uint64 `json:"output_tokens"`
-			Requests     uint64 `json:"requests"`
-			MaxTokens    uint64 `json:"max_tokens"`
-			CostNanoUSD  uint64 `json:"cost_nano_usd"`
-		} `json:"caps"`
-	}
+	var m gatewayModelProxy
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
 	if d.Decode(&m) != nil {

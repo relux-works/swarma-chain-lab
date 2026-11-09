@@ -103,6 +103,7 @@ func main() {
 	must(e)
 	defer os.RemoveAll(scratch)
 	plants := []plant{
+		{"main_model_precision", "main_schemas.go", "*gatewayModelProxy", "map[string]any", ".", "^TestMainModelIntegerPrecision$", "exact uint64 cap rejected"},
 		{"main_missing_native", "main_profile.go", "if len(inputs) != want {\n\t\treturn ErrPolicy", "if len(inputs) != want {\n\t\treturn nil", ".", "^TestMainServiceProfiles$/^store$", "incomplete native accepted"},
 		{"main_daily_cap", "issuer_config.go", "c.MovedDay >= c.MovedPerTx", "true", ".", "^TestMainNativeRefusals$", "want deploy: invalid policy got <nil>"},
 		{"main_gateway_model", "gateway_config.go", "c.Requests == 0", "false", ".", "^TestMainNativeRefusals$/^gateway$/^model_proxy.caps.requests$", "got <nil>"},

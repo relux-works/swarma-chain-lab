@@ -231,3 +231,25 @@ func TestM5TemplateValues(t *testing.T) {
 		}
 	}
 }
+
+// Main structural decoding retains exact uint64 model caps beyond float64's
+// integer precision. Overflow still refuses through the native cap projection.
+func TestMainModelIntegerPrecision(t *testing.T) {
+	raw := mainInputs(t, "gateway")[0]
+	var c map[string]any
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.UseNumber()
+	if e := d.Decode(&c); e != nil {
+		t.Fatal(e)
+	}
+	caps := c["model_proxy"].(map[string]any)["caps"].(map[string]any)
+	caps["requests"] = json.Number("9007199254740993")
+	caps["cost_nano_usd"] = json.Number("18446744073709551615")
+	if e := ValidateServiceInputs(mainPolicy("gateway"), [][]byte{encoded(t, c)}); e != nil {
+		t.Fatal("exact uint64 cap rejected", e)
+	}
+	caps["cost_nano_usd"] = json.Number("18446744073709551616")
+	if e := ValidateServiceInputs(mainPolicy("gateway"), [][]byte{encoded(t, c)}); e != ErrPolicy {
+		t.Fatal("uint64 overflow accepted", e)
+	}
+}

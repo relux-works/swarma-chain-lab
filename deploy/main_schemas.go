@@ -52,7 +52,7 @@ type mainServeConfig struct {
 	Kernel           mainKernelConfig   `json:"kernel"`
 	Exchange         mainExchangeConfig `json:"exchange"`
 	Station          mainStationConfig  `json:"station"`
-	ModelProxy       map[string]any     `json:"model_proxy,omitempty"`
+	ModelProxy       *gatewayModelProxy `json:"model_proxy,omitempty"`
 }
 type mainKernelConfig struct {
 	Kind         string `json:"kind"`
