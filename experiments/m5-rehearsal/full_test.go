@@ -35,7 +35,18 @@ import (
 // The native CLIs and genuine isolated Core must compose through original V2
 // bytes. Only r4 host execution and the Linux admin transport use declared seams.
 // Run expiry and revoke in separate fresh roots; neither proves Linux isolation.
-func TestFullComposition(t *testing.T) {
+func TestFullComposition(t *testing.T) { runComposition(t, false) }
+
+// These explicit partial legs do not require a first model reply and must never
+// be described as full-scenario success. Revoke observes the seal before payload
+// startup; expiry checks ledger/manager cleanup after a control-only delivery.
+func TestIndependentPartialLegs(t *testing.T) {
+	if os.Getenv("IT2_PARTIAL") != "1" {
+		t.Skip("requires explicit IT2_PARTIAL=1; partial evidence only")
+	}
+	runComposition(t, true)
+}
+func runComposition(t *testing.T, partial bool) {
 	if os.Getenv("IT2_SCENARIO") == "" {
 		t.Skip("requires explicit IT2_SCENARIO=expiry|revoke after G6 landing")
 	}
@@ -44,6 +55,7 @@ func TestFullComposition(t *testing.T) {
 		t.Fatal("invalid full scenario")
 	}
 	l := newLab(t)
+	l.evidence["partial_only"] = partial
 	overlay := l.registrarOverlay()
 	overlaid := filepath.Join(l.private, "bin", "gateway-overlay")
 	_, code := l.command("gateway registrar overlay", "go", "-C", filepath.Join(l.repo, "experiments/rental-gateway"), "build", "-overlay", overlay, "-race", "-trimpath", "-buildvcs=false", "-o", overlaid, "./cmd/gateway")
@@ -174,6 +186,19 @@ func TestFullComposition(t *testing.T) {
 	conversation.receive("issued\n", 10*time.Second)
 	l.evidence["stage"] = "confirmed presentation and issued"
 	t.Log("native SG1 confirmed presentation and issued received")
+	if partial && scenario == "revoke" {
+		l.revokeNative(signerConfig, contract, proof)
+		if l.slot(contract.BookingID).Started || upstreamCalls.Load() != 0 {
+			t.Fatal("pre-start revoke unexpectedly started payload/model")
+		}
+		l.evidence["outcome"] = "PASS_PARTIAL"
+		l.evidence["scenario"] = "native-revoke-before-start"
+		l.evidence["full_scenario"] = "NOT RUN: partial native SG1 unspent-before/null-after revoke only; no payload/model or teardown completion claimed"
+		l.evidence["stage"] = "native seal revoked before payload start"
+		t.Log("PARTIAL PASS: native SG1 spent the unspent seal; no payload/model started")
+		return
+	}
+
 	if time.Now().Unix() < contract.NotBefore && l.slot(contract.BookingID).Started {
 		t.Fatal("slot started before grant window")
 	}
@@ -182,6 +207,41 @@ func TestFullComposition(t *testing.T) {
 	t.Log("ready received; sending first grantee message")
 	tag, e := gateway.GrantCertTag(proof)
 	checked(t, e, "issued presentation tag")
+	if partial {
+		// This existing scripted control never calls the model, even if startup wins
+		// the race. The probe requires only durable start and later expiry cleanup.
+		conversation.send("__extend__", false, tag)
+		l.await("partial durable start", func() bool { return l.slot(contract.BookingID).Started })
+		l.evidence["stage"] = "partial expiry: durable start; first model reply not required"
+		deadline := time.Unix(contract.NotAfter+25, 0)
+		for !l.slot(contract.BookingID).Destroyed {
+			if time.Now().After(deadline) {
+				t.Fatal("partial expiry cleanup deadline")
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		l.await("partial helper cleanup", helper.destroyed)
+		boot, ok := helper.bootstrap(contract.BookingID)
+		if !ok {
+			t.Fatal("partial bootstrap receipt missing")
+		}
+		l.secret([]byte(boot.ModelBearer))
+		l.secret([]byte(boot.ChannelSecret))
+		l.checkProxyRefusal(p, boot, "revoked-or-expired")
+		slot := l.slot(contract.BookingID)
+		if !slot.Ended || slot.EndReason != "not_after" || upstreamCalls.Load() != 0 {
+			t.Fatal("partial expiry invariants")
+		}
+		l.evidence["outcome"] = "PASS_PARTIAL"
+		l.evidence["scenario"] = "expiry-bookkeeping"
+		l.evidence["full_scenario"] = "NOT RUN: partial expiry bookkeeping/helper cleanup and closed model credential; no first model reply or Linux wipe claimed"
+		l.evidence["stage"] = "partial expiry cleanup complete"
+		l.evidence["upstream_calls"] = upstreamCalls.Load()
+		l.evidence["partial_expiry"] = map[string]any{"journal_ended": slot.Ended, "journal_destroyed": slot.Destroyed, "reason": slot.EndReason, "helper_bootstrap_removed": true, "model_credential_refused": true}
+		t.Log("PARTIAL PASS: expiry journal, owned helper cleanup and closed credential; no first model reply claim")
+		return
+	}
+
 	conversation.send("first model request", false, tag)
 	conversation.receive("model fixture reply", 10*time.Second)
 	l.evidence["stage"] = "first model reply"

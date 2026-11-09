@@ -128,3 +128,25 @@ The full rehearsal is blocked by the [payload startup ordering gap](GAP-IT2-STAR
 without converting a failed full run into success. The default test command runs
 this isolated witness alongside the scanner; Core and release builds remain
 explicit opt-ins. A separate product fix and both full reruns are still required.
+
+## Independent partial legs while startup is blocked
+
+`TestIndependentPartialLegs` is a separate, explicit opt-in. With `revoke`, it
+checks that the issued seal is unspent, runs the native SG1 operator revoke and
+requires JSON-RPC null afterwards, before any payload start. With `expiry`, it
+sends the existing model-free `__extend__` control, requires durable start, then
+checks expiry journal state, helper bootstrap removal and model-credential
+refusal without waiting for a payload reply. This can exercise bookkeeping even
+when the payload has lost the startup race. Neither case proves first model
+reply, full revoke/expiry completion or Linux wipe; receipts say `PASS_PARTIAL`.
+
+Use the same pinned inputs as a full run, but select a new root and test:
+
+```sh
+IT2_PARTIAL=1 IT2_SCENARIO=revoke IT1_REGTEST=1 \
+ IT1_PRODUCT_HEAD=<exact-signed-task-head> IT1_RUN_ROOT=/absolute/new-partial-run \
+ IT2_RELEASE_DIR=/absolute/new-release \
+ IT1_CORE_DAEMON=/absolute/pinned/namecoind IT1_CORE_CLI=/absolute/pinned/namecoin-cli \
+ go test -race -run '^TestIndependentPartialLegs$' -count=1 -v -timeout 8m
+# Repeat with expiry and another fresh root.
+```
