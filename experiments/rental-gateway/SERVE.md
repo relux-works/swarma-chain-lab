@@ -57,7 +57,9 @@ all test-mode configs unless `-allow-test` is deliberately supplied.
 The HTTP client uses the existing v1 book/consent/status routes plus bounded
 read-only `GET /catalogue`. It verifies the returned signed-contract and
 catalogue pins, uses bounded requests/responses and timeouts, and follows neither
-redirects nor proxies. It does not automatically retry ambiguous writes. Only
+redirects nor proxies. Its HTTP timeout uses the configured exchange call budget,
+including Catalogue/Get whose existing service interface has no context parameter.
+It does not automatically retry ambiguous writes. Only
 known definitive no-effect booking rejections are classified as rejected; other
 failures remain ambiguous for the landed exchange recovery contract.
 

@@ -117,7 +117,7 @@ func serve(parent context.Context, c serveConfig) error {
 		return e
 	}
 	defer presentations.Close()
-	client := newBookingClient(c.Exchange.BookingURL, c.Exchange.PrivacySHA256, c.Exchange.TemplateSHA256, c.Exchange.ProfileSHA256)
+	client := newBookingClient(c.Exchange.BookingURL, c.Exchange.PrivacySHA256, c.Exchange.TemplateSHA256, c.Exchange.ProfileSHA256, time.Duration(c.Exchange.CallMilliseconds)*time.Millisecond)
 	defer client.close()
 	// Check public booking pins at startup, before creating gateway state.
 	if _, e = client.Catalogue(time.Now().Unix()+86400, 16); e != nil {

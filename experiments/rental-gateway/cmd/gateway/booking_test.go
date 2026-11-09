@@ -72,7 +72,7 @@ func bookingFixture(t *testing.T) (*bookingClient, *booking.Service, *btcec.Priv
 	server.Config.Handler = handler
 	server.Start()
 	t.Cleanup(server.Close)
-	client := newBookingClient(server.URL, booking.Hash([]byte(booking.PrivacyNotice)), cfg.TemplateSHA256, tmpl.ProfileSHA256)
+	client := newBookingClient(server.URL, booking.Hash([]byte(booking.PrivacyNotice)), cfg.TemplateSHA256, tmpl.ProfileSHA256, 2*time.Second)
 	t.Cleanup(client.close)
 	return client, service, rk
 }
@@ -153,7 +153,7 @@ func TestBookingClientRefusals(t *testing.T) {
 			}
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(status); _, _ = w.Write(body) }))
 			defer srv.Close()
-			bad := newBookingClient(srv.URL, c.privacy, c.template, c.profile)
+			bad := newBookingClient(srv.URL, c.privacy, c.template, c.profile, 2*time.Second)
 			defer bad.close()
 			if _, e := bad.Catalogue(time.Now().Unix()+86400, 16); !errors.Is(e, errBooking) {
 				t.Fatalf("bad catalogue accepted: %v", e)
@@ -165,7 +165,7 @@ func TestBookingClientRefusals(t *testing.T) {
 	defer dest.Close()
 	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, dest.URL, 307) }))
 	defer source.Close()
-	redir := newBookingClient(source.URL, c.privacy, c.template, c.profile)
+	redir := newBookingClient(source.URL, c.privacy, c.template, c.profile, 2*time.Second)
 	defer redir.close()
 	if _, e := redir.Catalogue(time.Now().Unix()+86400, 16); !errors.Is(e, errBooking) || redirected.Load() != 0 {
 		t.Fatal("redirect followed")
@@ -177,7 +177,7 @@ func TestBookingClientRefusals(t *testing.T) {
 			w.WriteHeader(409)
 			_, _ = w.Write([]byte(body))
 		}))
-		bad := newBookingClient(srv.URL, c.privacy, c.template, c.profile)
+		bad := newBookingClient(srv.URL, c.privacy, c.template, c.profile, 2*time.Second)
 		_, e := bad.Book(context.Background(), booking.BookInput{})
 		want := errBooking.Error()
 		if strings.Contains(body, "BOOKING_CLOCK_CHANGED") {
@@ -196,5 +196,27 @@ func TestBookingClientRefusals(t *testing.T) {
 	}
 	if _, e = c.Catalogue(time.Now().Unix()+86400, 16); e != nil {
 		t.Fatal("valid catalogue neighbour", e)
+	}
+}
+
+// Catalogue has no context parameter in the existing Service interface, so its
+// HTTP client deadline must enforce the configured call budget itself.
+func TestBookingClientDeadline(t *testing.T) {
+	entered := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { entered <- struct{}{}; <-r.Context().Done() }))
+	defer server.Close()
+	client := newBookingClient(server.URL, "privacy", "template", "profile", 50*time.Millisecond)
+	defer client.close()
+	start := time.Now()
+	if _, e := client.Catalogue(time.Now().Unix()+86400, 16); !errors.Is(e, errBooking) {
+		t.Fatal("unresponsive booking did not refuse")
+	}
+	if time.Since(start) > 500*time.Millisecond {
+		t.Fatal("booking call budget ignored")
+	}
+	select {
+	case <-entered:
+	default:
+		t.Fatal("deadline control did not exercise server")
 	}
 }

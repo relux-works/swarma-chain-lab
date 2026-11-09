@@ -25,6 +25,7 @@ type plant struct {
 }
 
 var plants = []plant{
+	{"booking_deadline", "gateway", "cmd/gateway/booking.go", "Timeout:       timeout,", "Timeout:       max(timeout, time.Second),", "./cmd/gateway", "TestBookingClientDeadline", "booking call budget ignored", false},
 	{"mainnet", "gateway", "cmd/gateway/config.go", " || c.Kernel.Network != \"regtest\"", "", "./cmd/gateway", "TestConfigBoundary/mainnet", "config guard missing", false},
 	{"genesis", "gateway", "cmd/gateway/config.go", " || c.Kernel.Genesis != su.RegtestGenesis", " || (c.Kernel.Genesis != su.RegtestGenesis && false)", "./cmd/gateway", "TestConfigBoundary/genesis", "config guard missing", false},
 	{"privacy_pin", "gateway", "cmd/gateway/config.go", "c.Exchange.PrivacySHA256 != booking.Hash([]byte(booking.PrivacyNotice)) || ", "(c.Exchange.PrivacySHA256 != booking.Hash([]byte(booking.PrivacyNotice)) && false) || ", "./cmd/gateway", "TestConfigBoundary/privacy", "config guard missing", false},

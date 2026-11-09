@@ -27,9 +27,9 @@ type bookingClient struct {
 
 var _ bookingbind.Service = (*bookingClient)(nil)
 
-func newBookingClient(origin, privacy, template, profile string) *bookingClient {
+func newBookingClient(origin, privacy, template, profile string, timeout time.Duration) *bookingClient {
 	return &bookingClient{origin, privacy, template, profile, &http.Client{
-		Timeout:       2 * time.Second,
+		Timeout:       timeout,
 		Transport:     &http.Transport{Proxy: nil, MaxIdleConns: 2, MaxConnsPerHost: 2},
 		CheckRedirect: func(*http.Request, []*http.Request) error { return errBooking },
 	}}
