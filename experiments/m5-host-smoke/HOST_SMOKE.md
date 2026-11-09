@@ -26,10 +26,17 @@ Inventory JSON (`Inventory` in files.go) supplies:
 - binaries and configs: maps with exactly booking, gateway, store, relay, model,
   wallet, signer, manager, payload, each a64-hex public artifact/config hash;
 - helper: exact64-hex independently qualified helper binary hash;
-- hosts: exactly exec1, demo1, stations1, each with kernel and systemd version
+- hosts: exactly signer, gateway, stations roles, each with kernel and systemd version
   strings (bounded version tokens, no hostnames or arbitrary command output);
 - storage_policy_sha256: hash of the reviewed sanitized cleanup policy and its
   explicit physical-erasure limitations.
+
+The operator's separate environment configuration supplies the role-to-host
+mapping: signer runs the issuer, gateway runs gateway/model/booking/store/relay,
+and stations runs manager/payload/helper. Hash that configuration's sanitized
+namespace-selection record into config.environment_sha256 as above. Actual
+machine names are operator inputs, never inventory keys or committed examples;
+keep the mapping in operator custody and emit only role-keyed version metadata.
 
 Hash the exact inventory file bytes into config.evidence_sha256. Set
 config.payload_sha256 to the same inventory.binaries.payload hash; inventory

@@ -284,7 +284,8 @@ func TestObservedPayloadPin(t *testing.T) {
 }
 
 // Inventory intake binds exact bytes and payload pin. A different valid hash,
-// missing host/role and free-form metadata cannot masquerade as approved input.
+// missing/replaced host roles and free-form metadata cannot masquerade as
+// approved input. Each required role is tested against a same-size wrong-key map.
 func TestInventoryBindings(t *testing.T) {
 	h := strings.Repeat("1", 64)
 	v := Inventory{Source: strings.Repeat("1", 40), Tree: strings.Repeat("2", 40), Helper: h, StoragePolicySHA256: h, Binaries: map[string]string{}, Configs: map[string]string{}, Hosts: map[string]HostVersion{}}
@@ -292,21 +293,25 @@ func TestInventoryBindings(t *testing.T) {
 		v.Binaries[role] = h
 		v.Configs[role] = h
 	}
-	for _, host := range []string{"exec1", "demo1", "stations1"} {
-		v.Hosts[host] = HostVersion{"6.8.0", "255"}
+	for _, role := range []string{"signer", "gateway", "stations"} {
+		v.Hosts[role] = HostVersion{"6.8.0", "255"}
 	}
 	if e := v.validate(); e != nil {
 		t.Fatal(e)
 	}
-	for _, mode := range []string{"valid", "hash", "payload", "host", "metadata"} {
+	for _, mode := range []string{"valid", "hash", "payload", "host", "metadata", "wrong_signer", "wrong_gateway", "wrong_stations"} {
 		t.Run(mode, func(t *testing.T) {
 			var copy Inventory
 			_ = json.Unmarshal(encode(v), &copy)
 			if mode == "host" {
-				delete(copy.Hosts, "exec1")
+				delete(copy.Hosts, "signer")
 			}
 			if mode == "metadata" {
-				copy.Hosts["exec1"] = HostVersion{"secret canary", "255"}
+				copy.Hosts["signer"] = HostVersion{"secret canary", "255"}
+			}
+			if role, wrong := strings.CutPrefix(mode, "wrong_"); wrong {
+				copy.Hosts["node.example"] = copy.Hosts[role]
+				delete(copy.Hosts, role)
 			}
 			root := t.TempDir()
 			path := filepath.Join(root, "inventory.json")
@@ -333,9 +338,16 @@ func TestInventoryBindings(t *testing.T) {
 					t.Fatal(e)
 				}
 			} else {
-				if e == nil {
-					t.Fatal("invalid inventory accepted")
+				want := "INVENTORY_HOST"
+				switch mode {
+				case "hash":
+					want = "INVENTORY_BINDING"
+				case "payload":
+					want = "INVENTORY_PAYLOAD"
+				case "host":
+					want = "INVENTORY_FIELDS"
 				}
+				wantCode(t, e, want)
 				if _, e = os.Stat(filepath.Join(root, "packet", "inventory.json")); !os.IsNotExist(e) {
 					t.Fatal("invalid inventory persisted")
 				}

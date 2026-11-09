@@ -18,8 +18,8 @@ func (v Inventory) validate() error {
 			return refuse("INVENTORY_ROLE")
 		}
 	}
-	for _, host := range []string{"exec1", "demo1", "stations1"} {
-		h, ok := v.Hosts[host]
+	for _, role := range []string{"signer", "gateway", "stations"} {
+		h, ok := v.Hosts[role]
 		if !ok || !versionPattern.MatchString(h.Kernel) || !versionPattern.MatchString(h.Systemd) {
 			return refuse("INVENTORY_HOST")
 		}
