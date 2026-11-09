@@ -112,10 +112,10 @@ exchange or pretend that v2 wire types alone provide booking operations.
 
 ## Validation
 
-`GOWORK= go test -race -count=1 -run '^(TestCoinBoundary|TestProfiles)$' .`
+`GOWORK=off go test -race -count=1 -run '^(TestCoinBoundary|TestProfiles)$' .`
 from payment-chain checks the closed coin vocabulary and quote/profile controls.
 From rental-booking, run
-`GOWORK= go test -race -count=1 -run '^(TestContractHandleV2|TestFrozenWireV2|TestFrozenPublicFixture|TestWireV2Binding|TestWireV2Eligibility)$' .`.
+`GOWORK=off go test -race -count=1 -run '^(TestContractHandleV2|TestFrozenWireV2|TestFrozenPublicFixture|TestWireV2Binding|TestWireV2Eligibility)$' .`.
 The handle controls reject mismatched hashes/IDs, noncanonical bytes, oversized
 input and legacy versions beside valid per-coin controls. Frozen v1/v2 signed
 vectors remain unchanged. These are static API tests, not end-to-end bookings.

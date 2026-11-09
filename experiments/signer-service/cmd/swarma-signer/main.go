@@ -4,9 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	ss "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
 	"os"
 	"os/signal"
+	ss "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
 	"syscall"
 )
 

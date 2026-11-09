@@ -3,9 +3,6 @@ name: Signer service checks
 on:
   pull_request:
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/model-proxy/**'
       - 'experiments/signer-service/**'
       - 'experiments/grant-store/**'
@@ -21,9 +18,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/model-proxy/**'
       - 'experiments/signer-service/**'
       - 'experiments/grant-store/**'
@@ -66,7 +60,7 @@ jobs:
           GOPROXY: 'off'
           GOSUMDB: 'off'
           GOTOOLCHAIN: local
-          GOWORK: ${{ github.workspace }}/go.work
+          GOWORK: 'off'
         run: |
           go vet ./...
           go test -race -count=1 ./...

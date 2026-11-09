@@ -3,9 +3,6 @@ name: Grant store checks
 on:
   pull_request:
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/model-proxy/**'
       - 'experiments/grant-store/**'
       - 'experiments/rental/**'
@@ -19,9 +16,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/model-proxy/**'
       - 'experiments/grant-store/**'
       - 'experiments/rental/**'
@@ -62,7 +56,7 @@ jobs:
           GOPROXY: 'off'
           GOSUMDB: 'off'
           GOTOOLCHAIN: local
-          GOWORK: ${{ github.workspace }}/go.work
+          GOWORK: 'off'
         run: |
           go vet ./...
           go test -race -count=1 ./...

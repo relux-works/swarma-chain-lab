@@ -7,3 +7,5 @@ require (
 	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.1.0
 	golang.org/x/crypto v0.55.0
 )
+
+replace github.com/relux-works/swarma-chain-lab/experiments/sealwatch => ../sealwatch

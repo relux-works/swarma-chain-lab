@@ -6,6 +6,10 @@ import (
 	"encoding/json"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	gs "github.com/relux-works/swarma-chain-lab/experiments/grant-store"
 	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
@@ -13,10 +17,6 @@ import (
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	sg "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"time"
 )
 

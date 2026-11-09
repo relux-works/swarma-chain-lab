@@ -12,7 +12,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/relux-works/swarma-chain-lab/deploy/workspace"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -105,16 +104,12 @@ func run() error {
 	if e = copyModule(root, module); e != nil {
 		return e
 	}
-	fixtureWork, e := workspace.Isolate(root, work)
-	if e != nil {
-		return e
-	}
 	runTest := func(name, test string, useCore bool) (int, []byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "go", "test", "-count=1", "-v", "-run", "^"+strings.ReplaceAll(test, "/", "$/^")+"$", ".")
 		cmd.Dir = module
-		cmd.Env = append(os.Environ(), "GOWORK="+fixtureWork, "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local", "CG1_REGTEST=0")
+		cmd.Env = append(os.Environ(), "GOWORK=off", "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local", "CG1_REGTEST=0")
 		if useCore {
 			cmd.Env = append(cmd.Env, "CG1_REGTEST=1", "CG1_RUN_ROOT="+filepath.Join(runDir, name+"-core"))
 		}

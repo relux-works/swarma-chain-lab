@@ -33,7 +33,7 @@ cd kernelbind
 GW_E2E_REGTEST=1 GW_E2E_RUN_ROOT="$PWD/.temp/core-run-01" \
 GW_E2E_CORE_DAEMON=/absolute/path/to/namecoind \
 GW_E2E_CORE_CLI=/absolute/path/to/namecoin-cli \
-GOWORK= GOTOOLCHAIN=go1.26.8 go test -race -count=1 -v -run '^TestGatewayV3CoreE2E$' .
+GOWORK=off GOTOOLCHAIN=go1.26.8 go test -race -count=1 -v -run '^TestGatewayV3CoreE2E$' .
 ```
 
 Create the parent `.temp/` directory first; the run directory must not exist.

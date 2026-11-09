@@ -3,9 +3,6 @@ name: Rental booking checks
 on:
   pull_request:
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/rental-booking/**'
       - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
@@ -14,9 +11,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/rental-booking/**'
       - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
@@ -61,7 +55,7 @@ jobs:
           GOPROXY: 'off'
           GOSUMDB: 'off'
           GOTOOLCHAIN: local
-          GOWORK: ${{ github.workspace }}/go.work
+          GOWORK: 'off'
         run: |
           mkdir -p .temp
           M3_MUTATIONS=1 M3_MUTATION_ROOT="$PWD/.temp/bg1-http-controls" go test -count=1 -run '^TestGuardRemovalControls/(v2-http-origin|v2-service-version|outbox-prefix|outbox-bytes)$' .

@@ -61,6 +61,6 @@ live authority; a booking revoke request does not itself spend a seal.
 ## Tools
 
 Run `go test -race -count=1 ./...` and `go vet ./...` from rental-booking; repeat
-in rental for independent consumer tests. Use GOWORK= with actual sibling
+in rental for independent consumer tests. Use GOWORK=off with actual sibling
 payment-chain, single-use and sealwatch modules. No node or credential is needed
 for the wire suite. Existing frozen v1 tests run in the same suite.

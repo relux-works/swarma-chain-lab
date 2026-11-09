@@ -1,14 +1,11 @@
 name: Station lifecycle checks
 
 env:
-  GOWORK: ${{ github.workspace }}/go.work
+  GOWORK: 'off'
 
 on:
   pull_request:
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/station-lifecycle/**'
       - 'experiments/model-proxy/**'
       - 'experiments/rental-gateway/**'
@@ -22,9 +19,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/station-lifecycle/**'
       - 'experiments/model-proxy/**'
       - 'experiments/rental-gateway/**'

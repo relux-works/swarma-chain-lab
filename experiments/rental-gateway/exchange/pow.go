@@ -2,8 +2,8 @@ package exchange
 
 import (
 	"encoding/hex"
-	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"math/bits"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"strconv"
 )
 

@@ -95,7 +95,7 @@ func (l *lab) command(role, path string, args ...string) ([]byte, int) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	c := exec.CommandContext(ctx, path, args...)
-	c.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOWORK="+filepath.Join(l.repo, "go.work"), "GOPROXY=off", "GOSUMDB=off", "GOFLAGS=-mod=readonly")
+	c.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOWORK=off", "GOPROXY=off", "GOSUMDB=off", "GOFLAGS=-mod=readonly")
 	var out bytes.Buffer
 	c.Stdout = &out
 	c.Stderr = &out

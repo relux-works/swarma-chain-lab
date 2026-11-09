@@ -1,14 +1,11 @@
 name: Rental gateway checks
 
 env:
-  GOWORK: ${{ github.workspace }}/go.work
+  GOWORK: 'off'
 
 on:
   pull_request:
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/signer-service/**'
       - 'experiments/grant-store/**'
       - 'experiments/model-proxy/**'
@@ -24,9 +21,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/signer-service/**'
       - 'experiments/grant-store/**'
       - 'experiments/model-proxy/**'

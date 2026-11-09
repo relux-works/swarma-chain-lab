@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"os"
+	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"time"
 )
 

@@ -3,9 +3,9 @@ package rehearsal
 import (
 	"bytes"
 	_ "embed"
-	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"os"
 	"path/filepath"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 )
 
 //go:embed fixtures/registrar.go.txt

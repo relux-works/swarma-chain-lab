@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"os"
 	"path/filepath"
 	"reflect"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"testing"
 )
 

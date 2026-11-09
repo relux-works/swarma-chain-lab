@@ -2,15 +2,15 @@ name: Scripted station payload checks
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths: ['go.work', 'go.work.sum', 'deploy/workspace/**', 'experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
+    paths: ['experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
   push:
     branches: [main]
-    paths: ['go.work', 'go.work.sum', 'deploy/workspace/**', 'experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
+    paths: ['experiments/station-payload/**', 'experiments/m5-rehearsal/**', 'experiments/model-proxy/**', 'experiments/station-lifecycle/**', 'experiments/rental-gateway/**', '.github/workflows/station-payload.yml']
   workflow_dispatch:
 permissions:
   contents: read
 env:
-  GOWORK: ${{ github.workspace }}/go.work
+  GOWORK: 'off'
 jobs:
   payload:
     strategy:

@@ -2,15 +2,15 @@ name: Rental relay checks
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths: ['go.work', 'go.work.sum', 'deploy/workspace/**', 'experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
+    paths: ['experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
   push:
     branches: [main]
-    paths: ['go.work', 'go.work.sum', 'deploy/workspace/**', 'experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
+    paths: ['experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
   workflow_dispatch:
 permissions:
   contents: read
 env:
-  GOWORK: ${{ github.workspace }}/go.work
+  GOWORK: 'off'
 jobs:
   relay:
     strategy:

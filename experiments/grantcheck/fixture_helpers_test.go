@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"os"
+	"path/filepath"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )

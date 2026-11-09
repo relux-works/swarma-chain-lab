@@ -2,9 +2,9 @@ package rehearsal
 
 import (
 	"encoding/json"
-	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"os"
 	"path/filepath"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"syscall"
 	"testing"
 )
@@ -37,7 +37,7 @@ func (l *lab) releaseIsolation(overlay string) {
 	if m.GOOS != "linux" || m.GOARCH != "amd64" || m.CGO != "0" || m.GoVersion != "go1.26.8" || len(m.Commit) != 40 {
 		t.Fatal("release target mismatch")
 	}
-	_, code := l.command("release product source equality", "git", "-C", l.repo, "diff", "--exit-code", m.Commit, "HEAD", "--", "go.work", "go.work.sum", "deploy", "experiments/rental-gateway", "experiments/rental", "experiments/rental-booking", "experiments/station-lifecycle", "experiments/model-proxy", "experiments/single-use", "experiments/sealwatch", "experiments/payment-chain")
+	_, code := l.command("release product source equality", "git", "-C", l.repo, "diff", "--exit-code", m.Commit, "HEAD", "--", "deploy", "experiments/rental-gateway", "experiments/rental", "experiments/rental-booking", "experiments/station-lifecycle", "experiments/model-proxy", "experiments/single-use", "experiments/sealwatch", "experiments/payment-chain")
 	if code != 0 {
 		t.Fatal("release and rehearsal product source differ")
 	}
@@ -57,7 +57,7 @@ func (l *lab) releaseIsolation(overlay string) {
 	}
 	build := func(name string, useOverlay bool) string {
 		target := filepath.Join(l.private, name)
-		args := []string{"GOENV=off", "GOTOOLCHAIN=local", "GOWORK=" + filepath.Join(l.repo, "go.work"), "GOFLAGS=", "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0", "GOEXPERIMENT=", "GOAMD64=v1", "GOPROXY=off", "GOSUMDB=off", "go", "-C", filepath.Join(l.repo, "experiments/rental-gateway"), "build", "-trimpath", "-buildvcs=false", "-mod=readonly", "-o", target}
+		args := []string{"GOENV=off", "GOTOOLCHAIN=local", "GOWORK=off", "GOFLAGS=", "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0", "GOEXPERIMENT=", "GOAMD64=v1", "GOPROXY=off", "GOSUMDB=off", "go", "-C", filepath.Join(l.repo, "experiments/rental-gateway"), "build", "-trimpath", "-buildvcs=false", "-mod=readonly", "-o", target}
 		if useOverlay {
 			args = append(args, "-overlay", overlay)
 		}

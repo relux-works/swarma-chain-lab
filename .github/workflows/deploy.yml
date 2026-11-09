@@ -1,7 +1,7 @@
 name: Deploy kit checks
 
 env:
-  GOWORK: ${{ github.workspace }}/go.work
+  GOWORK: 'off'
   GOTOOLCHAIN: local
   GOPROXY: 'off'
   GOSUMDB: 'off'
@@ -9,9 +9,6 @@ env:
 on:
   pull_request:
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'deploy/**'
       - 'experiments/relay/**'
       - 'experiments/rental-gateway/**'
@@ -26,9 +23,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'deploy/**'
       - 'experiments/relay/**'
       - 'experiments/rental-gateway/**'

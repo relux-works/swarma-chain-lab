@@ -4,11 +4,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
 	"syscall"
 	"time"
 )

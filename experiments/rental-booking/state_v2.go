@@ -1,8 +1,8 @@
 package booking
 
 import (
-	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	"math"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 )
 
 // Validate persisted invariants before exporting any package or request. Version

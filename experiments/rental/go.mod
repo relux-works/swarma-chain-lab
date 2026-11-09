@@ -21,3 +21,11 @@ require (
 	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.1.0
 	golang.org/x/sys v0.47.0 // indirect
 )
+
+replace github.com/relux-works/swarma-chain-lab/experiments/sealwatch => ../sealwatch
+
+replace github.com/relux-works/swarma-chain-lab/experiments/single-use => ../single-use
+
+replace github.com/relux-works/swarma-chain-lab/experiments/payment-chain => ../payment-chain
+
+replace github.com/relux-works/swarma-chain-lab/experiments/rental-booking => ../rental-booking

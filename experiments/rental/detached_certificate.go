@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"golang.org/x/crypto/ripemd160"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // DetachedCertificate is the version-2 signed LIP-0003 payload. Optional

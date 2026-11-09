@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
 	"os"
 	"path/filepath"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
 	"strings"
 	"testing"
 

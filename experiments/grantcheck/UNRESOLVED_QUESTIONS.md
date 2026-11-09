@@ -31,6 +31,7 @@ routing test on Go 1.25 is not a compatibility claim for the complete checker.
 
 Publication must also make the complete transitive module graph resolvable by an
 external consumer. In-tree relative replaces are not inherited by consumers;
-tagged versions and their repository/module-path resolution need validation
+The GitHub module paths and complete v0.1.0 tag set described in the root README
+need a public remote consumer check
 before claiming that a2a-link can import CG1. No producer push/tag publication is
 authorized by this task. The maintainers own review and release coordination.

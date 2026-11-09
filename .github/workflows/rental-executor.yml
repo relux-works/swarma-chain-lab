@@ -1,13 +1,7 @@
-env:
-  GOWORK: ${{ github.workspace }}/go.work
-
 name: Rental executor checks
 on:
   pull_request:
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/rental-executor/**'
       - 'experiments/rental/**'
       - 'experiments/rental-booking/**'
@@ -18,9 +12,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'go.work'
-      - 'go.work.sum'
-      - 'deploy/workspace/**'
       - 'experiments/rental-executor/**'
       - 'experiments/rental/**'
       - 'experiments/rental-booking/**'

@@ -3,9 +3,9 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"os"
 	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
-	"os"
 	"time"
 )
 

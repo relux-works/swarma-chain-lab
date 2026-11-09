@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
-	relay "github.com/relux-works/swarma-chain-lab/experiments/relay"
 	"os"
 	"path/filepath"
+	relay "github.com/relux-works/swarma-chain-lab/experiments/relay"
 	"testing"
 )
 

@@ -3,7 +3,6 @@ package wallet
 import (
 	"context"
 	"encoding/json"
-	"github.com/relux-works/swarma-chain-lab/deploy/workspace"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -100,10 +99,6 @@ func TestGuardPlants(t *testing.T) {
 			if e = os.WriteFile(file, []byte(mutated), 0600); e != nil {
 				t.Fatal(e)
 			}
-			fixtureWork, e := workspace.Isolate(cwd, dir)
-			if e != nil {
-				t.Fatal(e)
-			}
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
 			selector := "^" + strings.ReplaceAll(p.Selector, "/", "$/^") + "$"
@@ -114,7 +109,7 @@ func TestGuardPlants(t *testing.T) {
 					cmd.Env = append(cmd.Env, v)
 				}
 			}
-			cmd.Env = append(cmd.Env, "GOWORK="+fixtureWork)
+			cmd.Env = append(cmd.Env, "GOWORK=off")
 			if p.Core {
 				cmd.Env = append(cmd.Env, "W1_REGTEST=1", "W1_RUN_ROOT="+filepath.Join(dir, "core"), "W1_CORE_CLI="+os.Getenv("W1_CORE_CLI"), "W1_CORE_DAEMON="+os.Getenv("W1_CORE_DAEMON"))
 			}

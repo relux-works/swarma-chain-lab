@@ -76,7 +76,9 @@ never queue a live verdict as a reusable permission token.
   Core state directories, including wallet and RPC configuration.
 - `gofmt -l *.go .scripts/*.go` and `git diff --check` check formatting.
 
-This checkout uses in-tree replaces for the existing experimental modules.
+This checkout uses GitHub module paths, sibling v0.1.0 requirements and relative
+replaces for in-repository builds. External consumers ignore those replaces.
+See the [initial tag and consumer procedure](../../README.md#initial-tag-set-and-publication-order).
 Tagged external publication is a release prerequisite owned by the maintainers in
 [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md); in-tree success alone does not
 prove a remote consumer can resolve the complete transitive module graph.

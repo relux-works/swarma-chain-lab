@@ -105,8 +105,8 @@ Curator deployment to pin paths; it makes no sandbox or custody guarantee.
 [Rental gateway](experiments/rental-gateway/README.md) routes authenticated NIP-17
 messages to separate renter stations after fresh K1 v3 grant checks. Its nested
 `kernelbind` module uses the in-tree rental kernel, landlord/agent policy pins
-and stable signed-grant IDs. From each module run `GOWORK= go vet ./...` and
-`GOWORK= go test -race ./...`; build the configured CLI from the gateway module with
+and stable signed-grant IDs. From each module run `GOWORK=off go vet ./...` and
+`GOWORK=off go test -race ./...`; build the configured CLI from the gateway module with
 `go build -trimpath -o .temp/gateway ./cmd/gateway`. The module README documents
 the opt-in issuer-driven Core regtest test, private/public output boundaries
 and required tool paths. Scratch builds and logs belong in `.temp/`.
@@ -131,7 +131,7 @@ watch-only derivation, frozen USD quotes and bounded independent payment reads.
 separate issuer routes before the existing grant burns/signatures. NMC execution
 budget and Namecoin grant authority remain separate from the fee currency.
 
-Run `GOWORK= go test -race ./...` and `go vet ./...` in payment-chain,
+Run `GOWORK=off go test -race ./...` and `go vet ./...` in payment-chain,
 rental-booking and rental. The genuine-node TestCorePaymentLifecycle entrypoint,
 pinned binary inputs, private/public output separation and supported replacement
 limits are documented in the rental and payment-chain READMEs. Existing v1 CLI
@@ -230,3 +230,92 @@ The [startup ordering gap](experiments/m5-rehearsal/GAP-IT2-STARTUP.md) records
 historical failures. SR1 fixed startup admission; RK1 fixed relay liveness and
 expiry across transport loss. The current witness checks admission during an
 active Starting attempt, including rejection of an incorrect credential.
+
+## Go modules and releases
+
+The 19 modules use `github.com/relux-works/swarma-chain-lab/<directory>` paths.
+Each sibling requirement is `v0.1.0`. Relative directory `replace` directives
+are for builds inside this repository: Go ignores a dependency module's replaces
+when another module imports it. External consumers require the published module
+versions, without their own replaces or a workspace. There is no root Go module
+or committed workspace; use Go 1.26.8 and `GOWORK=off` from each module directory.
+The pinned `experiments/namecoin-mail-source/pins/ncdns.go.mod` is third-party
+input and is not a module maintained by this repository.
+
+For example, from the repository root:
+
+```sh
+GOWORK=off go -C experiments/grantcheck mod download
+GOWORK=off go -C experiments/grantcheck mod verify
+GOWORK=off go -C experiments/grantcheck vet ./...
+GOWORK=off go -C experiments/grantcheck test -race -count=1 ./...
+GOWORK=off go -C experiments/rental-gateway/kernelbind test -race -count=1 ./...
+```
+
+Existing module guard scripts use copied modules and the same relative sibling
+layout, so mutations exercise those copies. Deployment uses two independent
+source archives with separate build caches. Import-path changes alter binary
+hashes through Go package names and build metadata; build a new release manifest
+and use its payload pins. Matching two builds of the new source and rejecting the
+rehearsal overlay remain required; old binary hashes are not expected to survive
+a module-path migration. See [deploy](deploy/README.md) and the
+[rehearsal release-isolation check](experiments/m5-rehearsal/README.md).
+
+### Initial tag set and publication order
+
+The release maintainer creates author-signed `<directory>/v0.1.0` tags for every
+module below, all pointing to the same independently reviewed, tested and landed
+commit. The module graph contains cycles, so make the complete tag set available
+together; use an atomic push of the explicit tag refs where supported. Never
+publish a partial set, move a published tag, or advertise external importability
+before the public consumer check passes. This first v0 release is experimental
+and makes no stable API promise.
+
+- `deploy/v0.1.0`
+- `experiments/agent-wallet/v0.1.0`
+- `experiments/grant-store/v0.1.0`
+- `experiments/grantcheck/v0.1.0`
+- `experiments/m5-rehearsal/v0.1.0`
+- `experiments/model-proxy/v0.1.0`
+- `experiments/payment-chain/v0.1.0`
+- `experiments/relay/v0.1.0`
+- `experiments/rental/v0.1.0`
+- `experiments/rental-booking/v0.1.0`
+- `experiments/rental-executor/v0.1.0`
+- `experiments/rental-gateway/v0.1.0`
+- `experiments/rental-gateway/kernelbind/v0.1.0`
+- `experiments/sealwatch/v0.1.0`
+- `experiments/signer-service/v0.1.0`
+- `experiments/single-use/v0.1.0`
+- `experiments/station-lifecycle/gatewaybind/v0.1.0`
+- `experiments/station-lifecycle/v0.1.0`
+- `experiments/station-payload/v0.1.0`
+
+Before publication, validate an exact candidate through a disposable local bare
+mirror with signed tags, a process-local Git URL rewrite to its `file://` URL,
+and a separate module cache. Do not push that mirror. The scratch consumer must
+use `GOWORK=off`, have no `replace`, import both grantcheck and kernelbind, and
+build from the tag graph. This proves local VCS resolution only. Delete the
+mirror after retaining its candidate, tag list, signatures and check results.
+
+Do not commit sibling ZIP or go.mod checksums produced by that scratch consumer
+back into repository modules. Repository builds use directory replacements;
+consumers maintain their own sums. In particular, initial same-commit cyclic
+sibling ZIP sums would refer to a tree that changes when those sums are added.
+Keep existing third-party checksums and versions pinned.
+
+After landing, the maintainer publishes the complete signed tag set and repeats
+the no-replace/no-workspace consumer check against the actual remote before
+announcing availability. For an external scratch module after publication:
+
+```sh
+go mod init example.com/chain-consumer
+GOWORK=off GOFLAGS=-mod=mod go get github.com/relux-works/swarma-chain-lab/experiments/grantcheck@v0.1.0 github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind@v0.1.0
+# Add a program importing both packages, then:
+GOWORK=off GOFLAGS=-mod=mod go build ./...
+```
+
+For later releases, choose new versions for changed modules and update their
+consumers explicitly; validate the complete selected graph before tagging.
+Logs, consumer fixtures, mirrors and release artifacts belong under task-scoped
+`.temp/` directories and must not contain credentials or private runtime state.

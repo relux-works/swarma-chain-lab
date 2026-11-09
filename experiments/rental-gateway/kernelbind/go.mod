@@ -16,9 +16,28 @@ require (
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.1.0 // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.1.0
 	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.1.0
 	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.1.0 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
+
+// In-tree siblings: the landed detached kernel and its stack.
+replace github.com/relux-works/swarma-chain-lab/experiments/rental => ../../rental
+
+replace github.com/relux-works/swarma-chain-lab/experiments/single-use => ../../single-use
+
+replace github.com/relux-works/swarma-chain-lab/experiments/sealwatch => ../../sealwatch
+
+replace github.com/relux-works/swarma-chain-lab/experiments/rental-gateway => ../
+
+replace github.com/relux-works/swarma-chain-lab/experiments/payment-chain => ../../payment-chain
+
+replace github.com/relux-works/swarma-chain-lab/experiments/rental-booking => ../../rental-booking
+
+replace github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle => ../../station-lifecycle
+
+replace github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind => ../../station-lifecycle/gatewaybind
+
+replace github.com/relux-works/swarma-chain-lab/experiments/model-proxy => ../../model-proxy

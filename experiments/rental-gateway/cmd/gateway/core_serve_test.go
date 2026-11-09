@@ -5,11 +5,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	"strconv"
 	"strings"
 	"testing"
@@ -59,7 +59,7 @@ func TestCoreServe(t *testing.T) {
 	buildctx, buildcancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer buildcancel()
 	build := exec.CommandContext(buildctx, "go", "build", "-race", "-trimpath", "-buildvcs=false", "-o", binary, ".")
-	build.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOPROXY=off")
+	build.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOWORK=off", "GOPROXY=off")
 	if e := build.Run(); e != nil {
 		l.recordCmd(build)
 		t.Fatal("actual CLI build", e)

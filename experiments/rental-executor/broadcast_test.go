@@ -3,10 +3,10 @@ package executor
 import (
 	"context"
 	"encoding/json"
-	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"strconv"
 	"strings"
 	"testing"

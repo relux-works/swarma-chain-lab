@@ -24,4 +24,12 @@ require (
 	golang.org/x/crypto v0.55.0 // indirect
 )
 
-require github.com/relux-works/swarma-chain-lab/deploy v0.1.0
+replace github.com/relux-works/swarma-chain-lab/experiments/single-use => ../single-use
+
+replace github.com/relux-works/swarma-chain-lab/experiments/sealwatch => ../sealwatch
+
+replace github.com/relux-works/swarma-chain-lab/experiments/rental => ../rental
+
+replace github.com/relux-works/swarma-chain-lab/experiments/payment-chain => ../payment-chain
+
+replace github.com/relux-works/swarma-chain-lab/experiments/rental-booking => ../rental-booking
