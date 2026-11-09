@@ -27,7 +27,7 @@ type fakeHost struct {
 	slot          lifecycle.Slot
 }
 
-func (h *fakeHost) Start(_ context.Context, s lifecycle.Slot) error {
+func (h *fakeHost) Start(_ context.Context, s lifecycle.Slot, _ func(lifecycle.CreateFence) error) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.starts++
@@ -35,7 +35,7 @@ func (h *fakeHost) Start(_ context.Context, s lifecycle.Slot) error {
 	h.slot = s
 	return nil
 }
-func (h *fakeHost) Stop(context.Context, lifecycle.Slot, bool) error {
+func (h *fakeHost) Stop(context.Context, lifecycle.Slot, bool, *lifecycle.CreateFence) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.stops++

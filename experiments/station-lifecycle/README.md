@@ -24,21 +24,24 @@ ranges and matching operator-approved helper policy.
 The manager persists starting intent before helper effects. Same-binding retries
 are idempotent; conflicts and terminal starts refuse. Unknown ID-only Stop refuses;
 an authenticated fully bound Stop first asks the helper to establish cleanup.
-Absence counts as clean only if durable state proves no Start attempt. After a
-Start attempt, the matching destroyed record is required: a timed-out Create may
-still execute after a later absent observation, since r2 has no cancellation fence.
-A failed request that actually had no effect can therefore remain pending for
-operator reconciliation; uncertainty never becomes claimed cleanup. Failed or interrupted cleanup stays pending and retries. Closed fixed
+Before sending Create the manager fsyncs its exact host boot_id and
+CLOCK_BOOTTIME nanoseconds. An absent status proves cleanup only if no Start was
+attempted, or its probe began after that same boot's issued time + 6 s, or a
+verified boot change makes the old request impossible. Early probes can still
+clean a stored matching resource, but their absence cannot become proof merely
+because the deadline passed while the probe was in flight. Busy always stays
+pending. A restart resumes the saved fence, never generates a fresh timestamp
+for the old request. Legacy r2 attempts with no recorded fence remain pending
+unless the helper confirms this binding destroyed.
+Failed or interrupted cleanup stays pending and retries. Closed fixed
 errors do not echo helper input, keys or request bodies. Bootstrap bytes remain
 private in 0600 records under existing owner-controlled 0700 directories protected
 by exclusive locks; terminal records retain binding hashes and erase credentials.
 
-The exact helper wire is v1 revision 2, document SHA256
-`9bbccabe81782cfd9a9ac869715646adfb6b0d955d14d75fd1756ddd513554d4`.
-This candidate deliberately retains safe pending cleanup on r2; the later
-CLOCK_BOOTTIME/boot_id freshness fence requires a separate versioned binding and
-validation. It is one canonical JSON line, at most 8192 bytes, per Unix connection. Requests
-are only create/start/stop/status/destroy. Create adds deadline and at most 4096
+The exact helper wire is v1 revision 4, document SHA256
+`8c09cc17b8e0bdd9f7482f4ea2e1b553213fb94c20002bfb9d3f15ed61a7fe15`.
+It is one canonical JSON line, at most 8192 bytes, per Unix connection. Requests
+are only create/start/stop/status/destroy. Create adds boot_id, issued_boottime_ns, deadline and at most 4096
 opaque decoded bootstrap bytes; it carries no path, user, argv, environment,
 resource property, egress policy or arbitrary command. Root-owned helper policy
 is the sole source of host authority. Stored-state responses bind deadline,
@@ -46,6 +49,13 @@ payload SHA256 and bootstrap SHA256. The adapter checks them before Start or
 owned cleanup. A partial create with a rejected payload can be cleaned only when
 its deadline and bootstrap still prove ownership. A helper `failed` state stays
 pending for operator reconciliation; this adapter never automatically destroys it.
+
+The Linux host reads `/proc/sys/kernel/random/boot_id` and CLOCK_BOOTTIME; there
+is no wall-clock or per-process monotonic fallback. R4 validates freshness after
+a nonblocking per-slot lock: more than 5 s old, more than 1 s ahead, or another
+boot refuses stale_request. Busy means a same-slot request is executing. A fresh
+request delayed by fsync or scheduling can safely refuse rather than regenerate
+its timestamp after persistence. The helper must implement this exact contract.
 
 The Linux client checks root ownership, socket 0660, parent directory 0750 and the
 connected root SO_PEERCRED. The helper independently admits only its configured
@@ -117,11 +127,12 @@ Use Go 1.26.8 with `GOWORK=off`. From this directory:
 
 ```sh
 go mod verify
+go list -mod=readonly -m all
 go vet ./...
 go test -race -count=1 ./...
 go build -trimpath -o .temp/station-manager ./cmd/station-manager
 go run .scripts/guards.go -out .temp/guards
-(cd gatewaybind && go mod verify && go vet ./... && go test -race -count=1 ./...)
+(cd gatewaybind && go mod verify && go list -mod=readonly -m all && go vet ./... && go test -race -count=1 ./...)
 ```
 
 The guard driver copies modules under `.temp/`, applies one bounded violation at a
@@ -148,7 +159,7 @@ this repository supplies no installation or sudo command.
 
 ## Evidence limits
 
-Tests exercise fake host/helper state, the actual r2 stream codec, actual loopback
+Tests exercise fake host/helper state, the actual r4 stream codec, actual loopback
 TLS, durable recovery and the gateway adapter with a stub kernel. Linux cross-build
 checks compile compatibility only. They do not prove Linux user/systemd/nftables
 isolation, actual helper interoperability, real payload/model access or a deployed

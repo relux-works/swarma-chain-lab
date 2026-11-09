@@ -152,7 +152,7 @@ func run(ctx context.Context, args []string) error {
 	if e != nil {
 		return e
 	}
-	m, e := lifecycle.New(lifecycle.Config{StateDir: c.StateDir, Range: lifecycle.Range{First: c.SlotMin, Last: c.SlotMax}, Payload: lifecycle.Payload{ID: c.PayloadID, SHA256: c.PayloadSHA256}, Host: &slotd.Host{Client: helper, Now: time.Now}, Now: time.Now})
+	m, e := lifecycle.New(lifecycle.Config{StateDir: c.StateDir, Range: lifecycle.Range{First: c.SlotMin, Last: c.SlotMax}, Payload: lifecycle.Payload{ID: c.PayloadID, SHA256: c.PayloadSHA256}, Host: &slotd.Host{Client: helper, Now: time.Now, BootClock: slotd.SystemBootClock}, Now: time.Now})
 	if e != nil {
 		return e
 	}

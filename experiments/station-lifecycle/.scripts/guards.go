@@ -22,6 +22,11 @@ import (
 type plant struct{ Name, Module, File, Old, New, Package, Test, Witness string }
 
 var plants = []plant{
+	{"r4_six_seconds", "core", "fence.go", "current-issued >= 6_000_000_000", "current-issued >= 5_000_000_000", ".", "TestCreateFence", "early or regressed clock proved absence"},
+	{"r4_persist_before_send", "core", "manager.go", "r.CreateFence = &f\n\t\tm.state.Records[s.ID] = r\n\t\treturn m.save()", "r.CreateFence = &f\n\t\tm.state.Records[s.ID] = r\n\t\treturn nil", "./slotd", "TestR4UncertainRecovery/absent", "create sent before durable fence"},
+	{"r4_clock_proof", "core", "slotd/host.go", "if e == nil && fence.Elapsed(now) {", "if e == nil && (fence.Elapsed(now) || true) {", "./slotd", "TestR4StatusProbeOrdering", "pre-fence absence retroactively accepted"},
+	{"r4_boot_identity", "core", "fence.go", "if f.BootID != now.BootID {", "if f.BootID != now.BootID && false {", ".", "TestCreateFence", "reboot did not invalidate old request"},
+
 	{"uncertain_absence", "core", "slotd/host.go", "if !allowAbsent {", "if !allowAbsent && false {", "./slotd", "TestUncertainCreateAbsence", "uncertain absence claimed clean"},
 
 	{"durable_intent", "core", "manager.go", "if e := m.save(); e != nil {\n\t\treturn recordStatus(r), e\n\t}\n\tbudget :=", "budget :=", ".", "TestManagerLifecycle", "host effect before durable intent"},

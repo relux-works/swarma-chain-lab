@@ -1,12 +1,11 @@
 # External inputs and unverified behavior
 
-- This candidate intentionally binds r2 with the safe pending rule. Wall-clock
-  freshness in proposed r3 cannot prove permanent absence across a backward
-  clock step. A follow-up must bind the stable r4 CLOCK_BOOTTIME + boot_id fence,
-  with restart/reboot and delayed-processing controls. Do not mix this codec
-  with a helper requiring the later request fields or claim deployment readiness.
+- This candidate binds stable r4 CLOCK_BOOTTIME + boot_id. Actual helper
+  interoperability and Linux boot-clock execution remain external validation.
+  No r2/r3 fallback or timestamp regeneration is provided. Legacy r2 attempts
+  without a durable fence remain pending until matching destroyed evidence.
 - The Infra-owned swarma-slotd-demo implementation and root policy must receive
-  their own exact-head review and Linux controls. This client binds protocol v1 r2
+  their own exact-head review and Linux controls. This client binds protocol v1 r4
   (hash in README); no real helper, user, systemd unit, nftables rule or VM was
   exercised by the macOS controls. Cross-compilation is not runtime verification.
 - Operator inputs: disjoint numeric ranges, fixed payload/hash, root helper
@@ -19,11 +18,8 @@
   not a real rented agent.
 - GW1 owns the serve listener and bounded inbound worker. Integrate the signed
   adapter head there, then independently validate the resulting exact head.
-- A helper failed state or absence after an uncertain Start attempt needs operator
-  reconciliation. Protocol r2 cannot fence a delayed Create using status=absent.
-  The adapter requires a matching destroyed record after any Start attempt.
-  A helper failed state needs operator reconciliation. Do not reset journals or
-  recycle a retained number to bypass it. A manager journal byte limit can bind
-  before the 64-record limit when bootstrap documents are large.
+- A helper failed state or unfenced legacy attempt needs operator reconciliation.
+  Do not reset journals or recycle a retained number to bypass it. A manager
+  journal byte limit can bind before 64 records when bootstrap documents are large.
 - Replace this demo adapter when platform user-manager / curator-run lifecycle
   ships; relay changes must not pull gateway/a2a types into the core slot API.

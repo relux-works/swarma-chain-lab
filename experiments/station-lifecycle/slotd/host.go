@@ -8,10 +8,11 @@ import (
 )
 
 // Host translates lifecycle operations to typed helper calls. PayloadID is an
-// operator label; only the payload hash is reported/verified by protocol v1 r2.
+// operator label; only the payload hash is reported/verified by protocol v1 r4.
 type Host struct {
-	Client Caller
-	Now    func() time.Time
+	Client    Caller
+	Now       func() time.Time
+	BootClock func() (lifecycle.CreateFence, error)
 }
 
 func (h *Host) call(ctx context.Context, r Request) (Response, error) {
@@ -30,7 +31,7 @@ func (h *Host) call(ctx context.Context, r Request) (Response, error) {
 func bound(r Response, s lifecycle.Slot, checkPayload bool) bool {
 	return r.Slot == s.ID && r.NotAfter == time.Unix(s.NotAfter, 0).UTC().Format(time.RFC3339) && r.BootstrapSHA256 == sum(s.Bootstrap) && (!checkPayload || r.PayloadSHA256 == s.PayloadSHA256)
 }
-func (h *Host) Start(ctx context.Context, s lifecycle.Slot) error {
+func (h *Host) Start(ctx context.Context, s lifecycle.Slot, record func(lifecycle.CreateFence) error) error {
 	if h.Now == nil || s.NotAfter-h.Now().Unix() <= 60 {
 		return failure("SLOTD_WINDOW")
 	}
@@ -39,9 +40,20 @@ func (h *Host) Start(ctx context.Context, s lifecycle.Slot) error {
 		return e
 	}
 	if r.State == "absent" {
+		if h.BootClock == nil || record == nil {
+			return failure("SLOTD_CLOCK")
+		}
+		fence, e := h.BootClock()
+		if e != nil || !fence.Valid() {
+			return failure("SLOTD_CLOCK")
+		}
+		// Persist before sending; a failed write cannot authorize any Create.
+		if e = record(fence); e != nil {
+			return failure("SLOTD_FENCE_WRITE")
+		}
 		until := time.Unix(s.NotAfter, 0).UTC().Format(time.RFC3339)
 		bootstrap := base64.StdEncoding.EncodeToString(s.Bootstrap)
-		r, e = h.call(ctx, Request{V: 1, Op: "create", Slot: s.ID, NotAfter: &until, Bootstrap: &bootstrap})
+		r, e = h.call(ctx, Request{V: 1, Op: "create", Slot: s.ID, BootID: &fence.BootID, IssuedBoottimeNS: &fence.IssuedBoottimeNS, NotAfter: &until, Bootstrap: &bootstrap})
 		if e != nil {
 			return e
 		}
@@ -67,7 +79,15 @@ func (h *Host) Start(ctx context.Context, s lifecycle.Slot) error {
 	}
 	return nil
 }
-func (h *Host) Stop(ctx context.Context, s lifecycle.Slot, allowAbsent bool) error {
+func (h *Host) Stop(ctx context.Context, s lifecycle.Slot, allowAbsent bool, fence *lifecycle.CreateFence) error {
+	// Snapshot before status. Crossing +6s during an early status probe cannot
+	// retroactively prove absence. Early probes may still clean a bound record.
+	if !allowAbsent && fence != nil && h.BootClock != nil {
+		now, e := h.BootClock()
+		if e == nil && fence.Elapsed(now) {
+			allowAbsent = true
+		}
+	}
 	r, e := h.call(ctx, Request{V: 1, Op: "status", Slot: s.ID})
 	if e != nil {
 		return e

@@ -21,7 +21,7 @@ type fakeHost struct {
 	beforeStart         func(Slot)
 }
 
-func (h *fakeHost) Start(_ context.Context, s Slot) error {
+func (h *fakeHost) Start(_ context.Context, s Slot, _ func(CreateFence) error) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.beforeStart != nil {
@@ -34,7 +34,7 @@ func (h *fakeHost) Start(_ context.Context, s Slot) error {
 	}
 	return nil
 }
-func (h *fakeHost) Stop(_ context.Context, s Slot, _ bool) error {
+func (h *fakeHost) Stop(_ context.Context, s Slot, _ bool, _ *CreateFence) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.stops++

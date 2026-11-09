@@ -1,4 +1,4 @@
-// Package slotd binds the Infra-owned demo helper's v1 r2 wire. It executes no
+// Package slotd binds the Infra-owned demo helper's v1 r4 wire. It executes no
 // OS command and carries no user/path/argv/egress or unit property in requests.
 package slotd
 
@@ -14,19 +14,23 @@ import (
 	"net"
 	"strconv"
 	"time"
+
+	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
 )
 
 const MaxWire = 8192
 
-// ProtocolSHA256 pins the reviewed input document; wire v remains1 in r2.
-const ProtocolSHA256 = "9bbccabe81782cfd9a9ac869715646adfb6b0d955d14d75fd1756ddd513554d4"
+// ProtocolSHA256 pins the reviewed input document; wire v remains 1 in r4.
+const ProtocolSHA256 = "8c09cc17b8e0bdd9f7482f4ea2e1b553213fb94c20002bfb9d3f15ed61a7fe15"
 
 type Request struct {
-	V         int     `json:"v"`
-	Op        string  `json:"op"`
-	Slot      string  `json:"slot"`
-	NotAfter  *string `json:"not_after,omitempty"`
-	Bootstrap *string `json:"bootstrap,omitempty"`
+	V                int     `json:"v"`
+	Op               string  `json:"op"`
+	Slot             string  `json:"slot"`
+	BootID           *string `json:"boot_id,omitempty"`
+	IssuedBoottimeNS *string `json:"issued_boottime_ns,omitempty"`
+	NotAfter         *string `json:"not_after,omitempty"`
+	Bootstrap        *string `json:"bootstrap,omitempty"`
 }
 type Response struct {
 	V               int    `json:"v"`
@@ -63,7 +67,10 @@ func ValidRequest(r Request) bool {
 	}
 	switch r.Op {
 	case "create":
-		if r.NotAfter == nil || r.Bootstrap == nil {
+		if r.NotAfter == nil || r.Bootstrap == nil || r.BootID == nil || r.IssuedBoottimeNS == nil {
+			return false
+		}
+		if !(lifecycle.CreateFence{BootID: *r.BootID, IssuedBoottimeNS: *r.IssuedBoottimeNS}).Valid() {
 			return false
 		}
 		t, e := time.Parse(time.RFC3339, *r.NotAfter)
@@ -73,7 +80,7 @@ func ValidRequest(r Request) bool {
 		b, e := base64.StdEncoding.DecodeString(*r.Bootstrap)
 		return e == nil && len(b) <= 4096 && base64.StdEncoding.EncodeToString(b) == *r.Bootstrap
 	case "start", "stop", "status", "destroy":
-		return r.NotAfter == nil && r.Bootstrap == nil
+		return r.NotAfter == nil && r.Bootstrap == nil && r.BootID == nil && r.IssuedBoottimeNS == nil
 	default:
 		return false
 	}
@@ -112,7 +119,7 @@ func decodeResponse(raw []byte, slot string) (Response, error) {
 			return Response{}, failure("SLOTD_RESPONSE")
 		}
 		switch r.Error {
-		case "bad_request", "forbidden_peer", "invalid_slot", "invalid_not_after", "invalid_bootstrap", "conflict", "invalid_state", "expired", "unit_active", "busy", "internal":
+		case "stale_request", "bad_request", "forbidden_peer", "invalid_slot", "invalid_not_after", "invalid_bootstrap", "conflict", "invalid_state", "expired", "unit_active", "busy", "internal":
 		default:
 			return Response{}, failure("SLOTD_RESPONSE")
 		}

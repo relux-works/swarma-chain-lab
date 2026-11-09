@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	lifecycle "relux.works/swarma-chain-lab/experiments/station-lifecycle"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,9 @@ import (
 type fakeHelper struct {
 	mu      sync.Mutex
 	now     int64
+	bootID  string
+	bootNS  uint64
+	busy    bool
 	payload string
 	records map[string]Response
 	ops     []string
@@ -35,6 +39,9 @@ func (h *fakeHelper) reply(q Request) Response {
 	refuse := func(code string) Response {
 		return Response{V: 1, OK: false, Slot: q.Slot, Error: code, NotAfter: r.NotAfter, PayloadSHA256: r.PayloadSHA256, BootstrapSHA256: r.BootstrapSHA256}
 	}
+	if h.busy {
+		return refuse("busy")
+	}
 	if !ValidRequest(q) {
 		return refuse("bad_request")
 	}
@@ -42,6 +49,10 @@ func (h *fakeHelper) reply(q Request) Response {
 	case "status":
 		return r
 	case "create":
+		issued, _ := strconv.ParseUint(*q.IssuedBoottimeNS, 10, 64)
+		if *q.BootID != h.bootID || (h.bootNS >= issued && h.bootNS-issued > 5_000_000_000) || (issued > h.bootNS && issued-h.bootNS > 1_000_000_000) {
+			return refuse("stale_request")
+		}
 		until, e := time.Parse(time.RFC3339, *q.NotAfter)
 		if e != nil || until.Unix() <= h.now+60 || until.Unix() > h.now+7*86400 {
 			return refuse("invalid_not_after")
@@ -114,24 +125,26 @@ func fakeClient(t *testing.T, h *fakeHelper) *Client {
 }
 func fixture(t *testing.T) (*Host, *fakeHelper, lifecycle.Slot) {
 	t.Helper()
-	h := &fakeHelper{now: 100, payload: strings.Repeat("a", 64), records: map[string]Response{}}
-	host := &Host{Client: fakeClient(t, h), Now: func() time.Time { return time.Unix(h.now, 0) }}
+	h := &fakeHelper{now: 100, bootID: "0f8e1c3a-6b2d-4e7f-9a1b-2c3d4e5f6a7b", bootNS: 10_000_000_000, payload: strings.Repeat("a", 64), records: map[string]Response{}}
+	host := &Host{Client: fakeClient(t, h), Now: func() time.Time { return time.Unix(h.now, 0) }, BootClock: func() (lifecycle.CreateFence, error) {
+		return lifecycle.CreateFence{BootID: h.bootID, IssuedBoottimeNS: strconv.FormatUint(h.bootNS, 10)}, nil
+	}}
 	s := lifecycle.Slot{Version: 1, ID: "17", GrantID: strings.Repeat("b", 64), NotBefore: 90, NotAfter: 300, PayloadID: "relay", PayloadSHA256: h.payload, Bootstrap: lifecycle.Secret(strings.Repeat("c", 32))}
 	return host, h, s
 }
 
-// Real stream encoding reaches a fake helper with the r2 field order/binding.
+// Real stream encoding reaches a fake helper with the r4 field order/binding.
 // Start has no arbitrary arguments; repeated start and cleanup are idempotent.
 func TestHostLifecycle(t *testing.T) {
 	host, h, s := fixture(t)
 	ctx := context.Background()
-	if e := host.Start(ctx, s); e != nil {
+	if e := host.Start(ctx, s, func(lifecycle.CreateFence) error { return nil }); e != nil {
 		t.Fatal(e)
 	}
 	if h.records[s.ID].State != "running" {
 		t.Fatal("not started")
 	}
-	if e := host.Start(ctx, s); e != nil {
+	if e := host.Start(ctx, s, func(lifecycle.CreateFence) error { return nil }); e != nil {
 		t.Fatal(e)
 	}
 	creates := 0
@@ -143,10 +156,10 @@ func TestHostLifecycle(t *testing.T) {
 	if creates != 1 {
 		t.Fatal("duplicate helper create")
 	}
-	if e := host.Stop(ctx, s, false); e != nil || h.records[s.ID].State != "destroyed" {
+	if e := host.Stop(ctx, s, false, nil); e != nil || h.records[s.ID].State != "destroyed" {
 		t.Fatal("cleanup not proven", e)
 	}
-	if e := host.Stop(ctx, s, false); e != nil {
+	if e := host.Stop(ctx, s, false, nil); e != nil {
 		t.Fatal("idempotent cleanup", e)
 	}
 	if state, e := host.Status(ctx, s); e != nil || state != "stopped" {
@@ -161,7 +174,7 @@ func TestHostBindings(t *testing.T) {
 	t.Run("payload", func(t *testing.T) {
 		host, h, s := fixture(t)
 		s.PayloadSHA256 = strings.Repeat("d", 64)
-		if e := host.Start(context.Background(), s); e == nil || e.Error() != "SLOTD_BINDING" {
+		if e := host.Start(context.Background(), s, func(lifecycle.CreateFence) error { return nil }); e == nil || e.Error() != "SLOTD_BINDING" {
 			t.Fatal("wrong payload started", e)
 		}
 		for _, op := range h.ops {
@@ -169,14 +182,14 @@ func TestHostBindings(t *testing.T) {
 				t.Fatal("wrong payload reached start")
 			}
 		}
-		if e := host.Stop(context.Background(), s, false); e != nil || h.records[s.ID].State != "destroyed" {
+		if e := host.Stop(context.Background(), s, false, nil); e != nil || h.records[s.ID].State != "destroyed" {
 			t.Fatal("partial owned create not cleaned", e)
 		}
 	})
 	for _, field := range []string{"bootstrap", "deadline", "failed"} {
 		t.Run(field, func(t *testing.T) {
 			host, h, s := fixture(t)
-			if e := host.Start(context.Background(), s); e != nil {
+			if e := host.Start(context.Background(), s, func(lifecycle.CreateFence) error { return nil }); e != nil {
 				t.Fatal(e)
 			}
 			r := h.records[s.ID]
@@ -190,7 +203,7 @@ func TestHostBindings(t *testing.T) {
 			}
 			h.records[s.ID] = r
 			before := len(h.ops)
-			e := host.Stop(context.Background(), s, false)
+			e := host.Stop(context.Background(), s, false, nil)
 			if e == nil {
 				t.Fatal("foreign/failed slot automatically destroyed")
 			}
@@ -219,7 +232,7 @@ func TestHelperTransitions(t *testing.T) {
 	if r, e := c.Call(ctx, Request{V: 1, Op: "stop", Slot: s.ID}); e != nil || r.OK || r.Error != "invalid_state" {
 		t.Fatal("absent stop", r, e)
 	}
-	if e := host.Start(ctx, s); e != nil {
+	if e := host.Start(ctx, s, func(lifecycle.CreateFence) error { return nil }); e != nil {
 		t.Fatal(e)
 	}
 	if r, e := c.Call(ctx, Request{V: 1, Op: "destroy", Slot: s.ID}); e != nil || r.OK || r.Error != "unit_active" || h.records[s.ID].State != "running" {
@@ -229,17 +242,17 @@ func TestHelperTransitions(t *testing.T) {
 	if r, e := c.Call(ctx, Request{V: 1, Op: "start", Slot: s.ID}); e != nil || r.OK || r.Error != "expired" {
 		t.Fatal("late start", r, e)
 	}
-	if e := host.Stop(ctx, s, false); e != nil {
+	if e := host.Stop(ctx, s, false, nil); e != nil {
 		t.Fatal("stop after late refusal", e)
 	}
 }
 
-// Missing r2 bindings, extra fields, duplicate keys, altered field order and
+// Missing response bindings, extra fields, duplicate keys, altered field order and
 // unrecognized errors are not a compatible response. A canonical neighbor is.
 func TestResponseRefusals(t *testing.T) {
 	good := []byte(`{"v":1,"ok":true,"slot":"17","state":"created","not_after":"1970-01-01T00:05:00Z","payload_sha256":"` + strings.Repeat("a", 64) + `","bootstrap_sha256":"` + strings.Repeat("b", 64) + `"}` + "\n")
 	if _, e := decodeResponse(good, "17"); e != nil {
-		t.Fatal("r2 neighbor", e)
+		t.Fatal("binding neighbor", e)
 	}
 	for _, raw := range []string{
 		`{"v":1,"ok":true,"slot":"17","state":"created","not_after":"1970-01-01T00:05:00Z"}` + "\n",
@@ -272,7 +285,7 @@ func TestRequestRefusals(t *testing.T) {
 	}
 }
 
-// Broker/manager intent crosses the actual r2 stream codec into the fake helper.
+// Broker/manager intent crosses the actual r4 stream codec into the fake helper.
 // With no further polls, the manager's own expiry tick destroys the helper slot;
 // restart preserves the terminal binding. This is not Linux isolation evidence.
 func TestBrokerManagerHelper(t *testing.T) {
@@ -347,10 +360,10 @@ func (f callFunc) Call(ctx context.Context, q Request) (Response, error) { retur
 func TestUncertainCreateAbsence(t *testing.T) {
 	host, h, s := fixture(t)
 	ctx := context.Background()
-	if e := host.Stop(ctx, s, true); e != nil {
+	if e := host.Stop(ctx, s, true, nil); e != nil {
 		t.Fatal("no-start absence neighbor", e)
 	}
-	if e := host.Stop(ctx, s, false); e == nil || e.Error() != "SLOTD_ABSENCE_UNCONFIRMED" {
+	if e := host.Stop(ctx, s, false, nil); e == nil || e.Error() != "SLOTD_ABSENCE_UNCONFIRMED" {
 		t.Fatal("uncertain absence claimed clean", e)
 	}
 	original := host.Client
@@ -385,7 +398,7 @@ func TestUncertainCreateAbsence(t *testing.T) {
 	if e = m.Tick(ctx); e == nil || e.Error() != "HOST_CLEANUP" {
 		t.Fatal("restart forgot uncertain create", e)
 	}
-	// Delayed helper processing is permitted by r2; status=absent did not fence it.
+	// Delayed helper processing is still fresh under r4; status=absent did not fence it.
 	if created := h.reply(*deferred); !created.OK || created.State != "created" {
 		t.Fatal("fault fixture did not create")
 	}

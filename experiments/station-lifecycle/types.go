@@ -62,12 +62,13 @@ type Payload struct {
 	SHA256 string `json:"sha256"`
 }
 
-// Host is the typed slotd r2 helper boundary. Tests use explicit fakes; the
+// Host is the typed slotd r4 helper boundary. Tests use explicit fakes; the
 // adapter has no shell/OS executor or authority to alter helper policy.
 type Host interface {
-	Start(context.Context, Slot) error
-	// allowAbsent is true only when durable manager state proves no Start attempt.
-	Stop(context.Context, Slot, bool) error
+	Start(context.Context, Slot, func(CreateFence) error) error
+	// allowAbsent is true only when durable state proves no Start attempt;
+	// a recorded host-local fence can separately establish a later safe probe.
+	Stop(context.Context, Slot, bool, *CreateFence) error
 	Status(context.Context, Slot) (string, error)
 }
 type Config struct {

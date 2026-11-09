@@ -10,13 +10,14 @@ import (
 )
 
 type record struct {
-	ID             string `json:"id"`
-	StartAttempted bool   `json:"start_attempted"`
-	Slot           *Slot  `json:"slot"`
-	BootstrapHash  string `json:"bootstrap_hash"`
-	Binding        string `json:"binding"`
-	Phase          string `json:"phase"`
-	Reason         string `json:"reason"`
+	ID             string       `json:"id"`
+	StartAttempted bool         `json:"start_attempted"`
+	CreateFence    *CreateFence `json:"create_fence,omitempty"`
+	Slot           *Slot        `json:"slot"`
+	BootstrapHash  string       `json:"bootstrap_hash"`
+	Binding        string       `json:"binding"`
+	Phase          string       `json:"phase"`
+	Reason         string       `json:"reason"`
 }
 type state struct {
 	Version int               `json:"version"`
@@ -75,6 +76,10 @@ func New(c Config) (*Manager, error) {
 		}
 		for id, r := range s.Records {
 			if !c.Range.contains(id) || r.ID != id {
+				d.Close()
+				return nil, fail("STATE_RECORD")
+			}
+			if r.CreateFence != nil && (!r.StartAttempted || !r.CreateFence.Valid()) {
 				d.Close()
 				return nil, fail("STATE_RECORD")
 			}
@@ -219,7 +224,14 @@ func (m *Manager) Start(ctx context.Context, s Slot) (Status, error) {
 		budget = left
 	}
 	call, cancel := context.WithTimeout(ctx, budget)
-	err := m.cfg.Host.Start(call, copied)
+	err := m.cfg.Host.Start(call, copied, func(f CreateFence) error {
+		if !f.Valid() || r.CreateFence != nil {
+			return fail("CREATE_FENCE")
+		}
+		r.CreateFence = &f
+		m.state.Records[s.ID] = r
+		return m.save()
+	})
 	cancel()
 	if err != nil {
 		status, cleanup := m.stop(context.WithoutCancel(ctx), s.ID, "HOST_START")
@@ -255,7 +267,7 @@ func (m *Manager) stop(ctx context.Context, id, reason string) (Status, error) {
 	m.state.Records[id] = r
 	saved := m.save()
 	call, cancel := context.WithTimeout(ctx, m.cfg.StepTimeout)
-	e := m.cfg.Host.Stop(call, *r.Slot, !r.StartAttempted)
+	e := m.cfg.Host.Stop(call, *r.Slot, !r.StartAttempted, r.CreateFence)
 	cancel()
 	if e != nil {
 		r.Reason = "HOST_CLEANUP"
