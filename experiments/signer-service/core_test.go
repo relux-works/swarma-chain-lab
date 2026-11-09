@@ -319,7 +319,22 @@ func (l *coreLab) engine() *Engine {
 // Its seal is unchanged by issuance, spent once by revoke, and refill creates
 // confirmed seals using a funding input whose key is absent from the wallet.
 func TestCoreService(t *testing.T) {
+	coreService(t, false)
+}
+
+// The same real issue/revoke/refill lifecycle additionally exercises configured
+// movement/exposure accounting through actual signatures, broadcasts and replay.
+// This is isolated regtest, not a live-main admission or custody qualification.
+func TestCoreSpending(t *testing.T) {
+	coreService(t, true)
+}
+
+func coreService(t *testing.T, spending bool) {
 	l := newCore(t)
+	if spending {
+		l.cfg.Spending = &SpendingCaps{MovedPerTx: 1000000, MovedDay: 10000000, EnrolledHot: 2200000}
+		l.cfg.Policy.Policy.FeeRate = 200
+	}
 	ctx := context.Background()
 	seal := l.fund("seal", 200000)
 	fund := l.fund("funding", 2000000)
@@ -404,6 +419,29 @@ func TestCoreService(t *testing.T) {
 		t.Fatal("refill outputs", e)
 	}
 	l.save("result.json", map[string]any{"issuance": rows[0], "revoke": revoked, "refill": refill, "seal_outputs": len(outputs), "status": "PASS"})
+	if spending {
+		var used, fees int64
+		for _, op := range x.state.Operations {
+			r, err := x.readRecord(op)
+			if err != nil || !terminalSpend(r) || op.SpendAt < op.At {
+				t.Fatal("real movement accounting", err)
+			}
+			used += op.MovedAtoms
+			fees += r.Plan.FeeSat
+		}
+		if used != fees+int64(l.cfg.Caps.RefillCount)*l.cfg.Caps.SealValue {
+			t.Fatal("issue/refill/revoke charged amount")
+		}
+		// Narrow only the in-memory checker after the genuine effects. Its exact
+		// boundary permits no further movement, and refusal preserves the ledger.
+		x.cfg.Spending.MovedDay = used
+		before := encode(x.state)
+		wantError(t, x.capSpending(1, 1000, ""), "MOVED_DAY_CAP")
+		if !bytes.Equal(before, encode(x.state)) {
+			t.Fatal("movement denial changed real ledger")
+		}
+		l.save("spending.json", map[string]any{"movement_atoms": used, "fees_atoms": fees, "operations": len(x.state.Operations), "replay_operations": 3, "status": "PASS"})
+	}
 	// Corrupt only this fixture's durable record while recomputing its txid and
 	// content hash. Recovery must verify signatures/template, not trust those IDs.
 	corrupt := record
