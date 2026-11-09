@@ -1,6 +1,7 @@
 name: Rental relay checks
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     paths: ['experiments/relay/**', 'experiments/rental-gateway/**', 'experiments/station-lifecycle/**', 'deploy/**', '.github/workflows/relay.yml']
   push:
     branches: [main]
@@ -14,7 +15,7 @@ jobs:
   relay:
     strategy:
       matrix:
-        os: [ubuntu-22.04, macos-14]
+        os: [ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -44,3 +45,79 @@ jobs:
           go -C experiments/station-lifecycle test -race -count=1 ./...
           go -C experiments/station-lifecycle test -race -tags slotdfake -count=1 ./...
           go -C experiments/station-lifecycle build -tags slotdfake ./cmd/station-manager
+  relay-macos:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Fetch pinned dependencies
+        run: |
+          for module in relay station-lifecycle; do
+            go -C experiments/"$module" mod download
+            go -C experiments/"$module" mod verify
+          done
+      - name: Vet, race and guard controls
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          go -C experiments/relay vet ./...
+          go -C experiments/relay test -race -count=1 ./...
+          go -C experiments/relay run .scripts/guards.go -out .temp/guards
+          go -C experiments/station-lifecycle test -race -count=1 ./...
+          go -C experiments/station-lifecycle test -race -tags slotdfake -count=1 ./...
+          go -C experiments/station-lifecycle build -tags slotdfake ./cmd/station-manager
+  darwin-cross-build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Fetch pinned dependencies
+        run: |
+          for module in relay station-lifecycle; do
+            go -C experiments/"$module" mod download
+            go -C experiments/"$module" mod verify
+          done
+      - name: Cross-build Darwin and prove fake transport isolation
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: '0'
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/.temp/darwin"
+          for profile in default slotdfake; do
+            tags=''
+            if [ "$profile" = slotdfake ]; then tags=slotdfake; fi
+            go -C experiments/relay build -tags="$tags" -o "$GITHUB_WORKSPACE/.temp/darwin/relay-$profile" ./cmd/swarma-relay
+            # Keep the fake constructor visible to nm; other packages retain normal optimization.
+            go -C experiments/station-lifecycle build -tags="$tags" -gcflags=relux.works/swarma-chain-lab/experiments/station-lifecycle/slotd=-l -o "$GITHUB_WORKSPACE/.temp/darwin/manager-$profile" ./cmd/station-manager
+            go tool nm "$GITHUB_WORKSPACE/.temp/darwin/manager-$profile" > "$GITHUB_WORKSPACE/.temp/darwin/manager-$profile.nm"
+          done
+          # Default rejects the fake constructor; tagged is the positive detector control.
+          # Read complete nm output first so tool failures cannot count as symbol absence.
+          symbol='relux[.]works/swarma-chain-lab/experiments/station-lifecycle/slotd[.]NewFakeClient$'
+          if grep -E "$symbol" "$GITHUB_WORKSPACE/.temp/darwin/manager-default.nm"; then
+            echo 'fake transport symbol present in default Darwin binary' >&2
+            exit 1
+          fi
+          grep -E "$symbol" "$GITHUB_WORKSPACE/.temp/darwin/manager-slotdfake.nm"
