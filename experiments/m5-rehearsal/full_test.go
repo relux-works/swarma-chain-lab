@@ -131,6 +131,7 @@ func TestFullComposition(t *testing.T) {
 	k := gc["kernel"].(map[string]any)
 	k["agent_name"], k["landlord_name"], k["issuer_pubkey"], k["seal_script"], k["state_dir"], k["rpc_port"], k["rpc_route_file"] = agentName, landlordName, grant.PubKeyHex(), seal, filepath.Join(l.private, "kernel"), l.read.Port, l.json("observer.json", l.read, 0400)
 	presentations := l.dir("presentations")
+	checked(t, os.Chmod(presentations, 0755), "public presentation directory mode")
 	x := gc["exchange"].(map[string]any)
 	x["max_replay"] = 32
 	x["state_dir"], x["booking_url"], x["presentations_dir"], x["privacy_sha256"], x["template_sha256"], x["profile_sha256"], x["pow_bits"], x["burst"] = filepath.Join(l.private, "exchange"), bookingURL, presentations, booking.Hash([]byte(booking.PrivacyNotice)), cfg.TemplateSHA256, tmpl.ProfileSHA256, 4, 32

@@ -52,6 +52,7 @@ func (l *lab) signerConfig(cfg booking.ConfigV2, storeURL, presentations string,
 }
 func (l *lab) signerCycle(config string) {
 	out, code := l.command("SG1 native cycle", l.bins["signer"], "-config", config, "-once")
+	l.write(filepath.Join(l.private, "signer-last-cycle.log"), out, 0600)
 	if code != 0 || leaked(out, l.secrets) || strings.Contains(string(out), "DATA RACE") {
 		l.t.Fatal("native signer cycle failed; output withheld")
 	}
