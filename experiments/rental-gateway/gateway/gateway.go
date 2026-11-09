@@ -39,8 +39,17 @@ type Transport = Publisher
 
 // Config wires the gateway. Now defaults to time.Now.
 type Config struct {
-	AgentKey      *nostr.PrivKey
-	Kernel        kernel.Checker
+	AgentKey *nostr.PrivKey
+	Kernel   kernel.Checker
+	// Presenter, when set, enables inline certificate presentation
+	// (detached grants): a renter's first message carries the
+	// envelope, later messages are checked against the kernel's
+	// cached bytes. When nil, only slot-stored certificates are used.
+	Presenter kernel.Presenter
+	// AgentName is the rented agent's pinned kernel name
+	// (Policy.AgentName form, e.g. "id/agent"). Empty falls back to
+	// the slot's station name (unit tests / legacy wiring).
+	AgentName     string
 	Screener      screen.Screener
 	Journal       *journal.Store
 	Publisher     Publisher
@@ -84,7 +93,9 @@ type Gateway struct {
 	bound    map[string]*connState // slot id -> live authenticated station binding
 
 	opMu     sync.Mutex
-	inFlight map[string]*opCall // slot\x00op id -> running closer operation
+	inFlight map[string]*opCall // slot\x00kind\x00op id -> running closer operation
+
+	startMu sync.Mutex // serializes lazy station starts (first live presentation)
 }
 
 // New validates config and builds a Gateway.
@@ -173,6 +184,17 @@ func (g *Gateway) StartSlot(ctx context.Context, slotID string) error {
 	if !receipt.Admits() {
 		return fmt.Errorf("gateway: slot %s %s: %s", slotID, receipt.Verdict, receipt.Reason)
 	}
+	if err := g.startStation(ctx, slot); err != nil {
+		return err
+	}
+	return g.dmRenter(ctx, slot, "ready")
+}
+
+// startStation creates and starts the slot's station instance and
+// durably marks the slot started. The caller has already obtained a
+// live kernel verdict inside the slot window; this is the shared
+// second half of StartSlot and of the lazy first-presentation start.
+func (g *Gateway) startStation(ctx context.Context, slot *journal.Slot) error {
 	st, err := g.cfg.Driver.Create(ctx, station.SlotSpec{
 		SlotID: slot.ID, StationName: slot.StationName, BookingID: slot.BookingID})
 	if err != nil {
@@ -203,7 +225,29 @@ func (g *Gateway) StartSlot(ctx context.Context, slotID string) error {
 	g.mu.Lock()
 	g.stations[slot.ID] = st
 	g.mu.Unlock()
-	return g.dmRenter(ctx, slot, "ready")
+	return nil
+}
+
+// ensureStarted lazily starts the slot's station after a live
+// kernel verdict (first presented message). Serialized so two
+// racing first messages start exactly one instance.
+func (g *Gateway) ensureStarted(ctx context.Context, slot *journal.Slot) error {
+	g.startMu.Lock()
+	defer g.startMu.Unlock()
+	fresh, ok := g.cfg.Journal.Get(slot.ID)
+	if !ok || fresh.Destroyed || fresh.Ended {
+		return fmt.Errorf("gateway: slot %s unavailable", slot.ID)
+	}
+	if fresh.Started {
+		return nil
+	}
+	if err := g.startStation(ctx, fresh); err != nil {
+		return err
+	}
+	// Best-effort "ready" notice, same as StartSlot sends; a publish
+	// failure must not block the message that triggered the start.
+	_ = g.dmRenter(ctx, fresh, "ready")
+	return nil
 }
 
 // Tick ends every started slot whose not_after has passed, regardless
@@ -224,23 +268,57 @@ func (g *Gateway) endSlot(ctx context.Context, slotID, reason, renterDM string) 
 	_ = g.endSlotE(ctx, slotID, reason, renterDM)
 }
 
-func (g *Gateway) kernelCheck(ctx context.Context, slot *journal.Slot, nowUnix int64) (kernel.Receipt, error) {
-	cert, err := base64.StdEncoding.DecodeString(slot.CertificateB64)
-	if err != nil {
-		return kernel.Receipt{Verdict: kernel.Refused, Reason: "stored certificate undecodable"}, err
+// agentNameFor is the pinned kernel agent name for a slot: the
+// gateway config wins, the slot's station name is the legacy
+// fallback.
+func (g *Gateway) agentNameFor(slot *journal.Slot) string {
+	if g.cfg.AgentName != "" {
+		return g.cfg.AgentName
 	}
-	return g.cfg.Kernel.Check(ctx, cert, slot.StationName, slot.RenterPubKey, nowUnix)
+	return slot.StationName
+}
+
+// envelopeFor resolves the certificate bytes to Check for one
+// sender, in order: the kernel's presented-bytes cache, then the
+// slot-stored envelope. ok=false means the sender must present.
+func (g *Gateway) envelopeFor(slot *journal.Slot, senderHex string) (cert []byte, ok bool, err error) {
+	if g.cfg.Presenter != nil {
+		raw, perr := g.cfg.Presenter.CachedCertificate(senderHex)
+		if perr == nil && len(raw) > 0 {
+			return raw, true, nil
+		}
+		// Any cache error (absent or otherwise) falls through to
+		// the stored envelope; the fresh Check remains the gate.
+	}
+	if slot.CertificateB64 != "" {
+		raw, derr := base64.StdEncoding.DecodeString(slot.CertificateB64)
+		if derr != nil {
+			return nil, false, derr
+		}
+		return raw, true, nil
+	}
+	return nil, false, nil
+}
+
+func (g *Gateway) kernelCheck(ctx context.Context, slot *journal.Slot, nowUnix int64) (kernel.Receipt, error) {
+	return g.kernelCheckSender(ctx, slot, slot.RenterPubKey, nowUnix)
 }
 
 // kernelCheckSender is the per-message check: the sender is the
 // authenticated inner seal key, never the gift-wrap key, and never a
-// value taken from message content.
+// value taken from message content. With a Presenter wired and no
+// known bytes the verdict is refused/presentation_required — the
+// renter must attach its certificate inline first.
 func (g *Gateway) kernelCheckSender(ctx context.Context, slot *journal.Slot, senderHex string, nowUnix int64) (kernel.Receipt, error) {
-	cert, err := base64.StdEncoding.DecodeString(slot.CertificateB64)
+	cert, ok, err := g.envelopeFor(slot, senderHex)
 	if err != nil {
 		return kernel.Receipt{Verdict: kernel.Refused, Reason: "stored certificate undecodable"}, err
 	}
-	return g.cfg.Kernel.Check(ctx, cert, slot.StationName, senderHex, nowUnix)
+	if !ok {
+		return kernel.Receipt{Verdict: kernel.Refused, Reason: "presentation_required",
+			StationName: g.agentNameFor(slot), CheckedAt: nowUnix}, nil
+	}
+	return g.cfg.Kernel.Check(ctx, cert, g.agentNameFor(slot), senderHex, nowUnix)
 }
 
 // dmRenter sends one NIP-17 DM from the agent key to the slot renter.

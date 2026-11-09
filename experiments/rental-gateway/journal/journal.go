@@ -374,6 +374,14 @@ func validOpID(id string) bool {
 	return id != "" && len(id) <= 128 && !strings.ContainsAny(id, " \t\r\n")
 }
 
+// copyOpRecord returns a record whose report slices never alias
+// the stored record (RM2-04 F3).
+func copyOpRecord(r OpRecord) OpRecord {
+	r.Removed = append([]string(nil), r.Removed...)
+	r.Kept = append([]string(nil), r.Kept...)
+	return r
+}
+
 // BeginOperation returns the existing record for (slot, opID), or
 // durably persists a new started record. A different op id for a
 // kind with a started/done record is ErrOpConflict; failed records
@@ -391,14 +399,14 @@ func (st *Store) BeginOperation(id, kind, opID, reason string, now int64) (OpRec
 	for _, r := range s.Operations {
 		if r.OpID == opID {
 			if r.Kind != kind {
-				return r, BeginExisting, ErrOpConflict
+				return copyOpRecord(r), BeginExisting, ErrOpConflict
 			}
-			return r, BeginExisting, nil
+			return copyOpRecord(r), BeginExisting, nil
 		}
 	}
 	for _, r := range s.Operations {
 		if r.Kind == kind && r.State != OpStateFailed {
-			return r, BeginExisting, ErrOpConflict
+			return copyOpRecord(r), BeginExisting, ErrOpConflict
 		}
 	}
 	rec := OpRecord{OpID: opID, Kind: kind, State: OpStateStarted, Reason: reason, UpdatedAt: now}
@@ -425,7 +433,7 @@ func (st *Store) mutateOp(id, opID string, fn func(*OpRecord)) (OpRecord, error)
 				s.Operations[i] = backup
 				return OpRecord{}, err
 			}
-			return s.Operations[i], nil
+			return copyOpRecord(s.Operations[i]), nil
 		}
 	}
 	return OpRecord{}, fmt.Errorf("journal: no operation %s on slot %s", opID, id)
@@ -441,10 +449,14 @@ func (st *Store) AttachOperationEvent(id, opID, eventID, eventB64, contentSHA256
 }
 
 // CompleteOperation durably marks an operation done, recording the
-// destroy report for destroy operations.
+// destroy report for destroy operations. The report slices are
+// copied in and out (RM2-04 F3): neither the caller's slices nor a
+// returned record ever alias the stored record.
 func (st *Store) CompleteOperation(id, opID string, removed, kept []string, now int64) (OpRecord, error) {
 	return st.mutateOp(id, opID, func(r *OpRecord) {
-		r.State, r.Error, r.Removed, r.Kept, r.UpdatedAt = OpStateDone, "", removed, kept, now
+		r.State, r.Error, r.UpdatedAt = OpStateDone, "", now
+		r.Removed = append([]string(nil), removed...)
+		r.Kept = append([]string(nil), kept...)
 	})
 }
 
@@ -466,9 +478,7 @@ func (st *Store) LookupOperation(id, opID string) (OpRecord, bool) {
 	}
 	for _, r := range s.Operations {
 		if r.OpID == opID {
-			r.Removed = append([]string(nil), r.Removed...)
-			r.Kept = append([]string(nil), r.Kept...)
-			return r, true
+			return copyOpRecord(r), true
 		}
 	}
 	return OpRecord{}, false

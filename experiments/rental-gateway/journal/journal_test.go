@@ -113,3 +113,50 @@ func TestJournalUpdateRollback(t *testing.T) {
 		t.Fatal("disk says Ended after failed persist")
 	}
 }
+
+// TestCompleteOperationReturnsCopies proves RM2-04 F3: the destroy
+// report slices are copied on the way in and on the way out —
+// mutating the caller's input after completion, or the returned
+// record, never rewrites the stored record.
+func TestCompleteOperationReturnsCopies(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "journal")
+	st, err := journal.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Put(testSlot("slot-1", "aa")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.BeginOperation("slot-1", journal.OpDestroy, "op-1", "destroyed", 100); err != nil {
+		t.Fatal(err)
+	}
+	removed := []string{"home"}
+	kept := []string{"elsewhere"}
+	rec, err := st.CompleteOperation("slot-1", "op-1", removed, kept, 110)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed[0] = "MUTATED-INPUT"
+	kept[0] = "MUTATED-INPUT"
+	rec.Removed[0] = "MUTATED-OUTPUT"
+	rec.Kept[0] = "MUTATED-OUTPUT"
+	got, found := st.LookupOperation("slot-1", "op-1")
+	if !found || got.Removed[0] != "home" || got.Kept[0] != "elsewhere" {
+		t.Fatalf("stored record aliased caller/output slices: %+v", got)
+	}
+	got.Removed[0] = "MUTATED-LOOKUP"
+	again, _ := st.LookupOperation("slot-1", "op-1")
+	if again.Removed[0] != "home" {
+		t.Fatalf("LookupOperation aliased the stored record: %+v", again)
+	}
+	// BeginOperation's existing-record path is a copy too.
+	existing, state, err := st.BeginOperation("slot-1", journal.OpDestroy, "op-1", "destroyed", 120)
+	if err != nil || state != journal.BeginExisting {
+		t.Fatalf("BeginOperation existing = %v %v", state, err)
+	}
+	existing.Removed[0] = "MUTATED-BEGIN"
+	final, _ := st.LookupOperation("slot-1", "op-1")
+	if final.Removed[0] != "home" {
+		t.Fatalf("BeginOperation aliased the stored record: %+v", final)
+	}
+}

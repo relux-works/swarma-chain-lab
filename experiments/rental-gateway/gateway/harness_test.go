@@ -107,6 +107,8 @@ type harness struct {
 	sockPath   string
 	listener   net.Listener
 	screenTO   time.Duration
+	presenter  bool
+	agentName  string
 }
 
 type harnessOpts struct {
@@ -115,11 +117,15 @@ type harnessOpts struct {
 	screenTO     time.Duration
 	stationName  string
 	stubCmd      []string
+	presenter    bool   // wire the stub kernel also as kernel.Presenter
+	noCert       bool   // register the slot without stored certificate bytes
+	agentName    string // gateway AgentName pin (empty = slot station name)
 }
 
 func newHarness(t *testing.T, opts harnessOpts) *harness {
 	t.Helper()
-	h := &harness{t: t, clock: &testClock{t: nowMid}, screenTO: opts.screenTO}
+	h := &harness{t: t, clock: &testClock{t: nowMid}, screenTO: opts.screenTO,
+		presenter: opts.presenter, agentName: opts.agentName}
 	if h.screenTO <= 0 {
 		h.screenTO = 2 * time.Second
 	}
@@ -158,10 +164,14 @@ func newHarness(t *testing.T, opts harnessOpts) *harness {
 		if stationName == "" {
 			stationName = "id/swarma-station-1"
 		}
+		cert := []byte("test-certificate-envelope")
+		if opts.noCert {
+			cert = nil
+		}
 		err = h.gw.RegisterSlot(gateway.SlotSpec{
 			ID: "slot-1", StationName: stationName,
 			RenterPubKey:   h.renter.PubKeyHex(),
-			Certificate:    []byte("test-certificate-envelope"),
+			Certificate:    cert,
 			ContractSHA256: strings.Repeat("a", 64),
 			NotBefore:      slotNotBefore, NotAfter: slotNotAfter,
 		})
@@ -178,8 +188,13 @@ func newHarness(t *testing.T, opts harnessOpts) *harness {
 }
 
 func (h *harness) buildGateway() *gateway.Gateway {
+	var presenter kernel.Presenter
+	if h.presenter {
+		presenter = h.kern
+	}
 	gw, err := gateway.New(gateway.Config{
 		AgentKey: h.agent, Kernel: h.kern, Screener: h.scr,
+		Presenter: presenter, AgentName: h.agentName,
 		Journal: h.store, Publisher: h.pub, Driver: h.driver,
 		Endpoint: h.sockPath, ScreenTimeout: h.screenTO,
 		PullTimeout: 150 * time.Millisecond, Now: h.clock.Now,

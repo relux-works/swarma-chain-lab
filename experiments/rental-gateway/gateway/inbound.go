@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"relux.works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/screen"
 	"relux.works/swarma-chain-lab/experiments/rental-gateway/stationlink"
@@ -51,11 +52,38 @@ func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result 
 		return res
 	}
 
-	// (d) Grant live check, fresh for this event. A receipt with
-	// durable closure (Closed) ends the slot at once and stops all
-	// outbound (RM2 M2).
-	receipt, err := g.kernelCheckSender(ctx, slot, sender, now)
-	if err != nil {
+	// (d0) Inline certificate presentation (detached grants): at
+	// most one grant-cert rumor tag. Malformed presentation refuses
+	// this message before screening — no strike, rumor id not
+	// burned — with a deterministic gateway notice. The tag itself
+	// is consumed here and never reaches the station: delivery and
+	// screening only ever see the rumor content.
+	pres, perr := parseGrantPresentation(rumor)
+	if perr != nil {
+		res.Refused, res.Reason = true, "presentation_malformed"
+		g.presentationNotice(ctx, slot, &res, noticePresentationMalformed)
+		return res
+	}
+	if pres != nil && g.cfg.Presenter == nil {
+		res.Refused, res.Reason = true, "presentation_unsupported"
+		g.presentationNotice(ctx, slot, &res, noticePresentationUnsupported)
+		return res
+	}
+
+	// (d) Grant live check, fresh for this event: a presented
+	// envelope goes through kernel Presenter (fresh Check inside,
+	// live-only cache admission); otherwise the sender's known
+	// bytes are Checked fresh. A receipt with durable closure
+	// (Closed) ends the slot at once and stops all outbound (RM2 M2).
+	var receipt kernel.Receipt
+	var kerr error
+	if pres != nil {
+		receipt, kerr = g.cfg.Presenter.Present(ctx, pres.raw, pres.id,
+			g.agentNameFor(slot), sender, now)
+	} else {
+		receipt, kerr = g.kernelCheckSender(ctx, slot, sender, now)
+	}
+	if kerr != nil {
 		res.Refused, res.Reason = true, "kernel_error"
 		return res
 	}
@@ -68,7 +96,27 @@ func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result 
 	if !receipt.Admits() {
 		res.Refused = true
 		res.Reason = fmt.Sprintf("kernel_%s:%s", receipt.Verdict, receipt.Reason)
+		// Presentation refusals get a deterministic gateway notice
+		// (fixed texts, never the screening model).
+		switch {
+		case receipt.Reason == "presentation_required":
+			g.presentationNotice(ctx, slot, &res, noticePresentationRequired)
+		case pres != nil:
+			g.presentationNotice(ctx, slot, &res,
+				fmt.Sprintf("presentation refused: %s:%s", receipt.Verdict, receipt.Reason))
+		}
 		return res
+	}
+
+	// (d1) Lazy instance start: the first live verdict for an
+	// in-window grantee starts that grantee's station instance
+	// (one per slot) before anything is recorded or delivered.
+	if !slot.Started {
+		if err := g.ensureStarted(ctx, slot); err != nil {
+			res.Refused, res.Reason = true, "station_start_failed"
+			return res
+		}
+		slot.Started = true
 	}
 
 	// (b, durable half) Record the rumor id now — after kernel live,

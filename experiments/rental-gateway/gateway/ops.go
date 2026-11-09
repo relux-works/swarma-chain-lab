@@ -203,8 +203,11 @@ type opCall struct {
 	err  error
 }
 
-func (g *Gateway) opEnter(slotID, opID string) (key string, call *opCall, owner bool) {
-	key = slotID + "\x00" + opID
+// opEnter coalesces by (slot, kind, op id): the kind is part of
+// the key so the same op id used for two different operation kinds
+// never shares one call (RM2-04 F1).
+func (g *Gateway) opEnter(slotID, kind, opID string) (key string, call *opCall, owner bool) {
+	key = slotID + "\x00" + kind + "\x00" + opID
 	g.opMu.Lock()
 	defer g.opMu.Unlock()
 	if c, ok := g.inFlight[key]; ok {
@@ -238,10 +241,16 @@ func (g *Gateway) opLeave(key string, call *opCall, rec journal.OpRecord, err er
 func (g *Gateway) runOperation(ctx context.Context, slotID, kind, opID, reason string,
 	effect func(ctx context.Context, slot *journal.Slot, rec journal.OpRecord) ([]string, []string, error),
 ) (rec journal.OpRecord, err error) {
-	key, call, owner := g.opEnter(slotID, opID)
+	key, call, owner := g.opEnter(slotID, kind, opID)
 	if !owner {
-		<-call.done
-		return call.rec, call.err
+		// Waiters honour their own ctx (RM2-04 F2): a cancelled
+		// waiter leaves without disturbing the owner.
+		select {
+		case <-call.done:
+			return call.rec, call.err
+		case <-ctx.Done():
+			return journal.OpRecord{}, ctx.Err()
+		}
 	}
 	defer func() { g.opLeave(key, call, rec, err) }()
 	slot, ok := g.cfg.Journal.Get(slotID)
