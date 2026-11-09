@@ -120,3 +120,11 @@ wallets, configs, binaries and process logs; never export it. Compiler descendan
 are not inventoried. Preparation logs and control sources belong under `.temp/`.
 Historical pre-G6 diagnostics remain opt-in via `IT1_PRE_G6_DIAGNOSTIC=1`; they
 are intentionally incompatible with a G6 gateway and are not a fallback.
+
+## Current result
+
+The full rehearsal is blocked by the [payload startup ordering gap](GAP-IT2-STARTUP.md).
+`TestStartupOrderingWitness` and its bounded control make the ordering reviewable
+without converting a failed full run into success. The default test command runs
+this isolated witness alongside the scanner; Core and release builds remain
+explicit opt-ins. A separate product fix and both full reruns are still required.

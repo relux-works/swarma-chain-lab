@@ -223,3 +223,8 @@ model payload. Its documented macOS helper/admin seams are rehearsal-only.
 Use the module's opt-in Go commands for release-isolation controls and fresh
 Core runs; public receipts stay separate from private fixture trees. A build or
 preparation result is not evidence that the full runtime scenario passed.
+
+The current full rehearsal exposes a
+[payload startup ordering gap](experiments/m5-rehearsal/GAP-IT2-STARTUP.md).
+Its deterministic witness passes by reproducing the defect; revoke and expiry
+full-path completion remain blocked pending a separate product fix.
