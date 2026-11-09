@@ -1,7 +1,7 @@
 # CG1: grant verification boundary for Courier
 
-Status: design handoff before implementation. This note defines a proposed Go
-library contract for the a2a-source integration owner; it does not claim Courier
+Status: implementation baseline with integration-owner corrections. This note
+defines the Go library contract for the a2a-source owner; it does not claim Courier
 hooks are already installed. Base: chain-lab `c7dd20fa33c0d8827c73c4c847e3d60cbeb1e4c6`.
 The module is `experiments/grantcheck`: a verifier and routing decision, with no
 mailbox, transport send, messaging key, booking, exchange text or model capability.
@@ -33,11 +33,24 @@ settle the per-identity engine boundary. CG1 changes no a2a-swarm source:
 | Inbound | After transport authentication and strict presentation extraction, before mailbox persistence/wake/model dispatch | Write the authenticated message to that identity's agent inbox |
 | Outbound | After resolving the station's requested recipient in the same identity, immediately before agent-key signing/publication | Sign/send that reply to that exact grantee |
 
-An inbound `exchange` result may enqueue the authenticated message into the
-separate deterministic exchange's bounded admission path. It never permits inbox
+An inbound `exchange` result goes to a bounded per-identity spool defined by
+a2a, feeding the separate deterministic exchange. It never permits inbox
 writes, waking the model, signing arbitrary replies or creating an instance.
 A `refused` result performs neither privileged action nor automatic exchange
 fallback. No outbound result is `exchange`.
+
+Courier parks `Retryable` refusals in a bounded held queue and checks them again;
+advancing the transport cursor must not silently discard these renter messages.
+Queue capacity, persistence, expiry and overflow are Courier's contract. CG1
+does not own a queue or turn a retryable refusal into admission.
+
+Upstream a2a defines an `admission` interface with no policy by default. The
+a2a-link fork registers CG1 at build time; upstream never imports chain-lab.
+Only Nostr identities configured with a grant policy call this checker, using the
+transport-verified inner seal key. A grant policy on a Matrix identity refuses
+at startup. The existing Matrix owner DM remains outside grant admission; v1
+has no owner bypass on Nostr. Transport selection and startup validation belong
+to Courier, not to an extra caller-controlled checker argument.
 
 Outbound means agent-originated replies, not the exchange's fixed protocol
 responses. The exchange is separately trusted and rate-limited; routing a normal
@@ -62,6 +75,7 @@ type Verdict struct {
     NotAfter  int64
     CheckedAt int64
     Closed    bool
+    Retryable bool // fixed closed classification, never received/backend text
 }
 
 func New(Config) (*Checker, error)
@@ -114,7 +128,9 @@ parser for signed metadata; it does not reimplement cryptography or signed wire.
 No v1/v2 fallback exists. Malformed, bad-ID or foreign-sender proof cannot fall
 back to an old cache entry. No message text is accepted by the library API.
 
-S1 is not a presentation oracle: `grant-store.Client.GetGrant` returns canonical
+In v1 Courier accepts only a full grant-cert presentation and does not use S1.
+For future resolver integration, S1 is not a presentation oracle:
+`grant-store.Client.GetGrant` returns canonical
 **signed grant** bytes keyed by grant ID; it does not return the issuance locator.
 An operator-configured resolver must obtain the separate issuance txid and build
 the full presentation using the landed `rental.PresentIssuedGrant`. The locator is
@@ -133,8 +149,8 @@ ID. The wrapper adds no independent chain or revocation judgment.
 
 ## 4. Closed routing and refusal codes
 
-The following is the proposed integration table to settle with a2a-source before
-code. All non-live rows deny inbox/sign/send. Unknown future K1 reasons map to
+The following is the accepted integration table. All non-live rows deny
+inbox/sign/send. Unknown future K1 reasons map to
 `check_failed` (refused), never to live or an inferred absence of a grant.
 
 | Condition | Inbound decision/code | Outbound decision/code | Durable closed |
@@ -158,6 +174,13 @@ code. All non-live rows deny inbox/sign/send. Unknown future K1 reasons map to
 | Context cancelled/deadline or checker busy | refused / cancelled or busy | refused / cancelled or busy | false |
 | Any unclassified receipt/error/inconsistent live metadata | refused / check_failed | refused / check_failed | false |
 
+`Retryable` is true exactly for `verifier_unavailable`, `state_unavailable`,
+`busy`, `cancelled`, `clock_invalid`, `grant_pending` and `identity_pending`.
+It is false for every live/exchange result and every other refusal. This fixed
+classification lets Courier retain transiently blocked work without guessing
+from error text. A closed-and-live or otherwise inconsistent receipt maps to
+non-retryable `check_failed` with no scope.
+
 These are fixed codes selected through exact allowlisted K1 reason mappings;
 no substring inference or passthrough of received error messages. For example,
 `PENDING_LANDLORD_ROTATION` is not `LANDLORD_KEY_ROTATED`. Without the prior observed
@@ -175,7 +198,7 @@ entry point; this library contains no exchange reply policy.
 ## 5. Caching, time and observation limits
 
 K1's live-admitted cache contains public proof bytes only (64 senders, aggregate
-1 MiB in the landed profile). It never stores an authorization result for reuse.
+60000 bytes in the landed profile). It never stores an authorization result for reuse.
 A denied new presentation does not overwrite a prior valid proof. Expired/closed
 bytes may remain for evidence/repeated checks; "cache never serves a closed grant"
 means no cached proof can produce permission without a fresh successful check.
@@ -253,21 +276,25 @@ Required controls, each with valid neighbours:
   adapter/routing behavior; genuine-Core production of the vectors proves their
   provenance at that observed chain state, not perpetual liveness.
 
-## 8. Proposed integration decisions for the integration owner
+## 8. Integration decisions and packaging
 
-1. Accept the decision table: only absent/not-yet/expired/closed lifecycle states
+1. Accepted decision table: only absent/not-yet/expired/closed lifecycle states
    route inbound to the separate exchange; malformed/foreign/read failures and
    pending identity transitions refuse. Outbound never routes to exchange.
-2. Confirm the per-identity constructor + no identity selector on calls fits the
+2. Accepted per-identity constructor + no identity selector on calls fits the
    evolving Courier engine seam. Exact a2a method/type names remain a2a-source's.
-3. Confirm S1 resolution remains outside CG1 and supplies both verified signed
-   grant bytes and a separately checked issuance locator; a failed explicit
-   lookup must not be passed as nil/absence.
+3. In v1 Courier does not use S1 at all; it accepts only a full grant-cert.
+   Any future resolver remains outside CG1. Failed explicit lookup must not
+   be passed as nil/absence.
 
-These are proposed defaults for the integration owner to correct, not new K1 wire
-or authority. Per the task handoff, code starts after the orchestrator forwards
-this design; absent corrections, the narrow contract above is the implementation
-baseline. E1 is independently under review and is not an implementation dependency.
+The integration owner requires a separately tagged module. The initial Go 1.25
+constraint was corrected after verifying that the landed K1/kernelbind graph
+requires Go 1.26: CG1 and the a2a-link fork use Go 1.26; upstream remains on
+Go 1.25.x and never imports chain-lab. Existing dependency directives remain
+unchanged. The fork's CI must run upstream's complete suite and transport
+conformance on Go 1.26; that integration work belongs to a2a-source.
+Module publication prerequisites are recorded in UNRESOLVED_QUESTIONS.md.
+E1 is not a dependency.
 
 ## Source anchors
 

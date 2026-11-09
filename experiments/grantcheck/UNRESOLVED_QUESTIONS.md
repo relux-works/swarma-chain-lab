@@ -1,16 +1,36 @@
 # CG1 integration questions
 
-Proposed integration defaults are in DESIGN.md. Feedback may refine:
+The routing table and per-identity boundary are accepted. Integration corrections
+are recorded in DESIGN.md: closed Retryable classification, Courier-owned bounded
+held/exchange queues, full grant-cert only in v1, build-time fork registration,
+and Nostr-only grant policies. Matrix owner DM remains outside this path.
 
-1. Accept the precise live/refused/exchange decision table in DESIGN.md section4,
-   including no exchange fallback on read errors or pending identity transitions.
-2. Confirm a checker bound to the authenticated per-identity engine, with no
-   per-call identity/connection/store selector, matches the settled engine seam.
-3. Confirm S1 resolution supplies a full presentation (signed grant plus separate
-   issuance locator), and explicit lookup failure is not represented as absence.
+## Resolved: Go version
 
-The task requires forwarding the design before code, not an additional owner
-approval. Unless corrected, use the documented defaults after forwarding.
+The integration owner initially requested a tagged CG1 module usable by Go 1.25.x.
+At the landed base, rental, rental-gateway/kernelbind, rental-gateway, single-use
+and sealwatch all declare `go 1.26.0`. Running `GOTOOLCHAIN=local go test ./...`
+inside kernelbind with Go 1.25.14 exits before compilation with:
 
-No Courier-internal code is authorized in this module. Integration belongs to
-its source owner after the engine boundary settles. No E1 implementation dependency.
+```text
+go: go.mod requires go >= 1.26.0 (running go 1.25.14; GOTOOLCHAIN=local)
+```
+
+The crypto and sys dependency versions themselves declare Go 1.25.0. This does
+not establish that the five application modules are source-compatible with it.
+Evidence is retained in the task's `.temp/CG1-01/compat/` logs. The initial
+repository-root probe was a module-selection error and is not compatibility
+evidence; the direct kernelbind probe establishes the version refusal.
+
+Source resolved this by setting the a2a-link fork and CG1 to Go 1.26. Upstream
+a2a stays on Go 1.25.x and never imports chain-lab. No dependency migration,
+kernel duplication or toolchain workaround is needed. The early standalone
+routing test on Go 1.25 is not a compatibility claim for the complete checker.
+
+## Release prerequisite: tagged transitive module graph
+
+Publication must also make the complete transitive module graph resolvable by an
+external consumer. In-tree relative replaces are not inherited by consumers;
+tagged versions and their repository/module-path resolution need validation
+before claiming that a2a-link can import CG1. No producer push/tag publication is
+authorized by this task. The orchestrator owns review and release coordination.
