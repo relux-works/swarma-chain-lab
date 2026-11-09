@@ -115,7 +115,7 @@ jobs:
           done
           # Default rejects the fake constructor; tagged is the positive detector control.
           # Read complete nm output first so tool failures cannot count as symbol absence.
-          symbol='relux[.]works/swarma-chain-lab/experiments/station-lifecycle/slotd[.]NewFakeClient$'
+          symbol='github[.]com/relux-works/swarma-chain-lab/experiments/station-lifecycle/slotd[.]NewFakeClient$'
           if grep -E "$symbol" "$GITHUB_WORKSPACE/.temp/darwin/manager-default.nm"; then
             echo 'fake transport symbol present in default Darwin binary' >&2
             exit 1
