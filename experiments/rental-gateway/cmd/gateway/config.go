@@ -105,6 +105,20 @@ func digest(s string) bool {
 	b, e := hex.DecodeString(s)
 	return e == nil && len(b) == 32 && hex.EncodeToString(b) == s
 }
+
+// Public pins reject repeated-byte placeholders. Keep digest's identifier
+// syntax separate: booking IDs are not assertions of an external object's hash.
+func pinDigest(s string) bool {
+	if !digest(s) {
+		return false
+	}
+	for i := 2; i < len(s); i += 2 {
+		if s[i:i+2] != s[:2] {
+			return true
+		}
+	}
+	return false // repeated-byte pin
+}
 func absPath(s string) bool {
 	return filepath.IsAbs(s) && filepath.Clean(s) == s && s != "/" && !strings.ContainsAny(s, "\x00\r\n")
 }
@@ -159,7 +173,7 @@ func (c serveConfig) validate(allowTest bool) error {
 	if !loopURL(c.RelayURL, "ws") || !loopURL(c.Exchange.BookingURL, "http") {
 		return errConfig
 	}
-	if c.Exchange.PrivacySHA256 != booking.Hash([]byte(booking.PrivacyNotice)) || !digest(c.Exchange.TemplateSHA256) || !digest(c.Exchange.ProfileSHA256) {
+	if c.Exchange.PrivacySHA256 != booking.Hash([]byte(booking.PrivacyNotice)) || !pinDigest(c.Exchange.TemplateSHA256) || !pinDigest(c.Exchange.ProfileSHA256) {
 		return errConfig
 	}
 	for _, p := range []string{c.AgentKeyFile, c.JournalDir, c.Kernel.StateDir, c.Kernel.RPCRouteFile, c.Exchange.StateDir, c.Exchange.PresentationsDir, c.stationStateDir()} {
@@ -189,7 +203,7 @@ func (c serveConfig) validate(allowTest bool) error {
 		if m == nil || c.Station.Root != "" || c.StationSocket != "" || c.Station.StubAgent {
 			return errConfig
 		}
-		if !digest(m.PayloadSHA256) || len(m.PayloadID) < 1 || len(m.PayloadID) > 64 || m.SlotMin < 0 || m.SlotMax > 9999 || m.SlotMin > m.SlotMax || m.StartMilliseconds < 1 || m.StartMilliseconds > 5000 || !listenAddress(m.Listen) || !listenAddress(m.PayloadListen) || m.Listen == m.PayloadListen {
+		if !pinDigest(m.PayloadSHA256) || len(m.PayloadID) < 1 || len(m.PayloadID) > 64 || m.SlotMin < 0 || m.SlotMax > 9999 || m.SlotMin > m.SlotMax || m.StartMilliseconds < 1 || m.StartMilliseconds > 5000 || !listenAddress(m.Listen) || !listenAddress(m.PayloadListen) || m.Listen == m.PayloadListen {
 			return errConfig
 		}
 		for _, ch := range m.PayloadID {
@@ -197,7 +211,7 @@ func (c serveConfig) validate(allowTest bool) error {
 				return errConfig
 			}
 		}
-		if !digest(m.TLS.CertSHA256) || !digest(m.TLS.ManagerCertSHA256) {
+		if !pinDigest(m.TLS.CertSHA256) || !pinDigest(m.TLS.ManagerCertSHA256) {
 			return errConfig
 		}
 		for _, p := range []string{m.TLS.CertFile, m.TLS.KeyFile, m.TLS.ManagerCAFile} {

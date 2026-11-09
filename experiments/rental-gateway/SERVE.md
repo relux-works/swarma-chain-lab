@@ -27,6 +27,12 @@ endpoint. Remote mode requires an empty station_socket and station.root.
 Required top-level fields are `version`, `mode`, `agent_key_file`, `agent_pubkey`,
 `relay_url`, `journal_dir`, `station_socket`, `screening`, `kernel`, `exchange`
 and `station`. The typed schema is in `cmd/gateway/config.go`.
+SHA256 pins must be 64 lowercase hex characters and must not consist of 32 identical
+bytes (including all-zero, all-FF and repeated-AB placeholders). This applies to
+template, profile, payload and both TLS leaf pins. Genesis/privacy retain their
+exact fixed-value checks. Passing this check is not proof of a correct object:
+booking and TLS checks still compare the actual hashes. Booking-ID syntax is
+unchanged by this pin-only policy.
 
 - `kernel`: kind (`real`, or explicit test-only `stub`), stub verdict (empty for
   real), regtest network/genesis, agent and landlord names, issuer public key,

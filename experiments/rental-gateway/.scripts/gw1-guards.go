@@ -25,6 +25,7 @@ type plant struct {
 }
 
 var plants = []plant{
+	{"placeholder_pin", "gateway", "cmd/gateway/config.go", "return false // repeated-byte pin", "return true // repeated-byte pin", "./cmd/gateway", "TestConfigPlaceholderPins", "placeholder pin accepted", false},
 	{"inbound_drop_counter", "gateway", "cmd/gateway/inbound.go", "q.droppedFull.Add(1)", "q.droppedFull.Add(0)", "./cmd/gateway", "TestInboundStatusBounds", "saturation accounting", false},
 	{"remote_local_root", "gateway", "cmd/gateway/config.go", " || c.Station.Root != \"\"", "", "./cmd/gateway", "TestConfigRemote/local-root", "remote config guard missing", false},
 	{"remote_connection_bound", "gateway", "cmd/gateway/serve.go", "if l.limit > 0 && len(l.conns) >= l.limit {", "if l.limit > 0 && len(l.conns) >= l.limit && false {", "./cmd/gateway", "TestRemoteConnectionBounds", "excess connection not refused", false},

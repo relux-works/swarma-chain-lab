@@ -39,7 +39,7 @@ func testConfig(t *testing.T) serveConfig {
 	}
 	return serveConfig{Version: 1, Mode: "test", AgentKeyFile: filepath.Join(root, "agent.key"), AgentPubkey: key.PubKeyHex(), RelayURL: "ws://127.0.0.1:7777", JournalDir: filepath.Join(root, "journal"), StationSocket: filepath.Join(root, "s.sock"), Screening: "off",
 		Kernel:   kernelConfig{Kind: "real", Network: "regtest", Genesis: su.RegtestGenesis, AgentName: "id/test-agent", LandlordName: "id/test-landlord", IssuerPubkey: key.PubKeyHex(), SealScript: seal, StateDir: filepath.Join(root, "kernel"), RPCHost: "127.0.0.1", RPCPort: 18443, RPCRouteFile: filepath.Join(root, "route.json")},
-		Exchange: exchangeConfig{StateDir: filepath.Join(root, "exchange"), BookingURL: "http://127.0.0.1:18819", PresentationsDir: filepath.Join(root, "presentations"), PrivacySHA256: booking.Hash([]byte(booking.PrivacyNotice)), TemplateSHA256: strings.Repeat("1", 64), ProfileSHA256: strings.Repeat("2", 64), PowBits: 4, MaxClients: 8, QueueSize: 8, Burst: 4, MaxReplay: 8, RefillSeconds: 1, KnownSeconds: 600, MessageAgeSeconds: 300, PollMilliseconds: 20, CallMilliseconds: 2000},
+		Exchange: exchangeConfig{StateDir: filepath.Join(root, "exchange"), BookingURL: "http://127.0.0.1:18819", PresentationsDir: filepath.Join(root, "presentations"), PrivacySHA256: booking.Hash([]byte(booking.PrivacyNotice)), TemplateSHA256: booking.Hash([]byte("template fixture")), ProfileSHA256: booking.Hash([]byte("profile fixture")), PowBits: 4, MaxClients: 8, QueueSize: 8, Burst: 4, MaxReplay: 8, RefillSeconds: 1, KnownSeconds: 600, MessageAgeSeconds: 300, PollMilliseconds: 20, CallMilliseconds: 2000},
 		Station:  stationConfig{Driver: "local-test", Root: filepath.Join(root, "stations")},
 	}
 }
@@ -167,9 +167,9 @@ func remoteConfig(t *testing.T) serveConfig {
 	c.StationSocket = ""
 	root := filepath.Dir(c.AgentKeyFile)
 	c.Station = stationConfig{Driver: "manager", Manager: &managerConfig{
-		StateDir: filepath.Join(root, "broker"), PayloadID: "rented-agent-v1", PayloadSHA256: strings.Repeat("3", 64), SlotMin: 1, SlotMax: 64, StartMilliseconds: 2000,
+		StateDir: filepath.Join(root, "broker"), PayloadID: "rented-agent-v1", PayloadSHA256: booking.Hash([]byte("payload fixture")), SlotMin: 1, SlotMax: 64, StartMilliseconds: 2000,
 		Listen: "127.0.0.1:9443", PayloadListen: "127.0.0.1:9444",
-		TLS: gatewayTLSConfig{CertFile: filepath.Join(root, "server.pem"), KeyFile: filepath.Join(root, "server.key"), ManagerCAFile: filepath.Join(root, "manager-ca.pem"), CertSHA256: strings.Repeat("4", 64), ManagerCertSHA256: strings.Repeat("5", 64)},
+		TLS: gatewayTLSConfig{CertFile: filepath.Join(root, "server.pem"), KeyFile: filepath.Join(root, "server.key"), ManagerCAFile: filepath.Join(root, "manager-ca.pem"), CertSHA256: booking.Hash([]byte("server fixture")), ManagerCertSHA256: booking.Hash([]byte("manager fixture"))},
 	}}
 	return c
 }

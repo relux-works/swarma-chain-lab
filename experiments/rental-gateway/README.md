@@ -253,6 +253,7 @@ subscriptions expose no trustworthy originating client IP.
 adapter, read-only issuer handoff, bounded inbound workers and controls.
 Serve emits structured inbound status to stderr at startup, every30seconds and
 shutdown, including admitted/full-queue-drop counters and queue/worker bounds.
+Public SHA256 pins reject repeated-byte placeholders before startup effects.
 [SERVE-SURVEY.md](SERVE-SURVEY.md) preserves the initial constructor evidence;
 [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) records resolved boundaries and
 the remaining payload/host deployment dependencies.

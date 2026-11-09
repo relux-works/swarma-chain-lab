@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -101,6 +102,22 @@ func TestGatewayTLSAuthority(t *testing.T) {
 	mtls, payload, e := gatewayTLS(c)
 	if e != nil {
 		t.Fatal(e)
+	}
+	// Constructor use without serveConfig also rejects every repeated-byte pin;
+	// the valid real-certificate configurations above/below remain usable.
+	for value := range 256 {
+		pin := hex.EncodeToString(bytes.Repeat([]byte{byte(value)}, 32))
+		for _, serverPin := range []bool{false, true} {
+			bad := c
+			if serverPin {
+				bad.CertSHA256 = pin
+			} else {
+				bad.ManagerCertSHA256 = pin
+			}
+			if manager, payload, e := gatewayTLS(bad); e != errTLS || manager != nil || payload != nil {
+				t.Fatal("TLS placeholder pin accepted")
+			}
+		}
 	}
 	roots := x509.NewCertPool()
 	roots.AppendCertsFromPEM(ca.pem)

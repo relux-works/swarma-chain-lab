@@ -24,7 +24,7 @@ type gatewayTLSConfig struct {
 // AND its exact leaf pin. Payloads use server TLS followed by stationlink HMAC;
 // they never receive the manager certificate or key.
 func gatewayTLS(c gatewayTLSConfig) (manager, payload *tls.Config, err error) {
-	if !digest(c.CertSHA256) || !digest(c.ManagerCertSHA256) {
+	if !pinDigest(c.CertSHA256) || !pinDigest(c.ManagerCertSHA256) {
 		return nil, nil, errTLS
 	}
 	certPEM, e := readFile(c.CertFile, 64<<10, 0)
