@@ -203,8 +203,7 @@ entry is constructed. This does not prove freshness of unseen revocations. The s
 Darwin manager/admin substitutions and release-isolation check still apply.
 
 Success is `PASS_INTERIM`. Gateway/station crash recovery is pending the accepted
-DA1 composition. Issuer/booking crash barriers, complete action/refusal probes and
-the remote control adapter remain pending;
+DA1 composition. Complete action/refusal probes and the remote control adapter remain pending;
 this entry point must not be presented as complete E2E1 or gate-7 qualification.
 Default tests check the topology validator with duplicate/missing/aliased-node
 controls; these metadata controls do not replace actual multi-node execution.
@@ -231,3 +230,15 @@ The independent verifier must reach `W_WITNESS_REQUIRED` without admission state
 the original native W presentation must still pass immediately afterwards.
 This negative construction never enters the native signer's journal or gateway
 presentation mirror and never enables a Legacy fallback.
+
+The canonical harness also interposes owned loopback RPC transport barriers that
+forward the exact requests/responses to each service's own real Core. Booking is
+killed by its recorded PID after a confirmed payment block is delivered and
+before the final snapshot check can return; restart must retain consent bytes,
+select that same payment and record it once. Issuer is killed before sending A,
+then after Core accepts A but before its acknowledgement reaches the signer.
+Both restarts must retain one operation and the identical durable signed
+transaction; Core receives one broadcast. These barriers cover those external
+transport interruption points, not every internal signing/fsync crash boundary.
+`TestRPCBarrierControl` calibrates real forwarding versus a blocked write; the
+projection also refuses unapplied barriers or duplicate effects/receipts.

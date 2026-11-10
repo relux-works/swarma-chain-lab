@@ -39,6 +39,7 @@ type process struct {
 }
 type lab struct {
 	canonical                                                bool
+	issuerBarrier                                            *rpcBarrier
 	peers                                                    map[string]*canonicalNode
 	signerRead, bookingRead                                  su.Route
 	bookingDir, minerP2P                                     string

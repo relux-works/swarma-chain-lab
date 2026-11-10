@@ -122,12 +122,19 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	observer := filepath.Join(l.private, "booking-node.conf")
 	l.write(observer, []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", bookingRead.Username, bookingRead.Password, bookingRead.Port)), 0600)
 	operator := su.OperatorRoute{Network: "regtest", Genesis: su.RegtestGenesis, NodeCLI: l.cli, NodeCLISHA256: cliPin, NodeConfig: observer, NodeDataDir: bookingDir}
+	var bookingBarrier *rpcBarrier
+	if l.canonical {
+		bookingBarrier = newRPCBarrier(l.payment)
+		t.Cleanup(bookingBarrier.close)
+		l.payment = bookingBarrier.route(l.payment)
+	}
 	selected := struct {
 		Version int               `json:"service_version"`
 		Config  booking.ConfigV2  `json:"config"`
 		Routes  map[string]string `json:"payment_route_files"`
 	}{2, cfg, map[string]string{"nmc": l.json("payment-observer.json", l.payment, 0600)}}
-	l.spawn("booking", "-config", l.json("booking.json", selected, 0600), "-profile", profilePath, "-provider-key", filepath.Join(l.private, "provider.key"), "-route", l.json("operator-route.json", operator, 0600), "-listen", bookingAddr, "-relay", relayURL, "-poll", "1s")
+	bookingArgs := []string{"-config", l.json("booking.json", selected, 0600), "-profile", profilePath, "-provider-key", filepath.Join(l.private, "provider.key"), "-route", l.json("operator-route.json", operator, 0600), "-listen", bookingAddr, "-relay", relayURL, "-poll", "1s"}
+	bookingProcess := l.spawn("booking", bookingArgs...)
 	l.await("booking V2", func() bool { return l.http("GET", bookingURL+"/", nil, nil) == 200 })
 	p := l.tlsFiles()
 	managerAddr, payloadAddr, modelAddr := address(t), address(t), address(t)
@@ -211,13 +218,42 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	if l.canonical {
 		l.underquote(bookingURL, contract)
 	}
-	l.rpc("rehearsal", "sendtoaddress", contract.Payment.Address, su.Coins(contract.Payment.AmountAtoms))
+	paymentID := str(t, l.rpc("rehearsal", "sendtoaddress", contract.Payment.Address, su.Coins(contract.Payment.AmountAtoms)))
+	if l.canonical {
+		bookingBarrier.arm("booking", paymentID)
+	}
 	l.mine(2)
+	if l.canonical {
+		l.crashAt(bookingBarrier, bookingProcess)
+		before := l.bookingDisk(contract.BookingID)
+		if before.Issuance != nil || before.Payment != nil {
+			t.Fatal("booking crash crossed record boundary")
+		}
+		l.evidence["booking_crash_before"] = map[string]any{"payment_txid": paymentID, "issuance_absent": true, "selected_payment_absent": true, "package_sha256": rental.Hash(encoded(before.Package))}
+		l.bins["booking-restart"] = l.bins["booking"]
+		l.spawn("booking-restart", bookingArgs...)
+		l.await("booking restarted", func() bool { return l.http("GET", bookingURL+"/", nil, nil) == 200 })
+	}
 	var paid booking.BookingV2
 	l.await("V2 original issuance export", func() bool {
 		return l.http("GET", bookingURL+"/booking?id="+contract.BookingID, nil, &paid) == 200 && paid.Issuance != nil
 	})
 	if l.canonical {
+		before := l.evidence["booking_crash_before"].(map[string]any)
+		if paid.Payment == nil || paid.Payment.TxID != paymentID || paid.Package == nil || rental.Hash(encoded(paid.Package)) != before["package_sha256"] {
+			t.Fatal("booking recovery changed payment or consent")
+		}
+		count := 0
+		for _, receipt := range paid.Receipts {
+			if receipt.Payment.TxID == paymentID {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatal("booking duplicated payment receipt")
+		}
+		l.evidence["booking_crash"] = map[string]any{"confirmed_payment_seen": true, "killed_before_record": true, "same_consent": true, "payment_receipts": count, "selected_payment": paymentID, "outcome": "resume"}
+		l.evidence["crash_cases"].(map[string]string)["booking"] = "transport-barrier-pass"
 		l.pauseVerifier()
 	}
 	proof := l.confirmedPresentation(signerConfig, contract.BookingID, signerPresentations)
