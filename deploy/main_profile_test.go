@@ -38,6 +38,7 @@ func resolvedMain(t *testing.T, service string) []byte {
 		"agent_pubkey": hash, "provider_pubkey": hash, "issuer_pubkey": hash,
 		"agent_name": "id/fixture-agent", "landlord_name": "id/fixture-landlord", "station_name": "id/fixture-agent",
 		"public_branch": "xpub-synthetic-structural-fixture", "profile_id": "fixture", "profile_version": "v1",
+		"funding_script": "0014" + strings.Repeat("b", 40), "station_script": "76a914" + strings.Repeat("a", 40) + "88ac",
 		"seal_script": "76a914" + strings.Repeat("a", 40) + "88ac", "rate_as_of": int64(100), "usd_micros_per_coin": int64(100000000),
 		"not_before": int64(1000), "not_after": int64(4600), "server_uid": uint32(1001), "rpc_port": 18888,
 		"listen": "192.0.2.10:9443", "payload_listen": "192.0.2.10:9444", "payload_id": "fixture-payload",

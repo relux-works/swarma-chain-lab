@@ -63,7 +63,8 @@ and the receiver checks active-chain parent/block precedence.
 | `grantcheck.New` | Required `Config.ConstructionProfile`, checked before state opens and included in durable binding. Real kernelbind admission remains mandatory. |
 | gateway config / booking admission | Required `kernel.construction_profile`; real adapter invokes rental checks before grant admission. Booking payment logic has no unconfirmed-payment exception. |
 | deploy issuer/gateway templates and validators | Carry explicit W; native funding script in issuer template. This is configuration validation, not chain authority or deployment authorization. |
-| `sealwatch`, `agent-wallet` | No T/A grant-v3 construction admission entry point. Sealwatch's historical v0 seal/certificate path and wallet name/payment planners remain separate; actual v3 admission is rental. Neither is claimed to verify W by itself. |
+| `agent-wallet`, `rental-executor` | Both call `rental.Check` for grant-v3 admission and now require `policy.construction_profile: "W"` in their trusted policy. Missing/other values refuse before RPC or cache access. Wallet payment/name planners remain separate. |
+| `sealwatch` | Historical v0 seal/certificate path; no T/A grant-v3 construction admission entry point. |
 
 Profile pins are included in kernel, issuer and grantcheck state bindings; signer
 already binds the full configuration. An old journal is not silently adopted
@@ -105,7 +106,9 @@ config, temp, toolchain and cache paths under that same root (Go 1.26.8).
 - From `experiments/signer-service`, provide `SG1_REGTEST=1`, a **new** absolute
   `SG1_RUN_ROOT`, and pinned `SG1_CORE_DAEMON` / `SG1_CORE_CLI`; run separately:
   `go test -race -count=1 -run '^TestCoreWitnessSameBlock$' .` and
-  `go test -race -count=1 -run '^TestCoreWitnessRefusals$' .`.
+  `go test -race -count=1 -run '^TestCoreWitnessRefusals$' .`, plus
+  `go test -race -count=1 -run '^TestCoreWitnessFundingConfirmation$' .` for
+  Enroll/Refill refusal, ledger preservation and the confirmed neighbor.
 - From `experiments/rental`, the analogous `M1_*` variables and
   `go test -race -count=1 -run '^TestCoreWitnessIssuerParentRefusal$' .` exercise
   a real unconfirmed ordinary funding refusal and its confirmed neighbor.
@@ -116,3 +119,26 @@ Independent btcd digest/script-engine controls supplement genuine Core tests.
 Graph fixtures cover extra/third parent, legacy ancestry, L script, changed T
 body and block ordering with exact reasons and no partial result. They do not
 claim a simulated graph is a separately consensus-validated chain.
+
+### Consumer qualification limit
+
+`agent-wallet` and `rental-executor` grant-v3 configs and historical opt-in Core
+fixtures are outside SW1 qualification and knowingly incompatible where they
+omit W or construct legacy T/A. The required follow-up is
+`SW1-consumer-fixtures`: migrate both consumers' fixture funding/graphs and
+policies, then qualify their Core suites. This does not weaken `rental.Check`.
+
+### Control interpretation
+
+The SW1 overlay suite includes signer ordinary-funding, graph linkage cardinality,
+seal-spend and offline planner cardinality controls. The native-input control
+uses nonempty scriptSig with otherwise valid signatures; the body-binding control
+uses the funding reader; signer profile controls use valid dependencies. These
+mutations turn refusal into admission, not merely a later error.
+
+Two intentionally redundant checks retain reason-only controls: removing the
+linkage-script check still encounters native-input verification, and removing
+the grantcheck startup pin still encounters kernelbind's pin check. Their logs
+prove the intended early reason/order, not an admission bypass. The signer
+second-link bound is likewise backed by the final exact-one-link check; its
+negative case is tested, but a single-bound mutation is not claimed detected.

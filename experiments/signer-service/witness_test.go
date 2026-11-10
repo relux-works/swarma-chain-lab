@@ -85,10 +85,15 @@ func TestWitnessProfileStartup(t *testing.T) {
 	for _, profile := range []string{"", "L", "w", "future"} {
 		bad := c
 		bad.Policy.Policy.ConstructionProfile = profile
-		bad.StateDir = "/missing"
-		bad.GrantKeyPath = "/missing"
-		_, e := Open(bad, nil, nil, nil, nil)
+		bad.StateDir = dir(t)
+		x, e := Open(bad, preflightIssuer{t, Intent{}}, noNode{t}, noBroadcast{t}, noStore{t})
+		if x != nil {
+			x.Close()
+		}
 		wantError(t, e, "W_PROFILE_REQUIRED")
+		if len(files(t, bad.StateDir)) != 0 {
+			t.Fatal("pin refusal created state")
+		}
 	}
 	if e := c.validate(); e != nil {
 		t.Fatal("valid W", e)

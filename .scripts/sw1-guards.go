@@ -23,14 +23,19 @@ type result struct {
 }
 
 var plants = []plant{
+	{"signer_ordinary", "experiments/signer-service", "engine.go", "if !ok || seal == in.Point {", "if ok && seal == in.Point {", "^TestWitnessUnconfirmedFunding$", "want W_UNCONFIRMED_NON_LINKAGE_PARENT", "."},
+	{"graph_links", "experiments/single-use", "witness_observation.go", "if links > 1 || (links == 0 && (t.height == 0 || t.height == a.height)) {", "if false && (links > 1 || (links == 0 && (t.height == 0 || t.height == a.height))) {", "^TestWitnessLinkageCardinality$/(two-confirmed|none-same-block|none-mempool)$", "linkage cardinality guard", "."},
+	{"graph_seal", "experiments/single-use", "witness_observation.go", "if in.Point == seal {", "if false && in.Point == seal {", "^TestWitnessLinkageCardinality$/spends-seal", "linkage cardinality guard", "."},
+	{"planner_links", "experiments/rental", "grant_plan.go", "if links > 1 {", "if links > 2 {", "^TestGrantPlans$/two-link", "plan guard W_LINKAGE_REQUIRED", "."},
+
 	{"linkage_script", "experiments/single-use", "witness_observation.go", "!NativeP2WPKH(t.body.Outputs[in.Vout].Script)", "false", "^TestWitnessLinkageScript$", "W linkage script guard", "."},
 	{"profile", "experiments/single-use", "witness.go", "if profile != WitnessProfile {", "if false && profile != WitnessProfile {", "^TestWitnessCodecAndProfile$", "W profile fallback", "."},
-	{"native_prevout", "experiments/single-use", "witness.go", "if !NativeP2WPKH(prev.Script) || len(in.Script) != 0 {", "if false && (!NativeP2WPKH(prev.Script) || len(in.Script) != 0) {", "^TestWitnessInputProfile$/legacy", "W input guard W_NATIVE_P2WPKH_REQUIRED", "."},
+	{"native_prevout", "experiments/single-use", "witness.go", "if !NativeP2WPKH(prev.Script) || len(in.Script) != 0 {", "if false && (!NativeP2WPKH(prev.Script) || len(in.Script) != 0) {", "^TestWitnessInputProfile$/scriptsig", "W input guard W_NATIVE_P2WPKH_REQUIRED", "."},
 	{"every_input", "experiments/single-use", "witness.go", "for i, in := range w.Body.Inputs {", "for i, in := range w.Body.Inputs[:1] {", "^TestWitnessInputProfile$/none", "W input guard W_SIGHASH_ALL_REQUIRED", "."},
 	{"all_only", "experiments/single-use", "witness.go", "if sigbytes[len(sigbytes)-1] != 1 {", "if false && sigbytes[len(sigbytes)-1] != 1 {", "^TestWitnessInputProfile$/anyonecanpay", "W input guard W_SIGHASH_ALL_REQUIRED", "."},
 	{"signature", "experiments/single-use", "witness.go", "if !sig.Verify(digest, pub) {", "if false && !sig.Verify(digest, pub) {", "^TestWitnessInputProfile$/wrong-amount", "W input guard W_SIGNATURE_INVALID", "."},
 	{"ordinary_confirmation", "experiments/single-use", "witness_observation.go", "if parent.height == 0 || (tx.height > 0 && parent.height >= tx.height) {", "if false && (parent.height == 0 || (tx.height > 0 && parent.height >= tx.height)) {", "^TestWitnessAdditionalParentRefusal$/unconfirmed-payment", "extra parent accepted/wrong refusal", "."},
-	{"body_binding", "experiments/single-use", "witness_observation.go", "tx.ID() != id ||", "false ||", "^TestWitnessConstructionGraph$/changed-T-body", "W graph guard W_BODY_BINDING", "."},
+	{"body_binding", "experiments/single-use", "witness_observation.go", "tx.ID() != id ||", "false ||", "^TestWitnessFundingBodyBinding$", "funding body guard", "."},
 	{"dependency_order", "experiments/single-use", "witness_observation.go", "ti < 0 || ai < 0 || ti >= ai", "ti < 0 || ai < 0", "^TestWitnessConstructionGraph$/reversed-order", "W graph guard W_DEPENDENCY_ORDER", "."},
 	{"signer_pin", "experiments/signer-service", "types.go", "if e := su.RequireWitnessProfile(p.ConstructionProfile); e != nil {", "if e := su.RequireWitnessProfile(p.ConstructionProfile); false && e != nil {", "^TestWitnessProfileStartup$", "want W_PROFILE_REQUIRED", "."},
 	{"adapter_pin", "experiments/grantcheck", "checker.go", "if e := su.RequireWitnessProfile(config.ConstructionProfile); e != nil {", "if e := su.RequireWitnessProfile(config.ConstructionProfile); false && e != nil {", "^TestWitnessProfileConfig$", "W config refusal", "."},

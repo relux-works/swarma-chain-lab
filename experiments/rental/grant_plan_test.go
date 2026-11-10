@@ -14,13 +14,19 @@ func TestGrantPlans(t *testing.T) {
 	script, _ := GrantSealScript(g.IssuerKey)
 	p := Policy{ConstructionProfile: "W", Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: script, FundingScript: testFundingScript(), StateDir: t.TempDir()}
 	good := PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: Hash([]byte("funding")), Vout: 0}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}}, ChangeScript: p.FundingScript}
-	for _, mode := range []string{"role", "seal-input", "seal-script", "seal-change", "funding-policy", "missing-funding", "duplicate", "change", "amount", "insufficient", "wrong-landlord", "wrong-kind"} {
+	for _, mode := range []string{"two-link", "role", "seal-input", "seal-script", "seal-change", "funding-policy", "missing-funding", "duplicate", "change", "amount", "insufficient", "wrong-landlord", "wrong-kind"} {
 		t.Run(mode, func(t *testing.T) {
 			s := good
 			s.Inputs = append([]su.PlanInput(nil), good.Inputs...)
 			policy := p
 			want := "ISSUANCE_FUNDING"
 			switch mode {
+			case "two-link":
+				s.Inputs[0].Point = su.Point{TxID: g.Seal.TxID, Vout: g.Seal.Vout + 1}
+				second := s.Inputs[0]
+				second.Point.Vout++
+				s.Inputs = append(s.Inputs, second)
+				want = "W_LINKAGE_REQUIRED"
 			case "role":
 				s.Inputs[0].Role = "seal"
 			case "seal-input":

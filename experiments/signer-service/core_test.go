@@ -220,6 +220,9 @@ func newCore(t *testing.T) *coreLab {
 	return l
 }
 func (l *coreLab) fund(role string, value int64) su.PlanInput {
+	return l.fundConfirmed(role, value, true)
+}
+func (l *coreLab) fundConfirmed(role string, value int64, confirmed bool) su.PlanInput {
 	l.t.Helper()
 	pub := l.cfg.Policy.Policy.IssuerPubkey
 	script := l.cfg.Policy.Policy.SealScript
@@ -265,7 +268,9 @@ func (l *coreLab) fund(role string, value int64) su.PlanInput {
 		l.t.Fatal("incomplete native fixture signature")
 	}
 	id := text(l.t, l.rpc("", "sendrawtransaction", text(l.t, signed["hex"])))
-	l.mine(1)
+	if confirmed {
+		l.mine(1)
+	}
 	var view su.TransactionView
 	json.Unmarshal(l.rpc("", "getrawtransaction", id, true), &view)
 	for _, out := range view.Vout {

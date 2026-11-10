@@ -281,7 +281,8 @@ func (x *Engine) validInventory(in su.PlanInput) error {
 }
 
 // Enroll is private operator configuration, not an outbox instruction. Every
-// explicit point is independently confirmed and unspent on the pinned node.
+// point is unspent on the pinned node. Ordinary funding must be confirmed;
+// W seals and one authenticated non-seal T:L may be unconfirmed.
 func (x *Engine) Enroll(ctx context.Context, inputs []su.PlanInput, now int64) error {
 	x.mu.Lock()
 	defer x.mu.Unlock()

@@ -46,3 +46,12 @@ proofs and their GV4 binding before Q:0 can be an unconfirmed A input. Until the
 `W_UNCONFIRMED_NON_LINKAGE_PARENT` rejects Q and every other ordinary unconfirmed
 parent. See [the boundary inventory](../WITNESS-PROFILE.md); this is an explicit
 deferred extension, not a fallback to L or a claim that full W is delivered.
+
+## SW1-consumer-fixtures follow-up
+
+`agent-wallet` and `rental-executor` consume grant-v3 `rental.Check`. Their trusted
+policies must pin W and their historical opt-in Core fixtures need native/ALL
+T/A construction migration. Those fixtures/configs are explicitly outside SW1
+qualification and knowingly incompatible where they omit W or use legacy T/A.
+Migrate and qualify both consumers before using them as W deployment examples;
+no fallback or journal reset is authorized.

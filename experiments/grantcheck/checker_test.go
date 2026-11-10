@@ -446,7 +446,7 @@ func TestWitnessProfileConfig(t *testing.T) {
 	for _, pin := range []string{"", "L", "w", "future"} {
 		bad := c
 		bad.ConstructionProfile = pin
-		bad.StateDir = "/missing"
+		bad.StateDir = t.TempDir()
 		if _, e := New(bad); e == nil || e.Error() != "W_PROFILE_REQUIRED" {
 			t.Fatal("W config refusal", e)
 		}

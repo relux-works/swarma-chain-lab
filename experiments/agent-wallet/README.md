@@ -130,7 +130,8 @@ requires an owner-only regular config file with one link, no symlink, at most
 wallet config contains RPC credentials and must never be included in reports.
 
 - `version: 1`, `network: regtest`, `genesis`: W3's pinned regtest genesis.
-- `policy`: K1 network/genesis, `agent_name`, `landlord_name`, `seal_script`,
+- `policy`: required `construction_profile: "W"`, K1 network/genesis,
+  `agent_name`, `landlord_name`, `seal_script`,
   separate private `state_dir` (see rental's policy schema).
 - `observer`: loopback `host`, `port`, username `w3-observer`, password.
 - `wallet`: `route` with username `w1-wallet`, plus one fixed `wallet` name.
@@ -212,3 +213,17 @@ violations; they do not establish exhaustive security or removal of all
 redundant defenses. CI runs unit/race/vet/build only; real Core requires the
 explicit admitted local harness. Signed delivery evidence is separate from
 these reproducible instructions.
+
+## SW1 grant-v3 compatibility
+
+This module consumes `rental.Check`. Its trusted rental policy must explicitly
+set `"construction_profile": "W"`; missing or other values refuse
+`W_PROFILE_REQUIRED` before node RPC or durable cache access. Existing v3 seals
+and issuance anchors must also satisfy native P2WPKH / SIGHASH_ALL W construction;
+adding the pin does not migrate legacy transactions. Preserve existing state.
+
+SW1 does not qualify this module's historical opt-in Core fixtures or legacy
+configs for W. They are knowingly incompatible until the named
+`SW1-consumer-fixtures` follow-up migrates their funding, T/A graphs and trusted
+policies and reruns both modules' Core suites. Default-suite success is not
+consumer end-to-end qualification. Do not deploy those fixtures as W examples.

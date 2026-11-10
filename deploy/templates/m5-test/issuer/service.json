@@ -29,6 +29,7 @@
     },
     "policy": {
       "policy": {
+        "construction_profile": "W",
         "agent_name": "PLACEHOLDER_AGENT_NAME",
         "agent_pubkey": "PLACEHOLDER_AGENT_XONLY_PUBKEY",
         "fee_rate": 200,

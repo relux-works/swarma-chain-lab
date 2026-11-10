@@ -145,7 +145,7 @@ func TestCoreWitnessSameBlock(t *testing.T) {
 		t.Fatal("same-block live", live)
 	}
 	// A wrong construction pin must not consume or overwrite an admitted cache.
-	before := encode(x.state)
+	before := snapshotTree(t, p.StateDir)
 	for _, profile := range []string{"", "L", "unknown"} {
 		bad := p
 		bad.ConstructionProfile = profile
@@ -154,8 +154,8 @@ func TestCoreWitnessSameBlock(t *testing.T) {
 			t.Fatal("pin refusal", got)
 		}
 	}
-	if !bytes.Equal(before, encode(x.state)) {
-		t.Fatal("pin refusal changed signer state")
+	if !bytes.Equal(before, snapshotTree(t, p.StateDir)) {
+		t.Fatal("pin refusal changed rental cache")
 	}
 	l.save("witness-same-block.json", map[string]any{"creation": refill.TxID, "anchor": issued.TxID, "block": tv.Block, "verdict": live, "profile": "W", "subset": "linkage-only", "status": "PASS"})
 }
@@ -304,4 +304,64 @@ func TestCoreWitnessRefusals(t *testing.T) {
 			l.save("w-refusal-"+tc.mode+".json", map[string]any{"txid": bad.Point.TxID, "reason": tc.reason, "core_accepted": true, "state_unchanged": true, "status": "PASS"})
 		})
 	}
+}
+
+type witnessBroadcastCounter struct {
+	next  Broadcast
+	calls int
+}
+
+func (b *witnessBroadcastCounter) Send(ctx context.Context, raw []byte) (string, error) {
+	b.calls++
+	return b.next.Send(ctx, raw)
+}
+
+// Genuine owned Core: mempool ordinary funding refuses enrollment, then one
+// mined block admits it. Invalidating only that owned fixture block makes the
+// enrolled point unconfirmed again: refill refuses before any durable write or
+// broadcast. Reconfirming the same output admits a complete signed refill.
+func TestCoreWitnessFundingConfirmation(t *testing.T) {
+	l := newCore(t)
+	ctx := context.Background()
+	fund := l.fundConfirmed("funding", 2000000, false)
+	x := l.engine()
+	defer x.Close()
+	counter := &witnessBroadcastCounter{next: x.broadcaster}
+	x.broadcaster = counter
+	unchanged := func(call func() error) {
+		t.Helper()
+		memory, disk := encode(x.state), snapshotTree(t, x.cfg.StateDir)
+		calls := counter.calls
+		wantError(t, call(), "W_UNCONFIRMED_NON_LINKAGE_PARENT")
+		if counter.calls != calls || !bytes.Equal(memory, encode(x.state)) || !bytes.Equal(disk, snapshotTree(t, x.cfg.StateDir)) {
+			t.Fatal("Core funding refusal had effects")
+		}
+	}
+	unchanged(func() error { return x.Enroll(ctx, []su.PlanInput{fund}, 500) })
+	l.mine(1)
+	if e := x.Enroll(ctx, []su.PlanInput{fund}, 500); e != nil {
+		t.Fatal("confirmed enrollment", e)
+	}
+	block := text(t, l.rpc("", "getbestblockhash"))
+	l.rpc("", "invalidateblock", block)
+	var mempool []string
+	if e := json.Unmarshal(l.rpc("", "getrawmempool"), &mempool); e != nil {
+		t.Fatal(e)
+	}
+	present := false
+	for _, id := range mempool {
+		if id == fund.Point.TxID {
+			present = true
+		}
+	}
+	if !present {
+		t.Fatal("fixture funding not returned to mempool")
+	}
+	unchanged(func() error { _, e := x.Refill(ctx, 500); return e })
+	l.rpc("", "reconsiderblock", block)
+	result, e := x.Refill(ctx, 500)
+	if e != nil || result.Phase != "broadcast" || counter.calls != 1 {
+		t.Fatal("confirmed refill", result, e, counter.calls)
+	}
+	l.save("w-funding-confirmation.json", map[string]any{"status": "PASS", "funding": fund.Point.TxID, "refill": result.TxID, "refusal": "W_UNCONFIRMED_NON_LINKAGE_PARENT", "ledger_unchanged": true, "refusal_broadcasts": 0, "confirmed_broadcasts": counter.calls})
 }

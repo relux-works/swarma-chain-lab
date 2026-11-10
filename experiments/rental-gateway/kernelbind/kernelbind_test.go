@@ -187,3 +187,16 @@ func legacyEnvelope(t *testing.T, g rental.Grant) []byte {
 	k, _ := btcec.PrivKeyFromBytes(key)
 	return jsonBytes(t, rental.DetachedEnvelope{Certificate: c, Signature: signHash(t, k, rental.Hash(b))})
 }
+
+// Adapter construction rejects every unsupported pin without needing node or
+// state access; the same valid policy constructs with W.
+func TestWitnessConstructionPin(t *testing.T) {
+	for _, pin := range []string{"", "L", "future"} {
+		if a, e := kernelbind.New(nil, t.TempDir(), "id/test-agent", "id/test-landlord", xonly(1), pin); e == nil || e.Error() != "W_PROFILE_REQUIRED" || a != nil {
+			t.Fatal("adapter construction pin", e)
+		}
+	}
+	if a, e := kernelbind.New(nil, t.TempDir(), "id/test-agent", "id/test-landlord", xonly(1), "W"); e != nil || a == nil {
+		t.Fatal("adapter W neighbor", e)
+	}
+}

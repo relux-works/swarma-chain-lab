@@ -149,7 +149,8 @@ Config is an owner-UID 0600 regular single-link file. Exact top-level keys:
 `executor,state_dir,socket,observer,broadcast,trackb_state,trackb_admin_socket,
 trackb_claim_socket,prize_b_keys`. Nested executor contains `network` (regtest),
 `slots`, `prize_a`. Each slot contains `slot,envelope,policy,wallet`. Envelope
-and policy use the M1 interface. Wallet contains `private_key` (64-hex scalar),
+and policy use the M1 interface. Grant-v3 policy requires
+`construction_profile: "W"` (see compatibility limits below). Wallet contains `private_key` (64-hex scalar),
 `inputs` (txid/vout objects), `fee_sat`. Prize A contains `outpoint,address,
 private_key`. `prize_b_keys` maps slot IDs to throwaway scalars.
 
@@ -199,3 +200,17 @@ The manifest is `testdata/mutations.json`; results/logs remain in that scratch
 root. Repeat `TestConcurrentStoreCreation` with `-race -count=200` on macOS
 for the first-create concurrency regression. Build/log scratch belongs in
 `.temp/`; external binaries, nodes and secrets never enter the repository.
+
+## SW1 grant-v3 compatibility
+
+This module consumes `rental.Check`. Its trusted rental policy must explicitly
+set `"construction_profile": "W"`; missing or other values refuse
+`W_PROFILE_REQUIRED` before node RPC or durable cache access. Existing v3 seals
+and issuance anchors must also satisfy native P2WPKH / SIGHASH_ALL W construction;
+adding the pin does not migrate legacy transactions. Preserve existing state.
+
+SW1 does not qualify this module's historical opt-in Core fixtures or legacy
+configs for W. They are knowingly incompatible until the named
+`SW1-consumer-fixtures` follow-up migrates their funding, T/A graphs and trusted
+policies and reruns both modules' Core suites. Default-suite success is not
+consumer end-to-end qualification. Do not deploy those fixtures as W examples.

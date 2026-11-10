@@ -326,3 +326,102 @@ func TestWitnessLinkageScript(t *testing.T) {
 		})
 	}
 }
+
+// Exact signed graphs distinguish a single T:L from two T outputs, no link at
+// block entry, and spending the seal. Confirmed T with no link is permitted.
+// All refusals return no partial authority and issue read-only RPCs only.
+func TestWitnessLinkageCardinality(t *testing.T) {
+	for _, mode := range []string{"one-mempool", "one-same-block", "two-mempool", "two-confirmed", "none-same-block", "none-mempool", "none-confirmed", "spends-seal"} {
+		t.Run(mode, func(t *testing.T) {
+			n, seal, aid := witnessGraph(t, nil)
+			creation, anchor := n.tx[seal.TxID], n.tx[aid]
+			seed := creation.Body.Inputs[0].TxID
+			native := creation.Body.Outputs[1].Script
+			// Native seal script makes the forbidden seal spend cryptographically valid
+			// if the role check is removed; later script checks cannot mask this guard.
+			creation.Body.Outputs[0].Script = native
+			creation.Body.Outputs[1].Value -= 100000
+			creation.Body.Outputs = append(creation.Body.Outputs, Output{100000, native})
+			signWitnessFixture(t, n, creation)
+			delete(n.tx, seal.TxID)
+			delete(n.heights, seal.TxID)
+			delete(n.tx, aid)
+			delete(n.heights, aid)
+			th, ah := int64(0), int64(0)
+			if mode == "one-same-block" || mode == "none-same-block" {
+				th, ah = 200, 200
+			}
+			if mode == "two-confirmed" || mode == "none-confirmed" {
+				th, ah = 199, 200
+			}
+			seal.TxID = addWitnessFixture(n, creation, th)
+			anchor.Body.Inputs = []Input{{Point: Point{seal.TxID, 1}, Sequence: 0xfffffffe}}
+			want := ""
+			switch mode {
+			case "two-mempool", "two-confirmed":
+				anchor.Body.Inputs = append(anchor.Body.Inputs, Input{Point: Point{seal.TxID, 2}, Sequence: 0xfffffffe})
+				want = "W_LINKAGE_REQUIRED"
+			case "none-same-block", "none-mempool", "none-confirmed":
+				anchor.Body.Inputs[0].Point = Point{seed, 1}
+				if mode != "none-confirmed" {
+					want = "W_LINKAGE_REQUIRED"
+				}
+			case "spends-seal":
+				anchor.Body.Inputs[0].Point = seal
+				want = "W_ISSUANCE_SPENDS_SEAL"
+			}
+			anchor.Body.Outputs[0].Value = 50000
+			signWitnessFixture(t, n, anchor)
+			aid = addWitnessFixture(n, anchor, ah)
+			before, _ := json.Marshal(n.tx)
+			o := NewReadObservation(context.Background(), n)
+			defer o.Close()
+			if e := o.Start("regtest", RegtestGenesis); e != nil {
+				t.Fatal(e)
+			}
+			got, e := o.WitnessIssuance("W", seal, aid)
+			if want == "" {
+				if e != nil || got.AnchorTransaction == nil {
+					t.Fatal("linkage neighbor", e)
+				}
+			} else {
+				if e == nil || e.Error() != want {
+					t.Fatal("linkage cardinality guard", want, e)
+				}
+				if got.AnchorTransaction != nil || got.SealTransaction != nil {
+					t.Fatal("partial linkage authority")
+				}
+			}
+			after, _ := json.Marshal(n.tx)
+			if !bytes.Equal(before, after) {
+				t.Fatal("graph changed")
+			}
+			for _, method := range n.calls {
+				if !readMethods[method] {
+					t.Fatal("effect RPC", method)
+				}
+			}
+		})
+	}
+}
+
+// The funding reader independently binds exact raw bytes to the authenticated
+// locator before returning any body, even on paths that do not verify witness
+// signatures (ordinary funding). The positive neighbor uses the original ID.
+func TestWitnessFundingBodyBinding(t *testing.T) {
+	n, seal, _ := witnessGraph(t, nil)
+	original := n.tx[seal.TxID]
+	o := NewReadObservation(context.Background(), n)
+	defer o.Close()
+	if e := o.Start("regtest", RegtestGenesis); e != nil {
+		t.Fatal(e)
+	}
+	if _, tx, e := o.FundingTransaction(seal.TxID); e != nil || tx == nil {
+		t.Fatal("funding body neighbor", e)
+	}
+	original.Body.Outputs[0].Value++
+	view, tx, e := o.FundingTransaction(seal.TxID)
+	if e == nil || e.Error() != "W_BODY_BINDING" || tx != nil || view.TxID != "" {
+		t.Fatal("funding body guard", e)
+	}
+}

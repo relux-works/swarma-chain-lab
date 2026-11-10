@@ -304,3 +304,18 @@ func TestConfigBookingVersion(t *testing.T) {
 		t.Fatal("V2 neighbor", e)
 	}
 }
+
+// Missing/unsupported W pins refuse the otherwise valid gateway config before
+// serve can open its state, sockets, keys or network dependencies.
+func TestWitnessGatewayPin(t *testing.T) {
+	c := testConfig(t)
+	if e := c.validate(true); e != nil {
+		t.Fatal("W config neighbor", e)
+	}
+	for _, pin := range []string{"", "L", "future"} {
+		c.Kernel.ConstructionProfile = pin
+		if e := c.validate(true); e == nil || e.Error() != "W_PROFILE_REQUIRED" {
+			t.Fatal("gateway W pin", e)
+		}
+	}
+}
