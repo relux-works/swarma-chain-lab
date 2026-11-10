@@ -209,8 +209,7 @@ this entry point must not be presented as complete E2E1 or gate-7 qualification.
 Default tests check the topology validator with duplicate/missing/aliased-node
 controls; these metadata controls do not replace actual multi-node execution.
 
-`go run .scripts/compare-canonical.go /absolute/first/public/result.json
-/absolute/second/public/result.json` compares two completed same-head/same-scenario
+`go run .scripts/compare-canonical.go /absolute/first/public/result.json /absolute/second/public/result.json` compares two completed same-head/same-scenario
 interim reports. It validates required success observations and normalizes random
 identity/path/port/time/process metadata into role labels. It retains effect
 counts, full model accounting, closure, ordered phases and pending crash labels.
@@ -225,3 +224,10 @@ quote follows the native positive path. The independent verifier refuses another
 executor as `GRANT_POLICY` before node calls with an unchanged admission journal.
 It rechecks the original grant after revoke/expiry for `SEAL_SPENT`/`EXPIRED`.
 These are specific existing API checks, not a universal v4 service-action matrix.
+
+A hostile non-W control constructs and confirms native W T plus legacy A on the disposable
+chain, with a real fixture issuer signature and matching Link commitment.
+The independent verifier must reach `W_WITNESS_REQUIRED` without admission state;
+the original native W presentation must still pass immediately afterwards.
+This negative construction never enters the native signer's journal or gateway
+presentation mirror and never enables a Legacy fallback.

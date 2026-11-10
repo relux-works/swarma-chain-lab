@@ -57,6 +57,16 @@ func CanonicalProjection(raw []byte) ([]byte, error) {
 			Reason  string `json:"reason"`
 			Durable bool   `json:"durable_closed"`
 		} `json:"independent_closed"`
+		NonW struct {
+			Reason     string `json:"reason"`
+			NoState    bool   `json:"no_admission_state"`
+			Positive   string `json:"native_w_neighbour"`
+			T          string `json:"consensus_accepted_t"`
+			A          string `json:"consensus_accepted_a"`
+			Commitment string `json:"commitment"`
+			ID         string `json:"hostile_grant_id"`
+			TW         bool   `json:"seal_transaction_w"`
+		} `json:"non_w_anchor"`
 		Mirror struct {
 			Original bool   `json:"original_bytes"`
 			After    bool   `json:"published_after_independent_live"`
@@ -143,9 +153,12 @@ func CanonicalProjection(raw []byte) ([]byte, error) {
 	if !r.Mirror.Original || !r.Mirror.After || !validHex(r.Mirror.Hash, 32) {
 		return bad()
 	}
+	if !r.NonW.TW || r.NonW.Reason != "W_WITNESS_REQUIRED" || !r.NonW.NoState || r.NonW.Positive != "LIVE" || !validHex(r.NonW.T, 32) || !validHex(r.NonW.A, 32) || !validHex(r.NonW.Commitment, 32) || !validHex(r.NonW.ID, 32) {
+		return bad()
+	}
 	var accounting any
 	if json.Unmarshal(r.Accounting, &accounting) != nil {
 		return bad()
 	}
-	return json.Marshal(map[string]any{"product_base": r.Head, "outcome": r.Outcome, "scenario": r.Scenario, "order": r.Order, "node_roles": roles, "verifier": map[string]any{"stale": r.Check.Stale, "live": r.Check.Live, "grant": "grant:rental", "anchor": "tx:issuance", "tip": "tip:converged", "no_admission_state": true}, "closure": map[string]any{"ended": r.Closure.Ended, "destroyed": r.Closure.Destroyed, "reason": r.Closure.Reason, "channel_cleared": r.Closure.Cleared, "helper_removed": r.Closure.Removed}, "accounting": accounting, "upstream_calls": r.Calls, "verified_presentation_mirror": "original SG1 bytes after independent live", "underquote": r.Underquote, "wrong_executor": r.Wrong, "independent_closed": r.Closed, "crash_cases": r.Crashes, "known_secret_log_scan": r.Clean, "all_recorded_processes_absent": true})
+	return json.Marshal(map[string]any{"product_base": r.Head, "outcome": r.Outcome, "scenario": r.Scenario, "order": r.Order, "node_roles": roles, "verifier": map[string]any{"stale": r.Check.Stale, "live": r.Check.Live, "grant": "grant:rental", "anchor": "tx:issuance", "tip": "tip:converged", "no_admission_state": true}, "closure": map[string]any{"ended": r.Closure.Ended, "destroyed": r.Closure.Destroyed, "reason": r.Closure.Reason, "channel_cleared": r.Closure.Cleared, "helper_removed": r.Closure.Removed}, "accounting": accounting, "upstream_calls": r.Calls, "verified_presentation_mirror": "original SG1 bytes after independent live", "non_w_anchor": map[string]any{"reason": r.NonW.Reason, "no_admission_state": true, "native_w_neighbour": r.NonW.Positive, "t": "tx:control-native-seal", "seal_transaction_w": true, "a": "tx:nonw-anchor"}, "underquote": r.Underquote, "wrong_executor": r.Wrong, "independent_closed": r.Closed, "crash_cases": r.Crashes, "known_secret_log_scan": r.Clean, "all_recorded_processes_absent": true})
 }

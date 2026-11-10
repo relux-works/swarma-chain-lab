@@ -308,6 +308,11 @@ func (l *lab) verifyIndependent(raw []byte, config string) {
 	if live.Verdict != "live" || live.Reason != "LIVE" {
 		l.t.Fatalf("independent verifier positive refused: %s/%s", live.Verdict, live.Reason)
 	}
+	l.rejectNonW(raw, p, node)
+	live = check()
+	if live.Verdict != "live" || live.Reason != "LIVE" {
+		l.t.Fatal("original W grant no longer live after negative control")
+	}
 	before, e := os.ReadFile(filepath.Join(p.StateDir, "grant-"+live.GrantID+".json"))
 	checked(l.t, e, "verifier admission journal")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
