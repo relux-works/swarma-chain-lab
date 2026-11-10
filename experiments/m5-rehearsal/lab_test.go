@@ -38,6 +38,11 @@ type process struct {
 	stopped bool
 }
 type lab struct {
+	canonical                                                bool
+	peers                                                    map[string]*canonicalNode
+	signerRead, bookingRead                                  su.Route
+	bookingDir, minerP2P                                     string
+	verifierPaused                                           bool
 	t                                                        *testing.T
 	root, private, public, repo, cli, conf, nodeDir, address string
 	read, broadcast, payment, paymentIssuer                  su.Route
@@ -194,7 +199,15 @@ func str(t *testing.T, b []byte) string {
 	checked(t, json.Unmarshal(b, &s), "JSON string")
 	return s
 }
-func (l *lab) mine(n int) { l.rpc("", "generatetoaddress", n, l.address) }
+func (l *lab) mine(n int) {
+	if l.canonical {
+		l.syncMempools()
+	}
+	l.rpc("", "generatetoaddress", n, l.address)
+	if l.canonical {
+		l.syncTips()
+	}
+}
 func leaked(b []byte, secrets [][]byte) bool {
 	for _, s := range secrets {
 		if len(s) >= 16 && bytes.Contains(b, s) {
@@ -360,6 +373,12 @@ func (l *lab) startCore(agent, issuer string) {
 	}
 	l.conf = filepath.Join(l.nodeDir, "namecoin.conf")
 	conf := "server=1\ndeprecatedrpc=create_bdb\nlisten=0\ndnsseed=0\ndiscover=0\nnetworkactive=0\ntxindex=1\npersistmempool=0\nfallbackfee=0.002\nacceptnonstdtxn=1\nnameencoding=ascii\nvalueencoding=ascii\nrpcwhitelistdefault=0\n" + auth.String() + "[regtest]\nrpcbind=127.0.0.1\nrpcallowip=127.0.0.1\nrpcport=" + port + "\n"
+	if l.canonical {
+		l.minerP2P = address(l.t)
+		conf = strings.Replace(conf, "listen=0\n", "listen=1\nconnect=0\n", 1)
+		conf = strings.Replace(conf, "networkactive=0\n", "networkactive=1\n", 1)
+		conf += "bind=" + l.minerP2P + "\nport=" + strings.Split(l.minerP2P, ":")[1] + "\n"
+	}
 	l.write(l.conf, []byte(conf), 0600)
 	l.bins["node"] = os.Getenv("IT1_CORE_DAEMON")
 	l.spawn("node", "-regtest", "-datadir="+l.nodeDir, "-conf="+l.conf)
@@ -393,6 +412,9 @@ func (l *lab) startCore(agent, issuer string) {
 		l.rpc("rehearsal", "name_firstupdate", v.name, r[1], r[0], v.value)
 	}
 	l.mine(1)
+	if l.canonical {
+		l.startObservers()
+	}
 	l.evidence["core_names_registered"] = true
 	l.t.Log("genuine Core ready; agent and landlord names registered")
 }

@@ -55,10 +55,11 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 		t.Fatal("invalid full scenario")
 	}
 	l := newLab(t)
-	if len(dialect) > 1 || (len(dialect) == 1 && dialect[0] != "responses" && dialect[0] != "host-runner") {
+	if len(dialect) > 1 || (len(dialect) == 1 && dialect[0] != "responses" && dialect[0] != "host-runner" && dialect[0] != "canonical") {
 		t.Fatal("invalid rehearsal dialect")
 	}
-	l.responses = len(dialect) == 1
+	l.responses = len(dialect) == 1 && dialect[0] != "canonical"
+	l.canonical = len(dialect) == 1 && dialect[0] == "canonical"
 	l.evidence["responses_mode"] = l.responses
 	l.evidence["partial_only"] = partial
 	overlay := l.registrarOverlay()
@@ -114,9 +115,13 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 		// Leave more than the real 90-second relay deadline after model controls.
 		cfg.Slots[0].NotAfter = now + 210
 	}
+	bookingRead, bookingDir := l.read, l.nodeDir
+	if l.canonical {
+		bookingRead, bookingDir = l.bookingRead, l.bookingDir
+	}
 	observer := filepath.Join(l.private, "booking-node.conf")
-	l.write(observer, []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", l.read.Username, l.read.Password, l.read.Port)), 0600)
-	operator := su.OperatorRoute{Network: "regtest", Genesis: su.RegtestGenesis, NodeCLI: l.cli, NodeCLISHA256: cliPin, NodeConfig: observer, NodeDataDir: l.nodeDir}
+	l.write(observer, []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", bookingRead.Username, bookingRead.Password, bookingRead.Port)), 0600)
+	operator := su.OperatorRoute{Network: "regtest", Genesis: su.RegtestGenesis, NodeCLI: l.cli, NodeCLISHA256: cliPin, NodeConfig: observer, NodeDataDir: bookingDir}
 	selected := struct {
 		Version int               `json:"service_version"`
 		Config  booking.ConfigV2  `json:"config"`
@@ -204,6 +209,9 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	l.await("V2 original issuance export", func() bool {
 		return l.http("GET", bookingURL+"/booking?id="+contract.BookingID, nil, &paid) == 200 && paid.Issuance != nil
 	})
+	if l.canonical {
+		l.pauseVerifier()
+	}
 	proof := l.confirmedPresentation(signerConfig, contract.BookingID, presentations)
 	conversation.receive("issued\n", 10*time.Second)
 	l.evidence["stage"] = "confirmed presentation and issued"
@@ -225,6 +233,9 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 		t.Fatal("slot started before grant window")
 	}
 	conversation.receive("ready", 75*time.Second)
+	if l.canonical {
+		l.verifyIndependent(proof, signerConfig)
+	}
 	l.evidence["stage"] = "ready"
 	t.Log("ready received; sending first grantee message")
 	tag, e := gateway.GrantCertTag(proof)
@@ -336,6 +347,9 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	l.evidence["model_accounting"] = row
 	l.evidence["scenario"] = scenario
 	l.evidence["outcome"] = "PASS"
+	if l.canonical {
+		l.evidence["outcome"] = "PASS_INTERIM"
+	}
 	l.evidence["full_scenario"] = "native V2 exchange, SG1 CLI, S1, real manager, PL1 payload/model delivery and closure passed"
 	l.evidence["fake_helper_limit"] = "actual payload PID and disposable bootstrap removed; Linux isolation and physical disk wipe NOT EXERCISED"
 	l.evidence["upstream_calls"] = upstreamCalls.Load()

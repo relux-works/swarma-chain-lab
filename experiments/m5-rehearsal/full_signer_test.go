@@ -76,7 +76,11 @@ func (l *lab) signerConfig(cfg booking.ConfigV2, storeURL, presentations string,
 	checked(l.t, e, "signer seal")
 	fund, e := nativeFundingScript(funding)
 	checked(l.t, e, "signer funding")
-	fc := signer.FileConfig{Config: signer.Config{Profile: "v2", PresentationDir: presentations, StateDir: l.dir("signer"), GrantKeyPath: filepath.Join(l.private, "grant.key"), FundingKeyPath: filepath.Join(l.private, "funding.key"), Caps: signer.RegtestCaps(), Policy: rental.IssuerPolicy{Policy: rental.Policy{ConstructionProfile: "W", Network: "regtest", Genesis: su.RegtestGenesis, IssuerPubkey: grant.PubKeyHex(), AgentPubkey: cfg.AgentPubkey, AgentName: agentName, StationName: agentName, LandlordName: landlordName, SealScript: seal, StationScript: seal, FundingScript: fund, StateDir: l.dir("issuer")}, ProviderPubkey: provider.PubKeyHex()}, PaymentPolicies: map[string]rental.PaymentAdmissionPolicy{"nmc": {MaxRateAgeSeconds: 7200, MinConfirmations: 2, Limits: pc.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}}}, ReadRouteFile: l.json("signer-reader.json", l.read, 0600), BroadcastRouteFile: l.json("signer-broadcaster.json", l.broadcast, 0600), PaymentRouteFiles: map[string]string{"nmc": l.json("signer-payment.json", l.paymentIssuer, 0600)}, BookingOutbox: cfg.StateDir, StoreURL: storeURL, StoreLandlordReader: grant.PubKeyHex(), StoreAgentReader: cfg.AgentPubkey, IntervalSeconds: 1, Inventory: []su.PlanInput{l.signerInput(grant, "seal"), l.signerInput(funding, "funding")}}
+	reader := l.read
+	if l.canonical {
+		reader = l.signerRead
+	}
+	fc := signer.FileConfig{Config: signer.Config{Profile: "v2", PresentationDir: presentations, StateDir: l.dir("signer"), GrantKeyPath: filepath.Join(l.private, "grant.key"), FundingKeyPath: filepath.Join(l.private, "funding.key"), Caps: signer.RegtestCaps(), Policy: rental.IssuerPolicy{Policy: rental.Policy{ConstructionProfile: "W", Network: "regtest", Genesis: su.RegtestGenesis, IssuerPubkey: grant.PubKeyHex(), AgentPubkey: cfg.AgentPubkey, AgentName: agentName, StationName: agentName, LandlordName: landlordName, SealScript: seal, StationScript: seal, FundingScript: fund, StateDir: l.dir("issuer")}, ProviderPubkey: provider.PubKeyHex()}, PaymentPolicies: map[string]rental.PaymentAdmissionPolicy{"nmc": {MaxRateAgeSeconds: 7200, MinConfirmations: 2, Limits: pc.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}}}, ReadRouteFile: l.json("signer-reader.json", reader, 0600), BroadcastRouteFile: l.json("signer-broadcaster.json", l.broadcast, 0600), PaymentRouteFiles: map[string]string{"nmc": l.json("signer-payment.json", l.paymentIssuer, 0600)}, BookingOutbox: cfg.StateDir, StoreURL: storeURL, StoreLandlordReader: grant.PubKeyHex(), StoreAgentReader: cfg.AgentPubkey, IntervalSeconds: 1, Inventory: []su.PlanInput{l.signerInput(grant, "seal"), l.signerInput(funding, "funding")}}
 	return l.json("signer.json", fc, 0600)
 }
 func (l *lab) signerCycle(config string) {
@@ -84,6 +88,9 @@ func (l *lab) signerCycle(config string) {
 	l.write(filepath.Join(l.private, "signer-last-cycle.log"), out, 0600)
 	if code != 0 || leaked(out, l.secrets) || strings.Contains(string(out), "DATA RACE") {
 		l.t.Fatal("native signer cycle failed; output withheld")
+	}
+	if l.canonical {
+		l.syncMempools()
 	}
 }
 func (l *lab) confirmedPresentation(config, id, dir string) []byte {

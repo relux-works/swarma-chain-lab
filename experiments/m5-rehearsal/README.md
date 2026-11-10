@@ -181,3 +181,26 @@ IT2_PARTIAL=1 IT2_SCENARIO=revoke IT1_REGTEST=1 \
 ## External host runner self-test
 
 `TestHostRunnerComposition` runs the new [external client](../m5-host-smoke/README.md) against this same isolated Darwin composition. Select `IT2_SCENARIO=expiry|revoke`, the same pinned Core/release inputs and a fresh root. The result is explicitly `PASS_SELF_TEST`, never Linux host evidence. The fixture adapter alone owns disposable payment/signing/private probes; the external client receives public bound receipts only. It also restarts its owned gateway/model overlay without resetting the journal and checks durable closed-state accounting.
+
+## E2E1 independent-node interim
+
+`TestCanonicalComposition` uses the implemented V2 order: booking/consent,
+confirmed payment, then issuance. This is not a spec-adopted profile. A separate
+miner funds disposable fixtures; booking, issuer, gateway and the independent
+verifier each have their own Core process, datadir, RPC credentials and port.
+Observer nodes connect only to the owned miner over loopback P2P. No credentials
+or node datadir are shared between services. Chain and mempool convergence is
+required before dependent observations. Service code is unchanged.
+
+Use the full scenario inputs above and select `-run '^TestCanonicalComposition$'`.
+The verifier is disconnected before issuance; it must refuse the unknown anchor
+without persisting admission state, then admit the identical presentation after
+P2P convergence. This does not prove freshness of unseen revocations. The same
+Darwin manager/admin substitutions and release-isolation check still apply.
+
+Success is `PASS_INTERIM`. Gateway/station crash recovery is pending the accepted
+DA1 composition. Issuer/booking crash barriers, complete action/refusal probes,
+repeat-run normalized comparison and the remote control adapter remain pending;
+this entry point must not be presented as complete E2E1 or gate-7 qualification.
+Default tests check the topology validator with duplicate/missing/aliased-node
+controls; these metadata controls do not replace actual multi-node execution.
