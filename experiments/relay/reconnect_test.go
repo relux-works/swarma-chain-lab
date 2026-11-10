@@ -159,8 +159,10 @@ func TestNativeReconnectPagination(t *testing.T) {
 	r.mu.Unlock()
 	awaitRK(t, "transport reconnect absent", func() bool { return client.Status().Reconnects > 0 })
 	ids := []string{firstID}
+	// Keep exact two-event timestamp ties even if publication crosses a second.
+	gapTime := time.Now().Unix() - 172790
 	for i := range 7 {
-		w, id := datedWrap(t, renter, agent, fmt.Sprintf("gap-%d", i), time.Now().Unix()-172790+int64(i/2))
+		w, id := datedWrap(t, renter, agent, fmt.Sprintf("gap-%d", i), gapTime+int64(i/2))
 		ids = append(ids, id)
 		if e = sender.Publish(ctx, w); e != nil {
 			t.Fatal(e)
