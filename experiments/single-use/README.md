@@ -102,6 +102,17 @@ The `headers` counter is bounded metadata, not an active-tip authority: genuine
 Core after invalidate/reconsider can report `blocks=117, headers=116, IBD=false`.
 Active hashes, headers, membership and repeated tip checks provide the proof.
 
+## Payload provisioning byte contracts
+
+The standard-library-only [`payloadjournal`](payloadjournal/FORMAT.md) package
+defines DK5b v1 binding/lock bytes, fixed refusal codes and public golden files
+for Infra and the station payload. It performs no I/O and is not yet wired into
+the DA1 consumer; it does not migrate or initialize runtime state on its own.
+The [`payloadlaunch`](payloadlaunch/FORMAT.md) package defines the dynamic
+manifest/anchor and [typed launch argv](payloadlaunch/LAUNCH.md), also without
+filesystem or process effects. The format documents specify exact obligations
+and scoped test commands. Source version and golden hashes must be pinned together.
+
 ## Tools and commands
 
 Go 1.26.8 was used on Darwin arm64. Dependencies are pinned in go.mod/go.sum;

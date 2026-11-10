@@ -14,3 +14,10 @@
 - One confirmation permits reorg risk. No effect rollback, global deduplication
   or automatic retry of an uncertain durable reservation is defined.
 - Process-crash controls do not establish power-loss guarantees across filesystems.
+
+- DK5b journal and launch codecs v1 are defined in
+  [payloadjournal/FORMAT.md](payloadjournal/FORMAT.md) and
+  [payloadlaunch/FORMAT.md](payloadlaunch/FORMAT.md),
+  but Infra provisioning and payload admission remain separate pending changes.
+  No installed v1 support, old-state migration or Linux custody qualification
+  follows from the byte codec alone.
