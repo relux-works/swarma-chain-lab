@@ -420,3 +420,15 @@ their separate contracts. No production mode fallback exists. Full signed
 admission tests live in `single-use/configguard`; local ownership seams are
 synthetic and do not qualify Linux deployment. See the deploy runbook for
 same-binary preflight and the separate DK5b payload launch gate.
+
+## Durable ordinary replies (DA1)
+
+[DELIVERY.md](DELIVERY.md) defines the received/reply wire IDs, durable input,
+immutable outbox, restart behavior and relay-accepted boundary. Legacy replies
+without a delivery ID refuse. Station recovery requires its explicit private
+journal; Infra/DK5b owns launch wiring. Renter display acknowledgement remains
+outside this contract. Existing lifecycle notices use their separate path.
+
+From this module, `go run .scripts/da1-guards.go -out .temp/da1-guards` checks
+bounded durability/dedup guard removals and writes public logs/source hashes.
+Run it alongside the existing module guard scripts in isolated task scratch.

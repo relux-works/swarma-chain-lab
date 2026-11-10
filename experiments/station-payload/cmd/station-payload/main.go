@@ -17,6 +17,7 @@ import (
 func run(ctx context.Context, args []string) error {
 	f := flag.NewFlagSet("station-payload", flag.ContinueOnError)
 	f.SetOutput(io.Discard)
+	journalDir := f.String("journal-dir", "", "required existing private per-slot delivery journal directory (0700; Infra-owned lifecycle)")
 	bootstrap := f.String("bootstrap", "", "private canonical bootstrap file (0600)")
 	ca := f.String("ca", "", "root-owned0640 static operator CA PEM, shared by fixture gateway/proxy")
 	address := f.String("gateway", "", "gateway payload IP:port")
@@ -25,7 +26,7 @@ func run(ctx context.Context, args []string) error {
 	max := f.Uint64("max-tokens", 0, "operator per-request output limit (v2)")
 	dialect := f.String("dialect", "", "operator-pinned messages or responses; omitted only for legacy tests")
 	modelConfig := f.String("model-config", "", "root-owned0640 static canonical proxy config copy; referenced paths are never opened")
-	if f.Parse(args) != nil || f.NArg() != 0 {
+	if f.Parse(args) != nil || f.NArg() != 0 || *journalDir == "" {
 		return payload.ErrConfig
 	}
 	if (*dialect == "") != (*modelConfig == "") || (*dialect != "" && *dialect != payload.DialectMessages && *dialect != payload.DialectResponses) {
@@ -43,7 +44,7 @@ func run(ctx context.Context, args []string) error {
 	if !roots.AppendCertsFromPEM(cert) {
 		return payload.ErrConfig
 	}
-	options := payload.Options{Model: *model, MaxTokens: *max, Roots: roots}
+	options := payload.Options{Model: *model, MaxTokens: *max, Roots: roots, JournalDir: *journalDir}
 	var c *payload.Client
 	if *dialect == "" {
 		c, e = payload.New(raw, options)

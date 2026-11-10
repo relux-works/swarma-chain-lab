@@ -118,7 +118,13 @@ func (f *fakeHelper) handle(c net.Conn) {
 			refusal()
 			return
 		}
-		cmd := exec.Command(f.payload, "-bootstrap", r.path, "-ca", f.ca, "-gateway", f.endpoint, "-gateway-pin", f.pin, "-model", "fixture", "-max-tokens", "16")
+		journalPath := filepath.Join(f.root, "delivery-"+q.Slot)
+		if os.Mkdir(journalPath, 0700) != nil {
+			log.Close()
+			refusal()
+			return
+		}
+		cmd := exec.Command(f.payload, "-journal-dir", journalPath, "-bootstrap", r.path, "-ca", f.ca, "-gateway", f.endpoint, "-gateway-pin", f.pin, "-model", "fixture", "-max-tokens", "16")
 		if f.l.responses {
 			cmd.Args = append(cmd.Args, "-dialect", "responses", "-model-config", f.l.modelConfigPath)
 		}
@@ -144,6 +150,10 @@ func (f *fakeHelper) handle(c net.Conn) {
 		r.response.State = "stopped"
 	case "destroy":
 		if r.response.State != "stopped" {
+			refusal()
+			return
+		}
+		if os.RemoveAll(filepath.Join(f.root, "delivery-"+q.Slot)) != nil {
 			refusal()
 			return
 		}

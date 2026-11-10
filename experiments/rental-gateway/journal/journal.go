@@ -49,15 +49,17 @@ type Slot struct {
 	StationUser string `json:"station_user,omitempty"`
 	// Operations are the durable closer-operation records.
 	Operations []OpRecord `json:"operations,omitempty"`
+	Deliveries []Delivery `json:"deliveries,omitempty"`
 
 	seen map[string]bool `json:"-"`
 }
 
 // Store is a directory of slot files with an in-memory cache.
 type Store struct {
-	dir   string
-	mu    sync.Mutex
-	slots map[string]*Slot
+	dir      string
+	mu       sync.Mutex
+	slots    map[string]*Slot
+	poisoned bool
 }
 
 // Open loads (or creates) the journal directory (mode 0700).
@@ -87,6 +89,9 @@ func Open(dir string) (*Store, error) {
 			return nil, fmt.Errorf("journal: invalid field spelling")
 		}
 		slot.rebuildSeen()
+		if !validDeliveries(&slot) {
+			return nil, ErrDelivery
+		}
 		s.slots[slot.ID] = &slot
 	}
 	return s, nil
@@ -119,6 +124,17 @@ func slotKeys(raw []byte) bool {
 	if !ok {
 		return false
 	}
+	if deliveries, exists := fields["deliveries"]; exists {
+		var records []json.RawMessage
+		if json.Unmarshal(deliveries, &records) != nil {
+			return false
+		}
+		for _, record := range records {
+			if _, ok := exact(record, reflect.TypeFor[Delivery]()); !ok {
+				return false
+			}
+		}
+	}
 	if operations, exists := fields["operations"]; exists {
 		var records []json.RawMessage
 		if json.Unmarshal(operations, &records) != nil {
@@ -145,6 +161,10 @@ func (s *Slot) rebuildSeen() {
 // share backing storage with the stored slot.
 func copySlot(s *Slot) *Slot {
 	cp := *s
+	cp.Deliveries = append([]Delivery(nil), s.Deliveries...)
+	for i := range cp.Deliveries {
+		cp.Deliveries[i].Wire = append(json.RawMessage(nil), cp.Deliveries[i].Wire...)
+	}
 	cp.SeenRumorIDs = append([]string(nil), s.SeenRumorIDs...)
 	if s.Operations != nil {
 		cp.Operations = make([]OpRecord, len(s.Operations))
@@ -180,6 +200,9 @@ func (st *Store) path(id string) string {
 
 // persistLocked durably writes one slot. Caller holds st.mu.
 func (st *Store) persistLocked(slot *Slot) error {
+	if st.poisoned {
+		return ErrDelivery
+	}
 	raw, err := json.Marshal(slot)
 	if err != nil {
 		return err

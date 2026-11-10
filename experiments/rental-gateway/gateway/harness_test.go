@@ -284,7 +284,7 @@ func pull(t *testing.T, c *stationlink.Client) *stationlink.Frame {
 
 // deliverValid is the valid neighbour used beside negative controls:
 // a well-formed renter DM must reach the station queue.
-func (h *harness) deliverValid(c *stationlink.Client, content string) {
+func (h *harness) deliverValid(c *stationlink.Client, content string) string {
 	h.t.Helper()
 	res := h.handle(h.renterDM(content, nowMid))
 	if !res.Delivered {
@@ -294,6 +294,11 @@ func (h *harness) deliverValid(c *stationlink.Client, content string) {
 	if f.Type != stationlink.TypeDeliver || f.Content != content {
 		h.t.Fatalf("station got %+v, want deliver %q", f, content)
 	}
+	ack, err := c.Received(f.DeliveryID)
+	if err != nil || ack.Type != stationlink.TypeAck || ack.DeliveryID != f.DeliveryID {
+		h.t.Fatal("fixture receive ACK", err)
+	}
+	return f.DeliveryID
 }
 
 // craftWrap builds adversarial wraps with full control over rumor,

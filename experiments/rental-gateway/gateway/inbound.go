@@ -126,21 +126,30 @@ func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result 
 	}
 
 	// (b, durable half) Record the rumor id now — after kernel live,
-	// fsynced before screening and delivery — so a replayed,
+	// input and identity fsynced before screening and delivery — so a replayed,
 	// screened message cannot add further strikes (RM2 M4).
-	already, err := g.cfg.Journal.RecordSeen(slot.ID, rumor.ID)
+	already, err := g.cfg.Journal.RecordInput(slot.ID, rumor.ID, rumor.Content)
 	if err != nil {
 		res.Refused, res.Reason = true, "journal_error"
 		return res
 	}
 	if already {
 		res.Refused, res.Reason = true, "replayed_rumor"
+		if d, ok := g.cfg.Journal.Delivery(slot.ID, rumor.ID); ok && d.Phase == journal.DeliveryScreening {
+			res.Reason = "screening_uncertain"
+		}
 		return res
 	}
 
 	// (e) Screening: only an explicit allow delivers, and only an
 	// explicit model REFUSE spends a strike (RM2 M1 policy).
 	decision, err := g.runScreen(ctx, rumor.Content)
+	if err != nil || !decision.Allow {
+		if e := g.cfg.Journal.ChangeDelivery(slot.ID, rumor.ID, journal.DeliveryRefused, "", nil); e != nil {
+			res.Refused, res.Reason = true, "journal_error"
+			return res
+		}
+	}
 	if err != nil {
 		return g.screeningUnavailable(ctx, slot, res)
 	}
@@ -152,7 +161,13 @@ func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result 
 		return g.screeningRefusal(ctx, slot, res, reason)
 	}
 
-	// (f) Deliver to the station pull queue.
+	// Commit dispatch eligibility before waking the station. The queue is only
+	// a wakeup; the complete input survives a gateway restart.
+	if err := g.cfg.Journal.ChangeDelivery(slot.ID, rumor.ID, journal.DeliveryQueued, "", nil); err != nil {
+		res.Refused, res.Reason = true, "journal_error"
+		return res
+	}
+	// (f) Notify the station pull queue.
 	q := g.queueFor(slot.ID)
 	frame := &stationlink.Frame{
 		Type: stationlink.TypeDeliver, SlotID: slot.ID,
@@ -163,7 +178,7 @@ func (g *Gateway) HandleGiftWrap(ctx context.Context, wrap *nostr.Event) Result 
 		res.Delivered = true
 		return res
 	default:
-		res.Refused, res.Reason = true, "station_queue_full"
+		res.Delivered = true // durable pending input remains pullable even without a wakeup
 		return res
 	}
 }
@@ -244,6 +259,7 @@ func (g *Gateway) runScreen(ctx context.Context, content string) (screen.Decisio
 
 // connState is one station connection's auth state.
 type connState struct {
+	offered        map[string]bool
 	pendingSlot    string
 	pendingStation string
 	nonceHex       string
@@ -273,7 +289,7 @@ func (g *Gateway) HandleStationConn(conn net.Conn) {
 	defer conn.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	state := &connState{conn: conn, cancel: cancel}
+	state := &connState{conn: conn, cancel: cancel, offered: map[string]bool{}}
 	defer g.unbind(state)
 	for {
 		frame, err := stationlink.ReadFrame(conn)
@@ -342,24 +358,40 @@ func (g *Gateway) stationRequest(ctx context.Context, state *connState, frame *s
 			return &stationlink.Frame{Type: stationlink.TypeEnd, SlotID: slot.ID, Reason: slot.EndReason}
 		}
 		q := g.queueFor(slot.ID)
-		select {
-		case <-ctx.Done():
-			return deny("session cancelled")
-		case f := <-q:
-			return f
-		case <-time.After(g.cfg.PullTimeout):
-			if fresh, ok := g.cfg.Journal.Get(slot.ID); ok && fresh.Ended {
-				return &stationlink.Frame{Type: stationlink.TypeEnd, SlotID: slot.ID, Reason: fresh.EndReason}
+		timer := time.NewTimer(g.cfg.PullTimeout)
+		defer timer.Stop()
+		for {
+			if d, ok := g.cfg.Journal.PendingDelivery(slot.ID, state.offered); ok {
+				state.offered[d.ID] = true
+				return &stationlink.Frame{Type: stationlink.TypeDeliver, SlotID: slot.ID, DeliveryID: d.ID, Content: d.Input}
 			}
-			return &stationlink.Frame{Type: stationlink.TypeNone, SlotID: slot.ID}
+			select {
+			case <-ctx.Done():
+				return deny("session cancelled")
+			case f := <-q:
+				if f.Type != stationlink.TypeDeliver {
+					return f
+				}
+			case <-timer.C:
+				if fresh, ok := g.cfg.Journal.Get(slot.ID); ok && fresh.Ended {
+					return &stationlink.Frame{Type: stationlink.TypeEnd, SlotID: slot.ID, Reason: fresh.EndReason}
+				}
+				return &stationlink.Frame{Type: stationlink.TypeNone, SlotID: slot.ID}
+			}
 		}
-	case stationlink.TypeReply:
+	case stationlink.TypeReceived, stationlink.TypeReply:
+		g.deliveryMu.Lock()
+		defer g.deliveryMu.Unlock()
+		slot, ok = g.cfg.Journal.Get(state.boundSlot)
+		if !ok || slot.Destroyed {
+			return deny("station destroyed")
+		}
 		if slot.Ended {
 			return deny("slot ended")
 		}
 		now := g.cfg.Now().Unix()
 		if now >= slot.NotAfter {
-			g.endSlot(ctx, slot.ID, "not_after", "slot ended")
+			g.endSlot(ctx, slot.ID, "not_after", "")
 			return deny("slot over")
 		}
 		// Outbound is signed only to a current grantee: fresh
@@ -375,10 +407,17 @@ func (g *Gateway) stationRequest(ctx context.Context, state *connState, frame *s
 		if !receipt.Admits() {
 			return deny("grant not live")
 		}
-		if err := g.dmRenter(ctx, slot, frame.Content); err != nil {
-			return deny("publish failed")
+		if frame.Type == stationlink.TypeReceived {
+			if !state.offered[frame.DeliveryID] {
+				return deny("delivery refused")
+			}
+			if err := g.cfg.Journal.ChangeDelivery(slot.ID, frame.DeliveryID, journal.DeliveryReceived, "", nil); err != nil {
+				return deny("delivery refused")
+			}
+		} else if err := g.replyDelivery(ctx, slot, frame.DeliveryID, frame.Content); err != nil {
+			return deny("delivery refused")
 		}
-		return &stationlink.Frame{Type: stationlink.TypeAck, SlotID: slot.ID}
+		return &stationlink.Frame{Type: stationlink.TypeAck, SlotID: slot.ID, DeliveryID: frame.DeliveryID}
 	case stationlink.TypeEndEarly:
 		g.endSlot(ctx, slot.ID, "agent_end_early", "slot ended early by agent")
 		return &stationlink.Frame{Type: stationlink.TypeEnd, SlotID: slot.ID, Reason: "agent_end_early"}

@@ -136,10 +136,10 @@ func TestStartupOrdering(t *testing.T) {
 		t.Fatal(err)
 	}
 	s, _ := f.store.Get("startup")
-	if got, err := stationlink.ReadFrame(conn); err != nil || got.Type != stationlink.TypeAck {
+	if got, err := stationlink.ReadFrame(conn); err != nil || got.Type != stationlink.TypeError || got.Reason != "delivery refused" {
 		t.Fatalf("first request after promotion: %+v %v", got, err)
 	}
-	if !s.Started || s.Starting || s.Ended || f.d.destroyed != 0 || f.pub.count() != 2 {
+	if !s.Started || s.Starting || s.Ended || f.d.destroyed != 0 || f.pub.count() != 1 {
 		t.Fatal("successful start not promoted")
 	}
 }

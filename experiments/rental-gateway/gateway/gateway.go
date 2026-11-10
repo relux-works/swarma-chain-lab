@@ -92,11 +92,12 @@ type Result struct {
 type Gateway struct {
 	cfg Config
 
-	mu       sync.Mutex
-	stations map[string]*station.Station
-	queues   map[string]chan *stationlink.Frame
-	bound    map[string]*connState    // slot id -> live authenticated station binding
-	starting map[string]chan struct{} // live launch completion; absent after restart/failure
+	mu         sync.Mutex
+	stations   map[string]*station.Station
+	deliveryMu sync.Mutex
+	queues     map[string]chan *stationlink.Frame
+	bound      map[string]*connState    // slot id -> live authenticated station binding
+	starting   map[string]chan struct{} // live launch completion; absent after restart/failure
 
 	opMu     sync.Mutex
 	inFlight map[string]*opCall // slot\x00kind\x00op id -> running closer operation

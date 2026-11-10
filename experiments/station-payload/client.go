@@ -41,19 +41,22 @@ const MaxText = 32768
 // Options are operator inputs, independent of the private bootstrap. No default
 // production model or output budget is inferred. V1 does not use model options.
 type Options struct {
-	Model     string
-	MaxTokens uint64
-	Roots     *x509.CertPool
+	Model      string
+	MaxTokens  uint64
+	Roots      *x509.CertPool
+	JournalDir string // required by Run; Infra-provisioned existing private directory
 }
 
 type Client struct {
-	mu        sync.Mutex
-	bootstrap gatewaybind.PayloadBootstrap
-	model     string
-	maxTokens uint64
-	http      *http.Client
-	terminal  error
-	responses bool
+	mu             sync.Mutex
+	bootstrap      gatewaybind.PayloadBootstrap
+	model          string
+	maxTokens      uint64
+	http           *http.Client
+	terminal       error
+	responses      bool
+	journalDir     string
+	journalBinding string
 }
 
 func (*Client) Format(s fmt.State, _ rune) { _, _ = io.WriteString(s, "[private payload client]") }
@@ -65,7 +68,7 @@ func New(raw []byte, options Options) (*Client, error) {
 	if err != nil {
 		return nil, ErrBootstrap
 	}
-	c := &Client{bootstrap: b, model: options.Model, maxTokens: options.MaxTokens}
+	c := &Client{bootstrap: b, model: options.Model, maxTokens: options.MaxTokens, journalDir: options.JournalDir, journalBinding: turnHash(string(raw))}
 	if b.V == 1 {
 		return c, nil
 	}

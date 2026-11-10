@@ -181,13 +181,13 @@ func TestReplyRequiresLiveGrant(t *testing.T) {
 	h := newHarness(t, harnessOpts{})
 	c, conn := h.stationClient()
 	defer conn.Close()
-	h.deliverValid(c, "question")
-	if ack, err := c.Reply("answer while live"); err != nil || ack.Type != stationlink.TypeAck {
+	deliveryID := h.deliverValid(c, "question")
+	if ack, err := c.Reply(deliveryID, "answer while live"); err != nil || ack.Type != stationlink.TypeAck {
 		t.Fatalf("live reply = %+v %v", ack, err)
 	}
 	h.kern.Verdict, h.kern.Reason = kernel.Refused, "ANCHOR_INACTIVE"
 	before := h.pub.count()
-	ack, err := c.Reply("must not be signed")
+	ack, err := c.Reply(deliveryID, "must not be signed")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,8 @@ func TestReplyRequiresLiveGrant(t *testing.T) {
 		t.Fatalf("reply signed despite non-live grant: ack=%+v published=%d", ack, h.pub.count()-before)
 	}
 	h.kern.Verdict, h.kern.Reason = kernel.Live, ""
-	if ack, err := c.Reply("live again"); err != nil || ack.Type != stationlink.TypeAck {
+	deliveryID = h.deliverValid(c, "second question")
+	if ack, err := c.Reply(deliveryID, "live again"); err != nil || ack.Type != stationlink.TypeAck {
 		t.Fatalf("live-again reply = %+v %v", ack, err)
 	}
 }

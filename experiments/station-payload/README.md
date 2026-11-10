@@ -9,7 +9,7 @@ The station initiates gateway TLS with ordinary CA/hostname verification and the
 operator's exact leaf DER SHA256, then performs stationlink's per-slot HMAC
 challenge. V1 retains echo replies, `__extend__` refusal reporting and
 `__end_early__`. V2 retains those scripted controls and uses the model proxy for
-ordinary deliveries. The original gateway local-test stub is unchanged.
+ordinary deliveries. The gateway local-test stub follows the same ID-bound wire protocol but remains a nondurable test fixture.
 
 For v2, `model_endpoint` and `model_cert_sha256` come only from the validated
 bootstrap. Messages requests go to `/slots/<booking_id>/v1/messages` with its model bearer.
@@ -31,6 +31,23 @@ item returns fixed `MODEL_REFUSAL`, without provider text. Empty output refuses.
 The text limits remain 32 KiB, responses 8 MiB; encoded Responses requests use
 MP2's 2 MiB cap, permitting JSON escape expansion within the text limit. No SSE
 is requested or consumed, so stream terminal handling is not part of this client.
+
+## Durable delivery
+
+The CLI requires `-journal-dir /absolute/private/slot-turns`; `Client.Run` requires
+`Options.JournalDir`. Infra must provision an existing owner-only0700 directory
+with canonical symlink-free, non-writable ancestry. There is no default. Input is
+persisted before `received`; each `reply` carries its delivery ID. A durable
+ready result is reused across restarts. A crash-left model call becomes the fixed
+reply `uncertain`, with no second model call or charge. Corrupt/private-path/lock
+failures refuse `PAYLOAD_JOURNAL` before a usable session.
+
+The journal contains private input/replies and remains bound to the exact
+bootstrap. Preserve it on restart; do not substitute an empty directory. Run
+handles one connection and returns on channel failure; supervisor relaunch and
+DK5b launch-path wiring remain separate. See the [DA1 wire and recovery
+contract](../rental-gateway/DELIVERY.md) for outbox phases, limits and the
+relay-accepted boundary. Renter display is not acknowledged by this protocol.
 
 ## Pinned startup and deployment
 
@@ -92,6 +109,7 @@ go test -race -count=1 ./...
 go run .scripts/guards.go -out .temp/guards
 go build -trimpath -o .temp/station-payload ./cmd/station-payload
 .temp/station-payload -bootstrap /absolute/private/bootstrap.json \
+  -journal-dir /absolute/private/slot-turns \
   -ca /absolute/private/fixture-ca.pem -gateway 127.0.0.1:9444 \
   -gateway-pin <gateway-leaf-sha256> -model <operator-model-id> -max-tokens 10 \
   -dialect responses -model-config /absolute/private/public-model-config.json

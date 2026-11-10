@@ -59,6 +59,7 @@ const (
 	TypeHello    = "hello"     // station -> gateway: request auth challenge for a slot
 	TypeAuth     = "auth"      // station -> gateway: HMAC response to the challenge
 	TypePull     = "pull"      // station -> gateway: next delivery please
+	TypeReceived = "received"  // station -> gateway: input durably recorded
 	TypeReply    = "reply"     // station -> gateway: agent reply content
 	TypeEndEarly = "end_early" // station -> gateway: agent asks to end
 	TypeExtend   = "extend"    // station -> gateway: always refused
@@ -166,9 +167,14 @@ func (c *Client) Pull() (*Frame, error) {
 	return c.roundTrip(&Frame{Type: TypePull})
 }
 
-// Reply pushes one agent reply; the gateway signs and DMs it.
-func (c *Client) Reply(content string) (*Frame, error) {
-	return c.roundTrip(&Frame{Type: TypeReply, Content: content})
+// Received acknowledges only a durably recorded input.
+func (c *Client) Received(deliveryID string) (*Frame, error) {
+	return c.roundTrip(&Frame{Type: TypeReceived, DeliveryID: deliveryID})
+}
+
+// Reply binds one immutable agent reply to its durable input.
+func (c *Client) Reply(deliveryID, content string) (*Frame, error) {
+	return c.roundTrip(&Frame{Type: TypeReply, DeliveryID: deliveryID, Content: content})
 }
 
 // EndEarly asks the gateway to end the slot now.

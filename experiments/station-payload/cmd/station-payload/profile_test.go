@@ -54,7 +54,7 @@ func TestPinnedCLI(t *testing.T) {
 				writeInstalled(t, mp, raw)
 			}
 			write()
-			args := []string{"-bootstrap", bp, "-ca", cp, "-gateway", "127.0.0.1:1", "-gateway-pin", strings.Repeat("a", 64), "-model", "fixture", "-max-tokens", "10", "-dialect", "responses", "-model-config", mp}
+			args := []string{"-journal-dir", journalRoot(t), "-bootstrap", bp, "-ca", cp, "-gateway", "127.0.0.1:1", "-gateway-pin", strings.Repeat("a", 64), "-model", "fixture", "-max-tokens", "10", "-dialect", "responses", "-model-config", mp}
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			if e := run(ctx, args); e != payload.ErrChannel {
@@ -62,7 +62,7 @@ func TestPinnedCLI(t *testing.T) {
 			}
 			switch kind {
 			case "dialect":
-				args[13] = "messages"
+				args[15] = "messages"
 			case "model":
 				delete(cfg.Models, "fixture")
 			case "endpoint":
@@ -70,9 +70,9 @@ func TestPinnedCLI(t *testing.T) {
 			case "pin":
 				cfg.Endpoint.CertSHA256 = strings.Repeat("c", 64)
 			case "missing-config":
-				args[15] = mp + "-absent"
+				args[17] = mp + "-absent"
 			case "unpaired-flags":
-				args = args[:14]
+				args = args[:16]
 			}
 			write()
 			if e := run(ctx, args); (kind != "missing-config" && e != payload.ErrConfig || kind == "missing-config" && (e == nil || e.Error() != "DK5_FILE_OPEN")) || calls != 0 {

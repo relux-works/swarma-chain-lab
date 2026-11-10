@@ -623,7 +623,8 @@ func TestGatewayV3CoreE2E(t *testing.T) {
 	if f, err := c1.Pull(); err != nil || f.Content != "hello from one" {
 		t.Fatalf("station 1 pull = %+v %v", f, err)
 	}
-	if f, err := c2.Pull(); err != nil || f.Content != "hello from two" {
+	delivered2, pullErr := c2.Pull()
+	if f, err := delivered2, pullErr; err != nil || f.Content != "hello from two" {
 		t.Fatalf("station 2 pull = %+v %v", f, err)
 	}
 	// The actual K1 cache stores v3 proof bytes, not a live verdict. Gateway
@@ -642,7 +643,10 @@ func TestGatewayV3CoreE2E(t *testing.T) {
 			t.Fatalf("live receipt mapping: %+v %v", receipt, err)
 		}
 	}
-	if f, err := c2.Reply("live reply"); err != nil || f.Type != stationlink.TypeAck {
+	if ack, err := c2.Received(delivered2.DeliveryID); err != nil || ack.Type != stationlink.TypeAck {
+		t.Fatal("receive ACK", err)
+	}
+	if f, err := c2.Reply(delivered2.DeliveryID, "live reply"); err != nil || f.Type != stationlink.TypeAck {
 		t.Fatalf("live station reply: %+v %v", f, err)
 	}
 	// A bad locator cannot replace an already-live cached presentation.
@@ -704,7 +708,7 @@ func TestGatewayV3CoreE2E(t *testing.T) {
 	pub.mu.Lock()
 	published := len(pub.evs)
 	pub.mu.Unlock()
-	if f, err := c2.Reply("must not publish"); err != nil || f.Type != stationlink.TypeError || f.Reason != "grant not live" {
+	if f, err := c2.Reply(delivered2.DeliveryID, "must not publish"); err != nil || f.Type != stationlink.TypeError || f.Reason != "grant not live" {
 		t.Fatalf("pending outbound: %+v %v", f, err)
 	}
 	pub.mu.Lock()

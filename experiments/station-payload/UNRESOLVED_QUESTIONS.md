@@ -16,3 +16,10 @@
   substitution and preserve real accounting, TLS and all other product behavior.
 - No paid upstream call, real wallet custody, production Linux helper execution,
   hosted check or deployment is implied by local test success.
+
+- DA1b must define idempotent remote model-result retrieval before an in-flight
+  crash can recover its answer; DA1 returns terminal `uncertain` without retry.
+- Infra/DK5b must provision the explicit persistent per-slot journal and define
+  supervisor restart/retention. No deployed launcher changes are included here.
+- Relay acceptance does not prove a third-party renter displayed the reply or
+  durably deduplicated its inbox. That endpoint contract remains separate.

@@ -63,6 +63,10 @@ func runStationStub() error {
 		}
 		switch frame.Type {
 		case stationlink.TypeDeliver:
+			// Explicit test-only stub; production payload persists before this ACK.
+			if ack, err := client.Received(frame.DeliveryID); err != nil || ack.Type != stationlink.TypeAck {
+				return fmt.Errorf("station-stub: receive refused")
+			}
 			switch frame.Content {
 			case "__end_early__":
 				end, err := client.EndEarly()
@@ -78,11 +82,11 @@ func runStationStub() error {
 				if err != nil {
 					return err
 				}
-				if _, err := client.Reply("extend answered: " + ext.Type); err != nil {
+				if _, err := client.Reply(frame.DeliveryID, "extend answered: "+ext.Type); err != nil {
 					return err
 				}
 			default:
-				if _, err := client.Reply("echo: " + frame.Content); err != nil {
+				if _, err := client.Reply(frame.DeliveryID, "echo: "+frame.Content); err != nil {
 					return err
 				}
 			}

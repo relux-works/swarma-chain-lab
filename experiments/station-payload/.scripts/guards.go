@@ -21,6 +21,15 @@ import (
 type plant struct{ Name, Module, File, Old, New, Test, Witness string }
 
 var plants = []plant{
+	{"turn_file_sync", "station-payload", "turn.go", "e = da1FileSync(f)", "e = nil", "TestDA1SyncProbe", "turn sync sequence"},
+	{"turn_directory_sync", "station-payload", "turn.go", "da1DirectorySync(j.root)", "error(nil)", "TestDA1SyncProbe", "turn sync sequence"},
+	{"turn_input_match", "station-payload", "turn.go", "if t.Input != input {", "if false && t.Input != input {", "TestTurnJournalRecovery", "changed input accepted"},
+	{"turn_uncertain", "station-payload", "turn.go", "if t.Phase == \"in-flight\" {", "if false && t.Phase == \"in-flight\" {", "TestTurnJournalRecovery", "generation uncertainty not terminal"},
+	{"turn_checksum", "station-payload", "turn.go", "v.Checksum != turnChecksum(v) || ", "", "TestTurnJournalRefusals", "corrupt record accepted"},
+	{"turn_no_regenerate", "station-payload", "session.go", "if t.Phase == \"received\" {\n\t\t\t\tt.Phase = \"in-flight\"", "if t.Phase == \"received\" || t.Phase == \"ready\" || t.Phase == \"accepted\" {\n\t\t\t\tt.Reply = \"\"\n\t\t\t\tt.Phase = \"in-flight\"", "TestTurnSessionRecovery", "recovery regenerated or lost positive control"},
+	{"turn_inflight", "station-payload", "session.go", "t.Phase = \"in-flight\"", "t.Phase = \"received\"", "TestTurnSessionRecovery", "recovery <nil> reply"},
+	{"turn_receive_before_ack", "station-payload", "turn.go", "if e := j.save(t); e != nil {\n\t\treturn turn{}, e\n\t}\n\treturn j.turns[t.ID], nil", "t.Checksum = turnChecksum(t)\n\tj.turns[id] = t\n\treturn t, nil", "TestTurnSessionRecovery", "ACK preceded durable input"},
+
 	{"responses_empty", "station-payload", "responses.go", "len(response.Output) == 0", "false && len(response.Output) == 0", "TestResponsesEmptyOutput", "Responses empty output accepted"},
 	{"responses_validation", "station-payload", "responses.go", "err != nil {\n\t\treturn \"\", ErrResponse\n\t}\n\tvar response", "false && err != nil {\n\t\treturn \"\", ErrResponse\n\t}\n\tvar response", "TestResponsesBodyRefusals", "Responses invalid output escaped"},
 	{"responses_refusal", "station-payload", "responses.go", "if part.Type == \"refusal\" {", "if false && part.Type == \"refusal\" {", "TestResponsesBodyRefusals", "Responses invalid output escaped"},
@@ -98,6 +107,31 @@ func run() error {
 		if e = os.Symlink(filepath.Join(filepath.Dir(root), name), filepath.Join(work, name)); e != nil {
 			return e
 		}
+	}
+
+	// Observe real fsync calls in the copied fixture only; both wrappers delegate.
+	turnFile := filepath.Join(work, "station-payload", "turn.go")
+	original, e := os.ReadFile(turnFile)
+	if e != nil {
+		return e
+	}
+	if strings.Count(string(original), "f.Sync()") != 1 || strings.Count(string(original), "durable.SyncDir(j.root)") != 1 {
+		return errors.New("sync instrumentation drift")
+	}
+	instrumented := strings.Replace(string(original), "f.Sync()", "da1FileSync(f)", 1)
+	instrumented = strings.Replace(instrumented, "durable.SyncDir(j.root)", "da1DirectorySync(j.root)", 1)
+	if e = os.WriteFile(turnFile, []byte(instrumented), 0600); e != nil {
+		return e
+	}
+	provenance, _ := json.Marshal(map[string]string{"source_sha256": fmt.Sprintf("%x", sha256.Sum256(original)), "instrumented_sha256": fmt.Sprintf("%x", sha256.Sum256([]byte(instrumented)))})
+	if e = os.WriteFile(filepath.Join(logs, "sync-instrumentation.json"), provenance, 0600); e != nil {
+		return e
+	}
+	if e = os.WriteFile(filepath.Join(work, "station-payload", "da1_sync_probe.go"), []byte(syncProbe), 0600); e != nil {
+		return e
+	}
+	if e = os.WriteFile(filepath.Join(work, "station-payload", "da1_sync_probe_test.go"), []byte(syncProbeTest), 0600); e != nil {
+		return e
 	}
 	runTest := func(p plant, label string) ([]byte, int, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -202,3 +236,26 @@ func copyTree(src, dst string) error {
 		return os.WriteFile(filepath.Join(dst, rel), b, 0600)
 	})
 }
+
+const syncProbe = `package payload
+import (
+ "os"
+ "sync"
+ "github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
+)
+var da1SyncMu sync.Mutex
+var da1SyncEvents []string
+func da1FileSync(f *os.File) error { da1SyncMu.Lock(); da1SyncEvents=append(da1SyncEvents,"file"); da1SyncMu.Unlock(); return f.Sync() }
+func da1DirectorySync(path string) error { da1SyncMu.Lock(); da1SyncEvents=append(da1SyncEvents,"dir"); da1SyncMu.Unlock(); return durable.SyncDir(path) }
+`
+const syncProbeTest = `package payload
+import ("testing"; "strings")
+// Actual turn save invokes file then directory sync; wrappers call the real OS.
+func TestDA1SyncProbe(t *testing.T) {
+ j,e:=openTurns(root(t),"binding"); if e!=nil {t.Fatal(e)};defer j.close()
+ da1SyncMu.Lock();da1SyncEvents=nil;da1SyncMu.Unlock()
+ if _,e=j.receive(strings.Repeat("a",64),"input");e!=nil{t.Fatal(e)}
+ da1SyncMu.Lock();got:=strings.Join(da1SyncEvents,",");da1SyncMu.Unlock()
+ if got!="file,dir"{t.Fatalf("turn sync sequence %q",got)}
+}
+`

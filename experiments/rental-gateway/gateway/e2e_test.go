@@ -3,6 +3,7 @@ package gateway_test
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -52,7 +53,10 @@ func TestStationStubProcess(t *testing.T) {
 		}
 		switch f.Type {
 		case stationlink.TypeDeliver:
-			if _, err := c.Reply("echo: " + f.Content); err != nil {
+			if ack, e := c.Received(f.DeliveryID); e != nil || ack.Type != stationlink.TypeAck {
+				t.Fatal("receive ACK", e)
+			}
+			if _, err := c.Reply(f.DeliveryID, "echo: "+f.Content); err != nil {
 				t.Fatal(err)
 			}
 		case stationlink.TypeEnd:
@@ -169,7 +173,11 @@ func TestRelayEndToEnd(t *testing.T) {
 				return
 			}
 			if f.Type == stationlink.TypeDeliver {
-				_, err = c.Reply("relay echo: " + f.Content)
+				if ack, e := c.Received(f.DeliveryID); e != nil || ack.Type != stationlink.TypeAck {
+					stationDone <- fmt.Errorf("receive refused")
+					return
+				}
+				_, err = c.Reply(f.DeliveryID, "relay echo: "+f.Content)
 				stationDone <- err
 				return
 			}

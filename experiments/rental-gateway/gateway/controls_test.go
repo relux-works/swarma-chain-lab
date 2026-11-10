@@ -25,8 +25,8 @@ func TestValidDeliveryAndReply(t *testing.T) {
 	}
 	c, conn := h.stationClient()
 	defer conn.Close()
-	h.deliverValid(c, "hello agent")
-	ack, err := c.Reply("hello renter")
+	deliveryID := h.deliverValid(c, "hello agent")
+	ack, err := c.Reply(deliveryID, "hello renter")
 	if err != nil || ack.Type != stationlink.TypeAck {
 		t.Fatalf("reply ack = %+v err %v", ack, err)
 	}
@@ -386,8 +386,8 @@ func TestMessageAfterSlotEndByClock(t *testing.T) {
 func TestDestroyedStationCannotReply(t *testing.T) {
 	h := newHarness(t, harnessOpts{})
 	c, conn := h.stationClient()
-	h.deliverValid(c, "before destroy")
-	if _, err := c.Reply("last words"); err != nil {
+	deliveryID := h.deliverValid(c, "before destroy")
+	if _, err := c.Reply(deliveryID, "last words"); err != nil {
 		t.Fatal(err)
 	}
 	// Every published DM unwraps with sender == agent key.
@@ -527,7 +527,7 @@ func TestKernelClosedEndsSlotAndOutbound(t *testing.T) {
 	h := newHarness(t, harnessOpts{})
 	c, conn := h.stationClient()
 	defer conn.Close()
-	h.deliverValid(c, "before closure")
+	deliveryID := h.deliverValid(c, "before closure")
 	h.kern.Handler = func(ctx context.Context, cert []byte, stationName, sender string, now int64) (kernel.Receipt, error) {
 		return kernel.Receipt{Verdict: kernel.Refused, Reason: "SEAL_SPENT", Closed: true}, nil
 	}
@@ -536,7 +536,7 @@ func TestKernelClosedEndsSlotAndOutbound(t *testing.T) {
 		t.Fatalf("closed result: %+v", res)
 	}
 	before := h.pub.count()
-	ack, err := c.Reply("must not be signed")
+	ack, err := c.Reply(deliveryID, "must not be signed")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -32,7 +34,7 @@ func TestScriptedSession(t *testing.T) {
 				b.ModelEndpoint = ""
 				b.ModelCertSHA256 = ""
 			}
-			c, e := New(encoded(t, b), Options{Model: modelID, MaxTokens: 10, Roots: f.roots})
+			c, e := New(encoded(t, b), Options{JournalDir: root(t), Model: modelID, MaxTokens: 10, Roots: f.roots})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -65,13 +67,26 @@ func TestScriptedSession(t *testing.T) {
 					return
 				}
 				stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeSystem, SlotID: b.BookingID})
-				for _, text := range []string{prompt, "__extend__", "__end_early__"} {
+				for i, text := range []string{prompt, "__extend__", "__end_early__"} {
 					pull, e := stationlink.ReadFrame(conn)
 					if e != nil || pull.Type != stationlink.TypePull {
 						fail()
 						return
 					}
-					stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeDeliver, Content: text})
+					stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeDeliver, SlotID: b.BookingID, DeliveryID: strings.Repeat(string(rune('a'+i)), 64), Content: text})
+					deliveryID := strings.Repeat(string(rune('a'+i)), 64)
+					received, e := stationlink.ReadFrame(conn)
+					if e != nil || received.Type != stationlink.TypeReceived || received.DeliveryID != deliveryID {
+						fail()
+						return
+					}
+					recorded, readErr := os.ReadFile(filepath.Join(c.journalDir, "turn-"+deliveryID+".json"))
+					var durableInput turn
+					if readErr != nil || json.Unmarshal(recorded, &durableInput) != nil || durableInput.Input != text || durableInput.Phase != "received" || !validTurn(durableInput) {
+						fail()
+						return
+					}
+					stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeAck, SlotID: b.BookingID, DeliveryID: deliveryID})
 					reply, e := stationlink.ReadFrame(conn)
 					if e != nil {
 						fail()
@@ -106,7 +121,7 @@ func TestScriptedSession(t *testing.T) {
 						fail()
 						return
 					}
-					stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeAck})
+					stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeAck, SlotID: b.BookingID, DeliveryID: deliveryID})
 				}
 				done <- nil
 			}()
@@ -179,7 +194,7 @@ func TestHTTPFailures(t *testing.T) {
 			b.ModelCertSHA256 = pin(server.Certificate())
 			roots := x509.NewCertPool()
 			roots.AddCert(server.Certificate())
-			c, e := New(encoded(t, b), Options{Model: modelID, MaxTokens: 10, Roots: roots})
+			c, e := New(encoded(t, b), Options{JournalDir: root(t), Model: modelID, MaxTokens: 10, Roots: roots})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -231,7 +246,7 @@ func TestEnvironmentProxy(t *testing.T) {
 	}
 	b := f.doc
 	b.ModelEndpoint = "https://model.invalid"
-	c, e := New(encoded(t, b), Options{Model: modelID, MaxTokens: 10, Roots: f.roots})
+	c, e := New(encoded(t, b), Options{JournalDir: root(t), Model: modelID, MaxTokens: 10, Roots: f.roots})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -273,7 +288,7 @@ func TestResponseBounds(t *testing.T) {
 			b := f.doc
 			b.ModelEndpoint = server.URL
 			b.ModelCertSHA256 = pin(server.Certificate())
-			c, e := New(encoded(t, b), Options{Model: modelID, MaxTokens: 10, Roots: f.roots})
+			c, e := New(encoded(t, b), Options{JournalDir: root(t), Model: modelID, MaxTokens: 10, Roots: f.roots})
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -301,7 +316,7 @@ func TestChannelBounds(t *testing.T) {
 			b.ModelBearer = ""
 			b.ModelEndpoint = ""
 			b.ModelCertSHA256 = ""
-			c, e := New(encoded(t, b), Options{})
+			c, e := New(encoded(t, b), Options{JournalDir: root(t)})
 			if e != nil {
 				t.Fatal(e)
 			}

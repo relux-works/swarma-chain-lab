@@ -99,7 +99,7 @@ func TestCLI(t *testing.T) {
 		e = stationlink.WriteFrame(c, &stationlink.Frame{Type: stationlink.TypeEnd})
 		done <- e == nil
 	}()
-	args := []string{"-bootstrap", path, "-ca", ca, "-gateway", ln.Addr().String(), "-gateway-pin", hex.EncodeToString(leaf[:])}
+	args := []string{"-journal-dir", journalRoot(t), "-bootstrap", path, "-ca", ca, "-gateway", ln.Addr().String(), "-gateway-pin", hex.EncodeToString(leaf[:])}
 	child := func(a []string) (string, int) {
 		t.Helper()
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
@@ -136,7 +136,7 @@ func TestCLI(t *testing.T) {
 			want := payload.ErrBootstrap
 			switch mode {
 			case "missing":
-				a[1] = path + "-absent"
+				a[3] = path + "-absent"
 			case "mode":
 				if os.Chmod(path, 0644) != nil {
 					t.Fatal("chmod")
@@ -147,14 +147,14 @@ func TestCLI(t *testing.T) {
 				if os.Symlink(path, p) != nil {
 					t.Fatal("symlink")
 				}
-				a[1] = p
+				a[3] = p
 			case "unknown":
 				bad := bytes.Replace(raw, []byte(`"v":1`), []byte(`"v":1,"private-field-marker":1`), 1)
 				p := path + "-bad"
 				if os.WriteFile(p, bad, 0600) != nil {
 					t.Fatal("write")
 				}
-				a[1] = p
+				a[3] = p
 			case "flag":
 				a = append(a, "-private-flag-marker")
 				want = payload.ErrConfig
@@ -174,4 +174,17 @@ func TestFlags(t *testing.T) {
 			t.Fatal("flag refusal")
 		}
 	}
+}
+
+// Infra provisions a private directory; Go TempDir itself follows the process umask.
+func journalRoot(t *testing.T) string {
+	t.Helper()
+	p, e := filepath.EvalSymlinks(t.TempDir())
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.Chmod(p, 0700); e != nil {
+		t.Fatal(e)
+	}
+	return p
 }

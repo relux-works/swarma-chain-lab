@@ -46,3 +46,8 @@ equal-timestamp overflow is counted/logged and leaves the live subscription
 running. Universal recovery past retention, ingress overflow or unacknowledged
 application effects needs a future cursor/ack contract. Expiry End remains
 distinct from explicit closer DestroySlot completion.
+
+DA1 adds the application reply outbox described in [DELIVERY.md](DELIVERY.md).
+It does not add a third-party renter inbox/display receipt, remote model-result
+lookup (DA1b), or supervisor restart/provisioning policy (Infra/DK5b). Retain
+per-slot journals across restart; do not reset them to recover availability.
