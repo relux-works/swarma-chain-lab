@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -284,6 +285,9 @@ func (r *run) call(method string, out any, args ...any) error {
 // Reject fold-equal object keys and excessive nesting before typed decoding.
 // Unknown Core fields remain allowed; conflicting copies of a field do not.
 func uniqueJSON(data []byte) error {
+	if !utf8.Valid(data) {
+		return failure("JSON_UTF8")
+	}
 	d := json.NewDecoder(bytes.NewReader(data))
 	d.UseNumber()
 	var value func(int) error
@@ -303,9 +307,14 @@ func uniqueJSON(data []byte) error {
 		case '{':
 			keys := map[string]bool{}
 			for d.More() {
+				start := d.InputOffset()
 				key, err := d.Token()
 				if err != nil {
 					return err
+				}
+				// Inspect the key lexeme, not its decoded spelling or string values.
+				if bytes.IndexByte(data[start:d.InputOffset()], '\\') >= 0 {
+					return failure("JSON_KEY_ESCAPE")
 				}
 				s, ok := key.(string)
 				s = foldJSONKey(s)

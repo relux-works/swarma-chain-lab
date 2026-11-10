@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // PresentationID checks v3 transport framing and returns the hash of the
@@ -27,9 +29,7 @@ func PresentationID(raw []byte) (string, error) {
 	if len(raw) == 0 || len(raw) > 16384 {
 		return "", malformed
 	}
-	d := json.NewDecoder(bytes.NewReader(raw))
-	d.DisallowUnknownFields()
-	if d.Decode(&p) != nil {
+	if su.StrictInput(raw, &p) != nil {
 		return "", malformed
 	}
 	canonical, err := json.Marshal(p)

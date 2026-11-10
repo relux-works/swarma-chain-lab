@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"io"
 	"net"
 )
@@ -124,7 +125,7 @@ func ReadFrame(r io.Reader) (*Frame, error) {
 		return nil, err
 	}
 	var f Frame
-	if err := json.Unmarshal(body, &f); err != nil {
+	if err := su.StrictInput(body, &f); err != nil {
 		return nil, fmt.Errorf("stationlink: frame json: %w", err)
 	}
 	if f.Type == "" {

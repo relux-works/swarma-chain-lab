@@ -95,7 +95,7 @@ func New(c Config) (*Service, error) {
 	}
 	if raw != nil {
 		var v ledger
-		if json.Unmarshal(raw, &v) != nil || string(canonical(v)) != string(raw) || v.Version != 1 || v.Config != s.state.Config || v.High < 0 || len(v.Records) > MaxRecords || v.Records == nil {
+		if unique(raw) != nil || json.Unmarshal(raw, &v) != nil || string(canonical(v)) != string(raw) || v.Version != 1 || v.Config != s.state.Config || v.High < 0 || len(v.Records) > MaxRecords || v.Records == nil {
 			d.Close()
 			return nil, fail("STATE")
 		}

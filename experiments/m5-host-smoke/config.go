@@ -146,9 +146,7 @@ func Strict(b []byte, v any) error {
 	if _, e := d.Token(); e != io.EOF {
 		return refuse("JSON_TRAILING")
 	}
-	d = json.NewDecoder(bytes.NewReader(b))
-	d.DisallowUnknownFields()
-	if e := d.Decode(v); e != nil {
+	if e := booking.Strict(b, v); e != nil {
 		return refuse("JSON_SCHEMA")
 	}
 	return nil

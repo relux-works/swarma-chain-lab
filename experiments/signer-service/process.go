@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"time"
 
 	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
+	sw "github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
@@ -48,7 +48,7 @@ func (x *Engine) process(ctx context.Context, raw []byte, source SourceClass, no
 		var claimed struct {
 			BookingID string `json:"booking_id"`
 		}
-		if json.Unmarshal([]byte(item.Request), &claimed) != nil || !digest(claimed.BookingID) {
+		if sw.ProjectJSON([]byte(item.Request), map[string]any{"booking_id": &claimed.BookingID}, nil) != nil || !digest(claimed.BookingID) {
 			return Result{}, fail("ISSUE_REQUEST")
 		}
 		id := hash([]byte("grant-issue/" + claimed.BookingID))

@@ -10,9 +10,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
+
+	sw "github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
 )
 
 // Slot is the durable record for one rental slot.
@@ -77,13 +80,57 @@ func Open(dir string) (*Store, error) {
 			return nil, err
 		}
 		var slot Slot
-		if err := json.Unmarshal(raw, &slot); err != nil {
+		if err := sw.DecodeJSON(raw, &slot); err != nil {
 			return nil, fmt.Errorf("journal %s: %w", name, err)
+		}
+		if !slotKeys(raw) {
+			return nil, fmt.Errorf("journal: invalid field spelling")
 		}
 		slot.rebuildSeen()
 		s.slots[slot.ID] = &slot
 	}
 	return s, nil
+}
+
+// Persisted journals historically contain null slices and omitted fields. Keep
+// those encodings, but do not let encoding/json aliases select authority fields.
+// DecodeJSON has already rejected duplicate/escaped keys throughout the record.
+func slotKeys(raw []byte) bool {
+	exact := func(raw []byte, schema reflect.Type) (map[string]json.RawMessage, bool) {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(raw, &fields) != nil || fields == nil {
+			return nil, false
+		}
+		names := map[string]bool{}
+		for i := 0; i < schema.NumField(); i++ {
+			name := strings.Split(schema.Field(i).Tag.Get("json"), ",")[0]
+			if name != "" && name != "-" {
+				names[name] = true
+			}
+		}
+		for name := range fields {
+			if !names[name] {
+				return nil, false
+			}
+		}
+		return fields, true
+	}
+	fields, ok := exact(raw, reflect.TypeFor[Slot]())
+	if !ok {
+		return false
+	}
+	if operations, exists := fields["operations"]; exists {
+		var records []json.RawMessage
+		if json.Unmarshal(operations, &records) != nil {
+			return false
+		}
+		for _, record := range records {
+			if _, ok := exact(record, reflect.TypeFor[OpRecord]()); !ok {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (s *Slot) rebuildSeen() {

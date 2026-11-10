@@ -55,9 +55,10 @@ func unique(raw []byte) error {
 			case '{':
 				seen := map[string]bool{}
 				for d.More() {
+					start := d.InputOffset()
 					k, e := d.Token()
 					s, ok := k.(string)
-					if e != nil || !ok || seen[s] {
+					if e != nil || !ok || seen[s] || bytes.IndexByte(raw[start:d.InputOffset()], '\\') >= 0 {
 						return fail("JSON")
 					}
 					seen[s] = true

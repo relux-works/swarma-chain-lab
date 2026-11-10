@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"io"
 	"net/netip"
 	"net/url"
@@ -164,9 +165,7 @@ func strict(raw []byte, v any) error {
 	if _, e := d.Token(); e != io.EOF {
 		return fail("JSON")
 	}
-	d = json.NewDecoder(bytes.NewReader(raw))
-	d.DisallowUnknownFields()
-	if d.Decode(v) != nil {
+	if su.StrictInput(raw, v) != nil {
 		return fail("JSON")
 	}
 	return nil

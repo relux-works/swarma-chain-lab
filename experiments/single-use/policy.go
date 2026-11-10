@@ -43,9 +43,10 @@ type Policy struct {
 
 // StrictInput rejects unknown names and spelling aliases in local typed inputs.
 // Arbitrary JSON is allowed only at explicit RawMessage boundaries, checked by
-// their dedicated parser (the pinned public verifier for enrollment).
+// their dedicated parser (the pinned public verifier for enrollment). Lexical
+// and schema key checks complete before the destination is populated.
 func StrictInput(raw []byte, out any) error {
-	if e := sealwatch.DecodeJSON(raw, out); e != nil {
+	if e := sealwatch.ValidateJSON(raw); e != nil {
 		return e
 	}
 	var check func([]byte, reflect.Type) error
@@ -63,6 +64,18 @@ func StrictInput(raw []byte, out any) error {
 			}
 			for _, item := range items {
 				if e := check(item, t.Elem()); e != nil {
+					return e
+				}
+			}
+			return nil
+		}
+		if t.Kind() == reflect.Map {
+			var fields map[string]json.RawMessage
+			if json.Unmarshal(b, &fields) != nil || fields == nil {
+				return fail("INPUT_OBJECT")
+			}
+			for _, value := range fields {
+				if e := check(value, t.Elem()); e != nil {
 					return e
 				}
 			}
@@ -97,7 +110,13 @@ func StrictInput(raw []byte, out any) error {
 		}
 		return nil
 	}
-	return check(raw, reflect.TypeOf(out))
+	if out == nil {
+		return fail("INPUT_DESTINATION")
+	}
+	if e := check(raw, reflect.TypeOf(out)); e != nil {
+		return e
+	}
+	return json.Unmarshal(raw, out)
 }
 func PublicFile(path string, limit int64) ([]byte, error) {
 	info, e := os.Lstat(path)

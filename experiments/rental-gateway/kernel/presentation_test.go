@@ -53,3 +53,19 @@ func TestPresentationTransport(t *testing.T) {
 		})
 	}
 }
+
+// RawMessage must not hide a second/escaped version from framing. Refusal
+// returns no presentation hash; the positive control retains opaque grant fields.
+func TestSJ1PresentationKeys(t *testing.T) {
+	frame := func(grant string) []byte {
+		return []byte(`{"signed_grant":{"grant":` + grant + `,"signature":"` + strings.Repeat("a", 128) + `"},"issuance":{"txid":"` + strings.Repeat("b", 64) + `"}}`)
+	}
+	for _, grant := range []string{`{"version":3,"version":2}`, `{"version":2,"version":3}`, `{"version":3,"vers\u0069on":2}`, `{"vers\u0069on":3}`, `{"version":3,"extra":{"grant":1,"grant":2}}`} {
+		if id, err := kernel.PresentationID(frame(grant)); err == nil || id != "" {
+			t.Fatal("SJ1 ambiguous presentation admitted")
+		}
+		if _, err := kernel.PresentationID(frame(`{"version":3,"extra":{"note":"a\nb"}}`)); err != nil {
+			t.Fatal("valid neighbor refused", err)
+		}
+	}
+}

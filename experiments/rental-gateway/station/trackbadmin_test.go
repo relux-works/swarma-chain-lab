@@ -3,6 +3,7 @@ package station_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -50,5 +51,31 @@ func TestTrackBAdminWire(t *testing.T) {
 	if len(paths) != 2 || paths[0] != "POST /mint" || paths[1] != "POST /revoke" ||
 		slots[0] != booking || slots[1] != booking {
 		t.Fatalf("wire calls = %v slots %v", paths, slots)
+	}
+}
+
+// Malformed mint replies never expose a local credential. This does not claim
+// rollback of the remote mint operation that preceded the reply.
+func TestSJ1MintKeys(t *testing.T) {
+	for _, field := range []string{`"status":"ok","status":"bad"`, `"status":"bad","status":"ok"`, `"status":"ok","sta\u0074us":"bad"`, `"sta\u0074us":"ok"`, `"status":"ok"`} {
+		sock := filepath.Join(t.TempDir(), "s")
+		ln, e := net.Listen("unix", sock)
+		if e != nil {
+			t.Fatal(e)
+		}
+		server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			io.WriteString(w, `{"token":"`+strings.Repeat("a", 64)+`",`+field+`}`)
+		})}
+		go server.Serve(ln)
+		c := station.TrackBAdminClient{SocketPath: sock}
+		token, e := c.Mint(context.Background(), strings.Repeat("b", 64))
+		server.Close()
+		if field == `"status":"ok"` {
+			if e != nil || token != strings.Repeat("a", 64) {
+				t.Fatal("valid neighbor refused", e)
+			}
+		} else if e == nil || token != "" {
+			t.Fatal("SJ1 ambiguous mint admitted")
+		}
 	}
 }

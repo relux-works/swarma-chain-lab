@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"io"
 	"net"
 	"net/http"
 	"time"
@@ -48,7 +50,11 @@ func (c *TrackBAdminClient) post(ctx context.Context, path, bookingID string, ou
 		return fmt.Errorf("trackb admin %s: status %d", path, resp.StatusCode)
 	}
 	if out != nil {
-		return json.NewDecoder(resp.Body).Decode(out)
+		raw, err := io.ReadAll(io.LimitReader(resp.Body, 4097))
+		if err != nil || len(raw) > 4096 || su.StrictInput(raw, out) != nil {
+			return fmt.Errorf("trackb admin: invalid reply")
+		}
+		return nil
 	}
 	return nil
 }
