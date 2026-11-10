@@ -9,11 +9,17 @@ import (
 )
 
 // Existing loader/unit tests use a labelled synthetic root-ownership seam.
+// The fixture boundary is the file parent; ancestor cases are exercised inside
+// configguard fixtures. No host ancestry or mode bits are synthesized here.
 // Real modes, kinds, descriptor reads and parsers remain exercised. Signed
 // anchor/manifest checks are tested in configguard; this is not host qualification.
 func init() {
 	r := configguard.Reader{EUID: os.Geteuid(), GID: os.Getegid(), Metadata: func(_ string, s *unix.Stat_t) { s.Uid = 0 }}
-	installedRead = r.Read
+	installedRead = func(path string, limit int64) ([]byte, error) {
+		fixture := r
+		fixture.FixtureRoot = filepath.Dir(path)
+		return fixture.Read(path, limit)
+	}
 }
 func writeInstalled(t *testing.T, path string, b []byte) {
 	t.Helper()
@@ -44,5 +50,12 @@ func TestDK5InstalledMode(t *testing.T) {
 		if e == nil || e.Error() != "DK5_FILE_MODE" || b != nil {
 			t.Fatalf("DK5 mode refused before bytes: %v", e)
 		}
+	}
+}
+
+// The compiled consumer identity is pinned to its independently specified unit.
+func TestDK5ServiceBinding(t *testing.T) {
+	if installedService != "wallet" {
+		t.Fatal("service binding differs from unit")
 	}
 }

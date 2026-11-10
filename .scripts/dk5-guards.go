@@ -1,6 +1,7 @@
 // DK5 installed-input controls use Go overlays: no source or live state is modified.
-// file_kind, membership and signature_algorithm assert exact refusal reasons:
-// downstream checks also reject those planted inputs. Other plants bypass admission.
+// file_kind and membership assert exact refusal reasons:
+// downstream checks also reject those planted inputs. Other plants exercise
+// admission, service bindings, native defaults and preflight exit behavior.
 // Run at repository root: go run .scripts/dk5-guards.go -out /absolute/new-dir.
 package main
 
@@ -25,6 +26,24 @@ type result struct {
 }
 
 var plants = []plant{
+	{"native_fixture_default", "experiments/single-use", "configguard/reader.go", "return Reader{EUID: os.Geteuid(), GID: os.Getegid()}", "return Reader{EUID: os.Geteuid(), GID: os.Getegid(), FixtureRoot: \"/fixture\"}", "^TestNativeDefaults$", "native constructor selected fixture authority", "./configguard"},
+	{"ancestor_group_narrow", "experiments/single-use", "configguard/reader.go", "s.Mode&0022 != 0", "s.Mode&0002 != 0", "^TestAncestorSubclasses$/group_writable$", "installed refusal:", "./configguard"},
+	{"ancestor_special_narrow", "experiments/single-use", "configguard/reader.go", " || s.Mode&07000 != 0", "", "^TestAncestorSubclasses$/(setuid|setgid|sticky)$", "installed refusal:", "./configguard"},
+	{"ancestor_owner_narrow", "experiments/single-use", "configguard/reader.go", "if s.Uid != 0 {\n\t\treturn fail(\"DK5_DIRECTORY_OWNER\")", "if immediate && s.Uid != 0 {\n\t\treturn fail(\"DK5_DIRECTORY_OWNER\")", "^TestAncestorSubclasses$/non_root$", "installed refusal:", "./configguard"},
+	{"private_group_binding", "experiments/single-use", "configguard/anchor.go", "r.GID = gid", "_ = gid", "^TestComposedPrivateGroup$", "private group binding:", "./configguard"},
+	{"preflight_refusal_exit", "experiments/single-use", "configguard/anchor.go", "os.Exit(1)", "os.Exit(0)", "^TestComposedCheckMain$", "preflight refusal exit", "./configguard"},
+	{"rsa_public_bounds", "experiments/single-use", "configguard/signature.go", "if p, ok := pub.(*rsa.PublicKey); !ok || p.N.BitLen() < 3072 || p.N.BitLen() > 8192 || p.E != 65537 {", "if _, ok := pub.(*rsa.PublicKey); !ok {", "^TestRSAKeyPolicy$", "installed refusal:", "./configguard"},
+	{"consumer_agent-wallet", "experiments/agent-wallet", "installed.go", "const installedService = \"wallet\"", "const installedService = \"wrong-service\"", "^TestDK5ServiceBinding$", "service binding differs from unit", "."},
+	{"consumer_model-proxy", "experiments/model-proxy", "installed.go", "const installedService = \"model\"", "const installedService = \"wrong-service\"", "^TestDK5ServiceBinding$", "service binding differs from unit", "."},
+	{"consumer_signer-service", "experiments/signer-service", "installed.go", "const installedService = \"issuer\"", "const installedService = \"wrong-service\"", "^TestDK5ServiceBinding$", "service binding differs from unit", "."},
+	{"consumer_relay", "experiments/relay", "cmd/swarma-relay/installed.go", "const installedService = \"relay\"", "const installedService = \"wrong-service\"", "^TestDK5ServiceBinding$", "service binding differs from unit", "./cmd/swarma-relay"},
+	{"consumer_station-lifecycle", "experiments/station-lifecycle", "cmd/station-manager/installed.go", "const installedService = \"stations\"", "const installedService = \"wrong-service\"", "^TestDK5ServiceBinding$", "service binding differs from unit", "./cmd/station-manager"},
+	{"consumer_rental-booking", "experiments/rental-booking", "cmd/rental-booking/installed.go", "const installedService = \"booking\"", "const installedService = \"wrong-service\"", "^TestDK5ServiceBinding$", "service binding differs from unit", "./cmd/rental-booking"},
+	{"consumer_station-payload", "experiments/station-payload", "cmd/station-payload/installed.go", "const installedService = \"payload\"", "const installedService = \"wrong-service\"", "^TestDK5ServiceBinding$", "service binding differs from unit", "./cmd/station-payload"},
+	{"consumer_rental-gateway", "experiments/rental-gateway", "cmd/gateway/installed.go", "const installedService = \"gateway\"", "const installedService = \"wrong-service\"", "^TestDK5ServiceBinding$", "service binding differs from unit", "./cmd/gateway"},
+	{"consumer_grant-store", "experiments/grant-store", "cmd/grant-store/installed.go", "const installedService = \"store\"", "const installedService = \"wrong-service\"", "^TestDK5ServiceBinding$", "service binding differs from unit", "./cmd/grant-store"},
+	{"consumer_rental", "experiments/rental", "installed_key.go", "const installedService = \"issuer\"", "const installedService = \"wrong-service\"", "^TestDK5ServiceBinding$", "service binding differs from unit", "."},
+
 	{"rsa_signature", "experiments/single-use", "configguard/signature.go", "if rsa.VerifyPSS(p, crypto.SHA256, h[:], value, &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: crypto.SHA256}) != nil {", "if false && rsa.VerifyPSS(p, crypto.SHA256, h[:], value, &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: crypto.SHA256}) != nil {", "^TestSignedAlgorithms$/rsa-pss-sha256$", "installed refusal:", "./configguard"},
 	{"file_mode", "experiments/single-use", "configguard/reader.go", "if uint32(s.Mode)&07777 != mode {", "if false && uint32(s.Mode)&07777 != mode {", "^TestInstalledRefusals$/0644$", "installed refusal:", "./configguard"},
 	{"file_owner", "experiments/single-use", "configguard/reader.go", "if s.Uid != 0 {\n\t\treturn fail(\"DK5_FILE_OWNER\")", "if false && s.Uid != 0 {\n\t\treturn fail(\"DK5_FILE_OWNER\")", "^TestOwnershipSeam$/owner$", "installed refusal:", "./configguard"},

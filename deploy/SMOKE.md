@@ -188,16 +188,19 @@ remains Infra's required gate. No Lima VM is created for it.
 
 Gateway needs separate preparation before its first start. Fill every gateway
 native-config and deployment-policy placeholder; use real pinned regtest agent,
-landlord/issuer/seal, booking and payload facts. Supply the root:swarma-gateway0640 agent key,
+landlord/issuer/seal, booking and payload facts. Supply the root:swarma-gateway0640
+agent key at `/etc/swarma/gateway/agent.key`,
 observer route and TLS server key through their existing custody flow.
 Provision private 0700 state directories, the read-only atomic presentation
-source, server certificate/manager CA and exact leaf pins. Run both validators:
+source, server certificate/manager CA and exact leaf pins. Validate public staging bytes:
 
 ```sh
 deploy-kit validate -config "$STAGING/gateway/deploy.json" -public "$STAGING/gateway/service.json"
-gateway validate -config "$STAGING/gateway/service.json"
 ```
 
+After signed installation, the gateway unit runs its own `--check-installed`
+and native `validate` preflights as the service user, against `/etc/swarma/gateway/service.json`.
+A native validator requires installed signed inputs; staging paths refuse.
 The native validator rejects test mode and local/stub selections. Startup also
 checks private inputs and TLS pins. Match the manager's range and payload policy;
 payloads need their operator-pinned gateway address, trust roots and leaf hash,

@@ -7,7 +7,11 @@ import (
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/configguard"
 )
 
-var installedRead = func(path string, limit int64) ([]byte, error) { return configguard.ReadService("issuer", path, limit) }
+const installedService = "issuer"
+
+var installedRead = func(path string, limit int64) ([]byte, error) {
+	return configguard.ReadService(installedService, path, limit)
+}
 
 func readInstalledGrantKey(path, expected string) (*secp.PrivateKey, error) {
 	raw, e := installedRead(path, 32)

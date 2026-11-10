@@ -14,7 +14,10 @@ the private key must stay root-only and outside every agent-readable path.
    non-group/world-writable, with no special mode bits or symlinks. Files must be
    regular, single-link and nonempty. Keep each private group exclusive. Infra
    must check actual NSS membership and ACLs; mode checks do not inspect ACLs.
-3. After final provisioning, write one private resolved manifest per service:
+3. Write one private resolved manifest per service from Infra's independently
+   resolved and approved bytes. Do not derive approval by re-reading installed
+   disk content. Re-provision formerly service-writable secrets from custody;
+   chowning those bytes and hashing them does not establish trusted provenance:
 
 ```json
 {"v":1,"release_sha256":"ACCEPTED_PUBLIC_MANIFEST_SHA256","service":"model","gid":1234,"files":[{"path":"/etc/swarma/model/service.json","sha256":"EXACT_FILE_SHA256"}]}
@@ -82,6 +85,22 @@ Booking's provider key and CLI credential move from mutable `/var/lib` paths to
 the native route, unit and deployment descriptor together; no alternate path or
 old-mode fallback is provided. RPC client datadir remains under `/var/lib`.
 
+Gateway's agent key moves from `/var/lib/swarma-gateway/agent.key` to
+`/etc/swarma/gateway/agent.key`, with a root:swarma-gateway0750 parent and
+root:swarma-gateway0640 file. Update both the native config and private signed
+manifest. Mutable `/var/lib/swarma-gateway` stays gateway-owned0700.
+
+Native `swarma-relay -check` and `gateway validate` now require the signed
+installed set. They no longer validate `$STAGING` paths: missing anchors refuse
+with `DK5_ANCHOR_FILE`, root invocation with `DK5_SERVICE_IDENTITY`, and an
+unlisted staging path with `DK5_UNLISTED_PATH` (NSS may refuse earlier). Use
+`deploy-kit validate` for the resolved public staging descriptor/config, then
+the unit's own post-install preflights as its service user. There is no unsigned
+staging mode or alternate native reader.
+
+The relay's Caddy TLS front and certificate/key custody are outside DK5
+(`templates/relay/Caddyfile.in`); Infra qualifies those separately.
+
 Payload has no standalone systemd unit and no shared readable payload group.
 For static CA/model assets, Infra provisions an exclusive slot group and a
 root:root0644 anchor at `/etc/swarma/payload-anchors/<numeric EUID>/10-install.conf`
@@ -103,9 +122,12 @@ metadata/admission. Anchors/signatures use `DK5_ANCHOR_FILE`, `DK5_ANCHOR_SCHEMA
 `DK5_SIGNATURE_KEY`, `DK5_SIGNATURE_ALGORITHM`, `DK5_SIGNATURE_INVALID`.
 Native parsing/pinning errors remain distinct after installed admission.
 
-Tests use explicitly synthetic root ownership, real modes/descriptors/crypto
-and throwaway scratch keys. Native-loader tests substitute metadata admission;
-configguard tests separately exercise the full signed path. No local test is
+Tests use explicitly synthetic ownership/identity/NSS and task-owned traversal
+roots, real modes/descriptors/crypto and throwaway scratch keys. Native-loader
+tests cover file/parent admission. Configguard fixtures cover real ancestor
+modes and the composed ServiceSet, ReadService and subprocess CheckMain paths.
+Native production traversal always starts at `/`; source guards forbid consumer
+use of the unsigned Reader/Native/Read/OpenSignedSet surface. No local test is
 proof of Linux NSS/ACLs/systemd ownership, real custody or a deployed service.
 Infra must run positive startup plus changed-file, absent-signature, wrong-key,
 unlisted-path and peer-access refusals in its authorized disposable install

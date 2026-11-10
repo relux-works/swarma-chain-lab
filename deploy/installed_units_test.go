@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -35,9 +36,14 @@ func installedUnitValid(raw []byte, service string) bool {
 // config group. Bounded missing/wrong-executable counterexamples calibrate this
 // inventory checker. This does not claim an actual systemd start on Linux.
 func TestInstalledUnitPreflight(t *testing.T) {
-	for _, service := range []string{"issuer", "gateway", "model", "booking", "store", "relay", "wallet", "stations"} {
+	paths, e := filepath.Glob("templates/systemd/*.service.in")
+	if e != nil || len(paths) == 0 {
+		t.Fatal("missing unit inventory", e)
+	}
+	for _, path := range paths {
+		service := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(path), "swarma-"), ".service.in")
 		t.Run(service, func(t *testing.T) {
-			raw, e := os.ReadFile("templates/systemd/swarma-" + service + ".service.in")
+			raw, e := os.ReadFile(path)
 			if e != nil {
 				t.Fatal(e)
 			}

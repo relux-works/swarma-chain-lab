@@ -1,7 +1,7 @@
 {
   "version": 1,
   "mode": "regtest",
-  "agent_key_file": "/var/lib/swarma-gateway/agent.key",
+  "agent_key_file": "/etc/swarma/gateway/agent.key",
   "agent_pubkey": "PLACEHOLDER_AGENT_PUBKEY",
   "relay_auth": "off",
   "relay_url": "ws://127.0.0.1:18818",

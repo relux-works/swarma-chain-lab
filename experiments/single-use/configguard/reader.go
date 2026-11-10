@@ -23,6 +23,10 @@ type Reader struct {
 	EUID     int
 	GID      int
 	Metadata func(path string, stat *unix.Stat_t)
+	// FixtureRoot virtualizes only the traversal boundary for isolated tests.
+	// Native leaves it empty, so production always validates from /. Source
+	// guards prohibit constructing this unsigned reader outside tests.
+	FixtureRoot string
 }
 
 func Native() Reader                                { return Reader{EUID: os.Geteuid(), GID: os.Getegid()} }
@@ -95,14 +99,25 @@ func (r Reader) read(path string, limit int64, mode, parentMode, gid uint32) ([]
 	if !validPath(path) || limit < 1 || limit > 16<<20 {
 		return nil, fail("DK5_PATH")
 	}
-	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	fd, e := unix.Open("/", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	root := "/"
+	if r.FixtureRoot != "" {
+		root = r.FixtureRoot
+		if !validPath(root) || !strings.HasPrefix(path, root+"/") {
+			return nil, fail("DK5_PATH")
+		}
+	}
+	rel, e := filepath.Rel(root, path)
+	if e != nil {
+		return nil, fail("DK5_PATH")
+	}
+	parts := strings.Split(rel, "/")
+	fd, e := unix.Open(root, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if e != nil {
 		return nil, fail("DK5_DIRECTORY_OPEN")
 	}
-	parent := os.NewFile(uintptr(fd), "/")
+	parent := os.NewFile(uintptr(fd), root)
 	defer func() { parent.Close() }()
-	current := "/"
+	current := root
 	st, e := r.stat(parent, current)
 	if e != nil {
 		return nil, e

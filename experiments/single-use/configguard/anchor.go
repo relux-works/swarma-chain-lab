@@ -99,11 +99,23 @@ func OpenSignedSet(anchorPath, service string, r Reader) (*Set, error) {
 	}
 	return openManifest(manifest, a.Manifest, a.Release, service, r)
 }
+
+// Only package tests replace these dependencies. No environment/config option
+// changes anchor selection, NSS lookup or native identity in a daemon.
+var installedSource = struct {
+	reader         func() Reader
+	group          func(string) (*user.Group, error)
+	units, payload string
+}{Native, user.LookupGroup, "/etc/systemd/system", "/etc/swarma/payload-anchors"}
+
 func serviceBinding(service string) (string, Reader, error) {
-	r := Native()
+	r := installedSource.reader()
+	if r.EUID <= 0 {
+		return "", r, fail("DK5_SERVICE_IDENTITY")
+	}
 	switch service {
 	case "issuer", "gateway", "model", "booking", "store", "relay", "wallet", "stations":
-		g, e := user.LookupGroup("swarma-" + service)
+		g, e := installedSource.group("swarma-" + service)
 		if e != nil {
 			return "", r, fail("DK5_SERVICE_GROUP")
 		}
@@ -112,11 +124,11 @@ func serviceBinding(service string) (string, Reader, error) {
 			return "", r, fail("DK5_SERVICE_GROUP")
 		}
 		r.GID = gid
-		return "/etc/systemd/system/swarma-" + service + ".service.d/10-install.conf", r, nil
+		return filepath.Join(installedSource.units, "swarma-"+service+".service.d", "10-install.conf"), r, nil
 	case "payload":
 		// Static per-slot assets get an exclusive slot anchor. Dynamic bootstrap and
 		// slotd launch enforcement are DK5b; no shared readable payload group.
-		return "/etc/swarma/payload-anchors/" + strconv.Itoa(r.EUID) + "/10-install.conf", r, nil
+		return filepath.Join(installedSource.payload, strconv.Itoa(r.EUID), "10-install.conf"), r, nil
 	default:
 		return "", r, fail("DK5_SERVICE_IDENTITY")
 	}

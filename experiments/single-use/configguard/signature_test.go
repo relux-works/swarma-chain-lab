@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,8 +62,10 @@ func signedFixture(t *testing.T, key crypto.Signer, algorithm string) (Reader, s
 		t.Fatal(e)
 	}
 	a := Anchor{manifest, sig, digest(raw), m.ReleaseSHA256, algorithm, base64.StdEncoding.EncodeToString(der)}
-	root := t.TempDir()
-	os.Chmod(root, 0755)
+	root := filepath.Join(r.FixtureRoot, "anchor")
+	if e := os.Mkdir(root, 0755); e != nil {
+		t.Fatal(e)
+	}
 	anchorPath := filepath.Join(root, "10-install.conf")
 	body, e := RenderDropIn(a)
 	if e != nil {
@@ -143,11 +146,22 @@ func TestSignedRefusals(t *testing.T) {
 				rewrite()
 				want = "DK5_SIGNATURE_INVALID"
 			case "wrong_algorithm":
-				raw, err := os.ReadFile(ap)
+				// Keep the valid Ed25519 bytes/key; only the self-declared
+				// signature label changes, so dropping its check admits it.
+				raw, err := os.ReadFile(a.Signature)
 				if err != nil {
 					t.Fatal(err)
 				}
-				writeMode(t, ap, []byte(strings.Replace(string(raw), "ALGORITHM=ed25519", "ALGORITHM=rsa-pss-sha256", 1)), 0644)
+				var sig Signature
+				if err = json.Unmarshal(raw, &sig); err != nil {
+					t.Fatal(err)
+				}
+				sig.Algorithm = "rsa-pss-sha256"
+				raw, err = json.Marshal(sig)
+				if err != nil {
+					t.Fatal(err)
+				}
+				writeMode(t, a.Signature, raw, 0644)
 				want = "DK5_SIGNATURE_SCHEMA"
 			case "other_release":
 				a.Release = strings.Repeat("b", 64)
@@ -264,6 +278,38 @@ func TestSignatureKeyPins(t *testing.T) {
 			code(t, e, tc.reason)
 			if got != nil {
 				t.Fatal("invalid public pin accepted")
+			}
+		})
+	}
+}
+
+// Public-key policy rejects undersized/oversized moduli and a wrong exponent,
+// beside a real 3072-bit positive. Synthetic modulus tests claim policy only.
+func TestRSAKeyPolicy(t *testing.T) {
+	key, e := rsa.GenerateKey(rand.Reader, 3072)
+	if e != nil {
+		t.Fatal(e)
+	}
+	encode := func(p *rsa.PublicKey) string {
+		b, e := x509.MarshalPKIXPublicKey(p)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return base64.StdEncoding.EncodeToString(b)
+	}
+	if _, e = parsePublicKey("rsa-pss-sha256", encode(&key.PublicKey)); e != nil {
+		t.Fatal(e)
+	}
+	for _, tc := range []struct {
+		name           string
+		bits, exponent int
+	}{{"2048", 2048, 65537}, {"8193", 8193, 65537}, {"exponent", 3072, 3}} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &rsa.PublicKey{N: new(big.Int).Add(new(big.Int).Lsh(big.NewInt(1), uint(tc.bits-1)), big.NewInt(1)), E: tc.exponent}
+			got, e := parsePublicKey("rsa-pss-sha256", encode(p))
+			code(t, e, "DK5_SIGNATURE_KEY")
+			if got != nil {
+				t.Fatal("RSA policy returned key")
 			}
 		})
 	}

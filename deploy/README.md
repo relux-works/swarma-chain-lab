@@ -74,9 +74,11 @@ schemas and [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for deployment in
 The relay templates are in `templates/relay/` and `templates/systemd/`.
 Caddy must overwrite `X-Real-IP` with the direct client's address; the relay
 trusts only its configured proxy peer. Direct local services without that header
-share the loopback budget. Run `bin/swarma-relay -config
-"$STAGING/relay/service.json" -check` as one command after substituting the public
-URL. The initial compatibility profile leaves AUTH restrictions and outer PoW
+share the loopback budget. Validate resolved public staging bytes with
+`deploy-kit validate -config "$STAGING/relay/deploy.json" -public "$STAGING/relay/service.json"`.
+After signed installation, the relay unit runs its own `--check-installed`
+preflight as the service user against installed paths. Native `-check` now
+requires installed signed inputs and cannot validate a staging path. The initial compatibility profile leaves AUTH restrictions and outer PoW
 off; E1 still checks inner work. Recipient privacy requires configured gateway
 AUTH and the exact URL binding below before restricted gift-wrap reads are enabled. See the
 [relay contract](../experiments/relay/README.md).
@@ -91,9 +93,11 @@ AUTH and the exact URL binding below before restricted gift-wrap reads are enabl
 - `go run ./cmd/deploy-kit validate -config "$STAGING/booking/deploy.json"
   -public "$STAGING/booking/service.json" -public "$STAGING/booking/operator-route.json"`
   validates staged public booking inputs without reading credentials. The store
-  equivalent uses its descriptor and service.json, as does gateway. For gateway,
-  also run `bin/gateway validate -config "$STAGING/gateway/service.json"`.
-  Enter each as one command.
+  equivalent uses its descriptor and service.json, as does gateway. After signed
+  installation, let the unit run its own `--check-installed` and, for gateway,
+  native `validate` preflights as the service user against installed paths.
+  Native validators cannot admit unsigned staging paths. Enter each staging
+  command as one command.
 - `DK1_RELEASE_TEST=1 DK1_RELEASE_REPO="$CLEAN_SOURCE_ROOT"
   DK1_RELEASE_OUT="$NEW_EVIDENCE_PARENT" go test -count=1 -timeout 20m
   -run '^TestReleaseIntegration$' -v .` runs actual double Linux builds and a

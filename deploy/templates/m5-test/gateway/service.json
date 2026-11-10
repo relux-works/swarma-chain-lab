@@ -1,5 +1,5 @@
 {
-  "agent_key_file": "/var/lib/swarma-gateway/agent.key",
+  "agent_key_file": "/etc/swarma/gateway/agent.key",
   "agent_pubkey": "PLACEHOLDER_AGENT_PUBKEY",
   "exchange": {
     "booking_url": "http://127.0.0.1:18819",

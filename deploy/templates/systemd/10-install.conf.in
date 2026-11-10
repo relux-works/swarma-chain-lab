@@ -4,7 +4,7 @@
 # Do not publish resolved manifests, secret hashes, signatures or private keys.
 [Service]
 Environment="SWARMA_INSTALL_MANIFEST=/etc/swarma/@SERVICE@/install-manifest.json"
-Environment="SWARMA_INSTALL_SIGNATURE=/etc/swarma/@SERVICE@/install-manifest.sig"
+Environment="SWARMA_INSTALL_SIGNATURE=/etc/swarma/@SERVICE@/install-manifest.json.sig"
 Environment="SWARMA_INSTALL_SHA256=@APPROVED_MANIFEST_SHA256@"
 Environment="SWARMA_INSTALL_RELEASE_SHA256=@ACCEPTED_RELEASE_MANIFEST_SHA256@"
 Environment="SWARMA_INSTALL_ALGORITHM=@INSTALL_SIGNATURE_ALGORITHM@"
