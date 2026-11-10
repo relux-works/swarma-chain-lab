@@ -109,3 +109,97 @@ func TestCanonicalProjection(t *testing.T) {
 		})
 	}
 }
+
+func projectionScenario(scenario string) map[string]any {
+	m := projectionFixture()
+	if scenario == "expiry" {
+		m["scenario"] = scenario
+		closure := m["closure"].(map[string]any)
+		closure["reason"] = "not_after"
+		closure["application_idle_milliseconds"] = 90001
+		closed := m["independent_closed"].(map[string]any)
+		closed["reason"] = "EXPIRED"
+		closed["durable_closed"] = false // Expiry does not require a persisted revocation.
+		m["model_accounting"].(map[string]any)["phase"] = "expired"
+	}
+	return m
+}
+
+// A completed expiry just beyond the relay deadline is valid; a longer idle
+// duration normalizes equally. This is a report fixture, not a live timing test.
+func TestCanonicalProjectionExpiry(t *testing.T) {
+	m := projectionScenario("expiry")
+	first, e := CanonicalProjection(projectFixture(t, m))
+	if e != nil || len(first) == 0 {
+		t.Fatal("expiry valid neighbor", e)
+	}
+	m["closure"].(map[string]any)["application_idle_milliseconds"] = 93000
+	second, e := CanonicalProjection(projectFixture(t, m))
+	if e != nil || !bytes.Equal(first, second) {
+		t.Fatal("expiry idle normalization", e)
+	}
+}
+
+// Each refusal starts with its own accepted scenario. Missing/unapplied crash
+// evidence, altered scope, observation effects and closure boundaries must give
+// the exact refusal and no projection, leaving the caller's report bytes intact.
+// These assert comparator evidence rules, not execution of the reported events.
+func TestCanonicalProjectionRefusals(t *testing.T) {
+	type refusal struct {
+		name, scenario string
+		plant          func(map[string]any)
+	}
+	cases := []refusal{
+		{"issuer-before-not-applied", "", func(m map[string]any) { m["issuer_crash"].(map[string]any)["before_a_killed"] = false }},
+		{"issuer-ack-not-applied", "", func(m map[string]any) { m["issuer_crash"].(map[string]any)["lost_ack_killed"] = false }},
+		{"issuer-status-pending", "", func(m map[string]any) { m["crash_cases"].(map[string]string)["issuer"] = "pending-barrier" }},
+		{"gateway-pending-as-pass", "", func(m map[string]any) { m["crash_cases"].(map[string]string)["gateway"] = "PASS" }},
+		{"extra-crash-case", "", func(m map[string]any) { m["crash_cases"].(map[string]string)["other"] = "PASS" }},
+		{"scope-label", "", func(m map[string]any) { m["canonical_scope"] = "spec-adopted profile" }},
+		{"stale-reason", "", func(m map[string]any) { m["independent_verifier"].(map[string]any)["stale_reason"] = "GRANT_POLICY" }},
+		{"paused-verifier", "", func(m map[string]any) { m["independent_nodes"].([]any)[3].(map[string]any)["paused"] = true }},
+		{"relay-deadline", "", func(m map[string]any) { m["closure"].(map[string]any)["relay_read_deadline_milliseconds"] = 89999 }},
+		{"non-W-admission-state", "", func(m map[string]any) { m["non_w_anchor"].(map[string]any)["no_admission_state"] = false }},
+		{"wrong-executor-node-call", "", func(m map[string]any) { m["wrong_executor"].(map[string]any)["node_calls"] = 1 }},
+		{"changed-booking-consent", "", func(m map[string]any) { m["booking_crash"].(map[string]any)["same_consent"] = false }},
+		{"reader-delete-accepted", "", func(m map[string]any) { m["store_boundary"].(map[string]any)["reader_delete_status"] = 200 }},
+		{"revoke-not-durable", "revoke", func(m map[string]any) { m["independent_closed"].(map[string]any)["durable_closed"] = false }},
+		{"revoke-closure-reason", "revoke", func(m map[string]any) { m["closure"].(map[string]any)["reason"] = "not_after" }},
+		{"revoke-verifier-reason", "revoke", func(m map[string]any) { m["independent_closed"].(map[string]any)["reason"] = "EXPIRED" }},
+		{"expiry-closure-reason", "expiry", func(m map[string]any) { m["closure"].(map[string]any)["reason"] = "kernel_closed" }},
+		{"expiry-idle-at-deadline", "expiry", func(m map[string]any) { m["closure"].(map[string]any)["application_idle_milliseconds"] = 90000 }},
+		{"expiry-idle-below-deadline", "expiry", func(m map[string]any) { m["closure"].(map[string]any)["application_idle_milliseconds"] = 89999 }},
+		{"expiry-idle-absent", "expiry", func(m map[string]any) { delete(m["closure"].(map[string]any), "application_idle_milliseconds") }},
+		{"expiry-verifier-reason", "expiry", func(m map[string]any) { m["independent_closed"].(map[string]any)["reason"] = "SEAL_SPENT" }},
+	}
+	for _, field := range []string{"issuer_crash", "booking_crash", "crash_cases"} {
+		cases = append(cases,
+			refusal{field + "-absent", "", func(m map[string]any) { delete(m, field) }},
+			refusal{field + "-null", "", func(m map[string]any) { m[field] = nil }},
+			refusal{field + "-empty", "", func(m map[string]any) { m[field] = map[string]any{} }},
+		)
+	}
+	for _, scenario := range []string{"revoke", "expiry"} {
+		for _, tc := range cases {
+			if tc.scenario != "" && tc.scenario != scenario {
+				continue
+			}
+			t.Run(scenario+"/"+tc.name, func(t *testing.T) {
+				m := projectionScenario(scenario)
+				if projected, e := CanonicalProjection(projectFixture(t, m)); e != nil || len(projected) == 0 {
+					t.Fatal("refusal valid neighbor", e)
+				}
+				tc.plant(m)
+				raw := projectFixture(t, m)
+				before := append([]byte(nil), raw...)
+				projected, e := CanonicalProjection(raw)
+				if e == nil || e.Error() != "CANONICAL_EVIDENCE_INVALID" || projected != nil {
+					t.Fatalf("projection refusal missed: projection=%q error=%v", projected, e)
+				}
+				if !bytes.Equal(raw, before) {
+					t.Fatal("refusal mutated evidence bytes")
+				}
+			})
+		}
+	}
+}
