@@ -30,7 +30,7 @@ var plants = []plant{
 	{"responses_fields", "proxy", "responses.go", "!only(m, \"model\", \"input\", \"instructions\", \"tools\", \"stream\", \"max_output_tokens\")", "(false && !only(m, \"model\", \"input\", \"instructions\", \"tools\", \"stream\", \"max_output_tokens\"))", ".", "TestResponsesRequestRefusals/tier", "Responses invalid request forwarded"},
 	{"responses_hosted", "proxy", "responses.go", "typ != \"function\"", "(false && typ != \"function\")", ".", "TestResponsesRequestRefusals/hosted", "Responses invalid request forwarded"},
 	{"responses_image", "proxy", "responses.go", "!inputItems(m[\"input\"], tools)", "(false && !inputItems(m[\"input\"], tools))", ".", "TestResponsesRequestRefusals/image", "Responses invalid request forwarded"},
-	{"responses_duplicates", "proxy", "messages.go", "seen[s] {", "(false && seen[s]) {", ".", "TestResponsesRequestRefusals/duplicate", "Responses invalid request forwarded"},
+	{"responses_duplicates", "proxy", "messages.go", "!ok || seen[s] ||", "!ok || (false && seen[s]) ||", ".", "TestResponsesRequestRefusals/duplicate", "Responses invalid request forwarded"},
 	{"responses_sequence", "proxy", "responses_stream.go", "seq <= s.sequence", "(false && seq <= s.sequence)", ".", "TestResponsesStreamRefusals/sequence", "Responses invalid stream released success"},
 	{"responses_item_binding", "proxy", "responses_stream.go", "if id != item.id {", "if false && id != item.id {", ".", "TestResponsesStreamRefusals/item-id", "Responses invalid stream released success"},
 	{"responses_arguments", "proxy", "responses_stream.go", "v != item.arguments", "(false && v != item.arguments)", ".", "TestResponsesStreamRefusals/arguments", "Responses invalid stream released success"},

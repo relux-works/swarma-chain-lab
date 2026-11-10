@@ -41,3 +41,21 @@ func TestSJ1KeyAdmission(t *testing.T) {
 		})
 	}
 }
+
+// The legacy lexical layer is tested independently of the second StrictInput
+// layer: its duplicate-removal plant must fail even when that second guard
+// remains intact. Null refusal remains legacy policy; single escaped keys are
+// refused by StrictInput, not claimed as a property of this older walker.
+func TestSJ1LegacyWalker(t *testing.T) {
+	for _, raw := range []string{`{"limit":1,"limit":0}`, `{"limit":0,"limit":1}`, `{"limit":1,"l\u0069mit":0}`, `{"x":[{"limit":1,"limit":0}]}`} {
+		if e := strictShape([]byte(raw)); e == nil || e.Error() != "JSON" {
+			t.Fatal("legacy walker accepted duplicate", e)
+		}
+		if e := strictShape([]byte(`{"limit":1,"note":"a\nb"}`)); e != nil {
+			t.Fatal("valid legacy walker neighbor", e)
+		}
+	}
+	if e := strictShape([]byte(`{"limit":null}`)); e == nil || e.Error() != "JSON" {
+		t.Fatal("legacy walker accepted null", e)
+	}
+}

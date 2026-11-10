@@ -33,7 +33,7 @@ var plants = []plant{
 	{"poison", "relay", "store.go", "if s.poisoned {\n\t\treturn false, fail(\"STORE_UNAVAILABLE\")", "if false && s.poisoned {\n\t\treturn false, fail(\"STORE_UNAVAILABLE\")", "TestStoreFailure", "uncertain store resumed"},
 	{"persistence", "relay", "store.go", "if s.save(raw) != nil {\n\t\ts.poisoned = true\n\t\treturn false, fail(\"STORE_WRITE\")\n\t}", "_ = raw // planted: skip persistence", "TestStoreDurability", "restart lost event"},
 	{"empty_filter", "relay", "filter.go", "f.IDs != nil && !contains(f.IDs, e.ID)", "len(f.IDs) > 0 && !contains(f.IDs, e.ID)", "TestFilters", "match=false"},
-	{"duplicate_keys", "relay", "config.go", "e != nil || !ok || seen[s]", "e != nil || !ok", "TestFilterRefusals", "invalid filter accepted"},
+	{"duplicate_keys", "relay", "config.go", "e != nil || !ok || seen[s]", "e != nil || !ok", "TestSJ1LegacyWalker", "legacy walker accepted duplicate"},
 	{"auth_signature", "relay", "relay.go", "nostr.VerifySignature(e) != nil", "(false && nostr.VerifySignature(e) != nil)", "TestAuthentication", "ACK want false/restricted:"},
 	{"auth_challenge", "relay", "relay.go", "tags[\"challenge\"] != p.challenge", "(false && tags[\"challenge\"] != p.challenge)", "TestAuthentication", "ACK want false/restricted:"},
 	{"auth_url", "relay", "relay.go", "tags[\"relay\"] != r.cfg.PublicURL", "(false && tags[\"relay\"] != r.cfg.PublicURL)", "TestAuthentication", "ACK want false/restricted:"},

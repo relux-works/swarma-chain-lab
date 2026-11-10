@@ -121,6 +121,15 @@ func (c Config) Validate() error {
 // Strict refuses duplicate object keys, nulls and trailing values at every
 // level before typed decoding; public input errors never contain input bytes.
 func strict(raw []byte, v any) error {
+	if strictShape(raw) != nil || su.StrictInput(raw, v) != nil {
+		return fail("JSON")
+	}
+	return nil
+}
+
+// strictShape preserves the legacy duplicate/null walker independently of the
+// shared lexical/schema guard, so each layer can be calibrated on its own.
+func strictShape(raw []byte) error {
 	if !json.Valid(raw) {
 		return fail("JSON")
 	}
@@ -163,9 +172,6 @@ func strict(raw []byte, v any) error {
 		return fail("JSON")
 	}
 	if _, e := d.Token(); e != io.EOF {
-		return fail("JSON")
-	}
-	if su.StrictInput(raw, v) != nil {
 		return fail("JSON")
 	}
 	return nil

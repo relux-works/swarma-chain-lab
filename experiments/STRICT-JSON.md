@@ -31,6 +31,8 @@ Paths below are relative to `experiments/` unless prefixed `../`.
 | `rental-booking/contract.go:Strict`, HTTP/service loaders | Shared StrictInput; typed contracts/consent/package inputs | Inherit shared refusal. HTTP regressions assert refusal before address allocation, then valid booking and consent. Hash/signature construction remains unchanged. |
 | `agent-wallet/wire.go`, `service_wire.go`, `service_client.go`, `service_receipt.go`, state | StrictInput plus exact canonical bytes; Params/Effect can be RawMessage | Recursive lexical checks precede authentication and state admission. Actual signed action and re-signed ambiguous receipt effects are tested. Embedded legacy Event.Content has its own strict parser. |
 | `agent-wallet/single_use.go:oneoffKind` | Plain map discriminator | Discriminator grants nothing: either selected oneoff parser or standing-grant kernel must validate the complete object. RPC scalars and display-only receipt rendering likewise grant no authority. |
+| `signer-service/engine.go:observe` Core `gettxout` result | Plain `json.Unmarshal` into a fixed projection from the read-only Core observation | Retained as a trusted single-source RPC projection, not competing authority-object decoders. Amount/script/confirmation binding is checked against the independently decoded transaction before use; this unit does not claim lexical key enforcement at this projection. |
+| `grantcheck/checker.go:load` durable clock state | Typed `Unmarshal`, then complete `json.Marshal(m)` byte equality | Retained: fixed Version/Binding/High fields with no `RawMessage`; duplicate, escaped, aliased and unknown keys cannot survive exact canonical equality. Binding/version/range checks precede state admission. |
 | `signer-service/types.go:strict`, outbox/intents/state | Shared StrictInput; embedded request booking-ID probe was plain JSON | Probe now uses exact `ProjectJSON` before replay lookup or issuer inspection. Tests retain ledger/files and count issuer calls. Trusted encode/decode clones and string-array outbox indexes have no independent object ingress. |
 | `rental-executor/event.go:Strict`, event/content/Track B state | Shared StrictInput plus existing null/cardinality checks | Shared refusal applies before execution. RPC failure diagnostics do not admit results; success projections use the shared guard. |
 | `rental-gateway/kernel/presentation.go` | Decoder plus outer canonical comparison; opaque grant admitted duplicates | Shared typed guard precedes version probe and hash. Framing still does not validate grant authority; real kernel does. |
@@ -48,6 +50,20 @@ Paths below are relative to `experiments/` unless prefixed `../`.
 `payment-chain` remaining plain JSON decodes select scalar hashes, not object
 keys. Internal marshal/unmarshal copies operate on owned typed values. These are
 not independent authority-object parsers and are not rewritten mechanically.
+
+
+### Typed-schema limits (RSJ1-01 Info)
+
+`StrictInput` is scoped to the repository's plain wire structs. Struct-typed
+fields with a scalar custom JSON representation (for example `time.Time`) are
+not supported: they fail closed as `INPUT_OBJECT`. It is not a drop-in decoder
+for arbitrary `json.Unmarshaler` types or embedded field promotion. The current
+reflection allowlist also includes unexported fields; Go's JSON decoder then
+ignores a matching key. Existing authority wire schemas use exported fields,
+so that behavior grants no authority and does not admit a field alias. This
+revision documents these pre-existing limits rather than broadening the parser
+schema or changing unrelated wire behavior. New wire schemas must not rely on
+custom scalar structs or unexported JSON fields.
 
 ## Executable evidence and limits
 
@@ -81,3 +97,12 @@ baseline/mutant logs, overlays, source/mutant hashes, direct child PIDs, exits a
 `results.json`. The launcher records the source commit/diff and environment.
 This chain-lab unit is separate from the subsequent a2a-transport-nostr envelope
 and extensions unit; it makes no claim that the latter has already changed.
+
+RSJ1-01 requires the existing module guard instruments as well as the root SJ1
+controls. Run every `experiments/*/.scripts/*guards.go`,
+`experiments/grant-store/.scripts/guard-controls.go` and
+`deploy/.scripts/dk2-guards.go` from its module directory with a fresh `-out`
+path. The relay duplicate control targets `strictShape` directly, so its
+second shared guard cannot hide a missed mutation. Core-specific controls
+remain separately opt-in and must never be reported as executed by a default
+non-Core run.
