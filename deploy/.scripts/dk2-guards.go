@@ -1,5 +1,5 @@
 // Command dk2-guards checks that bounded deploy violations reach their intended
-// assertion. It copies only this public module and never reads staged secrets.
+// assertion. It copies this module and its pinned local dependencies; never staged secrets.
 package main
 
 import (
@@ -102,6 +102,9 @@ func main() {
 	scratch, e := os.MkdirTemp(filepath.Join(root, ".temp"), "dk2-plants-")
 	must(e)
 	defer os.RemoveAll(scratch)
+	for _, dep := range []string{"single-use", "sealwatch"} {
+		must(copyModule(filepath.Join(filepath.Dir(root), "experiments", dep), filepath.Join(scratch, "experiments", dep)))
+	}
 	plants := []plant{
 		{"main_model_precision", "model_terms.go", "n > (1<<53)-1", "false", ".", "^TestMainModelIntegerPrecision$", "browser-inexact cap accepted"},
 		{"main_missing_native", "main_profile.go", "if len(inputs) != want {\n\t\treturn ErrPolicy", "if len(inputs) != want {\n\t\treturn nil", ".", "^TestMainServiceProfiles$/^store$", "incomplete native accepted"},

@@ -8,6 +8,7 @@ User=swarma-gateway
 Group=swarma-gateway
 UMask=0077
 WorkingDirectory=/var/lib/swarma-gateway
+ExecStartPre=/opt/swarma/gateway/@VERSION@/bin/gateway --check-installed
 ExecStartPre=/opt/swarma/gateway/@VERSION@/bin/gateway validate -config /etc/swarma/gateway/service.json
 ExecStart=/opt/swarma/gateway/@VERSION@/bin/gateway serve -config /etc/swarma/gateway/service.json
 Restart=on-failure

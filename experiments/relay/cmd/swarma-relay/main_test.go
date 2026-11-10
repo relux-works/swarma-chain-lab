@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	relay "github.com/relux-works/swarma-chain-lab/experiments/relay"
 	"os"
 	"path/filepath"
-	relay "github.com/relux-works/swarma-chain-lab/experiments/relay"
 	"testing"
 )
 
@@ -16,10 +16,11 @@ func TestCheck(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	os.Chmod(root, 0750)
 	cfg := relay.Defaults(filepath.Join(root, "state"), "ws://127.0.0.1:18818")
 	raw, _ := json.Marshal(cfg)
 	path := filepath.Join(root, "config")
-	if e = os.WriteFile(path, raw, 0600); e != nil {
+	if e = os.WriteFile(path, raw, 0640); e != nil {
 		t.Fatal(e)
 	}
 	args := []string{"-config", path, "-check"}
@@ -37,7 +38,7 @@ func TestCheck(t *testing.T) {
 	if _, e = os.Stat(cfg.StateDir); !os.IsNotExist(e) {
 		t.Fatal("check created state")
 	}
-	if e = os.WriteFile(path, []byte(`{"sensitive_marker":true}`), 0600); e != nil {
+	if e = os.WriteFile(path, []byte(`{"sensitive_marker":true}`), 0640); e != nil {
 		t.Fatal(e)
 	}
 	if e = run(context.Background(), args); e == nil || e.Error() != "CONFIG" {

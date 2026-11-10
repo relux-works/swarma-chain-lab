@@ -111,9 +111,9 @@ func Validate(raw []byte) (Policy, error) {
 	}
 	switch p.Service {
 	case "booking":
-		if p.Profile != configRoot+"/profile.bin" || p.ProviderKey != root+"/provider.hex" || p.Route != configRoot+"/operator-route.json" ||
+		if p.Profile != configRoot+"/profile.bin" || p.ProviderKey != configRoot+"/provider.hex" || p.Route != configRoot+"/operator-route.json" ||
 			!pathUnder(p.NodeCLI, "/opt/namecoin") || !strings.HasSuffix(p.NodeCLI, "/bin/namecoin-cli") || !exactHex(p.NodeCLISHA256, 32) ||
-			p.RPCConfig != root+"/rpc/namecoin.conf" || p.RPCClientDataDir != root+"/rpc/client" || !localEndpoint(p.RPCEndpoint) || (p.Network == "regtest" && p.RPCEndpoint != "127.0.0.1:18443") || p.Listen != "127.0.0.1:18819" {
+			p.RPCConfig != configRoot+"/namecoin.conf" || p.RPCClientDataDir != root+"/rpc/client" || !localEndpoint(p.RPCEndpoint) || (p.Network == "regtest" && p.RPCEndpoint != "127.0.0.1:18443") || p.Listen != "127.0.0.1:18819" {
 			return Policy{}, ErrPolicy
 		}
 		u, e := url.Parse(p.Relay)

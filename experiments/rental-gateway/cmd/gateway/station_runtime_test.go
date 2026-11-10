@@ -51,7 +51,7 @@ func remoteFixture(t *testing.T) (serveConfig, *journal.Store, *tls.Config, *tls
 		raw  []byte
 		mode os.FileMode
 	}{{m.TLS.CertFile, cert, 0644}, {m.TLS.KeyFile, key, 0400}, {m.TLS.ManagerCAFile, ca.pem, 0644}} {
-		if e := os.WriteFile(f.path, f.raw, f.mode); e != nil {
+		if e := os.WriteFile(f.path, f.raw, 0640); e != nil {
 			t.Fatal(e)
 		}
 	}
@@ -81,7 +81,7 @@ func (remotePublisher) Publish(context.Context, *nostr.Event) error { return nil
 // effects; the valid TLS/remote constructor neighbour is exercised below.
 func TestRemoteTLSBeforeEffects(t *testing.T) {
 	c := remoteConfig(t)
-	if e := serve(context.Background(), c); e != errTLS {
+	if e := serve(context.Background(), c); e == nil || e.Error() != "DK5_FILE_OPEN" {
 		t.Fatal("remote TLS preflight missing", e)
 	}
 	entries, e := os.ReadDir(strings.TrimSuffix(c.AgentKeyFile, "/agent.key"))

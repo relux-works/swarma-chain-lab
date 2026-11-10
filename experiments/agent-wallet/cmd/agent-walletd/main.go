@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/configguard"
 	"io"
 	"os"
 	"os/signal"
@@ -12,7 +13,10 @@ import (
 	wallet "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet"
 )
 
-func main() { os.Exit(run()) }
+func main() {
+	configguard.CheckMain("wallet")
+	os.Exit(run())
+}
 func run() int {
 	f := flag.NewFlagSet("agent-walletd", flag.ContinueOnError)
 	f.SetOutput(io.Discard)

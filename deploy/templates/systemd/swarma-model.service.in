@@ -6,11 +6,13 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=swarma-model
-Group=swarma-model
+Group=swarma-model-peer
+SupplementaryGroups=swarma-model
 UMask=0077
 WorkingDirectory=/var/lib/swarma-model
 StateDirectory=swarma-model
 StateDirectoryMode=0700
+ExecStartPre=/opt/swarma/model/@VERSION@/bin/model-proxy --check-installed
 ExecStart=/opt/swarma/model/@VERSION@/bin/model-proxy -config /etc/swarma/model/service.json
 Restart=on-failure
 RestartSec=5s

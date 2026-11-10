@@ -81,18 +81,18 @@ func serve(parent context.Context, c serveConfig) error {
 			return e
 		}
 	}
-	keyBytes, e := readFile(c.AgentKeyFile, 65, 0600)
+	keyBytes, e := readFile(c.AgentKeyFile, 65)
 	if e != nil {
-		return errConfig
+		return e
 	}
 	key, e := nostr.PrivKeyFromHex(strings.TrimSpace(string(keyBytes)))
 	clear(keyBytes)
 	if e != nil || key.PubKeyHex() != c.AgentPubkey {
 		return errConfig
 	}
-	raw, e := readFile(c.Kernel.RPCRouteFile, 4096, 0400)
+	raw, e := readFile(c.Kernel.RPCRouteFile, 4096)
 	if e != nil {
-		return errConfig
+		return e
 	}
 	var route su.Route
 	if booking.Strict(raw, &route) != nil {

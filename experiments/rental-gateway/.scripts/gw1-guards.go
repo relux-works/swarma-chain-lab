@@ -41,8 +41,8 @@ var plants = []plant{
 	{"test_mode_validator", "gateway", "cmd/gateway/config.go", "if c.Mode == \"test\" && !allowTest {", "if c.Mode == \"test\" && !allowTest && false {", "./cmd/gateway", "TestConfigBoundary", "deployment validator accepted test mode", false},
 	{"production_stubs", "gateway", "cmd/gateway/config.go", "if c.Mode != \"test\" && (", "if false && (", "./cmd/gateway", "TestConfigRemote/stub-screen", "remote config guard missing", false},
 	{"implicit_stub", "gateway", "cmd/gateway/config.go", "(c.Kernel.Kind == \"real\" && c.Kernel.StubVerdict != \"\")", "(c.Kernel.Kind == \"real\" && c.Kernel.StubVerdict != \"\" && false)", "./cmd/gateway", "TestConfigBoundary/implicit-stub", "config guard missing", false},
-	{"secret_permissions", "gateway", "cmd/gateway/config.go", "(perm != 0 && st.Mode().Perm() != perm)", "(perm != 0 && st.Mode().Perm() != perm && false)", "./cmd/gateway", "TestConfigFiles", "wrong secret mode accepted", false},
-	{"config_symlink", "gateway", "cmd/gateway/config.go", "os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK", "os.O_RDONLY|syscall.O_NONBLOCK", "./cmd/gateway", "TestConfigFiles", "symlink config accepted", false},
+	{"secret_permissions", "single-use", "configguard/reader.go", "if uint32(s.Mode)&07777 != mode {", "if false && uint32(s.Mode)&07777 != mode {", "./configguard", "TestInstalledRefusals/0644", "installed refusal", false},
+	{"config_symlink", "single-use", "configguard/reader.go", "unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC", "unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC", "./configguard", "TestInstalledRefusals/symlink", "installed refusal", false},
 	{"directory_ancestry", "gateway", "cmd/gateway/serve.go", "e != nil || resolved != ancestor", "e != nil || (resolved != ancestor && false)", "./cmd/gateway", "TestPrivateDirNoRedirectedEffects", "symlink accepted", false},
 	{"booking_privacy", "gateway", "cmd/gateway/booking.go", "out.PrivacyNotice != booking.PrivacyNotice || ", "", "./cmd/gateway", "TestBookingClientRefusals/privacy", "bad catalogue accepted", false},
 	{"booking_strict", "gateway", "cmd/gateway/booking.go", "if booking.Strict(b, out) != nil {", "if json.Unmarshal(b, out) != nil {", "./cmd/gateway", "TestBookingClientRefusals/unknown", "bad catalogue accepted", false},
@@ -102,20 +102,29 @@ func run() error {
 		return e
 	}
 	defer os.RemoveAll(work)
-	for _, name := range []string{"rental", "single-use", "sealwatch", "payment-chain", "station-lifecycle", "model-proxy", "signer-service", "grant-store"} {
+	for _, name := range []string{"rental", "sealwatch", "payment-chain", "station-lifecycle", "model-proxy", "signer-service", "grant-store"} {
 		if e = os.Symlink(filepath.Join(filepath.Dir(root), name), filepath.Join(work, name)); e != nil {
+			return e
+		}
+	}
+	// deploy's local replacements retain their repository-relative experiments layout.
+	if e = os.MkdirAll(filepath.Join(work, "experiments"), 0700); e != nil {
+		return e
+	}
+	for _, dep := range []string{"single-use", "sealwatch"} {
+		if e = os.Symlink(filepath.Join(work, dep), filepath.Join(work, "experiments", dep)); e != nil {
 			return e
 		}
 	}
 	if e = copyModule(filepath.Join(filepath.Dir(filepath.Dir(root)), "deploy"), filepath.Join(work, "deploy")); e != nil {
 		return e
 	}
-	for _, name := range []string{"rental-gateway", "rental-booking"} {
+	for _, name := range []string{"rental-gateway", "rental-booking", "single-use"} {
 		if e = copyModule(filepath.Join(filepath.Dir(root), name), filepath.Join(work, name)); e != nil {
 			return e
 		}
 	}
-	modules := map[string]string{"gateway": filepath.Join(work, "rental-gateway"), "binding": filepath.Join(work, "rental-gateway", "kernelbind"), "booking": filepath.Join(work, "rental-booking")}
+	modules := map[string]string{"single-use": filepath.Join(work, "single-use"), "gateway": filepath.Join(work, "rental-gateway"), "binding": filepath.Join(work, "rental-gateway", "kernelbind"), "booking": filepath.Join(work, "rental-booking")}
 	runTest := func(name, module, pkg, test string, useCore bool) (int, []byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()

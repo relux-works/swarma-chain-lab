@@ -45,6 +45,13 @@ func readGrantKey(path, expected string) (*secp.PrivateKey, error) {
 	if e != nil || !durable.PrivateRegular(info) || info.Size() != 32 {
 		return nil, bad("KEY_FILE")
 	}
+	return parseGrantKey(raw, expected)
+}
+
+func parseGrantKey(raw []byte, expected string) (*secp.PrivateKey, error) {
+	if len(raw) != 32 {
+		return nil, bad("KEY_FILE")
+	}
 	var scalar secp.ModNScalar
 	defer scalar.Zero()
 	if scalar.SetByteSlice(raw) || scalar.IsZero() {

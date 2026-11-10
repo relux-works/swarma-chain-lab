@@ -190,3 +190,15 @@ removes both ID and signature admission because the reused verifier also checks
 the event ID; the separate signature plant leaves the ID check intact.
 Evidence is `.temp/guards/run-*/{baseline.log,*.log,results.json}`. These are local
 controls; independent review and hosted CI must still assess the delivered head.
+
+## Installed static inputs (DK5)
+
+Installed daemon configs/secrets now require root:exclusive-service-group0640,
+root:same-group0750 parents and the signed manifest/root anchor in
+[the install contract](../../deploy/INSTALL-CONFIG.md). Legacy owner0600/0400
+examples below or in historical smoke fixtures are not installed-service inputs.
+Mutable state, standalone tool/client keys and dynamic payload bootstrap retain
+their separate contracts. No production mode fallback exists. Full signed
+admission tests live in `single-use/configguard`; local ownership seams are
+synthetic and do not qualify Linux deployment. See the deploy runbook for
+same-binary preflight and the separate DK5b payload launch gate.

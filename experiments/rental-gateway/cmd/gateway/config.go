@@ -5,14 +5,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
@@ -267,35 +264,15 @@ func (c serveConfig) exchangeConfig(backend exchange.Backend, grants exchange.Gr
 	return exchange.Config{StateDir: x.StateDir, AgentName: c.Kernel.AgentName, LandlordName: c.Kernel.LandlordName, Backend: backend, Grants: grants, PowBits: x.PowBits, MaxClients: x.MaxClients, QueueSize: x.QueueSize, Burst: x.Burst, MaxReplay: x.MaxReplay, RefillSeconds: x.RefillSeconds, KnownSeconds: x.KnownSeconds, MessageAgeSeconds: x.MessageAgeSeconds, PollInterval: time.Duration(x.PollMilliseconds) * time.Millisecond, CallTimeout: time.Duration(x.CallMilliseconds) * time.Millisecond, Now: time.Now}
 }
 
-// File boundaries reject symlink leaves and noncanonical parents before opening;
-// protected files must also have the exact expected private permission bits.
-func readFile(path string, max int64, perm os.FileMode) ([]byte, error) {
-	if !absPath(path) {
-		return nil, errConfig
-	}
-	parent, e := filepath.EvalSymlinks(filepath.Dir(path))
-	if e != nil || parent != filepath.Dir(path) {
-		return nil, errConfig
-	}
-	f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
-	if e != nil {
-		return nil, errConfig
-	}
-	defer f.Close()
-	st, e := f.Stat()
-	if e != nil || !st.Mode().IsRegular() || st.Size() < 1 || st.Size() > max || st.Mode().Perm()&0022 != 0 || (perm != 0 && st.Mode().Perm() != perm) {
-		return nil, errConfig
-	}
-	b, e := io.ReadAll(io.LimitReader(f, max+1))
-	if e != nil || int64(len(b)) > max {
-		return nil, errConfig
-	}
-	return b, nil
-}
+// Installed configuration and secrets share the root-owned0640 boundary.
+func readFile(path string, max int64) ([]byte, error) { return installedRead(path, max) }
 func loadConfig(path string, allowTest bool) (serveConfig, error) {
 	var c serveConfig
-	b, e := readFile(path, 64<<10, 0)
-	if e != nil || booking.Strict(b, &c) != nil {
+	b, e := readFile(path, 64<<10)
+	if e != nil {
+		return c, e
+	}
+	if booking.Strict(b, &c) != nil {
 		return c, errConfig
 	}
 	var fields map[string]json.RawMessage

@@ -3,6 +3,6 @@
   "Network": "main",
   "NodeCLI": "/opt/namecoin/PLACEHOLDER_VERSION/bin/namecoin-cli",
   "NodeCLISHA256": "PLACEHOLDER_LINUX_CLI_SHA256",
-  "NodeConfig": "/var/lib/swarma-booking/rpc/namecoin.conf",
+  "NodeConfig": "/etc/swarma/booking/namecoin.conf",
   "NodeDataDir": "/var/lib/swarma-booking/rpc/client"
 }

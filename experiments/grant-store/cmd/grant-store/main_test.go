@@ -79,7 +79,8 @@ func TestSigningKeyFiles(t *testing.T) {
 	}
 }
 
-// A compiled CLI starts a real loopback server, puts/gets/lists/deletes bytes,
+// A test child runs the real server CLI with synthetic root ownership; compiled
+// client CLIs put/get/list/delete bytes against its real loopback server. This
 // rejects a non-reader, and preserves an existing output file. Its owned PID
 // is terminated and waited on; no daemon or external network is involved.
 func TestCLIProcess(t *testing.T) {
@@ -111,13 +112,24 @@ func TestCLIProcess(t *testing.T) {
 		pub[name] = k.PubKeyHex()
 	}
 	cfg, _ := json.Marshal(store.Config{Root: root, Writers: []string{pub["writer"]}})
-	config := filepath.Join(dir, "config.json")
-	if e := os.WriteFile(config, cfg, 0600); e != nil {
+	configDir := filepath.Join(dir, "static")
+	if e := os.Mkdir(configDir, 0750); e != nil {
+		t.Fatal(e)
+	}
+	os.Chmod(configDir, 0750)
+	config := filepath.Join(configDir, "config.json")
+	if e := os.WriteFile(config, cfg, 0640); e != nil {
 		t.Fatal(e)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, bin, "serve", "-config", config)
+	testBin, e := os.Executable()
+	if e != nil {
+		t.Fatal(e)
+	}
+	cmd := exec.CommandContext(ctx, testBin, "-test.run=^TestDK5ServerChild$")
+	childArgs, _ := json.Marshal([]string{"serve", "-config", config})
+	cmd.Env = append(os.Environ(), "DK5_STORE_CHILD=1", "DK5_STORE_ARGS="+string(childArgs))
 	stdout, e := cmd.StdoutPipe()
 	if e != nil {
 		t.Fatal(e)
@@ -202,4 +214,18 @@ func TestCLIProcess(t *testing.T) {
 	if e = syscall.Kill(pid, 0); e != syscall.ESRCH {
 		t.Fatal("owned server PID remains")
 	}
+}
+
+// Test-only entry point; production binaries have no ownership bypass flag.
+func TestDK5ServerChild(t *testing.T) {
+	if os.Getenv("DK5_STORE_CHILD") != "1" {
+		t.Skip("parent-owned child")
+	}
+	var args []string
+	if json.Unmarshal([]byte(os.Getenv("DK5_STORE_ARGS")), &args) != nil {
+		os.Exit(2)
+	}
+	os.Args = append([]string{"grant-store"}, args...)
+	main()
+	os.Exit(0)
 }

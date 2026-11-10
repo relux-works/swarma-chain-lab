@@ -47,8 +47,13 @@ func TestCLI(t *testing.T) {
 	}
 	server := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer server.Close()
-	ca := filepath.Join(root, "ca.pem")
-	if os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600) != nil {
+	static := filepath.Join(root, "static")
+	if e := os.Mkdir(static, 0750); e != nil {
+		t.Fatal(e)
+	}
+	os.Chmod(static, 0750)
+	ca := filepath.Join(static, "ca.pem")
+	if os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0640) != nil {
 		t.Fatal("CA write")
 	}
 	doc := gatewaybind.PayloadBootstrap{V: 1, BookingID: strings.Repeat("b", 64), StationName: "id/cli", ChannelSecret: []byte(strings.Repeat("s", 32))}

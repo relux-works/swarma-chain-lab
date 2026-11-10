@@ -360,3 +360,13 @@ Authority JSON inputs reject recursive duplicate keys and escaped object-key spe
 ## Witness construction validation tools
 
 V3 T/A construction requires the explicit authenticated W pin and native P2WPKH/ALL inputs. The first delivery permits only exact T:L as an unconfirmed dependency; the payment exception is deferred to SW1b. See [the boundary and reason inventory](experiments/WITNESS-PROFILE.md). From an isolated physical scratch checkout, run `go run .scripts/sw1-guards.go -out /absolute/new-dir`; baseline/plant logs and hashes go to that directory. The inventory lists the separate real-Core commands and module checks.
+
+### Installed configuration admission (DK5)
+
+The [signed installation contract](deploy/INSTALL-CONFIG.md) describes root-owned
+static inputs, private service groups, same-binary systemd preflight and Infra's
+external installation/qualification duties. Use the exact `deploy-kit render-install-anchor` command in
+[deploy tools](deploy/README.md#dk5-tools) for public-anchor rendering;
+from the repository root run `go run .scripts/dk5-guards.go -out "$NEW_ABSOLUTE_SCRATCH_DIR"`
+for21 isolated guard controls. Keep validation HOME/cache/temp under task scratch.
+Dynamic payload bootstrap/slotd enforcement remains the separate DK5b gate.

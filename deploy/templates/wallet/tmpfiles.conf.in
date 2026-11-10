@@ -1,5 +1,5 @@
 # Private service roots; run only during separately authorized host provisioning.
-d /etc/swarma/wallet 0700 swarma-wallet swarma-wallet -
+d /etc/swarma/wallet 0750 root swarma-wallet -
 d /var/lib/swarma-wallet/service 0700 swarma-wallet swarma-wallet -
 d /var/lib/swarma-wallet/wallet 0700 swarma-wallet swarma-wallet -
 d /var/lib/swarma-wallet/kernel 0700 swarma-wallet swarma-wallet -

@@ -141,3 +141,15 @@ source-removal controls with `go run .scripts/rk1-guards.go`; an optional
 `-only NAME` selects one plant. Logs/results go under `.temp/rk1-guards/`.
 The harness copies relay and gateway sources before any mutation; compile errors,
 crashes and timeouts do not count as detected contract violations.
+
+## Installed static inputs (DK5)
+
+Installed daemon configs/secrets now require root:exclusive-service-group0640,
+root:same-group0750 parents and the signed manifest/root anchor in
+[the install contract](../../deploy/INSTALL-CONFIG.md). Legacy owner0600/0400
+examples below or in historical smoke fixtures are not installed-service inputs.
+Mutable state, standalone tool/client keys and dynamic payload bootstrap retain
+their separate contracts. No production mode fallback exists. Full signed
+admission tests live in `single-use/configguard`; local ownership seams are
+synthetic and do not qualify Linux deployment. See the deploy runbook for
+same-binary preflight and the separate DK5b payload launch gate.

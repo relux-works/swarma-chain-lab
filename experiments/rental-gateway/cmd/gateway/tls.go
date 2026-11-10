@@ -27,13 +27,13 @@ func gatewayTLS(c gatewayTLSConfig) (manager, payload *tls.Config, err error) {
 	if !pinDigest(c.CertSHA256) || !pinDigest(c.ManagerCertSHA256) {
 		return nil, nil, errTLS
 	}
-	certPEM, e := readFile(c.CertFile, 64<<10, 0)
+	certPEM, e := readFile(c.CertFile, 64<<10)
 	if e != nil {
-		return nil, nil, errTLS
+		return nil, nil, e
 	}
-	keyPEM, e := readFile(c.KeyFile, 16<<10, 0400)
+	keyPEM, e := readFile(c.KeyFile, 16<<10)
 	if e != nil {
-		return nil, nil, errTLS
+		return nil, nil, e
 	}
 	defer clear(keyPEM)
 	cert, e := tls.X509KeyPair(certPEM, keyPEM)
@@ -49,9 +49,9 @@ func gatewayTLS(c gatewayTLSConfig) (manager, payload *tls.Config, err error) {
 	if hex.EncodeToString(hash[:]) != c.CertSHA256 || now.Before(leaf.NotBefore) || !now.Before(leaf.NotAfter) {
 		return nil, nil, errTLS
 	}
-	ca, e := readFile(c.ManagerCAFile, 64<<10, 0)
+	ca, e := readFile(c.ManagerCAFile, 64<<10)
 	if e != nil {
-		return nil, nil, errTLS
+		return nil, nil, e
 	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(ca) {

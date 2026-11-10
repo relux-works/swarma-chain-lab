@@ -50,8 +50,8 @@ func config(t *testing.T) Config {
 	_, agent, _ := testKey(3)
 	_, provider, _ := testKey(4)
 	kp, fp := filepath.Join(root, "grant.key"), filepath.Join(root, "funding.key")
-	write(t, kp, grant.Serialize())
-	write(t, fp, fund.Serialize())
+	writeInstalled(t, kp, grant.Serialize())
+	writeInstalled(t, fp, fund.Serialize())
 	return Config{Profile: "v1-nmc", Policy: rental.IssuerPolicy{Policy: rental.Policy{ConstructionProfile: "W", Network: "regtest", Genesis: su.RegtestGenesis, IssuerPubkey: pub, AgentPubkey: agent, AgentName: "id/sg1-agent", StationName: "id/sg1-agent", LandlordName: "id/sg1-landlord", SealScript: seal, StationScript: seal, FundingScript: fundScript, StateDir: dir(t)}, ProviderPubkey: provider}, StateDir: dir(t), GrantKeyPath: kp, FundingKeyPath: fp, Caps: RegtestCaps()}
 }
 func wantError(t *testing.T, e error, want string) {
@@ -102,7 +102,7 @@ func TestKeyCustody(t *testing.T) {
 	for _, mode := range []string{"mode", "zero", "hex", "symlink", "hardlink", "wrong-key"} {
 		t.Run(mode, func(t *testing.T) {
 			path := filepath.Join(dir(t), "key")
-			write(t, path, raw)
+			writeInstalled(t, path, raw)
 			switch mode {
 			case "mode":
 				os.Chmod(path, 0644)

@@ -49,7 +49,7 @@ func OpenActionService(c ServiceConfig) (*ActionService, error) {
 	if e := validServiceConfig(c); e != nil {
 		return nil, e
 	}
-	wc, e := LoadConfig(c.WalletConfig)
+	wc, e := LoadInstalledWalletConfig(c.WalletConfig)
 	if e != nil {
 		return nil, e
 	}
@@ -71,7 +71,7 @@ func OpenActionService(c ServiceConfig) (*ActionService, error) {
 	if !ok || int(st.Uid) != os.Getuid() {
 		return nil, fail("SERVICE_OBJECTS")
 	}
-	key, e := LoadActionKey(c.ReceiptKeyFile)
+	key, e := loadReceiptKey(c.ReceiptKeyFile)
 	if e != nil {
 		return nil, e
 	}

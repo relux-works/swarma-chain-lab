@@ -26,7 +26,7 @@ type FileConfig struct {
 }
 
 func readJSON(path string, v any) error {
-	b, e := privateRead(path, 65536)
+	b, e := installedRead(path, 65536)
 	if e != nil {
 		return e
 	}
@@ -73,6 +73,13 @@ func RunFile(ctx context.Context, path string, once bool, report func(Result)) e
 		return e
 	}
 	defer key.Zero()
+	// Admit both installed custody files before opening a journal or processing
+	// inventory. Signing re-reads the funding key at its existing use boundary.
+	funding, e := loadKey(f.Config.FundingKeyPath, f.Config.Policy.Policy.FundingScript)
+	if e != nil {
+		return e
+	}
+	funding.Zero()
 	b := key.Serialize()
 	signer, e := nostr.PrivKeyFromBytes(b)
 	clear(b)

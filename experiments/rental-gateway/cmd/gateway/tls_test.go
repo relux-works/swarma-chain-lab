@@ -90,10 +90,11 @@ func TestGatewayTLSAuthority(t *testing.T) {
 	server, certPEM, keyPEM := ca.leaf(t, 2, false, false)
 	manager, _, _ := ca.leaf(t, 3, true, false)
 	root := testRoot(t)
+	os.Chmod(root, 0750)
 	write := func(name string, b []byte, mode os.FileMode) string {
 		t.Helper()
 		p := filepath.Join(root, name)
-		if e := os.WriteFile(p, b, mode); e != nil {
+		if e := os.WriteFile(p, b, 0640); e != nil {
 			t.Fatal(e)
 		}
 		return p
@@ -174,7 +175,7 @@ func TestGatewayTLSAuthority(t *testing.T) {
 	if e = os.Chmod(c.KeyFile, 0644); e != nil {
 		t.Fatal(e)
 	}
-	if _, _, e = gatewayTLS(c); e != errTLS {
-		t.Fatal("public TLS key accepted")
+	if _, _, e = gatewayTLS(c); e == nil || e.Error() != "DK5_FILE_MODE" {
+		t.Fatal("public TLS key accepted", e)
 	}
 }

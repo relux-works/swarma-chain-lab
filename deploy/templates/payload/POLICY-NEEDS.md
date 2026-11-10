@@ -14,10 +14,10 @@ the scripted PL1 consumer, not an approved general agent runtime.
 | Identity | Infra's per-slot OS user; never root, issuer, gateway, model or manager user. |
 | Fixed argv | `-bootstrap BOOTSTRAP_PATH -ca CA_PATH -gateway PAYLOAD_GATEWAY_ORIGIN -gateway-pin PAYLOAD_GATEWAY_LEAF_SHA256 -model APPROVED_MODEL_ID -max-tokens APPROVED_POSITIVE_INTEGER -dialect APPROVED_DIALECT -model-config PUBLIC_MODEL_CONFIG_PATH`. Each token is a separate argv entry; these capitalized names are documentation variables, not runtime expansion syntax. |
 | Bootstrap path | Infra chooses an absolute, symlink-free per-slot file path in an owner0700 parent. File is slot-owned0600, single-link, bounded to the native loader. It contains only the gateway-generated canonical bootstrap, never an upstream API key. |
-| CA path | Infra chooses an absolute, symlink-free per-slot CA bundle path; slot-owned0600 and single-link in an owner0700 parent. Contains approved gateway and model trust roots. |
+| CA path | Infra chooses an absolute, symlink-free per-slot CA bundle path; root:exclusive-slot-group0640 and single-link in a root:same-group0750 parent. Contains approved gateway and model trust roots. |
 | Gateway | Exact operator-approved HTTPS payload listener origin, separate from the manager poll endpoint; normal trust plus exact leaf pin. |
 | Model arguments | Exact model ID in the model proxy's approved table and explicit max-tokens within the registered cap; no implied defaults or guessed prices. |
-| Dialect and public model config | Explicit `messages` or `responses`, matching the selected model's profile. Operator provisions a canonical0600 public model config copy; referenced credential paths are never opened by the payload. Startup compares model/profile and bootstrap origin/pin before network. The copy and actual proxy config must be kept identical by provisioning. |
+| Dialect and public model config | Explicit `messages` or `responses`, matching the selected model's profile. Operator provisions a canonical root:exclusive-slot-group0640 public model config copy; referenced credential paths are never opened by the payload. Startup compares model/profile and bootstrap origin/pin before network. The copy and actual proxy config must be kept identical by provisioning. |
 | Filesystem/network/resource policy | Infra's existing root policy pins allowed paths, egress, cgroups, expiry and wipe; these are not controllable through bootstrap or a station wire request. |
 | Lifecycle | Manager invokes only create/start/status/stop/destroy through the reviewed r4 wire. No argv/path/policy fields travel in those requests. |
 
@@ -38,3 +38,9 @@ exact pinned argv above; it cannot approve the absent Infra policy or its execut
 Before host acceptance, Infra must turn this table into its reviewed real schema,
 prove matching bootstrap placement/argv and demonstrate per-slot lifecycle and
 cleanup. A binary double-build is not that evidence.
+
+DK5 static CA/model inputs require the signed private `payload` manifest and
+fixed per-UID root anchor described in [INSTALL-CONFIG](../../INSTALL-CONFIG.md).
+No shared readable payload group or standalone payload unit is introduced.
+Dynamic bootstrap and slotd launch controls remain DK5b and block outside testers
+until separately specified and accepted by Infra.

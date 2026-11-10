@@ -87,6 +87,15 @@ func run() error {
 			return e
 		}
 	}
+	// deploy's local replacements retain their repository-relative experiments layout.
+	if e = os.MkdirAll(filepath.Join(work, "experiments"), 0700); e != nil {
+		return e
+	}
+	for _, dep := range []string{"single-use", "sealwatch"} {
+		if e = os.Symlink(filepath.Join(work, dep), filepath.Join(work, "experiments", dep)); e != nil {
+			return e
+		}
+	}
 	if e = copyModule(filepath.Join(filepath.Dir(filepath.Dir(root)), "deploy"), filepath.Join(work, "deploy")); e != nil {
 		return e
 	}

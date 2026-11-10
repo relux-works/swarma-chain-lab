@@ -54,7 +54,7 @@ func TestWalletDeployment(t *testing.T) {
 			t.Fatal("wallet unit boundary", required)
 		}
 	}
-	for _, forbidden := range []string{"Environment=", "ExecStartPre=", "rpcpassword", "/home/", "/Users/", "rm -", "agent-wallet-legacy"} {
+	for _, forbidden := range []string{"Environment=", "rpcpassword", "/home/", "/Users/", "rm -", "agent-wallet-legacy"} {
 		if bytes.Contains(unit, []byte(forbidden)) {
 			t.Fatal("wallet unit unsafe directive")
 		}

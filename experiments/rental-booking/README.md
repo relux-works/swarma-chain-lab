@@ -417,3 +417,15 @@ Guard controls `outbox-prefix` and `outbox-bytes` use the mutation command above
 ## Signed model limits
 
 Model-enabled Templatev2 and ContractV2 carry six exact signed limits, including a disclosed future output default. Config/template equality is required before state or node effects. See [MODEL-CAPS.md](MODEL-CAPS.md) for canonical order, page/consent binding, compatibility, upgrade gates and deployment commands.
+
+## Installed static inputs (DK5)
+
+Installed daemon configs/secrets now require root:exclusive-service-group0640,
+root:same-group0750 parents and the signed manifest/root anchor in
+[the install contract](../../deploy/INSTALL-CONFIG.md). Legacy owner0600/0400
+examples below or in historical smoke fixtures are not installed-service inputs.
+Mutable state, standalone tool/client keys and dynamic payload bootstrap retain
+their separate contracts. No production mode fallback exists. Full signed
+admission tests live in `single-use/configguard`; local ownership seams are
+synthetic and do not qualify Linux deployment. See the deploy runbook for
+same-binary preflight and the separate DK5b payload launch gate.

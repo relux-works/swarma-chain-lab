@@ -1,0 +1,5 @@
+# Provisioning input only; keep the config group exclusive to the proxy.
+u swarma-model - "Swarma bounded model proxy" /var/lib/swarma-model /usr/sbin/nologin
+g swarma-model-peer -
+m swarma-model swarma-model-peer
+m swarma-gateway swarma-model-peer

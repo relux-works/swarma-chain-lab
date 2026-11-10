@@ -34,6 +34,19 @@ func LoadConfig(path string) (Config, error) {
 	if n, e := f.ReadAt(b, 0); e != nil || n != len(b) {
 		return c, fail("CONFIG_READ")
 	}
+	return parseWalletConfig(b)
+}
+
+func LoadInstalledWalletConfig(path string) (Config, error) {
+	b, e := installedRead(path, 65536)
+	if e != nil {
+		return Config{}, e
+	}
+	defer clear(b)
+	return parseWalletConfig(b)
+}
+func parseWalletConfig(b []byte) (Config, error) {
+	var c Config
 	if su.StrictInput(b, &c) != nil {
 		return c, fail("CONFIG_SCHEMA")
 	}

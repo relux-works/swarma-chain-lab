@@ -4,13 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	ss "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/configguard"
 	"os"
 	"os/signal"
-	ss "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
 	"syscall"
 )
 
 func main() {
+	configguard.CheckMain("issuer")
 	cfg := flag.String("config", "", "absolute private configuration file")
 	once := flag.Bool("once", false, "perform one intake/processing/refill cycle")
 	flag.Parse()

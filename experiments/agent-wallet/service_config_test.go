@@ -64,15 +64,15 @@ func TestActionServiceConfig(t *testing.T) {
 		t.Fatal("socket parent alias guard")
 	}
 	path := filepath.Join(root, "service.json")
-	os.WriteFile(path, canonical(c), 0600)
+	writeInstalled(t, path, canonical(c))
 	if _, e = LoadServiceConfig(path); e != nil {
 		t.Fatal("private config neighbor", e)
 	}
-	os.Chmod(path, 0640)
+	os.Chmod(path, 0644)
 	if _, e = LoadServiceConfig(path); e == nil {
 		t.Fatal("config mode guard")
 	}
-	os.Chmod(path, 0600)
+	os.Chmod(path, 0640)
 	os.WriteFile(path, []byte(`{"version":1,"rpc_password":"do-not-echo"}`), 0600)
 	if _, e = LoadServiceConfig(path); e == nil || e.Error() != "SERVICE_CONFIG" {
 		t.Fatal("config closed schema guard", e)

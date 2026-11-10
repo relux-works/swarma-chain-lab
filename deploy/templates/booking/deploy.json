@@ -9,11 +9,11 @@
   "listen": "127.0.0.1:18819",
   "config": "/etc/swarma/booking/service.json",
   "profile": "/etc/swarma/booking/profile.bin",
-  "provider_key": "/var/lib/swarma-booking/provider.hex",
+  "provider_key": "/etc/swarma/booking/provider.hex",
   "route": "/etc/swarma/booking/operator-route.json",
   "node_cli": "/opt/namecoin/PLACEHOLDER_VERSION/bin/namecoin-cli",
   "node_cli_sha256": "PLACEHOLDER_LINUX_CLI_SHA256",
-  "rpc_config": "/var/lib/swarma-booking/rpc/namecoin.conf",
+  "rpc_config": "/etc/swarma/booking/namecoin.conf",
   "rpc_client_datadir": "/var/lib/swarma-booking/rpc/client",
   "rpc_endpoint": "127.0.0.1:18443",
   "relay": "ws://127.0.0.1:18818"

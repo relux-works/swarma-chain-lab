@@ -56,6 +56,18 @@ func LoadActionKey(path string) (*btcec.PrivateKey, error) {
 	if e != nil {
 		return nil, e
 	}
+	defer clear(b)
+	return parseActionKey(b)
+}
+func loadReceiptKey(path string) (*btcec.PrivateKey, error) {
+	b, e := installedRead(path, 64)
+	if e != nil {
+		return nil, e
+	}
+	defer clear(b)
+	return parseActionKey(b)
+}
+func parseActionKey(b []byte) (*btcec.PrivateKey, error) {
 	if !hexN(string(b), 32) {
 		return nil, fail("ACTION_KEY")
 	}
@@ -68,7 +80,7 @@ func LoadActionKey(path string) (*btcec.PrivateKey, error) {
 }
 func LoadServiceConfig(path string) (ServiceConfig, error) {
 	var c ServiceConfig
-	b, e := privateBytes(path, 65536)
+	b, e := installedRead(path, 65536)
 	if e != nil {
 		return c, e
 	}

@@ -48,7 +48,7 @@ func TestModelProxyConfig(t *testing.T) {
 		fields["model_proxy"], _ = json.Marshal(m)
 		raw, _ = json.Marshal(fields)
 		path := filepath.Join(testRoot(t), "config.json")
-		_ = os.WriteFile(path, raw, 0600)
+		writeInstalled(t, path, raw)
 		if _, e := loadConfig(path, true); e != errConfig {
 			t.Fatal("partial model config accepted", name, e)
 		}
@@ -76,7 +76,7 @@ func TestModelProxyConfig(t *testing.T) {
 	fields["model_proxy"] = json.RawMessage("null")
 	raw, _ = json.Marshal(fields)
 	path := filepath.Join(testRoot(t), "null.json")
-	_ = os.WriteFile(path, raw, 0600)
+	writeInstalled(t, path, raw)
 	if _, e := loadConfig(path, true); e != errConfig {
 		t.Fatal("null model config accepted")
 	}

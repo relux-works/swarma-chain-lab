@@ -30,6 +30,7 @@ func testRoot(t *testing.T) string {
 func testConfig(t *testing.T) serveConfig {
 	t.Helper()
 	root := testRoot(t)
+	os.Chmod(root, 0750)
 	key, e := nostr.GeneratePrivKey()
 	if e != nil {
 		t.Fatal(e)
@@ -125,17 +126,18 @@ func TestConfigBoundary(t *testing.T) {
 func TestConfigFiles(t *testing.T) {
 	c := testConfig(t)
 	root := filepath.Dir(c.AgentKeyFile)
+	os.Chmod(root, 0750)
 	raw, _ := json.Marshal(c)
 	file := filepath.Join(root, "config.json")
 	for _, bad := range [][]byte{append(append([]byte{}, raw...), raw...), []byte(strings.Replace(string(raw), `"version":1`, `"version":1,"version":1`, 1)), []byte(strings.Replace(string(raw), `"version"`, `"Version"`, 1)), []byte(strings.Replace(string(raw), `"version":1`, `"version":1,"unknown":"marker"`, 1)), []byte(strings.Repeat("x", 65537))} {
-		if e := os.WriteFile(file, bad, 0600); e != nil {
+		if e := os.WriteFile(file, bad, 0640); e != nil {
 			t.Fatal(e)
 		}
-		if _, e := loadConfig(file, true); !errors.Is(e, errConfig) {
+		if _, e := loadConfig(file, true); !errors.Is(e, errConfig) && (e == nil || e.Error() != "DK5_FILE_SIZE") {
 			t.Fatal("strict config accepted")
 		}
 	}
-	os.WriteFile(file, raw, 0600)
+	os.WriteFile(file, raw, 0640)
 	if _, e := loadConfig(file, true); e != nil {
 		t.Fatal(e)
 	}
@@ -149,11 +151,11 @@ func TestConfigFiles(t *testing.T) {
 		t.Fatal("writable config accepted")
 	}
 	os.Chmod(file, 0600)
-	if _, e := readFile(file, 65536, 0400); e == nil {
+	if _, e := readFile(file, 65536); e == nil {
 		t.Fatal("wrong secret mode accepted")
 	}
-	os.Chmod(file, 0400)
-	if _, e := readFile(file, 65536, 0400); e != nil {
+	os.Chmod(file, 0640)
+	if _, e := readFile(file, 65536); e != nil {
 		t.Fatal(e)
 	}
 	for _, args := range [][]string{{"-stub-verdict", "live"}, {"-config", file, "extra"}, {"-key", file}} {

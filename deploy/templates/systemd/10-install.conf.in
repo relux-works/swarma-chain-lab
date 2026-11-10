@@ -1,0 +1,11 @@
+# Install-owner template only. Render EXACT [Service]/Environment lines below
+# (without these comments) with configguard.RenderDropIn after destination sealing.
+# Install root:root0644 under a root:root0755 swarma-SERVICE.service.d directory.
+# Do not publish resolved manifests, secret hashes, signatures or private keys.
+[Service]
+Environment="SWARMA_INSTALL_MANIFEST=/etc/swarma/@SERVICE@/install-manifest.json"
+Environment="SWARMA_INSTALL_SIGNATURE=/etc/swarma/@SERVICE@/install-manifest.sig"
+Environment="SWARMA_INSTALL_SHA256=@APPROVED_MANIFEST_SHA256@"
+Environment="SWARMA_INSTALL_RELEASE_SHA256=@ACCEPTED_RELEASE_MANIFEST_SHA256@"
+Environment="SWARMA_INSTALL_ALGORITHM=@INSTALL_SIGNATURE_ALGORITHM@"
+Environment="SWARMA_INSTALL_PUBLIC_KEY=@BASE64_PKIX_PUBLIC_KEY_DER@"

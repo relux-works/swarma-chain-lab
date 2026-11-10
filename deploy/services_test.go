@@ -302,7 +302,7 @@ func TestDK2Templates(t *testing.T) {
 				t.Fatal("unit missing boundary", service, s)
 			}
 		}
-		for _, s := range []string{"/Users/", "/home/", "Environment=", "slotdfake", "ExecStartPre=", "rm -"} {
+		for _, s := range []string{"/Users/", "/home/", "Environment=", "slotdfake", "rm -"} {
 			if bytes.Contains(b, []byte(s)) {
 				t.Fatal("unsafe unit directive", service)
 			}

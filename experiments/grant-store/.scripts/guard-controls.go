@@ -89,6 +89,9 @@ func run() error {
 		return e
 	}
 	fmt.Println("evidence:", runDir)
+	if e = os.MkdirAll(filepath.Join(root, ".temp"), 0700); e != nil {
+		return e
+	}
 	work, e := os.MkdirTemp(filepath.Join(root, ".temp"), "guard-work-")
 	if e != nil {
 		return e

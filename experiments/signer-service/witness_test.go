@@ -107,7 +107,7 @@ func TestWitnessFundingKeyParity(t *testing.T) {
 		k, _, _ := testKey(n)
 		raw, _ := su.WitnessKeyScript(k.PubKey().SerializeCompressed())
 		path := filepath.Join(dir(t), "funding.key")
-		write(t, path, k.Serialize())
+		writeInstalled(t, path, k.Serialize())
 		got, e := loadKey(path, hex.EncodeToString(raw))
 		if e != nil {
 			t.Fatal(e)

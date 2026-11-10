@@ -24,9 +24,10 @@ func TestPrivateInput(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	os.Chmod(root, 0750)
 	p := filepath.Join(root, "config")
 	secret := "fixture-private-input"
-	if e = os.WriteFile(p, []byte(secret), 0600); e != nil {
+	if e = os.WriteFile(p, []byte(secret), 0640); e != nil {
 		t.Fatal(e)
 	}
 	if raw, e := readPrivate(p); e != nil || string(raw) != secret {
@@ -35,26 +36,26 @@ func TestPrivateInput(t *testing.T) {
 	if e = os.Chmod(p, 0644); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = readPrivate(p); e == nil || e.Error() != "INPUT_MODE" {
+	if _, e = readPrivate(p); e == nil || e.Error() != "DK5_FILE_MODE" {
 		t.Fatal("public input accepted", e)
 	}
-	if e = os.Chmod(p, 0600); e != nil {
+	if e = os.Chmod(p, 0640); e != nil {
 		t.Fatal(e)
 	}
 	alias := filepath.Join(root, "alias")
 	if e = os.Symlink(p, alias); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = readPrivate(alias); e == nil || e.Error() != "INPUT_PATH" {
+	if _, e = readPrivate(alias); e == nil || e.Error() != "DK5_FILE_OPEN" {
 		t.Fatal("symlink input accepted", e)
 	}
-	if e = os.WriteFile(p, []byte(strings.Repeat("x", 65537)), 0600); e != nil {
+	if e = os.WriteFile(p, []byte(strings.Repeat("x", 65537)), 0640); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = readPrivate(p); e == nil || e.Error() != "INPUT_SIZE" {
+	if _, e = readPrivate(p); e == nil || e.Error() != "DK5_FILE_SIZE" {
 		t.Fatal("unbounded input accepted", e)
 	}
-	if e = os.WriteFile(p, []byte(`{"unknown":"`+secret+`"}`), 0600); e != nil {
+	if e = os.WriteFile(p, []byte(`{"unknown":"`+secret+`"}`), 0640); e != nil {
 		t.Fatal(e)
 	}
 	e = run(context.Background(), []string{"check-config", "--config", p})
@@ -70,6 +71,7 @@ func TestCheckConfig(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	os.Chmod(root, 0750)
 	pub, key, e := ed25519.GenerateKey(rand.Reader)
 	if e != nil {
 		t.Fatal(e)
@@ -85,7 +87,7 @@ func TestCheckConfig(t *testing.T) {
 	}
 	write := func(name string, b []byte) string {
 		p := filepath.Join(root, name)
-		if e := os.WriteFile(p, b, 0600); e != nil {
+		if e := os.WriteFile(p, b, 0640); e != nil {
 			t.Fatal(e)
 		}
 		return p

@@ -18,7 +18,7 @@ func IssueGrantWithNodes(ctx context.Context, identityNode su.Node, paymentNodes
 	for coin, node := range paymentNodes {
 		route.nodes[coin] = node
 	}
-	return issueGrantRouted(ctx, identityNode, p.IssuerPolicy, request, publication, pool, spec, keyPath, now, nil, &route)
+	return issueGrantRouted(ctx, identityNode, p.IssuerPolicy, request, publication, pool, spec, keyPath, now, nil, &route, readGrantKey)
 }
 
 type grantPaymentRoute struct {

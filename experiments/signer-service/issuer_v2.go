@@ -30,5 +30,5 @@ func (a V2Issuer) Check(ctx context.Context, r, p []byte, now int64) error {
 	return nil
 }
 func (a V2Issuer) Prepare(ctx context.Context, r, p []byte, seal rental.Point, s rental.PlanSpec, now int64) rental.GrantIssueResult {
-	return rental.IssueGrantWithNodes(ctx, a.Identity, a.Payments, a.Policy, r, p, seal, s, a.KeyPath, now)
+	return rental.IssueInstalledGrantWithNodes(ctx, a.Identity, a.Payments, a.Policy, r, p, seal, s, a.KeyPath, now)
 }

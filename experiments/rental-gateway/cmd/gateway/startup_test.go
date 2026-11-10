@@ -37,7 +37,7 @@ func TestServeStartupRecovery(t *testing.T) {
 			c.Kernel.StubVerdict = kernel.Live
 			write := func(path string, b []byte, mode os.FileMode) {
 				t.Helper()
-				if err := os.WriteFile(path, b, mode); err != nil {
+				if err := os.WriteFile(path, b, 0640); err != nil {
 					t.Fatal(err)
 				}
 			}

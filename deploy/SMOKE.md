@@ -1,5 +1,11 @@
 # Infra install and smoke plan (regtest only)
 
+DK5 prerequisite: follow [INSTALL-CONFIG.md](INSTALL-CONFIG.md) before any native
+validation/start below. Static configs/secrets are now root:exclusive-service-group
+0640 with0750 parents and a signed private resolved manifest/root anchor. Dynamic
+bootstrap and mutable state keep their separate contracts. Qualify actual Linux
+permissions and group separation; this runbook is not evidence of execution.
+
 This is a plan for Infra, not evidence of a host deployment. The public host runs
 linux/amd64. Nothing here authorizes a mainnet transaction, creates wallet keys,
 changes custody, or bypasses host acceptance. Keep existing state and keys.
@@ -76,10 +82,10 @@ silently substitute a permissive profile. Update hashes using the product's
 canonical representation, not a pretty-printed JSON file hash. S1's writers are
 landlord public keys only; it has no server private key.
 
-Booking provider key remains in its existing0600
-`/var/lib/swarma-booking/provider.hex`; neither validator nor smoke reads it.
-Infra provisions the service-owned0400
-`/var/lib/swarma-booking/rpc/namecoin.conf`, targeting only127.0.0.1:18443 with
+Booking provider key is installed root:swarma-booking0640 at
+`/etc/swarma/booking/provider.hex`; neither validator nor smoke reads it.
+Infra provisions root:swarma-booking0640
+`/etc/swarma/booking/namecoin.conf`, targeting only127.0.0.1:18443 with
 the approved read-only rpcauth identity. Do not put credentials in unit files,
 environment variables, argv, public JSON, logs or release artifacts. The pinned
 native namecoin-cli reads this private file. `NodeDataDir` is the separate
@@ -139,8 +145,8 @@ remains Infra's required gate. No Lima VM is created for it.
    arguments; none contains an RPC secret:
 
    ```sh
-   /opt/namecoin/VERSION/bin/namecoin-cli -conf=/var/lib/swarma-booking/rpc/namecoin.conf -datadir=/var/lib/swarma-booking/rpc/client -chain=regtest -rpcclienttimeout=2 getblockchaininfo
-   /opt/namecoin/VERSION/bin/namecoin-cli -conf=/var/lib/swarma-booking/rpc/namecoin.conf -datadir=/var/lib/swarma-booking/rpc/client -chain=regtest -rpcclienttimeout=2 getblockhash 0
+   /opt/namecoin/VERSION/bin/namecoin-cli -conf=/etc/swarma/booking/namecoin.conf -datadir=/var/lib/swarma-booking/rpc/client -chain=regtest -rpcclienttimeout=2 getblockchaininfo
+   /opt/namecoin/VERSION/bin/namecoin-cli -conf=/etc/swarma/booking/namecoin.conf -datadir=/var/lib/swarma-booking/rpc/client -chain=regtest -rpcclienttimeout=2 getblockhash 0
    ```
 
    Require chain=regtest, not initial-block-download, and genesis
@@ -182,8 +188,8 @@ remains Infra's required gate. No Lima VM is created for it.
 
 Gateway needs separate preparation before its first start. Fill every gateway
 native-config and deployment-policy placeholder; use real pinned regtest agent,
-landlord/issuer/seal, booking and payload facts. Supply the 0600 agent key,
-0400 observer route and TLS server key through their existing custody flow.
+landlord/issuer/seal, booking and payload facts. Supply the root:swarma-gateway0640 agent key,
+observer route and TLS server key through their existing custody flow.
 Provision private 0700 state directories, the read-only atomic presentation
 source, server certificate/manager CA and exact leaf pins. Run both validators:
 

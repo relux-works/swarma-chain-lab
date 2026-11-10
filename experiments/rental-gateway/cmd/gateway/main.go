@@ -13,6 +13,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/configguard"
 	"os"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
@@ -20,6 +21,7 @@ import (
 )
 
 func main() {
+	configguard.CheckMain("gateway")
 	if len(os.Args) < 2 {
 		fatal("usage: gateway <keygen|serve|validate|station-stub> [flags]")
 	}

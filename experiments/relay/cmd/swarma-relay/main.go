@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/configguard"
 	"io"
 	"net"
 	"net/http"
@@ -30,14 +31,9 @@ func run(ctx context.Context, args []string) error {
 	if e != nil || pe != nil || n < 1 || n > 65535 || strconv.Itoa(n) != port || host != "127.0.0.1" {
 		return fmt.Errorf("LISTEN")
 	}
-	file, e := os.Open(*config)
+	raw, e := installedRead(*config, 65536)
 	if e != nil {
-		return fmt.Errorf("CONFIG_READ")
-	}
-	raw, e := io.ReadAll(io.LimitReader(file, 65537))
-	file.Close()
-	if e != nil {
-		return fmt.Errorf("CONFIG_READ")
+		return e
 	}
 	c, e := relay.ParseConfig(raw)
 	if e != nil {
@@ -67,6 +63,7 @@ func run(ctx context.Context, args []string) error {
 	}
 }
 func main() {
+	configguard.CheckMain("relay")
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if e := run(ctx, os.Args[1:]); e != nil {

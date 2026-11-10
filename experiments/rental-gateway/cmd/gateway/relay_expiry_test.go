@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/hex"
 	"github.com/gorilla/websocket"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
-	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -58,10 +58,10 @@ func TestServeExpiryDuringRelayOutage(t *testing.T) {
 				t.Fatal(e)
 			}
 			c.StationSocket = filepath.Join(short, "s.sock")
-			if e = os.WriteFile(c.AgentKeyFile, []byte(hex.EncodeToString(agent.Bytes())), 0600); e != nil {
+			if e = os.WriteFile(c.AgentKeyFile, []byte(hex.EncodeToString(agent.Bytes())), 0640); e != nil {
 				t.Fatal(e)
 			}
-			if e = os.WriteFile(c.Kernel.RPCRouteFile, jsonCanonical(su.Route{Host: c.Kernel.RPCHost, Port: c.Kernel.RPCPort, Username: "w3-observer", Password: "fixture-only-not-a-live-route"}), 0400); e != nil {
+			if e = os.WriteFile(c.Kernel.RPCRouteFile, jsonCanonical(su.Route{Host: c.Kernel.RPCHost, Port: c.Kernel.RPCPort, Username: "w3-observer", Password: "fixture-only-not-a-live-route"}), 0640); e != nil {
 				t.Fatal(e)
 			}
 			if e = os.Mkdir(c.Exchange.PresentationsDir, 0755); e != nil {

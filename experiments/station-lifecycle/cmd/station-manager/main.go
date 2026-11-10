@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/configguard"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -36,40 +36,8 @@ type config struct {
 
 func fail(code string) error { return errors.New(code) }
 
-// Inputs are private, bounded, regular files with no symlink path components.
-// Check the opened descriptor against lstat before reading; never echo paths or
-// parse errors, which could contain credentials supplied by a malformed input.
-func readPrivate(path string) ([]byte, error) {
-	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return nil, fail("INPUT_PATH")
-	}
-	resolved, e := filepath.EvalSymlinks(path)
-	if e != nil || resolved != path {
-		return nil, fail("INPUT_PATH")
-	}
-	before, e := os.Lstat(path)
-	if e != nil || !before.Mode().IsRegular() || before.Mode().Perm()&0077 != 0 {
-		return nil, fail("INPUT_MODE")
-	}
-	f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
-	if e != nil {
-		return nil, fail("INPUT_OPEN")
-	}
-	defer f.Close()
-	st, e := f.Stat()
-	if e != nil || !os.SameFile(before, st) || !st.Mode().IsRegular() || st.Mode().Perm()&0077 != 0 {
-		return nil, fail("INPUT_MODE")
-	}
-	owner, ok := st.Sys().(*syscall.Stat_t)
-	if !ok || owner.Uid != uint32(os.Geteuid()) || owner.Nlink != 1 {
-		return nil, fail("INPUT_OWNER")
-	}
-	raw, e := io.ReadAll(io.LimitReader(f, 65537))
-	if e != nil || len(raw) == 0 || len(raw) > 65536 {
-		return nil, fail("INPUT_SIZE")
-	}
-	return raw, nil
-}
+// Static installed inputs are checked before parsing or opening service state.
+func readPrivate(path string) ([]byte, error) { return installedRead(path, 65536) }
 func load(path string) (config, *lifecycle.PollClient, error) {
 	c := config{}
 	raw, e := readPrivate(path)
@@ -163,6 +131,7 @@ func run(ctx context.Context, args []string) error {
 	return e
 }
 func main() {
+	configguard.CheckMain("stations")
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if e := run(ctx, os.Args[1:]); e != nil {

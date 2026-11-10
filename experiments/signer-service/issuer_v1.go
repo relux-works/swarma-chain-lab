@@ -51,5 +51,5 @@ func (a V1Issuer) Check(ctx context.Context, r, p []byte, now int64) error {
 	return o.Stable()
 }
 func (a V1Issuer) Prepare(ctx context.Context, r, p []byte, seal rental.Point, s rental.PlanSpec, now int64) rental.GrantIssueResult {
-	return rental.IssueGrant(ctx, a.Node, a.Policy, r, p, seal, s, a.KeyPath, now)
+	return rental.IssueInstalledGrant(ctx, a.Node, a.Policy, r, p, seal, s, a.KeyPath, now)
 }

@@ -22,7 +22,7 @@ before the first start; SMOKE.md records that gate.
 ## Deployment inputs remain operator-owned
 
 Template keys/hashes, branch/profile pins, calendar/rate data, release version,
-pinned Linux namecoin-cli, provider key,0400 RPC config and existing relay are
+pinned Linux namecoin-cli, provider key,root:service0640 RPC config and existing relay are
 not guessed by this kit. Infra resolves them through the agreed custody and
 installation flow. The public validator does not certify unseen native files or
 credential contents. No live host or mainnet action is part of DK1 delivery.
@@ -50,3 +50,15 @@ qualification requires Linux; a compiled Linux binary is not acceptance evidence
   caps/keys/inventory are prerequisites; `-once` is not a harmless config probe.
 - Mainnet remains refused by both kit and signer. All owner-unapproved proposal
   values remain placeholders. Full host acceptance remains external to this kit.
+
+## DK5 external acceptance and DK5b
+
+Static installed-file ownership/signature contracts are resolved in
+[INSTALL-CONFIG.md](INSTALL-CONFIG.md). Infra still owns root-only install key
+custody/signing, accepted release digest, actual NSS groups/ACL exclusion,
+per-service inventories and Linux systemd acceptance. Model and wallet socket
+peer groups must be disjoint from their private config groups. No producer host
+installation, real key provisioning or Linux runtime acceptance has occurred.
+DK5b must specify and qualify slotd's dynamic per-slot bootstrap and launch
+boundary before outside testers. The static per-UID payload anchor alone does
+not complete that gate.

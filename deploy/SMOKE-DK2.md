@@ -1,5 +1,11 @@
 # DK2 host installation and smoke gates
 
+DK5 prerequisite: follow [INSTALL-CONFIG.md](INSTALL-CONFIG.md) before any native
+validation/start below. Static configs/secrets are now root:exclusive-service-group
+0640 with0750 parents and a signed private resolved manifest/root anchor. Dynamic
+bootstrap and mutable state keep their separate contracts. Qualify actual Linux
+permissions and group separation; this runbook is not evidence of execution.
+
 This is an Infra runbook, not a record of executed host commands. All commands
 below are for an explicitly authorized installation with the reviewed signed
 release and owner-provisioned credentials. This producer task installs nothing.
@@ -213,7 +219,7 @@ sudo systemctl is-active swarma-stations.service
 ```
 
 There is no `systemctl start` for payload. Infra's helper launches the fixed
-executable under its per-slot user with slot-owned0600 bootstrap/CA and pinned
+executable under its per-slot user with slot-owned0600 dynamic bootstrap and root:exclusive-slot-group0640 static CA and pinned
 argv. The full disposable-regtest acceptance is: explicit V2 renter terms and
 consent, confirmed own-node payment, real signer issuance/publication, gateway
 issued/ready, manager/helper start, payload channel delivery and model accounting

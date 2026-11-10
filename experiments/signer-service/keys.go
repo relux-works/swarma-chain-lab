@@ -19,8 +19,11 @@ func loadKey(path, script string) (*btcec.PrivateKey, error) {
 	if e != nil || resolved != path {
 		return nil, fail("SIGNING_KEY_PATH")
 	}
-	b, e := privateRead(path, 32)
-	if e != nil || len(b) != 32 {
+	b, e := installedRead(path, 32)
+	if e != nil {
+		return nil, e
+	}
+	if len(b) != 32 {
 		return nil, fail("SIGNING_KEY_FILE")
 	}
 	defer clear(b)

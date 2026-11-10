@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 	"time"
@@ -44,9 +45,9 @@ func IssueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publ
 	return issueGrant(ctx, node, p, request, publication, pool, spec, keyPath, now, nil)
 }
 func issueGrant(ctx context.Context, node su.Node, p IssuerPolicy, request, publication []byte, pool Point, spec PlanSpec, keyPath string, now int64, hook func(string)) GrantIssueResult {
-	return issueGrantRouted(ctx, node, p, request, publication, pool, spec, keyPath, now, hook, nil)
+	return issueGrantRouted(ctx, node, p, request, publication, pool, spec, keyPath, now, hook, nil, readGrantKey)
 }
-func issueGrantRouted(ctx context.Context, node su.Node, p IssuerPolicy, request, publication []byte, pool Point, spec PlanSpec, keyPath string, now int64, hook func(string), payment *grantPaymentRoute) (result GrantIssueResult) {
+func issueGrantRouted(ctx context.Context, node su.Node, p IssuerPolicy, request, publication []byte, pool Point, spec PlanSpec, keyPath string, now int64, hook func(string), payment *grantPaymentRoute, readKey func(string, string) (*secp.PrivateKey, error)) (result GrantIssueResult) {
 	started := time.Now()
 	result.Verdict = "refused"
 	refuse := func(e error) GrantIssueResult { result.Reason = e.Error(); return result }
@@ -177,7 +178,7 @@ func issueGrantRouted(ctx context.Context, node su.Node, p IssuerPolicy, request
 	if e != nil || script != p.Policy.SealScript {
 		return refuse(bad("SEAL_KEY_BINDING"))
 	}
-	key, e := readGrantKey(keyPath, lb.Grant)
+	key, e := readKey(keyPath, lb.Grant)
 	if e != nil {
 		return refuse(e)
 	}

@@ -14,13 +14,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/slotd"
 	"math/big"
 	"net"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
-	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/slotd"
 	"strings"
 	"sync"
 	"testing"
@@ -37,13 +37,13 @@ func TestFakeManagerRun(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if e = os.Chmod(root, 0700); e != nil {
+	if e = os.Chmod(root, 0750); e != nil {
 		t.Fatal(e)
 	}
 	write := func(name string, b []byte) string {
 		t.Helper()
 		p := filepath.Join(root, name)
-		if e := os.WriteFile(p, b, 0600); e != nil {
+		if e := os.WriteFile(p, b, 0640); e != nil {
 			t.Fatal(e)
 		}
 		return p

@@ -55,10 +55,16 @@ type FileConfig struct {
 
 func LoadConfig(path string) (FileConfig, error) {
 	var c FileConfig
-	raw, e := ReadPrivateFile(path, 0600, MaxBody)
+	raw, e := ReadInstalledFile(path, MaxBody)
 	if e != nil {
-		return c, fail("CONFIG_FILE")
+		return c, e
 	}
+	return ParseConfig(raw)
+}
+
+// ParseConfig validates bytes already admitted by the caller's static-file boundary.
+func ParseConfig(raw []byte) (FileConfig, error) {
+	var c FileConfig
 	raw = bytes.TrimSpace(raw)
 	if unique(raw) != nil || json.Unmarshal(raw, &c) != nil || !bytes.Equal(raw, canonical(c)) {
 		return FileConfig{}, fail("CONFIG_FILE")

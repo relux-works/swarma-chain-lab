@@ -6,14 +6,15 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	store "github.com/relux-works/swarma-chain-lab/experiments/grant-store"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/configguard"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	store "github.com/relux-works/swarma-chain-lab/experiments/grant-store"
-	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
-	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 	"strings"
 	"syscall"
 	"time"
@@ -40,6 +41,7 @@ func signingKey(path string) (*nostr.PrivKey, error) {
 	return nostr.PrivKeyFromHex(string(b))
 }
 func main() {
+	configguard.CheckMain("store")
 	if e := run(os.Args[1:]); e != nil {
 		fmt.Fprintln(os.Stderr, e)
 		os.Exit(1)
@@ -70,14 +72,9 @@ func run(args []string) error {
 		if e != nil || ip == nil || !ip.IsLoopback() {
 			return errors.New("serve requires a loopback IP")
 		}
-		f, e := os.Open(*config)
+		raw, e := installedRead(*config, 16384)
 		if e != nil {
-			return errors.New("config unavailable")
-		}
-		defer f.Close()
-		raw, e := io.ReadAll(io.LimitReader(f, 16385))
-		if e != nil || len(raw) > 16384 {
-			return errors.New("config too large")
+			return e
 		}
 		var cfg store.Config
 		d := json.NewDecoder(strings.NewReader(string(raw)))

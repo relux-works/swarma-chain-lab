@@ -64,7 +64,7 @@ func TestConfigPlaceholderPins(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		if e = os.WriteFile(path, raw, 0600); e != nil {
+		if e = os.WriteFile(path, raw, 0640); e != nil {
 			t.Fatal(e)
 		}
 		e = runValidate([]string{"-config", path})

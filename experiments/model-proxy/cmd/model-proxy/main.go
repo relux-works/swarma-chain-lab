@@ -6,8 +6,10 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/configguard"
 	"io"
 	"log"
 	"net"
@@ -24,8 +26,14 @@ import (
 )
 
 func main() {
-	if run() != nil {
-		fmt.Fprintln(os.Stderr, "MODEL_PROXY_FAILED")
+	configguard.CheckMain("model")
+	if e := run(); e != nil {
+		var reason configguard.Reason
+		if errors.As(e, &reason) {
+			fmt.Fprintln(os.Stderr, reason.Error())
+		} else {
+			fmt.Fprintln(os.Stderr, "MODEL_PROXY_FAILED")
+		}
 		os.Exit(1)
 	}
 }
@@ -39,15 +47,15 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	key, e := proxy.ReadPrivateFile(c.APIKeyFile, 0400, 4096)
+	key, e := proxy.ReadInstalledFile(c.APIKeyFile, 4096)
 	if e != nil {
 		return e
 	}
-	certPEM, e := proxy.ReadPrivateFile(c.TLSCert, 0600, 65536)
+	certPEM, e := proxy.ReadInstalledFile(c.TLSCert, 65536)
 	if e != nil {
 		return e
 	}
-	keyPEM, e := proxy.ReadPrivateFile(c.TLSKey, 0600, 65536)
+	keyPEM, e := proxy.ReadInstalledFile(c.TLSKey, 65536)
 	if e != nil {
 		return e
 	}

@@ -28,7 +28,7 @@ for the wire subset and separate harness/TLS qualification requirements.
 
 Use Go1.26.8 and pre-download the landed modules' dependencies into the local
 module cache (`go mod download` and `go mod verify` in each service module).
-The builder itself has no third-party dependencies. It forces GOTOOLCHAIN=local,
+The kit shares the single-use configguard module and its pinned dependencies. It forces GOTOOLCHAIN=local,
 GOWORK=off, GOENV=off, GOPROXY=off and empty GOFLAGS; there is no toolchain/network
 fallback. Exact release flags are GOOS=linux GOARCH=amd64 GOAMD64=v1 CGO_ENABLED=0
 and `go build -trimpath -buildvcs=false -mod=readonly`.
@@ -42,7 +42,7 @@ before publication; existing output is preserved. The complete candidate is
 renamed into a new output directory only after all nine binary pairs match.
 Temporary source/build trees are removed, including on refusal.
 
-Outputs: `bin/`, `templates/`, `README.md`, `SMOKE.md`, `SMOKE-DK2.md`, `manifest.json`,
+Outputs: `bin/`, `templates/`, `README.md`, `SMOKE.md`, `SMOKE-DK2.md`, `INSTALL-CONFIG.md`, `manifest.json`,
 `SHA256SUMS`. Checksums cover every output file except the checksum file itself;
 the release signer signs that file separately with namespace `swarma-release`.
 The manifest records commit, Go version, target, flags, module/package, binary
@@ -203,39 +203,34 @@ positive and negative fixtures.
 
 ### Credential and private-input ownership
 
-Native loader requirements supersede a blanket0400 rule. This table covers every
-new service's credential/config/bootstrap file; no secret file is included in
-release templates. Parents are canonical, symlink-free and owned by the listed
-service user unless noted. State roots and private mirrors are separate from
-`/etc`, and the units mount `/etc/swarma/<service>` read-only.
+DK5 installs every static config and secret as root:<exclusive service group>
+0640 in root:<same group>0750 directories. All ancestors are root-owned,
+non-writable by services, and free of symlinks. See [the signed install
+contract](INSTALL-CONFIG.md) for schemas, signature domain, pins and refusal codes.
+The public release manifest remains separate from the private resolved manifest.
 
-| File | Owner | File mode | Immediate parent mode | Native enforcement |
-| --- | --- | --- | --- | --- |
-| `/etc/swarma/issuer/service.json` | `swarma-issuer` | 0600 | 0700 | signer `privateRead` / `durable.PrivateRegular` |
-| `/etc/swarma/issuer/grant.key` (raw32-byte scalar) | `swarma-issuer` | 0600 | 0700 | signer `loadKey` / `privateRead`, key-script pin |
-| `/etc/swarma/issuer/funding.key` (distinct raw32-byte scalar) | `swarma-issuer` | 0600 | 0700 | signer `loadKey` / `privateRead`, key-script pin |
-| `/etc/swarma/issuer/read-route.json` | `swarma-issuer` | 0600 | 0700 | signer `privateRead`, `w3-observer` RPC identity |
-| `/etc/swarma/issuer/broadcast-route.json` | `swarma-issuer` | 0600 | 0700 | signer `privateRead`, distinct `sg1-broadcaster` principal |
-| `/etc/swarma/issuer/payment-<coin>.json` for every configured coin | `swarma-issuer` | 0600 | 0700 | signer `privateRead`, `payment-issuer` identity |
-| Issuer booking/operator mirror `index.json` and immutable hash-named items | `swarma-issuer` | 0600 | 0700 | signer `OpenFileSource` / `privateRead`; producer root is not shared across users |
-| `/etc/swarma/model/service.json` | `swarma-model` | 0600 | 0700 | proxy `LoadConfig` / exact-mode `ReadPrivateFile` |
-| `/etc/swarma/model/tls.pem` | `swarma-model` | 0600 | 0700 | proxy exact-mode `ReadPrivateFile`, leaf pin |
-| `/etc/swarma/model/tls.key` | `swarma-model` | 0600 | 0700 | proxy exact-mode `ReadPrivateFile`, certificate pair |
-| `/etc/swarma/model/api.key` | `swarma-model` | 0400 | 0700 | proxy exact-mode `ReadPrivateFile`; printable ASCII, no trailing newline |
-| `/etc/swarma/stations/service.json` | `swarma-stations` | 0400 | 0700 | manager `readPrivate`: owner, single link, no group/world bits; canonical config |
-| `/etc/swarma/stations/client.pem` | `swarma-stations` | 0400 | 0700 | manager `readPrivate`, mTLS pair |
-| `/etc/swarma/stations/client.key` | `swarma-stations` | 0400 | 0700 | manager `readPrivate`, mTLS pair |
-| `/etc/swarma/stations/gateway-ca.pem` | `swarma-stations` | 0400 | 0700 | manager `readPrivate`, CA parsing |
-| Infra-selected per-slot bootstrap file | that slot's user | 0600 | 0700 | payload exact-mode proxy `ReadPrivateFile` plus closed bootstrap codec |
-| Infra-selected per-slot CA bundle | that slot's user | 0600 | 0700 | payload exact-mode proxy `ReadPrivateFile`, normal TLS trust plus pins |
-| `/etc/swarma/wallet/service.json` | `swarma-wallet` | 0600 | 0700 | wallet service `privateBytes`, closed service config |
-| `/etc/swarma/wallet/wallet.json` | `swarma-wallet` | 0600 | 0700 | W1 `LoadConfig`, private RPC routes; never client-readable |
-| `/etc/swarma/wallet/receipt.key` (64 lowercase hex characters, no newline) | `swarma-wallet` | 0600 | 0700 | `LoadActionKey`, distinct from the pinned grantee key |
+| Consumer | Static installed inputs (all0640) | Private group |
+| --- | --- | --- |
+| Issuer | service.json, grant.key, funding.key, read/broadcast/payment route JSON | swarma-issuer |
+| Gateway | service.json, agent key, observer route, TLS certificate/key/CA | swarma-gateway |
+| Model proxy | service.json, TLS certificate/key, api.key | swarma-model |
+| Booking | service.json, profile.bin, provider.hex, operator/payment routes, namecoin.conf | swarma-booking |
+| Store | service.json | swarma-store |
+| Relay | service.json | swarma-relay |
+| Wallet daemon | service.json, wallet.json, receipt.key | swarma-wallet |
+| Station manager | service.json, mTLS certificate/key, gateway CA | swarma-stations |
+| Payload static assets | per-slot CA and canonical model config copy | exclusive slot group |
+
+Signer intake mirrors and mutable journals retain service-owned0600 files in
+0700 parents. Public confirmed presentations retain0644/0755. Dynamic per-slot
+bootstrap remains slot-owned0600/0700 pending DK5b; it is not covered by the
+static manifest. Standalone wallet/client/issuer tools retain their separate
+owner-private file contracts. No migration changes existing funds, keys or state.
 
 Wallet W2 uses `templates/wallet/{deploy,service}.json` and the separate
 `swarma-wallet.service.in`, sysusers and tmpfiles templates. Replace the numerical
 UID/GID/key placeholders with approved per-agent pins; add only that agent to
-the socket group. `/run/swarma-wallet` is service-owned0750, socket0660;
+`swarma-wallet-peer`, never `swarma-wallet`. `/run/swarma-wallet` is service-owned0750, socket0660;
 wallet/service/kernel/object roots remain private0700. The client receives only
 its own action key and public service UID/receipt-key/socket pins, never the
 private wallet configuration. Build `cmd/agent-wallet` separately from the same
@@ -248,17 +243,13 @@ credential/journal or connect to another agent's socket, alongside a successful
 own-agent action. Template tests and cross-builds do not prove host isolation.
 See the [wire and recovery profile](../experiments/agent-wallet/SERVICE.md).
 
-All these loaders also require regular single-link files owned by the process;
-model/manager/payload reject symlink path components. Signer key paths and source
-roots reject symlink components; its generic config/RPC reader rejects a final
-symlink and enforces ownership/mode/link count. Infra additionally provisions all
-parents without symlinks. Do not stage a second writable copy of a secret to
-work around a mode mismatch. Runtime journals retain their native0600 files in
-0700 state directories. Public confirmed signer presentations are0644 under a
-0755 presentation directory; they are distinct from credentials/private intake.
+Installed loaders require regular single-link files, check descriptor metadata
+before reading bytes, and verify membership/content against the signed private
+manifest before decoding. Refusal returns a stable DK5 reason without paths,
+secret bytes or private hashes. Services do not provision or reseal their inputs.
 
 Model admin socket: `/run/swarma-model/admin.sock`, model-owned0660 in model-owned
-0750 `/run/swarma-model`. Infra adds the gateway user to the model socket group
+0750 `/run/swarma-model` with group `swarma-model-peer`. Infra adds the gateway user only to `swarma-model-peer`, the model socket group
 and pins both numerical UIDs; the gateway remains a different UID. The unit uses
 `RuntimeDirectory=swarma-model` with0750 and a narrowly scoped writable runtime
 path in addition to persistent state. SO_PEERCRED is checked in both directions.
@@ -295,3 +286,16 @@ installed public-host inputs after G6 lands and after either config changes.
 ## SW1 construction pins
 
 Issuer policies and gateway kernel templates explicitly carry `construction_profile: "W"`. Issuer funding is `0014` plus the 20-byte compressed-key hash (native P2WPKH); the grant seal remains its separately pinned script. Templates do not migrate funds or state. Missing/unknown/L pins refuse in the consuming service, and prior durable bindings are not silently adopted. See [the W inventory](../experiments/WITNESS-PROFILE.md) for the linkage-only scope and SW1b payment-proof deferral.
+
+## DK5 tools
+
+`go run ./cmd/deploy-kit render-install-anchor --manifest /etc/swarma/model/install-manifest.json --signature /etc/swarma/model/install-manifest.json.sig --manifest-sha256 "$PRIVATE_MANIFEST_SHA256" --release-sha256 "$ACCEPTED_RELEASE_SHA256" --algorithm ed25519 --public-key "$PKIX_PUBLIC_KEY_BASE64"`
+prints only the validated public drop-in. Infra supplies approved pins; this
+command does not read files, generate keys or sign an install. Run from `deploy/`.
+Never publish per-file secret hashes or the resolved private manifest.
+
+From the repository root, `go run .scripts/dk5-guards.go -out "$NEW_ABSOLUTE_SCRATCH_DIR"`
+calibrates21 bounded Go-overlay plants; inputs/source remain unchanged. Run tests
+with the repository's isolated HOME/cache/temp contract. Ownership seams are
+synthetic; modes, descriptors, hashes and scratch-key signatures are real.
+Three plants check exact reasons with downstream rejection still intact.

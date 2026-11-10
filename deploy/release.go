@@ -183,7 +183,7 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 	if e = copyTemplates(filepath.Join(first, "deploy", "templates"), filepath.Join(stage, "templates")); e != nil {
 		return empty, ErrSource
 	}
-	for _, name := range []string{"SMOKE.md", "SMOKE-DK2.md", "README.md"} {
+	for _, name := range []string{"SMOKE.md", "SMOKE-DK2.md", "README.md", "INSTALL-CONFIG.md"} {
 		b, e := os.ReadFile(filepath.Join(first, "deploy", name))
 		if e != nil {
 			return empty, ErrSource

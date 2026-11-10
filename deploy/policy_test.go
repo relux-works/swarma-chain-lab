@@ -12,11 +12,11 @@ func validPolicy(service string) Policy {
 	if service == "booking" {
 		p.Listen = "127.0.0.1:18819"
 		p.Profile = "/etc/swarma/booking/profile.bin"
-		p.ProviderKey = "/var/lib/swarma-booking/provider.hex"
+		p.ProviderKey = "/etc/swarma/booking/provider.hex"
 		p.Route = "/etc/swarma/booking/operator-route.json"
 		p.NodeCLI = "/opt/namecoin/28.0/bin/namecoin-cli"
 		p.NodeCLISHA256 = strings.Repeat("c", 64)
-		p.RPCConfig = "/var/lib/swarma-booking/rpc/namecoin.conf"
+		p.RPCConfig = "/etc/swarma/booking/namecoin.conf"
 		p.RPCClientDataDir = "/var/lib/swarma-booking/rpc/client"
 		p.RPCEndpoint = "127.0.0.1:18443"
 		p.Relay = "ws://127.0.0.1:18818"
@@ -168,7 +168,7 @@ func TestGatewayPolicy(t *testing.T) {
 // Supplemental native JSON checks cannot overlook nested placeholders, network
 // mismatches, duplicate keys or inline credentials; ordinary public pins pass.
 func TestPublicJSON(t *testing.T) {
-	if e := ValidatePublicJSON([]byte(`{"Network":"regtest","NodeConfig":"/var/lib/swarma-booking/rpc/namecoin.conf"}`)); e != nil {
+	if e := ValidatePublicJSON([]byte(`{"Network":"regtest","NodeConfig":"/etc/swarma/booking/namecoin.conf"}`)); e != nil {
 		t.Fatal(e)
 	}
 	for _, tc := range []struct {

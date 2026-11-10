@@ -1,0 +1,130 @@
+// DK5 installed-input controls use Go overlays: no source or live state is modified.
+// file_kind, membership and signature_algorithm assert exact refusal reasons:
+// downstream checks also reject those planted inputs. Other plants bypass admission.
+// Run at repository root: go run .scripts/dk5-guards.go -out /absolute/new-dir.
+package main
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
+)
+
+type plant struct{ Name, Module, File, Before, After, Test, Witness, Package string }
+type result struct {
+	Name, SourceSHA256, MutantSHA256     string
+	BaselinePID, PID, BaselineExit, Exit int
+	Detected                             bool
+}
+
+var plants = []plant{
+	{"rsa_signature", "experiments/single-use", "configguard/signature.go", "if rsa.VerifyPSS(p, crypto.SHA256, h[:], value, &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: crypto.SHA256}) != nil {", "if false && rsa.VerifyPSS(p, crypto.SHA256, h[:], value, &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: crypto.SHA256}) != nil {", "^TestSignedAlgorithms$/rsa-pss-sha256$", "installed refusal:", "./configguard"},
+	{"file_mode", "experiments/single-use", "configguard/reader.go", "if uint32(s.Mode)&07777 != mode {", "if false && uint32(s.Mode)&07777 != mode {", "^TestInstalledRefusals$/0644$", "installed refusal:", "./configguard"},
+	{"file_owner", "experiments/single-use", "configguard/reader.go", "if s.Uid != 0 {\n\t\treturn fail(\"DK5_FILE_OWNER\")", "if false && s.Uid != 0 {\n\t\treturn fail(\"DK5_FILE_OWNER\")", "^TestOwnershipSeam$/owner$", "installed refusal:", "./configguard"},
+	{"file_group", "experiments/single-use", "configguard/reader.go", "if s.Gid != gid {", "if false && s.Gid != gid {", "^TestOwnershipSeam$/group$", "installed refusal:", "./configguard"},
+	{"directory_mode", "experiments/single-use", "configguard/reader.go", "if uint32(s.Mode)&07777 != parentMode {", "if false && uint32(s.Mode)&07777 != parentMode {", "^TestInstalledRefusals$/dir0755$", "installed refusal:", "./configguard"},
+	{"directory_owner", "experiments/single-use", "configguard/reader.go", "if s.Uid != 0 {\n\t\treturn fail(\"DK5_DIRECTORY_OWNER\")", "if false && s.Uid != 0 {\n\t\treturn fail(\"DK5_DIRECTORY_OWNER\")", "^TestDirectoryOwnershipAndChangedFile$/owner$", "installed refusal:", "./configguard"},
+	{"directory_group", "experiments/single-use", "configguard/reader.go", "if s.Gid != parentGID {", "if false && s.Gid != parentGID {", "^TestDirectoryOwnershipAndChangedFile$/group$", "installed refusal:", "./configguard"},
+	{"hardlink", "experiments/single-use", "configguard/reader.go", "if s.Nlink != 1 {", "if false && s.Nlink != 1 {", "^TestInstalledRefusals$/hardlink$", "installed refusal:", "./configguard"},
+	{"file_symlink", "experiments/single-use", "configguard/reader.go", "parts[len(parts)-1], unix.O_RDONLY|unix.O_NOFOLLOW|", "parts[len(parts)-1], unix.O_RDONLY|", "^TestInstalledRefusals$/symlink$", "installed refusal:", "./configguard"},
+	{"directory_symlink", "experiments/single-use", "configguard/reader.go", "component, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|", "component, unix.O_RDONLY|unix.O_DIRECTORY|", "^TestAncestorAndReadBoundary$", "installed refusal:", "./configguard"},
+	{"ancestor_mode", "experiments/single-use", "configguard/reader.go", "} else if s.Mode&0022 != 0 || s.Mode&07000 != 0 {", "} else if false && (s.Mode&0022 != 0 || s.Mode&07000 != 0) {", "^TestAncestorAndReadBoundary$", "installed refusal:", "./configguard"},
+	{"service_identity", "experiments/single-use", "configguard/reader.go", "if r.EUID <= 0 || r.GID <= 0 {", "if false && (r.EUID <= 0 || r.GID <= 0) {", "^TestAncestorAndReadBoundary$", "installed refusal:", "./configguard"},
+	{"file_kind", "experiments/single-use", "configguard/reader.go", "if s.Mode&unix.S_IFMT != unix.S_IFREG {", "if false && s.Mode&unix.S_IFMT != unix.S_IFREG {", "^TestInstalledRefusals$/directory$", "installed refusal:", "./configguard"},
+	{"post_read_change", "experiments/single-use", "configguard/reader.go", "!info.ModTime().Equal(last.ModTime())", "false && !info.ModTime().Equal(last.ModTime())", "^TestDirectoryOwnershipAndChangedFile$/changed$", "installed refusal:", "./configguard"},
+	{"manifest_binding", "experiments/single-use", "configguard/manifest.go", "if m.ReleaseSHA256 != release || m.Service != service || m.GID != r.GID {", "if false && (m.ReleaseSHA256 != release || m.Service != service || m.GID != r.GID) {", "^TestSignedRefusals$/other_release$", "installed refusal:", "./configguard"},
+	{"manifest_hash", "experiments/single-use", "configguard/anchor.go", "if digest(manifest) != a.Digest {", "if false && digest(manifest) != a.Digest {", "^TestSignedRefusals$/manifest_hash$", "installed refusal:", "./configguard"},
+	{"content_hash", "experiments/single-use", "configguard/manifest.go", "if digest(raw) != want {", "if false && digest(raw) != want {", "^TestSignedRefusals$/changed_file$", "installed refusal:", "./configguard"},
+	{"membership", "experiments/single-use", "configguard/manifest.go", "if !ok {", "if false && !ok {", "^TestSignedRefusals$/unlisted$", "installed refusal:", "./configguard"},
+	{"manifest_paths", "experiments/single-use", "configguard/manifest.go", "entry.Path <= previous", "false && entry.Path <= previous", "^TestManifestRefusals$/duplicate$", "installed refusal:", "./configguard"},
+	{"signature_verify", "experiments/single-use", "configguard/signature.go", "if !ed25519.Verify(p, message, value) {", "if false && !ed25519.Verify(p, message, value) {", "^TestSignedRefusals$/(bad_signature|wrong_key)$", "installed refusal:", "./configguard"},
+	{"signature_algorithm", "experiments/single-use", "configguard/signature.go", "sig.Algorithm != algorithm", "false && sig.Algorithm != algorithm", "^TestSignedRefusals$/wrong_algorithm$", "installed refusal:", "./configguard"},
+}
+
+func must(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
+func hash(b []byte) string { return fmt.Sprintf("%x", sha256.Sum256(b)) }
+func main() {
+	out := flag.String("out", "", "new absolute output directory")
+	flag.Parse()
+	root, e := os.Getwd()
+	must(e)
+	if !filepath.IsAbs(*out) || flag.NArg() != 0 {
+		panic("absolute new output required")
+	}
+	must(os.Mkdir(*out, 0700))
+	var rows []result
+	for _, p := range plants {
+		module := filepath.Join(root, p.Module)
+		source := filepath.Join(module, p.File)
+		raw, e := os.ReadFile(source)
+		must(e)
+		if bytes.Count(raw, []byte(p.Before)) != 1 {
+			panic("non-unique plant: " + p.Name)
+		}
+		mutant := bytes.Replace(raw, []byte(p.Before), []byte(p.After), 1)
+		changed := filepath.Join(*out, p.Name+".go")
+		must(os.WriteFile(changed, mutant, 0600))
+		overlay, _ := json.Marshal(map[string]any{"Replace": map[string]string{source: changed}})
+		op := filepath.Join(*out, p.Name+".json")
+		must(os.WriteFile(op, overlay, 0600))
+		pkg := p.Package
+		run := func(plant bool) (int, int, []byte) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			args := []string{"test", "-count=1", "-v", "-run", p.Test}
+			name := p.Name + "-baseline.log"
+			if plant {
+				args = append(args, "-overlay", op)
+				name = p.Name + "-plant.log"
+			}
+			args = append(args, pkg)
+			cmd := exec.CommandContext(ctx, "go", args...)
+			cmd.Dir = module
+			var log bytes.Buffer
+			cmd.Stdout = &log
+			cmd.Stderr = &log
+			must(cmd.Start())
+			pid := cmd.Process.Pid
+			e := cmd.Wait()
+			code := 0
+			if e != nil {
+				if x, ok := e.(*exec.ExitError); ok {
+					code = x.ExitCode()
+				} else {
+					code = -1
+				}
+			}
+			if ctx.Err() != nil {
+				code = -2
+			}
+			must(os.WriteFile(filepath.Join(*out, name), log.Bytes(), 0600))
+			return pid, code, log.Bytes()
+		}
+		row := result{Name: p.Name, SourceSHA256: hash(raw), MutantSHA256: hash(mutant)}
+		var baseline, output []byte
+		row.BaselinePID, row.BaselineExit, baseline = run(false)
+		if row.BaselineExit != 0 || !bytes.Contains(baseline, []byte("--- PASS:")) {
+			panic("baseline not passing: " + p.Name)
+		}
+		row.PID, row.Exit, output = run(true)
+		row.Detected = row.Exit == 1 && bytes.Contains(output, []byte("--- FAIL:")) && bytes.Contains(output, []byte(p.Witness)) && !bytes.Contains(output, []byte("panic:")) && !bytes.Contains(output, []byte("[build failed]"))
+		rows = append(rows, row)
+		encoded, _ := json.MarshalIndent(rows, "", "  ")
+		must(os.WriteFile(filepath.Join(*out, "results.json"), append(encoded, '\n'), 0600))
+		fmt.Printf("%s detected=%v baseline=%d plant=%d\n", p.Name, row.Detected, row.BaselineExit, row.Exit)
+		if !row.Detected {
+			os.Exit(1)
+		}
+	}
+}

@@ -39,13 +39,18 @@ func TestPinnedCLI(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			bp, cp, mp := filepath.Join(root, "bootstrap"), filepath.Join(root, "ca"), filepath.Join(root, "public-model")
-			if os.WriteFile(bp, raw, 0600) != nil || os.WriteFile(cp, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: s.Certificate().Raw}), 0600) != nil {
+			static := filepath.Join(root, "static")
+			if e := os.Mkdir(static, 0750); e != nil {
+				t.Fatal(e)
+			}
+			os.Chmod(static, 0750)
+			bp, cp, mp := filepath.Join(root, "bootstrap"), filepath.Join(static, "ca"), filepath.Join(static, "public-model")
+			if os.WriteFile(bp, raw, 0600) != nil || os.WriteFile(cp, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: s.Certificate().Raw}), 0640) != nil {
 				t.Fatal("fixture files")
 			}
 			write := func() {
 				raw, _ := json.Marshal(cfg)
-				if os.WriteFile(mp, raw, 0600) != nil {
+				if os.WriteFile(mp, raw, 0640) != nil {
 					t.Fatal("public config")
 				}
 			}
@@ -71,7 +76,7 @@ func TestPinnedCLI(t *testing.T) {
 				args = args[:14]
 			}
 			write()
-			if e := run(ctx, args); e != payload.ErrConfig || calls != 0 {
+			if e := run(ctx, args); (kind != "missing-config" && e != payload.ErrConfig || kind == "missing-config" && (e == nil || e.Error() != "DK5_FILE_OPEN")) || calls != 0 {
 				t.Fatal("pinned CLI startup guard missing", e)
 			}
 		})

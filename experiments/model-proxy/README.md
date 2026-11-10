@@ -204,3 +204,15 @@ CI pass. See [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for remaining ga
 ## Signed model limits
 
 Binding.Caps retains the optional signed `default_max_output_tokens`. A positive value must not exceed MaxTokens; zero preserves old non-contract bindings. CC1 does not inject defaults: Responses still requires an explicit client limit. See [contract binding and upgrade boundary](../rental-booking/MODEL-CAPS.md).
+
+## Installed static inputs (DK5)
+
+Installed daemon configs/secrets now require root:exclusive-service-group0640,
+root:same-group0750 parents and the signed manifest/root anchor in
+[the install contract](../../deploy/INSTALL-CONFIG.md). Legacy owner0600/0400
+examples below or in historical smoke fixtures are not installed-service inputs.
+Mutable state, standalone tool/client keys and dynamic payload bootstrap retain
+their separate contracts. No production mode fallback exists. Full signed
+admission tests live in `single-use/configguard`; local ownership seams are
+synthetic and do not qualify Linux deployment. See the deploy runbook for
+same-binary preflight and the separate DK5b payload launch gate.

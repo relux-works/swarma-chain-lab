@@ -1,0 +1,12 @@
+# Provisioning input only; does not create keys or resolve credentials.
+# Config/secret files: root:swarma-SERVICE0640. Private resolved manifest and
+# detached signature: root:swarma-SERVICE0644, kept INSIDE these0750 directories.
+# Never grant client/socket peer groups membership in the private config groups.
+d /etc/swarma/issuer 0750 root swarma-issuer -
+d /etc/swarma/gateway 0750 root swarma-gateway -
+d /etc/swarma/model 0750 root swarma-model -
+d /etc/swarma/booking 0750 root swarma-booking -
+d /etc/swarma/store 0750 root swarma-store -
+d /etc/swarma/relay 0750 root swarma-relay -
+d /etc/swarma/wallet 0750 root swarma-wallet -
+d /etc/swarma/stations 0750 root swarma-stations -

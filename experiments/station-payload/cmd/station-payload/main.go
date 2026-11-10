@@ -18,13 +18,13 @@ func run(ctx context.Context, args []string) error {
 	f := flag.NewFlagSet("station-payload", flag.ContinueOnError)
 	f.SetOutput(io.Discard)
 	bootstrap := f.String("bootstrap", "", "private canonical bootstrap file (0600)")
-	ca := f.String("ca", "", "operator CA PEM file (0600), shared by fixture gateway/proxy")
+	ca := f.String("ca", "", "root-owned0640 static operator CA PEM, shared by fixture gateway/proxy")
 	address := f.String("gateway", "", "gateway payload IP:port")
 	pin := f.String("gateway-pin", "", "gateway leaf DER SHA256")
 	model := f.String("model", "", "exact operator model ID (v2)")
 	max := f.Uint64("max-tokens", 0, "operator per-request output limit (v2)")
 	dialect := f.String("dialect", "", "operator-pinned messages or responses; omitted only for legacy tests")
-	modelConfig := f.String("model-config", "", "public canonical proxy config copy (0600); referenced paths are never opened")
+	modelConfig := f.String("model-config", "", "root-owned0640 static canonical proxy config copy; referenced paths are never opened")
 	if f.Parse(args) != nil || f.NArg() != 0 {
 		return payload.ErrConfig
 	}
@@ -35,9 +35,9 @@ func run(ctx context.Context, args []string) error {
 	if e != nil {
 		return payload.ErrBootstrap
 	}
-	cert, e := proxy.ReadPrivateFile(*ca, 0600, 65536)
+	cert, e := installedRead(*ca, 65536)
 	if e != nil {
-		return payload.ErrConfig
+		return e
 	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(cert) {
@@ -49,7 +49,11 @@ func run(ctx context.Context, args []string) error {
 		c, e = payload.New(raw, options)
 	} else {
 		var config proxy.FileConfig
-		config, e = proxy.LoadConfig(*modelConfig)
+		configRaw, readErr := installedRead(*modelConfig, proxy.MaxBody)
+		if readErr != nil {
+			return readErr
+		}
+		config, e = proxy.ParseConfig(configRaw)
 		if e != nil {
 			return payload.ErrConfig
 		}
