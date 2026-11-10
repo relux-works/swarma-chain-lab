@@ -207,24 +207,31 @@ func (l *lab) syncTips() {
 	}
 	l.evidence["independent_nodes"] = rows
 }
+
+// Before mining or observing revocation, every transaction currently accepted
+// by the issuer must reach the miner and gateway. Identical whole mempools are
+// not a P2P guarantee; block/tip convergence is checked separately for all nodes.
 func (l *lab) syncMempools() {
 	if len(l.peers) == 0 {
 		return
 	}
-	pool := func(raw []byte) string {
+	pool := func(raw []byte) []string {
 		var ids []string
 		checked(l.t, json.Unmarshal(raw, &ids), "mempool shape")
 		sort.Strings(ids)
-		return strings.Join(ids, ",")
+		return ids
 	}
-	l.await("independent mempools converge", func() bool {
-		p := pool(l.rpc("", "getrawmempool"))
-		for role, n := range l.peers {
-			if role == "verifier" && l.verifierPaused {
-				continue
-			}
-			if pool(l.peerRPC(n, "getrawmempool")) != p {
-				return false
+	required := pool(l.peerRPC(l.peers["issuer"], "getrawmempool"))
+	l.await("issuer transactions reach miner and gateway", func() bool {
+		miner := pool(l.rpc("", "getrawmempool"))
+		gateway := pool(l.peerRPC(l.peers["gateway"], "getrawmempool"))
+		l.evidence["last_pending_relay"] = map[string]any{"issuer": required, "miner": miner, "gateway": gateway}
+		for _, id := range required {
+			for _, ids := range [][]string{miner, gateway} {
+				i := sort.SearchStrings(ids, id)
+				if i == len(ids) || ids[i] != id {
+					return false
+				}
 			}
 		}
 		return true

@@ -189,8 +189,9 @@ confirmed payment, then issuance. This is not a spec-adopted profile. A separate
 miner funds disposable fixtures; booking, issuer, gateway and the independent
 verifier each have their own Core process, datadir, RPC credentials and port.
 Observer nodes connect only to the owned miner over loopback P2P. No credentials
-or node datadir are shared between services. Chain and mempool convergence is
-required before dependent observations. Service code is unchanged.
+or node datadir are shared between services. Active-chain convergence is required before dependent observations. Issuer
+transactions must reach the miner and gateway before mining or revocation checks;
+whole-mempool equality is not assumed to be a P2P guarantee. Service code is unchanged.
 
 Use the full scenario inputs above and select `-run '^TestCanonicalComposition$'`.
 The verifier is disconnected before issuance; it must refuse the unknown anchor
