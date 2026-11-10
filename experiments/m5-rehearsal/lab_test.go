@@ -375,9 +375,9 @@ func (l *lab) startCore(agent, issuer string) {
 	conf := "server=1\ndeprecatedrpc=create_bdb\nlisten=0\ndnsseed=0\ndiscover=0\nnetworkactive=0\ntxindex=1\npersistmempool=0\nfallbackfee=0.002\nacceptnonstdtxn=1\nnameencoding=ascii\nvalueencoding=ascii\nrpcwhitelistdefault=0\n" + auth.String() + "[regtest]\nrpcbind=127.0.0.1\nrpcallowip=127.0.0.1\nrpcport=" + port + "\n"
 	if l.canonical {
 		l.minerP2P = address(l.t)
-		conf = strings.Replace(conf, "listen=0\n", "listen=1\nconnect=0\n", 1)
+		conf = strings.Replace(conf, "listen=0\n", "listen=1\n", 1)
 		conf = strings.Replace(conf, "networkactive=0\n", "networkactive=1\n", 1)
-		conf += "bind=" + l.minerP2P + "\nport=" + strings.Split(l.minerP2P, ":")[1] + "\n"
+		conf += "connect=0\nbind=" + l.minerP2P + "\nport=" + strings.Split(l.minerP2P, ":")[1] + "\n"
 	}
 	l.write(l.conf, []byte(conf), 0600)
 	l.bins["node"] = os.Getenv("IT1_CORE_DAEMON")
