@@ -26,6 +26,8 @@ type result struct {
 }
 
 var plants = []plant{
+	{"fixture_root_umask", "experiments/single-use", "configguard/reader_test.go", "if e := os.Chmod(root, 0755); e != nil {\n\t\tt.Fatal(e)\n\t}", "// control: fixture root chmod removed", "^TestFixtureUmask$/0002$", "umask signed neighbor: DK5_ANCHOR_FILE", "./configguard"},
+	{"fixture_child_selected", "experiments/single-use", "configguard/umask_test.go", "-test.run=^TestFixtureUmask$", "-test.run=^NoSuchFixtureTest$", "^TestFixtureUmask$", "fixture umask child did not run:", "./configguard"},
 	{"fixture_gateway_broad_umask", "experiments/rental-gateway", "cmd/gateway/inbound_test.go", "if e = os.Chmod(broad, 0755); e != nil {\n\t\tt.Fatal(e)\n\t}", "// control: explicit chmod removed", "^TestDK5Umask$", "broad state accepted", "./cmd/gateway"},
 	{"fixture_directory_umask", "experiments/single-use", "configguard/reader_test.go", "if e := os.Chmod(path, mode); e != nil {\n\t\tt.Fatal(e)\n\t}", "// control: explicit chmod removed", "^TestFixtureUmask$", "umask signed neighbor: DK5_ANCHOR_FILE", "./configguard"},
 	{"fixture_file_umask", "experiments/single-use", "configguard/signature_test.go", "if e := os.Chmod(path, mode); e != nil {\n\t\tt.Fatal(e)\n\t}", "// control: explicit chmod removed", "^TestFixtureUmask$", "umask signed neighbor: DK5_ANCHOR_FILE", "./configguard"},

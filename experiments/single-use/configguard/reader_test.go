@@ -15,6 +15,9 @@ import (
 func fixture(t *testing.T) (Reader, string) {
 	t.Helper()
 	root := t.TempDir()
+	if e := os.Chmod(root, 0755); e != nil {
+		t.Fatal(e)
+	}
 	dir := filepath.Join(root, "ancestor", "service")
 	mkdirMode(t, filepath.Dir(dir), 0755)
 	mkdirMode(t, dir, 0750)

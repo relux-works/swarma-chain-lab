@@ -1,6 +1,7 @@
 package configguard
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"os"
@@ -10,19 +11,37 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// A child confines the process-global umask. Signed and composed neighbors must
-// remain valid under 0077; an explicitly public input must still refuse. Only
-// ownership/NSS/traversal are synthetic; the tested mode bits remain real.
+// Separate children cover the fixture-mode class in both restrictive (0077)
+// and permissive (0002) directions. Signed and composed neighbors must pass;
+// public inputs still refuse. Ownership/NSS/traversal are synthetic, modes real.
 func TestFixtureUmask(t *testing.T) {
-	if os.Getenv("DK5_UMASK_CHILD") != "1" {
-		cmd := exec.Command(os.Args[0], "-test.run=^TestFixtureUmask$", "-test.v")
-		cmd.Env = append(os.Environ(), "DK5_UMASK_CHILD=1")
-		if out, e := cmd.CombinedOutput(); e != nil {
-			t.Fatalf("fixture umask child: %v\n%s", e, out)
+	mask := os.Getenv("DK5_UMASK_CHILD")
+	if mask == "" {
+		for _, mask := range []string{"0077", "0002"} {
+			t.Run(mask, func(t *testing.T) {
+				cmd := exec.Command(os.Args[0], "-test.run=^TestFixtureUmask$", "-test.v")
+				cmd.Env = append(os.Environ(), "DK5_UMASK_CHILD="+mask)
+				out, e := cmd.CombinedOutput()
+				if e != nil {
+					t.Fatalf("fixture umask child: %v\n%s", e, out)
+				}
+				if !bytes.Contains(out, []byte("--- PASS: TestFixtureUmask (")) {
+					t.Fatalf("fixture umask child did not run: %s", out)
+				}
+			})
 		}
 		return
 	}
-	old := unix.Umask(0077)
+	var mode int
+	switch mask {
+	case "0077":
+		mode = 0077
+	case "0002":
+		mode = 0002
+	default:
+		t.Fatalf("unknown fixture umask %q", mask)
+	}
+	old := unix.Umask(mode)
 	t.Cleanup(func() { unix.Umask(old) })
 	t.Run("signed", func(t *testing.T) {
 		_, key, e := ed25519.GenerateKey(rand.Reader)
