@@ -1,4 +1,4 @@
-// Package grantcheck checks regtest rental grants at Courier's authenticated
+// Package grantcheck checks regtest rental grants at the a2a daemon's (a2ad) authenticated
 // per-identity boundary. A verdict is an observation, never a reusable token.
 package grantcheck
 
@@ -45,7 +45,7 @@ type Presentation struct {
 
 // Verdict contains bounded public metadata. Scope exists only for Live.
 // Retryable is a fixed classification, not authority or a promise of success.
-// Courier holds retryable events in its bounded queue and checks them again.
+// The a2a daemon (a2ad) holds retryable events in its bounded queue and checks them again.
 type Verdict struct {
 	Decision  Decision `json:"decision"`
 	Code      Code     `json:"code"`

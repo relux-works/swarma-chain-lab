@@ -30,7 +30,7 @@ var (
 	ErrState  = errors.New("grantcheck: state unavailable")
 )
 
-// Config is resolved by the authenticated Courier engine, never from a message.
+// Config is resolved by the authenticated a2a daemon (a2ad), never from a message.
 // StateDir must already exist, be canonical/absolute/private, and belong to this
 // identity alone. Node must honor cancellation; no worker goroutine is detached.
 type Config struct {

@@ -1,7 +1,7 @@
 # CG1 integration questions
 
 The routing table and per-identity boundary are accepted. Integration corrections
-are recorded in DESIGN.md: closed Retryable classification, Courier-owned bounded
+are recorded in DESIGN.md: closed Retryable classification, a2a daemon (a2ad)-owned bounded
 held/exchange queues, full grant-cert only in v1, build-time fork registration,
 and Nostr-only grant policies. Matrix owner DM remains outside this path.
 
