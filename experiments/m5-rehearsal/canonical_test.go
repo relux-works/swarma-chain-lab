@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
 	signer "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
@@ -267,6 +268,12 @@ func (l *lab) verifyIndependent(raw []byte, config string) {
 	p.StateDir = l.dir("independent-verifier")
 	grant, e := rental.ParseGrantPresentation(raw)
 	checked(l.t, e, "independent presentation")
+	if time.Until(time.Unix(grant.SignedGrant.Grant.NotBefore, 0)) > 90*time.Second {
+		l.t.Fatal("independent verifier window beyond fixture bound")
+	}
+	for time.Now().Unix() < grant.SignedGrant.Grant.NotBefore {
+		time.Sleep(100 * time.Millisecond)
+	}
 	node, e := su.NewRPC(l.peers["verifier"].Read)
 	checked(l.t, e, "independent read route")
 	trace := &verifierTrace{Node: node}
@@ -301,5 +308,118 @@ func (l *lab) verifyIndependent(raw []byte, config string) {
 	if live.Verdict != "live" || live.Reason != "LIVE" {
 		l.t.Fatalf("independent verifier positive refused: %s/%s", live.Verdict, live.Reason)
 	}
+	before, e := os.ReadFile(filepath.Join(p.StateDir, "grant-"+live.GrantID+".json"))
+	checked(l.t, e, "verifier admission journal")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	wrong := rental.Check(ctx, node, p, raw, "id/other-executor", grant.SignedGrant.Grant.GranteeKey, time.Now().Unix())
+	cancel()
+	after, e := os.ReadFile(filepath.Join(p.StateDir, "grant-"+live.GrantID+".json"))
+	checked(l.t, e, "verifier journal after wrong executor")
+	if wrong.Verdict != "refused" || wrong.Reason != "GRANT_POLICY" || wrong.Calls != 0 || !bytes.Equal(before, after) {
+		l.t.Fatal("wrong executor refused with side effect or wrong code")
+	}
+	l.evidence["wrong_executor"] = map[string]any{"reason": wrong.Reason, "node_calls": wrong.Calls, "journal_unchanged": true}
 	l.evidence["independent_verifier"] = map[string]any{"stale_reason": refusal.Reason, "stale_tip": old, "stale_no_admission_state": true, "failed_method": trace.failedMethod, "missing_anchor": trace.failedID, "converged_verdict": live.Verdict, "converged_tip": live.TipHash, "grant_id": live.GrantID}
+}
+
+// A confirmed underquote is recorded for refund review, but cannot select a
+// payment, export issuance or create a slot. The caller then pays the full quote
+// through the same native flow as a valid positive control.
+func (l *lab) underquote(origin string, contract booking.ContractV2) {
+	before := booking.BookingV2{}
+	if l.http("GET", origin+"/booking?id="+contract.BookingID, nil, &before) != 200 || before.Package == nil || before.PackageEvent == nil || before.Issuance != nil {
+		l.t.Fatal("underquote baseline")
+	}
+	id := str(l.t, l.rpc("rehearsal", "sendtoaddress", contract.Payment.Address, su.Coins(contract.Payment.AmountAtoms-1)))
+	l.mine(2)
+	var transaction struct {
+		Confirmations int64 `json:"confirmations"`
+	}
+	checked(l.t, json.Unmarshal(l.peerRPC(l.peers["booking"], "getrawtransaction", id, true), &transaction), "underquote confirmed transaction")
+	if transaction.Confirmations < 2 {
+		l.t.Fatal("underquote confirmation depth")
+	}
+	var after booking.BookingV2
+	l.await("confirmed underquote recorded", func() bool {
+		if l.http("GET", origin+"/booking?id="+contract.BookingID, nil, &after) != 200 {
+			return false
+		}
+		for _, r := range after.Receipts {
+			if r.Payment.TxID == id && r.Payment.Height > 0 && r.Payment.BlockHash != "" {
+				return true
+			}
+		}
+		return false
+	})
+	if after.Payment != nil || after.Issuance != nil || after.Revoke != nil || !bytes.Equal(encoded(before.Package), encoded(after.Package)) || before.PackageEvent.ID != after.PackageEvent.ID {
+		l.t.Fatal("underquote changed authority or package")
+	}
+	found := false
+	for _, r := range after.Receipts {
+		if r.Payment.TxID == id {
+			if r.Payment.ValueAtoms != contract.Payment.AmountAtoms-1 || r.EligibleAt != 0 || r.Disposition != "refund_review" || !r.RefundReview {
+				l.t.Fatal("underquote disposition")
+			}
+			found = true
+		}
+	}
+	if !found {
+		l.t.Fatal("underquote receipt missing")
+	}
+	l.noSlot()
+	l.evidence["underquote"] = map[string]any{"disposition": "refund_review", "issuance_absent": true, "selected_payment_absent": true, "package_unchanged": true, "slot_absent": true}
+}
+
+// The independent verifier rechecks the identical grant after actual closure.
+// Revocation is local mempool evidence; no global latest-chain claim is made.
+func (l *lab) verifyClosed(raw []byte, config, scenario string) {
+	var fc signer.FileConfig
+	b, e := os.ReadFile(config)
+	checked(l.t, e, "closed verifier policy")
+	checked(l.t, json.Unmarshal(b, &fc), "closed policy shape")
+	p := fc.Config.Policy.Policy
+	p.StateDir = l.dir("independent-verifier")
+	grant, e := rental.ParseGrantPresentation(raw)
+	checked(l.t, e, "closed presentation")
+	node, e := su.NewRPC(l.peers["verifier"].Read)
+	checked(l.t, e, "closed node")
+	want := "SEAL_SPENT"
+	if scenario == "expiry" {
+		want = "EXPIRED"
+	}
+	var got rental.Receipt
+	l.await("independent grant closure", func() bool {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		got = rental.Check(ctx, node, p, raw, agentName, grant.SignedGrant.Grant.GranteeKey, time.Now().Unix())
+		return got.Verdict == "refused" && got.Reason == want
+	})
+	if scenario == "revoke" && !got.Closed {
+		l.t.Fatal("revoked verifier lacks durable closure")
+	}
+	l.evidence["independent_closed"] = map[string]any{"verdict": got.Verdict, "reason": got.Reason, "durable_closed": got.Closed}
+}
+
+func (l *lab) publishVerified(raw []byte, dir, id string) {
+	target := filepath.Join(dir, id+".json")
+	if _, e := os.Stat(target); !os.IsNotExist(e) {
+		l.t.Fatal("presentation mirror existed before independent verification")
+	}
+	f, e := os.OpenFile(filepath.Join(dir, ".verified.tmp"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	checked(l.t, e, "verified mirror create")
+	_, e = f.Write(raw)
+	checked(l.t, e, "verified mirror bytes")
+	checked(l.t, f.Sync(), "verified mirror fsync")
+	checked(l.t, f.Close(), "verified mirror close")
+	checked(l.t, os.Rename(filepath.Join(dir, ".verified.tmp"), target), "verified mirror publish")
+	d, e := os.Open(dir)
+	checked(l.t, e, "verified mirror parent")
+	checked(l.t, d.Sync(), "verified mirror parent fsync")
+	checked(l.t, d.Close(), "verified mirror parent close")
+	b, e := os.ReadFile(target)
+	checked(l.t, e, "verified mirror readback")
+	if !bytes.Equal(b, raw) {
+		l.t.Fatal("verified mirror changed original SG1 bytes")
+	}
+	l.evidence["verified_presentation_mirror"] = map[string]any{"original_bytes": true, "sha256": rental.Hash(raw), "published_after_independent_live": true}
 }

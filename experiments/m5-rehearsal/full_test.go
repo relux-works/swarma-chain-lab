@@ -195,7 +195,12 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	defer helper.close()
 	managerProcess := l.startManager(p, managerAddr, payloadHash, filepath.Join(helper.root, "s.sock"))
 	defer l.stop(managerProcess)
-	signerConfig := l.signerConfig(cfg, storeURL, presentations, grant, funding, provider)
+	signerPresentations := presentations
+	if l.canonical {
+		signerPresentations = l.dir("issuer-presentations")
+		checked(t, os.Chmod(signerPresentations, 0755), "issuer presentation directory")
+	}
+	signerConfig := l.signerConfig(cfg, storeURL, signerPresentations, grant, funding, provider)
 	if len(dialect) == 1 && dialect[0] == "host-runner" {
 		l.hostRunner(scenario, cfg, relayURL, bookingURL, grant.PubKeyHex(), signerConfig, presentations, modelState, gp, p, helper, managerProcess, gatewayProcess, &upstreamCalls)
 		return
@@ -203,6 +208,9 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	conversation := l.conversation(relayURL, renter, agent.PubKeyHex())
 	defer conversation.close()
 	contract := conversation.bookV2(bookingURL, "one")
+	if l.canonical {
+		l.underquote(bookingURL, contract)
+	}
 	l.rpc("rehearsal", "sendtoaddress", contract.Payment.Address, su.Coins(contract.Payment.AmountAtoms))
 	l.mine(2)
 	var paid booking.BookingV2
@@ -212,7 +220,13 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	if l.canonical {
 		l.pauseVerifier()
 	}
-	proof := l.confirmedPresentation(signerConfig, contract.BookingID, presentations)
+	proof := l.confirmedPresentation(signerConfig, contract.BookingID, signerPresentations)
+	if l.canonical {
+		// Deliver only original SG1 bytes after independent current-time verification.
+		// This operator-owned local mirror is not a fabricated presentation or cache.
+		l.verifyIndependent(proof, signerConfig)
+		l.publishVerified(proof, presentations, contract.BookingID)
+	}
 	conversation.receive("issued\n", 10*time.Second)
 	l.evidence["stage"] = "confirmed presentation and issued"
 	t.Log("native SG1 confirmed presentation and issued received")
@@ -233,9 +247,6 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 		t.Fatal("slot started before grant window")
 	}
 	conversation.receive("ready", 75*time.Second)
-	if l.canonical {
-		l.verifyIndependent(proof, signerConfig)
-	}
 	l.evidence["stage"] = "ready"
 	t.Log("ready received; sending first grantee message")
 	tag, e := gateway.GrantCertTag(proof)
@@ -327,6 +338,9 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	l.checkProxyRefusal(p, boot, "revoked-or-expired")
 	if upstreamCalls.Load() != 2 || len(l.slot(contract.BookingID).SeenRumorIDs) != before {
 		t.Fatal("closed grant produced a new delivery")
+	}
+	if l.canonical {
+		l.verifyClosed(proof, signerConfig, scenario)
 	}
 	l.stop(managerProcess)
 	l.stop(gatewayProcess)

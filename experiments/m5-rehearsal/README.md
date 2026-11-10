@@ -196,12 +196,32 @@ whole-mempool equality is not assumed to be a P2P guarantee. Service code is unc
 Use the full scenario inputs above and select `-run '^TestCanonicalComposition$'`.
 The verifier is disconnected before issuance; it must refuse the unknown anchor
 without persisting admission state, then admit the identical presentation after
-P2P convergence. This does not prove freshness of unseen revocations. The same
+P2P convergence. Only then is the original SG1 presentation atomically mirrored
+into the gateway's presentation directory, with byte-equality and hash readback.
+The issuer output is preserved unchanged; no replacement grant or admitted-cache
+entry is constructed. This does not prove freshness of unseen revocations. The same
 Darwin manager/admin substitutions and release-isolation check still apply.
 
 Success is `PASS_INTERIM`. Gateway/station crash recovery is pending the accepted
-DA1 composition. Issuer/booking crash barriers, complete action/refusal probes,
-repeat-run normalized comparison and the remote control adapter remain pending;
+DA1 composition. Issuer/booking crash barriers, complete action/refusal probes and
+the remote control adapter remain pending;
 this entry point must not be presented as complete E2E1 or gate-7 qualification.
 Default tests check the topology validator with duplicate/missing/aliased-node
 controls; these metadata controls do not replace actual multi-node execution.
+
+`go run .scripts/compare-canonical.go /absolute/first/public/result.json
+/absolute/second/public/result.json` compares two completed same-head/same-scenario
+interim reports. It validates required success observations and normalizes random
+identity/path/port/time/process metadata into role labels. It retains effect
+counts, full model accounting, closure, ordered phases and pending crash labels.
+Input reports remain the source of detailed evidence. Controls demonstrate that
+fresh identities compare equal, changed effect/accounting counts differ, and
+failed/missing/aliased/unclean evidence refuses. It does not compare every byte or
+certify pending contracts.
+
+The confirmed underquote remains `refund_review` with no selected payment,
+issuance or slot and with its consent package preserved; a subsequent exact
+quote follows the native positive path. The independent verifier refuses another
+executor as `GRANT_POLICY` before node calls with an unchanged admission journal.
+It rechecks the original grant after revoke/expiry for `SEAL_SPENT`/`EXPIRED`.
+These are specific existing API checks, not a universal v4 service-action matrix.
