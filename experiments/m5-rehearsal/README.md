@@ -242,3 +242,13 @@ transaction; Core receives one broadcast. These barriers cover those external
 transport interruption points, not every internal signing/fsync crash boundary.
 `TestRPCBarrierControl` calibrates real forwarding versus a blocked write; the
 projection also refuses unapplied barriers or duplicate effects/receipts.
+
+Service probes keep their actual authority labels: relay rejects a correctly
+signed unsupported kind and excludes it from replay alongside an accepted
+event; store rejects signed outsider upload and reader delete without changing
+its replay journal or blob, alongside authorized writer/reader/owner controls;
+model rejects a wrong slot bearer with AUTH without an upstream call, between
+two successful requests. Booking retains missing/unoffered coin, foreign
+consent and underquote probes. Gateway kernel checks admission/revocation;
+its R3 boundary explicitly does not decide action scope. These are not claims
+that relay, store or model interpret a rental grant action set.

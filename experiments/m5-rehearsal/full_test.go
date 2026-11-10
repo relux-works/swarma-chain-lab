@@ -96,6 +96,10 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	sc.Writers = []string{grant.PubKeyHex()}
 	l.spawn("store", "serve", "-config", l.json("store.json", sc, 0600), "-listen", storeAddr)
 	l.await("S1", func() bool { return l.http("OPTIONS", storeURL+"/", nil, nil) == 204 })
+	if l.canonical {
+		l.relayBoundary(relayURL, renter)
+		l.storeBoundary(storeURL, grant, agent, renter)
+	}
 	profile := []byte("local full-path rehearsal profile\n")
 	profilePath := filepath.Join(l.private, "profile.txt")
 	l.write(profilePath, profile, 0600)
@@ -326,6 +330,19 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	conversation.receive("model fixture reply", 10*time.Second)
 	l.evidence["stage"] = "first model reply"
 	t.Log("real payload/model reply received")
+	if l.canonical {
+		probe, ok := helper.bootstrap(contract.BookingID)
+		if !ok {
+			t.Fatal("model auth probe missing bootstrap")
+		}
+		probe.ModelBearer = proxy.Secret(strings.Repeat("A", 43))
+		l.checkProxyRefusal(p, probe, "wrong-credential")
+		if upstreamCalls.Load() != 1 {
+			t.Fatal("wrong model credential reached upstream")
+		}
+		l.evidence["model_auth_boundary"] = map[string]any{"wrong_credential": "AUTH", "upstream_unchanged": true, "boundary": "slot bearer"}
+	}
+
 	conversation.send("second model request", false)
 	conversation.receive("model fixture reply", 10*time.Second)
 	conversation.send("request beyond cap", false)

@@ -72,7 +72,10 @@ func CanonicalProjection(raw []byte) ([]byte, error) {
 			After    bool   `json:"published_after_independent_live"`
 			Hash     string `json:"sha256"`
 		} `json:"verified_presentation_mirror"`
-		IssuerCrash struct {
+		RelayBoundary map[string]any `json:"relay_boundary"`
+		StoreBoundary map[string]any `json:"store_boundary"`
+		ModelBoundary map[string]any `json:"model_auth_boundary"`
+		IssuerCrash   struct {
 			Before  bool   `json:"before_a_killed"`
 			Ack     bool   `json:"lost_ack_killed"`
 			Same    bool   `json:"same_durable_bytes"`
@@ -180,9 +183,23 @@ func CanonicalProjection(raw []byte) ([]byte, error) {
 	if !r.BookingCrash.Seen || !r.BookingCrash.Killed || !r.BookingCrash.Same || r.BookingCrash.Receipts != 1 || !validHex(r.BookingCrash.ID, 32) || r.BookingCrash.Outcome != "resume" {
 		return bad()
 	}
+	if r.RelayBoundary["boundary"] != "signed-event-kind" || r.RelayBoundary["unsupported_kind"] != "invalid: event" || r.RelayBoundary["rejected_not_replayed"] != true || r.RelayBoundary["allowed_stored_and_replayed"] != true {
+		return bad()
+	}
+	if r.StoreBoundary["boundary"] != "writer-reader-owner ACL" || r.StoreBoundary["outsider_upload_status"] != float64(403) || r.StoreBoundary["reader_delete_status"] != float64(403) {
+		return bad()
+	}
+	for _, k := range []string{"refusal_replay_unchanged", "writer_upload_reader_get", "refused_delete_preserved_blob", "owner_delete"} {
+		if r.StoreBoundary[k] != true {
+			return bad()
+		}
+	}
+	if r.ModelBoundary["boundary"] != "slot bearer" || r.ModelBoundary["wrong_credential"] != "AUTH" || r.ModelBoundary["upstream_unchanged"] != true {
+		return bad()
+	}
 	var accounting any
 	if json.Unmarshal(r.Accounting, &accounting) != nil {
 		return bad()
 	}
-	return json.Marshal(map[string]any{"product_base": r.Head, "outcome": r.Outcome, "scenario": r.Scenario, "order": r.Order, "node_roles": roles, "verifier": map[string]any{"stale": r.Check.Stale, "live": r.Check.Live, "grant": "grant:rental", "anchor": "tx:issuance", "tip": "tip:converged", "no_admission_state": true}, "closure": map[string]any{"ended": r.Closure.Ended, "destroyed": r.Closure.Destroyed, "reason": r.Closure.Reason, "channel_cleared": r.Closure.Cleared, "helper_removed": r.Closure.Removed}, "accounting": accounting, "upstream_calls": r.Calls, "verified_presentation_mirror": "original SG1 bytes after independent live", "non_w_anchor": map[string]any{"reason": r.NonW.Reason, "no_admission_state": true, "native_w_neighbour": r.NonW.Positive, "t": "tx:control-native-seal", "seal_transaction_w": true, "a": "tx:nonw-anchor"}, "underquote": r.Underquote, "wrong_executor": r.Wrong, "independent_closed": r.Closed, "issuer_crash": "before-A/lost-ACK; one broadcast, exact durable bytes", "booking_crash": "confirmed payment before record; resume, one receipt, same consent", "crash_cases": r.Crashes, "known_secret_log_scan": r.Clean, "all_recorded_processes_absent": true})
+	return json.Marshal(map[string]any{"product_base": r.Head, "outcome": r.Outcome, "scenario": r.Scenario, "order": r.Order, "node_roles": roles, "verifier": map[string]any{"stale": r.Check.Stale, "live": r.Check.Live, "grant": "grant:rental", "anchor": "tx:issuance", "tip": "tip:converged", "no_admission_state": true}, "closure": map[string]any{"ended": r.Closure.Ended, "destroyed": r.Closure.Destroyed, "reason": r.Closure.Reason, "channel_cleared": r.Closure.Cleared, "helper_removed": r.Closure.Removed}, "accounting": accounting, "upstream_calls": r.Calls, "verified_presentation_mirror": "original SG1 bytes after independent live", "non_w_anchor": map[string]any{"reason": r.NonW.Reason, "no_admission_state": true, "native_w_neighbour": r.NonW.Positive, "t": "tx:control-native-seal", "seal_transaction_w": true, "a": "tx:nonw-anchor"}, "underquote": r.Underquote, "wrong_executor": r.Wrong, "independent_closed": r.Closed, "relay_boundary": r.RelayBoundary, "store_boundary": r.StoreBoundary, "model_auth_boundary": r.ModelBoundary, "issuer_crash": "before-A/lost-ACK; one broadcast, exact durable bytes", "booking_crash": "confirmed payment before record; resume, one receipt, same consent", "crash_cases": r.Crashes, "known_secret_log_scan": r.Clean, "all_recorded_processes_absent": true})
 }
