@@ -78,7 +78,11 @@ func (l *lab) storeBoundary(origin string, writer, reader, outsider *nostr.PrivK
 	hash := store.Hash(blob)
 	client := http.Client{Timeout: 3 * time.Second}
 	request := func(method, path, action string, key *nostr.PrivKey, body []byte) (int, []byte) {
-		auth, e := store.AuthHeader(key, action, hash, "127.0.0.1", []string{reader.PubKeyHex()}, time.Now())
+		var readers []string
+		if action == "upload" {
+			readers = []string{reader.PubKeyHex()}
+		}
+		auth, e := store.AuthHeader(key, action, hash, "127.0.0.1", readers, time.Now())
 		checked(t, e, "store probe authorization")
 		req, e := http.NewRequest(method, origin+path, bytes.NewReader(body))
 		checked(t, e, "store probe request")
