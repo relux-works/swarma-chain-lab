@@ -37,7 +37,7 @@ func validEvent(raw []byte, c Config) (*nostr.Event, error) {
 	if err != nil || nostr.VerifySignature(e) != nil {
 		return nil, fail("EVENT")
 	}
-	if e.Kind != 1059 && e.Kind != 8181 && e.Kind != 8182 {
+	if e.Kind != 1059 && e.Kind != 8181 && e.Kind != 8182 && !replaceable(e.Kind) {
 		return nil, fail("EVENT_KIND")
 	}
 	if len(e.Tags) > 128 {
@@ -59,6 +59,9 @@ func validEvent(raw []byte, c Config) (*nostr.Event, error) {
 		return nil, fail("EVENT_RECIPIENT")
 	}
 	return e, nil
+}
+func replaceable(kind int) bool {
+	return kind == 10002 || kind == 10050
 }
 func live(e *nostr.Event, c Config, now int64) bool {
 	return e.CreatedAt >= now-c.RetentionSeconds && e.CreatedAt <= now+c.FutureSeconds
@@ -126,6 +129,11 @@ func openStore(c Config, now int64) (*eventStore, error) {
 		return nil, fail("STORE_CORRUPT")
 	}
 	seen := map[string]bool{}
+	type pair struct {
+		pubkey string
+		kind   int
+	}
+	pairs := map[pair]bool{}
 	for _, event := range snap.Events {
 		b, _ := json.Marshal(event)
 		v, e := validEvent(b, c)
@@ -133,6 +141,13 @@ func openStore(c Config, now int64) (*eventStore, error) {
 			return nil, fail("STORE_CORRUPT")
 		}
 		seen[v.ID] = true
+		if replaceable(v.Kind) {
+			key := pair{v.PubKey, v.Kind}
+			if pairs[key] {
+				return nil, fail("STORE_CORRUPT")
+			}
+			pairs[key] = true
+		}
 		if live(v, c, now) {
 			s.events[v.ID] = v
 		}
@@ -210,6 +225,14 @@ func (s *eventStore) put(e *nostr.Event, now int64) (bool, error) {
 	next := map[string]*nostr.Event{}
 	for id, v := range s.events {
 		if live(v, s.cfg, now) {
+			if replaceable(e.Kind) && e.Kind == v.Kind && e.PubKey == v.PubKey {
+				if e.CreatedAt < v.CreatedAt || e.CreatedAt == v.CreatedAt && e.ID > v.ID {
+					return false, fail("EVENT_SUPERSEDED")
+				}
+				// Replace only this pair in the candidate snapshot. Capacity and
+				// persistence must succeed before the old durable record changes.
+				continue
+			}
 			next[id] = v
 		}
 	}

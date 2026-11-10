@@ -1,7 +1,8 @@
 # Bounded rental Nostr relay
 
 `swarma-relay` is a standalone Go relay for signed regular events 1059 (gift wrap),
-8181 (consent) and 8182 (package). It reuses the reviewed gateway `nostr` event and
+8181 (consent) and 8182 (package), and replaceable relay lists 10002 (NIP-65) and
+10050 (NIP-17). It reuses the reviewed gateway `nostr` event and
 BIP-340 implementation and `exchange.CheckWork`; it neither decrypts messages nor
 knows whether a renter has a live grant. The existing package-only booking relay
 is unchanged. No go-nostr, NIP-29, wallet, model API or public admin API is used.
@@ -48,10 +49,30 @@ poisons the running store until restart, including when the durability result is
 uncertain; no subsequent ACK claims success. Snapshot recovery revalidates event
 signatures, supported kinds, duplicate IDs and bounds.
 
+Kinds 10002 and 10050 retain one event per `(pubkey, kind)`: the newer
+`created_at` wins, with the lexicographically lower event ID winning a timestamp
+tie. Replacement removes only that pair's previous event from the candidate
+snapshot before checking count and byte limits; failure preserves the existing
+durable state. A superseded event receives `OK=false` with
+`blocked: superseded replaceable event`, without a write or broadcast. Exact
+stored duplicates retain the normal duplicate ACK. REQ returns the current
+winner if it matches the filter; live subscribers receive each newly accepted
+winner. Historical versions are not returned, even if a filter selects an older
+ID or time window. Limits, retention, ingress quotas and configured AUTH still
+apply. Other replaceable kinds, including 10003, remain unsupported. Tags and
+content are opaque beyond the existing bounded event validation; accepting a
+list makes no claim about its URLs or client discovery behavior.
+
+Snapshot version 1 remains compatible with existing regular-event state.
+Recovery additionally refuses multiple records for one replaceable pair as
+corrupt without rewriting them. Once these new kinds are stored, v0.2.0 cannot
+read that snapshot because its supported-kind validation refuses them; do not
+downgrade that state in place.
+
 Created-at retention and future skew apply before publication and query delivery.
-Expired events are pruned on new writes, restart and a one-minute maintenance
-tick, including idle periods. Live events are never evicted to admit another
-event. Config bounds cap stored bytes/count, event size, connections, retained IP
+Expired events are pruned on successful new writes, restart and a one-minute maintenance
+tick, including idle periods. Live events outside the replaced pair are never
+evicted to admit another event. Config bounds cap stored bytes/count, event size, connections, retained IP
 buckets, frames per minute, subscriptions, filters, backlog and outbound queues.
 The WebSocket read limit remains `max_event_bytes + 1024`; configuration refuses
 values below 65,949 bytes (therefore `max_event_bytes` must be at least 64,925).

@@ -423,7 +423,9 @@ func (r *Relay) publish(p *peer, raw []byte) {
 	}
 	duplicate, err := r.store.put(e, r.now().Unix())
 	if err != nil {
-		if strings.Contains(err.Error(), "CAPACITY") {
+		if err.Error() == "EVENT_SUPERSEDED" {
+			refuse("blocked: superseded replaceable event")
+		} else if strings.Contains(err.Error(), "CAPACITY") {
 			refuse("rate-limited: storage capacity")
 		} else {
 			refuse("error: durable store unavailable")

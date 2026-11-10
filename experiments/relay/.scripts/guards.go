@@ -21,6 +21,13 @@ import (
 type plant struct{ Name, Module, File, Old, New, Test, Witness string }
 
 var plants = []plant{
+	{"replaceable_time", "relay", "store.go", "e.CreatedAt < v.CreatedAt", "false && e.CreatedAt < v.CreatedAt", "TestReplaceableOrder", "ignored replacement wrote snapshot"},
+	{"replaceable_tie", "relay", "store.go", "e.ID > v.ID", "e.ID < v.ID", "TestReplaceableOrder", "lower tie refused"},
+	{"replaceable_author", "relay", "store.go", "e.PubKey == v.PubKey", "true", "TestReplaceableIsolation", "replaceable key isolation"},
+	{"replaceable_kind", "relay", "store.go", "e.Kind == v.Kind", "true", "TestReplaceableIsolation", "replaceable key isolation"},
+	{"replaceable_regular", "relay", "store.go", "replaceable(e.Kind) && e.Kind == v.Kind", "e.Kind == v.Kind", "TestReplaceableIsolation", "regular event replaced"},
+	{"replaceable_remove", "relay", "store.go", "continue\n\t\t\t}\n\t\t\tnext[id] = v", "next[id] = v\n\t\t\t}\n\t\t\tnext[id] = v", "TestReplaceableOrder", "newer replacement refused"},
+	{"replaceable_recovery", "relay", "store.go", "if pairs[key] {", "if false && pairs[key] {", "TestReplaceableRecovery", "duplicate replaceable pair recovered"},
 	{"req_read_config", "relay", "config.go", "if c.websocketReadLimit() < maxRequestBytes {", "if false && c.websocketReadLimit() < maxRequestBytes {", "TestRequestReadLimit", "short REQ read limit accepted"},
 	{"req_read_wire", "relay", "relay.go", "ws.SetReadLimit(r.cfg.websocketReadLimit())", "ws.SetReadLimit(r.cfg.websocketReadLimit()-1)", "TestRequestReadLimit", "maximal REQ not served"},
 	{"event_bytes", "relay", "store.go", "len(raw) > c.MaxEventBytes", "false && len(raw) > c.MaxEventBytes", "TestWireRefusals", "invalid ACK"},
