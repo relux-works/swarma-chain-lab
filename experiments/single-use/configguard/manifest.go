@@ -32,21 +32,33 @@ func digestOK(s string) bool {
 	return e == nil && len(b) == 32 && hex.EncodeToString(b) == s
 }
 
-func openManifest(raw []byte, path, release, service string, r Reader) (*Set, error) {
+// decodeManifest is the shared pure schema/binding/path boundary. Installed and
+// staged callers apply their own custody and byte-loading contracts afterwards.
+func decodeManifest(raw []byte, path, release, service string, gid int) (Manifest, error) {
 	var m Manifest
 	if su.StrictInput(raw, &m) != nil || m.Version != 1 || len(m.Files) < 1 || len(m.Files) > 256 {
-		return nil, fail("DK5_MANIFEST_SCHEMA")
+		return Manifest{}, fail("DK5_MANIFEST_SCHEMA")
 	}
-	if m.ReleaseSHA256 != release || m.Service != service || m.GID != r.GID {
-		return nil, fail("DK5_MANIFEST_BINDING")
+	if m.ReleaseSHA256 != release || m.Service != service || m.GID != gid {
+		return Manifest{}, fail("DK5_MANIFEST_BINDING")
 	}
-	set := &Set{reader: r, files: make(map[string]string)}
 	previous := ""
 	for _, entry := range m.Files {
 		if !validPath(entry.Path) || entry.Path == path || entry.Path <= previous || !digestOK(entry.SHA256) {
-			return nil, fail("DK5_MANIFEST_PATH")
+			return Manifest{}, fail("DK5_MANIFEST_PATH")
 		}
 		previous = entry.Path
+	}
+	return m, nil
+}
+
+func openManifest(raw []byte, path, release, service string, r Reader) (*Set, error) {
+	m, e := decodeManifest(raw, path, release, service, r.GID)
+	if e != nil {
+		return nil, e
+	}
+	set := &Set{reader: r, files: make(map[string]string)}
+	for _, entry := range m.Files {
 		set.files[entry.Path] = entry.SHA256
 	}
 	for _, entry := range m.Files {

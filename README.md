@@ -370,3 +370,10 @@ external installation/qualification duties. Use the exact `deploy-kit render-ins
 from the repository root run `go run .scripts/dk5-guards.go -out "$NEW_ABSOLUTE_SCRATCH_DIR"`
 for21 isolated guard controls. Keep validation HOME/cache/temp under task scratch.
 Dynamic payload bootstrap/slotd enforcement remains the separate DK5b gate.
+
+The public configguard.ValidateStagedSet API admits custody-checked staged
+static bytes before installation, using independent expected final paths,
+release/service/GID. It performs no filesystem access. The
+[staged contract and verification commands](experiments/single-use/configguard/STAGED.md)
+describe its boundary; the existing .scripts/dk5-guards.go runner includes
+staged signature, content and final-path bypass controls with task-local output.

@@ -135,3 +135,13 @@ fixture, preserving state and checking no listener or journal change on refusal.
 Historical opt-in Core scenarios with owner0600 configs are not DK5 installation
 qualification; they require separately provisioned installed fixtures. Never
 weaken production checks or label skipped scenarios as passing host evidence.
+
+## Admission before final-path installation
+
+A root provisioner can validate approved, custody-checked staged bytes with
+[configguard.ValidateStagedSet](../experiments/single-use/configguard/STAGED.md),
+using independent expected final paths, release digest, service and GID. This
+pure API verifies the original signature and content without opening final paths,
+rewriting signed material or using synthetic metadata. It does not prove source
+custody or implement transactional installation. Retain the verified byte snapshot
+under root custody, then preserve the existing installed admission checks.

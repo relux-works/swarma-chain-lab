@@ -251,3 +251,13 @@ Mainnet CLI route/clock/network tests use offline fixtures only. The complete
 47-case regtest matrix, late-reorg control and real operator-CLI regtest control
 cover the changed shared path. These tests do not assert that any mainnet
 observation or transaction has been admitted or performed.
+
+### Staged static inputs
+
+The pure public configguard.ValidateStagedSet validates custody-checked static
+anchor/manifest/signature/config bytes against independently expected final
+paths, release, service and GID before installation. It opens no files and does
+not waive installed admission. See [the staged API and trust boundary](configguard/STAGED.md).
+Run go test -race -count=1 ./configguard and go vet ./configguard here.
+From the repository root, go run .scripts/dk5-guards.go -out /absolute/task-scratch/guards
+runs calibrated controls and writes logs/overlays/hash/PID/exit evidence there.
