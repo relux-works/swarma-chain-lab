@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/stationlink"
 	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 )
@@ -27,9 +28,10 @@ func (c *Client) Run(ctx context.Context, address, pin string, roots *x509.CertP
 	cl := stationlink.NewClient(conn)
 	b := c.bootstrap
 	f, err := cl.Hello(b.BookingID, b.StationName, b.ChannelSecret)
-	if err != nil || f.Type != stationlink.TypeSystem || f.SlotID != b.BookingID {
+	if err != nil || f.Type != stationlink.TypeSystem || f.SlotID != b.BookingID || !nostr.ValidDeliveryEventLimit(f.RelayMaxEventBytes) {
 		return ErrChannel
 	}
+	relayMaxEventBytes := f.RelayMaxEventBytes
 	for {
 		f, err = cl.Pull()
 		if err != nil {
@@ -78,6 +80,7 @@ func (c *Client) Run(ctx context.Context, address, pin string, roots *x509.CertP
 						reply = err.Error()
 					}
 				}
+				reply = nostr.BoundDeliveryReply(reply, relayMaxEventBytes)
 				t.Phase, t.Reply = "ready", reply
 				if e := journal.save(t); e != nil {
 					return e

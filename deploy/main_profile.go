@@ -159,6 +159,9 @@ func validateMainGateway(raw []byte) error {
 	if !digestPin(c.AgentPubkey) || !digestPin(c.Kernel.IssuerPubkey) || !identityName(c.Kernel.AgentName) || !identityName(c.Kernel.LandlordName) || c.Kernel.AgentName == c.Kernel.LandlordName || !p2pkhScript(c.Kernel.SealScript) || !localEndpoint(net.JoinHostPort(c.Kernel.RPCHost, strconv.Itoa(c.Kernel.RPCPort))) {
 		return ErrPolicy
 	}
+	if c.RelayMaxEventBytes <= 0 || c.RelayMaxEventBytes > 131072 {
+		return ErrPolicy
+	}
 	if c.AgentKeyFile != "/etc/swarma/gateway/agent.key" || c.Kernel.RPCRouteFile != "/etc/swarma/gateway/observer.json" || !localURL(c.RelayURL, "ws") || !localURL(c.Exchange.BookingURL, "http") || c.StationSocket != "" || c.Station.Root != "" || c.Station.Manager == nil {
 		return ErrPolicy
 	}

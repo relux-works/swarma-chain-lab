@@ -101,7 +101,7 @@ func setup(t *testing.T, model ...proxy.Caps) *fixture {
 	if e != nil {
 		t.Fatal(e)
 	}
-	f.gcfg = gateway.Config{AgentKey: agent, Kernel: &kernel.Stub{Verdict: kernel.Live}, Screener: &screen.Stub{}, Publisher: publisher{}, Journal: j, Driver: f.d, Now: now}
+	f.gcfg = gateway.Config{RelayMaxEventBytes: 65536, AgentKey: agent, Kernel: &kernel.Stub{Verdict: kernel.Live}, Screener: &screen.Stub{}, Publisher: publisher{}, Journal: j, Driver: f.d, Now: now}
 	f.g, e = gateway.New(f.gcfg)
 	if e != nil {
 		t.Fatal(e)

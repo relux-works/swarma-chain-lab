@@ -39,20 +39,21 @@ type mainRelay struct {
 	PingIntervalMilliseconds int      `json:"ping_interval_milliseconds,omitempty"`
 }
 type mainServeConfig struct {
-	Version          int                `json:"version"`
-	Mode             string             `json:"mode"`
-	AgentKeyFile     string             `json:"agent_key_file"`
-	AgentPubkey      string             `json:"agent_pubkey"`
-	RelayURL         string             `json:"relay_url"`
-	RelayAuth        string             `json:"relay_auth,omitempty"`
-	RelayReplayLimit int                `json:"relay_replay_limit,omitempty"`
-	JournalDir       string             `json:"journal_dir"`
-	StationSocket    string             `json:"station_socket"`
-	Screening        string             `json:"screening"`
-	Kernel           mainKernelConfig   `json:"kernel"`
-	Exchange         mainExchangeConfig `json:"exchange"`
-	Station          mainStationConfig  `json:"station"`
-	ModelProxy       *gatewayModelProxy `json:"model_proxy,omitempty"`
+	Version            int                `json:"version"`
+	Mode               string             `json:"mode"`
+	AgentKeyFile       string             `json:"agent_key_file"`
+	AgentPubkey        string             `json:"agent_pubkey"`
+	RelayMaxEventBytes int                `json:"relay_max_event_bytes"`
+	RelayURL           string             `json:"relay_url"`
+	RelayAuth          string             `json:"relay_auth,omitempty"`
+	RelayReplayLimit   int                `json:"relay_replay_limit,omitempty"`
+	JournalDir         string             `json:"journal_dir"`
+	StationSocket      string             `json:"station_socket"`
+	Screening          string             `json:"screening"`
+	Kernel             mainKernelConfig   `json:"kernel"`
+	Exchange           mainExchangeConfig `json:"exchange"`
+	Station            mainStationConfig  `json:"station"`
+	ModelProxy         *gatewayModelProxy `json:"model_proxy,omitempty"`
 }
 type mainKernelConfig struct {
 	ConstructionProfile string `json:"construction_profile"`

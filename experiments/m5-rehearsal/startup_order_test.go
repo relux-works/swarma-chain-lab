@@ -67,7 +67,7 @@ func TestStartupOrderingWitness(t *testing.T) {
 	name := "id/ordering-station"
 	secret := []byte(strings.Repeat("x", 32))
 	driver := &orderingDriver{secret: secret}
-	g, e := gateway.New(gateway.Config{AgentKey: agent, Kernel: &kernel.Stub{Verdict: kernel.Live}, Screener: &screen.Stub{}, Journal: store, Publisher: orderingPublisher{}, Driver: driver, Now: func() time.Time { return time.Unix(1000, 0) }})
+	g, e := gateway.New(gateway.Config{RelayMaxEventBytes: 65536, AgentKey: agent, Kernel: &kernel.Stub{Verdict: kernel.Live}, Screener: &screen.Stub{}, Journal: store, Publisher: orderingPublisher{}, Driver: driver, Now: func() time.Time { return time.Unix(1000, 0) }})
 	checked(t, e, "ordering gateway")
 	checked(t, g.RegisterSlot(gateway.SlotSpec{ID: id, StationName: name, RenterPubKey: renter.PubKeyHex(), Certificate: []byte("explicit kernel stub fixture"), ContractSHA256: strings.Repeat("c", 64), BookingID: id, NotBefore: 900, NotAfter: 1200}), "ordering slot")
 	serverDone := make(chan error, 1)

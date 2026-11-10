@@ -195,7 +195,7 @@ func (h *harness) buildGateway() *gateway.Gateway {
 	if h.presenter {
 		presenter = h.kern
 	}
-	gw, err := gateway.New(gateway.Config{
+	gw, err := gateway.New(gateway.Config{RelayMaxEventBytes: 65536,
 		AgentKey: h.agent, Kernel: h.kern, Screener: h.scr,
 		Presenter: presenter, AgentName: h.agentName,
 		Exchange: h.exchange,

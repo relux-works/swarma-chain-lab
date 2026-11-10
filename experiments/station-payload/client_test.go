@@ -64,9 +64,17 @@ func pin(cert *x509.Certificate) string {
 	h := sha256.Sum256(cert.Raw)
 	return hex.EncodeToString(h[:])
 }
-func newFixture(t *testing.T) *fixture {
+func newFixture(t *testing.T, modelReplies ...string) *fixture {
 	t.Helper()
 	f := &fixture{}
+	modelReply := answer
+	if len(modelReplies) > 0 {
+		modelReply = modelReplies[0]
+	}
+	textJSON, e := json.Marshal(modelReply)
+	if e != nil {
+		t.Fatal(e)
+	}
 	f.now.Store(100)
 	up := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.upstream.Add(1)
@@ -78,7 +86,7 @@ func newFixture(t *testing.T) *fixture {
 		if json.Unmarshal(raw, &q) != nil || string(q["service_tier"]) != `"standard_only"` || string(q["inference_geo"]) != `"global"` || string(q["stream"]) != "false" {
 			t.Error("text profile boundary")
 		}
-		io.WriteString(w, `{"id":"fixture","type":"message","role":"assistant","model":"`+modelID+`","content":[{"type":"text","text":"`+answer+`"}],"stop_reason":"end_turn","usage":{"input_tokens":7,"output_tokens":3}}`)
+		io.WriteString(w, `{"id":"fixture","type":"message","role":"assistant","model":"`+modelID+`","content":[{"type":"text","text":`+string(textJSON)+`}],"stop_reason":"end_turn","usage":{"input_tokens":7,"output_tokens":3}}`)
 	}))
 	t.Cleanup(up.Close)
 	f.front = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

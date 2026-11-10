@@ -39,7 +39,11 @@ The CLI requires `-journal-dir /absolute/private/slot-turns`; `Client.Run` requi
 with canonical symlink-free, non-writable ancestry. There is no default. Input is
 persisted before `received`; each `reply` carries its delivery ID. A durable
 ready result is reused across restarts. A crash-left model call becomes the fixed
-reply `uncertain`, with no second model call or charge. Corrupt/private-path/lock
+reply `uncertain`, with no second model call or charge. Before saving ready, the shared NIP-44/full-event relay-size policy replaces an
+oversized reply with the fixed notice `reply exceeded deliverable size`.
+The notice is immutable across retries and lets later deliveries proceed.
+This covers JSON escaping and both encryption layers, without generating twice.
+Corrupt/private-path/lock
 failures refuse `PAYLOAD_JOURNAL` before a usable session.
 
 The journal contains private input/replies and remains bound to the exact
@@ -143,3 +147,10 @@ their separate contracts. No production mode fallback exists. Full signed
 admission tests live in `single-use/configguard`; local ownership seams are
 synthetic and do not qualify Linux deployment. See the deploy runbook for
 same-binary preflight and the separate DK5b payload launch gate.
+
+The authenticated gateway System frame must carry an explicit usable
+`relay_max_event_bytes`. Before saving Ready, the shared delivery-size policy
+checks complete gift-wrap JSON and both NIP44 layers; oversized model text becomes
+the immutable notice `reply exceeded deliverable size`. At cap65536 a32768-byte
+plain result also becomes the notice. Missing/invalid caps refuse before pulling
+work. Keep the cap stable during pending turns; see the gateway DELIVERY.md.

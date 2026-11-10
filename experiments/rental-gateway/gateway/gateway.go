@@ -41,8 +41,9 @@ type Transport = Publisher
 
 // Config wires the gateway. Now defaults to time.Now.
 type Config struct {
-	AgentKey *nostr.PrivKey
-	Kernel   kernel.Checker
+	RelayMaxEventBytes int // required, at or below the deployed relay cap
+	AgentKey           *nostr.PrivKey
+	Kernel             kernel.Checker
 	// Presenter, when set, enables inline certificate presentation
 	// (detached grants): a renter's first message carries the
 	// envelope, later messages are checked against the kernel's
@@ -110,6 +111,17 @@ func New(cfg Config) (*Gateway, error) {
 	if cfg.AgentKey == nil || cfg.Kernel == nil || cfg.Screener == nil ||
 		cfg.Journal == nil || cfg.Publisher == nil || cfg.Driver == nil {
 		return nil, fmt.Errorf("gateway: AgentKey, Kernel, Screener, Journal, Publisher and Driver are required")
+	}
+	if !nostr.ValidDeliveryEventLimit(cfg.RelayMaxEventBytes) {
+		return nil, fmt.Errorf("gateway: relay_max_event_bytes required and out of range")
+	}
+	// A lower new cap cannot rewrite an already signed immutable outbox.
+	for _, slot := range cfg.Journal.All() {
+		for _, d := range slot.Deliveries {
+			if d.Phase == journal.DeliveryReady && len(d.Wire) > cfg.RelayMaxEventBytes {
+				return nil, fmt.Errorf("gateway: pending delivery exceeds relay_max_event_bytes")
+			}
+		}
 	}
 	if cfg.ScreenTimeout <= 0 {
 		cfg.ScreenTimeout = 5 * time.Second

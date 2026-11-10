@@ -15,6 +15,8 @@ func (g *Gateway) replyDelivery(ctx context.Context, slot *journal.Slot, id, con
 	if !utf8.ValidString(content) || len(content) > 32768 {
 		return journal.ErrDelivery
 	}
+	original := content
+	content = nostr.BoundDeliveryReply(content, g.cfg.RelayMaxEventBytes)
 	d, ok := g.cfg.Journal.Delivery(slot.ID, id)
 	if !ok {
 		return journal.ErrDelivery
@@ -34,7 +36,9 @@ func (g *Gateway) replyDelivery(ctx context.Context, slot *journal.Slot, id, con
 		}
 		d.Wire = wire
 	case journal.DeliveryReady, journal.DeliveryAccepted:
-		if d.Reply != content {
+		// Preserve an exact legacy reply whose actual immutable wire fits the cap,
+		// even if the new reserved-metadata preflight is more conservative.
+		if d.Reply != content && d.Reply != original {
 			return journal.ErrDelivery
 		}
 		if d.Phase == journal.DeliveryAccepted {

@@ -56,22 +56,26 @@ func (p *deliveryPublisher) Publish(_ context.Context, e *nostr.Event) error {
 }
 func deliveryGateway(t *testing.T, h *harness, p gateway.Publisher) *gateway.Gateway {
 	t.Helper()
-	g, e := gateway.New(gateway.Config{AgentKey: h.agent, Kernel: h.kern, Screener: h.scr, Journal: h.store, Publisher: p, Driver: h.driver, Now: h.clock.Now, PullTimeout: 20 * time.Millisecond})
+	g, e := gateway.New(gateway.Config{RelayMaxEventBytes: 65536, AgentKey: h.agent, Kernel: h.kern, Screener: h.scr, Journal: h.store, Publisher: p, Driver: h.driver, Now: h.clock.Now, PullTimeout: 20 * time.Millisecond})
 	if e != nil {
 		t.Fatal(e)
 	}
 	h.gw = g
 	return g
 }
-func deliveryConn(t *testing.T, h *harness, g *gateway.Gateway) (*stationlink.Client, func()) {
+func deliveryConn(t *testing.T, h *harness, g *gateway.Gateway, limits ...int) (*stationlink.Client, func()) {
 	t.Helper()
 	a, b := net.Pipe()
 	done := make(chan struct{})
 	go func() { defer close(done); g.HandleStationConn(b) }()
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	c := stationlink.NewClient(a)
-	if f, e := c.Hello("slot-1", "id/swarma-station-1", h.slotSecret("slot-1")); e != nil || f.Type != stationlink.TypeSystem {
-		t.Fatal("hello", e)
+	wantLimit := 65536
+	if len(limits) > 0 {
+		wantLimit = limits[0]
+	}
+	if f, e := c.Hello("slot-1", "id/swarma-station-1", h.slotSecret("slot-1")); e != nil || f.Type != stationlink.TypeSystem || f.RelayMaxEventBytes != wantLimit {
+		t.Fatal("authenticated relay cap mismatch", e)
 	}
 	close := func() {
 		a.Close()

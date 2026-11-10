@@ -163,6 +163,7 @@ func TestMainNativeRefusals(t *testing.T) {
 		{"booking", "config.template.budget_sat", 0, ErrPolicy}, {"booking", "config.limits.max_bytes", 0, ErrPolicy},
 		{"booking", "config.coins.nmc.public_branch", "tpub-invalid", ErrPolicy},
 		{"gateway", "agent_key_file", "/var/lib/swarma-gateway/agent.key", ErrPolicy},
+		{"gateway", "relay_max_event_bytes", 0, ErrPolicy}, {"gateway", "relay_max_event_bytes", 131073, ErrPolicy},
 		{"gateway", "model_proxy", nil, ErrPolicy}, {"gateway", "model_proxy.caps.requests", 0, ErrPolicy},
 		{"gateway", "model_proxy.server_uid", 0, ErrPolicy}, {"gateway", "exchange.payment_coins", []string{"btc"}, ErrNetwork},
 		{"gateway", "exchange.payment_coins", []string{"ltc"}, ErrNetwork}, {"gateway", "kernel.genesis", regtestGenesis, ErrNetwork},

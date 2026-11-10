@@ -24,9 +24,16 @@ type plant struct {
 }
 
 var plants = []plant{
+	{"reply_legacy_size", "gateway", "gateway/delivery.go", "if d.Reply != content && d.Reply != original {", "if d.Reply != content {\n\t\t\t_ = original", "./gateway", "TestDeliveryLegacySizeBoundary", "exact legacy reply refused by conservative bound"},
+	{"reply_relay_bound", "gateway", "nostr/delivery_size.go", "if !ok || n > relayMaxEventBytes {", "if !ok || n > 131072 {", "./nostr", "TestDeliveryReplySize", "delivery relay bound mismatch"},
+	{"reply_cap_required", "gateway", "gateway/gateway.go", "if !nostr.ValidDeliveryEventLimit(cfg.RelayMaxEventBytes) {", "if false && !nostr.ValidDeliveryEventLimit(cfg.RelayMaxEventBytes) {", "./gateway", "TestDeliveryEventLimitStartup", "invalid relay cap admitted"},
+	{"reply_cap_pending", "gateway", "gateway/gateway.go", "if d.Phase == journal.DeliveryReady && len(d.Wire) > cfg.RelayMaxEventBytes {", "if false && d.Phase == journal.DeliveryReady && len(d.Wire) > cfg.RelayMaxEventBytes {", "./gateway", "TestDeliveryEventLimitStartup", "lowered relay cap admitted immutable outbox"},
+	{"reply_size_bound", "gateway", "gateway/delivery.go", "content = nostr.BoundDeliveryReply(content, g.cfg.RelayMaxEventBytes)", "content = content", "./gateway", "TestDeliveryWrappedSizeTerminal", "oversize reply did not become terminal-ready"},
+	{"reply_size_terminal", "gateway", "gateway/delivery.go", "return g.cfg.Journal.ChangeDelivery(slot.ID, id, journal.DeliveryAccepted, \"\", nil)", "return nil", "./gateway", "TestDeliveryWrappedSizeTerminal", "size outcome did not become terminal-accepted"},
+
 	{"input_persist", "gateway", "journal/delivery.go", "if e := st.persistDeliveryLocked(next); e != nil {\n\t\treturn false, e", "if e := error(nil); e != nil {\n\t\treturn false, e", "./journal", "TestDeliveryJournal", "input not durable before screening"},
 	{"input_checksum", "gateway", "journal/delivery.go", "d.Checksum != deliveryChecksum(d) || ", "", "./gateway", "TestDeliveryCorruptOutbox", "corrupt outbox admitted"},
-	{"reply_immutable", "gateway", "gateway/delivery.go", "if d.Reply != content {", "if false && d.Reply != content {", "./gateway", "TestDeliveryCrashRetry", "different reply admitted"},
+	{"reply_immutable", "gateway", "gateway/delivery.go", "if d.Reply != content && d.Reply != original {", "if false && d.Reply != content && d.Reply != original {", "./gateway", "TestDeliveryCrashRetry", "different reply admitted"},
 	{"accepted_dedup", "gateway", "gateway/delivery.go", "if d.Phase == journal.DeliveryAccepted {", "if false && d.Phase == journal.DeliveryAccepted {", "./gateway", "TestDeliveryCrashRetry", "accepted reply published again"},
 	{"exact_wire", "gateway", "gateway/delivery.go", "event, e := nostr.ParseEvent(d.Wire)", "event, _, e := nostr.WrapDM(g.cfg.AgentKey, slot.RenterPubKey, content, [][]string{{\"e\", id}}, g.cfg.Now().Unix())", "./gateway", "TestDeliveryCrashRetry", "retry regenerated signed bytes"},
 	{"write_before_publish", "gateway", "gateway/delivery.go", "e = g.cfg.Journal.ChangeDelivery(slot.ID, id, journal.DeliveryReady, content, wire)", "e = nil", "./gateway", "TestDeliveryWriteBeforePublish", "publish preceded durable outbox"},

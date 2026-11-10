@@ -24,20 +24,21 @@ var errConfig = errors.New("CONFIG_REFUSED")
 var errMode = errors.New("TEST_MODE_REQUIRED")
 
 type serveConfig struct {
-	Version          int               `json:"version"`
-	Mode             string            `json:"mode"`
-	AgentKeyFile     string            `json:"agent_key_file"`
-	AgentPubkey      string            `json:"agent_pubkey"`
-	RelayURL         string            `json:"relay_url"`
-	RelayAuth        string            `json:"relay_auth,omitempty"`
-	RelayReplayLimit int               `json:"relay_replay_limit,omitempty"`
-	JournalDir       string            `json:"journal_dir"`
-	StationSocket    string            `json:"station_socket"`
-	Screening        string            `json:"screening"`
-	Kernel           kernelConfig      `json:"kernel"`
-	Exchange         exchangeConfig    `json:"exchange"`
-	Station          stationConfig     `json:"station"`
-	ModelProxy       *modelProxyConfig `json:"model_proxy,omitempty"`
+	Version            int               `json:"version"`
+	Mode               string            `json:"mode"`
+	AgentKeyFile       string            `json:"agent_key_file"`
+	AgentPubkey        string            `json:"agent_pubkey"`
+	RelayMaxEventBytes int               `json:"relay_max_event_bytes"`
+	RelayURL           string            `json:"relay_url"`
+	RelayAuth          string            `json:"relay_auth,omitempty"`
+	RelayReplayLimit   int               `json:"relay_replay_limit,omitempty"`
+	JournalDir         string            `json:"journal_dir"`
+	StationSocket      string            `json:"station_socket"`
+	Screening          string            `json:"screening"`
+	Kernel             kernelConfig      `json:"kernel"`
+	Exchange           exchangeConfig    `json:"exchange"`
+	Station            stationConfig     `json:"station"`
+	ModelProxy         *modelProxyConfig `json:"model_proxy,omitempty"`
 }
 type kernelConfig struct {
 	ConstructionProfile string `json:"construction_profile"`
@@ -182,7 +183,7 @@ func (c serveConfig) validate(allowTest bool) error {
 	if !c.ModelProxy.valid() || (c.ModelProxy != nil && c.Station.Driver != "manager") || (c.Mode == "main" && (c.ModelProxy == nil || *c.ModelProxy.ServerUID == 0)) {
 		return errConfig
 	}
-	if !gateway.ValidRelayAuth(c.RelayAuth) || (c.RelayReplayLimit != 0 && (c.RelayReplayLimit < 2 || c.RelayReplayLimit > 4096)) {
+	if !nostr.ValidDeliveryEventLimit(c.RelayMaxEventBytes) || !gateway.ValidRelayAuth(c.RelayAuth) || (c.RelayReplayLimit != 0 && (c.RelayReplayLimit < 2 || c.RelayReplayLimit > 4096)) {
 		return errConfig
 	}
 	if c.Exchange.BookingVersion == 1 {

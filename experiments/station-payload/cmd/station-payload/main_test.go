@@ -90,7 +90,7 @@ func TestCLI(t *testing.T) {
 			done <- false
 			return
 		}
-		stationlink.WriteFrame(c, &stationlink.Frame{Type: stationlink.TypeSystem, SlotID: doc.BookingID})
+		stationlink.WriteFrame(c, &stationlink.Frame{Type: stationlink.TypeSystem, RelayMaxEventBytes: 65536, SlotID: doc.BookingID})
 		pull, e := stationlink.ReadFrame(c)
 		if e != nil || pull.Type != stationlink.TypePull {
 			done <- false

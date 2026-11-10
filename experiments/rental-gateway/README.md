@@ -432,3 +432,10 @@ outside this contract. Existing lifecycle notices use their separate path.
 From this module, `go run .scripts/da1-guards.go -out .temp/da1-guards` checks
 bounded durability/dedup guard removals and writes public logs/source hashes.
 Run it alongside the existing module guard scripts in isolated task scratch.
+
+DA1 r1 normalizes replies that exceed the nested NIP-44 or configured full-event relay bound into
+a durable short notice, preventing an unwrappable answer from blocking later
+deliveries. See [DELIVERY.md](DELIVERY.md#reply-size-terminal-outcome-da1-r1) for
+the shared station/gateway policy and recovery. Gateway config now requires
+`relay_max_event_bytes` (no default), at or below the deployed relay cap. Shipped
+gateway templates explicitly use65536; relay defaults are unchanged.

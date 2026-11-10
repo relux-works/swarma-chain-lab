@@ -483,7 +483,7 @@ func TestGatewayV3CoreE2E(t *testing.T) {
 	pub := &collectPub{}
 	fixed := time.Unix(500, 0)
 	screener := &screen.Stub{}
-	g, err := gw.New(gw.Config{
+	g, err := gw.New(gw.Config{RelayMaxEventBytes: 65536,
 		AgentKey: agent, Kernel: adapter, Presenter: adapter, AgentName: e2eAgentName,
 		Screener: screener, Journal: store, Publisher: pub,
 		Driver:   &station.LocalTestDriver{Root: filepath.Join(l.root, "stations")},

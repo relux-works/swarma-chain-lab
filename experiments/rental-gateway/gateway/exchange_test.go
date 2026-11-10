@@ -199,7 +199,7 @@ func TestExchangeGatewayIdentity(t *testing.T) {
 	s := &slowExchange{entered: make(chan struct{}), release: make(chan struct{})}
 	e := exchangeEngine(t, s)
 	h := newHarness(t, harnessOpts{exchange: e, agentName: e.AgentName(), skipRegister: true})
-	_, err := gateway.New(gateway.Config{AgentKey: h.agent, AgentName: "id/wrong", Kernel: h.kern, Screener: h.scr, Journal: h.store, Publisher: h.pub, Driver: h.driver, Exchange: e})
+	_, err := gateway.New(gateway.Config{RelayMaxEventBytes: 65536, AgentKey: h.agent, AgentName: "id/wrong", Kernel: h.kern, Screener: h.scr, Journal: h.store, Publisher: h.pub, Driver: h.driver, Exchange: e})
 	if err == nil || err.Error() != "gateway: exchange agent name mismatch" {
 		t.Fatalf("gateway exchange identity mismatch accepted: %v", err)
 	}

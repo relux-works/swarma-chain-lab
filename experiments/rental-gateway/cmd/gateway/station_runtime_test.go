@@ -103,7 +103,7 @@ func TestRemoteStationTransport(t *testing.T) {
 	defer r.close()
 	key, _ := nostr.GeneratePrivKey()
 	renter, _ := nostr.GeneratePrivKey()
-	g, e := gateway.New(gateway.Config{AgentKey: key, Kernel: &kernel.Stub{Verdict: kernel.Live}, Screener: screen.Off{}, Publisher: remotePublisher{}, Journal: j, Driver: r.driver, Endpoint: r.endpoint, PullTimeout: 50 * time.Millisecond})
+	g, e := gateway.New(gateway.Config{RelayMaxEventBytes: 65536, AgentKey: key, Kernel: &kernel.Stub{Verdict: kernel.Live}, Screener: screen.Off{}, Publisher: remotePublisher{}, Journal: j, Driver: r.driver, Endpoint: r.endpoint, PullTimeout: 50 * time.Millisecond})
 	if e != nil {
 		t.Fatal(e)
 	}

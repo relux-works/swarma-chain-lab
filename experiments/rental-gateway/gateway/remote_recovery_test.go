@@ -54,7 +54,7 @@ func TestRemoteRecoveryEndDestroy(t *testing.T) {
 				h := newHarness(t, harnessOpts{skipStart: true})
 				d := &remoteRecoveryDriver{}
 				build := func() *gateway.Gateway {
-					g, e := gateway.New(gateway.Config{AgentKey: h.agent, Kernel: h.kern, Screener: h.scr, Journal: h.store, Publisher: h.pub, Driver: d, Now: h.clock.Now})
+					g, e := gateway.New(gateway.Config{RelayMaxEventBytes: 65536, AgentKey: h.agent, Kernel: h.kern, Screener: h.scr, Journal: h.store, Publisher: h.pub, Driver: d, Now: h.clock.Now})
 					if e != nil {
 						t.Fatal(e)
 					}

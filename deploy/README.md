@@ -303,3 +303,10 @@ calibrates21 bounded Go-overlay plants; inputs/source remain unchanged. Run test
 with the repository's isolated HOME/cache/temp contract. Ownership seams are
 synthetic; modes, descriptors, hashes and scratch-key signatures are real.
 Three plants check exact reasons with downstream rejection still intact.
+
+Gateway service configs require `relay_max_event_bytes` without a default. Both
+shipped gateway templates explicitly use65536, matching the unchanged relay
+default. Operators must keep this value at or below the deployed relay
+`max_event_bytes`; the gateway cannot attest the remote config. Native startup
+validates the usable range and pending immutable outbox. Large replies become a
+fixed terminal size notice; this field does not enable chunking.

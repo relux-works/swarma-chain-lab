@@ -51,3 +51,9 @@ DA1 adds the application reply outbox described in [DELIVERY.md](DELIVERY.md).
 It does not add a third-party renter inbox/display receipt, remote model-result
 lookup (DA1b), or supervisor restart/provisioning policy (Infra/DK5b). Retain
 per-slot journals across restart; do not reset them to recover availability.
+
+DA1 r1 requires an explicit `relay_max_event_bytes` deployment assertion, not
+remote discovery. Match or undercut the deployed relay cap. Shared sizing covers
+both NIP44 layers and full event bytes; oversized results become a durable fixed
+notice. The default65536 cap therefore converts32768-byte plain results to that
+notice. Chunking remains outside this change. See DELIVERY.md.

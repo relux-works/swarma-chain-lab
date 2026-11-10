@@ -501,7 +501,8 @@ func (g *Gateway) stationAuth(state *connState, frame *stationlink.Frame,
 	state.boundSlot = slot.ID
 	return &stationlink.Frame{
 		Type: stationlink.TypeSystem, SlotID: slot.ID,
-		RenterPubKey: slot.RenterPubKey, ContractSHA256: slot.ContractSHA256,
+		RelayMaxEventBytes: g.cfg.RelayMaxEventBytes,
+		RenterPubKey:       slot.RenterPubKey, ContractSHA256: slot.ContractSHA256,
 		NotAfter: slot.NotAfter,
 	}
 }

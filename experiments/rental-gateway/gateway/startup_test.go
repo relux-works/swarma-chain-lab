@@ -69,7 +69,7 @@ func newStartupFixture(t *testing.T) *startupFixture {
 	agent, _ := nostr.GeneratePrivKey()
 	renter, _ := nostr.GeneratePrivKey()
 	f.renter = renter
-	f.config = gateway.Config{AgentKey: agent, Kernel: &kernel.Stub{Verdict: kernel.Live}, Screener: &screen.Stub{}, Journal: f.store, Publisher: f.pub, Driver: f.d, Now: func() time.Time { return time.Unix(nowMid, 0) }}
+	f.config = gateway.Config{RelayMaxEventBytes: 65536, AgentKey: agent, Kernel: &kernel.Stub{Verdict: kernel.Live}, Screener: &screen.Stub{}, Journal: f.store, Publisher: f.pub, Driver: f.d, Now: func() time.Time { return time.Unix(nowMid, 0) }}
 	f.g, err = gateway.New(f.config)
 	if err != nil {
 		t.Fatal(err)

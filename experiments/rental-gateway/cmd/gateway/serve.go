@@ -167,7 +167,7 @@ func serve(parent context.Context, c serveConfig) error {
 		return e
 	}
 	defer runtime.close()
-	gw, e := gateway.New(gateway.Config{AgentKey: key, AgentName: c.Kernel.AgentName, Kernel: checker, Presenter: presenter, Screener: screener, Journal: store, Publisher: relay, Driver: runtime.driver, Endpoint: runtime.endpoint, Exchange: eng, PullTimeout: time.Second})
+	gw, e := gateway.New(gateway.Config{RelayMaxEventBytes: c.RelayMaxEventBytes, AgentKey: key, AgentName: c.Kernel.AgentName, Kernel: checker, Presenter: presenter, Screener: screener, Journal: store, Publisher: relay, Driver: runtime.driver, Endpoint: runtime.endpoint, Exchange: eng, PullTimeout: time.Second})
 	if e != nil {
 		return errors.New("GATEWAY_CONSTRUCTION")
 	}

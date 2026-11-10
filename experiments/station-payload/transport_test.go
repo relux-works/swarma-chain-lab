@@ -5,12 +5,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -66,7 +68,7 @@ func TestScriptedSession(t *testing.T) {
 					fail()
 					return
 				}
-				stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeSystem, SlotID: b.BookingID})
+				stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeSystem, RelayMaxEventBytes: 65536, SlotID: b.BookingID})
 				for i, text := range []string{prompt, "__extend__", "__end_early__"} {
 					pull, e := stationlink.ReadFrame(conn)
 					if e != nil || pull.Type != stationlink.TypePull {
@@ -404,3 +406,81 @@ func TestResponseLossAccounting(t *testing.T) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// The authenticated System frame must supply a usable explicit cap. Missing,
+// too-small and too-large caps stop before Pull/model/turn writes; the nearby
+// valid cap permits Pull and clean End on the same actual TLS/HMAC path.
+func TestSessionRelayCap(t *testing.T) {
+	for _, cap := range []int{0, 1, 131073, 65536} {
+		t.Run(strconv.Itoa(cap), func(t *testing.T) {
+			f := newFixture(t)
+			dir := root(t)
+			c, e := New(encoded(t, f.doc), Options{JournalDir: dir, Model: modelID, MaxTokens: 10, Roots: f.roots})
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer c.Close()
+			ln, e := tls.Listen("tcp", "127.0.0.1:0", f.front.TLS.Clone())
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer ln.Close()
+			done := make(chan error, 1)
+			go func() {
+				conn, e := ln.Accept()
+				if e != nil {
+					done <- e
+					return
+				}
+				defer conn.Close()
+				conn.SetDeadline(time.Now().Add(5 * time.Second))
+				hello, e := stationlink.ReadFrame(conn)
+				if e != nil || hello.Type != stationlink.TypeHello {
+					done <- ErrChannel
+					return
+				}
+				nonce := strings.Repeat("a", 64)
+				if e = stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeChallenge, Nonce: nonce}); e != nil {
+					done <- e
+					return
+				}
+				auth, e := stationlink.ReadFrame(conn)
+				if e != nil || auth.Type != stationlink.TypeAuth || !stationlink.VerifyResponse(f.doc.ChannelSecret, nonce, f.doc.BookingID, f.doc.StationName, auth.Response) {
+					done <- ErrChannel
+					return
+				}
+				if e = stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeSystem, SlotID: f.doc.BookingID, RelayMaxEventBytes: cap}); e != nil {
+					done <- e
+					return
+				}
+				next, e := stationlink.ReadFrame(conn)
+				if cap != 65536 {
+					if e == nil {
+						done <- errors.New("invalid cap allowed Pull")
+						return
+					}
+					done <- nil
+					return
+				}
+				if e != nil || next.Type != stationlink.TypePull {
+					done <- ErrChannel
+					return
+				}
+				done <- stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeEnd})
+			}()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			e = c.Run(ctx, ln.Addr().String(), f.doc.ModelCertSHA256, f.roots)
+			if cap == 65536 && e != nil || cap != 65536 && !errors.Is(e, ErrChannel) {
+				t.Fatal("station relay cap guard missing", e)
+			}
+			if e = <-done; e != nil {
+				t.Fatal(e)
+			}
+			turns, e := filepath.Glob(filepath.Join(dir, "turn-*.json"))
+			if e != nil || len(turns) != 0 || f.upstream.Load() != 0 || f.requests.Load() != 0 {
+				t.Fatal("invalid relay cap caused work")
+			}
+		})
+	}
+}

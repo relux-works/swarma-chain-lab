@@ -39,7 +39,7 @@ func testConfig(t *testing.T) serveConfig {
 	if e != nil {
 		t.Fatal(e)
 	}
-	return serveConfig{Version: 1, Mode: "test", AgentKeyFile: filepath.Join(root, "agent.key"), AgentPubkey: key.PubKeyHex(), RelayURL: "ws://127.0.0.1:7777", JournalDir: filepath.Join(root, "journal"), StationSocket: filepath.Join(root, "s.sock"), Screening: "off",
+	return serveConfig{RelayMaxEventBytes: 65536, Version: 1, Mode: "test", AgentKeyFile: filepath.Join(root, "agent.key"), AgentPubkey: key.PubKeyHex(), RelayURL: "ws://127.0.0.1:7777", JournalDir: filepath.Join(root, "journal"), StationSocket: filepath.Join(root, "s.sock"), Screening: "off",
 		Kernel:   kernelConfig{ConstructionProfile: "W", Kind: "real", Network: "regtest", Genesis: su.RegtestGenesis, AgentName: "id/test-agent", LandlordName: "id/test-landlord", IssuerPubkey: key.PubKeyHex(), SealScript: seal, StateDir: filepath.Join(root, "kernel"), RPCHost: "127.0.0.1", RPCPort: 18443, RPCRouteFile: filepath.Join(root, "route.json")},
 		Exchange: exchangeConfig{BookingVersion: 2, PaymentCoins: []exchange.Coin{exchange.NMC}, StateDir: filepath.Join(root, "exchange"), BookingURL: "http://127.0.0.1:18819", PresentationsDir: filepath.Join(root, "presentations"), PrivacySHA256: booking.Hash([]byte(booking.PrivacyNotice)), TemplateSHA256: booking.Hash([]byte("template fixture")), ProfileSHA256: booking.Hash([]byte("profile fixture")), PowBits: 4, MaxClients: 8, QueueSize: 8, Burst: 4, MaxReplay: 8, RefillSeconds: 1, KnownSeconds: 600, MessageAgeSeconds: 300, PollMilliseconds: 20, CallMilliseconds: 2000},
 		Station:  stationConfig{Driver: "local-test", Root: filepath.Join(root, "stations")},
@@ -71,6 +71,9 @@ func TestConfigBoundary(t *testing.T) {
 		{"rpc-port", func(c *serveConfig) { c.Kernel.RPCPort = 0 }, errConfig},
 		{"rpc-path", func(c *serveConfig) { c.Kernel.RPCRouteFile = "relative" }, errConfig},
 		{"relay", func(c *serveConfig) { c.RelayURL = "ws://example.com:7777" }, errConfig},
+		{"relay-size-zero", func(c *serveConfig) { c.RelayMaxEventBytes = 0 }, errConfig},
+		{"relay-size-small", func(c *serveConfig) { c.RelayMaxEventBytes = 1 }, errConfig},
+		{"relay-size-large", func(c *serveConfig) { c.RelayMaxEventBytes = 131073 }, errConfig},
 		{"relay-page-small", func(c *serveConfig) { c.RelayReplayLimit = 1 }, errConfig},
 		{"relay-page-large", func(c *serveConfig) { c.RelayReplayLimit = 4097 }, errConfig},
 		{"booking-userinfo", func(c *serveConfig) { c.Exchange.BookingURL = "http://user@127.0.0.1:18819" }, errConfig},
@@ -129,7 +132,7 @@ func TestConfigFiles(t *testing.T) {
 	os.Chmod(root, 0750)
 	raw, _ := json.Marshal(c)
 	file := filepath.Join(root, "config.json")
-	for _, bad := range [][]byte{append(append([]byte{}, raw...), raw...), []byte(strings.Replace(string(raw), `"version":1`, `"version":1,"version":1`, 1)), []byte(strings.Replace(string(raw), `"version"`, `"Version"`, 1)), []byte(strings.Replace(string(raw), `"version":1`, `"version":1,"unknown":"marker"`, 1)), []byte(strings.Repeat("x", 65537))} {
+	for _, bad := range [][]byte{[]byte(strings.Replace(string(raw), `"relay_max_event_bytes":65536,`, "", 1)), append(append([]byte{}, raw...), raw...), []byte(strings.Replace(string(raw), `"version":1`, `"version":1,"version":1`, 1)), []byte(strings.Replace(string(raw), `"version"`, `"Version"`, 1)), []byte(strings.Replace(string(raw), `"version":1`, `"version":1,"unknown":"marker"`, 1)), []byte(strings.Repeat("x", 65537))} {
 		writeInstalled(t, file, bad)
 		if _, e := loadConfig(file, true); !errors.Is(e, errConfig) && (e == nil || e.Error() != "DK5_FILE_SIZE") {
 			t.Fatal("strict config accepted")

@@ -3,15 +3,15 @@ package relay
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"path/filepath"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/gateway"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/journal"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/screen"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/station"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -103,7 +103,7 @@ func TestNativeReconnectPagination(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	gw, e := gateway.New(gateway.Config{AgentKey: agent, Kernel: &kernel.Stub{Verdict: kernel.Live}, Screener: screen.Off{}, Journal: store, Publisher: discardPublisher{}, Driver: &station.LocalTestDriver{Root: filepath.Join(t.TempDir(), "stations")}})
+	gw, e := gateway.New(gateway.Config{RelayMaxEventBytes: 65536, AgentKey: agent, Kernel: &kernel.Stub{Verdict: kernel.Live}, Screener: screen.Off{}, Journal: store, Publisher: discardPublisher{}, Driver: &station.LocalTestDriver{Root: filepath.Join(t.TempDir(), "stations")}})
 	if e != nil {
 		t.Fatal(e)
 	}

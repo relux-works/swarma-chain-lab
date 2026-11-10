@@ -76,17 +76,18 @@ const (
 
 // Frame is one protocol message. Only fields relevant to Type are set.
 type Frame struct {
-	Type           string `json:"type"`
-	SlotID         string `json:"slot_id,omitempty"`
-	StationName    string `json:"station_name,omitempty"`
-	RenterPubKey   string `json:"renter_pubkey,omitempty"`
-	ContractSHA256 string `json:"contract_sha256,omitempty"`
-	NotAfter       int64  `json:"not_after,omitempty"`
-	DeliveryID     string `json:"delivery_id,omitempty"`
-	Content        string `json:"content,omitempty"`
-	Reason         string `json:"reason,omitempty"`
-	Nonce          string `json:"nonce,omitempty"`    // challenge: 64 lower hex (32 bytes)
-	Response       string `json:"response,omitempty"` // auth: 64 lower hex HMAC-SHA256
+	RelayMaxEventBytes int    `json:"relay_max_event_bytes,omitempty"`
+	Type               string `json:"type"`
+	SlotID             string `json:"slot_id,omitempty"`
+	StationName        string `json:"station_name,omitempty"`
+	RenterPubKey       string `json:"renter_pubkey,omitempty"`
+	ContractSHA256     string `json:"contract_sha256,omitempty"`
+	NotAfter           int64  `json:"not_after,omitempty"`
+	DeliveryID         string `json:"delivery_id,omitempty"`
+	Content            string `json:"content,omitempty"`
+	Reason             string `json:"reason,omitempty"`
+	Nonce              string `json:"nonce,omitempty"`    // challenge: 64 lower hex (32 bytes)
+	Response           string `json:"response,omitempty"` // auth: 64 lower hex HMAC-SHA256
 }
 
 // MaxFrameBytes bounds one frame (DM rumor content is <= 64 KiB by

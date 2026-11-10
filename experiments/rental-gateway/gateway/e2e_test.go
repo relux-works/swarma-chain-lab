@@ -113,7 +113,7 @@ func TestRelayEndToEnd(t *testing.T) {
 	defer os.RemoveAll(sockDir)
 	sockPath := sockDir + "/s.sock"
 	clock := &testClock{t: nowMid}
-	gw, err := gateway.New(gateway.Config{
+	gw, err := gateway.New(gateway.Config{RelayMaxEventBytes: 65536,
 		AgentKey: agent, Kernel: &kernel.Stub{Verdict: kernel.Live},
 		Screener: &screen.Stub{}, Journal: store, Publisher: relayClient,
 		Driver: &station.LocalTestDriver{Root: t.TempDir()}, Endpoint: sockPath,

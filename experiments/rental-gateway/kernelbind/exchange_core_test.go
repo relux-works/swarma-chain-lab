@@ -183,7 +183,7 @@ func runExchangeCore(t *testing.T, revoked bool) {
 	sock := filepath.Join(sockDir, "s.sock")
 	pub := &collectPub{}
 	screener := &screen.Stub{}
-	g, err := gw.New(gw.Config{AgentKey: agent, Kernel: kernel, Presenter: kernel, AgentName: e2eAgentName, Journal: store, Publisher: pub, Screener: screener, Driver: &station.LocalTestDriver{Root: filepath.Join(l.root, "stations")}, Endpoint: sock, PullTimeout: 50 * time.Millisecond, Now: clock, Exchange: engine})
+	g, err := gw.New(gw.Config{RelayMaxEventBytes: 65536, AgentKey: agent, Kernel: kernel, Presenter: kernel, AgentName: e2eAgentName, Journal: store, Publisher: pub, Screener: screener, Driver: &station.LocalTestDriver{Root: filepath.Join(l.root, "stations")}, Endpoint: sock, PullTimeout: 50 * time.Millisecond, Now: clock, Exchange: engine})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,13 @@ func runExchangeCore(t *testing.T, revoked bool) {
 	if err = json.Unmarshal([]byte(strings.TrimPrefix(receive("terms\n"), "terms\n")), &terms); err != nil || len(terms.Slots) != 1 || terms.Slots[0].ID != "one" {
 		t.Fatalf("terms: %+v %v", terms, err)
 	}
+	// The current command contract requires an explicit coin. The old command
+	// must remain a no-booking refusal before its valid NMC neighbor.
 	send("book demo one", false, nil)
+	if receive(exchange.Help) != exchange.Help {
+		t.Fatal("coinless booking admitted")
+	}
+	send("book demo one nmc", false, nil)
 	var contractReply struct {
 		BookingID string `json:"booking_id"`
 		Hash      string `json:"contract_sha256"`

@@ -18,10 +18,25 @@ import (
 // Actual TLS/HMAC sessions and the real model proxy are reopened at interrupted
 // persistence/ACK boundaries. This is controlled fault injection, not a power-loss
 // simulation. Replays retain the recorded answer and never repeat model work.
-func TestTurnSessionRecovery(t *testing.T) {
+func TestTurnSessionRecovery(t *testing.T) { turnSessionRecovery(t, answer, answer) }
+
+// The actual proxy returns maximum-size escaped/plain text. The station saves
+// the bounded outcome before ready and reuses it after lost ACK/restart without
+// another generation. Ready-write failure retains the existing uncertain rule.
+func TestTurnWrappedSizeRecovery(t *testing.T) {
+	for _, tc := range []struct{ name, text, want string }{
+		{"html", strings.Repeat("<", 32768), "reply exceeded deliverable size"},
+		{"quotes", strings.Repeat(`"`, 32768), "reply exceeded deliverable size"},
+		{"plain", strings.Repeat("a", 32768), "reply exceeded deliverable size"},
+		{"fitting", strings.Repeat("a", 24000), strings.Repeat("a", 24000)},
+	} {
+		t.Run(tc.name, func(t *testing.T) { turnSessionRecovery(t, tc.text, tc.want) })
+	}
+}
+func turnSessionRecovery(t *testing.T, modelAnswer, expectedAnswer string) {
 	for _, fault := range []string{"before-record", "receive-ack", "reply-ack", "ready-write", "changed-input"} {
 		t.Run(fault, func(t *testing.T) {
-			f := newFixture(t)
+			f := newFixture(t, modelAnswer)
 			dir := root(t)
 			id := strings.Repeat("d", 64)
 			run := func(mode, input string) (error, string) {
@@ -91,7 +106,7 @@ func TestTurnSessionRecovery(t *testing.T) {
 						if !stationlink.VerifyResponse(f.doc.ChannelSecret, nonce, f.doc.BookingID, f.doc.StationName, auth.Response) {
 							return fmt.Errorf("auth")
 						}
-						if e = send(&stationlink.Frame{Type: stationlink.TypeSystem, SlotID: f.doc.BookingID}); e != nil {
+						if e = send(&stationlink.Frame{Type: stationlink.TypeSystem, RelayMaxEventBytes: 65536, SlotID: f.doc.BookingID}); e != nil {
 							return e
 						}
 						if _, e = read(stationlink.TypePull); e != nil {
@@ -144,6 +159,13 @@ func TestTurnSessionRecovery(t *testing.T) {
 						}
 						if reply.DeliveryID != id {
 							return fmt.Errorf("reply ID")
+						}
+						raw, e = os.ReadFile(filepath.Join(dir, "turn-"+id+".json"))
+						if e != nil || json.Unmarshal(raw, &saved) != nil || !validTurn(saved) || saved.Reply != reply.Content || (saved.Phase != "ready" && saved.Phase != "accepted") {
+							return fmt.Errorf("reply preceded durable ready outcome")
+						}
+						if reply.Content != expectedAnswer && reply.Content != TurnUncertain {
+							return fmt.Errorf("station saved unwrappable ready reply")
 						}
 						output = reply.Content
 						if mode == "reply-ack" {
@@ -204,7 +226,7 @@ func TestTurnSessionRecovery(t *testing.T) {
 					t.Fatal("refusal changed durable state")
 				}
 			}
-			want := answer
+			want := expectedAnswer
 			if fault == "ready-write" {
 				want = TurnUncertain
 			}
