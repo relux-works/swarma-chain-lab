@@ -162,7 +162,7 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 		}
 	}
 	m := Manifest{Version: 1, Commit: in.Commit, GoVersion: GoVersion, GOOS: "linux", GOARCH: "amd64", CGOEnabled: "0", BuildFlags: []string{"-trimpath", "-buildvcs=false", "-mod=readonly"}, Artifacts: append([]Artifact(nil), releaseArtifacts...), Pending: []Artifact{
-		{Service: "courier", Status: "pending", Reason: "courier deployment integration not included in this kit"},
+		{Service: "a2ad", Status: "pending", Reason: "a2a daemon deployment integration not included in this kit"},
 	}}
 	stage := filepath.Join(work, "bundle")
 	if e = os.MkdirAll(filepath.Join(stage, "bin"), 0700); e != nil {

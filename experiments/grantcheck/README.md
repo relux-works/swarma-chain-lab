@@ -1,11 +1,11 @@
-# Grant check boundary for Courier (CG1)
+# Grant check boundary for a2a daemon (a2ad) (CG1)
 
 Go 1.26 library over the landed K1 v3 kernel and M2-05 kernelbind. It returns
 `live`, `refused` or inbound-only `exchange`; it never writes a mailbox, wakes
 a model, signs a reply, books a rental or broadcasts a transaction. Only a fresh
-live result permits Courier's adjacent inbox/sign/send operation.
+live result permits a2a daemon's adjacent inbox/sign/send operation.
 
-Construct one `Checker` for an authenticated Courier identity with `New(Config)`.
+Construct one `Checker` for an authenticated a2a daemon identity with `New(Config)`.
 Pin `Identity`, `AgentName`, `LandlordName`, `IssuerPubkey`, a canonical absolute
 owner-private 0700 `StateDir`, and the verifier's own read-only `Node`. Identity
 labels contain 1..128 lowercase ASCII letters, digits, dots, hyphens or underscores.
@@ -33,7 +33,7 @@ again. Only lowercase valid BIP-340 peer keys and proofs of at most 16384 bytes
 are accepted. Proof cache limits remain K1's 64 senders / 60000 aggregate bytes.
 
 `Retryable` is true only for `verifier_unavailable`, `state_unavailable`, `busy`,
-`cancelled`, `clock_invalid`, `grant_pending` and `identity_pending`. Courier
+`cancelled`, `clock_invalid`, `grant_pending` and `identity_pending`. a2a daemon
 retains those events in its bounded held queue and checks again; cursor progress
 must not discard them. An inbound `exchange` goes to the separate bounded
 per-identity exchange spool, never the agent inbox or model. Scope is returned
@@ -41,9 +41,9 @@ only for live results and remains metadata, not execution authority.
 
 The fork a2a-link registers CG1 at build time and uses Go 1.26. Upstream a2a stays
 on Go 1.25 and has no chain-lab dependency. Only Nostr identities with a grant
-policy call the checker; Courier rejects grant policy on Matrix at startup.
+policy call the checker; a2a daemon rejects grant policy on Matrix at startup.
 Owner DM stays on Matrix outside admission, with no owner bypass on Nostr v1.
-Courier v1 supplies a full grant-cert only and does not resolve S1. These
+a2a daemon v1 supplies a full grant-cert only and does not resolve S1. These
 integration responsibilities are specified here, not implemented in a2a by CG1.
 
 Infra provisions the exact `w3-observer` username required by the reused

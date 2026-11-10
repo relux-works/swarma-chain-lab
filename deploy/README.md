@@ -12,7 +12,7 @@ screening off in its manifest row and native config. Gateway, booking, store and
 have systemd templates. The gateway still requires operator-pinned payload/TLS
 inputs and real Linux host acceptance; compilation is not deployment evidence.
 Signer, model proxy and station manager have separate units; the scripted payload
-has only a documented root-policy requirements table for Infra. Courier/CG1
+has only a documented root-policy requirements table for Infra. a2a daemon (a2ad)/CG1
 remains a pending manifest row. [SMOKE-DK2.md](SMOKE-DK2.md) gives the new services'
 install order and explicit external transport/host qualification gates.
 

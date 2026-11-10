@@ -42,7 +42,7 @@ qualification requires Linux; a compiled Linux binary is not acceptance evidence
 - Infra must provision a private append-only booking/operator intake mirror on
   the signer host and confirmed presentation transport to the gateway. Native
   signer S1 access is loopback HTTP only; an explicitly qualified local forwarding
-  route to the public store is required. No courier or network fallback is added.
+  route to the public store is required. No a2a daemon (a2ad) or network fallback is added.
 - Gateway and model proxy admin socket must share one host. Approved UID/group,
   TLS, model table, prices, per-slot caps and provider/station egress CIDRs remain
   deployment inputs. Existing socket/state is preserved on refusal.

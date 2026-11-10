@@ -79,7 +79,7 @@ service startup still validates its own complete runtime configuration.
 
 Booking and store units can use their actual flags, own OS users, strict system
 protection, NoNewPrivileges, PrivateTmp, MemoryMax and only their service state
-as writable storage. SG1, Courier/CG1 and Nostr transport get pending manifest
+as writable storage. SG1, a2a daemon (a2ad)/CG1 and Nostr transport get pending manifest
 rows only, with no guessed executables or templates.
 
 ## Decision required: gateway runtime gap

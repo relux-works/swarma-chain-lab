@@ -3,7 +3,7 @@
 This is a plan for Infra, not evidence of a host deployment. The public host runs
 linux/amd64. Nothing here authorizes a mainnet transaction, creates wallet keys,
 changes custody, or bypasses host acceptance. Keep existing state and keys.
-Signer, Courier and Nostr transport are pending manifest rows, not services to
+Signer, a2a daemon (a2ad) and Nostr transport are pending manifest rows, not services to
 guess or install from this kit.
 
 ## 1. Release workstation: build, review and sign
@@ -204,7 +204,7 @@ restart and cleanup against the host before claiming operational acceptance.
 
 This smoke establishes installed identity/hashes, regtest read route, process
 availability, loopback listener bounds and S1's unsigned-access refusal. It does
-not establish full M5 rental/issuance/signing/exchange acceptance. SG1/Courier/
+not establish full M5 rental/issuance/signing/exchange acceptance. SG1/a2a daemon/
 transport deployment is not in this kit. Infra and the lane
 must finish the separate genuine regtest end-to-end acceptance before any later
 mainnet decision. The owner's exact GO and caps remain required for mainnet transactions.

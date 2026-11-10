@@ -1,31 +1,31 @@
-# CG1: grant verification boundary for Courier
+# CG1: grant verification boundary for a2a daemon (a2ad)
 
 Status: implementation baseline with integration-owner corrections. This note
-defines the Go library contract for the a2a maintainers; it does not claim Courier
+defines the Go library contract for the a2a maintainers; it does not claim a2a daemon
 hooks are already installed. Base: chain-lab `c7dd20fa33c0d8827c73c4c847e3d60cbeb1e4c6`.
 The module is `experiments/grantcheck`: a verifier and routing decision, with no
 mailbox, transport send, messaging key, booking, exchange text or model capability.
 
 ## 1. Ownership and integration boundary
 
-Courier authenticates the station and resolves its identity, configured connection
+a2a daemon authenticates the station and resolves its identity, configured connection
 and store before invoking this library. The checker belongs to that resolved
 per-identity engine. A request's `--as`, profile or connection fingerprint may be
-assertions checked by Courier, never selectors supplied to the checker. No global
+assertions checked by a2a daemon, never selectors supplied to the checker. No global
 "current identity", fallback engine, cross-station cache, or request-controlled
 node route/state directory is permitted.
 
-The trusted engine constructor pins the Courier identity, rented agent Namecoin
+The trusted engine constructor pins the a2a daemon identity, rented agent Namecoin
 name, landlord Namecoin name, issuer grant key, canonical private state directory,
 verifier clock and read-only node. The library copies that configuration, builds
 the landed `kernelbind.Adapter`, and does not expose mutable policy. Identity and
 policy binding are persisted separately from K1's own records. Opening the same
 state root with a different identity or pins fails; it never relabels a cache.
 Separate engine identities require separate private state roots. Binding these
-roots to the authenticated station is Courier's responsibility, tested at its
+roots to the authenticated station is a2a daemon's responsibility, tested at its
 integration boundary; a string passed by an untrusted station is not proof.
 
-The a2a maintainers own insertion of the following calls once Courier's
+The a2a maintainers own insertion of the following calls once a2a daemon's
 per-identity engine boundary settles. CG1 changes no a2a-swarm source:
 
 | Direction | Call point | Only a live verdict permits |
@@ -39,9 +39,9 @@ writes, waking the model, signing arbitrary replies or creating an instance.
 A `refused` result performs neither privileged action nor automatic exchange
 fallback. No outbound result is `exchange`.
 
-Courier parks `Retryable` refusals in a bounded held queue and checks them again;
+a2a daemon parks `Retryable` refusals in a bounded held queue and checks them again;
 advancing the transport cursor must not silently discard these renter messages.
-Queue capacity, persistence, expiry and overflow are Courier's contract. CG1
+Queue capacity, persistence, expiry and overflow are a2a daemon's contract. CG1
 does not own a queue or turn a retryable refusal into admission.
 
 Upstream a2a defines an `admission` interface with no policy by default. The
@@ -50,7 +50,7 @@ Only Nostr identities configured with a grant policy call this checker, using th
 transport-verified inner seal key. A grant policy on a Matrix identity refuses
 at startup. The existing Matrix owner DM remains outside grant admission; v1
 has no owner bypass on Nostr. Transport selection and startup validation belong
-to Courier, not to an extra caller-controlled checker argument.
+to a2a daemon, not to an extra caller-controlled checker argument.
 
 Outbound means agent-originated replies, not the exchange's fixed protocol
 responses. The exchange is separately trusted and rate-limited; routing a normal
@@ -116,7 +116,7 @@ on an exchange/refused result. Closed means K1 established durable closure, not
 
 ## 3. Proof acquisition and validation
 
-Courier's transport boundary extracts at most one exact `grant-cert` rumor tag:
+a2a daemon's transport boundary extracts at most one exact `grant-cert` rumor tag:
 `["grant-cert", grant_id, base64_presentation]`. Match M2-05's strict spelling,
 arity, lowercase 64-hex ID and base64 length bound before decoding. Reject duplicate
 tags and oversized encoded input before allocation. Decoded proof must be 1..16384
@@ -128,7 +128,7 @@ parser for signed metadata; it does not reimplement cryptography or signed wire.
 No v1/v2 fallback exists. Malformed, bad-ID or foreign-sender proof cannot fall
 back to an old cache entry. No message text is accepted by the library API.
 
-In v1 Courier accepts only a full grant-cert presentation and does not use S1.
+In v1 a2a daemon accepts only a full grant-cert presentation and does not use S1.
 For future resolver integration, S1 is not a presentation oracle:
 `grant-store.Client.GetGrant` returns canonical
 **signed grant** bytes keyed by grant ID; it does not return the issuance locator.
@@ -177,7 +177,7 @@ inbox/sign/send. Unknown future K1 reasons map to
 `Retryable` is true exactly for `verifier_unavailable`, `state_unavailable`,
 `busy`, `cancelled`, `clock_invalid`, `grant_pending` and `identity_pending`.
 It is false for every live/exchange result and every other refusal. This fixed
-classification lets Courier retain transiently blocked work without guessing
+classification lets a2a daemon retain transiently blocked work without guessing
 from error text. A closed-and-live or otherwise inconsistent receipt maps to
 non-retryable `check_failed` with no scope.
 
@@ -208,17 +208,17 @@ CG1 makes no claim that retained historical records have a fixed total size.
 
 Each result is scoped to the exact operation, peer and resolved identity. After
 parsing/check/cache persistence, reread verifier time and refuse if the window
-ended or the clock moved backward before returning. Courier must not queue a live
+ended or the clock moved backward before returning. a2a daemon must not queue a live
 receipt for later signing, reuse it for a different recipient, or use it after an
 await/delay without another check. At window end there is no permission to receive
 or send and no expiry transaction is needed. Local closed state survives restart.
 
 A successful check is a bounded observation, not an atomic transaction with future
-chain state, mailbox commit or external relay publication. Courier keeps the
+chain state, mailbox commit or external relay publication. a2a daemon keeps the
 check adjacent to the effect and repeats it after retries/reconnects or delayed
 work. CG1 cannot guarantee that a new revocation will not appear after return.
 No new signed token or synthetic future-time verdict is introduced to hide that
-race. Existing replay/idempotency policy remains Courier's responsibility.
+race. Existing replay/idempotency policy remains a2a daemon's responsibility.
 
 ## 6. Verifier-owned node and custody
 
@@ -229,7 +229,7 @@ allowlist (`getblockchaininfo`, `getblockhash`, `getblockheader`,
 `getrawtransaction`, `gettxout`, `name_show`, `getrawmempool`, `getblock`). The
 landed constructor currently requires the `w3-observer` username; no new route or
 username fallback is proposed here. Infra provisions that observer with read-only
-rpcauth/rpcwhitelist on the verifier host. Auth material stays in the Courier-owned
+rpcauth/rpcwhitelist on the verifier host. Auth material stays in the a2a daemon-owned
 private deployment configuration, outside this library's outputs and fixtures.
 
 No wallet RPC, private grant key, grant signing, seal-pool maintenance, transaction
@@ -282,8 +282,8 @@ Required controls, each with valid neighbours:
    route inbound to the separate exchange; malformed/foreign/read failures and
    pending identity transitions refuse. Outbound never routes to exchange.
 2. Accepted per-identity constructor + no identity selector on calls fits the
-   evolving Courier engine seam. The a2a maintainers own exact a2a method/type names.
-3. In v1 Courier does not use S1 at all; it accepts only a full grant-cert.
+   evolving a2a daemon engine seam. The a2a maintainers own exact a2a method/type names.
+3. In v1 a2a daemon does not use S1 at all; it accepts only a full grant-cert.
    Any future resolver remains outside CG1. Failed explicit lookup must not
    be passed as nil/absence.
 
@@ -304,5 +304,5 @@ E1 is not a dependency.
   framing: `../rental-gateway/kernel/presentation.go` and `gateway/presentation.go`.
 - Storage boundary: `../grant-store/grant.go` and its README (signed grant only).
 - Read-only node: `../single-use/node.go`; private storage: `single-use/durable`.
-- Courier constructor/isolation and inbound/outbound insertion points are the
+- a2a daemon constructor/isolation and inbound/outbound insertion points are the
   integration requirements in the CG1 request, not claims about unlanded internals.

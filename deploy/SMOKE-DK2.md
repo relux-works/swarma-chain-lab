@@ -13,7 +13,7 @@ Follow SMOKE.md's signature/manifest checks first. The product artifact set is
 `gateway`, `rental-booking`, `grant-store`, `swarma-relay`, `swarma-signer`,
 `model-proxy`, `station-manager`, `station-payload`. All eight have two matching
 linux/amd64 build outputs from independent archives/caches. `station-manager`
-uses ordinary Linux transport, never the `slotdfake` tag. Courier is still a
+uses ordinary Linux transport, never the `slotdfake` tag. a2a daemon (a2ad) is still a
 pending manifest row. No payload standalone unit exists.
 
 With the reviewed source checkout and cached pinned dependencies:
@@ -113,7 +113,7 @@ wallet secret or general wallet RPC belongs in the deploy bundle.
 The signer binary accepts S1 only at literal-loopback HTTP. This profile fixes
 `http://127.0.0.1:8091`. Infra must establish and qualify an approved forwarding
 route to the public store, or colocate an explicitly selected store endpoint;
-this kit supplies no tunnel/courier. Similarly, confirmed signer presentations
+this kit supplies no tunnel or a2a daemon. Similarly, confirmed signer presentations
 must reach the gateway's configured directory through Infra's explicit transport.
 Neither transport may export signing keys, private RPC routes or model credentials.
 No unit may start while these prerequisites are undefined.
