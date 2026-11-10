@@ -1,6 +1,7 @@
 package smoke
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -36,7 +37,8 @@ func publicFixture(t *testing.T) (Config, booking.ContractV2, exchange.Terms) {
 	}
 	h := strings.Repeat("1", 64)
 	now := time.Now().Unix()
-	c := Config{Scenario: "expiry", Relay: "ws://127.0.0.1:9991", Booking: "http://127.0.0.1:9992", AgentPubkey: key.PubKeyHex(), IssuerPubkey: issuer.PubKeyHex(), AgentName: "id/agent", LandlordName: "id/landlord", TemplateSHA256: h, ProfileSHA256: h, ProfileID: "demo", ProfileVersion: "1", EvidenceSHA256: h, PayloadSHA256: h, EnvironmentSHA256: h, Allowed: []string{"deliver"}, Forbidden: []string{"pay", "publish", "repository.push", "secret.release"}, BudgetSat: 1000000, NotBefore: now + 300, NotAfter: now + 3900}
+	caps := booking.ModelCaps{InputTokens: 4000000, OutputTokens: 300000, Requests: 200, MaxTokens: 8192, CostNanoUSD: 3000000000, DefaultMaxOutputTokens: 4096}
+	c := Config{ModelCaps: &caps, Scenario: "expiry", Relay: "ws://127.0.0.1:9991", Booking: "http://127.0.0.1:9992", AgentPubkey: key.PubKeyHex(), IssuerPubkey: issuer.PubKeyHex(), AgentName: "id/agent", LandlordName: "id/landlord", TemplateSHA256: h, ProfileSHA256: h, ProfileID: "demo", ProfileVersion: "1", EvidenceSHA256: h, PayloadSHA256: h, EnvironmentSHA256: h, Allowed: []string{"deliver"}, Forbidden: []string{"pay", "publish", "repository.push", "secret.release"}, BudgetSat: 1000000, NotBefore: now + 300, NotAfter: now + 3900}
 	master, e := hdkeychain.NewMaster([]byte(strings.Repeat("a", 32)), &chaincfg.RegressionNetParams)
 	if e != nil {
 		t.Fatal(e)
@@ -57,7 +59,8 @@ func publicFixture(t *testing.T) (Config, booking.ContractV2, exchange.Terms) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	v := booking.ContractV2{Version: 2, BookingID: h, RenterPubkey: renter.PubKeyHex(), AgentPubkey: c.AgentPubkey, StationName: c.AgentName, NotBefore: c.NotBefore, NotAfter: c.NotAfter, Allowed: c.Allowed, Forbidden: c.Forbidden, BudgetSat: c.BudgetSat, TemplateID: "demo-60", TemplateSHA256: c.TemplateSHA256, ProfileID: c.ProfileID, ProfileVersion: c.ProfileVersion, ProfileSHA256: c.ProfileSHA256, Payment: pc.Terms{Coin: "nmc", Network: "regtest", Genesis: su.RegtestGenesis, PriceUSDCents: 1000, USDMicrosPerCoin: 100000000, RateAsOf: now, MaxRateAgeSeconds: 3600, AmountAtoms: 10000000, Address: addr, MinConfirmations: 1}, PaymentPolicy: "advance", PrivacySHA256: privacy()}
+	contractCaps := caps
+	v := booking.ContractV2{ModelCaps: &contractCaps, Version: 2, BookingID: h, RenterPubkey: renter.PubKeyHex(), AgentPubkey: c.AgentPubkey, StationName: c.AgentName, NotBefore: c.NotBefore, NotAfter: c.NotAfter, Allowed: c.Allowed, Forbidden: c.Forbidden, BudgetSat: c.BudgetSat, TemplateID: "demo-60", TemplateSHA256: c.TemplateSHA256, ProfileID: c.ProfileID, ProfileVersion: c.ProfileVersion, ProfileSHA256: c.ProfileSHA256, Payment: pc.Terms{Coin: "nmc", Network: "regtest", Genesis: su.RegtestGenesis, PriceUSDCents: 1000, USDMicrosPerCoin: 100000000, RateAsOf: now, MaxRateAgeSeconds: 3600, AmountAtoms: 10000000, Address: addr, MinConfirmations: 1}, PaymentPolicy: "advance", PrivacySHA256: privacy()}
 	terms := exchange.Terms{AgentName: c.AgentName, LandlordName: c.LandlordName, PrivacyNotice: booking.PrivacyNotice, PrivacySHA256: privacy(), PowBits: 16, Templates: []exchange.Template{{ID: "demo-60", SHA256: c.TemplateSHA256, ProfileID: c.ProfileID, ProfileVersion: c.ProfileVersion, ProfileSHA256: c.ProfileSHA256, PriceUSDCents: 1000, SlotLengths: []int64{3600}, Coins: []exchange.Coin{exchange.NMC}}}, Slots: []exchange.Slot{{ID: "demo-60", TemplateID: "demo-60", NotBefore: c.NotBefore, NotAfter: c.NotAfter, Coins: []exchange.Coin{exchange.NMC}}}}
 	return c, v, terms
 }
@@ -117,8 +120,15 @@ func TestContractBindingPlants(t *testing.T) {
 				f.SetString("invalid")
 			case reflect.Int, reflect.Int64:
 				f.SetInt(f.Int() + 1)
+			case reflect.Pointer:
+				f.SetZero()
 			case reflect.Slice:
 				f.Set(reflect.MakeSlice(f.Type(), 0, 0))
+			default:
+				t.Fatalf("no contract plant for %s", name)
+			}
+			if bytes.Equal(bad.Bytes(), v.Bytes()) {
+				t.Fatal("contract plant did not change canonical bytes")
 			}
 			if checkContract(c, host(), bad, v.RenterPubkey) == nil {
 				t.Fatal("contract plant accepted")

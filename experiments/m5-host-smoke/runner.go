@@ -370,6 +370,9 @@ func checkContract(c Config, p profile, v booking.ContractV2, renter string) err
 	if v.Validate() != nil {
 		return refuse("CONTRACT_NATIVE")
 	}
+	if c.ModelCaps == nil || !booking.EqualModelCaps(v.ModelCaps, c.ModelCaps) {
+		return refuse("CONTRACT_BINDING")
+	}
 	if v.AgentPubkey != c.AgentPubkey || v.RenterPubkey != renter || v.RenterName != "" || v.StationName != c.AgentName || v.NotBefore != c.NotBefore || v.NotAfter != c.NotAfter || v.TemplateID != p.template || v.TemplateSHA256 != c.TemplateSHA256 || v.ProfileID != c.ProfileID || v.ProfileVersion != c.ProfileVersion || v.ProfileSHA256 != c.ProfileSHA256 || v.PrivacySHA256 != privacy() || !same(v.Allowed, c.Allowed) || !same(v.Forbidden, c.Forbidden) || v.BudgetSat != c.BudgetSat || v.PaymentPolicy != "advance" {
 		return refuse("CONTRACT_BINDING")
 	}

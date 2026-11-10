@@ -59,6 +59,9 @@ type Config struct {
 	BudgetSat         int64    `json:"budget_sat"`
 	NotBefore         int64    `json:"not_before"`
 	NotAfter          int64    `json:"not_after"`
+
+	// ModelCaps comes from the approved profile, independently of the contract.
+	ModelCaps *booking.ModelCaps `json:"model_caps"`
 }
 
 type profile struct {
@@ -75,6 +78,9 @@ func rehearsal(c Config) profile {
 	return profile{"self-test", "demo", "one", 100, c.NotAfter - c.NotBefore, 2, 4, 2, 0}
 }
 func (c Config) validate(p profile) error {
+	if c.ModelCaps == nil || !c.ModelCaps.Valid() {
+		return refuse("CONFIG_MODEL_CAPS")
+	}
 	if c.Scenario != "expiry" && c.Scenario != "revoke" {
 		return refuse("CONFIG_SCENARIO")
 	}

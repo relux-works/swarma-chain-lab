@@ -91,6 +91,7 @@ From repository root, with the project's Go toolchain and dependency cache:
 
 ```sh
 go run .scripts/cc1-guards.go -out /absolute/new-cc1-evidence
+go -C experiments/m5-host-smoke test -race -count=1 ./...
 ```
 
 The control runner uses Go overlays in the new evidence directory, runs a valid
@@ -98,5 +99,10 @@ baseline for each plant, and requires the named test assertion at the expected
 failure. It records source/mutant hashes, command PIDs, exit codes and logs. No
 production source or state is mutated. Existing module tests cover positive and
 negative bindings, contract/page equality, legacy vectors and restart/revoke.
+The host-smoke module is part of CC1 validation: its public config supplies
+independent expected caps, all six signed limits must match in both directions,
+and missing/invalid expectations refuse before operator or network effects.
+The overlay controls also disable those checks and require their exact refusal
+tests to detect the violation. Reflection plants must change canonical bytes.
 The full M5 rehearsal uses signed model caps in Messages/Responses expiry/revoke
 legs; its documented Darwin helper and registrar seams remain unchanged.

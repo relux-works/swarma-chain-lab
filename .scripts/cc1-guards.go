@@ -24,6 +24,8 @@ type result struct {
 }
 
 var plants = []plant{
+	{"host_contract_caps", "experiments/m5-host-smoke", "runner.go", "!booking.EqualModelCaps(v.ModelCaps, c.ModelCaps)", "false", "^TestContractModelCapsBinding$", "want CONTRACT_BINDING; got <nil>"},
+	{"host_expected_caps", "experiments/m5-host-smoke", "config.go", "c.ModelCaps == nil || !c.ModelCaps.Valid()", "false", "^TestExpectedModelCapsRequired$", "want CONFIG_MODEL_CAPS; got OPERATOR_preflight"},
 	{"booking_equality", "experiments/rental-booking", "service_v2.go", "!EqualModelCaps(cfg.ModelCaps, cfg.Template.ModelCaps)", "false", "^TestModelCapsAdmission$/^Requests-larger$", "model config: want MODEL_CAPS_MISMATCH"},
 	{"template_required", "experiments/rental-booking", "contract.go", "t.Version == 2 && (t.ModelCaps == nil || !t.ModelCaps.Valid())", "false", "^TestModelCapsAdmission$", "model config: want TEMPLATE_MODEL_CAPS"},
 	{"config_snapshot", "experiments/rental-booking", "service_v2.go", "cfg = owned", "// control: retain caller pointer", "^TestModelCapsSnapshotOwnership$", "caller mutated service caps"},

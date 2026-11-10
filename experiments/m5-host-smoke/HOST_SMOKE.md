@@ -13,8 +13,12 @@ Config JSON fields are defined by `Config` in config.go. Supply all fields:
 scenario (`expiry` or `revoke`), relay and booking origins, agent_pubkey,
 issuer_pubkey, agent_name, landlord_name, template_sha256, profile_sha256,
 profile_id, profile_version, payload_sha256, evidence_sha256, environment_sha256, allowed,
-forbidden, budget_sat, not_before and not_after. Hashes are lowercase hex.
-Copy exact approved template scope/budget/pins; do not invent defaults.
+forbidden, budget_sat, model_caps, not_before and not_after. Hashes are lowercase hex.
+Copy exact approved template scope/budget/pins and all six model_caps integers;
+do not invent defaults or derive expected caps from the received contract.
+The runner requires valid model_caps and refuses any signed-contract difference,
+including a smaller limit or omitted caps, before consent. Config and contract
+caps are included in the sealed public evidence.
 not_before must be in the future with time for the operator preflight and
 paced consent exchange; not_after must be exactly3600 seconds later. Each
 scenario uses separately approved state/custody/config namespaces. Hash its

@@ -39,6 +39,12 @@ umask 077
   -inventory /absolute/revoke-inventory.json -out /absolute/new-revoke-packet
 ```
 
+The reviewed public config must contain `model_caps` copied from the approved
+profile/template: input_tokens, output_tokens, requests, max_tokens, cost_nano_usd
+and default_max_output_tokens. Missing or invalid expectations refuse before
+operator/network work. Every signed contract limit must match exactly before
+consent; the client does not infer limits from an untrusted contract.
+
 The CLI fixes PoW16, demo-60, 1000 USD cents, 3600 seconds, depth1, 200 requests,
 25-second expiry and 30-second revoke closure limits. There is no acceleration,
 credential-file, arbitrary command or insecure-TLS option. Pre-grant messages
