@@ -45,14 +45,13 @@ func TestPinnedCLI(t *testing.T) {
 			}
 			os.Chmod(static, 0750)
 			bp, cp, mp := filepath.Join(root, "bootstrap"), filepath.Join(static, "ca"), filepath.Join(static, "public-model")
-			if os.WriteFile(bp, raw, 0600) != nil || os.WriteFile(cp, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: s.Certificate().Raw}), 0640) != nil {
-				t.Fatal("fixture files")
+			if os.WriteFile(bp, raw, 0600) != nil {
+				t.Fatal("bootstrap fixture")
 			}
+			writeInstalled(t, cp, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: s.Certificate().Raw}))
 			write := func() {
 				raw, _ := json.Marshal(cfg)
-				if os.WriteFile(mp, raw, 0640) != nil {
-					t.Fatal("public config")
-				}
+				writeInstalled(t, mp, raw)
 			}
 			write()
 			args := []string{"-bootstrap", bp, "-ca", cp, "-gateway", "127.0.0.1:1", "-gateway-pin", strings.Repeat("a", 64), "-model", "fixture", "-max-tokens", "10", "-dialect", "responses", "-model-config", mp}

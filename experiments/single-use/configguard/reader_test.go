@@ -16,22 +16,23 @@ func fixture(t *testing.T) (Reader, string) {
 	t.Helper()
 	root := t.TempDir()
 	dir := filepath.Join(root, "ancestor", "service")
-	if e := os.MkdirAll(dir, 0755); e != nil {
-		t.Fatal(e)
-	}
-	if e := os.Chmod(dir, 0750); e != nil {
-		t.Fatal(e)
-	}
+	mkdirMode(t, filepath.Dir(dir), 0755)
+	mkdirMode(t, dir, 0750)
 	path := filepath.Join(dir, "service.json")
-	if e := os.WriteFile(path, []byte("{}"), 0640); e != nil {
-		t.Fatal(e)
-	}
-	if e := os.Chmod(path, 0640); e != nil {
-		t.Fatal(e)
-	}
+	writeMode(t, path, []byte("{}"), 0640)
 	r := Reader{FixtureRoot: root, EUID: os.Geteuid(), GID: os.Getegid(), Metadata: func(_ string, s *unix.Stat_t) { s.Uid = 0 }}
 	return r, path
 }
+func mkdirMode(t *testing.T, path string, mode os.FileMode) {
+	t.Helper()
+	if e := os.Mkdir(path, mode); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.Chmod(path, mode); e != nil {
+		t.Fatal(e)
+	}
+}
+
 func code(t *testing.T, got error, want string) {
 	t.Helper()
 	if got == nil || got.Error() != want {

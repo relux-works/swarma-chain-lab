@@ -242,6 +242,9 @@ func TestPrivateDirNoRedirectedEffects(t *testing.T) {
 	if e = os.Mkdir(broad, 0755); e != nil {
 		t.Fatal(e)
 	}
+	if e = os.Chmod(broad, 0755); e != nil {
+		t.Fatal(e)
+	}
 	if e = privateDir(broad); e != errConfig {
 		t.Fatal("broad state accepted")
 	}

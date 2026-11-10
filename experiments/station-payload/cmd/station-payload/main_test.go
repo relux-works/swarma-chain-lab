@@ -53,9 +53,7 @@ func TestCLI(t *testing.T) {
 	}
 	os.Chmod(static, 0750)
 	ca := filepath.Join(static, "ca.pem")
-	if os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0640) != nil {
-		t.Fatal("CA write")
-	}
+	writeInstalled(t, ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}))
 	doc := gatewaybind.PayloadBootstrap{V: 1, BookingID: strings.Repeat("b", 64), StationName: "id/cli", ChannelSecret: []byte(strings.Repeat("s", 32))}
 	raw, e := gatewaybind.EncodeBootstrap(doc)
 	if e != nil {

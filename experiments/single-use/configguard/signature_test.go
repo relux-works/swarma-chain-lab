@@ -63,9 +63,7 @@ func signedFixture(t *testing.T, key crypto.Signer, algorithm string) (Reader, s
 	}
 	a := Anchor{manifest, sig, digest(raw), m.ReleaseSHA256, algorithm, base64.StdEncoding.EncodeToString(der)}
 	root := filepath.Join(r.FixtureRoot, "anchor")
-	if e := os.Mkdir(root, 0755); e != nil {
-		t.Fatal(e)
-	}
+	mkdirMode(t, root, 0755)
 	anchorPath := filepath.Join(root, "10-install.conf")
 	body, e := RenderDropIn(a)
 	if e != nil {

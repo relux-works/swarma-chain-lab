@@ -65,9 +65,8 @@ func composedFixture(t *testing.T, service string) (string, string) {
 		t.Fatal(e)
 	}
 	ap = filepath.Join(r.FixtureRoot, "units", "swarma-"+service+".service.d", "10-install.conf")
-	if e = os.MkdirAll(filepath.Dir(ap), 0755); e != nil {
-		t.Fatal(e)
-	}
+	mkdirMode(t, filepath.Dir(filepath.Dir(ap)), 0755)
+	mkdirMode(t, filepath.Dir(ap), 0755)
 	writeMode(t, ap, body, 0644)
 	bindComposedFixture(t, r.FixtureRoot, service)
 	return r.FixtureRoot, p

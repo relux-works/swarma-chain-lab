@@ -130,14 +130,12 @@ func TestConfigFiles(t *testing.T) {
 	raw, _ := json.Marshal(c)
 	file := filepath.Join(root, "config.json")
 	for _, bad := range [][]byte{append(append([]byte{}, raw...), raw...), []byte(strings.Replace(string(raw), `"version":1`, `"version":1,"version":1`, 1)), []byte(strings.Replace(string(raw), `"version"`, `"Version"`, 1)), []byte(strings.Replace(string(raw), `"version":1`, `"version":1,"unknown":"marker"`, 1)), []byte(strings.Repeat("x", 65537))} {
-		if e := os.WriteFile(file, bad, 0640); e != nil {
-			t.Fatal(e)
-		}
+		writeInstalled(t, file, bad)
 		if _, e := loadConfig(file, true); !errors.Is(e, errConfig) && (e == nil || e.Error() != "DK5_FILE_SIZE") {
 			t.Fatal("strict config accepted")
 		}
 	}
-	os.WriteFile(file, raw, 0640)
+	writeInstalled(t, file, raw)
 	if _, e := loadConfig(file, true); e != nil {
 		t.Fatal(e)
 	}

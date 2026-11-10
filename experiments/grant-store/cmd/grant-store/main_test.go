@@ -118,9 +118,7 @@ func TestCLIProcess(t *testing.T) {
 	}
 	os.Chmod(configDir, 0750)
 	config := filepath.Join(configDir, "config.json")
-	if e := os.WriteFile(config, cfg, 0640); e != nil {
-		t.Fatal(e)
-	}
+	writeInstalled(t, config, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	testBin, e := os.Executable()

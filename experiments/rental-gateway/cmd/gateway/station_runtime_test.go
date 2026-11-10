@@ -51,9 +51,7 @@ func remoteFixture(t *testing.T) (serveConfig, *journal.Store, *tls.Config, *tls
 		raw  []byte
 		mode os.FileMode
 	}{{m.TLS.CertFile, cert, 0644}, {m.TLS.KeyFile, key, 0400}, {m.TLS.ManagerCAFile, ca.pem, 0644}} {
-		if e := os.WriteFile(f.path, f.raw, 0640); e != nil {
-			t.Fatal(e)
-		}
+		writeInstalled(t, f.path, f.raw)
 	}
 	m.TLS.CertSHA256 = certPin(server)
 	m.TLS.ManagerCertSHA256 = certPin(manager)

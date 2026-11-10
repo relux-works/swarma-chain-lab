@@ -64,9 +64,7 @@ func TestConfigPlaceholderPins(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		if e = os.WriteFile(path, raw, 0640); e != nil {
-			t.Fatal(e)
-		}
+		writeInstalled(t, path, raw)
 		e = runValidate([]string{"-config", path})
 		if (value == original && e != nil) || (value != original && e != errConfig) {
 			t.Fatal("public pin validator", e)

@@ -27,9 +27,7 @@ func TestPrivateInput(t *testing.T) {
 	os.Chmod(root, 0750)
 	p := filepath.Join(root, "config")
 	secret := "fixture-private-input"
-	if e = os.WriteFile(p, []byte(secret), 0640); e != nil {
-		t.Fatal(e)
-	}
+	writeInstalled(t, p, []byte(secret))
 	if raw, e := readPrivate(p); e != nil || string(raw) != secret {
 		t.Fatal("valid private input", e)
 	}
@@ -49,15 +47,11 @@ func TestPrivateInput(t *testing.T) {
 	if _, e = readPrivate(alias); e == nil || e.Error() != "DK5_FILE_OPEN" {
 		t.Fatal("symlink input accepted", e)
 	}
-	if e = os.WriteFile(p, []byte(strings.Repeat("x", 65537)), 0640); e != nil {
-		t.Fatal(e)
-	}
+	writeInstalled(t, p, []byte(strings.Repeat("x", 65537)))
 	if _, e = readPrivate(p); e == nil || e.Error() != "DK5_FILE_SIZE" {
 		t.Fatal("unbounded input accepted", e)
 	}
-	if e = os.WriteFile(p, []byte(`{"unknown":"`+secret+`"}`), 0640); e != nil {
-		t.Fatal(e)
-	}
+	writeInstalled(t, p, []byte(`{"unknown":"`+secret+`"}`))
 	e = run(context.Background(), []string{"check-config", "--config", p})
 	if e == nil || e.Error() != "CONFIG" || strings.Contains(e.Error(), secret) {
 		t.Fatal("invalid config leaked or accepted", e)
@@ -87,9 +81,7 @@ func TestCheckConfig(t *testing.T) {
 	}
 	write := func(name string, b []byte) string {
 		p := filepath.Join(root, name)
-		if e := os.WriteFile(p, b, 0640); e != nil {
-			t.Fatal(e)
-		}
+		writeInstalled(t, p, b)
 		return p
 	}
 	cp := write("cert.pem", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))

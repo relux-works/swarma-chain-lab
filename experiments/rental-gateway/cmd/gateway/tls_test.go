@@ -94,9 +94,7 @@ func TestGatewayTLSAuthority(t *testing.T) {
 	write := func(name string, b []byte, mode os.FileMode) string {
 		t.Helper()
 		p := filepath.Join(root, name)
-		if e := os.WriteFile(p, b, 0640); e != nil {
-			t.Fatal(e)
-		}
+		writeInstalled(t, p, b)
 		return p
 	}
 	c := gatewayTLSConfig{CertFile: write("server.pem", certPEM, 0644), KeyFile: write("server.key", keyPEM, 0400), CertSHA256: certPin(server), ManagerCAFile: write("ca.pem", ca.pem, 0644), ManagerCertSHA256: certPin(manager)}

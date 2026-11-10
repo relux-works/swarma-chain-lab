@@ -43,9 +43,7 @@ func TestFakeManagerRun(t *testing.T) {
 	write := func(name string, b []byte) string {
 		t.Helper()
 		p := filepath.Join(root, name)
-		if e := os.WriteFile(p, b, 0640); e != nil {
-			t.Fatal(e)
-		}
+		writeInstalled(t, p, b)
 		return p
 	}
 	mk := func(name string) string {
