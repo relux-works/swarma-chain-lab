@@ -3,7 +3,6 @@ package modelproxy
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log"
@@ -12,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
 )
 
 type adminRequest struct {
@@ -210,8 +211,7 @@ func (c Client) call(ctx context.Context, q adminRequest) (adminResponse, error)
 	return out, nil
 }
 func (c Credential) Valid() bool {
-	b, e := base64.RawURLEncoding.DecodeString(string(c.Bearer))
-	return e == nil && len(b) == 32 && base64.RawURLEncoding.EncodeToString(b) == string(c.Bearer) && validOrigin(c.Endpoint.URL) && digest(c.Endpoint.CertSHA256)
+	return codec.ValidCredential(string(c.Bearer), c.Endpoint.URL, c.Endpoint.CertSHA256)
 }
 func (c Client) Prepare(ctx context.Context, b Binding) (Credential, error) {
 	r, e := c.call(ctx, adminRequest{1, "prepare", b})

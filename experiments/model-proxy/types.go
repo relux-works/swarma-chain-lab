@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/modelprofile"
 )
 
 const MaxBody = 65536
@@ -43,12 +45,7 @@ func mul(a, b uint64) (uint64, bool) {
 
 // Prices are integer nano-USD per token. ContextTokens is the documented model
 // context window, conservatively reserved as input on every generation attempt.
-type Model struct {
-	ContextTokens uint64 `json:"context_tokens"`
-	InputNanoUSD  uint64 `json:"input_nano_usd"`
-	OutputNanoUSD uint64 `json:"output_nano_usd"`
-	Source        string `json:"source"`
-}
+type Model = modelprofile.Model
 type Caps struct {
 	InputTokens  uint64 `json:"input_tokens"`
 	OutputTokens uint64 `json:"output_tokens"`
@@ -76,10 +73,7 @@ func (b Binding) Valid() bool {
 	return digest(b.SlotID) && digest(b.GrantID) && b.NotBefore > 0 && b.NotAfter > b.NotBefore && b.NotAfter <= 1<<50 && b.NotAfter-b.NotBefore <= 3600 && b.Caps.Valid()
 }
 
-type Endpoint struct {
-	URL        string `json:"url"`
-	CertSHA256 string `json:"cert_sha256"`
-}
+type Endpoint = modelprofile.Endpoint
 type Credential struct {
 	Bearer   Secret   `json:"bearer"`
 	Endpoint Endpoint `json:"endpoint"`

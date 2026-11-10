@@ -113,6 +113,15 @@ manifest/anchor and [typed launch argv](payloadlaunch/LAUNCH.md), also without
 filesystem or process effects. The format documents specify exact obligations
 and scoped test commands. Source version and golden hashes must be pinned together.
 
+## Pure payload consumer APIs
+
+[`payloadbootstrap`](payloadbootstrap/README.md) validates the existing private
+bootstrap bytes and returns only public metadata plus their exact SHA256.
+[`modelprofile`](modelprofile/README.md) validates the canonical public proxy
+config against the five-field payload model selection. Both are pure, preserve
+existing refusal codes and share their schemas with the existing consumers.
+They do not prove file custody, slot/deadline binding, provisioning or admission.
+
 ## Tools and commands
 
 Go 1.26.8 was used on Darwin arm64. Dependencies are pinned in go.mod/go.sum;
@@ -261,3 +270,13 @@ not waive installed admission. See [the staged API and trust boundary](configgua
 Run go test -race -count=1 ./configguard and go vet ./configguard here.
 From the repository root, go run .scripts/dk5-guards.go -out /absolute/task-scratch/guards
 runs calibrated controls and writes logs/overlays/hash/PID/exit evidence there.
+
+Consumer API regression commands (inside the same isolated test environment):
+`go test -race ./payloadbootstrap/... ./modelprofile/...`. Shared literal vectors
+are in each package's `testdata/golden.json` and are also exercised by
+`TestConsumerBootstrapGolden`, `TestConsumerConfigGolden` and
+`TestConsumerModelGolden` in the existing consumer modules. From repository root,
+`go run .scripts/dk5b-api-guards.go -out /absolute/task-scratch/new-controls`
+calibrates shared predicates and consumer delegation using Go overlays; output
+contains baseline/mutant logs, exact source hashes, PIDs and result JSON. The
+import-boundary scanner has its own isolated source-file control in the tests.

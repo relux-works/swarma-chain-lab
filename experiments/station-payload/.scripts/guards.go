@@ -41,10 +41,10 @@ var plants = []plant{
 	{"responses_route", "station-payload", "responses.go", "c.bootstrap.BookingID + \"/v1/responses\"", "c.bootstrap.BookingID + \"/v1/messages\"", "TestResponsesRequest", "Responses route/auth boundary"},
 	{"responses_terminal", "station-payload", "client.go", "if c.terminal != nil {", "if false && c.terminal != nil {", "TestResponsesRefusalMapping", "Responses terminal refusal retried"},
 	{"responses_pin", "station-payload", "client.go", "hex.EncodeToString(sum[:]) != b.ModelCertSHA256", "false && hex.EncodeToString(sum[:]) != b.ModelCertSHA256", "TestResponsesTransportPin", "Responses TLS pin bypass"},
-	{"pinned_dialect", "station-payload", "profile.go", "p.Dialect != want", "false && p.Dialect != want", "TestPinnedStartup", "pinned startup mismatch accepted"},
-	{"pinned_model", "station-payload", "profile.go", "m, ok := c.Models[p.Model]", "m, ok := c.Models[p.Model]; if !ok { m = proxy.Model{ContextTokens: 100}; ok = true }", "TestPinnedStartup", "pinned startup mismatch accepted"},
-	{"pinned_endpoint", "station-payload", "profile.go", "p.Endpoint != c.Endpoint.URL", "false && p.Endpoint != c.Endpoint.URL", "TestPinnedStartup", "pinned startup mismatch accepted"},
-	{"pinned_pin", "station-payload", "profile.go", "p.CertSHA256 != c.Endpoint.CertSHA256", "false && p.CertSHA256 != c.Endpoint.CertSHA256", "TestPinnedStartup", "pinned startup mismatch accepted"},
+	{"pinned_dialect", "station-payload", "../single-use/modelprofile/profile.go", "p.Dialect != want", "false && p.Dialect != want", "TestPinnedStartup", "pinned startup mismatch accepted"},
+	{"pinned_model", "station-payload", "../single-use/modelprofile/profile.go", "m, ok := c.Models[p.Model]", "m, ok := c.Models[p.Model]; if !ok { m = Model{ContextTokens: 100}; ok = true }", "TestPinnedStartup", "pinned startup mismatch accepted"},
+	{"pinned_endpoint", "station-payload", "../single-use/modelprofile/profile.go", "p.Endpoint != c.Endpoint.URL", "false && p.Endpoint != c.Endpoint.URL", "TestPinnedStartup", "pinned startup mismatch accepted"},
+	{"pinned_pin", "station-payload", "../single-use/modelprofile/profile.go", "p.CertSHA256 != c.Endpoint.CertSHA256", "false && p.CertSHA256 != c.Endpoint.CertSHA256", "TestPinnedStartup", "pinned startup mismatch accepted"},
 	{"pinned_cli", "station-payload", "cmd/station-payload/main.go", "c, e = payload.NewPinned(raw, options, *dialect, config)", "_ = config; c, e = payload.New(raw, options)", "TestPinnedCLI", "pinned CLI startup guard missing"},
 	{"local_failure_latch", "station-payload", "client.go", "if err == Code(\"MODEL_CAP\") || err == Code(\"MODEL_AUTH\") {", "if err != nil {", "TestLocalFailureRecovery", "local failure latched"},
 	{"response_failure_latch", "station-payload", "client.go", "if err == Code(\"MODEL_CAP\") || err == Code(\"MODEL_AUTH\") {", "if err != nil {", "TestResponseLossAccounting", "nonterminal response failure latched"},
@@ -101,12 +101,12 @@ func run() error {
 		return e
 	}
 	defer os.RemoveAll(work)
-	for _, name := range []string{"station-payload"} {
+	for _, name := range []string{"station-payload", "single-use"} {
 		if e = copyTree(filepath.Join(filepath.Dir(root), name), filepath.Join(work, name)); e != nil {
 			return e
 		}
 	}
-	for _, name := range []string{"station-lifecycle", "rental-gateway", "rental", "rental-booking", "single-use", "sealwatch", "payment-chain", "model-proxy"} {
+	for _, name := range []string{"station-lifecycle", "rental-gateway", "rental", "rental-booking", "sealwatch", "payment-chain", "model-proxy"} {
 		if e = os.Symlink(filepath.Join(filepath.Dir(root), name), filepath.Join(work, name)); e != nil {
 			return e
 		}

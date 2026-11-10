@@ -6,18 +6,17 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/modelprofile"
 )
 
-const OpenAIResponsesProfile = "openai-responses-functions-default-v1"
+const OpenAIResponsesProfile = modelprofile.OpenAIResponsesProfile
 const MaxResponsesBody = 2 << 20
 const MaxResponsesEvent = 256 << 10
 
 // ModelProfile is keyed by an existing exact model ID. It never supplies price
 // defaults or accepts client-selected endpoints. Omission retains legacy bytes.
-type ModelProfile struct {
-	Profile  string `json:"profile"`
-	Upstream string `json:"upstream"`
-}
+type ModelProfile = modelprofile.ModelProfile
 
 func validateProfiles(c Config) (map[string]ModelProfile, error) {
 	out := make(map[string]ModelProfile, len(c.ModelProfiles))

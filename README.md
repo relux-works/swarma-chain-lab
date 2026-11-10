@@ -377,3 +377,14 @@ release/service/GID. It performs no filesystem access. The
 [staged contract and verification commands](experiments/single-use/configguard/STAGED.md)
 describe its boundary; the existing .scripts/dk5-guards.go runner includes
 staged signature, content and final-path bypass controls with task-local output.
+
+## Payload consumer API controls
+
+The single-use [public bootstrap decoder](experiments/single-use/payloadbootstrap/README.md)
+and [public model validator](experiments/single-use/modelprofile/README.md) share
+schemas with gatewaybind, model-proxy and station-payload. In owned scratch run
+`go -C experiments/single-use test -race ./payloadbootstrap/... ./modelprofile/...`
+and `go run .scripts/dk5b-api-guards.go -out /absolute/task-scratch/new-controls`.
+The latter writes paired baseline/mutant logs, source hashes and results to the
+specified new directory. These checks prove byte/selection contracts, not daemon
+custody, provisioning, proxy startup or runtime admission.

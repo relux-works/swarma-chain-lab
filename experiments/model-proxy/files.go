@@ -1,11 +1,11 @@
 package modelproxy
 
 import (
-	"bytes"
-	"encoding/json"
 	"io"
 	"os"
 	"syscall"
+
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/modelprofile"
 )
 
 // ReadPrivateFile checks every path component, owner, exact mode and inode before
@@ -39,19 +39,7 @@ func ReadPrivateFile(path string, mode os.FileMode, limit int64) ([]byte, error)
 	return raw, nil
 }
 
-type FileConfig struct {
-	StateDir      string                  `json:"state_dir"`
-	Listen        string                  `json:"listen"`
-	Endpoint      Endpoint                `json:"endpoint"`
-	TLSCert       string                  `json:"tls_cert"`
-	TLSKey        string                  `json:"tls_key"`
-	AdminSocket   string                  `json:"admin_socket"`
-	CallerUID     uint32                  `json:"caller_uid"`
-	Upstream      string                  `json:"upstream"`
-	APIKeyFile    string                  `json:"api_key_file"`
-	Models        map[string]Model        `json:"models"`
-	ModelProfiles map[string]ModelProfile `json:"model_profiles,omitempty"`
-}
+type FileConfig = modelprofile.FileConfig
 
 func LoadConfig(path string) (FileConfig, error) {
 	var c FileConfig
@@ -64,10 +52,5 @@ func LoadConfig(path string) (FileConfig, error) {
 
 // ParseConfig validates bytes already admitted by the caller's static-file boundary.
 func ParseConfig(raw []byte) (FileConfig, error) {
-	var c FileConfig
-	raw = bytes.TrimSpace(raw)
-	if unique(raw) != nil || json.Unmarshal(raw, &c) != nil || !bytes.Equal(raw, canonical(c)) {
-		return FileConfig{}, fail("CONFIG_FILE")
-	}
-	return c, nil
+	return modelprofile.DecodeFileConfig(raw)
 }

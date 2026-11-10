@@ -18,7 +18,6 @@ require (
 	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.1.0 // indirect
 	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.1.0 // indirect
 	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.1.0 // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.1.0 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
@@ -44,6 +43,7 @@ replace github.com/relux-works/swarma-chain-lab/experiments/model-proxy => ../mo
 require (
 	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.1.0
 	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.1.0
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.1.0
 )
 
 replace github.com/relux-works/swarma-chain-lab/experiments/rental-gateway => ../rental-gateway

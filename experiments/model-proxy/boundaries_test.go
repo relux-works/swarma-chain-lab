@@ -218,7 +218,7 @@ func TestProxyCrashChild(t *testing.T) {
 	if root == "" {
 		t.Skip("subprocess boundary helper")
 	}
-	s, e := New(Config{StateDir: root, Endpoint: Endpoint{"https://proxy.example", strings.Repeat("a", 64)}, Upstream: os.Getenv("MODEL_PROXY_TEST_UPSTREAM"), APIKey: keyMarker, Models: map[string]Model{modelID: {100, 2, 3, "fixture model bound, not production pricing"}}, Now: func() time.Time { return time.Unix(100, 0) }})
+	s, e := New(Config{StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: os.Getenv("MODEL_PROXY_TEST_UPSTREAM"), APIKey: keyMarker, Models: map[string]Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "fixture model bound, not production pricing"}}, Now: func() time.Time { return time.Unix(100, 0) }})
 	if e != nil {
 		t.Fatal(e)
 	}

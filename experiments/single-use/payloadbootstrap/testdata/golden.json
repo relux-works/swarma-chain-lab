@@ -1,0 +1,200 @@
+[
+  {
+    "name": "v1",
+    "raw": "{\"v\":1,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\"}",
+    "error": "",
+    "public": {
+      "v": 1,
+      "booking_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "station_name": "id/fixture",
+      "sha256": "ede75d964835adc72eb96d97b2a585bdc50c8bd451af25fa45535b690ad4b9de"
+    }
+  },
+  {
+    "name": "v2",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "",
+    "public": {
+      "v": 2,
+      "booking_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "station_name": "id/fixture",
+      "model_endpoint": "https://proxy.example",
+      "model_cert_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sha256": "56956bc7d947ca72564add67aaa8b2245ab493fabec05a3e2f0734875b3795eb"
+    }
+  },
+  {
+    "name": "version0",
+    "raw": "{\"v\":0,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "version3",
+    "raw": "{\"v\":3,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "booking_id-4",
+    "raw": "{\"v\":2,\"booking_id\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "booking_id-5",
+    "raw": "{\"v\":2,\"booking_id\":\"x\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "station_name-6",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/UPPER\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "station_name-7",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "station_name-8",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "channel_secret-9",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eA==\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "model_bearer-10",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "model_bearer-11",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk=\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "model_endpoint-12",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example/\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "model_endpoint-13",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://UPPER.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "model_endpoint-14",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example/path\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "model_endpoint-15",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"http://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "model_endpoint-16",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://u:p@proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "model_endpoint-17",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example?\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "model_cert_sha256-18",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "v1-model-fields",
+    "raw": "{\"v\":1,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXk\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "unknown",
+    "raw": "{\"v\":1,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"extra\":1}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "trailing-newline",
+    "raw": "{\"v\":1,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\"}\n",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "leading-space",
+    "raw": " {\"v\":1,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "duplicate",
+    "raw": "{\"v\":1,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"v\":1}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "trailing-json",
+    "raw": "{\"v\":1,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\"}{}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "reordered",
+    "raw": "{\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"station_name\":\"id/fixture\",\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"v\":1}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "empty",
+    "raw": "",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "oversize",
+    "raw": "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "malformed",
+    "raw": "{",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "short-canonical-bearer",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_bearer\":\"enp6enp6enp6enp6enp6enp6enp6enp6enp6enp6eg\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  },
+  {
+    "name": "missing-v2-bearer",
+    "raw": "{\"v\":2,\"booking_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"station_name\":\"id/fixture\",\"channel_secret\":\"eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=\",\"model_endpoint\":\"https://proxy.example\",\"model_cert_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+    "error": "PAYLOAD_BOOTSTRAP",
+    "public": {}
+  }
+]

@@ -21,3 +21,8 @@
   but Infra provisioning and payload admission remain separate pending changes.
   No installed v1 support, old-state migration or Linux custody qualification
   follows from the byte codec alone.
+
+- DK5b consumer APIs preserve the existing bootstrap/public model formats. Slot
+  and deadline remain manifest/receipt inputs; public model pairing preserves
+  its deliberate differences from proxy service-startup validation. These APIs
+  do not resolve the separate provisioning/admission and Linux custody work.
