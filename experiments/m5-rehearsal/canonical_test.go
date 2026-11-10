@@ -234,6 +234,23 @@ func (l *lab) pauseVerifier() {
 	l.peerRPC(l.peers["verifier"], "setnetworkactive", false)
 	l.verifierPaused = true
 }
+
+// Observe the failing call on the real read-only client; no RPC result is forged.
+type verifierTrace struct {
+	su.Node
+	failedMethod, failedID string
+}
+
+func (n *verifierTrace) Call(ctx context.Context, method string, args ...any) (json.RawMessage, error) {
+	raw, e := n.Node.Call(ctx, method, args...)
+	if e != nil {
+		n.failedMethod = method
+		if len(args) > 0 {
+			n.failedID, _ = args[0].(string)
+		}
+	}
+	return raw, e
+}
 func (l *lab) verifyIndependent(raw []byte, config string) {
 	var fc signer.FileConfig
 	b, e := os.ReadFile(config)
@@ -245,18 +262,22 @@ func (l *lab) verifyIndependent(raw []byte, config string) {
 	checked(l.t, e, "independent presentation")
 	node, e := su.NewRPC(l.peers["verifier"].Read)
 	checked(l.t, e, "independent read route")
+	trace := &verifierTrace{Node: node}
 	check := func() rental.Receipt {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return rental.Check(ctx, node, p, raw, agentName, grant.SignedGrant.Grant.GranteeKey, time.Now().Unix())
+		return rental.Check(ctx, trace, p, raw, agentName, grant.SignedGrant.Grant.GranteeKey, time.Now().Unix())
 	}
 	old := str(l.t, l.peerRPC(l.peers["verifier"], "getbestblockhash"))
 	if old == str(l.t, l.rpc("", "getbestblockhash")) {
 		l.t.Fatal("stale-node control was not applied")
 	}
 	refusal := check()
-	if refusal.Verdict != "refused" || refusal.Reason != "RPC_RESPONSE" {
+	if refusal.Verdict != "refused" || refusal.Reason != "NODE_UNAVAILABLE" {
 		l.t.Fatalf("stale verifier unexpected verdict/reason: %s/%s", refusal.Verdict, refusal.Reason)
+	}
+	if trace.failedMethod != "getrawtransaction" || trace.failedID != grant.Issuance.TxID {
+		l.t.Fatal("stale verifier failed outside missing anchor lookup")
 	}
 	entries, e := os.ReadDir(p.StateDir)
 	checked(l.t, e, "stale verifier state")
@@ -273,5 +294,5 @@ func (l *lab) verifyIndependent(raw []byte, config string) {
 	if live.Verdict != "live" || live.Reason != "LIVE" {
 		l.t.Fatalf("independent verifier positive refused: %s/%s", live.Verdict, live.Reason)
 	}
-	l.evidence["independent_verifier"] = map[string]any{"stale_reason": refusal.Reason, "stale_tip": old, "stale_no_admission_state": true, "converged_verdict": live.Verdict, "converged_tip": live.TipHash, "grant_id": live.GrantID}
+	l.evidence["independent_verifier"] = map[string]any{"stale_reason": refusal.Reason, "stale_tip": old, "stale_no_admission_state": true, "failed_method": trace.failedMethod, "missing_anchor": trace.failedID, "converged_verdict": live.Verdict, "converged_tip": live.TipHash, "grant_id": live.GrantID}
 }
