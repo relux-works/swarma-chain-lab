@@ -12,7 +12,7 @@ func TestGrantPlans(t *testing.T) {
 	g := testGrant(t)
 	raw := signGrantTest(t, g, 1)
 	script, _ := GrantSealScript(g.IssuerKey)
-	p := Policy{Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: script, FundingScript: testFundingScript(), StateDir: t.TempDir()}
+	p := Policy{ConstructionProfile: "W", Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: script, FundingScript: testFundingScript(), StateDir: t.TempDir()}
 	good := PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: Hash([]byte("funding")), Vout: 0}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}}, ChangeScript: p.FundingScript}
 	for _, mode := range []string{"role", "seal-input", "seal-script", "seal-change", "funding-policy", "missing-funding", "duplicate", "change", "amount", "insufficient", "wrong-landlord", "wrong-kind"} {
 		t.Run(mode, func(t *testing.T) {
@@ -78,7 +78,7 @@ func TestGrantPoolInventory(t *testing.T) {
 	g := testGrant(t)
 	raw := signGrantTest(t, g, 1)
 	script, _ := GrantSealScript(g.IssuerKey)
-	p := Policy{Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: script, FundingScript: testFundingScript(), StateDir: t.TempDir()}
+	p := Policy{ConstructionProfile: "W", Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: script, FundingScript: testFundingScript(), StateDir: t.TempDir()}
 	point := Point{Hash([]byte("ordinary-funding")), 0}
 	s := PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: point.TxID, Vout: point.Vout}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}}, ChangeScript: p.FundingScript}
 	for _, inventory := range [][]Point{{{TxID: "bad"}}, {point, point}, make([]Point, 4097)} {
@@ -99,5 +99,5 @@ func testFundingScript() string {
 	if e != nil {
 		panic(e)
 	}
-	return script
+	return "0014" + script[6:46]
 }

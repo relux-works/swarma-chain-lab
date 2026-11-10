@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"testing"
 	"time"
 )
@@ -29,10 +29,10 @@ func TestCoreGrantLegacyReplay(t *testing.T) {
 	}
 	l := newCore(t)
 	l.grantIdentity()
-	seal := l.detachedPool(1, true)
+	seal := l.witnessPool(1, true)
 	p, _, _ := l.grantFixture("old-replay", seal, 2)
 	ip, req, event, key, spec := l.grantIssueInputs(p, "old-replay", true)
-	oldFund := l.detachedPool(1, true)
+	oldFund := l.witnessPool(1, true)
 	oldSpec := spec
 	oldSpec.Inputs = append([]su.PlanInput{}, spec.Inputs...)
 	oldSpec.Inputs[0].Point = su.Point{TxID: oldFund.TxID, Vout: oldFund.Vout}
@@ -48,6 +48,7 @@ func TestCoreGrantLegacyReplay(t *testing.T) {
 	if e = json.Unmarshal(policy["policy"], &fields); e != nil {
 		t.Fatal(e)
 	}
+	delete(fields, "construction_profile")
 	delete(fields, "funding_script")
 	delete(fields, "known_pool_seals")
 	policy["policy"], _ = json.Marshal(fields)
@@ -99,7 +100,7 @@ func TestCoreGrantLegacyReplay(t *testing.T) {
 		}
 		l.save(mode+".json", got)
 	}
-	fresh := l.detachedPool(1, true)
+	fresh := l.witnessPool(1, true)
 	next := ip
 	next.Policy.StateDir = l.policy("new-replay").StateDir
 	_, nextReq, nextEvent, _, nextSpec := l.grantIssueInputs(next.Policy, "new-replay", true)

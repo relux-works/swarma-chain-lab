@@ -72,7 +72,7 @@ func TestCoreVectors(t *testing.T) {
 		if e := os.Mkdir(root, 0700); e != nil {
 			t.Fatal(e)
 		}
-		return Config{Identity: label, AgentName: e2eAgentName, LandlordName: e2eLandlordName, IssuerPubkey: l.issuerPub, StateDir: root, Node: l.observer, Now: func() time.Time { return time.Unix(now, 0) }}
+		return Config{ConstructionProfile: "W", Identity: label, AgentName: e2eAgentName, LandlordName: e2eLandlordName, IssuerPubkey: l.issuerPub, StateDir: root, Node: l.observer, Now: func() time.Time { return time.Unix(now, 0) }}
 	}
 	makeChecker := func(c Config) *Checker {
 		v, e := New(c)

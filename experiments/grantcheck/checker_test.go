@@ -23,7 +23,7 @@ func (f nodeFunc) Call(ctx context.Context, method string, args ...any) (json.Ra
 
 func unitConfig(t *testing.T) Config {
 	t.Helper()
-	return Config{Identity: "test-identity", AgentName: "id/test-agent", LandlordName: "id/test-landlord", IssuerPubkey: xonly(1), StateDir: stateDir(t), Now: func() time.Time { return time.Unix(500, 0) }, Node: nodeFunc(func(context.Context, string, ...any) (json.RawMessage, error) {
+	return Config{ConstructionProfile: "W", Identity: "test-identity", AgentName: "id/test-agent", LandlordName: "id/test-landlord", IssuerPubkey: xonly(1), StateDir: stateDir(t), Now: func() time.Time { return time.Unix(500, 0) }, Node: nodeFunc(func(context.Context, string, ...any) (json.RawMessage, error) {
 		return nil, errors.New("sensitive-node-marker")
 	})}
 }
@@ -436,5 +436,22 @@ func TestDeadline(t *testing.T) {
 	}
 	if calls != 2 {
 		t.Fatal("cancelled operation leaked lock or repeated node call")
+	}
+}
+
+// A missing/unsupported authenticated profile refuses before any state opens;
+// valid W configuration still creates the real adapter and durable binding.
+func TestWitnessProfileConfig(t *testing.T) {
+	c := unitConfig(t)
+	for _, pin := range []string{"", "L", "w", "future"} {
+		bad := c
+		bad.ConstructionProfile = pin
+		bad.StateDir = "/missing"
+		if _, e := New(bad); e == nil || e.Error() != "W_PROFILE_REQUIRED" {
+			t.Fatal("W config refusal", e)
+		}
+	}
+	if x, e := New(c); e != nil || x == nil {
+		t.Fatal("W config neighbor", e)
 	}
 }

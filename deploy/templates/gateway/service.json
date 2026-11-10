@@ -9,6 +9,7 @@
   "station_socket": "",
   "screening": "off",
   "kernel": {
+    "construction_profile": "W",
     "kind": "real",
     "stub_verdict": "",
     "network": "regtest",

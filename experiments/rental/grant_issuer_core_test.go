@@ -4,16 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"os"
 	"os/exec"
 	"path/filepath"
-	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"testing"
 )
 
 func (l *coreLab) grantIssueInputs(p Policy, label string, confirmed bool) (IssuerPolicy, []byte, []byte, string, PlanSpec) {
 	l.t.Helper()
-	fund := l.detachedPool(7, true)
+	fund := l.witnessPool(7, true)
 	spec := PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: fund.TxID, Vout: fund.Vout}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}}, ChangeScript: p.FundingScript}
 	ip, req, event, key := l.detachedIssueInputs(p, label, confirmed)
 	return ip, req, event, key, spec
@@ -31,7 +31,7 @@ func requirePrepared(t *testing.T, r GrantIssueResult) {
 func TestCoreGrantIssuer(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	seal := l.detachedPool(1, true)
+	seal := l.witnessPool(1, true)
 	p, _, _ := l.grantFixture("issuer", seal, 2)
 	ip, req, event, key, spec := l.grantIssueInputs(p, "one", true)
 	tip := text(t, l.rpc("", "getbestblockhash"))
@@ -63,7 +63,7 @@ func TestCoreGrantIssuer(t *testing.T) {
 	if !replay.Replay || !bytes.Equal(r.SignedGrant, replay.SignedGrant) || !sameJSON(r.Plan, replay.Plan) {
 		t.Fatal("exact replay changed")
 	}
-	other := l.detachedPool(1, true)
+	other := l.witnessPool(1, true)
 	changed := IssueGrant(context.Background(), l.observer, ip, req, event, other, spec, key, 500)
 	if changed.Reason != "ISSUANCE_CONFLICT" || len(changed.SignedGrant) != 0 {
 		t.Fatal("booking changed", changed)
@@ -88,7 +88,7 @@ func TestCoreGrantIssuerDenials(t *testing.T) {
 			// later rows still exercise their intended issuer guard.
 			l.agentPointer(labLandlord, 3, true)
 			l.landlordKey(1, true)
-			seal := l.detachedPool(1, true)
+			seal := l.witnessPool(1, true)
 			p, _, _ := l.grantFixture(mode, seal, 2)
 			ip, req, event, key, spec := l.grantIssueInputs(p, mode, mode != "mempool-payment")
 			at := int64(500)
@@ -126,8 +126,8 @@ func TestCoreGrantIssuerDenials(t *testing.T) {
 				badSpec.Inputs[0].Point = su.Point{TxID: seal.TxID, Vout: seal.Vout}
 				want = "ISSUANCE_SPENDS_SEAL"
 			case "pool-unconfirmed":
-				seal = l.detachedPool(1, false)
-				want = "POOL_UNCONFIRMED"
+				seal = l.witnessPool(1, false)
+				want = "W_LINKAGE_REQUIRED"
 			case "funding-spent":
 				in := spec.Inputs[0].Point
 				l.revokeDetached(Point{in.TxID, in.Vout}, false)
@@ -150,7 +150,7 @@ func TestCoreGrantIssuerDenials(t *testing.T) {
 				l.mine(1)
 			}
 			if mode == "funding-spent" {
-				fund := l.detachedPool(7, true)
+				fund := l.witnessPool(7, true)
 				spec.Inputs[0].Point = su.Point{TxID: fund.TxID, Vout: fund.Vout}
 			}
 			requirePrepared(t, IssueGrant(context.Background(), l.observer, ip, req, event, seal, spec, key, 500))
@@ -210,7 +210,7 @@ func TestCoreGrantIssuerCrash(t *testing.T) {
 	l.grantIdentity()
 	for _, stage := range []string{"reserved", "countersigned", "signed", "complete"} {
 		t.Run(stage, func(t *testing.T) {
-			seal := l.detachedPool(1, true)
+			seal := l.witnessPool(1, true)
 			p, _, _ := l.grantFixture("crash-"+stage, seal, 2)
 			ip, req, event, key, spec := l.grantIssueInputs(p, "crash-"+stage, true)
 			inputs := filepath.Join(l.private, "crash-"+stage)
@@ -247,7 +247,7 @@ func TestCoreGrantIssuerCrash(t *testing.T) {
 				t.Fatalf("reservation retried: %+v", r)
 			}
 			l.save(stage+"-recovery.json", r)
-			fresh := l.detachedPool(1, true)
+			fresh := l.witnessPool(1, true)
 			np, _, _ := l.grantFixture("neighbor-"+stage, fresh, 2)
 			nip, nreq, nevent, nkey, nspec := l.grantIssueInputs(np, "neighbor-"+stage, true)
 			requirePrepared(t, IssueGrant(context.Background(), l.observer, nip, nreq, nevent, fresh, nspec, nkey, 500))

@@ -5,11 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"github.com/btcsuite/btcd/btcec/v2"
-	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	gs "github.com/relux-works/swarma-chain-lab/experiments/grant-store"
 	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
@@ -17,6 +12,10 @@ import (
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	sg "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -40,8 +39,9 @@ func (l *coreLab) issueBookingV2(b booking.BookingV2, provider, sourceDir, prese
 	raw := make([]byte, 32)
 	raw[31] = 7
 	funding, _ := btcec.PrivKeyFromBytes(raw)
-	pub := hex.EncodeToString(schnorr.SerializePubKey(funding.PubKey()))
-	fundScript, e := rental.GrantSealScript(pub)
+	pub := hex.EncodeToString(funding.PubKey().SerializeCompressed())
+	nativeScript, e := su.WitnessKeyScript(funding.PubKey().SerializeCompressed())
+	fundScript := hex.EncodeToString(nativeScript)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -51,9 +51,9 @@ func (l *coreLab) issueBookingV2(b booking.BookingV2, provider, sourceDir, prese
 		}
 	}
 	sealScript, _ := rental.GrantSealScript(l.issuerPub)
-	cfg := sg.Config{Profile: "v2", PresentationDir: presentationDir, StateDir: dir("g6-signer"), GrantKeyPath: grantKey, FundingKeyPath: fundKey, Caps: sg.RegtestCaps(), Policy: rental.IssuerPolicy{Policy: rental.Policy{Network: "regtest", Genesis: su.RegtestGenesis, StationName: e2eAgentName, StationScript: sealScript, AgentName: e2eAgentName, LandlordName: e2eLandlordName, AgentPubkey: l.agentNostrPub, IssuerPubkey: l.issuerPub, SealScript: sealScript, FundingScript: fundScript, StateDir: dir("g6-issuer")}, ProviderPubkey: provider}, PaymentPolicies: map[string]rental.PaymentAdmissionPolicy{"nmc": {MaxRateAgeSeconds: 7200, MinConfirmations: 2, Limits: pc.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}}}
+	cfg := sg.Config{Profile: "v2", PresentationDir: presentationDir, StateDir: dir("g6-signer"), GrantKeyPath: grantKey, FundingKeyPath: fundKey, Caps: sg.RegtestCaps(), Policy: rental.IssuerPolicy{Policy: rental.Policy{ConstructionProfile: "W", Network: "regtest", Genesis: su.RegtestGenesis, StationName: e2eAgentName, StationScript: sealScript, AgentName: e2eAgentName, LandlordName: e2eLandlordName, AgentPubkey: l.agentNostrPub, IssuerPubkey: l.issuerPub, SealScript: sealScript, FundingScript: fundScript, StateDir: dir("g6-issuer")}, ProviderPubkey: provider}, PaymentPolicies: map[string]rental.PaymentAdmissionPolicy{"nmc": {MaxRateAgeSeconds: 7200, MinConfirmations: 2, Limits: pc.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}}}
 	// The funding key is never imported into Core; SG1 owns both signing roles.
-	descriptor := labObject(t, l.rpc("", "getdescriptorinfo", "pkh(02"+pub+")"))
+	descriptor := labObject(t, l.rpc("", "getdescriptorinfo", "wpkh("+pub+")"))
 	var addresses []string
 	if e = json.Unmarshal(l.rpc("", "deriveaddresses", labText(t, descriptor["descriptor"])), &addresses); e != nil || len(addresses) != 1 {
 		t.Fatal("fund descriptor")

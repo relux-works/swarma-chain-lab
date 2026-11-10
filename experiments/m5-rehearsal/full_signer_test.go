@@ -1,15 +1,17 @@
 package rehearsal
 
 import (
+	"encoding/hex"
 	"encoding/json"
-	"os"
-	"path/filepath"
+	"github.com/btcsuite/btcd/btcec/v2"
 	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	booking "github.com/relux-works/swarma-chain-lab/experiments/rental-booking"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	signer "github.com/relux-works/swarma-chain-lab/experiments/signer-service"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -21,16 +23,43 @@ func (l *lab) signerInput(key *nostr.PrivKey, role string) su.PlanInput {
 	t.Helper()
 	script, e := rental.GrantSealScript(key.PubKeyHex())
 	checked(t, e, "signer inventory script")
-	var descriptor struct {
-		Descriptor string `json:"descriptor"`
+	if role == "funding" {
+		script, e = nativeFundingScript(key)
+		checked(t, e, "native funding script")
 	}
-	checked(t, json.Unmarshal(l.rpc("", "getdescriptorinfo", "pkh(02"+key.PubKeyHex()+")"), &descriptor), "inventory descriptor")
-	var addresses []string
-	checked(t, json.Unmarshal(l.rpc("", "deriveaddresses", descriptor.Descriptor), &addresses), "inventory address")
-	if len(addresses) != 1 {
-		t.Fatal("inventory address count")
+	// Select a confirmed native seed explicitly; wallet name change may be legacy.
+	address := str(t, l.rpc("rehearsal", "getnewaddress", "", "bech32"))
+	var info struct {
+		Script string `json:"scriptPubKey"`
 	}
-	txid := str(t, l.rpc("rehearsal", "sendtoaddress", addresses[0], su.Coins(1000000)))
+	checked(t, json.Unmarshal(l.rpc("rehearsal", "getaddressinfo", address), &info), "native address")
+	seed := str(t, l.rpc("rehearsal", "sendtoaddress", address, su.Coins(2000000)))
+	l.mine(1)
+	var seedTx su.TransactionView
+	checked(t, json.Unmarshal(l.rpc("", "getrawtransaction", seed, true), &seedTx), "native seed")
+	var point su.Point
+	found := false
+	for _, out := range seedTx.Vout {
+		if out.Script.Hex == info.Script && int64(out.Value) == 2000000 {
+			point = su.Point{TxID: seed, Vout: out.N}
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("native seed absent")
+	}
+	target, _ := hex.DecodeString(script)
+	change, _ := hex.DecodeString(info.Script)
+	body := su.Transaction{Version: 2, Inputs: []su.Input{{Point: point, Sequence: 0xfffffffe}}, Outputs: []su.Output{{Value: 1000000, Script: target}, {Value: 900000, Script: change}}}
+	var signed struct {
+		Hex      string `json:"hex"`
+		Complete bool   `json:"complete"`
+	}
+	checked(t, json.Unmarshal(l.rpc("rehearsal", "signrawtransactionwithwallet", hex.EncodeToString(body.Bytes())), &signed), "native seed signature")
+	if !signed.Complete {
+		t.Fatal("incomplete native seed signature")
+	}
+	txid := str(t, l.rpc("", "sendrawtransaction", signed.Hex))
 	l.mine(1)
 	var tx su.TransactionView
 	checked(t, json.Unmarshal(l.rpc("", "getrawtransaction", txid, true), &tx), "inventory transaction")
@@ -45,9 +74,9 @@ func (l *lab) signerInput(key *nostr.PrivKey, role string) su.PlanInput {
 func (l *lab) signerConfig(cfg booking.ConfigV2, storeURL, presentations string, grant, funding, provider *nostr.PrivKey) string {
 	seal, e := rental.GrantSealScript(grant.PubKeyHex())
 	checked(l.t, e, "signer seal")
-	fund, e := rental.GrantSealScript(funding.PubKeyHex())
+	fund, e := nativeFundingScript(funding)
 	checked(l.t, e, "signer funding")
-	fc := signer.FileConfig{Config: signer.Config{Profile: "v2", PresentationDir: presentations, StateDir: l.dir("signer"), GrantKeyPath: filepath.Join(l.private, "grant.key"), FundingKeyPath: filepath.Join(l.private, "funding.key"), Caps: signer.RegtestCaps(), Policy: rental.IssuerPolicy{Policy: rental.Policy{Network: "regtest", Genesis: su.RegtestGenesis, IssuerPubkey: grant.PubKeyHex(), AgentPubkey: cfg.AgentPubkey, AgentName: agentName, StationName: agentName, LandlordName: landlordName, SealScript: seal, StationScript: seal, FundingScript: fund, StateDir: l.dir("issuer")}, ProviderPubkey: provider.PubKeyHex()}, PaymentPolicies: map[string]rental.PaymentAdmissionPolicy{"nmc": {MaxRateAgeSeconds: 7200, MinConfirmations: 2, Limits: pc.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}}}, ReadRouteFile: l.json("signer-reader.json", l.read, 0600), BroadcastRouteFile: l.json("signer-broadcaster.json", l.broadcast, 0600), PaymentRouteFiles: map[string]string{"nmc": l.json("signer-payment.json", l.paymentIssuer, 0600)}, BookingOutbox: cfg.StateDir, StoreURL: storeURL, StoreLandlordReader: grant.PubKeyHex(), StoreAgentReader: cfg.AgentPubkey, IntervalSeconds: 1, Inventory: []su.PlanInput{l.signerInput(grant, "seal"), l.signerInput(funding, "funding")}}
+	fc := signer.FileConfig{Config: signer.Config{Profile: "v2", PresentationDir: presentations, StateDir: l.dir("signer"), GrantKeyPath: filepath.Join(l.private, "grant.key"), FundingKeyPath: filepath.Join(l.private, "funding.key"), Caps: signer.RegtestCaps(), Policy: rental.IssuerPolicy{Policy: rental.Policy{ConstructionProfile: "W", Network: "regtest", Genesis: su.RegtestGenesis, IssuerPubkey: grant.PubKeyHex(), AgentPubkey: cfg.AgentPubkey, AgentName: agentName, StationName: agentName, LandlordName: landlordName, SealScript: seal, StationScript: seal, FundingScript: fund, StateDir: l.dir("issuer")}, ProviderPubkey: provider.PubKeyHex()}, PaymentPolicies: map[string]rental.PaymentAdmissionPolicy{"nmc": {MaxRateAgeSeconds: 7200, MinConfirmations: 2, Limits: pc.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}}}, ReadRouteFile: l.json("signer-reader.json", l.read, 0600), BroadcastRouteFile: l.json("signer-broadcaster.json", l.broadcast, 0600), PaymentRouteFiles: map[string]string{"nmc": l.json("signer-payment.json", l.paymentIssuer, 0600)}, BookingOutbox: cfg.StateDir, StoreURL: storeURL, StoreLandlordReader: grant.PubKeyHex(), StoreAgentReader: cfg.AgentPubkey, IntervalSeconds: 1, Inventory: []su.PlanInput{l.signerInput(grant, "seal"), l.signerInput(funding, "funding")}}
 	return l.json("signer.json", fc, 0600)
 }
 func (l *lab) signerCycle(config string) {
@@ -69,4 +98,13 @@ func (l *lab) confirmedPresentation(config, id, dir string) []byte {
 	checked(l.t, e, "confirmed native SG1 presentation")
 	l.evidence["native_signer"] = map[string]any{"original_booking_outbox": true, "native_inventory_enrollment": true, "unconfirmed_presentation_absent": true, "confirmed_presentation_published": true, "observed_at": time.Now().Unix()}
 	return raw
+}
+
+func nativeFundingScript(key *nostr.PrivKey) (string, error) {
+	raw := key.Bytes()
+	defer clear(raw)
+	k, _ := btcec.PrivKeyFromBytes(raw)
+	defer k.Zero()
+	script, e := su.WitnessKeyScript(k.PubKey().SerializeCompressed())
+	return hex.EncodeToString(script), e
 }

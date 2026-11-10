@@ -36,3 +36,13 @@
   the own Core active-chain view provides that validation. Legacy W3 is unchanged.
 - Public LIP/CIP publication and production security review belong to their
   owners. This producer supplies local signed source/evidence for independent review.
+
+## SW1 follow-up boundary
+
+The authenticated chain-pin wire encoding for construction profile W remains
+open; current code requires the explicit local `construction_profile` pin.
+SW1 is linkage-only. SW1b must first specify authenticated payment-role/terms
+proofs and their GV4 binding before Q:0 can be an unconfirmed A input. Until then
+`W_UNCONFIRMED_NON_LINKAGE_PARENT` rejects Q and every other ordinary unconfirmed
+parent. See [the boundary inventory](../WITNESS-PROFILE.md); this is an explicit
+deferred extension, not a fallback to L or a claim that full W is delivered.

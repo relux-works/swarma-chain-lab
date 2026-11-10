@@ -18,7 +18,7 @@ import (
 func TestCoreGrantNameRecovery(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	p, g, raw := l.grantFixture("names", l.detachedPool(1, true), 2)
+	p, g, raw := l.grantFixture("names", l.witnessPool(1, true), 2)
 	proof := l.grantProof(p, raw, true)
 	l.checkGrant("initial", p, g, proof, 500, "live", "LIVE", false)
 	for _, role := range []string{"agent", "landlord"} {
@@ -77,7 +77,7 @@ func TestCoreGrantNameRecovery(t *testing.T) {
 func TestCoreGrantState(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	p, g, raw := l.grantFixture("state", l.detachedPool(1, true), 2)
+	p, g, raw := l.grantFixture("state", l.witnessPool(1, true), 2)
 	proof := l.grantProof(p, raw, true)
 	l.checkGrant("initial", p, g, proof, 500, "live", "LIVE", false)
 	path := filepath.Join(p.StateDir, "grant-"+Hash(raw)+".json")
@@ -119,7 +119,7 @@ func TestCoreGrantState(t *testing.T) {
 		t.Fatal(e)
 	}
 	l.checkGrant("v2-memory", fresh, g, proof, 500, "refused", "SEAL_ALREADY_SEEN", false)
-	_, other, signed := l.grantFixture("neighbor", l.detachedPool(1, true), 2)
+	_, other, signed := l.grantFixture("neighbor", l.witnessPool(1, true), 2)
 	otherProof := l.grantProof(fresh, signed, true)
 	l.checkGrant("v2-fresh-seal", fresh, other, otherProof, 500, "live", "LIVE", false)
 }
@@ -130,7 +130,7 @@ func TestCoreGrantState(t *testing.T) {
 func TestCoreGrantPresentation(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	p, g, raw := l.grantFixture("cache", l.detachedPool(1, true), 2)
+	p, g, raw := l.grantFixture("cache", l.witnessPool(1, true), 2)
 	proof := l.grantProof(p, raw, true)
 	id := Hash(raw)
 	present := func(pr []byte, grantID, verdict, reason string) {
@@ -210,14 +210,14 @@ func TestCoreGrantPresentation(t *testing.T) {
 func TestCoreGrantIssuanceSealInput(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	p, g, raw := l.grantFixture("spent-in-issue", l.detachedPool(1, true), 2)
+	p, g, raw := l.grantFixture("spent-in-issue", l.witnessPool(1, true), 2)
 	plan := l.grantPlan(p, raw)
 	plan.Inputs[0].Point = su.Point{TxID: g.Seal.TxID, Vout: g.Seal.Vout}
 	id := l.sendPlan(plan, true)
 	proof, _ := PresentIssuedGrant(raw, id)
 	l.checkGrant("seal-input", p, g, proof, 500, "refused", "ISSUANCE_SPENDS_SEAL", false)
 	assertNoIssuerBurn(t, p.StateDir)
-	_, other, signed := l.grantFixture("neighbor", l.detachedPool(1, true), 2)
+	_, other, signed := l.grantFixture("neighbor", l.witnessPool(1, true), 2)
 	pr := l.grantProof(p, signed, true)
 	l.checkGrant("valid-neighbor", p, other, pr, 500, "live", "LIVE", false)
 }

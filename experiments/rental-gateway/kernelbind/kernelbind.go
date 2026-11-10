@@ -42,11 +42,14 @@ var (
 // seal index, per-grant state). It must be an absolute,
 // cleaned path (the kernel enforces this again). FundingScript is deliberately
 // absent: the gateway checks grants but never funds issuance.
-func New(node singleuse.Node, stateDir, agentName, landlordName, issuerPubkey string) (*Adapter, error) {
-	return NewForNetwork(node, stateDir, agentName, landlordName, issuerPubkey, "regtest", singleuse.RegtestGenesis)
+func New(node singleuse.Node, stateDir, agentName, landlordName, issuerPubkey, constructionProfile string) (*Adapter, error) {
+	return NewForNetwork(node, stateDir, agentName, landlordName, issuerPubkey, "regtest", singleuse.RegtestGenesis, constructionProfile)
 }
 
-func NewForNetwork(node singleuse.Node, stateDir, agentName, landlordName, issuerPubkey, network, genesis string) (*Adapter, error) {
+func NewForNetwork(node singleuse.Node, stateDir, agentName, landlordName, issuerPubkey, network, genesis, constructionProfile string) (*Adapter, error) {
+	if e := singleuse.RequireWitnessProfile(constructionProfile); e != nil {
+		return nil, e
+	}
 	if !singleuse.NetworkPinned(network, genesis) {
 		return nil, fmt.Errorf("kernelbind: NETWORK_PIN")
 	}
@@ -57,12 +60,13 @@ func NewForNetwork(node singleuse.Node, stateDir, agentName, landlordName, issue
 	return &Adapter{
 		Node: node,
 		Policy: rental.Policy{
-			Network:      network,
-			Genesis:      genesis,
-			AgentName:    agentName,
-			LandlordName: landlordName,
-			SealScript:   script,
-			StateDir:     stateDir,
+			ConstructionProfile: constructionProfile,
+			Network:             network,
+			Genesis:             genesis,
+			AgentName:           agentName,
+			LandlordName:        landlordName,
+			SealScript:          script,
+			StateDir:            stateDir,
 		},
 	}, nil
 }

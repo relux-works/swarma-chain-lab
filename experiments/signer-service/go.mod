@@ -11,6 +11,8 @@ require (
 	golang.org/x/sys v0.47.0
 )
 
+require github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
+
 require github.com/gorilla/websocket v1.5.3 // indirect
 
 require (

@@ -27,15 +27,15 @@ import (
 )
 
 type coreLab struct {
-	t                                                 *testing.T
-	root, private, public, cli, conf, address, script string
-	node                                              *exec.Cmd
-	log                                               *os.File
-	read, send                                        su.Route
-	observer                                          su.Node
-	events                                            []any
-	cfg                                               Config
-	sink                                              *S1Store
+	t                                                                     *testing.T
+	root, private, public, cli, conf, address, script, miner, minerScript string
+	node                                                                  *exec.Cmd
+	log                                                                   *os.File
+	read, send                                                            su.Route
+	observer                                                              su.Node
+	events                                                                []any
+	cfg                                                                   Config
+	sink                                                                  *S1Store
 }
 
 func text(t *testing.T, b []byte) string {
@@ -89,7 +89,7 @@ func (l *coreLab) rpc(wallet, method string, args ...any) json.RawMessage {
 	}
 	return b
 }
-func (l *coreLab) mine(n int)              { l.rpc("", "generatetoaddress", n, l.address) }
+func (l *coreLab) mine(n int)              { l.rpc("", "generatetoaddress", n, l.miner) }
 func (l *coreLab) save(name string, v any) { write(l.t, filepath.Join(l.public, name), encode(v)) }
 func newCore(t *testing.T) *coreLab {
 	t.Helper()
@@ -176,10 +176,12 @@ func newCore(t *testing.T) *coreLab {
 	}
 	l.rpc("", "createwallet", "lab", false, false, "", false, false)
 	l.address = text(t, l.rpc("lab", "getnewaddress", "", "legacy"))
+	l.miner = text(t, l.rpc("lab", "getnewaddress", "", "bech32"))
+	l.minerScript = text(t, object(t, l.rpc("lab", "getaddressinfo", l.miner))["scriptPubKey"])
 	l.script = text(t, object(t, l.rpc("lab", "getaddressinfo", l.address))["scriptPubKey"])
 	l.mine(101)
 	// These keys are fixture-only. Grant/funding keys are never imported into
-	// the node wallet; only the service can sign the enrolled P2PKH outputs.
+	// the node wallet; only the service can sign enrolled seal/native funding outputs.
 	l.cfg = config(t)
 	landlord, _ := rental.LandlordValue(rental.LandlordBinding{Grant: l.cfg.Policy.Policy.IssuerPubkey})
 	agent, _ := rental.AgentBindingValue(rental.AgentBinding{Nostr: l.cfg.Policy.Policy.AgentPubkey, Landlord: l.cfg.Policy.Policy.LandlordName})
@@ -221,20 +223,52 @@ func (l *coreLab) fund(role string, value int64) su.PlanInput {
 	l.t.Helper()
 	pub := l.cfg.Policy.Policy.IssuerPubkey
 	script := l.cfg.Policy.Policy.SealScript
+	descriptor := "pkh(02" + pub + ")"
 	if role == "funding" {
-		_, pub, script = testKey(7)
+		key, _, _ := testKey(7)
+		script = l.cfg.Policy.Policy.FundingScript
+		descriptor = "wpkh(" + hex.EncodeToString(key.PubKey().SerializeCompressed()) + ")"
 	}
-	info := object(l.t, l.rpc("", "getdescriptorinfo", "pkh(02"+pub+")"))
+	info := object(l.t, l.rpc("", "getdescriptorinfo", descriptor))
 	var addresses []string
 	json.Unmarshal(l.rpc("", "deriveaddresses", text(l.t, info["descriptor"])), &addresses)
 	if len(addresses) != 1 {
 		l.t.Fatal("descriptor")
 	}
-	id := text(l.t, l.rpc("lab", "sendtoaddress", addresses[0], su.Coins(value)))
+	// Select a confirmed native funding coin explicitly: wallet coin selection
+	// may otherwise choose a legacy name-transaction change output.
+	var coins []struct {
+		TxID   string      `json:"txid"`
+		Vout   uint32      `json:"vout"`
+		Amount json.Number `json:"amount"`
+		Script string      `json:"scriptPubKey"`
+	}
+	if e := json.Unmarshal(l.rpc("lab", "listunspent", 1, 9999999, []string{l.miner}), &coins); e != nil {
+		l.t.Fatal(e)
+	}
+	var tx su.Transaction
+	for _, coin := range coins {
+		amount, e := su.ParseCoins(string(coin.Amount))
+		if e != nil || coin.Script != l.minerScript || amount < value+100000 {
+			continue
+		}
+		output, _ := hex.DecodeString(script)
+		change, _ := hex.DecodeString(l.minerScript)
+		tx = su.Transaction{Version: 2, Inputs: []su.Input{{Point: su.Point{TxID: coin.TxID, Vout: coin.Vout}, Sequence: 0xfffffffe}}, Outputs: []su.Output{{Value: value, Script: output}, {Value: amount - value - 100000, Script: change}}}
+		break
+	}
+	if len(tx.Inputs) == 0 {
+		l.t.Fatal("confirmed native fixture funding absent")
+	}
+	signed := object(l.t, l.rpc("lab", "signrawtransactionwithwallet", hex.EncodeToString(tx.Bytes())))
+	if string(signed["complete"]) != "true" {
+		l.t.Fatal("incomplete native fixture signature")
+	}
+	id := text(l.t, l.rpc("", "sendrawtransaction", text(l.t, signed["hex"])))
 	l.mine(1)
-	var tx su.TransactionView
-	json.Unmarshal(l.rpc("", "getrawtransaction", id, true), &tx)
-	for _, out := range tx.Vout {
+	var view su.TransactionView
+	json.Unmarshal(l.rpc("", "getrawtransaction", id, true), &view)
+	for _, out := range view.Vout {
 		if out.Script.Hex == script && int64(out.Value) == value {
 			return su.PlanInput{Point: su.Point{TxID: id, Vout: out.N}, Role: role, ValueSat: value, Script: script}
 		}
@@ -446,13 +480,13 @@ func coreService(t *testing.T, spending bool) {
 	// content hash. Recovery must verify signatures/template, not trust those IDs.
 	corrupt := record
 	raw, _ := hex.DecodeString(corrupt.RawTx)
-	tx, e := su.DecodeTransaction(raw)
+	w, e := su.DecodeWitnessTransaction(raw)
 	if e != nil {
 		t.Fatal(e)
 	}
-	tx.Outputs[0].Value++
-	corrupt.RawTx = hex.EncodeToString(tx.Bytes())
-	corrupt.TxID = tx.ID()
+	w.Body.Outputs[0].Value++
+	corrupt.RawTx = hex.EncodeToString(w.Bytes())
+	corrupt.TxID = w.Body.ID()
 	corrupt.Presentation, e = rental.PresentIssuedGrant(corrupt.SignedGrant, corrupt.TxID)
 	if e != nil {
 		t.Fatal(e)

@@ -1,5 +1,11 @@
 # Rental gateway + station manager (M2)
 
+## SW1 witness construction
+
+Real admission requires authenticated `kernel.construction_profile: "W"`. `kernelbind.New` and `NewForNetwork` take an explicit final construction-profile argument; they never infer a profile from a presentation. The rental backend verifies the native P2WPKH/ALL T/A graph before admitting a grant.
+
+See [the W boundary/reason inventory](../WITNESS-PROFILE.md). This first delivery is linkage-only: unconfirmed payment Q is deferred to SW1b with an authenticated GV4 proof contract. Existing signed v3 grant bytes are unchanged.
+
 LAB experiment. The gateway half of the rental path
 (`swarma-grants/docs/next-stage/architecture.md` §2, §3.3, §5 steps
 8–9, §5.0, §5.0b, §5.2, §7): one stable agent Nostr identity held by

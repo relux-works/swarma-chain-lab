@@ -6,6 +6,7 @@
     "payment_policies": {"nmc": {"max_rate_age_seconds": "PLACEHOLDER_MAX_RATE_AGE_INTEGER", "min_confirmations": "PLACEHOLDER_PAYMENT_CONFIRMATIONS_INTEGER", "limits": {"max_blocks": "PLACEHOLDER_MAX_BLOCKS_INTEGER", "max_mempool": "PLACEHOLDER_MAX_MEMPOOL_INTEGER", "max_calls": "PLACEHOLDER_MAX_CALLS_INTEGER", "max_bytes": "PLACEHOLDER_MAX_BYTES_INTEGER"}}},
     "policy": {
       "policy": {
+        "construction_profile": "W",
         "network": "regtest",
         "genesis": "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206",
         "issuer_pubkey": "PLACEHOLDER_ISSUER_XONLY_PUBKEY",
@@ -16,7 +17,7 @@
         "agent_name": "PLACEHOLDER_AGENT_NAME",
         "seal_script": "PLACEHOLDER_ISSUER_P2PKH_SCRIPT",
         "landlord_name": "PLACEHOLDER_LANDLORD_NAME",
-        "funding_script": "PLACEHOLDER_FUNDING_P2PKH_SCRIPT"
+        "funding_script": "PLACEHOLDER_FUNDING_NATIVE_P2WPKH_SCRIPT"
       },
       "provider_pubkey": "PLACEHOLDER_PROVIDER_XONLY_PUBKEY"
     },

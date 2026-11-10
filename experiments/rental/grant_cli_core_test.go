@@ -19,7 +19,7 @@ import (
 func TestCoreGrantCLI(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	seal := l.detachedPool(1, true)
+	seal := l.witnessPool(1, true)
 	p, _, _ := l.grantFixture("cli", seal, 2)
 	ip, request, event, key, spec := l.grantIssueInputs(p, "cli", true)
 	write := func(name string, v any) string {

@@ -28,23 +28,24 @@ type PlanSpec struct {
 	Pool         PoolOutput     `json:"pool"`
 }
 type Plan struct {
-	Version            int             `json:"version"`
-	Network            string          `json:"network"`
-	Genesis            string          `json:"genesis"`
-	Kind               string          `json:"kind"`
-	Offline            bool            `json:"offline"`
-	TransactionVersion uint32          `json:"transaction_version"`
-	Inputs             []su.PlanInput  `json:"inputs"`
-	Outputs            []su.PlanOutput `json:"outputs"`
-	FeeRate            int64           `json:"fee_rate_sat_vbyte"`
-	FeeSat             int64           `json:"reserved_fee_sat"`
-	MaxSignedVBytes    int             `json:"maximum_signed_vbytes"`
-	CertificateSHA256  string          `json:"certificate_sha256,omitempty"`
-	GrantID            string          `json:"grant_id,omitempty"`
-	BookingID          string          `json:"booking_id,omitempty"`
-	NameValue          string          `json:"name_value,omitempty"`
-	Reservation        string          `json:"reservation,omitempty"`
-	RequiredReview     string          `json:"required_review"`
+	ConstructionProfile string          `json:"construction_profile,omitempty"`
+	Version             int             `json:"version"`
+	Network             string          `json:"network"`
+	Genesis             string          `json:"genesis"`
+	Kind                string          `json:"kind"`
+	Offline             bool            `json:"offline"`
+	TransactionVersion  uint32          `json:"transaction_version"`
+	Inputs              []su.PlanInput  `json:"inputs"`
+	Outputs             []su.PlanOutput `json:"outputs"`
+	FeeRate             int64           `json:"fee_rate_sat_vbyte"`
+	FeeSat              int64           `json:"reserved_fee_sat"`
+	MaxSignedVBytes     int             `json:"maximum_signed_vbytes"`
+	CertificateSHA256   string          `json:"certificate_sha256,omitempty"`
+	GrantID             string          `json:"grant_id,omitempty"`
+	BookingID           string          `json:"booking_id,omitempty"`
+	NameValue           string          `json:"name_value,omitempty"`
+	Reservation         string          `json:"reservation,omitempty"`
+	RequiredReview      string          `json:"required_review"`
 }
 type poolReservation struct {
 	Version           int    `json:"version"`

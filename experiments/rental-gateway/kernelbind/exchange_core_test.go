@@ -65,7 +65,7 @@ func (l *coreLab) issueBooking(b booking.Booking, provider string) []byte {
 	l.t.Helper()
 	ctx := context.Background()
 	seal := l.seal()
-	funding := l.output(l.address, l.script)
+	funding, fundingScript := l.nativeFunding()
 	dir := filepath.Join(l.private, "exchange-issuer")
 	if err := os.Mkdir(dir, 0700); err != nil {
 		l.t.Fatal(err)
@@ -75,8 +75,8 @@ func (l *coreLab) issueBooking(b booking.Booking, provider string) []byte {
 		l.t.Fatal(err)
 	}
 	sealScript, _ := rental.GrantSealScript(l.issuerPub)
-	policy := rental.Policy{Network: "regtest", Genesis: su.RegtestGenesis, AgentName: e2eAgentName, LandlordName: e2eLandlordName, SealScript: sealScript, FundingScript: l.script, StateDir: dir}
-	spec := rental.PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: funding.TxID, Vout: funding.Vout}, ValueSat: 1000000, Script: l.script, Role: "funding"}}, ChangeScript: l.script}
+	policy := rental.Policy{ConstructionProfile: "W", Network: "regtest", Genesis: su.RegtestGenesis, AgentName: e2eAgentName, LandlordName: e2eLandlordName, SealScript: sealScript, FundingScript: fundingScript, StateDir: dir}
+	spec := rental.PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: funding.TxID, Vout: funding.Vout}, ValueSat: 1000000, Script: fundingScript, Role: "funding"}}, ChangeScript: fundingScript}
 	result := rental.IssueGrant(ctx, l.observer, rental.IssuerPolicy{Policy: policy, ProviderPubkey: provider}, jsonBytes(l.t, b.Issuance), jsonBytes(l.t, b.PackageEvent), seal, spec, keyPath, 500)
 	if result.Verdict != "prepared" || result.Plan == nil {
 		l.t.Fatalf("actual booking issuance: %s/%s", result.Verdict, result.Reason)
@@ -167,7 +167,7 @@ func runExchangeCore(t *testing.T, revoked bool) {
 		t.Fatal(err)
 	}
 	defer engine.Close()
-	kernel, err := kernelbind.New(l.observer, privateDir("kernel"), e2eAgentName, e2eLandlordName, l.issuerPub)
+	kernel, err := kernelbind.New(l.observer, privateDir("kernel"), e2eAgentName, e2eLandlordName, l.issuerPub, "W")
 	if err != nil {
 		t.Fatal(err)
 	}

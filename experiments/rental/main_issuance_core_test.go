@@ -52,7 +52,7 @@ func (n *mainIssuanceProjection) Call(ctx context.Context, m string, args ...any
 func TestCoreMainLegacyPaymentRefusal(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	seal := l.detachedPool(1, true)
+	seal := l.witnessPool(1, true)
 	p, _, _ := l.grantFixture("main-legacy-refusal", seal, 2)
 	ip, request, event, key, spec := l.grantIssueInputs(p, "main-legacy-refusal", true)
 	mainPolicy := ip
@@ -81,8 +81,8 @@ func TestCoreMainPublicGrantV2(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
 	pay := newPaymentCoreLab(t, "nmc")
-	seal := l.detachedPool(1, true)
-	fund := l.detachedPool(7, true)
+	seal := l.witnessPool(1, true)
+	fund := l.witnessPool(7, true)
 	p, _, _ := l.grantFixture("main-public-v2", seal, 2)
 	p.Network, p.Genesis, p.FeeRate = "main", su.MainGenesis, 201
 	spec := PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: fund.TxID, Vout: fund.Vout}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}}, ChangeScript: p.FundingScript}

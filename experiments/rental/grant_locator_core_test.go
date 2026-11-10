@@ -21,7 +21,7 @@ import (
 func TestCoreGrantLocator(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	seal := l.detachedPool(1, true)
+	seal := l.witnessPool(1, true)
 	p, _, _ := l.grantFixture("locator", seal, 2)
 	ip, req, event, key, spec := l.grantIssueInputs(p, "locator", true)
 	r := IssueGrant(context.Background(), l.observer, ip, req, event, seal, spec, key, 500)
@@ -122,7 +122,7 @@ func TestCoreGrantLocatorReplay(t *testing.T) {
 	}
 	l := newCore(t)
 	l.grantIdentity()
-	seal := l.detachedPool(1, true)
+	seal := l.witnessPool(1, true)
 	p, _, raw := l.grantFixture("locator-replay", seal, 2)
 	ip, req, event, key, spec := l.grantIssueInputs(p, "locator-replay", true)
 	projection, e := MakeGrantIssuancePlan(p, spec, raw)
@@ -218,7 +218,7 @@ func TestCoreGrantLocatorReplay(t *testing.T) {
 		t.Fatal(e)
 	}
 	l.checkGrant("historical-live", p, signed.Grant, legacyProof, 500, "live", "LIVE", false)
-	fresh := l.detachedPool(1, true)
+	fresh := l.witnessPool(1, true)
 	np, _, _ := l.grantFixture("locator-fresh", fresh, 2)
 	nip, nr, ne, nk, ns := l.grantIssueInputs(np, "locator-fresh", true)
 	tooSmall := ns

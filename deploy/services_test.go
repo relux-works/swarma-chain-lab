@@ -36,8 +36,8 @@ func issuerFixture() issuerConfig {
 	f.Config.Profile = "v2"
 	f.Config.PaymentPolicies = map[string]paymentPolicy{"nmc": {MaxRateAgeSeconds: 60, MinConfirmations: 1, Limits: paymentLimits{MaxBlocks: 100, MaxMempool: 100, MaxCalls: 1000, MaxBytes: 1000000}}}
 	seal := "76a914" + strings.Repeat("a", 40) + "88ac"
-	fund := "76a914" + strings.Repeat("b", 40) + "88ac"
-	f.Config.Policy.Policy = issuerPolicy{Network: "regtest", Genesis: regtestGenesis, IssuerPubkey: strings.Repeat("a", 64), AgentPubkey: strings.Repeat("b", 64), StationName: "id/fixture-agent", StationScript: fund, StateDir: "/var/lib/swarma-issuer/issuance", AgentName: "id/fixture-agent", SealScript: seal, LandlordName: "id/fixture-landlord", FundingScript: fund}
+	fund := "0014" + strings.Repeat("b", 40)
+	f.Config.Policy.Policy = issuerPolicy{ConstructionProfile: "W", Network: "regtest", Genesis: regtestGenesis, IssuerPubkey: strings.Repeat("a", 64), AgentPubkey: strings.Repeat("b", 64), StationName: "id/fixture-agent", StationScript: seal, StateDir: "/var/lib/swarma-issuer/issuance", AgentName: "id/fixture-agent", SealScript: seal, LandlordName: "id/fixture-landlord", FundingScript: fund}
 	f.Config.Policy.ProviderPubkey = strings.Repeat("c", 64)
 	f.Config.StateDir = "/var/lib/swarma-issuer/ledger"
 	f.Config.GrantKeyPath = "/etc/swarma/issuer/grant.key"
@@ -198,6 +198,10 @@ func TestIssuerConfigBoundaries(t *testing.T) {
 		change func(*issuerConfig)
 		want   error
 	}{
+		{"missing-W", func(f *issuerConfig) { f.Config.Policy.Policy.ConstructionProfile = "" }, ErrPolicy},
+		{"legacy-funding", func(f *issuerConfig) {
+			f.Config.Policy.Policy.FundingScript = "76a914" + strings.Repeat("b", 40) + "88ac"
+		}, ErrPolicy},
 		{"grant-key", func(f *issuerConfig) { f.Config.GrantKeyPath = "" }, ErrPolicy},
 		{"funding-key", func(f *issuerConfig) { f.Config.FundingKeyPath = f.Config.GrantKeyPath }, ErrPolicy},
 		{"read-route", func(f *issuerConfig) { f.ReadRouteFile = "" }, ErrPolicy},

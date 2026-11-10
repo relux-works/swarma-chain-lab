@@ -291,32 +291,46 @@ func newCoreLab(t *testing.T, agentNostrPub string) *coreLab {
 // seal funds one fresh 1,000,000-sat output to the grant seal
 // script (P2PKH of the issuer grant key), mines it and locks it
 // against wallet coin selection.
+// W creation explicitly spends one confirmed native funding output. Legacy
+// payment/name fixtures retain their own script types.
 func (l *coreLab) seal() rental.Point {
 	l.t.Helper()
-	descriptor := labObject(l.t, l.rpc("", "getdescriptorinfo", "pkh(02"+l.issuerPub+")"))
-	var addresses []string
-	if e := json.Unmarshal(l.rpc("", "deriveaddresses", labText(l.t, descriptor["descriptor"])), &addresses); e != nil || len(addresses) != 1 {
-		l.t.Fatal("seal descriptor")
-	}
-	id := labText(l.t, l.rpc("issuer", "sendtoaddress", addresses[0], su.Coins(1000000)))
+	nativeAddress := labText(l.t, l.rpc("issuer", "getnewaddress", "", "bech32"))
+	nativeScript := labText(l.t, labObject(l.t, l.rpc("issuer", "getaddressinfo", nativeAddress))["scriptPubKey"])
+	seed := labText(l.t, l.rpc("issuer", "sendtoaddress", nativeAddress, su.Coins(2000000)))
 	l.mine(1)
-	var tx su.TransactionView
-	if e := json.Unmarshal(l.rpc("", "getrawtransaction", id, true), &tx); e != nil {
+	var view su.TransactionView
+	if e := json.Unmarshal(l.rpc("", "getrawtransaction", seed, true), &view); e != nil {
 		l.t.Fatal(e)
 	}
-	script, e := rental.GrantSealScript(l.issuerPub)
+	var point su.Point
+	found := false
+	for _, out := range view.Vout {
+		if out.Script.Hex == nativeScript && int64(out.Value) == 2000000 {
+			point = su.Point{TxID: seed, Vout: out.N}
+			found = true
+		}
+	}
+	if !found {
+		l.t.Fatal("native seed absent")
+	}
+	sealScript, e := rental.GrantSealScript(l.issuerPub)
 	if e != nil {
 		l.t.Fatal(e)
 	}
-	for _, o := range tx.Vout {
-		if o.Script.Hex == script && int64(o.Value) == 1000000 {
-			point := rental.Point{TxID: id, Vout: o.N}
-			l.rpc("issuer", "lockunspent", false, []rental.Point{point})
-			return point
-		}
-	}
-	l.t.Fatal("seal output absent")
-	return rental.Point{}
+	script, _ := hex.DecodeString(sealScript)
+	change, _ := hex.DecodeString(nativeScript)
+	tx := su.Transaction{Version: 2, Inputs: []su.Input{{Point: point, Sequence: 0xfffffffe}}, Outputs: []su.Output{{Value: 1000000, Script: script}, {Value: 900000, Script: change}}}
+	id := l.send(hex.EncodeToString(tx.Bytes()), true)
+	seal := rental.Point{TxID: id, Vout: 0}
+	l.rpc("issuer", "lockunspent", false, []rental.Point{seal})
+	return seal
+}
+
+func (l *coreLab) nativeFunding() (rental.Point, string) {
+	address := labText(l.t, l.rpc("issuer", "getnewaddress", "", "bech32"))
+	script := labText(l.t, labObject(l.t, l.rpc("issuer", "getaddressinfo", address))["scriptPubKey"])
+	return l.output(address, script), script
 }
 
 // grant uses the real K1 issuer after a confirmed payment and authenticated
@@ -330,7 +344,7 @@ func (l *coreLab) grant(grantee *nostr.PrivKey, label string, seal rental.Point,
 		l.t.Fatal(err)
 	}
 	payment := l.output(l.address, l.script)
-	funding := l.output(l.address, l.script)
+	funding, fundingScript := l.nativeFunding()
 	var paymentTx su.TransactionView
 	if err = json.Unmarshal(l.rpc("", "getrawtransaction", payment.TxID, true), &paymentTx); err != nil {
 		l.t.Fatal(err)
@@ -361,8 +375,8 @@ func (l *coreLab) grant(grantee *nostr.PrivKey, label string, seal rental.Point,
 		l.t.Fatal(err)
 	}
 	sealScript, _ := rental.GrantSealScript(l.issuerPub)
-	policy := rental.Policy{Network: "regtest", Genesis: su.RegtestGenesis, AgentName: e2eAgentName, LandlordName: e2eLandlordName, SealScript: sealScript, FundingScript: l.script, StateDir: issuerState}
-	spec := rental.PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: funding.TxID, Vout: funding.Vout}, ValueSat: 1000000, Script: l.script, Role: "funding"}}, ChangeScript: l.script}
+	policy := rental.Policy{ConstructionProfile: "W", Network: "regtest", Genesis: su.RegtestGenesis, AgentName: e2eAgentName, LandlordName: e2eLandlordName, SealScript: sealScript, FundingScript: fundingScript, StateDir: issuerState}
+	spec := rental.PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: funding.TxID, Vout: funding.Vout}, ValueSat: 1000000, Script: fundingScript, Role: "funding"}}, ChangeScript: fundingScript}
 	r := rental.IssueGrant(context.Background(), l.observer, rental.IssuerPolicy{Policy: policy, ProviderPubkey: provider.PubKeyHex()}, jsonBytes(l.t, req), jsonBytes(l.t, publication), seal, spec, keyPath, 500)
 	if r.Verdict != "prepared" || r.Plan == nil || r.GrantID != rental.Hash(r.SignedGrant) {
 		l.t.Fatalf("K1 issuer: %s/%s", r.Verdict, r.Reason)
@@ -452,7 +466,7 @@ func TestGatewayV3CoreE2E(t *testing.T) {
 	if e := os.Mkdir(kernelState, 0700); e != nil {
 		t.Fatal(e)
 	}
-	adapter, err := kernelbind.New(l.observer, kernelState, e2eAgentName, e2eLandlordName, l.issuerPub)
+	adapter, err := kernelbind.New(l.observer, kernelState, e2eAgentName, e2eLandlordName, l.issuerPub, "W")
 	if err != nil {
 		t.Fatal(err)
 	}

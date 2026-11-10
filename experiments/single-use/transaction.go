@@ -117,7 +117,7 @@ func writeScript(w *bytes.Buffer, b []byte) { putVar(w, uint64(len(b))); w.Write
 // DecodeTransaction accepts bounded legacy serialization only. Witness spends
 // are outside this v0 P2SH profile; no decoder fallback guesses their meaning.
 func DecodeTransaction(raw []byte) (*Transaction, error) {
-	return decodeTransaction(raw, false)
+	return decodeTransaction(raw, false, nil)
 }
 
 // DecodePaymentTransaction also accepts bounded witness serialization. It
@@ -125,10 +125,10 @@ func DecodeTransaction(raw []byte) (*Transaction, error) {
 // transaction for rebroadcast. Witness script/signature validity belongs to
 // the admitted Core node; this parser validates serialization only.
 func DecodePaymentTransaction(raw []byte) (*Transaction, error) {
-	return decodeTransaction(raw, true)
+	return decodeTransaction(raw, true, nil)
 }
 
-func decodeTransaction(raw []byte, allowWitness bool) (*Transaction, error) {
+func decodeTransaction(raw []byte, allowWitness bool, stacks *[][][]byte) (*Transaction, error) {
 	if len(raw) < 10 || len(raw) > 1<<20 {
 		return nil, fail("TX_SIZE")
 	}
@@ -197,14 +197,26 @@ func decodeTransaction(raw []byte, allowWitness bool) (*Transaction, error) {
 				return nil, fail("WITNESS_STACK_BOUND")
 			}
 			anyStack = anyStack || count > 0
+			var stack [][]byte
 			for j := uint64(0); j < count; j++ {
 				size, e := readVar(r)
 				if e != nil || size > 10000 || size > uint64(r.Len()) {
 					return nil, fail("WITNESS_ITEM_BOUND")
 				}
-				if _, e = r.Seek(int64(size), io.SeekCurrent); e != nil {
-					return nil, fail("WITNESS_ITEM_BOUND")
+				if stacks == nil {
+					if _, e = r.Seek(int64(size), io.SeekCurrent); e != nil {
+						return nil, fail("WITNESS_ITEM_BOUND")
+					}
+				} else {
+					item := make([]byte, size)
+					if _, e = io.ReadFull(r, item); e != nil {
+						return nil, fail("WITNESS_ITEM_BOUND")
+					}
+					stack = append(stack, item)
 				}
+			}
+			if stacks != nil {
+				*stacks = append(*stacks, stack)
 			}
 		}
 		if !anyStack {

@@ -1,5 +1,11 @@
 # Grant check boundary for a2a daemon (a2ad) (CG1)
 
+## SW1 witness construction
+
+`Config.ConstructionProfile` is required and must equal `"W"`; it is supplied by the authenticated daemon configuration, never by a peer message. It is included in the durable identity binding. Missing/unknown/L pins refuse before state opens.
+
+See [the W boundary/reason inventory](../WITNESS-PROFILE.md). This first delivery is linkage-only: unconfirmed payment Q is deferred to SW1b with an authenticated GV4 proof contract. Existing signed v3 grant bytes are unchanged.
+
 Go 1.26 library over the landed K1 v3 kernel and M2-05 kernelbind. It returns
 `live`, `refused` or inbound-only `exchange`; it never writes a mailbox, wakes
 a model, signs a reply, books a rental or broadcasts a transaction. Only a fresh

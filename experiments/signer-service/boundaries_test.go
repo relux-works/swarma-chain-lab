@@ -44,13 +44,15 @@ func testKey(n byte) (*btcec.PrivateKey, string, string) {
 func config(t *testing.T) Config {
 	root := dir(t)
 	grant, pub, seal := testKey(6)
-	fund, _, fundScript := testKey(7)
+	fund, _, _ := testKey(7)
+	native, _ := su.WitnessKeyScript(fund.PubKey().SerializeCompressed())
+	fundScript := hex.EncodeToString(native)
 	_, agent, _ := testKey(3)
 	_, provider, _ := testKey(4)
 	kp, fp := filepath.Join(root, "grant.key"), filepath.Join(root, "funding.key")
 	write(t, kp, grant.Serialize())
 	write(t, fp, fund.Serialize())
-	return Config{Profile: "v1-nmc", Policy: rental.IssuerPolicy{Policy: rental.Policy{Network: "regtest", Genesis: su.RegtestGenesis, IssuerPubkey: pub, AgentPubkey: agent, AgentName: "id/sg1-agent", StationName: "id/sg1-agent", LandlordName: "id/sg1-landlord", SealScript: seal, StationScript: seal, FundingScript: fundScript, StateDir: dir(t)}, ProviderPubkey: provider}, StateDir: dir(t), GrantKeyPath: kp, FundingKeyPath: fp, Caps: RegtestCaps()}
+	return Config{Profile: "v1-nmc", Policy: rental.IssuerPolicy{Policy: rental.Policy{ConstructionProfile: "W", Network: "regtest", Genesis: su.RegtestGenesis, IssuerPubkey: pub, AgentPubkey: agent, AgentName: "id/sg1-agent", StationName: "id/sg1-agent", LandlordName: "id/sg1-landlord", SealScript: seal, StationScript: seal, FundingScript: fundScript, StateDir: dir(t)}, ProviderPubkey: provider}, StateDir: dir(t), GrantKeyPath: kp, FundingKeyPath: fp, Caps: RegtestCaps()}
 }
 func wantError(t *testing.T, e error, want string) {
 	t.Helper()
@@ -316,21 +318,22 @@ func TestSignedTemplateRecovery(t *testing.T) {
 	}
 	for _, mode := range []string{"output", "sequence", "signature", "key"} {
 		t.Run(mode, func(t *testing.T) {
-			tx, e := su.DecodeTransaction(raw)
+			w, e := su.DecodeWitnessTransaction(raw)
 			if e != nil {
 				t.Fatal(e)
 			}
+			tx := w.Body
 			switch mode {
 			case "output":
 				tx.Outputs[0].Value++
 			case "sequence":
 				tx.Inputs[0].Sequence--
 			case "signature":
-				tx.Inputs[0].Script[10] ^= 1
+				w.Stacks[0][0][10] ^= 1
 			case "key":
-				tx.Inputs[0].Script[len(tx.Inputs[0].Script)-1] ^= 1
+				w.Stacks[0][1][32] ^= 1
 			}
-			if verifySignedPlan(plan, tx.Bytes()) == nil {
+			if verifySignedPlan(plan, w.Bytes()) == nil {
 				t.Fatal("changed signed transaction accepted")
 			}
 		})

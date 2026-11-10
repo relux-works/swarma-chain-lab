@@ -1,5 +1,11 @@
 # Single-use grant laboratory
 
+## SW1 witness construction
+
+The shared W verifier retains and validates native P2WPKH witness stacks for v3 seal creation and issuance; the historical legacy decoder and name/seal-spend APIs below retain their narrower contracts.
+
+See [the W boundary/reason inventory](../WITNESS-PROFILE.md). This first delivery is linkage-only: unconfirmed payment Q is deferred to SW1b with an authenticated GV4 proof contract. Existing signed v3 grant bytes are unchanged.
+
 Go executor and genuine Namecoin Core 28 regtest harness for CIP-0002. The only
 implemented effect is a local JSONL append labelled `simulated-repository.create`.
 This is not production authorization, a wallet, or a mainnet runtime qualification.

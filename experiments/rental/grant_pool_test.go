@@ -11,7 +11,7 @@ import (
 func TestGrantPoolPlans(t *testing.T) {
 	g := testGrant(t)
 	sealScript, _ := GrantSealScript(g.IssuerKey)
-	p := Policy{Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: sealScript, FundingScript: testFundingScript(), StateDir: t.TempDir()}
+	p := Policy{ConstructionProfile: "W", Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: sealScript, FundingScript: testFundingScript(), StateDir: t.TempDir()}
 	in := su.PlanInput{Point: su.Point{TxID: Hash([]byte("pool-funds")), Vout: 0}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}
 	s := PlanSpec{Kind: "refill", Inputs: []su.PlanInput{in}, ChangeScript: p.FundingScript, Count: 2, ValueSat: 100000}
 	valid := func(spec PlanSpec) {

@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"golang.org/x/sys/unix"
 	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"golang.org/x/sys/unix"
 )
 
 func presentationRoot(path string) error {
@@ -59,6 +59,9 @@ func (x *Engine) publishConfirmed(ctx context.Context, op operation, r record) e
 		return fail("PRESENTATION_UNCONFIRMED")
 	}
 	if _, e = o.Confirmed(v); e != nil {
+		return e
+	}
+	if _, e = o.WitnessIssuance(p.ConstructionProfile, su.Point{TxID: r.Spec.Pool.Point.TxID, Vout: r.Spec.Pool.Point.Vout}, r.TxID); e != nil {
 		return e
 	}
 	if e = o.Stable(); e != nil {

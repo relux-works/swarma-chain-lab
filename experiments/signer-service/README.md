@@ -1,5 +1,11 @@
 # Swarma signer service (SG1)
 
+## SW1 witness construction
+
+Set `config.policy.policy.construction_profile` to `"W"` explicitly. T/refill and A/issuance consume native P2WPKH inputs signed ALL. Enroll an unconfirmed L together with its authenticated seal; the issuer prefers this exact pair. Standalone unconfirmed funding refuses. Recovery verifies the frozen body and all witness signatures.
+
+See [the W boundary/reason inventory](../WITNESS-PROFILE.md). This first delivery is linkage-only: unconfirmed payment Q is deferred to SW1b with an authenticated GV4 proof contract. Existing signed v3 grant bytes are unchanged.
+
 Namecoin landlord custody service with exactly three transaction templates:
 `grant-issue`, `revoke`, and `refill`. It runs under its own OS user/state root,
 uses its own Namecoin node and independently rechecks payment through trusted
@@ -30,7 +36,7 @@ The configuration is the `FileConfig` JSON type in `config_file.go`; its nested
   binding of an existing ledger to enable it; provision a fresh configured root.
 - `config.grant_key_path` and `config.funding_key_path`: exactly 32 binary scalar
   bytes, regular single-link files, current uid, mode0600, no symlink components.
-  Both P2PKH scripts use even-y compressed public points. The transaction signer
+  The grant seal uses the even-y compressed point of its x-only key; native funding preserves the full compressed public key, including odd parity. Only the legacy seal signer
   normalizes the secret; the same grant file remains directly compatible with K1.
 - `config.historical_seal_scripts`: explicitly pinned former grant-key scripts;
   none may be the funding script. Current/configured known seals are also excluded.
@@ -122,7 +128,7 @@ S1 uploads only the original signed grant; its exact hash/receipt and external
 issuance presentation are retained separately. Upload/broadcast receipt is not a
 live verdict. The existing kernel must independently confirm the commitment,
 identities, time window and seal. Newly generated inventory waits for own-node
-confirmation before use. Refills consume funding only; outputs intentionally
+confirmation before use, except the authenticated T:L issuance link. Refills consume confirmed funding only; outputs intentionally
 include seal scripts. Expiry does not create a transaction.
 
 This bounded unit retains at most64 operations,64 inventory entries (including

@@ -43,7 +43,7 @@ func NewRPCBroadcastForNetwork(route su.Route, observerRoute su.Route, network, 
 	return &RPCBroadcast{network, genesis, route, node, &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return fail("REDIRECT") }}}, nil
 }
 func (b *RPCBroadcast) Send(ctx context.Context, raw []byte) (string, error) {
-	tx, e := su.DecodeTransaction(raw)
+	tx, e := su.DecodePaymentTransaction(raw)
 	if e != nil || len(raw) > 16384 {
 		return "", fail("BROADCAST_ENCODING")
 	}
@@ -54,7 +54,7 @@ func (b *RPCBroadcast) Send(ctx context.Context, raw []byte) (string, error) {
 	}
 	// Observation also recovers an already accepted tx after a lost ACK. Equality
 	// checks original serialization; a matching requested ID alone is insufficient.
-	if _, seen, e := o.PaymentTransaction(tx.ID()); e == nil && bytes.Equal(seen.Bytes(), raw) {
+	if seen, _, e := o.PaymentTransaction(tx.ID()); e == nil && seen.Hex == hex.EncodeToString(raw) {
 		return tx.ID(), nil
 	}
 	body := encode(map[string]any{"jsonrpc": "1.0", "id": 1, "method": "sendrawtransaction", "params": []any{hex.EncodeToString(raw)}})

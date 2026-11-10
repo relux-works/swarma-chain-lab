@@ -108,7 +108,7 @@ func serve(parent context.Context, c serveConfig) error {
 	if e != nil {
 		return errConfig
 	}
-	adapter, e := kernelbind.NewForNetwork(node, c.Kernel.StateDir, c.Kernel.AgentName, c.Kernel.LandlordName, c.Kernel.IssuerPubkey, c.Kernel.Network, c.Kernel.Genesis)
+	adapter, e := kernelbind.NewForNetwork(node, c.Kernel.StateDir, c.Kernel.AgentName, c.Kernel.LandlordName, c.Kernel.IssuerPubkey, c.Kernel.Network, c.Kernel.Genesis, c.Kernel.ConstructionProfile)
 	if e != nil {
 		return errConfig
 	}

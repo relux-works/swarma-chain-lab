@@ -291,3 +291,7 @@ installed public-host inputs after G6 lands and after either config changes.
 ## Signed model limits
 
 `deploy-kit check-model-terms -booking FILE -profile FILE -gateway FILE -model FILE -payload FILE` verifies public signed-cap and template/profile/payload bindings after individual native validation. Success prints `MODEL_TERMS_MATCH`; failures exit1. No credentials or referenced host paths are read. See [CC1 terms](../experiments/rental-booking/MODEL-CAPS.md). M5 model configs require the positive signed default as well as the original five caps.
+
+## SW1 construction pins
+
+Issuer policies and gateway kernel templates explicitly carry `construction_profile: "W"`. Issuer funding is `0014` plus the 20-byte compressed-key hash (native P2WPKH); the grant seal remains its separately pinned script. Templates do not migrate funds or state. Missing/unknown/L pins refuse in the consuming service, and prior durable bindings are not silently adopted. See [the W inventory](../experiments/WITNESS-PROFILE.md) for the linkage-only scope and SW1b payment-proof deferral.

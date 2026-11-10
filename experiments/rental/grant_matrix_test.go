@@ -15,7 +15,7 @@ import (
 func TestCoreGrantMatrix(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	seal := l.detachedPool(1, true)
+	seal := l.witnessPool(1, true)
 	base, g, raw := l.grantFixture("base", seal, 2)
 	proof := l.grantProof(base, raw, true)
 	var presentation GrantPresentation
@@ -193,7 +193,7 @@ func TestCoreGrantMatrix(t *testing.T) {
 		})
 	}
 	run("commitment-reorg", func() {
-		p, cg, signed := l.grantFixture("reorg", l.detachedPool(1, true), 2)
+		p, cg, signed := l.grantFixture("reorg", l.witnessPool(1, true), 2)
 		pr := l.grantProof(p, signed, true)
 		l.checkGrant("reorg-before", p, cg, pr, 500, "live", "LIVE", false)
 		tip := text(l.t, l.rpc("", "getbestblockhash"))

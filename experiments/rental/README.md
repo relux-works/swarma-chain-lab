@@ -1,5 +1,11 @@
 # Landlord rental grants laboratory
 
+## SW1 witness construction
+
+V3 issuer, planner and checker policies now require explicit `construction_profile: "W"` from authenticated configuration. Funding/change must be native P2WPKH. The issuer authenticates T before grant signing; admission verifies T and A from raw transactions and actual prevouts. Only exact T:L may be unconfirmed.
+
+See [the W boundary/reason inventory](../WITNESS-PROFILE.md). This first delivery is linkage-only: unconfirmed payment Q is deferred to SW1b with an authenticated GV4 proof contract. Existing signed v3 grant bytes are unchanged.
+
 This implementation prepares landlord-signed v3 grants,
 checks two Namecoin identities and a confirmed per-grant consent commitment,
 and plans unsigned issuance/pool transactions. The agent name points to its

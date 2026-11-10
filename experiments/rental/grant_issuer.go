@@ -62,7 +62,7 @@ func issueGrantRouted(ctx context.Context, node su.Node, p IssuerPolicy, request
 	if _, _, e := grantFundingInputs(p.Policy, spec, pool); e != nil {
 		return refuse(e)
 	}
-	binding, _ := json.Marshal(struct{ Network, Genesis, Agent, Landlord, Script, Funding, Provider string }{p.Policy.Network, p.Policy.Genesis, p.Policy.AgentName, p.Policy.LandlordName, p.Policy.SealScript, p.Policy.FundingScript, p.ProviderPubkey})
+	binding, _ := json.Marshal(struct{ Network, Genesis, Agent, Landlord, Script, Funding, Provider, Construction string }{p.Policy.Network, p.Policy.Genesis, p.Policy.AgentName, p.Policy.LandlordName, p.Policy.SealScript, p.Policy.FundingScript, p.ProviderPubkey, p.Policy.ConstructionProfile})
 	if payment != nil {
 		binding, _ = json.Marshal(struct {
 			Identity       json.RawMessage
@@ -195,23 +195,50 @@ func issueGrantRouted(ctx context.Context, node su.Node, p IssuerPolicy, request
 	if e != nil {
 		return refuse(e)
 	}
+	creation, e := o.WitnessCreation(p.Policy.ConstructionProfile, su.Point{TxID: pool.TxID, Vout: pool.Vout})
+	if e != nil {
+		return refuse(e)
+	}
+	// The signed seal outpoint authenticates this exact non-witness T body.
+	if creation.Body.ID() != pool.TxID {
+		return refuse(bad("W_BODY_BINDING"))
+	}
 	checkOutput := func(point Point, value int64, role string) error {
 		if role == "FUNDING" {
 			if e := checkFundingReservation(point); e != nil {
 				return e
 			}
 		}
-		v, tx, e := o.PaymentTransaction(point.TxID)
+		v, tx, e := o.FundingTransaction(point.TxID)
 		if e != nil {
 			return e
 		}
-		if v.Block == "" || v.Confirmations <= 0 {
-			return bad(role + "_UNCONFIRMED")
+		linked := point.TxID == pool.TxID && point.Vout != pool.Vout
+		unconfirmed := v.Block == "" && v.Confirmations == 0
+		if unconfirmed && role == "POOL" {
+			found := false
+			for _, in := range spec.Inputs {
+				if in.Point.TxID == pool.TxID && in.Point.Vout != pool.Vout {
+					found = true
+				}
+			}
+			if !found {
+				return bad("W_LINKAGE_REQUIRED")
+			}
 		}
-		h, e := o.Confirmed(v)
-		if e != nil {
-			return e
+		if unconfirmed && role == "FUNDING" && !linked {
+			return bad("W_UNCONFIRMED_NON_LINKAGE_PARENT")
 		}
+		var h su.Header
+		if !unconfirmed {
+			h, e = o.Confirmed(v)
+			if e != nil {
+				return e
+			}
+		} else if role != "POOL" && !linked {
+			return bad("W_UNCONFIRMED_NON_LINKAGE_PARENT")
+		}
+
 		if uint64(point.Vout) >= uint64(len(tx.Outputs)) {
 			return bad(role + "_OUTPUT")
 		}
@@ -225,6 +252,31 @@ func issueGrantRouted(ctx context.Context, node su.Node, p IssuerPolicy, request
 		}
 		if hex.EncodeToString(out.Script) != wantScript || out.Value < 1 || (value > 0 && out.Value != value) || (role == "POOL" && out.Value < 100000) {
 			return bad(role + "_BINDING")
+		}
+		if unconfirmed {
+			// A mempool output must still exist on the same pinned node.
+			var u json.RawMessage
+			if e := o.Call("gettxout", &u, point.TxID, point.Vout, true); e != nil {
+				return e
+			}
+			if string(u) == "null" || len(u) == 0 {
+				return bad(role + "_SPENT")
+			}
+			var unspent struct {
+				Confirmations int64       `json:"confirmations"`
+				Value         json.Number `json:"value"`
+				Script        struct {
+					Hex string `json:"hex"`
+				} `json:"scriptPubKey"`
+			}
+			if json.Unmarshal(u, &unspent) != nil {
+				return bad(role + "_BINDING")
+			}
+			amount, err := su.ParseCoins(string(unspent.Value))
+			if err != nil || unspent.Confirmations != 0 || amount != out.Value || unspent.Script.Hex != wantScript {
+				return bad(role + "_BINDING")
+			}
+			return nil
 		}
 		spent, e := sealSpent(o, point, out, h)
 		if e != nil {

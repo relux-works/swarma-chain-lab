@@ -16,7 +16,7 @@ func TestMainGrantPolicyAndFees(t *testing.T) {
 	g := testGrant(t)
 	g.Network, g.Genesis = "main", su.MainGenesis
 	script, _ := GrantSealScript(g.IssuerKey)
-	p := Policy{Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: script, FundingScript: testFundingScript(), StateDir: t.TempDir(), FeeRate: 201}
+	p := Policy{ConstructionProfile: "W", Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: script, FundingScript: testFundingScript(), StateDir: t.TempDir(), FeeRate: 201}
 	in := su.PlanInput{Point: su.Point{TxID: Hash([]byte("main-fixture-funds"))}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}
 	s := PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{in}, ChangeScript: p.FundingScript}
 	raw := signGrantTest(t, g, 1)

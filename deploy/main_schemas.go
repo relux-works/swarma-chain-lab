@@ -55,18 +55,19 @@ type mainServeConfig struct {
 	ModelProxy       *gatewayModelProxy `json:"model_proxy,omitempty"`
 }
 type mainKernelConfig struct {
-	Kind         string `json:"kind"`
-	StubVerdict  string `json:"stub_verdict"`
-	Network      string `json:"network"`
-	Genesis      string `json:"genesis"`
-	AgentName    string `json:"agent_name"`
-	LandlordName string `json:"landlord_name"`
-	IssuerPubkey string `json:"issuer_pubkey"`
-	SealScript   string `json:"seal_script"`
-	StateDir     string `json:"state_dir"`
-	RPCHost      string `json:"rpc_host"`
-	RPCPort      int    `json:"rpc_port"`
-	RPCRouteFile string `json:"rpc_route_file"`
+	ConstructionProfile string `json:"construction_profile"`
+	Kind                string `json:"kind"`
+	StubVerdict         string `json:"stub_verdict"`
+	Network             string `json:"network"`
+	Genesis             string `json:"genesis"`
+	AgentName           string `json:"agent_name"`
+	LandlordName        string `json:"landlord_name"`
+	IssuerPubkey        string `json:"issuer_pubkey"`
+	SealScript          string `json:"seal_script"`
+	StateDir            string `json:"state_dir"`
+	RPCHost             string `json:"rpc_host"`
+	RPCPort             int    `json:"rpc_port"`
+	RPCRouteFile        string `json:"rpc_route_file"`
 }
 type mainExchangeConfig struct {
 	BookingVersion    int      `json:"booking_version"`

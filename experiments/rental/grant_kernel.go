@@ -29,6 +29,9 @@ type seenGrantSeal struct {
 }
 
 func (p Policy) validateGrant() error {
+	if e := su.RequireWitnessProfile(p.ConstructionProfile); e != nil {
+		return e
+	}
 	if !su.NetworkPinned(p.Network, p.Genesis) {
 		return bad("NETWORK_PIN")
 	}
@@ -91,7 +94,7 @@ func Check(ctx context.Context, node su.Node, p Policy, raw []byte, agentName, s
 		return refuse(e)
 	}
 	defer store.Close()
-	binding, _ := json.Marshal(struct{ Network, Genesis, Agent, Landlord, Script string }{p.Network, p.Genesis, p.AgentName, p.LandlordName, p.SealScript})
+	binding, _ := json.Marshal(struct{ Network, Genesis, Agent, Landlord, Script, Construction string }{p.Network, p.Genesis, p.AgentName, p.LandlordName, p.SealScript, p.ConstructionProfile})
 	state := grantState{Version: 3, Binding: Hash(binding), GrantID: r.GrantID}
 	name := "grant-" + r.GrantID + ".json"
 	saved, e := store.Read(name, 8192)
@@ -242,6 +245,9 @@ func Check(ctx context.Context, node su.Node, p Policy, raw []byte, agentName, s
 		if e.Error() == "ISSUANCE_UNCONFIRMED" {
 			r.Verdict = "pending"
 		}
+		return refuse(e)
+	}
+	if _, e = o.WitnessIssuance(p.ConstructionProfile, su.Point{TxID: g.Seal.TxID, Vout: g.Seal.Vout}, presentation.Issuance.TxID); e != nil {
 		return refuse(e)
 	}
 	sv, tx, e := o.PaymentTransaction(g.Seal.TxID)

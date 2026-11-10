@@ -86,7 +86,7 @@ func (x *Engine) process(ctx context.Context, raw []byte, source SourceClass, no
 		if e != nil {
 			return Result{}, e
 		}
-		fund, e := x.pick("funding")
+		fund, e := x.pickIssuanceFunding(seal)
 		if e != nil {
 			return Result{}, e
 		}
@@ -341,14 +341,12 @@ func (x *Engine) advance(ctx context.Context, j int, now int64) (Result, error) 
 				return result(), e
 			}
 		}
-		if e = x.observe(ctx, r.Spec.Inputs); e != nil {
-			return result(), e
-		}
+		observed := append([]su.PlanInput(nil), r.Spec.Inputs...)
 		if op.Kind == "grant-issue" {
-			seal := su.PlanInput{Point: su.Point{TxID: r.Spec.Pool.Point.TxID, Vout: r.Spec.Pool.Point.Vout}, ValueSat: r.Spec.Pool.ValueSat, Script: r.Spec.Pool.Script, Role: "seal"}
-			if e = x.observe(ctx, []su.PlanInput{seal}); e != nil {
-				return result(), e
-			}
+			observed = append(observed, su.PlanInput{Point: su.Point{TxID: r.Spec.Pool.Point.TxID, Vout: r.Spec.Pool.Point.Vout}, ValueSat: r.Spec.Pool.ValueSat, Script: r.Spec.Pool.Script, Role: "seal"})
+		}
+		if e = x.observe(ctx, observed); e != nil {
+			return result(), e
 		}
 		// Rebuild the exact allowed template before any chain signature. Even an
 		// authentic issuer result cannot add unrelated outputs or extra inputs.

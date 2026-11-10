@@ -190,7 +190,7 @@ func validateMainGateway(raw []byte) error {
 		return ErrPolicy
 	}
 	k, ok := m["kernel"].(map[string]any)
-	if !ok || k["network"] != "main" || k["genesis"] != mainGenesis || k["kind"] != "real" || k["stub_verdict"] != "" {
+	if !ok || k["construction_profile"] != "W" || k["network"] != "main" || k["genesis"] != mainGenesis || k["kind"] != "real" || k["stub_verdict"] != "" {
 		return ErrNetwork
 	}
 	station, ok := m["station"].(map[string]any)

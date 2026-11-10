@@ -14,19 +14,20 @@ import (
 )
 
 type Policy struct {
-	Network        string  `json:"network"`
-	Genesis        string  `json:"genesis"`
-	IssuerPubkey   string  `json:"issuer_pubkey"`
-	AgentPubkey    string  `json:"agent_pubkey"`
-	StationName    string  `json:"station_name"`
-	StationScript  string  `json:"station_script"`
-	StateDir       string  `json:"state_dir"`
-	AgentName      string  `json:"agent_name,omitempty"`
-	SealScript     string  `json:"seal_script,omitempty"`
-	LandlordName   string  `json:"landlord_name,omitempty"`
-	KnownPoolSeals []Point `json:"known_pool_seals,omitempty"`
-	FundingScript  string  `json:"funding_script,omitempty"`
-	FeeRate        int64   `json:"fee_rate,omitempty"`
+	ConstructionProfile string  `json:"construction_profile,omitempty"`
+	Network             string  `json:"network"`
+	Genesis             string  `json:"genesis"`
+	IssuerPubkey        string  `json:"issuer_pubkey"`
+	AgentPubkey         string  `json:"agent_pubkey"`
+	StationName         string  `json:"station_name"`
+	StationScript       string  `json:"station_script"`
+	StateDir            string  `json:"state_dir"`
+	AgentName           string  `json:"agent_name,omitempty"`
+	SealScript          string  `json:"seal_script,omitempty"`
+	LandlordName        string  `json:"landlord_name,omitempty"`
+	KnownPoolSeals      []Point `json:"known_pool_seals,omitempty"`
+	FundingScript       string  `json:"funding_script,omitempty"`
+	FeeRate             int64   `json:"fee_rate,omitempty"`
 }
 type Anchor struct {
 	TxID   string `json:"txid"`

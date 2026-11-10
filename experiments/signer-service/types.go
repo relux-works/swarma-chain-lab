@@ -66,6 +66,9 @@ type Config struct {
 
 func (c Config) validate() error {
 	p := c.Policy.Policy
+	if e := su.RequireWitnessProfile(p.ConstructionProfile); e != nil {
+		return e
+	}
 	if !su.NetworkPinned(p.Network, p.Genesis) {
 		return fail("REGTEST_ONLY")
 	}
@@ -119,7 +122,7 @@ func (c Config) validate() error {
 		return fail("CUSTODY_SEPARATION")
 	}
 	script, e := rental.GrantSealScript(p.IssuerPubkey)
-	if e != nil || script != p.SealScript || p.FundingScript == p.SealScript || !p2pkh(p.FundingScript) {
+	if e != nil || script != p.SealScript || p.FundingScript == p.SealScript || !nativeFunding(p.FundingScript) {
 		return fail("KEY_SCRIPT_PIN")
 	}
 	for _, s := range c.HistoricalSealScripts {
@@ -198,3 +201,8 @@ type Source interface {
 	Pull(context.Context, string, int) ([]Pulled, error)
 }
 type Result struct{ ID, Phase, Reason, TxID, GrantID string }
+
+func nativeFunding(s string) bool {
+	b, e := hex.DecodeString(s)
+	return e == nil && hex.EncodeToString(b) == s && su.NativeP2WPKH(b)
+}

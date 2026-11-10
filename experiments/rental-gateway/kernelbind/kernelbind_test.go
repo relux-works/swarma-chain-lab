@@ -7,13 +7,13 @@ import (
 	"errors"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	"os"
-	"reflect"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -34,7 +34,7 @@ func stateDir(t *testing.T) string {
 }
 func newAdapter(t *testing.T) *kernelbind.Adapter {
 	t.Helper()
-	a, e := kernelbind.New(nil, stateDir(t), "id/test-agent", "id/test-landlord", xonly(1))
+	a, e := kernelbind.New(nil, stateDir(t), "id/test-agent", "id/test-landlord", xonly(1), "W")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -118,7 +118,7 @@ func TestNewPinsPolicy(t *testing.T) {
 	if p.Network != "regtest" || p.Genesis != su.RegtestGenesis || p.AgentName != "id/test-agent" || p.LandlordName != "id/test-landlord" || p.SealScript != script || p.StateDir == "" || p.FundingScript != "" {
 		t.Fatalf("policy pins: %+v", p)
 	}
-	if _, e = kernelbind.New(nil, t.TempDir(), "id/test-agent", "id/test-landlord", "bad-key"); e == nil {
+	if _, e = kernelbind.New(nil, t.TempDir(), "id/test-agent", "id/test-landlord", "bad-key", "W"); e == nil {
 		t.Fatal("malformed key admitted")
 	}
 }

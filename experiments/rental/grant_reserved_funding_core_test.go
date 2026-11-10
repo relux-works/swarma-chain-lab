@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"os"
 	"path/filepath"
 	"reflect"
-	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"testing"
 )
 
@@ -46,7 +46,7 @@ func TestCoreGrantReservedFunding(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
 	ctx := context.Background()
-	sealA := l.detachedPool(1, true)
+	sealA := l.witnessPool(1, true)
 	p, _, _ := l.grantFixture("reserved-funding", sealA, 2)
 	ip, reqA, eventA, key, specA := l.grantIssueInputs(p, "first", true)
 	reqA, eventA = scopePackage(t, reqA, eventA, []string{"deliver", "names.register", "pay"}, []string{"publish", "repository.push", "secret.release"})
@@ -62,7 +62,7 @@ func TestCoreGrantReservedFunding(t *testing.T) {
 		t.Fatal(e)
 	}
 	l.checkGrant("first-live", p, signed.Grant, proof, 500, "live", "LIVE", false)
-	sealB := l.detachedPool(1, true)
+	sealB := l.witnessPool(1, true)
 	_, reqB, eventB, _, specB := l.grantIssueInputs(p, "second", true)
 	// A forged funding-script assertion must not hide a reserved outpoint.
 	reserved := su.PlanInput{Point: su.Point{TxID: sealA.TxID, Vout: sealA.Vout}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}
@@ -134,10 +134,10 @@ func TestCoreGrantReservedFunding(t *testing.T) {
 func TestCoreGrantKnownPoolFunding(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	seal := l.detachedPool(1, true)
+	seal := l.witnessPool(1, true)
 	p, _, _ := l.grantFixture("known-pool", seal, 2)
 	ip, req, event, key, spec := l.grantIssueInputs(p, "known-pool", true)
-	known := l.detachedPool(1, true)
+	known := l.witnessPool(1, true)
 	ip.Policy.KnownPoolSeals = []Point{seal, known}
 	badSpec := spec
 	badSpec.Inputs = append([]su.PlanInput{}, spec.Inputs...)

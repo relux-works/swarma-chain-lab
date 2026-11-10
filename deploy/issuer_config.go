@@ -33,19 +33,20 @@ type issuerPoint struct {
 	Vout uint32 `json:"vout"`
 }
 type issuerPolicy struct {
-	FeeRate        int64         `json:"fee_rate,omitempty"`
-	Network        string        `json:"network"`
-	Genesis        string        `json:"genesis"`
-	IssuerPubkey   string        `json:"issuer_pubkey"`
-	AgentPubkey    string        `json:"agent_pubkey"`
-	StationName    string        `json:"station_name"`
-	StationScript  string        `json:"station_script"`
-	StateDir       string        `json:"state_dir"`
-	AgentName      string        `json:"agent_name,omitempty"`
-	SealScript     string        `json:"seal_script,omitempty"`
-	LandlordName   string        `json:"landlord_name,omitempty"`
-	KnownPoolSeals []issuerPoint `json:"known_pool_seals,omitempty"`
-	FundingScript  string        `json:"funding_script,omitempty"`
+	ConstructionProfile string        `json:"construction_profile"`
+	FeeRate             int64         `json:"fee_rate,omitempty"`
+	Network             string        `json:"network"`
+	Genesis             string        `json:"genesis"`
+	IssuerPubkey        string        `json:"issuer_pubkey"`
+	AgentPubkey         string        `json:"agent_pubkey"`
+	StationName         string        `json:"station_name"`
+	StationScript       string        `json:"station_script"`
+	StateDir            string        `json:"state_dir"`
+	AgentName           string        `json:"agent_name,omitempty"`
+	SealScript          string        `json:"seal_script,omitempty"`
+	LandlordName        string        `json:"landlord_name,omitempty"`
+	KnownPoolSeals      []issuerPoint `json:"known_pool_seals,omitempty"`
+	FundingScript       string        `json:"funding_script,omitempty"`
 }
 type issuerConfig struct {
 	PaymentRouteFiles map[string]string `json:"payment_route_files,omitempty"`
@@ -92,6 +93,9 @@ func validateIssuer(raw []byte) error {
 		return e
 	}
 	c, p := f.Config, f.Config.Policy.Policy
+	if p.ConstructionProfile != "W" {
+		return ErrPolicy
+	}
 	if c.Profile != "v2" || c.StateDir != "/var/lib/swarma-issuer/ledger" || p.StateDir != "/var/lib/swarma-issuer/issuance" || c.PresentationDir != "/var/lib/swarma-issuer/presentations" || c.GrantKeyPath != "/etc/swarma/issuer/grant.key" || c.FundingKeyPath != "/etc/swarma/issuer/funding.key" || f.ReadRouteFile != "/etc/swarma/issuer/read-route.json" || f.BroadcastRouteFile != "/etc/swarma/issuer/broadcast-route.json" || f.BookingOutbox != "/var/lib/swarma-issuer/intake/booking" || f.OperatorOutbox != "/var/lib/swarma-issuer/intake/operator" || f.IntervalSeconds < 1 || f.IntervalSeconds > 3600 {
 		return ErrPolicy
 	}
@@ -104,7 +108,7 @@ func validateIssuer(raw []byte) error {
 	if c.Spending != nil && !c.Spending.valid() {
 		return ErrPolicy
 	}
-	if !digestPin(p.IssuerPubkey) || !digestPin(p.AgentPubkey) || !digestPin(c.Policy.ProviderPubkey) || !identityName(p.AgentName) || !identityName(p.LandlordName) || p.AgentName == p.LandlordName || !identityName(p.StationName) || !p2pkhScript(p.StationScript) || !p2pkhScript(p.SealScript) || !p2pkhScript(p.FundingScript) || p.FundingScript == p.SealScript {
+	if !digestPin(p.IssuerPubkey) || !digestPin(p.AgentPubkey) || !digestPin(c.Policy.ProviderPubkey) || !identityName(p.AgentName) || !identityName(p.LandlordName) || p.AgentName == p.LandlordName || !identityName(p.StationName) || !p2pkhScript(p.StationScript) || !p2pkhScript(p.SealScript) || !(exactHex(p.FundingScript, 22) && strings.HasPrefix(p.FundingScript, "0014")) || p.FundingScript == p.SealScript {
 		return ErrPolicy
 	}
 	// Public structural validation cannot establish a curve point, key-script

@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
 	"os"
 	"path/filepath"
-	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/exchange"
 	"strings"
 	"testing"
 
@@ -39,7 +39,7 @@ func testConfig(t *testing.T) serveConfig {
 		t.Fatal(e)
 	}
 	return serveConfig{Version: 1, Mode: "test", AgentKeyFile: filepath.Join(root, "agent.key"), AgentPubkey: key.PubKeyHex(), RelayURL: "ws://127.0.0.1:7777", JournalDir: filepath.Join(root, "journal"), StationSocket: filepath.Join(root, "s.sock"), Screening: "off",
-		Kernel:   kernelConfig{Kind: "real", Network: "regtest", Genesis: su.RegtestGenesis, AgentName: "id/test-agent", LandlordName: "id/test-landlord", IssuerPubkey: key.PubKeyHex(), SealScript: seal, StateDir: filepath.Join(root, "kernel"), RPCHost: "127.0.0.1", RPCPort: 18443, RPCRouteFile: filepath.Join(root, "route.json")},
+		Kernel:   kernelConfig{ConstructionProfile: "W", Kind: "real", Network: "regtest", Genesis: su.RegtestGenesis, AgentName: "id/test-agent", LandlordName: "id/test-landlord", IssuerPubkey: key.PubKeyHex(), SealScript: seal, StateDir: filepath.Join(root, "kernel"), RPCHost: "127.0.0.1", RPCPort: 18443, RPCRouteFile: filepath.Join(root, "route.json")},
 		Exchange: exchangeConfig{BookingVersion: 2, PaymentCoins: []exchange.Coin{exchange.NMC}, StateDir: filepath.Join(root, "exchange"), BookingURL: "http://127.0.0.1:18819", PresentationsDir: filepath.Join(root, "presentations"), PrivacySHA256: booking.Hash([]byte(booking.PrivacyNotice)), TemplateSHA256: booking.Hash([]byte("template fixture")), ProfileSHA256: booking.Hash([]byte("profile fixture")), PowBits: 4, MaxClients: 8, QueueSize: 8, Burst: 4, MaxReplay: 8, RefillSeconds: 1, KnownSeconds: 600, MessageAgeSeconds: 300, PollMilliseconds: 20, CallMilliseconds: 2000},
 		Station:  stationConfig{Driver: "local-test", Root: filepath.Join(root, "stations")},
 	}

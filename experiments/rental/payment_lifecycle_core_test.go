@@ -121,8 +121,8 @@ func TestCorePaymentLifecycle(t *testing.T) {
 			parentPayT, parentIdentityT := pay.t, l.t
 			pay.t, l.t = t, t
 			defer func() { pay.t, l.t = parentPayT, parentIdentityT }()
-			seal := l.detachedPool(1, true)
-			fund := l.detachedPool(7, true)
+			seal := l.witnessPool(1, true)
+			fund := l.witnessPool(7, true)
 			p, _, _ := l.grantFixture("p1-"+coin, seal, 2)
 			spec := PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: fund.TxID, Vout: fund.Vout}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}}, ChangeScript: p.FundingScript}
 			key, _ := testKey(1)

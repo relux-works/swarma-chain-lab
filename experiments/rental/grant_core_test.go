@@ -58,6 +58,7 @@ func (l *coreLab) landlordKey(key byte, mine bool) string {
 func (l *coreLab) grantFixture(label string, seal Point, grantee byte) (Policy, Grant, []byte) {
 	l.t.Helper()
 	p := l.policy(label)
+	p.ConstructionProfile = "W"
 	p.AgentName = l.station
 	p.LandlordName = labLandlord
 	p.SealScript, _ = GrantSealScript(p.IssuerPubkey)
@@ -72,7 +73,7 @@ func (l *coreLab) grantFixture(label string, seal Point, grantee byte) (Policy, 
 }
 func (l *coreLab) grantPlan(p Policy, raw []byte) Plan {
 	l.t.Helper()
-	fund := l.detachedPool(7, true)
+	fund := l.witnessPool(7, true)
 	s := PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: fund.TxID, Vout: fund.Vout}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}}, ChangeScript: p.FundingScript}
 	plan, e := MakeGrantIssuancePlan(p, s, raw)
 	if e != nil {
@@ -105,7 +106,7 @@ func (l *coreLab) checkGrant(label string, p Policy, g Grant, proof []byte, now 
 func TestCoreGrantLifecycle(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	a, b := l.detachedPool(1, true), l.detachedPool(1, true)
+	a, b := l.witnessPool(1, true), l.witnessPool(1, true)
 	p, g, raw := l.grantFixture("parallel", a, 2)
 	proof := l.grantProof(p, raw, false)
 	l.checkGrant("issuance-unconfirmed", p, g, proof, 500, "pending", "ISSUANCE_UNCONFIRMED", false)
@@ -136,7 +137,7 @@ func TestCoreGrantLifecycle(t *testing.T) {
 func TestCoreGrantLandlordRotation(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	p, g, raw := l.grantFixture("rotation", l.detachedPool(1, true), 2)
+	p, g, raw := l.grantFixture("rotation", l.witnessPool(1, true), 2)
 	proof := l.grantProof(p, raw, true)
 	l.checkGrant("initial", p, g, proof, 500, "live", "LIVE", false)
 	l.agentPointer(labLandlord, 4, true)
@@ -159,7 +160,7 @@ func TestCoreGrantLandlordRotation(t *testing.T) {
 func TestCoreGrantPointerRotation(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
-	p, g, raw := l.grantFixture("pointer", l.detachedPool(1, true), 2)
+	p, g, raw := l.grantFixture("pointer", l.witnessPool(1, true), 2)
 	proof := l.grantProof(p, raw, true)
 	l.checkGrant("initial", p, g, proof, 500, "live", "LIVE", false)
 	l.agentPointer("id/another-landlord", 3, false)

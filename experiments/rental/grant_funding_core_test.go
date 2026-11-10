@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"reflect"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"reflect"
 	"testing"
 )
 
@@ -18,11 +18,11 @@ func TestCoreGrantFundingSeparation(t *testing.T) {
 	l := newCore(t)
 	l.grantIdentity()
 	ctx := context.Background()
-	seal := l.detachedPool(1, true)
+	seal := l.witnessPool(1, true)
 	p, _, _ := l.grantFixture("funding-separation", seal, 2)
 	ip, req, event, key, spec := l.grantIssueInputs(p, "funding-separation", true)
 	for _, label := range []string{"unreserved-pool", "stray-seal-address"} {
-		point := l.detachedPool(1, true)
+		point := l.witnessPool(1, true)
 		for _, declared := range []string{p.SealScript, p.FundingScript} {
 			badSpec := spec
 			badSpec.Inputs = append([]su.PlanInput{}, spec.Inputs...)
@@ -60,7 +60,7 @@ func TestCoreGrantFundingSeparation(t *testing.T) {
 		t.Fatal(e)
 	}
 	l.checkGrant("separate-funding-live", p, sg.Grant, proof, 500, "live", "LIVE", false)
-	fund := l.detachedPool(7, true)
+	fund := l.witnessPool(7, true)
 	refill := PlanSpec{Kind: "refill", Inputs: []su.PlanInput{{Point: su.Point{TxID: fund.TxID, Vout: fund.Vout}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}}, ChangeScript: p.FundingScript, Count: 2, ValueSat: 100000}
 	plan, e := MakePlan(ip, refill, nil, nil, nil, 500)
 	if e != nil {
@@ -86,7 +86,7 @@ func TestCoreGrantFundingSeparation(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	decoded, e := su.DecodeTransaction(b)
+	decoded, e := su.DecodePaymentTransaction(b)
 	if e != nil {
 		t.Fatal(e)
 	}

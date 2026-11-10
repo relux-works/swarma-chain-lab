@@ -188,7 +188,7 @@ func (x *Engine) readRecord(op operation) (record, error) {
 		if e != nil {
 			return r, fail("RECORD_TRANSACTION")
 		}
-		tx, e := su.DecodeTransaction(raw)
+		tx, e := su.DecodePaymentTransaction(raw)
 		if e != nil || tx.ID() != r.TxID {
 			return r, fail("RECORD_TRANSACTION")
 		}
@@ -338,15 +338,50 @@ func (x *Engine) observe(ctx context.Context, inputs []su.PlanInput) error {
 	if e := o.Start(p.Network, p.Genesis); e != nil {
 		return e
 	}
+	// An unconfirmed funding exception is derived only from a seal in this
+	// operation, after authenticating that seal's complete W creation body.
+	seals := map[string]su.Point{}
 	for _, in := range inputs {
 		if e := x.validInventory(in); e != nil {
 			return e
 		}
-		v, tx, e := o.PaymentTransaction(in.Point.TxID)
+		if in.Role == "seal" {
+			if _, e := o.WitnessCreation(p.ConstructionProfile, in.Point); e != nil {
+				return e
+			}
+			seals[in.Point.TxID] = in.Point
+		}
+	}
+	links := map[string]int{}
+	unconfirmedSeals := map[string]bool{}
+	hasFunding := false
+	for _, in := range inputs {
+		if e := x.validInventory(in); e != nil {
+			return e
+		}
+		v, tx, e := o.FundingTransaction(in.Point.TxID)
 		if e != nil {
 			return e
 		}
-		if _, e = o.Confirmed(v); e != nil {
+		unconfirmed := v.Block == "" && v.Confirmations == 0
+		if in.Role == "funding" {
+			hasFunding = true
+		}
+		if unconfirmed && in.Role == "seal" {
+			unconfirmedSeals[in.Point.TxID] = true
+		}
+		if unconfirmed {
+			if in.Role != "seal" {
+				seal, ok := seals[in.Point.TxID]
+				if !ok || seal == in.Point {
+					return fail("W_UNCONFIRMED_NON_LINKAGE_PARENT")
+				}
+				links[in.Point.TxID]++
+				if links[in.Point.TxID] > 1 {
+					return fail("W_LINKAGE_REQUIRED")
+				}
+			}
+		} else if _, e = o.Confirmed(v); e != nil {
 			return e
 		}
 		if uint64(in.Point.Vout) >= uint64(len(tx.Outputs)) {
@@ -374,8 +409,17 @@ func (x *Engine) observe(ctx context.Context, inputs []su.PlanInput) error {
 			return fail("PREVOUT_RESPONSE")
 		}
 		value, e := su.ParseCoins(string(u.Value))
-		if e != nil || u.Confirmations < 1 || value != in.ValueSat || u.Script.Hex != in.Script {
+		if e != nil || (unconfirmed && u.Confirmations != 0) || (!unconfirmed && u.Confirmations < 1) || value != in.ValueSat || u.Script.Hex != in.Script {
 			return fail("PREVOUT_BINDING")
+		}
+	}
+	// Mixed seal/funding preflight must establish the dependency before signer
+	// reservation. A standalone seal enrollment/revocation needs no A link.
+	if hasFunding {
+		for id := range unconfirmedSeals {
+			if links[id] != 1 {
+				return fail("W_LINKAGE_REQUIRED")
+			}
 		}
 	}
 	return o.Stable()
@@ -432,6 +476,17 @@ func (x *Engine) pick(role string) (su.PlanInput, error) {
 		}
 	}
 	return su.PlanInput{}, fail("INVENTORY_EMPTY")
+}
+
+// Prefer the exact T:L dependency when it is enrolled. Fresh observation below
+// still rejects an unconfirmed ordinary fund and verifies all T inputs.
+func (x *Engine) pickIssuanceFunding(seal su.PlanInput) (su.PlanInput, error) {
+	for _, v := range x.state.Inventory {
+		if v.Input.Role == "funding" && v.Reserved == "" && v.Input.Point.TxID == seal.Point.TxID && v.Input.Point != seal.Point {
+			return v.Input, nil
+		}
+	}
+	return x.pick("funding")
 }
 func (x *Engine) reserve(op operation, r record, points []su.Point) error {
 	if len(x.state.Operations) >= MaxRecords {

@@ -34,14 +34,15 @@ var (
 // StateDir must already exist, be canonical/absolute/private, and belong to this
 // identity alone. Node must honor cancellation; no worker goroutine is detached.
 type Config struct {
-	Identity     string
-	AgentName    string
-	LandlordName string
-	IssuerPubkey string
-	StateDir     string
-	Node         su.Node
-	Now          func() time.Time
-	CheckTimeout time.Duration
+	ConstructionProfile string
+	Identity            string
+	AgentName           string
+	LandlordName        string
+	IssuerPubkey        string
+	StateDir            string
+	Node                su.Node
+	Now                 func() time.Time
+	CheckTimeout        time.Duration
 }
 
 type backend interface {
@@ -93,6 +94,9 @@ func validKey(s string) bool {
 }
 
 func New(config Config) (*Checker, error) {
+	if e := su.RequireWitnessProfile(config.ConstructionProfile); e != nil {
+		return nil, e
+	}
 	if !validLabel(config.Identity, 128) || !validName(config.AgentName) || !validName(config.LandlordName) ||
 		config.AgentName == config.LandlordName || !validKey(config.IssuerPubkey) || config.Node == nil ||
 		config.CheckTimeout < 0 || config.CheckTimeout > 5*time.Second {
@@ -107,12 +111,12 @@ func New(config Config) (*Checker, error) {
 	if !canonicalRoot(config.StateDir) {
 		return nil, ErrState
 	}
-	a, err := kernelbind.New(config.Node, config.StateDir, config.AgentName, config.LandlordName, config.IssuerPubkey)
+	a, err := kernelbind.New(config.Node, config.StateDir, config.AgentName, config.LandlordName, config.IssuerPubkey, config.ConstructionProfile)
 	if err != nil {
 		return nil, ErrConfig
 	}
-	pins, _ := json.Marshal(struct{ Identity, Agent, Landlord, Issuer, Network, Genesis string }{
-		config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, "regtest", su.RegtestGenesis,
+	pins, _ := json.Marshal(struct{ Identity, Agent, Landlord, Issuer, Network, Genesis, Construction string }{
+		config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, "regtest", su.RegtestGenesis, config.ConstructionProfile,
 	})
 	c := &Checker{config: config, binding: rental.Hash(pins), backend: a}
 	s, err := durable.Open(config.StateDir, "grantcheck.lock")

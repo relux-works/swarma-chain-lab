@@ -10,7 +10,8 @@ func (p Policy) validateGrantFunding() error {
 	if e := p.validateGrant(); e != nil {
 		return e
 	}
-	if !p2pkh(p.FundingScript) || p.FundingScript == p.SealScript {
+	funding, err := hex.DecodeString(p.FundingScript)
+	if err != nil || hex.EncodeToString(funding) != p.FundingScript || !su.NativeP2WPKH(funding) || p.FundingScript == p.SealScript {
 		return bad("FUNDING_POLICY")
 	}
 	if p.FeeRate < 0 || p.FeeRate > 1000 || (p.Network == "main" && p.FeeRate == 0) {
@@ -69,6 +70,7 @@ func grantFundingInputs(p Policy, s PlanSpec, pool Point) (su.Transaction, int64
 		return tx, 0, bad("ISSUANCE_TEMPLATE")
 	}
 	seen := map[su.Point]bool{}
+	links := 0
 	for _, in := range s.Inputs {
 		if in.Point == (su.Point{TxID: pool.TxID, Vout: pool.Vout}) {
 			return tx, 0, bad("ISSUANCE_SPENDS_SEAL")
@@ -83,6 +85,12 @@ func grantFundingInputs(p Policy, s PlanSpec, pool Point) (su.Transaction, int64
 		}
 		if in.Role != "funding" || in.Script != p.FundingScript || !digest(in.Point.TxID) || seen[in.Point] || in.ValueSat < 1 || in.ValueSat > MaxMoney-total {
 			return tx, 0, bad("ISSUANCE_FUNDING")
+		}
+		if in.Point.TxID == pool.TxID {
+			links++
+			if links > 1 {
+				return tx, 0, bad("W_LINKAGE_REQUIRED")
+			}
 		}
 		seen[in.Point] = true
 		total += in.ValueSat
@@ -135,7 +143,7 @@ func makeGrantIssuancePlan(p Policy, s PlanSpec, raw []byte, legacy bool) (Plan,
 	if e != nil {
 		return result, e
 	}
-	return Plan{Version: 3, Network: p.Network, Genesis: p.Genesis, Kind: "grant-issue", Offline: true, TransactionVersion: 2, Inputs: s.Inputs, Outputs: []su.PlanOutput{{ValueSat: 0, Script: rootScript, Role: "issuance-commitment"}, {ValueSat: change, Script: p.FundingScript, Role: "change"}}, FeeRate: p.GrantFeeRate(), FeeSat: fee, MaxSignedVBytes: size, GrantID: signed.ID(), RequiredReview: "Unsigned issuance plan only. Independently verify current funding prevouts, separate funding/change script, pool reservations, custody and exact transaction before signing; no broadcast authority."}, nil
+	return Plan{ConstructionProfile: p.ConstructionProfile, Version: 3, Network: p.Network, Genesis: p.Genesis, Kind: "grant-issue", Offline: true, TransactionVersion: 2, Inputs: s.Inputs, Outputs: []su.PlanOutput{{ValueSat: 0, Script: rootScript, Role: "issuance-commitment"}, {ValueSat: change, Script: p.FundingScript, Role: "change"}}, FeeRate: p.GrantFeeRate(), FeeSat: fee, MaxSignedVBytes: size, GrantID: signed.ID(), RequiredReview: "Unsigned issuance plan only. Independently verify current funding prevouts, separate funding/change script, pool reservations, custody and exact transaction before signing; no broadcast authority."}, nil
 }
 
 // matchesIssuedGrantPlan validates completed-record replay only. Compare every

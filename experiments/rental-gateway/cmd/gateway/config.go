@@ -43,18 +43,19 @@ type serveConfig struct {
 	ModelProxy       *modelProxyConfig `json:"model_proxy,omitempty"`
 }
 type kernelConfig struct {
-	Kind         string `json:"kind"`
-	StubVerdict  string `json:"stub_verdict"`
-	Network      string `json:"network"`
-	Genesis      string `json:"genesis"`
-	AgentName    string `json:"agent_name"`
-	LandlordName string `json:"landlord_name"`
-	IssuerPubkey string `json:"issuer_pubkey"`
-	SealScript   string `json:"seal_script"`
-	StateDir     string `json:"state_dir"`
-	RPCHost      string `json:"rpc_host"`
-	RPCPort      int    `json:"rpc_port"`
-	RPCRouteFile string `json:"rpc_route_file"`
+	ConstructionProfile string `json:"construction_profile"`
+	Kind                string `json:"kind"`
+	StubVerdict         string `json:"stub_verdict"`
+	Network             string `json:"network"`
+	Genesis             string `json:"genesis"`
+	AgentName           string `json:"agent_name"`
+	LandlordName        string `json:"landlord_name"`
+	IssuerPubkey        string `json:"issuer_pubkey"`
+	SealScript          string `json:"seal_script"`
+	StateDir            string `json:"state_dir"`
+	RPCHost             string `json:"rpc_host"`
+	RPCPort             int    `json:"rpc_port"`
+	RPCRouteFile        string `json:"rpc_route_file"`
 }
 type exchangeConfig struct {
 	BookingVersion    int             `json:"booking_version"`
@@ -152,6 +153,9 @@ func loopURL(s, scheme string) bool {
 	return e == nil && ip != nil && ip.IsLoopback() && pe == nil && p > 0 && p <= 65535 && u.String() == s
 }
 func (c serveConfig) validate(allowTest bool) error {
+	if e := su.RequireWitnessProfile(c.Kernel.ConstructionProfile); e != nil {
+		return e
+	}
 	if c.Version != 1 || (c.Mode != "regtest" && c.Mode != "test" && c.Mode != "main") || !su.NetworkPinned(c.Kernel.Network, c.Kernel.Genesis) || (c.Mode == "main") != (c.Kernel.Network == "main") {
 		return errConfig
 	}

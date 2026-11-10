@@ -12,7 +12,7 @@ func locatorFixture(t *testing.T) (Policy, PlanSpec, []byte) {
 	g := testGrant(t)
 	raw := signGrantTest(t, g, 1)
 	seal, _ := GrantSealScript(g.IssuerKey)
-	p := Policy{Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: seal, FundingScript: testFundingScript(), StateDir: t.TempDir()}
+	p := Policy{ConstructionProfile: "W", Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: seal, FundingScript: testFundingScript(), StateDir: t.TempDir()}
 	spec := PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: Hash([]byte("funding"))}, ValueSat: 1000000, Script: p.FundingScript, Role: "funding"}}, ChangeScript: p.FundingScript}
 	return p, spec, raw
 }
