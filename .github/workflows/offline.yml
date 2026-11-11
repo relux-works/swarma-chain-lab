@@ -49,8 +49,22 @@ jobs:
           cache: false
       - name: Install namespace launcher
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends --no-upgrade bubblewrap=0.6.1-1ubuntu0.3
+          if ! { sudo apt-get update &&
+            sudo apt-get install --yes --no-install-recommends --no-upgrade bubblewrap=0.6.1-1ubuntu0.3; }; then
+            echo "Runner mirror failed; retrying once with official Ubuntu sources"
+            apt_fallback=$(mktemp -d "$RUNNER_TEMP/ubuntu-apt.XXXXXXXX")
+            trap 'rm -rf -- "$apt_fallback"' EXIT
+            mkdir "$apt_fallback/parts"
+            printf '%s\n' \
+              'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://archive.ubuntu.com/ubuntu jammy main' \
+              'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://archive.ubuntu.com/ubuntu jammy-updates main' \
+              'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://security.ubuntu.com/ubuntu jammy-security main' \
+              > "$apt_fallback/sources.list"
+            apt_sources=(-o "Dir::Etc::sourcelist=$apt_fallback/sources.list"
+              -o "Dir::Etc::sourceparts=$apt_fallback/parts")
+            sudo apt-get "${apt_sources[@]}" --error-on=any update
+            sudo apt-get "${apt_sources[@]}" install --yes --no-install-recommends --no-upgrade bubblewrap=0.6.1-1ubuntu0.3
+          fi
           test "$(dpkg-query -W -f='${Version}' bubblewrap)" = 0.6.1-1ubuntu0.3
       - name: Run offline with read-only source and tools
         env:
