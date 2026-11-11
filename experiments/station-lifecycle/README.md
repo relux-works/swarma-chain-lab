@@ -139,6 +139,9 @@ The guard driver copies modules under `.temp/`, applies one bounded violation at
 time and requires the named assertion to fail. Skips, build errors, crashes and
 unapplied plants are not detections. It retains command PIDs, logs, mutation hashes
 and results under the requested evidence directory, then removes its own copies.
+The bootstrap version control mutates the copied `single-use/payloadbootstrap/codec`
+implementation and runs the gateway binding's existing schema test. `single-use`
+is copied rather than symlinked so the control cannot modify the source checkout.
 
 The CLI accepts `check-config --config ABSOLUTE_PRIVATE_JSON` or
 `run --config ABSOLUTE_PRIVATE_JSON`. Check-config validates local inputs without
