@@ -49,22 +49,10 @@ jobs:
           cache: false
       - name: Install namespace launcher
         run: |
-          if ! { sudo apt-get update &&
-            sudo apt-get install --yes --no-install-recommends --no-upgrade bubblewrap=0.6.1-1ubuntu0.3; }; then
-            echo "Runner mirror failed; retrying once with official Ubuntu sources"
-            apt_fallback=$(mktemp -d "$RUNNER_TEMP/ubuntu-apt.XXXXXXXX")
-            trap 'rm -rf -- "$apt_fallback"' EXIT
-            mkdir "$apt_fallback/parts"
-            printf '%s\n' \
-              'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://archive.ubuntu.com/ubuntu jammy main' \
-              'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://archive.ubuntu.com/ubuntu jammy-updates main' \
-              'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://security.ubuntu.com/ubuntu jammy-security main' \
-              > "$apt_fallback/sources.list"
-            apt_sources=(-o "Dir::Etc::sourcelist=$apt_fallback/sources.list"
-              -o "Dir::Etc::sourceparts=$apt_fallback/parts")
-            sudo apt-get "${apt_sources[@]}" --error-on=any update
-            sudo apt-get "${apt_sources[@]}" install --yes --no-install-recommends --no-upgrade bubblewrap=0.6.1-1ubuntu0.3
-          fi
+          printf '%s  %s\n' \
+            '706763714e5d19fc7ab2572a6418506e3a4a5d5960e99309707b58117e6b40cb' \
+            '.github/ci-debs/bubblewrap_0.6.1-1ubuntu0.3_amd64.deb' | sha256sum --check --strict
+          sudo dpkg --install .github/ci-debs/bubblewrap_0.6.1-1ubuntu0.3_amd64.deb
           test "$(dpkg-query -W -f='${Version}' bubblewrap)" = 0.6.1-1ubuntu0.3
       - name: Run offline with read-only source and tools
         env:
