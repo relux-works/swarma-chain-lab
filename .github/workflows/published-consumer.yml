@@ -1,0 +1,51 @@
+name: Published consumer graph
+
+on:
+  pull_request:
+    paths:
+      - '**/go.mod'
+      - '**/go.sum'
+      - 'experiments/single-use/**'
+      - 'experiments/sealwatch/**'
+      - '.scripts/check-published-consumer.py'
+      - '.github/workflows/published-consumer.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  published-consumer:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Published graph regression and offline consumer qualification
+        env:
+          CANDIDATE: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 .scripts/check-published-consumer.py --candidate "$CANDIDATE" --scratch-parent "$RUNNER_TEMP"
+      - name: Preserve consumer evidence without caches
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: published-consumer-evidence
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/published-consumer-*/*.log
+            ${{ runner.temp }}/published-consumer-*/*.json
+            ${{ runner.temp }}/published-consumer-*/baseline/go.mod
+            ${{ runner.temp }}/published-consumer-*/baseline/go.sum
+            ${{ runner.temp }}/published-consumer-*/baseline/main.go
+            ${{ runner.temp }}/published-consumer-*/candidate/go.mod
+            ${{ runner.temp }}/published-consumer-*/candidate/go.sum
+            ${{ runner.temp }}/published-consumer-*/candidate/main.go

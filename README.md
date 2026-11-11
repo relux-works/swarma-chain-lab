@@ -340,6 +340,23 @@ GOWORK=off GOFLAGS=-mod=mod go build ./...
 
 For later releases, choose new versions for changed modules and update their
 consumers explicitly; validate the complete selected graph before tagging.
+The current cross-module requirements pin the published `288d63e191fe` snapshot;
+local directory replacements remain development conveniences. In particular,
+`single-use` needs `sealwatch.ValidateJSON`, which is absent from `sealwatch v0.1.0`.
+Published, immutable dependency checksums may be recorded in module sums; this
+does not permit recording speculative same-commit mirror checksums described above.
+See [the module graph audit](experiments/MODULE-GRAPH.md) for scope and limits.
+
+The `Published consumer graph` CI job runs
+`python3 .scripts/check-published-consumer.py --candidate FULL_COMMIT_SHA --scratch-parent ABSOLUTE_EXTERNAL_SCRATCH`
+against actual proxy-published module versions. The parent must exist outside this
+checkout. It creates private HOME/cache/temp and two external consumer modules
+without replacements, populates verified dependencies online, then runs offline
+`go vet` and `go build`. The fixed historical `288d63e` consumer must fail with
+the missing `sealwatch.ValidateJSON` witness; the candidate must pass. Logs,
+commands/PIDs/exits, manifests and consumer inputs stay in the printed scratch
+directory; CI uploads those small files without caches. This proves public graph
+compilation, not slotd runtime behavior or production installation.
 Logs, consumer fixtures, mirrors and release artifacts belong under task-scoped
 `.temp/` directories and must not contain credentials or private runtime state.
 

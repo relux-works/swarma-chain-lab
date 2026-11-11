@@ -3,8 +3,8 @@ module github.com/relux-works/swarma-chain-lab/experiments/station-payload
 go 1.26.0
 
 require (
-	github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle v0.1.0
-	github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind v0.1.0
+	github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle v0.2.1-0.20261111181054-288d63e191fe
+	github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind v0.1.1-0.20261111181054-288d63e191fe
 )
 
 require (
@@ -15,9 +15,9 @@ require (
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.1.0 // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.1.0 // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.1.0 // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261111181054-288d63e191fe // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.4.1-0.20261111181054-288d63e191fe // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261111181054-288d63e191fe // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
@@ -41,9 +41,9 @@ replace github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/ga
 replace github.com/relux-works/swarma-chain-lab/experiments/model-proxy => ../model-proxy
 
 require (
-	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.1.0
-	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.1.0
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.1.0
+	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261111181054-288d63e191fe
+	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261111181054-288d63e191fe
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261111181054-288d63e191fe
 )
 
 replace github.com/relux-works/swarma-chain-lab/experiments/rental-gateway => ../rental-gateway
