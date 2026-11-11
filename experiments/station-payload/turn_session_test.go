@@ -185,9 +185,17 @@ func turnSessionRecovery(t *testing.T, modelAnswer, expectedAnswer string) {
 				ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 				defer cancel()
 				runErr := c.Run(ctx, ln.Addr().String(), pin(f.front.Certificate()), f.roots)
-				peer := <-done
+				// Run can refuse before dialing. Release Accept before joining the peer,
+				// so a startup regression reports its error instead of hanging the suite.
+				ln.Close()
+				var peer result
+				select {
+				case peer = <-done:
+				case <-ctx.Done():
+					t.Fatalf("script did not finish after client returned %v: %v", runErr, ctx.Err())
+				}
 				if peer.err != nil {
-					t.Fatal("script", peer.err)
+					t.Fatalf("script after client returned %v: %v", runErr, peer.err)
 				}
 				if e = os.Chmod(dir, 0700); e != nil {
 					t.Fatal(e)

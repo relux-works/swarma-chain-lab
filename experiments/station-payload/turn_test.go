@@ -117,3 +117,38 @@ func TestTurnJournalRefusals(t *testing.T) {
 		j.close()
 	}
 }
+
+// A private leaf cannot compensate for group/world-writable ancestry. Refusal
+// writes no journal state; repairing only the owned parent restores admission.
+func TestTurnJournalWritableAncestor(t *testing.T) {
+	for _, mode := range []os.FileMode{0770, 0777} {
+		t.Run(mode.String(), func(t *testing.T) {
+			parent := root(t)
+			leaf := filepath.Join(parent, "journal")
+			if e := os.Mkdir(leaf, 0700); e != nil {
+				t.Fatal(e)
+			}
+			if e := os.Chmod(parent, mode); e != nil {
+				t.Fatal(e)
+			}
+			if j, e := openTurns(leaf, "binding"); e != ErrJournal || j != nil {
+				if j != nil {
+					j.close()
+				}
+				t.Fatalf("writable ancestor accepted: %v", e)
+			}
+			entries, e := os.ReadDir(leaf)
+			if e != nil || len(entries) != 0 {
+				t.Fatalf("refusal wrote journal state: %v", e)
+			}
+			if e := os.Chmod(parent, 0700); e != nil {
+				t.Fatal(e)
+			}
+			j, e := openTurns(leaf, "binding")
+			if e != nil {
+				t.Fatal("private ancestor neighbor", e)
+			}
+			j.close()
+		})
+	}
+}

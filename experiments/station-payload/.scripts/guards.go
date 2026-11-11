@@ -21,6 +21,7 @@ import (
 type plant struct{ Name, Module, File, Old, New, Test, Witness string }
 
 var plants = []plant{
+	{"turn_writable_ancestor", "station-payload", "turn.go", " || info.Mode().Perm()&0022 != 0", "", "TestTurnJournalWritableAncestor", "writable ancestor accepted"},
 	{"turn_relay_cap", "station-payload", "session.go", " || !nostr.ValidDeliveryEventLimit(f.RelayMaxEventBytes)", "", "TestSessionRelayCap", "invalid cap allowed Pull"},
 	{"turn_size_bound", "station-payload", "session.go", "reply = nostr.BoundDeliveryReply(reply, relayMaxEventBytes)", "_ = relayMaxEventBytes; _ = nostr.DeliverySizeNotice", "TestTurnWrappedSizeRecovery", "station saved unwrappable ready reply"},
 	{"turn_file_sync", "station-payload", "turn.go", "e = da1FileSync(f)", "e = nil", "TestDA1SyncProbe", "turn sync sequence"},

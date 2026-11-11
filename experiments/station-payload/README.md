@@ -154,3 +154,10 @@ checks complete gift-wrap JSON and both NIP44 layers; oversized model text becom
 the immutable notice `reply exceeded deliverable size`. At cap65536 a32768-byte
 plain result also becomes the notice. Missing/invalid caps refuse before pulling
 work. Keep the cap stable during pending turns; see the gateway DELIVERY.md.
+
+Journal test fixtures are created under the module's `.temp/` directory and
+removed by test cleanup. Run from a checkout whose resolved ancestry is not
+group/world-writable; `/tmp` is not a valid journal fixture ancestor. The tests
+check this precondition without changing any host ancestor permissions. The
+`turn_writable_ancestor` guard control removes the ancestry permission check in
+an isolated copy and requires the specific rejection assertion to fail.

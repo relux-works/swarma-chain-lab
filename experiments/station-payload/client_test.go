@@ -49,14 +49,38 @@ func encoded(t *testing.T, b gatewaybind.PayloadBootstrap) []byte {
 	}
 	return raw
 }
+
+// Journal fixtures use private task-local scratch: the system temp directory
+// may have writable ancestors (for example /tmp), which production must refuse.
 func root(t *testing.T) string {
 	t.Helper()
-	p, e := filepath.EvalSymlinks(t.TempDir())
+	base, e := filepath.Abs(".temp")
 	if e != nil {
 		t.Fatal(e)
 	}
-	if os.Chmod(p, 0700) != nil {
-		t.Fatal("fixture root mode")
+	if e = os.MkdirAll(base, 0700); e != nil {
+		t.Fatal(e)
+	}
+	base, e = filepath.EvalSymlinks(base)
+	if e != nil {
+		t.Fatal(e)
+	}
+	p, e := os.MkdirTemp(base, "delivery-test-")
+	if e != nil {
+		t.Fatal(e)
+	}
+	t.Cleanup(func() { os.RemoveAll(p) })
+	if e = os.Chmod(p, 0700); e != nil {
+		t.Fatal(e)
+	}
+	for parent := p; ; parent = filepath.Dir(parent) {
+		info, err := os.Lstat(parent)
+		if err != nil || !info.IsDir() || info.Mode().Perm()&0022 != 0 {
+			t.Fatalf("journal fixture requires nonwritable ancestry: %s (%v)", parent, err)
+		}
+		if parent == filepath.Dir(parent) {
+			break
+		}
 	}
 	return p
 }
