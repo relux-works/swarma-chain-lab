@@ -107,6 +107,8 @@ def main():
         (cwd / "main.go").write_text(CONSUMER)
         # Tidy only this throwaway consumer to populate checksummed dependencies.
         run(cwd, label + "-populate", ["mod", "tidy"])
+        # Offline graph enumeration also needs lazy, non-imported dependency metadata.
+        run(cwd, label + "-download", ["mod", "download", "all"])
         cases.append((label, cwd, version))
 
     offline = dict(env, GOPROXY="off", GOSUMDB="off")
