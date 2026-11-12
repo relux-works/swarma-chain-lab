@@ -70,14 +70,13 @@ func px1ProductDepsStubbed() bool {
 }
 
 // Claim: the public OpenActionService never returns a W2 wallet for a config
-// with a g2 block. While the S2/S3 constructors are stubs it refuses with the
-// attach error itself (PX1_NOT_IMPLEMENTED), not a substitute code; once they
-// land, an opened service must be attached (wallet.g2 and its journal set).
-// A refused G2 open releases the wallet lock (a W2 reopen of the same files
-// succeeds), and the W2 neighbour without g2 opens unattached before and after.
-// Integrated, the refusal is driven by a foreign journal v2 in the wallet
-// state directory: the attach's JOURNAL_SEGMENT comes back unchanged and the
-// W2 neighbour on those files opens afterwards.
+// with a g2 block. With the integrated S2/S3 constructors a valid g2 block
+// must start cleanly (any startup error fails, marker G2_STARTUP_REFUSED) and
+// the opened service is attached (wallet.g2 and its journal set); the W2
+// neighbour without g2 opens unattached before and after. The refusal is
+// driven by a foreign journal v2 in the wallet state directory: the attach's
+// JOURNAL_SEGMENT comes back unchanged (exact code) and the refused open
+// releases the wallet lock, so the W2 neighbour on those files opens.
 // Limit: unit layer, no node call; the Core tests below cover the spend.
 func TestPX1ServiceOpenG2FailClosed(t *testing.T) {
 	c := px1ServiceUnitConfig(t)
@@ -100,28 +99,21 @@ func TestPX1ServiceOpenG2FailClosed(t *testing.T) {
 	if e := validServiceConfig(g2); e != nil {
 		t.Fatal("fixture: the g2 block must pass configuration validation", e)
 	}
+	if px1ProductDepsStubbed() {
+		t.Fatal("PX1 product constructors are stubs: the integrated G2 service is required")
+	}
 	s, e := OpenActionService(g2)
-	switch {
-	case e == nil && (s.wallet.g2 == nil || s.wallet.PX1Journal() == nil):
+	if e != nil {
+		t.Fatalf("G2_STARTUP_REFUSED: a valid g2 block must start cleanly: %v", e)
+	}
+	if s.wallet.g2 == nil || s.wallet.PX1Journal() == nil {
 		s.Close()
 		t.Fatal("G2_PROFILE_FALLTHROUGH: OpenActionService accepted a g2 block and returned a W2 wallet")
-	case e == nil && px1ProductDepsStubbed():
-		s.Close()
-		t.Fatal("G2 opened although the product dependencies are stubs")
-	case e == nil:
-		s.Close()
-	case px1ProductDepsStubbed():
-		wantCode(t, "G2 stub refuses", e, ErrNotImplemented.Error())
-	default:
-		t.Logf("G2 startup refused with product dependencies: %v", e)
 	}
-	openW2("after G2 refusal")
-	if px1ProductDepsStubbed() {
-		return
-	}
-	// Integrated (product S2/S3 constructors): the attach above succeeds, so
-	// the refusal path is driven by a wallet state directory that already
-	// holds a journal v2 under another header. The product attach refuses
+	s.Close()
+	openW2("after G2 open")
+	// The attach above succeeds, so the refusal path is driven by a wallet
+	// state directory that already holds a journal v2 under another header. The product attach refuses
 	// JOURNAL_SEGMENT, OpenActionService returns that code unchanged (never a
 	// substitute such as SERVICE_PROFILE), and the refused open releases the
 	// wallet lock, so the W2 neighbour on the same files opens.
@@ -207,19 +199,21 @@ func TestPX1WalletClockStepBack(t *testing.T) {
 
 // Claim: with a valid g2 block (terms v2 required, transfer/day/fee ceilings
 // 1000) the public opener never executes a terms-v1 spend under W2: startup
-// refuses while the S2/S3 constructors are stubs; once integrated, the opened
-// service carries the G2 profile at both layers, refuses every spend with
+// must succeed (any startup error fails, marker G2_STARTUP_REFUSED), the
+// opened service carries the G2 profile at both layers, refuses every spend with
 // SERVICE_STATE_UNAVAILABLE at journal_seq 0 before the first observation
 // pass (S3 halt, nothing journaled), and after one pass that reads a real
-// unspent canary refuses the same request TERMS_VERSION_REQUIRED. Genuine Core
+// unspent canary refuses the same request TERMS_VERSION_REQUIRED; after the
+// canary is spent the next pass succeeds and a fresh nonce refuses
+// FLOAT_CANARY_SPENT at journal_seq 0 (T14_WIRE). Genuine Core
 // 28 regtest and the genuine K1 kernel; installedRead keeps its synthetic
 // root-ownership seam and the peer metadata is injected (not a custody test).
 // Adapted from the PR 76 reviewer's TestReviewG2ServiceFailClosed.
 func TestPX1CoreServiceG2FailClosed(t *testing.T) { px1CoreServiceProfile(t, true) }
 
 // Claim: without g2 the same signed terms-v1 request executes and genuine Core
-// shows the 50000-atom payment, so the G2 test cannot pass by refusing every
-// startup. Adapted from the reviewer's TestReviewW2ProfilePositive.
+// shows the 50000-atom payment (startup refused fails, G2_STARTUP_REFUSED),
+// so the G2 test cannot pass by refusing every startup. Adapted from the reviewer's TestReviewW2ProfilePositive.
 func TestPX1CoreServiceW2Positive(t *testing.T) { px1CoreServiceProfile(t, false) }
 
 func px1CoreServiceProfile(t *testing.T, g2 bool) {
@@ -275,14 +269,7 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 	}
 	service, err := OpenActionService(config)
 	if err != nil {
-		if !g2 {
-			t.Fatal("W2 positive startup failed", err)
-		}
-		if px1ProductDepsStubbed() {
-			wantCode(t, "G2 stub refuses", err, ErrNotImplemented.Error())
-		}
-		t.Logf("G2 startup refused: %v", err)
-		return
+		t.Fatalf("G2_STARTUP_REFUSED: a valid profile (g2=%t) must start cleanly: %v", g2, err)
 	}
 	defer service.Close()
 	if g2 && (service.wallet.g2 == nil || service.wallet.PX1Journal() == nil) {
@@ -345,7 +332,7 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 		core.rpc("", "sendrawtransaction", signed.Hex)
 		seqBefore := service.PX1ServiceJournal().Usage().LastSeq
 		if e := service.PX1Tick(context.Background()); e != nil {
-			t.Logf("observation pass after the canary spend: %v", e)
+			t.Fatalf("T14_WIRE: observation pass after the canary spend: %v", e)
 		}
 		request.Nonce = strings.Repeat("e", 32)
 		var spent SignedActionReceipt
