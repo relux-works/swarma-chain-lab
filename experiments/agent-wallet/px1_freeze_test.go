@@ -189,29 +189,35 @@ func px1EnqueueDoc(t *testing.T, src string) string {
 	return doc
 }
 
-// px1EnqueueAmended reports whether doc states the freeze-amendment-2
-// precondition and no longer the complete-record-only one.
+// px1EnqueueAmendedDoc is the whole freeze-amendment-2 Tracker.Enqueue doc,
+// whitespace collapsed. Its exception predicate ("without an outcome record
+// (that append failed, or the request stopped before its broadcast)") is part
+// of the pin: NewTracker excludes a durable refuse-retained outcome.
+const px1EnqueueAmendedDoc = "Enqueue registers a payment after its reserve record and its terminal " +
+	"outcome record are durable (step 23): complete for an executed spend, " +
+	"uncertain for a broadcast the node rejected or one that may have " +
+	"happened. A spend left uncertain without an outcome record (that append " +
+	"failed, or the request stopped before its broadcast) is registered on " +
+	"its durable reserve record alone."
+
+// px1EnqueueAmended reports whether doc is exactly the freeze-amendment-2
+// precondition text.
 func px1EnqueueAmended(doc string) bool {
-	for _, want := range []string{
-		"Enqueue registers a payment after its reserve record and its terminal outcome record are durable (step 23)",
-		"complete for an executed spend",
-		"uncertain for a broadcast the node rejected or one that may have happened",
-		"is registered on its durable reserve record alone",
-	} {
-		if !strings.Contains(doc, want) {
-			return false
-		}
-	}
-	return !strings.Contains(doc, "after its complete record is durable")
+	return doc == px1EnqueueAmendedDoc
 }
 
-// Claim (freeze amendment 2): the frozen Tracker.Enqueue doc states the
+// Claim (freeze amendment 2): the frozen Tracker.Enqueue doc is exactly the
 // amended precondition: reserve record and terminal outcome record durable
 // (complete, or uncertain for a rejected or possibly sent broadcast), or the
-// reserve record alone when no outcome record was appended. Negative controls:
-// the pre-amendment doc, the amended doc that still keeps the old sentence,
-// and a Tracker without an Enqueue doc are refused. Limit: it pins the frozen
-// text only; the behaviour is covered by the S2/S3 tracker tests.
+// reserve record alone for a spend left uncertain without an outcome record
+// (that append failed, or the request stopped before its broadcast). The
+// current text also passes through the in-memory fixture path. Negative
+// controls, each refused: the exception predicate rewritten to a durable
+// refuse-retained outcome (which NewTracker excludes) with its result kept,
+// the predicate clause dropped, the parenthetical cases dropped, the
+// pre-amendment complete-record-only doc, the amended doc that still keeps the
+// old sentence, and a Tracker without an Enqueue doc. Limit: it pins the
+// frozen text only; the behaviour is covered by the S2/S3 tracker tests.
 func TestPX1EnqueuePreconditionText(t *testing.T) {
 	b, e := os.ReadFile("px1_observe_api.go")
 	if e != nil {
@@ -219,16 +225,29 @@ func TestPX1EnqueuePreconditionText(t *testing.T) {
 	}
 	doc := px1EnqueueDoc(t, string(b))
 	if !px1EnqueueAmended(doc) {
-		t.Fatalf("Tracker.Enqueue doc lacks the amendment-2 precondition: %q", doc)
+		t.Fatalf("Tracker.Enqueue doc is not the amendment-2 precondition:\n got %q\nwant %q", doc, px1EnqueueAmendedDoc)
 	}
-	const oldDoc = "Enqueue registers a payment after its complete record is durable (step 23)."
 	tracker := func(comment string) string {
 		return "package wallet\n\ntype Tracker interface {\n" + comment + "\tEnqueue(p TrackedPayment) error\n}\n"
 	}
+	if !px1EnqueueAmended(px1EnqueueDoc(t, tracker("\t// "+doc+"\n"))) {
+		t.Fatal("positive control: the current text is refused on the fixture path")
+	}
+	const predicate = "without an outcome record (that append failed, or the request stopped before its broadcast)"
+	plant := func(old, repl string) string {
+		if !strings.Contains(doc, old) {
+			t.Fatalf("plant not applied: %q absent", old)
+		}
+		return tracker("\t// " + strings.Replace(doc, old, repl, 1) + "\n")
+	}
+	const oldDoc = "Enqueue registers a payment after its complete record is durable (step 23)."
 	for name, src := range map[string]string{
-		"pre-amendment": tracker("\t// " + oldDoc + "\n"),
-		"old kept":      tracker("\t// " + doc + " " + oldDoc + "\n"),
-		"no doc":        tracker(""),
+		"refuse-retained predicate": plant(predicate, "with a durable refuse-retained outcome record"),
+		"predicate dropped":         plant(" "+predicate, ""),
+		"cases dropped":             plant(" (that append failed, or the request stopped before its broadcast)", ""),
+		"pre-amendment":             tracker("\t// " + oldDoc + "\n"),
+		"old kept":                  tracker("\t// " + doc + " " + oldDoc + "\n"),
+		"no doc":                    tracker(""),
 	} {
 		if px1EnqueueAmended(px1EnqueueDoc(t, src)) {
 			t.Errorf("negative control %s: accepted", name)
