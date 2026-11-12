@@ -33,14 +33,23 @@
 
 ## PX1, open after the integration follow-up
 
-- **Test ids without a Core layer.** T3, T5 and T8 have unit layers only;
-  their Core layers (S2) can now be written, because the service layer
-  selects G2 since integration step 3. T9 (32 parallel spends over the day
-  cap, two parallel same-nonce requests, `-count=50`) and T10 (crash
-  subprocess after the wallet reservation, the service reservation and the
-  broadcast) have no test at any layer. The hosted `px1-core-gate` job lists
-  them as open in `.scripts/px1-core-gate.json` and never reports them as a
-  pass.
+- **T10 blocked by the S3 tracker on genuine Core (open, S3).** The Core
+  layers of T3, T5, T8, T9 and T10 are written (`px1_s2_core_test.go`), and
+  the gate manifest requires every layer of the test table, with no open
+  T-id. T10 still fails at its two crash points before the broadcast
+  (`TestPX1CoreS2Crash/after-reservation` and `/after-service-reservation`,
+  marker `T10_TRACKER_UNKNOWN_TX`). After the restart the tracker reloads the
+  reservation, whose transaction the node never saw. `getrawtransaction` for
+  an unknown txid makes Core answer HTTP 500 with a JSON-RPC error object
+  (legacy JSON-RPC 1.0). The node client reports that as `RPC_RESPONSE`, but
+  `px1oRemoteNo` (`px1_observe.go`) treats only `RPC_REMOTE_ERROR` and
+  `RPC_REMOTE_REFUSAL` as "absent". Every observation pass therefore fails
+  `RPC_RESPONSE`. The tracker stops at that payment, so no payment is tracked
+  any more and the reservation is never marked conflicted. The same applies
+  to a broadcast the node rejects (`BROADCAST_UNCERTAIN`). Funds stay safe:
+  the debit stays retained, nothing is re-sent, and the operator release
+  works. The fix belongs to S3, the owner of `px1_observe.go`, or to the
+  owner of the node client. Until it lands, the hosted gate fails on T10.
 - **F6 (matrix row 20 negative test):** not routed to the integration
   follow-up; open.
 - **Replay after a release.** `px1Prior` skips `track` records only. After a
