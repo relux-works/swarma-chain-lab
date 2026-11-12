@@ -126,7 +126,9 @@ placeholders and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
   validates the parameters and writes the six frozen G2 files (0600) into a new
   directory. It never overwrites. It reads no credential and renders none.
 - `deploy-kit g2-custody-probe -spec custody-spec.json` runs T18 as the agent
-  UID and prints a `CustodyReportV1`. It exits 1 unless every probe passes.
+  UID and prints a `CustodyReportV1`. It exits 1 unless every probe passes. A
+  denied path passes only if the agent can neither read nor traverse it, so a
+  searchable but unlistable directory fails.
 - `deploy-kit g2-custody-verify -spec custody-spec.json -report REPORT` checks a
   stored report against the launch spec and prints `T18_CUSTODY_VERIFIED <spec sha256>`.
 - `deploy/g2-custody-check.sh SPEC CLIENT GRANTEE OUTDIR` is the T18 host script.
@@ -135,6 +137,10 @@ placeholders and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
 - `W1_REGTEST=1 W1_CORE_DAEMON=/abs/namecoind W1_RUN_ROOT=/abs/new-dir go test
   -count=1 -run '^TestPX1T18CoreNodePolicy$' .` runs the Core layer against a
   regtest node that the test starts and stops by PID.
+- `go test -count=1 -run '^TestPX1S5Sysusers' .` gives the rendered
+  `sysusers.conf` to the real `systemd-sysusers`, only with `--dry-run` and a
+  new fixture root under the test temp directory. It skips where
+  `systemd-sysusers` is not installed.
 - `W1_MUTATIONS=1 W1_MUTATION_ROOT=/abs/new-dir W1_CORE_DAEMON=/abs/namecoind go
   test -count=1 -timeout 30m -run '^TestPX1S5GuardPlants$' .` runs the S5
   narrowing plants in `testdata/px1-mutations-s5.json`. Each plant must fail its

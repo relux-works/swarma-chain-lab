@@ -76,6 +76,10 @@ func TestPX1S5ParametersRefusalTable(t *testing.T) {
 		"capacity-minimum": func(p *G2PayParameters) { p.G2.JournalSpendCapacity = p.G2.MaxDayCount + 64 },
 		"canary-dust":      func(p *G2PayParameters) { p.G2.Canary.ValueSat = 546 },
 		"low-float-zero":   func(p *G2PayParameters) { p.G2.LowFloatSat = 0 },
+		"socket-gid-65533": func(p *G2PayParameters) { p.AgentSocketGID = 65533 },
+		"socket-gid-65536": func(p *G2PayParameters) { p.AgentSocketGID = 65536 },
+		"operator-65533":   func(p *G2PayParameters) { p.OperatorGID = 65533 },
+		"operator-65536":   func(p *G2PayParameters) { p.OperatorGID = 65536 },
 	}
 	for name, mut := range accept {
 		p := g2Params()
@@ -98,6 +102,8 @@ func TestPX1S5ParametersRefusalTable(t *testing.T) {
 		{"agent-minus-one", ErrPolicy, func(p *G2PayParameters) { p.AgentUID = math.MaxUint32 }},
 		{"socket-gid-root", ErrPolicy, func(p *G2PayParameters) { p.AgentSocketGID = 0 }},
 		{"operator-gid-root", ErrPolicy, func(p *G2PayParameters) { p.OperatorGID = 0 }},
+		{"socket-gid-65535", ErrPolicy, func(p *G2PayParameters) { p.AgentSocketGID = 65535 }},
+		{"operator-gid-65535", ErrPolicy, func(p *G2PayParameters) { p.OperatorGID = 65535 }},
 		{"operator-is-agent-group", ErrPolicy, func(p *G2PayParameters) { p.OperatorGID = p.AgentSocketGID }},
 		{"grantee-empty", ErrPolicy, func(p *G2PayParameters) { p.Grantee = "" }},
 		{"grantee-upper", ErrPolicy, func(p *G2PayParameters) { p.Grantee = strings.ToUpper(g2KeyG) }},
@@ -467,6 +473,55 @@ func TestPX1T18DeniedReadMustBeEACCES(t *testing.T) {
 			}
 			if e := VerifyCustodyReport(spec, r); e != ErrCustody {
 				t.Fatal("T18_VERIFY accepted a failing report", e)
+			}
+		})
+	}
+}
+
+// Claim (T18): a denied directory passes only if it is also unsearchable; a searchable-but-unlistable one (mode 0111) fails.
+// Limit: same-UID modes model the agent's view of another UID's 0711/0700 directory; no cross-UID host run.
+func TestPX1T18SearchableDirectory(t *testing.T) {
+	for _, c := range []struct {
+		name               string
+		dirMode, childMode os.FileMode
+		childReadable      bool
+		targetChild        bool
+		want               string
+	}{
+		{"private-0000", 0000, 0644, false, false, "EACCES"},             // valid neighbour: nothing below is reachable
+		{"private-0200", 0200, 0644, false, false, "EACCES"},             // neither read nor search: still private
+		{"child-under-0000", 0000, 0644, false, true, "EACCES"},          // a known file behind an unsearchable parent
+		{"searchable-0111-readable", 0111, 0644, true, false, "READ_OK"}, // the reproduced bypass: the known journal is readable
+		{"searchable-0111-private", 0111, 0000, false, false, "READ_OK"}, // unlistable: children cannot all be proven private
+		{"child-0000-under-0111", 0111, 0000, false, true, "EACCES"},     // the concrete private file itself passes (ENOTDIR)
+		{"child-0644-under-0111", 0111, 0644, true, true, "READ_OK"},     // the concrete readable file itself fails
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			spec, root := g2Fixture(t)
+			dir := filepath.Join(root, "service")
+			journal := filepath.Join(dir, "journal.jsonl")
+			if os.Mkdir(dir, 0700) != nil || os.WriteFile(journal, []byte("fixture-journal"), 0600) != nil || os.Chmod(journal, c.childMode) != nil || os.Chmod(dir, c.dirMode) != nil {
+				t.Fatal("[setup failed] fixture directory")
+			}
+			t.Cleanup(func() { os.Chmod(dir, 0700); os.Chmod(journal, 0600) })
+			if _, e := os.ReadFile(journal); (e == nil) != c.childReadable {
+				t.Fatalf("[setup failed] child readable=%v want %v", e == nil, c.childReadable)
+			}
+			target := dir
+			if c.targetChild {
+				target = journal
+			}
+			spec.DeniedReads = append(spec.DeniedReads, target)
+			r, e := RunCustodyProbe(context.Background(), spec)
+			if e != nil {
+				t.Fatal(e)
+			}
+			last, pass := r.Probes[2], c.want == "EACCES"
+			if last.Target != target || last.Observed != c.want || last.Pass != pass || r.Pass != pass || (VerifyCustodyReport(spec, r) == nil) != pass {
+				t.Fatalf("T18_SEARCH_GUARD %s: %+v report_pass=%v", c.name, last, r.Pass)
+			}
+			if r.Probes[0].Observed != "EACCES" || r.Probes[1].Observed != "EACCES" || !r.Probes[0].Pass || !r.Probes[1].Pass {
+				t.Fatal("private file and directory neighbours in the same run", r.Probes[:2])
 			}
 		})
 	}

@@ -42,13 +42,17 @@ const (
 	g2StateDir     = "/var/lib/swarma-wallet/service"
 
 	// Values G2PayParameters does not carry (see the S5 freeze-amendment
-	// proposal). The operator resolves them after provisioning; until then the
-	// rendered client.json and custody-spec.json refuse ErrPlaceholder and the
-	// probe refuses the spec.
+	// proposal). The operator resolves them after provisioning. Until then
+	// each consumer refuses its file: deploy-kit refuses custody-spec.json
+	// (ErrPlaceholder), the agent-wallet client loader refuses client.json (the
+	// UID is a JSON string, the key file is not absolute), and systemd-sysusers
+	// refuses sysusers.conf, because the agent-user token is not a valid user
+	// name ('<', '>' and ':' are outside every sysusers name rule). A valid
+	// name here would be applied: sysusers creates a missing "m" line user.
 	G2ServiceUIDPlaceholder   = "PLACEHOLDER_WALLET_UID_INTEGER"
 	G2AgentKeyFilePlaceholder = "PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH"
 	G2NodeDataDirPlaceholder  = "PLACEHOLDER_NODE_DATADIR"
-	G2AgentUserPlaceholder    = "PLACEHOLDER_AGENT_USER"
+	G2AgentUserPlaceholder    = "<PLACEHOLDER:AGENT_USER>"
 )
 
 // Route method sets of the own node (experiments/agent-wallet/README.md, "Use
@@ -62,6 +66,8 @@ var g2RPCWhitelist = [][2]string{
 // g2DeniedFixed is the launch prefix of CustodySpecV1.DeniedReads: the private
 // wallet config, the receipt scalar and every service-owned state directory.
 // The node cookie and wallet.dat follow (they depend on the node datadir).
+// A directory target passes only when the agent can neither list nor search
+// it (probeRead), so no journal or state file below it is reachable by name.
 var g2DeniedFixed = []string{
 	g2WalletConfig,
 	g2ReceiptKey,
@@ -73,6 +79,11 @@ var g2DeniedFixed = []string{
 
 // reservedID refuses root, the overflow id (uid_t)-1 and nobody/nogroup.
 func reservedID(id uint32) bool { return id == 0 || id == 65534 || id == math.MaxUint32 }
+
+// sysusersGID refuses the group ID that the provisioning consumer cannot
+// represent beyond reservedID: systemd-sysusers rejects 65535, the 16-bit
+// (gid_t)-1, in a "g" line ("Failed to parse GID"). 65533 and 65536 are valid.
+func sysusersGID(id uint32) bool { return id != 65535 }
 
 // secp256k1 field prime p = 2^256 - 2^32 - 977.
 var secpP, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
@@ -144,6 +155,9 @@ func ValidateG2PayParameters(p G2PayParameters) error {
 	}
 	switch {
 	case reservedID(p.AgentUID), reservedID(p.AgentSocketGID), reservedID(p.OperatorGID):
+		return ErrPolicy
+	case !sysusersGID(p.AgentSocketGID), !sysusersGID(p.OperatorGID):
+		// Both group IDs are rendered into sysusers.conf "g" lines.
 		return ErrPolicy
 	case p.AgentSocketGID == p.OperatorGID:
 		// The agent's socket group never opens the operator status socket.
@@ -263,8 +277,9 @@ func g2RPCTarget(port uint16) string { return "127.0.0.1:" + strconv.Itoa(int(po
 
 func g2Sysusers(p G2PayParameters) []byte {
 	var b strings.Builder
-	b.WriteString("# G2 pay provisioning input (rendered). Root applies it; the owner pre-provisions on agents1-class hosts.\n")
+	b.WriteString("# G2 pay provisioning input (rendered). Root applies it after the owner has provisioned the users on the executor host.\n")
 	b.WriteString("# The agent user (UID " + strconv.FormatUint(uint64(p.AgentUID), 10) + ") joins only swarma-wallet-peer, never swarma-wallet.\n")
+	b.WriteString("# Until the operator puts that user's existing name on the last line, systemd-sysusers refuses this file and writes nothing.\n")
 	b.WriteString("u swarma-wallet - \"Swarma G2 pay executor\" /var/lib/swarma-wallet /usr/sbin/nologin\n")
 	b.WriteString("g swarma-wallet-peer " + strconv.FormatUint(uint64(p.AgentSocketGID), 10) + "\n")
 	b.WriteString("g swarma-wallet-status " + strconv.FormatUint(uint64(p.OperatorGID), 10) + "\n")
@@ -461,9 +476,48 @@ func errnoCode(e error) (string, bool) {
 	return "", false
 }
 
-// probeRead opens the path read-only (non-blocking, so a FIFO cannot hang
-// the probe) and reads one byte or one directory entry.
+// probeRead observes one denied-read target. A denied open or read is only
+// half the evidence: a directory that the agent may search but not list (x
+// without r, as in mode 0711 for others) still hands out every child whose
+// name is known, such as a journal. So the denial counts only when traversal
+// into the target is denied too, and a searchable target is READ_OK: its
+// contents are readable by name. An unlistable directory cannot be proven
+// private child by child, so it fails even if every known child is private.
 func probeRead(path string) (string, error) {
+	observed, e := probeContent(path)
+	if e != nil || observed != obsEACCES && observed != obsEPERM {
+		return observed, e
+	}
+	searchable, e := probeSearch(path)
+	if e != nil {
+		return "", e
+	}
+	if searchable {
+		observed = obsReadOK
+	}
+	return observed, nil
+}
+
+// probeSearch resolves "<path>/.", which needs search permission on the
+// target itself and on every parent. Success means the agent can traverse the
+// target. EACCES or EPERM means traversal is denied. ENOTDIR means the target
+// exists and is not a directory, so the content denial above is complete. Any
+// other result (including ENOENT after a denied open) aborts the probe.
+func probeSearch(path string) (bool, error) {
+	var st syscall.Stat_t
+	e := syscall.Stat(path+"/.", &st)
+	switch {
+	case e == nil:
+		return true, nil
+	case errors.Is(e, syscall.EACCES), errors.Is(e, syscall.EPERM), errors.Is(e, syscall.ENOTDIR):
+		return false, nil
+	}
+	return false, ErrCustody
+}
+
+// probeContent opens the path read-only (non-blocking, so a FIFO cannot hang
+// the probe) and reads one byte or one directory entry.
+func probeContent(path string) (string, error) {
 	f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if e != nil {
 		if code, ok := errnoCode(e); ok {

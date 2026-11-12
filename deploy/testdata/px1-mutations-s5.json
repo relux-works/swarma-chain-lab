@@ -313,5 +313,32 @@
   "Selector": "TestPX1S5ParametersTemplate",
   "Marker": "G2_TEMPLATE",
   "Core": false
+ },
+ {
+  "Name": "s5-custody-search-unchecked",
+  "File": "g2_pay.go",
+  "Old": "\tif searchable {\n\t\tobserved = obsReadOK\n\t}\n",
+  "New": "\t_ = searchable\n",
+  "Selector": "TestPX1T18SearchableDirectory",
+  "Marker": "T18_SEARCH_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-sysusers-placeholder-applicable",
+  "File": "g2_pay.go",
+  "Old": "G2AgentUserPlaceholder    = \"<PLACEHOLDER:AGENT_USER>\"",
+  "New": "G2AgentUserPlaceholder    = \"PLACEHOLDER_AGENT_USER\"",
+  "Selector": "TestPX1S5SysusersUnresolvedRefused",
+  "Marker": "G2_SYSUSERS_UNRESOLVED",
+  "Core": false
+ },
+ {
+  "Name": "s5-sysusers-gid-65535",
+  "File": "g2_pay.go",
+  "Old": "func sysusersGID(id uint32) bool { return id != 65535 }",
+  "New": "func sysusersGID(id uint32) bool { return true }",
+  "Selector": "TestPX1S5SysusersGIDDomain",
+  "Marker": "G2_SYSUSERS_GID",
+  "Core": false
  }
 ]

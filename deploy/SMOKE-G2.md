@@ -24,14 +24,18 @@ canonical member order and compact form, because the parser accepts only exact
 | --- | --- | --- |
 | `network`, `genesis` | chain pin | `main` with the main genesis. `regtest` with the regtest genesis is accepted for rehearsals only. |
 | `agent_uid` | the rented agent's UID (service `peer_uid`) | not 0, 65534 or 2^32-1 |
-| `agent_socket_gid` | per-agent socket group (service `socket_gid`) | not reserved; differs from `operator_gid` |
-| `operator_gid` | operator status group | not reserved |
+| `agent_socket_gid` | per-agent socket group (service `socket_gid`) | not 0, 65534, 65535 or 2^32-1; differs from `operator_gid` |
+| `operator_gid` | operator status group | not 0, 65534, 65535 or 2^32-1 |
 | `grantee` | the agent's x-only action key (pay-grant grantee) | valid BIP-340 key |
 | `receipt_pubkey` | x-only receipt key (terms `executor_key`) | valid BIP-340 key; never equal to `grantee` |
 | `fee_rate_sat_vb` | fee rate for the private `wallet.json` | 100..1000. The template uses 110 (co-lead review: relay floor 100, never 200). |
 | `hot_wallet_name` | Core wallet on the own node | lowercase label; never the unnamed default wallet |
 | `node_rpc_port` | loopback RPC port of the own node | 1..65535 |
 | `g2` | the operator block, mirror of agent-wallet `G2OperatorConfig` | see below |
+
+Both group IDs are written into `g` lines of `sysusers.conf`. systemd-sysusers
+cannot parse GID 65535 (the 16-bit `(gid_t)-1`), so the deploy check refuses it
+for both groups before anything is rendered. 65533 and 65536 are valid.
 
 The `g2` block in the template carries the §3.8 smoke values, which are pinned
 byte-for-byte by the frozen golden (`max_transfer_sat` 100000, `max_day_sat`
@@ -73,15 +77,41 @@ route passwords go only into the private `wallet.json`.
 
 The frozen `G2PayParameters` has no service UID, no agent key path, no node
 datadir and no agent user name. A freeze amendment is proposed to add them.
-Until it lands, the render leaves these placeholders, and every consumer refuses
-them (`ErrPlaceholder`, or a decode error for the UID):
+Until it lands, the render leaves these placeholders:
 
 | Placeholder | Where | Resolve with |
 | --- | --- | --- |
 | `"PLACEHOLDER_WALLET_UID_INTEGER"` (quoted) | `client.json`, `custody-spec.json` | the numeric UID of `swarma-wallet` after provisioning, unquoted |
 | `PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH` | `client.json` | the agent's action key file |
 | `PLACEHOLDER_NODE_DATADIR` | `custody-spec.json` | the own node's datadir, without a trailing slash |
-| `PLACEHOLDER_AGENT_USER` | `sysusers.conf` | the user name whose UID is `agent_uid` |
+| `<PLACEHOLDER:AGENT_USER>` | `sysusers.conf`, last line | the existing user name whose UID is `agent_uid` |
+
+Each file's own consumer refuses it while a placeholder is left in it. This is
+what was checked, and how:
+
+| File | Consumer | Refusal while unresolved | Evidence |
+| --- | --- | --- | --- |
+| `custody-spec.json` | `deploy-kit g2-custody-probe` and `g2-custody-verify` (`ParseCustodySpec`) | `ErrPlaceholder` for any `PLACEHOLDER` | `TestPX1S5RenderFileSet` |
+| `client.json` | agent-wallet `LoadActionClientConfig` | `CLIENT_CONFIG`: the quoted UID does not decode into an integer, and the key-file placeholder is not an absolute path. Each one alone is refused. | a run of the real loader on the rendered file and its variants (not a committed test: `deploy` does not import agent-wallet) |
+| `sysusers.conf` | `systemd-sysusers` | exit 1, nothing written: `<PLACEHOLDER:AGENT_USER>` is not a valid user name | `TestPX1S5SysusersUnresolvedRefused`, which runs the real consumer with `--dry-run --root=<fixture>` |
+
+The agent-user token must stay an invalid name. systemd-sysusers creates the
+user of an `m` line when no such user exists, so a token that is a valid name
+(as `PLACEHOLDER_AGENT_USER` was before this revision) would be applied: the
+consumer would create an account of that name and add it to
+`swarma-wallet-peer`. For the same reason the resolved name must be an
+existing account. Check it before applying the file:
+
+```sh
+test "$(id -u "$AGENT_USER")" = "$AGENT_UID"
+sed "s/<PLACEHOLDER:AGENT_USER>/$AGENT_USER/" sysusers.conf > sysusers.resolved.conf
+systemd-sysusers --dry-run sysusers.resolved.conf   # must not print "Creating user '$AGENT_USER'"
+```
+
+The `--dry-run` output must create only `swarma-wallet`, `swarma-wallet-peer`
+and `swarma-wallet-status`, with the two pinned GIDs. A typo in the name would
+show as a new user here. This check is the owner's; the parameters cannot bind
+a name to `agent_uid` until the amendment lands.
 
 The node paths in the spec are `<datadir>/.cookie` and
 `<datadir>/wallets/<hot_wallet_name>/wallet.dat` on main. On regtest they sit
@@ -113,7 +143,7 @@ and moving the status socket to its own runtime directory is open with S3.
 
 ## 4. T18: different-UID custody check
 
-T18 runs on an agents1-class host whose users the owner has provisioned. Neither
+T18 runs on the executor host, whose users the owner has provisioned. Neither
 the probe nor the script needs root.
 
 **Root preflight (owner).** The probe runs as the agent and often sees `EACCES`
@@ -135,7 +165,14 @@ The script prints `T18_PASS` and exits 0 only when all three of these hold:
 
 1. **`deploy-kit g2-custody-probe`** runs only as `agent_uid` (real and effective
    UID), never as the service UID. Every denied read must be `EACCES` or
-   `EPERM`. `ENOENT` (missing) and `READ_OK` both fail. Every credential-less
+   `EPERM`, and the agent must also be unable to traverse into the target
+   (resolving `<target>/.` must be refused, or fail with `ENOTDIR` for a file).
+   A denied directory listing alone proves nothing about the files below it: a
+   directory that the agent may search but not list (`x` without `r`, as in
+   mode 0711) still hands out every child whose name is known, such as a
+   journal. Such a target is recorded as `READ_OK` and fails, even when the
+   known children are private, because they cannot all be checked one by one.
+   `ENOENT` (missing) and `READ_OK` both fail. Every credential-less
    JSON-RPC call to the node port must be HTTP 401, HTTP 403 or a refused
    connection. Any other HTTP status is recorded as `HTTP_OK` and fails.
    Finally the probe connects to the wallet socket without sending a frame
@@ -158,6 +195,19 @@ receipt, the verify output, and `exits.txt`. Keep it with the launch packet.
   `EACCES`. A missing path gives `ENOENT`, which fails. A readable path gives
   `READ_OK`, which fails. A closed loopback port gives `REFUSED`, and a live
   unix socket gives `CONNECTED`.
+- `TestPX1T18SearchableDirectory` models a directory the agent may search but
+  not list (mode 0111) with a readable `journal.jsonl` inside. The probe records
+  `READ_OK` and the report fails verification. A mode-0000 or mode-0200
+  directory, a file behind a mode-0000 parent, and a private file probed
+  directly are the passing neighbours. Same-UID modes stand in for the agent's
+  view of another user's mode-0711 or mode-0700 directory.
+- `TestPX1S5SysusersUnresolvedRefused` and `TestPX1S5SysusersGIDDomain` give
+  the rendered `sysusers.conf` to the real `systemd-sysusers`, only with
+  `--dry-run` and a new fixture root, and check that the fixture `passwd` and
+  `group` are unchanged afterwards. The unresolved file is refused. The
+  resolved file is accepted with GIDs 1301/1401, 65533 and 65536, and a
+  hand-edited GID 65535 line is refused by the consumer itself. They skip,
+  and say so, where `systemd-sysusers` is not installed.
 - The Core test (`W1_REGTEST=1`) starts Namecoin Core 28 on regtest from the
   rendered `namecoin-rpc.conf`. A credential-less call gets HTTP 401. Each route
   can call only its README method set, and HTTP 403 refuses everything else,
