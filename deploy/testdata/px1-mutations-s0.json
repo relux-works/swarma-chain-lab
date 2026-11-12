@@ -1,0 +1,42 @@
+[
+  {
+    "Name": "s0-a3-agent-user-unbound",
+    "File": "g2_pay_api.go",
+    "Old": "if uid, e := lookup(p.AgentUser); e != nil || uid != p.AgentUID {",
+    "New": "if _, e := lookup(p.AgentUser); e != nil {",
+    "Selector": "TestPX1PayIdentityBinding",
+    "Marker": "agent_user bound to another UID accepted"
+  },
+  {
+    "Name": "s0-a3-id-65535",
+    "File": "g2_pay_api.go",
+    "Old": "return id == 0 || id == 65534 || id == 65535 || id == 1<<32-1",
+    "New": "return id == 0 || id == 65534 || id == 1<<32-1",
+    "Selector": "TestPX1PayIdentityDomain",
+    "Marker": "=65535 accepted (reserved id domain)"
+  },
+  {
+    "Name": "s0-a3-relative-path",
+    "File": "g2_pay_api.go",
+    "Old": "if len(p) < 2 || len(p) > 4095 || p[0] != '/' || path.Clean(p) != p {",
+    "New": "if len(p) < 2 || len(p) > 4095 || path.Clean(p) != p {",
+    "Selector": "TestPX1PayIdentityDomain",
+    "Marker": "paths \"relative/agent.key\""
+  },
+  {
+    "Name": "s0-a3-service-uid-equals-agent",
+    "File": "g2_pay_api.go",
+    "Old": "if p.ServiceUID == p.AgentUID {",
+    "New": "if false && p.ServiceUID == p.AgentUID {",
+    "Selector": "TestPX1PayIdentityDomain",
+    "Marker": "service_uid == agent_uid accepted (Q9)"
+  },
+  {
+    "Name": "s0-a3-swarma-wallet-name",
+    "File": "g2_pay_api.go",
+    "Old": " || strings.HasPrefix(p.AgentUser, \"swarma-wallet\") {",
+    "New": " || strings.HasPrefix(p.AgentUser, \"swarma-wallet-\") {",
+    "Selector": "TestPX1PayIdentityDomain",
+    "Marker": "agent_user \"swarma-wallet\""
+  }
+]

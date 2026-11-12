@@ -137,7 +137,8 @@ type CapChecker interface {
 	// CheckExecutor: terms.executor_key == receiptKey, else TERMS_EXECUTOR_MISMATCH (G-12).
 	CheckExecutor(t TermsV2, receiptKey string) error
 	// CheckRecipient: allow mode requires membership (ADDRESS_NOT_ALLOWED);
-	// any mode admits every canonical P2PKH address of the pinned network.
+	// any mode admits every canonical P2PKH address of the pinned network,
+	// which only NewCapCheckerFor carries (amendment 1).
 	CheckRecipient(l EffectiveLimits, address string) error
 	// CheckPrePlan: AMOUNT_DUST, TRANSFER_CAP_EXCEEDED (amount+fee_limit),
 	// then TOTAL_BUDGET_EXCEEDED, SPEND_BUDGET_EXCEEDED, DAY_CAP_EXCEEDED,
@@ -149,5 +150,81 @@ type CapChecker interface {
 	CheckPostPlan(l EffectiveLimits, in SpendIntent, ledger LedgerView) error
 }
 
-// NewCapChecker signature (px1_terms.go).
+// NewCapChecker signature (px1_terms.go): the S1 cap rules without a network
+// pin. Deprecated for callers: use NewCapCheckerFor. It stays frozen because
+// NewCapCheckerFor wraps it (freeze amendment 1). Carrying no network, its
+// CheckRecipient admits no "any"-mode recipient: a caller that passes no
+// network never gets an any-mode (allow-all) checker. Allow mode keeps the
+// membership rule.
 var _ func() CapChecker = NewCapChecker
+
+// NewCapCheckerFor is the public, network-bearing cap checker (freeze
+// amendment 1, S1 FA-S1-2). Every caller, the wallet included, uses it. It
+// binds the checker to the caller's pinned network:
+//   - network/genesis not a pinned pair (su.NetworkPinned, so "" included):
+//     every method refuses NETWORK_PIN, whatever the limits say;
+//   - CheckRecipient: the address must be a canonical P2PKH address of the
+//     pinned network (addressScriptForNetwork), else ADDRESS_NOT_ALLOWED; then
+//     "any" mode admits it, and "allow" mode applies NewCapChecker's
+//     membership rule; any other mode refuses ADDRESS_NOT_ALLOWED;
+//   - CheckExecutor, CheckPrePlan and CheckPostPlan are NewCapChecker's rules.
+var _ func(network, genesis string) CapChecker = NewCapCheckerFor
+
+// NewCapCheckerFor returns the cap checker bound to network/genesis.
+func NewCapCheckerFor(network, genesis string) CapChecker {
+	return newPinnedCapChecker(network, genesis, NewCapChecker())
+}
+
+// pinnedCapChecker is the frozen network binding around the S1 cap rules.
+type pinnedCapChecker struct {
+	network, genesis string
+	rules            CapChecker
+}
+
+func newPinnedCapChecker(network, genesis string, rules CapChecker) CapChecker {
+	return pinnedCapChecker{network: network, genesis: genesis, rules: rules}
+}
+
+func (c pinnedCapChecker) pinned() error {
+	if !su.NetworkPinned(c.network, c.genesis) {
+		return fail("NETWORK_PIN")
+	}
+	return nil
+}
+
+func (c pinnedCapChecker) CheckExecutor(t TermsV2, receiptKey string) error {
+	if e := c.pinned(); e != nil {
+		return e
+	}
+	return c.rules.CheckExecutor(t, receiptKey)
+}
+
+func (c pinnedCapChecker) CheckRecipient(l EffectiveLimits, address string) error {
+	if e := c.pinned(); e != nil {
+		return e
+	}
+	if _, e := addressScriptForNetwork(address, c.network, c.genesis); e != nil {
+		return fail(CodeAddressNotAllowed)
+	}
+	switch l.RecipientMode {
+	case RecipientModeAny:
+		return nil
+	case RecipientModeAllow:
+		return c.rules.CheckRecipient(l, address)
+	}
+	return fail(CodeAddressNotAllowed)
+}
+
+func (c pinnedCapChecker) CheckPrePlan(l EffectiveLimits, in SpendIntent, ledger LedgerView) error {
+	if e := c.pinned(); e != nil {
+		return e
+	}
+	return c.rules.CheckPrePlan(l, in, ledger)
+}
+
+func (c pinnedCapChecker) CheckPostPlan(l EffectiveLimits, in SpendIntent, ledger LedgerView) error {
+	if e := c.pinned(); e != nil {
+		return e
+	}
+	return c.rules.CheckPostPlan(l, in, ledger)
+}

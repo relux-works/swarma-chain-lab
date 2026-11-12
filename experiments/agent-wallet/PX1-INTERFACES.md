@@ -7,8 +7,10 @@ co-lead review (COLEAD-REVIEW-PX1, 2026-11-12) is binding.
 - **What is frozen:** every `px1_*_api.go` file in this module, plus
   `experiments/rental/paygrant_v2_api.go`, `deploy/g2_pay_api.go`, the golden
   fixtures listed below, and the freeze tests (`px1_freeze_test.go`,
-  `px1_freeze_fixture_test.go`, `rental/paygrant_v2_freeze_test.go`,
-  `deploy/g2_pay_freeze_test.go`).
+  `px1_freeze_fixture_test.go`, `px1_freeze_amend1_test.go`,
+  `rental/paygrant_v2_freeze_test.go`, `deploy/g2_pay_freeze_test.go`), with
+  the S0 plant manifests `testdata/px1-mutations-s0.json` in agent-wallet and
+  in `deploy/`.
 - **Amendment rule:** a type, member order, JSON name, code or signature changes
   only through a freeze-amendment PR. All stream owners review it. The
   compile-time assertions (`var _ func(...) = F`) in the API files fail the
@@ -17,6 +19,8 @@ co-lead review (COLEAD-REVIEW-PX1, 2026-11-12) is binding.
   returns the sentinel `ErrNotImplemented` (`PX1_NOT_IMPLEMENTED`, a bounded wire
   code), or a zero value that can never pass. No W2 path calls a stub. A G2
   profile that reaches a stub refuses, so it fails closed.
+- **Amendments:** freeze amendment 1 (A1-A7) is summarized in
+  [Freeze amendment 1](#freeze-amendment-1), with its MIGRATION list.
 - **Behaviour at the freeze:** unchanged. The only existing file this unit edits
   is `mutation_test.go`, which now also loads `testdata/px1-mutations-s*.json`.
   That runner is skipped unless `W1_MUTATIONS=1`.
@@ -30,8 +34,8 @@ co-lead review (COLEAD-REVIEW-PX1, 2026-11-12) is binding.
 | Q4: UTC calendar day | `TermsV2.DayBasis == "utc-calendar"`, `UTCDay`, `UTCDaysSpanned` |
 | Q5(a): a new issuer entry point, signed with the **rotated** landlord key in Ivan's Mac Keychain, never the exec1 M5 key | `IssuePayGrantV2` takes `DigestSigner`s and never a key path; `NewFileExchangeSigner` is the offline transport |
 | Q7: single-use disabled | `AllowSingleUse` must be false; code `SINGLE_USE_DISABLED` |
-| Q8: operator reconciliation only | `ReconcileRecordV2`: signed, rate-limited, citing chain evidence; nothing releases a debit automatically |
-| Q9: same host, separate UID | `deploy.G2PayParameters.AgentUID != service UID`; T18 `CustodySpecV1` |
+| Q8: operator reconciliation only | `ReconcileRecordV2`: signed by the receipt key (`JournalHeaderV2.ReceiptKey`) over `ReconcileDigestV2`, which binds the journal binding and the record's grant_id, nonce and seq; rate-limited, citing chain evidence; nothing releases a debit automatically |
+| Q9: same host, separate UID | `deploy.G2PayParameters.AgentUID != ServiceUID` and `agent_user` bound to `agent_uid` (`ValidateG2PayIdentity`); T18 `CustodySpecV1` |
 | Q10: retire the rental-executor `pay` path | S4 marks it superseded in `experiments/rental-executor/README.md` (docs only, no code) |
 | Q12: k=2, for alerts only | `DefaultConfirmationsK = 2`; tracker states never grant or restore authority |
 | Fee rate ~110 sat/vB (relay floor 100), never 200 | `G2PayParameters.FeeRateSatVB`; the existing wallet `fee_rate_sat_vb` stays the only fee source |
@@ -53,11 +57,11 @@ co-lead review (COLEAD-REVIEW-PX1, 2026-11-12) is binding.
 
 | Stream | Frozen surface (file) | Main entry points |
 | --- | --- | --- |
-| S1: terms v2, caps, executor binding | `px1_terms_api.go`, `px1_api.go` (codes) | `ParseTermsV2(raw, TermsV2Pins)`, with a 10-row refusal table; `ValidateG2OperatorConfig`; `EffectiveLimitsFor` (min of terms and operator ceiling); `CapChecker{CheckExecutor, CheckRecipient, CheckPrePlan, CheckPostPlan}`; `SpendIntent` |
-| S2: journal v2, day buckets | `px1_journal_api.go` | `JournalRecordV2` (kinds `admit, reserve, service-reserve, complete, uncertain, refuse-retained, terminal, track, reconcile`); `JournalV2{Header, Append, Iterate, Usage, Poisoned, Close}`; `OpenJournalV2`; `JournalSegmentV2` hash chain; capacity rules in `JournalLimitsV2`; `RequiredSpendCapacity`; `LedgerView` and `FoldLedgerV2`; `ClockGuard` and `NewClockGuard` (`CLOCK_ROLLBACK`); `ReadLimiter` (`READ_RATE_LIMITED`) |
+| S1: terms v2, caps, executor binding | `px1_terms_api.go`, `px1_api.go` (codes) | `ParseTermsV2(raw, TermsV2Pins)`, with a 10-row refusal table; `ValidateG2OperatorConfig`; `EffectiveLimitsFor` (min of terms and operator ceiling); `CapChecker{CheckExecutor, CheckRecipient, CheckPrePlan, CheckPostPlan}`; `NewCapCheckerFor(network, genesis)` (frozen network binding over `NewCapChecker`); `SpendIntent` |
+| S2: journal v2, day buckets | `px1_journal_api.go` | `JournalRecordV2` (kinds `admit, reserve, service-reserve, complete, uncertain, refuse-retained, terminal, track, reconcile`); `JournalHeaderV2{Version, Layer, Binding, ReceiptKey}`; `ReconcileDigestV2` and `VerifyReconcileV2` (frozen, `RECONCILE_AUTHORIZATION`); `JournalV2{Header, Append, Iterate, Usage, Poisoned, Close}`; `OpenJournalV2`; `JournalSegmentV2` hash chain; capacity rules in `JournalLimitsV2`; `RequiredSpendCapacity`; `LedgerView` and `FoldLedgerV2`; `ClockGuard` and `NewClockGuard` (`CLOCK_ROLLBACK`); `ReadLimiter` (`READ_RATE_LIMITED`) |
 | S3: tracker, canary, status | `px1_observe_api.go` | `Tracker{Enqueue, Tick, Snapshot}`; `Canary{Excluded, Check}`; `FloatMonitor`; `StartupReconciler` (`STATE_RECONCILE_REQUIRED`); `AlertSink`; `StatusProjectionV1` and `ProjectStatus`; `ServeStatus` on `/run/swarma-wallet/status.sock` |
 | S4: terms-v2 issuance helper | `rental/paygrant_v2_api.go` | `IssuePayGrantV2(ctx, in, grantee, landlord DigestSigner)`; signer call order: consent, then contract countersign, then grant; `PayGrantSigningRequest` and `PayGrantSignature`; `EncodePayTermsV2`; `PayGrantBookingRef`; `NewFileExchangeSigner`; the issuance tx is planned by the existing `MakeGrantIssuancePlan` |
-| S5: deploy, T18 | `deploy/g2_pay_api.go` | `G2PayParameters`; `ValidateG2PayParameters`; `RenderG2PayTemplates`, which renders exactly the `G2File*` set; `CustodySpecV1`; `RunCustodyProbe`; `VerifyCustodyReport` |
+| S5: deploy, T18 | `deploy/g2_pay_api.go` | `G2PayParameters` (with `service_uid`, `agent_user`, `agent_key_file`, `node_datadir`); `ValidateG2PayParameters`; `ValidateG2PayIdentity` and `LookupG2HostAccount` (frozen); `RenderG2PayTemplates`, which renders exactly the `G2File*` set; `CustodySpecV1`; `RunCustodyProbe`; `VerifyCustodyReport` |
 | Cross-stream seams | `px1_seams_api.go` | `Wallet.PX1Journal/PX1Ledger` (S1); `ActionService.PX1ServiceJournal/PX1Profile` (S2); `ActionService.PX1Enqueue/PX1Tick/PX1Status` (S3) |
 
 ### Spend path: §3.5 steps by owner
@@ -82,17 +86,22 @@ co-lead review (COLEAD-REVIEW-PX1, 2026-11-12) is binding.
 ## Ownership map (no file has two owners)
 
 A seat edits only the files in its own row. Each new test file and doc file is
-owned by the stream that creates it. A seat that needs a change in another
-stream's file asks that owner. A seat that needs a change in a frozen file
-opens a freeze-amendment PR.
+owned by the stream that creates it. That includes new own-package test files
+and testdata in the stream's own module (amendment 1, A2): its Core and
+mutation test files, and its own mutation manifest
+`testdata/px1-mutations-s<N>.json` with its own runner when the plants live in
+a module the agent-wallet runner does not copy (`rental`, `deploy`). Such files
+belong to the stream that creates them, never to S0, and never change a frozen
+file. A seat that needs a change in another stream's file asks that owner. A
+seat that needs a change in a frozen file opens a freeze-amendment PR.
 
 | Owner | Files (paths relative to the repository root) |
 | --- | --- |
-| **S0 (frozen)** | `experiments/agent-wallet/px1_api.go`, `px1_terms_api.go`, `px1_journal_api.go`, `px1_observe_api.go`, `px1_seams_api.go`, `px1_freeze_test.go`, `px1_freeze_fixture_test.go`, `PX1-INTERFACES.md`, `testdata/px1/*`; `experiments/rental/paygrant_v2_api.go`, `paygrant_v2_freeze_test.go`, `testdata/px1/*`; `deploy/g2_pay_api.go`, `g2_pay_freeze_test.go`; the PX1 loader block in `experiments/agent-wallet/mutation_test.go` |
+| **S0 (frozen)** | `experiments/agent-wallet/px1_api.go`, `px1_terms_api.go`, `px1_journal_api.go`, `px1_observe_api.go`, `px1_seams_api.go`, `px1_freeze_test.go`, `px1_freeze_fixture_test.go`, `px1_freeze_amend1_test.go`, `PX1-INTERFACES.md`, `testdata/px1/*`, `testdata/px1-mutations-s0.json`; `experiments/rental/paygrant_v2_api.go`, `paygrant_v2_freeze_test.go`, `testdata/px1/*`; `deploy/g2_pay_api.go`, `g2_pay_freeze_test.go`, `testdata/px1-mutations-s0.json`; the PX1 loader block in `experiments/agent-wallet/mutation_test.go` |
 | **S1** terms, caps, binding | new: `experiments/agent-wallet/px1_terms.go`, `px1_wallet_seams.go`, `px1_terms_test.go`, `px1_fixture_test.go` (shared Core helpers that issue grants with terms v2: S1 writes them, the other streams only call them), `FORMAT-TERMS-V2.md`, `testdata/px1-mutations-s1.json`. Existing: `wallet.go`, `grant.go`, `plan.go`, `single_use.go`, `service_config.go` (the `G2` member and its validation), `wire.go` (only if needed; terms v1 behaviour unchanged) |
-| **S2** journal v2, day buckets | new: `experiments/agent-wallet/px1_journal.go`, `px1_service_seams.go`, `px1_journal_test.go`, `FORMAT-JOURNAL-V2.md`, `testdata/px1-mutations-s2.json`. Existing: `service.go` (admission, service-layer journal v2, reads out of the lifetime journal, `SINGLE_USE_DISABLED`, the single `px1 px1Runtime` field, the `PX1Enqueue` call), `read.go` (read limiter), `service_receipt.go` (only if a receipt field is needed; wire stays unchanged) |
+| **S2** journal v2, day buckets | new: `experiments/agent-wallet/px1_journal.go`, `px1_service_seams.go`, `px1_journal_test.go`, `FORMAT-JOURNAL-V2.md`, `testdata/px1-mutations-s2.json`. Existing: `service.go` (admission, service-layer journal v2, reads out of the lifetime journal, `SINGLE_USE_DISABLED`, the `px1 px1Runtime` field for S3 and, beside it, S2's own `g2` field for the G2 service state, the same pattern S1 uses with `Wallet.g2` (amendment 1, A7), the `PX1Enqueue` call), `read.go` (read limiter), `service_receipt.go` (only if a receipt field is needed; wire stays unchanged) |
 | **S3** tracker, canary, status | new: `experiments/agent-wallet/px1_observe.go`, `px1_runtime.go`, `px1_observe_test.go`, `STATUS.md`, `testdata/px1-mutations-s3.json`, the status socket listener (in `px1_runtime.go` or a new `px1_status_socket.go`). Existing: `cmd/agent-walletd/main.go` (tick loop and status socket), `SERVICE.md` (a G2 operations section) |
-| **S4** issuance helper | new: `experiments/rental/paygrant_v2.go`, `paygrant_v2_test.go`, `cmd/paygrant-v2/` (the ceremony CLI), `PAYGRANT-V2.md`. Existing: `experiments/rental-executor/README.md` (Q10 superseded note only) |
+| **S4** issuance helper | new: `experiments/rental/paygrant_v2.go`, `paygrant_v2_test.go`, `paygrant_v2_core_test.go`, `paygrant_v2_mutation_test.go` (runner `TestPayGrantV2GuardPlants`), `testdata/px1-mutations-s4.json`, `cmd/paygrant-v2/` (the ceremony CLI), `PAYGRANT-V2.md`. Existing: `experiments/rental-executor/README.md` (Q10 superseded note only) |
 | **S5** deploy, T18 | new: `deploy/g2_pay.go`, `g2_pay_test.go`, `templates/g2-pay/*`, `SMOKE-G2.md`, the T18 host script `deploy/g2-custody-check.sh` (it wraps `RunCustodyProbe` and the agent-client positive request). Existing: `deploy/wallet_config.go` (accepts and validates the `g2` member), `deploy/cmd/deploy-kit/*` (render and probe subcommands), `deploy/README.md` |
 | **Integrator** (S2 seat, after all PRs land) | `experiments/agent-wallet/README.md`, `UNRESOLVED_QUESTIONS.md`, `.github/workflows/agent-wallet.yml` (only if a Core lane is added) |
 
@@ -107,7 +116,8 @@ the README.
 | `experiments/agent-wallet/testdata/px1/terms-v2-allow.json` (also an identical copy in `experiments/rental/testdata/px1/`) | smoke values: allow-list of 2 main P2PKH addresses, spend 500000, transfer 100000, day 300000, count 5, fee 100000 | SHA-256 `8fd808bf05a15ce5bc3d2be0a3086f1d8ccd64c6b4224b66def6e10b22fa28d0` (both modules) |
 | `.../testdata/px1/terms-v2-any.json` (also copied in rental) | phase-2 any mode, lower caps | SHA-256 `2479f6741191ca7f318164866ba3d913436367229bb02265d4d6539f68acb039` |
 | `experiments/agent-wallet/testdata/px1/g2-operator.json` | launch operator block (allow only, single-use off, k=2, capacity 2048) | SHA-256 `ed001683d2751865d4b339214bc668edfa977d1d0d50e5e0005354dc07df2dde` (agent-wallet and deploy) |
-| `experiments/agent-wallet/testdata/px1/status-projection-v1.json` | a populated `StatusProjectionV1` | `TestPX1StatusProjectionGolden` |
+| `experiments/agent-wallet/testdata/px1/status-projection-v1.json` | a populated `StatusProjectionV1`; grant `day` is `UTCDay(generated_at)` = `2026-11-06` (amendment 1, A1) | `TestPX1StatusProjectionGolden`, `TestPX1StatusFixtureDayMatchesGeneratedAt`; SHA-256 `caaa67ae645f950259b1f5a7b3c7b0253d71701d43d9941c5d446e30f2f3fffc` |
+| `experiments/agent-wallet/testdata/px1/reconcile-v2-vectors.json` | header A/B (same receipt key, different binding), a reconcile record, its canonical header bytes, preimage and digest (amendment 1, A5/A6) | `TestPX1JournalHeaderReceiptKey`, `TestPX1ReconcileDigestVector`, `TestPX1ReconcileBinding`, `TestPX1ReconcileReceiptKey` |
 | `experiments/agent-wallet/testdata/px1/status-projection-v1.schema.json` | JSON Schema 2020-12 for the projection (for the public status page) | `TestPX1StatusSchemaMatchesStructs` (`required` order equals the struct member order) |
 | Go helpers in `px1_freeze_fixture_test.go` | `px1TermsAllow()`, `px1TermsAny()`, `px1Operator()`, `px1StatusFixture()`, `px1Golden()`; executor key `testKey(9)`; allow-list `testKey(5)` and `testKey(3)`; outsider `testKey(4)` | the frozen tests |
 
@@ -165,11 +175,62 @@ S4 also owns step 2 of the mainnet smoke, once Ivan approves and funds it.
    S4 (rental) and S5 (deploy) are independent and land whenever they are ready.
 4. **Integrator (S2 seat):**
    - the full Core suite T1-T17 on regtest;
-   - every PX1 mutation manifest under `W1_MUTATIONS=1`;
+   - every PX1 mutation manifest under `W1_MUTATIONS=1`, each with the runner
+     of its module: agent-wallet `TestGuardPlants` (loads
+     `testdata/px1-mutations-s*.json`, S0 included), rental
+     `TestPayGrantV2GuardPlants` (S4), deploy `TestPX1S0GuardPlants` (S0) and
+     the S5 deploy runner;
    - docs linked from the README.
 5. **S5 runs T18** on an agents1-class VM, with the users provisioned by the owner.
 6. **Mainnet-safe smoke (§3.8)** runs only after Ivan approves and funds it.
    Nothing in PX1 authorizes it.
+
+## Freeze amendment 1
+
+One PR into `px1/interfaces`; it changes only the frozen layer. All stream
+owners review it.
+
+| Id | Request | Frozen change | S0 tests and plants |
+| --- | --- | --- | --- |
+| A1 | S3-A1 | `status-projection-v1.json` and `px1StatusFixture()`: grant `day` `2026-11-12` -> `2026-11-06`, the UTC day of `generated_at` 1794000600. No other fixture member changes; no other hash pinned these bytes. | `TestPX1StatusProjectionGolden`, `TestPX1StatusFixtureDayMatchesGeneratedAt` (the old day is refused) |
+| A2 | S4 R1 | Docs: new own-package test files and testdata, including a stream's own manifest and runner in its own module, belong to that stream; S4 row lists its Core/mutation tests and manifest; integration runs every module's runner. | docs only |
+| A3 | S5 R1 | `G2PayParameters` gains `service_uid`, `agent_user`, `agent_key_file`, `node_datadir` after `operator_gid`. Frozen `ValidateG2PayIdentity(p, lookup)`: the four IDs refuse 0, 65534, 65535 and 2^32-1 (`G2ReservedID`); `service_uid != agent_uid`; strict sysusers name, not root, nobody or `swarma-wallet*`; absolute clean paths; `agent_user` must resolve to `agent_uid` through the lookup. `LookupG2HostAccount` is the host lookup. `ValidateG2PayParameters` returns `ValidateG2PayIdentity(p, LookupG2HostAccount)`'s error first. | `TestPX1PayParametersOrder`, `TestPX1PayIdentityDomain`, `TestPX1PayIdentityBinding`, `TestPX1HostAccountLookup`; plants `s0-a3-*` (deploy) |
+| A4 | S1 FA-S1-2 | Frozen `NewCapCheckerFor(network, genesis)`, implemented in `px1_terms_api.go` around S1's `NewCapChecker()`: an unpinned network refuses `NETWORK_PIN` on every method; recipients must be canonical P2PKH of the pinned network; `any` admits those, `allow` keeps membership. `NewCapChecker()` stays (the S1 request is additive), is deprecated for callers, and admits no `any`-mode recipient. | `TestPX1CapCheckerForNetwork`, `TestPX1CapCheckerNoNetworkRefuses`, `TestPX1NetworklessCapCheckerNoAnyMode`; plants `s0-a4-*` |
+| A5 | S2 receipt key | `JournalHeaderV2.ReceiptKey` (`receipt_key`, 64-hex x-only). `""` refuses every reconcile; the `JOURNAL_SEGMENT` header check pins it; `FoldLedgerV2` reads `j.Header().ReceiptKey`. No signature changes. New code `RECONCILE_AUTHORIZATION`. | `TestPX1JournalHeaderReceiptKey`, `TestPX1ReconcileReceiptKey`; plants `s0-a5-*` |
+| A6 | S2 hardening | `ReconcileRecordV2` is signed by the receipt key (the decision for this stage) over `ReconcileDigestV2` = SHA256(`swarma-wallet-reconcile-v2` \|\| canonical(`ReconcilePreimageV2{binding, grant_id, nonce, seq, reconcile with signature ""}`)). `VerifyReconcileV2` is the one verifier. | `TestPX1ReconcileDigestVector`, `TestPX1ReconcileBinding` (cross-journal, cross-grant, cross-nonce, cross-seq); plants `s0-a6-drop-*` |
+| A7 | S2 | Docs: `ActionService` may carry S2's `g2` field beside S3's `px1` field. | docs only |
+
+### MIGRATION (what each stream changes at integration)
+
+- **S1:** set `ReceiptKey: receiptKey` in the `px1Attach` wallet-layer header.
+  Build every checker with `NewCapCheckerFor(network, genesis)` (replacing
+  `newCapCheckerFor`). Make the networkless `NewCapChecker()` admit no `any`
+  recipient (today its zero value admits a main or regtest P2PKH); allow mode
+  is unchanged. Update `FORMAT-TERMS-V2.md` to match.
+- **S2:** drop the interim keyless refusal (`OpenJournalV2` without a key).
+  In `OpenJournalV2`, refuse `JOURNAL_SEGMENT` for a `ReceiptKey` that is
+  neither `""` nor a valid x-only key; keep the whole-header comparison, now
+  including `receipt_key`. Verify every reconcile with
+  `VerifyReconcileV2(header, rec)` at Append (after assigning Seq, before the
+  record is durable), at open/replay and in `FoldLedgerV2`
+  (`j.Header().ReceiptKey`); replace the v1 preimage helpers. The service layer
+  sets `ReceiptKey: ""`. An operator CLI signs `ReconcileDigestV2` for
+  `Usage().LastSeq+1` while it holds the journal lock. The `g2` field on
+  `ActionService` is confirmed (A7).
+- **S5:** add the four parameters to `templates/g2-pay/parameters.json` and
+  render them: no placeholder remains (`client.json` UID and key path,
+  `custody-spec.json` service UID and node datadir, the `sysusers.conf` agent
+  user and the `u swarma-wallet` UID). Call
+  `ValidateG2PayIdentity(p, LookupG2HostAccount)` first in
+  `ValidateG2PayParameters`; `G2ReservedID` may replace the local
+  `reservedID`/`sysusersGID`. Render on the host whose account database the
+  rendered `sysusers.conf` applies to; tests use an account that exists on the
+  test host (`os/user.Current()`) or a test seam over the lookup. The
+  placeholder consumer tests become resolved-render tests.
+- **S3:** nothing. The interim one-member substitution in
+  `TestPX1ProjectStatusGolden` becomes a no-op and may be removed. Fakes that
+  fold a reconcile set `ReceiptKey` and sign with `ReconcileDigestV2`.
+- **S4:** nothing beyond the ownership-map entries above.
 
 ## Open items (not decided here)
 

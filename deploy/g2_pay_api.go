@@ -9,7 +9,14 @@ package deploy
 // The executor host runs its own mainnet node (txindex, listen=0) with the
 // dedicated hot wallet; nothing here funds, starts or spends.
 
-import "context"
+import (
+	"context"
+	"os/user"
+	"path"
+	"regexp"
+	"strconv"
+	"strings"
+)
 
 // G2PayParameters are the operator inputs of templates/g2-pay/*. Field order
 // is the canonical JSON order of the parameters file. Amount values are
@@ -20,6 +27,10 @@ type G2PayParameters struct {
 	AgentUID       uint32               `json:"agent_uid"`        // Cedar's slot UID (service peer_uid); != service UID
 	AgentSocketGID uint32               `json:"agent_socket_gid"` // per-agent socket group (service socket_gid)
 	OperatorGID    uint32               `json:"operator_gid"`     // group of /run/swarma-wallet/status.sock
+	ServiceUID     uint32               `json:"service_uid"`      // swarma-wallet UID (sysusers "u" line, client.json, custody spec); != AgentUID
+	AgentUser      string               `json:"agent_user"`       // login name of AgentUID on the applying host (sysusers "m" line); bound by ValidateG2PayIdentity
+	AgentKeyFile   string               `json:"agent_key_file"`   // absolute, clean path of the agent action key (client.json)
+	NodeDataDir    string               `json:"node_datadir"`     // absolute, clean datadir of the own node (cookie and wallet.dat in the custody spec)
 	Grantee        string               `json:"grantee"`          // x-only Cedar action key (pay grant grantee)
 	ReceiptPubkey  string               `json:"receipt_pubkey"`   // x-only executor_key; private scalar stays in /etc/swarma/wallet/receipt.key
 	FeeRateSatVB   int64                `json:"fee_rate_sat_vb"`  // co-lead: ~110 (relay floor 100), never 200
@@ -74,6 +85,9 @@ const (
 var (
 	// ValidateG2PayParameters refuses ErrNetwork or ErrPolicy (existing
 	// sentinels) on any pin, UID, key, fee-rate (100..1000) or ceiling error.
+	// Freeze amendment 1: it refuses with the error of
+	// ValidateG2PayIdentity(p, LookupG2HostAccount) before its own checks, so
+	// every render binds agent_user to agent_uid on the host that applies it.
 	_ func(G2PayParameters) error = ValidateG2PayParameters
 	// RenderG2PayTemplates renders the G2File* set; no secret ever appears.
 	_ func(G2PayParameters) (map[string][]byte, error) = RenderG2PayTemplates
@@ -85,6 +99,91 @@ var (
 	// spec order, and passes every probe.
 	_ func(spec CustodySpecV1, report CustodyReportV1) error = VerifyCustodyReport
 )
+
+// G2AccountLookup resolves a login name to its numeric UID in the account
+// database of the host that applies the rendered files. An unknown name is an
+// error, never UID 0.
+type G2AccountLookup func(name string) (uid uint32, err error)
+
+// Frozen identity helpers (freeze amendment 1, S5 R1), implemented here.
+var (
+	_ G2AccountLookup                              = LookupG2HostAccount
+	_ func(G2PayParameters, G2AccountLookup) error = ValidateG2PayIdentity
+)
+
+// LookupG2HostAccount is the production G2AccountLookup: the host account
+// database through os/user.
+func LookupG2HostAccount(name string) (uint32, error) {
+	u, e := user.Lookup(name)
+	if e != nil {
+		return 0, e
+	}
+	id, e := strconv.ParseUint(u.Uid, 10, 32)
+	if e != nil {
+		return 0, e
+	}
+	return uint32(id), nil
+}
+
+// g2SysusersName is the strict systemd-sysusers user name rule.
+var g2SysusersName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]{0,30}$`)
+
+// G2ReservedID reports an ID that no G2 account or group may carry: root (0),
+// nobody/nogroup (65534), the 16-bit (uid_t)-1 65535 that systemd-sysusers
+// refuses, and the 32-bit (uid_t)-1. The same domain applies to the two UIDs
+// and the two GIDs; 65533 and 65536 are valid.
+func G2ReservedID(id uint32) bool {
+	return id == 0 || id == 65534 || id == 65535 || id == 1<<32-1
+}
+
+// g2AbsPath accepts an absolute, clean, non-root path of printable ASCII
+// without whitespace, at most 4095 bytes (PATH_MAX - 1).
+func g2AbsPath(p string) bool {
+	if len(p) < 2 || len(p) > 4095 || p[0] != '/' || path.Clean(p) != p {
+		return false
+	}
+	for i := 0; i < len(p); i++ {
+		if p[i] < 0x21 || p[i] > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
+// ValidateG2PayIdentity is the frozen identity and path check of the G2 pay
+// parameters. It refuses ErrPolicy when:
+//   - AgentUID, ServiceUID, AgentSocketGID or OperatorGID is a G2ReservedID;
+//   - ServiceUID == AgentUID (Q9);
+//   - AgentUser breaks the strict sysusers name rule ([A-Za-z_][A-Za-z0-9_-]*,
+//     at most 31 bytes), or is root, nobody or a swarma-wallet* name;
+//   - AgentKeyFile or NodeDataDir is not an absolute, clean path (g2AbsPath),
+//     or the two are equal;
+//   - lookup is nil, lookup(AgentUser) fails, or it returns a UID other than
+//     AgentUID: the name is BOUND to agent_uid, so a typo can never make the
+//     rendered "m" line create a new account.
+func ValidateG2PayIdentity(p G2PayParameters, lookup G2AccountLookup) error {
+	for _, id := range []uint32{p.AgentUID, p.ServiceUID, p.AgentSocketGID, p.OperatorGID} {
+		if G2ReservedID(id) {
+			return ErrPolicy
+		}
+	}
+	if p.ServiceUID == p.AgentUID {
+		return ErrPolicy
+	}
+	if !g2SysusersName.MatchString(p.AgentUser) || p.AgentUser == "root" || p.AgentUser == "nobody" || strings.HasPrefix(p.AgentUser, "swarma-wallet") {
+		return ErrPolicy
+	}
+	if !g2AbsPath(p.AgentKeyFile) || !g2AbsPath(p.NodeDataDir) || p.AgentKeyFile == p.NodeDataDir {
+		return ErrPolicy
+	}
+	if lookup == nil {
+		return ErrPolicy
+	}
+	if uid, e := lookup(p.AgentUser); e != nil || uid != p.AgentUID {
+		return ErrPolicy
+	}
+	return nil
+}
 
 // CustodySpecV1 is the T18 input rendered by RenderG2PayTemplates and read by
 // the probe. Every DeniedReads path must exist on the host: a denied probe
