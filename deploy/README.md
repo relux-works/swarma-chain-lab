@@ -115,6 +115,33 @@ enforcement. For memory/IP cgroup controls see the primary
 [systemd resource-control reference](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html).
 Host support must be checked by Infra; text presence is not runtime proof.
 
+## G2 pay deploy and T18 (PX1 S5)
+
+The G2 pay executor's deploy inputs are rendered from one canonical parameters
+file, `templates/g2-pay/parameters.json`. The frozen contract is
+`g2_pay_api.go`, and the implementation is `g2_pay.go`. The procedure, the
+placeholders and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
+
+- `go run ./cmd/deploy-kit g2-render -params "$PARAMS" -out "$NEW_ABSOLUTE_DIR"`
+  validates the parameters and writes the six frozen G2 files (0600) into a new
+  directory. It never overwrites. It reads no credential and renders none.
+- `deploy-kit g2-custody-probe -spec custody-spec.json` runs T18 as the agent
+  UID and prints a `CustodyReportV1`. It exits 1 unless every probe passes.
+- `deploy-kit g2-custody-verify -spec custody-spec.json -report REPORT` checks a
+  stored report against the launch spec and prints `T18_CUSTODY_VERIFIED <spec sha256>`.
+- `deploy/g2-custody-check.sh SPEC CLIENT GRANTEE OUTDIR` is the T18 host script.
+  It runs the probe, sends one own-agent `balance` request and runs verify, then
+  prints `T18_PASS` or `T18_FAIL`. Evidence goes into the new `OUTDIR`.
+- `W1_REGTEST=1 W1_CORE_DAEMON=/abs/namecoind W1_RUN_ROOT=/abs/new-dir go test
+  -count=1 -run '^TestPX1T18CoreNodePolicy$' .` runs the Core layer against a
+  regtest node that the test starts and stops by PID.
+- `W1_MUTATIONS=1 W1_MUTATION_ROOT=/abs/new-dir W1_CORE_DAEMON=/abs/namecoind go
+  test -count=1 -timeout 30m -run '^TestPX1S5GuardPlants$' .` runs the S5
+  narrowing plants in `testdata/px1-mutations-s5.json`. Each plant must fail its
+  named test with its marker, and `results.json` is written to the root. The
+  agent-wallet runner cannot host these plants, because it copies only
+  agent-wallet.
+
 ## Optional gateway AUTH and model proxy
 
 The gateway template sets `relay_auth: off`; choose `when_challenged` or `required`

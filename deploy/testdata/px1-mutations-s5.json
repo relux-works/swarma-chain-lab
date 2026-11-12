@@ -1,0 +1,317 @@
+[
+ {
+  "Name": "s5-read-enoent-passes",
+  "File": "g2_pay.go",
+  "Old": "observed == obsEPERM\n",
+  "New": "observed == obsEPERM || observed == obsENOENT\n",
+  "Selector": "TestPX1T18DeniedReadMustBeEACCES",
+  "Marker": "T18_DENIED_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-read-readok-passes",
+  "File": "g2_pay.go",
+  "Old": "observed == obsEPERM\n",
+  "New": "observed == obsEPERM || observed == obsReadOK\n",
+  "Selector": "TestPX1T18DeniedReadMustBeEACCES",
+  "Marker": "T18_DENIED_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-read-misclassified",
+  "File": "g2_pay.go",
+  "Old": "\treturn obsReadOK, nil\n",
+  "New": "\treturn obsEACCES, nil\n",
+  "Selector": "TestPX1T18DeniedReadMustBeEACCES",
+  "Marker": "T18_DENIED_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-core-same-uid-hidden",
+  "File": "g2_pay.go",
+  "Old": "\treturn obsReadOK, nil\n",
+  "New": "\treturn obsEACCES, nil\n",
+  "Selector": "TestPX1T18CoreNodePolicy",
+  "Marker": "T18_CORE_SAME_UID",
+  "Core": true
+ },
+ {
+  "Name": "s5-rpc-200-passes",
+  "File": "g2_pay.go",
+  "Old": "observed == obsHTTP403 || observed == obsRefused\n",
+  "New": "observed == obsHTTP403 || observed == obsRefused || observed == obsHTTPOK\n",
+  "Selector": "TestPX1T18RPCClassification",
+  "Marker": "T18_RPC_CLASS",
+  "Core": false
+ },
+ {
+  "Name": "s5-socket-enoent-passes",
+  "File": "g2_pay.go",
+  "Old": "return observed == obsConnected\n",
+  "New": "return observed == obsConnected || observed == obsENOENT\n",
+  "Selector": "TestPX1T18SocketPositiveControl",
+  "Marker": "T18_SOCKET_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-probe-any-uid",
+  "File": "g2_pay.go",
+  "Old": "uint64(uid) != uint64(spec.AgentUID) || ",
+  "New": "",
+  "Selector": "TestPX1T18ProbeUIDGate",
+  "Marker": "T18_UID_GATE",
+  "Core": false
+ },
+ {
+  "Name": "s5-spec-any-host",
+  "File": "g2_pay.go",
+  "Old": "port, ok := strings.CutPrefix(s, \"127.0.0.1:\")",
+  "New": "_, port, ok := strings.Cut(s, \":\")",
+  "Selector": "TestPX1T18ProbeUIDGate",
+  "Marker": "T18_SPEC_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-verify-trusts-pass-bit",
+  "File": "g2_pay.go",
+  "Old": "if pass := custodyPass(p.Kind, p.Observed); !pass || p.Pass != pass {",
+  "New": "if !p.Pass {",
+  "Selector": "TestPX1T18VerifyRefusals",
+  "Marker": "T18_VERIFY_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-verify-any-uid",
+  "File": "g2_pay.go",
+  "Old": "report.UID != spec.AgentUID || ",
+  "New": "",
+  "Selector": "TestPX1T18VerifyRefusals",
+  "Marker": "T18_VERIFY_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-verify-unbound-spec",
+  "File": "g2_pay.go",
+  "Old": "report.SpecSHA256 != CustodySpecSHA256(spec) || ",
+  "New": "",
+  "Selector": "TestPX1T18VerifyRefusals",
+  "Marker": "T18_VERIFY_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-verify-any-order",
+  "File": "g2_pay.go",
+  "Old": "p.Kind != t.kind || p.Target != t.target || ",
+  "New": "p.Kind != t.kind || ",
+  "Selector": "TestPX1T18VerifyRefusals",
+  "Marker": "T18_VERIFY_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-verify-extra-probe",
+  "File": "g2_pay.go",
+  "Old": "if len(report.Probes) != len(targets) {",
+  "New": "if len(report.Probes) < len(targets) {",
+  "Selector": "TestPX1T18VerifyRefusals",
+  "Marker": "T18_VERIFY_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-launch-spec-unbound",
+  "File": "g2_pay.go",
+  "Old": "if s.DeniedReads[i] != p {",
+  "New": "if s.DeniedReads[i] == \"\" && p == \"\" {",
+  "Selector": "TestPX1S5LaunchSpec",
+  "Marker": "G2_LAUNCH_SPEC",
+  "Core": false
+ },
+ {
+  "Name": "s5-launch-node-in-state",
+  "File": "g2_pay.go",
+  "Old": "if p == g2StateRoot || strings.HasPrefix(p, g2StateRoot+\"/\") || ",
+  "New": "if ",
+  "Selector": "TestPX1S5LaunchSpec",
+  "Marker": "G2_LAUNCH_SPEC",
+  "Core": false
+ },
+ {
+  "Name": "s5-params-fee-floor",
+  "File": "g2_pay.go",
+  "Old": "p.FeeRateSatVB < 100 ",
+  "New": "p.FeeRateSatVB < 1 ",
+  "Selector": "TestPX1S5ParametersRefusalTable/fee-rate-99",
+  "Marker": "G2_PARAMS_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-params-receipt-is-grantee",
+  "File": "g2_pay.go",
+  "Old": ", p.Grantee == p.ReceiptPubkey:",
+  "New": ":",
+  "Selector": "TestPX1S5ParametersRefusalTable/receipt-is-grantee",
+  "Marker": "G2_PARAMS_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-params-off-curve",
+  "File": "g2_pay.go",
+  "Old": "return new(big.Int).Exp(y, big.NewInt(2), secpP).Cmp(c) == 0",
+  "New": "return y.Sign() >= 0",
+  "Selector": "TestPX1S5ParametersRefusalTable/grantee-off-curve",
+  "Marker": "G2_PARAMS_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-params-shared-group",
+  "File": "g2_pay.go",
+  "Old": "case p.AgentSocketGID == p.OperatorGID:",
+  "New": "case false:",
+  "Selector": "TestPX1S5ParametersRefusalTable/operator-is-agent-group",
+  "Marker": "G2_PARAMS_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-operator-single-use",
+  "File": "g2_pay.go",
+  "Old": "case c.RequireTermsVersion != 2, c.AllowSingleUse, c.AllowAnyRecipients:",
+  "New": "case c.RequireTermsVersion != 2, c.AllowAnyRecipients:",
+  "Selector": "TestPX1S5ParametersRefusalTable/single-use",
+  "Marker": "G2_PARAMS_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-operator-any-recipients",
+  "File": "g2_pay.go",
+  "Old": "case c.RequireTermsVersion != 2, c.AllowSingleUse, c.AllowAnyRecipients:",
+  "New": "case c.RequireTermsVersion != 2, c.AllowSingleUse:",
+  "Selector": "TestPX1S5ParametersRefusalTable/any-recipients",
+  "Marker": "G2_PARAMS_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-operator-capacity",
+  "File": "g2_pay.go",
+  "Old": "c.JournalSpendCapacity < c.MaxDayCount+64 ",
+  "New": "c.JournalSpendCapacity < c.MaxDayCount ",
+  "Selector": "TestPX1S5ParametersRefusalTable/capacity-short",
+  "Marker": "G2_PARAMS_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-params-file-noncanonical",
+  "File": "g2_pay.go",
+  "Old": "if e := serviceDecode(raw, &p, true); e != nil {",
+  "New": "if e := serviceDecode(raw, &p, false); e != nil {",
+  "Selector": "TestPX1S5ParametersFile",
+  "Marker": "G2_PARAMS_FILE",
+  "Core": false
+ },
+ {
+  "Name": "s5-render-zero-operator",
+  "File": "g2_pay.go",
+  "Old": "operator := p.G2\n",
+  "New": "operator := G2OperatorParameters{}\n",
+  "Selector": "TestPX1S5RenderFileSet",
+  "Marker": "G2_SERVICE_INVALID",
+  "Core": false
+ },
+ {
+  "Name": "s5-render-spec-trimmed",
+  "File": "g2_pay.go",
+  "Old": "denied := append(append([]string{}, g2DeniedFixed...), cookie, walletDat)",
+  "New": "denied := append(append([]string{}, g2DeniedFixed[1:]...), cookie, walletDat)",
+  "Selector": "TestPX1S5RenderFileSet",
+  "Marker": "G2_LAUNCH_SPEC",
+  "Core": false
+ },
+ {
+  "Name": "s5-render-agent-private-group",
+  "File": "g2_pay.go",
+  "Old": "\" swarma-wallet-peer\\n\")\n\treturn",
+  "New": "\" swarma-wallet\\n\")\n\treturn",
+  "Selector": "TestPX1S5RenderNoSecrets",
+  "Marker": "G2_AGENT_GROUP",
+  "Core": false
+ },
+ {
+  "Name": "s5-render-rpc-any-iface",
+  "File": "g2_pay.go",
+  "Old": "rpcbind=127.0.0.1\\n",
+  "New": "rpcbind=0.0.0.0\\n",
+  "Selector": "TestPX1S5RenderNodeConf",
+  "Marker": "G2_NODE_CONF",
+  "Core": false
+ },
+ {
+  "Name": "s5-render-no-whitelistdefault",
+  "File": "g2_pay.go",
+  "Old": "\tb.WriteString(\"rpcwhitelistdefault=0\\n\")\n",
+  "New": "",
+  "Selector": "TestPX1S5RenderNodeConf",
+  "Marker": "G2_NODE_CONF",
+  "Core": false
+ },
+ {
+  "Name": "s5-render-wallet-key-export",
+  "File": "g2_pay.go",
+  "Old": "fundrawtransaction,signrawtransactionwithwallet\"}",
+  "New": "fundrawtransaction,signrawtransactionwithwallet,dumpprivkey\"}",
+  "Selector": "TestPX1S5RenderNodeConf",
+  "Marker": "G2_NODE_CONF",
+  "Core": false
+ },
+ {
+  "Name": "s5-core-wallet-key-export",
+  "File": "g2_pay.go",
+  "Old": "fundrawtransaction,signrawtransactionwithwallet\"}",
+  "New": "fundrawtransaction,signrawtransactionwithwallet,dumpprivkey\"}",
+  "Selector": "TestPX1T18CoreNodePolicy",
+  "Marker": "T18_CORE_WHITELIST",
+  "Core": true
+ },
+ {
+  "Name": "s5-wallet-g2-unvalidated",
+  "File": "wallet_config.go",
+  "Old": "return validateG2Operator(*c.G2)",
+  "New": "return nil",
+  "Selector": "TestPX1S5WalletG2Member",
+  "Marker": "G2_WALLET_OPERATOR",
+  "Core": false
+ },
+ {
+  "Name": "s5-wallet-g2-unpinned",
+  "File": "wallet_config.go",
+  "Old": "if !g2Pins(c.Network, c.Genesis) {",
+  "New": "if false {",
+  "Selector": "TestPX1S5WalletG2Member",
+  "Marker": "G2_WALLET_PIN",
+  "Core": false
+ },
+ {
+  "Name": "s5-script-ignores-verdict",
+  "File": "g2-custody-check.sh",
+  "Old": " &&\n\tgrep -q '\"verdict\":\"executed\"' \"$out/positive-receipt.json\"; then",
+  "New": "; then",
+  "Selector": "TestPX1T18CustodyScript",
+  "Marker": "T18_SCRIPT",
+  "Core": false
+ },
+ {
+  "Name": "s5-script-overwrites-evidence",
+  "File": "g2-custody-check.sh",
+  "Old": "mkdir \"$out\" || usage",
+  "New": "mkdir -p \"$out\" || usage",
+  "Selector": "TestPX1T18CustodyScript",
+  "Marker": "T18_SCRIPT",
+  "Core": false
+ },
+ {
+  "Name": "s5-template-fee-200",
+  "File": "templates/g2-pay/parameters.json",
+  "Old": "\"fee_rate_sat_vb\":110",
+  "New": "\"fee_rate_sat_vb\":200",
+  "Selector": "TestPX1S5ParametersTemplate",
+  "Marker": "G2_TEMPLATE",
+  "Core": false
+ }
+]
