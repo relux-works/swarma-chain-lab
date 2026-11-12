@@ -83,7 +83,7 @@ func OpenActionService(c ServiceConfig) (*ActionService, error) {
 	if hex.EncodeToString(schnorr.SerializePubKey(key.PubKey())) == c.Grantee {
 		return nil, fail("SERVICE_KEY_SEPARATION")
 	}
-	w, e := openWallet(wc)
+	w, e := px1OpenServiceWallet(wc, c, key)
 	if e != nil {
 		return nil, e
 	}

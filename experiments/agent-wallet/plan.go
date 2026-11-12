@@ -115,9 +115,17 @@ func sameUnsigned(a, b *wire.MsgTx) bool {
 	return true
 }
 
+// planGuard carries the G2 profile's extra plan constraints (§3.5 step 16):
+// never-plan inputs (canary, retained-record inputs) and the effective fee
+// cap. W2 passes nil and plans exactly as before.
+type planGuard struct {
+	exclude func(su.Point) bool
+	feeCap  int64
+}
+
 // buildPlan never broadcasts or locks wallet inputs. The final signed bytes
 // are checked against their own-node prevouts and the exact approved outputs.
-func (w *Wallet) buildPlan(ctx context.Context, g Grant, t Terms, r Request, prior *Record) (plan, error) {
+func (w *Wallet) buildPlan(ctx context.Context, g Grant, t Terms, r Request, prior *Record, guard *planGuard) (plan, error) {
 	var p plan
 	recipient, e := addressScriptForNetwork(r.Address, w.config.Network, w.config.Genesis)
 	if e != nil {
@@ -202,6 +210,9 @@ func (w *Wallet) buildPlan(ctx context.Context, g Grant, t Terms, r Request, pri
 		if point == g.Seal || w.inputReserved(point) {
 			return p, fail("PLAN_RESERVED_INPUT")
 		}
+		if guard != nil && guard.exclude(point) {
+			return p, fail(CodePlanReservedInput)
+		}
 		c, e := readCoin(ctx, w.node, point)
 		if e != nil {
 			return p, e
@@ -240,6 +251,9 @@ func (w *Wallet) buildPlan(ctx context.Context, g Grant, t Terms, r Request, pri
 	quoted, e := su.ParseCoins(funded.Fee.String())
 	if e != nil || p.Fee < 1 || p.Fee != quoted || p.Fee > r.FeeLimit {
 		return p, fail("FEE_LIMIT")
+	}
+	if guard != nil && p.Fee > guard.feeCap {
+		return p, fail(CodeFeeCapExceeded)
 	}
 	if e = w.authority.Check(ctx, w.grantRaw, g.Grantee, w.clock()); e != nil {
 		return p, e

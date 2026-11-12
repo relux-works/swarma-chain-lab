@@ -27,6 +27,9 @@ type ServiceConfig struct {
 	StateDir       string `json:"state_dir"`
 	WalletConfig   string `json:"wallet_config"`
 	ReceiptKeyFile string `json:"receipt_key_file"`
+	// G2 selects the PX1 G2 pay-limits profile. nil keeps the W2 bytes,
+	// journal binding and behaviour unchanged (omitempty).
+	G2 *G2OperatorConfig `json:"g2,omitempty"`
 }
 
 func privateBytes(path string, limit int64) ([]byte, error) {
@@ -121,6 +124,11 @@ func validServiceConfig(c ServiceConfig) error {
 	}
 	if c.StateDir == parent || c.WalletConfig == c.ReceiptKeyFile {
 		return fail("SERVICE_PATH")
+	}
+	if c.G2 != nil {
+		if e := ValidateG2OperatorConfig(*c.G2); e != nil {
+			return e
+		}
 	}
 	return nil
 }

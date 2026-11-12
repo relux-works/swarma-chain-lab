@@ -1,0 +1,524 @@
+[
+  {
+    "Name": "s1-parse-v1-version",
+    "File": "px1_terms.go",
+    "Old": "if v, ok := members[\"version\"]; ok && bytes.Equal(bytes.TrimSpace(v), []byte(\"1\")) {",
+    "New": "if v, ok := members[\"version\"]; false && ok && bytes.Equal(bytes.TrimSpace(v), []byte(\"1\")) {",
+    "Selector": "TestPX1ParseTermsV2Refusals/row2-v1",
+    "Marker": "want TERMS_VERSION_REQUIRED",
+    "Core": false
+  },
+  {
+    "Name": "s1-parse-network",
+    "File": "px1_terms.go",
+    "Old": "if t.Network != pins.Network || t.Genesis != pins.Genesis || !su.NetworkPinned(pins.Network, pins.Genesis) {",
+    "New": "if _ = su.NetworkPinned; false {",
+    "Selector": "TestPX1ParseTermsV2Refusals/row5-genesis",
+    "Marker": "want TERMS_NETWORK",
+    "Core": false
+  },
+  {
+    "Name": "s1-parse-executor",
+    "File": "px1_terms.go",
+    "Old": "if t.ExecutorKey != pins.ExecutorKey {",
+    "New": "if false {",
+    "Selector": "TestPX1ExecutorBinding",
+    "Marker": "parser other key: want TERMS_EXECUTOR_MISMATCH",
+    "Core": false
+  },
+  {
+    "Name": "s1-parse-duplicate",
+    "File": "px1_terms.go",
+    "Old": "if t.Recipients[i] == t.Recipients[i-1] {",
+    "New": "if false {",
+    "Selector": "TestPX1ParseTermsV2Refusals/row9-duplicate",
+    "Marker": "want CONTRACT_RECIPIENTS",
+    "Core": false
+  },
+  {
+    "Name": "s1-parse-budget-bound",
+    "File": "px1_terms.go",
+    "Old": "t.SpendCap > pins.GrantBudget ||",
+    "New": "false ||",
+    "Selector": "TestPX1ParseTermsV2Refusals/row10-budget-absent",
+    "Marker": "want CONTRACT_BUDGET",
+    "Core": false
+  },
+  {
+    "Name": "s1-parse-allow-sorted",
+    "File": "px1_terms.go",
+    "Old": "if len(t.Recipients) < 1 || len(t.Recipients) > MaxTermsRecipients || !slices.IsSorted(t.Recipients) {",
+    "New": "if len(t.Recipients) < 1 || len(t.Recipients) > MaxTermsRecipients {",
+    "Selector": "TestPX1ParseTermsV2Refusals/row7-allow-unsorted",
+    "Marker": "want CONTRACT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "s1-operator-single-use",
+    "File": "px1_terms.go",
+    "Old": "ok := c.RequireTermsVersion == TermsV2Version && !c.AllowSingleUse &&",
+    "New": "ok := c.RequireTermsVersion == TermsV2Version &&",
+    "Selector": "TestPX1OperatorConfig/single-use",
+    "Marker": "want SERVICE_CONFIG",
+    "Core": false
+  },
+  {
+    "Name": "s1-limits-transfer-ceiling",
+    "File": "px1_terms.go",
+    "Old": "TransferCapSat: min(t.TransferCap, c.MaxTransferSat),",
+    "New": "TransferCapSat: t.TransferCap,",
+    "Selector": "TestPX1EffectiveLimits",
+    "Marker": "operator ceiling not applied",
+    "Core": false
+  },
+  {
+    "Name": "s1-limits-fee-ceiling",
+    "File": "px1_terms.go",
+    "Old": "FeeCapSat:      min(t.FeeCap, c.MaxFeeSat),",
+    "New": "FeeCapSat:      t.FeeCap,",
+    "Selector": "TestPX1EffectiveLimits",
+    "Marker": "operator ceiling not applied",
+    "Core": false
+  },
+  {
+    "Name": "s1-limits-any-mode",
+    "File": "px1_terms.go",
+    "Old": "if !c.AllowAnyRecipients {",
+    "New": "if false {",
+    "Selector": "TestPX1EffectiveLimits",
+    "Marker": "any at launch: want TERMS_RECIPIENT_MODE",
+    "Core": false
+  },
+  {
+    "Name": "s1-recipient-allow",
+    "File": "px1_terms.go",
+    "Old": "if slices.Contains(l.Recipients, address) {",
+    "New": "if true {",
+    "Selector": "TestPX1RecipientAllowMode",
+    "Marker": "want ADDRESS_NOT_ALLOWED",
+    "Core": false
+  },
+  {
+    "Name": "s1-recipient-any-bound",
+    "File": "px1_wallet_seams.go",
+    "Old": "checker: NewCapCheckerFor(w.config.Network, w.config.Genesis)",
+    "New": "checker: NewCapCheckerFor(\"main\", su.MainGenesis)",
+    "Selector": "TestPX1WalletAttach",
+    "Marker": "cap checker not pinned to the regtest wallet network",
+    "Core": false
+  },
+  {
+    "Name": "s1-dust",
+    "File": "px1_terms.go",
+    "Old": "if in.AmountSat < DustLimitSat {",
+    "New": "if false {",
+    "Selector": "TestPX1CheckPrePlan/dust",
+    "Marker": "want AMOUNT_DUST",
+    "Core": false
+  },
+  {
+    "Name": "s1-preplan-transfer",
+    "File": "px1_terms.go",
+    "Old": "if in.AmountSat > l.TransferCapSat-in.FeeLimitSat {",
+    "New": "if false {",
+    "Selector": "TestPX1CheckPrePlan/transfer-plus-one",
+    "Marker": "want TRANSFER_CAP_EXCEEDED",
+    "Core": false
+  },
+  {
+    "Name": "s1-postplan-fee-limit",
+    "File": "px1_terms.go",
+    "Old": "if in.FeeSat < 1 || in.FeeSat > in.FeeLimitSat {",
+    "New": "if false {",
+    "Selector": "TestPX1CheckPostPlan/fee-over-limit",
+    "Marker": "want FEE_LIMIT",
+    "Core": false
+  },
+  {
+    "Name": "s1-postplan-fee-cap",
+    "File": "px1_terms.go",
+    "Old": "if in.FeeSat > l.FeeCapSat {",
+    "New": "if false {",
+    "Selector": "TestPX1CheckPostPlan/fee-over-cap",
+    "Marker": "want FEE_CAP_EXCEEDED",
+    "Core": false
+  },
+  {
+    "Name": "s1-postplan-transfer",
+    "File": "px1_terms.go",
+    "Old": "if cost > l.TransferCapSat {",
+    "New": "if false {",
+    "Selector": "TestPX1CheckPostPlan/transfer-plus-one",
+    "Marker": "want TRANSFER_CAP_EXCEEDED",
+    "Core": false
+  },
+  {
+    "Name": "s1-total-budget",
+    "File": "px1_terms.go",
+    "Old": "if spent < 0 || spent > l.TotalCapSat || cost > l.TotalCapSat-spent {",
+    "New": "if false {",
+    "Selector": "TestPX1CheckPrePlan/total-plus-one",
+    "Marker": "want TOTAL_BUDGET_EXCEEDED",
+    "Core": false
+  },
+  {
+    "Name": "s1-spend-budget",
+    "File": "px1_terms.go",
+    "Old": "if spent > l.SpendCapSat || cost > l.SpendCapSat-spent {",
+    "New": "if false {",
+    "Selector": "TestPX1CheckPrePlan",
+    "Marker": "spend-plus-one: want SPEND_BUDGET_EXCEEDED",
+    "Core": false
+  },
+  {
+    "Name": "s1-day-cap",
+    "File": "px1_terms.go",
+    "Old": "if used < 0 || used > l.DayCapSat || cost > l.DayCapSat-used {",
+    "New": "if false && (used < 0 || used > l.DayCapSat || cost > l.DayCapSat-used) {",
+    "Selector": "TestPX1CheckPrePlan/day-plus-one",
+    "Marker": "want DAY_CAP_EXCEEDED",
+    "Core": false
+  },
+  {
+    "Name": "s1-day-count",
+    "File": "px1_terms.go",
+    "Old": "if count < 0 || count >= l.DayCountCap {",
+    "New": "if false && (count < 0 || count >= l.DayCountCap) {",
+    "Selector": "TestPX1CheckPrePlan/count-full",
+    "Marker": "want DAY_COUNT_EXCEEDED",
+    "Core": false
+  },
+  {
+    "Name": "s1-intent-day",
+    "File": "px1_terms.go",
+    "Old": "if d, e := time.Parse(time.DateOnly, in.Day); e != nil || d.Format(time.DateOnly) != in.Day {",
+    "New": "if d, e := time.Parse(time.DateOnly, in.Day); false && (e != nil || d.Format(time.DateOnly) != in.Day) {",
+    "Selector": "TestPX1CheckIntentInvariants",
+    "Marker": "empty-day: want STATE_UNAVAILABLE",
+    "Core": false
+  },
+  {
+    "Name": "s1-wallet-preplan-call",
+    "File": "wallet.go",
+    "Old": "if e = x.checker.CheckPrePlan(limits, intent, ledger); e != nil {",
+    "New": "if e = x.checker.CheckPrePlan(limits, intent, ledger); false && e != nil {",
+    "Selector": "TestPX1WalletTransferCapOver",
+    "Marker": "pre-plan refusal reached the node",
+    "Core": false
+  },
+  {
+    "Name": "s1-wallet-postplan-call",
+    "File": "wallet.go",
+    "Old": "if e = x.checker.CheckPostPlan(limits, intent, ledger); e != nil {",
+    "New": "if e = x.checker.CheckPostPlan(limits, intent, ledger); false && e != nil {",
+    "Selector": "TestPX1WalletTotalBudget",
+    "Marker": "post-plan: want TOTAL_BUDGET_EXCEEDED",
+    "Core": false
+  },
+  {
+    "Name": "s1-wallet-step21-recheck",
+    "File": "wallet.go",
+    "Old": "// Step 21: kernel check #4 (seal incl. mempool, window) and input re-read.\n\tif e = w.px1Recheck(ctx, grantRaw, g, p.Inputs); e != nil {",
+    "New": "// Step 21: kernel check #4 (seal incl. mempool, window) and input re-read.\n\tif e = w.px1Recheck(ctx, grantRaw, g, p.Inputs); false && e != nil {",
+    "Selector": "TestPX1WalletSealSpent",
+    "Marker": "after reservation",
+    "Core": false
+  },
+  {
+    "Name": "s1-wallet-nonce-conflict",
+    "File": "wallet.go",
+    "Old": "if Hash(requestRaw) != prior.RequestHash {",
+    "New": "if false {",
+    "Selector": "TestPX1WalletReplay",
+    "Marker": "conflict:",
+    "Core": false
+  },
+  {
+    "Name": "s1-wallet-reserve-day",
+    "File": "wallet.go",
+    "Old": "Day: intent.Day, Inputs: p.Inputs",
+    "New": "Day: \"\", Inputs: p.Inputs",
+    "Selector": "TestPX1WalletSpendAtTransferCap",
+    "Marker": "reserve record",
+    "Core": false
+  },
+  {
+    "Name": "s1-wallet-fee-inclusive",
+    "File": "wallet.go",
+    "Old": "Reserved: r.Amount + p.Fee, Fee: p.Fee",
+    "New": "Reserved: r.Amount, Fee: p.Fee",
+    "Selector": "TestPX1WalletSpendAtTransferCap",
+    "Marker": "want executed at cap",
+    "Core": false
+  },
+  {
+    "Name": "s1-wallet-g2-dispatch",
+    "File": "wallet.go",
+    "Old": "\tif w.g2 != nil {\n\t\treturn w.executeG2(",
+    "New": "\tif false && w.g2 != nil {\n\t\treturn w.executeG2(",
+    "Selector": "TestPX1WalletTermsGate",
+    "Marker": "single-use: want SINGLE_USE_DISABLED",
+    "Core": false
+  },
+  {
+    "Name": "s1-plan-exclude",
+    "File": "plan.go",
+    "Old": "if guard != nil && guard.exclude(point) {",
+    "New": "if false {",
+    "Selector": "TestPX1WalletPlanExclusions",
+    "Marker": "canary: want PLAN_RESERVED_INPUT",
+    "Core": false
+  },
+  {
+    "Name": "s1-plan-fee-cap",
+    "File": "plan.go",
+    "Old": "if guard != nil && p.Fee > guard.feeCap {",
+    "New": "if false {",
+    "Selector": "TestPX1WalletFeeCap",
+    "Marker": "signed before fee cap",
+    "Core": false
+  },
+  {
+    "Name": "s1-bind-recipient",
+    "File": "grant.go",
+    "Old": "return check.CheckRecipient(l, r.Address)",
+    "New": "return nil",
+    "Selector": "TestPX1WalletRecipientNotListed",
+    "Marker": "want ADDRESS_NOT_ALLOWED",
+    "Core": false
+  },
+  {
+    "Name": "s1-bind-time",
+    "File": "grant.go",
+    "Old": "if created >= g.NotAfter || created < g.NotBefore || created > now {",
+    "New": "if false {",
+    "Selector": "TestPX1WalletExpiredWindow",
+    "Marker": "at not_after: want REQUEST_TIME",
+    "Core": false
+  },
+  {
+    "Name": "s1-terms-contract-hash",
+    "File": "single_use.go",
+    "Old": "if Hash(raw) != g.Contract {\n\t\treturn TermsV2{}",
+    "New": "if false {\n\t\treturn TermsV2{}",
+    "Selector": "TestPX1WalletTermsGate",
+    "Marker": "hash: want CONTRACT_HASH",
+    "Core": false
+  },
+  {
+    "Name": "s1-service-config-g2",
+    "File": "service_config.go",
+    "Old": "if e := ValidateG2OperatorConfig(*c.G2); e != nil {",
+    "New": "if e := ValidateG2OperatorConfig(*c.G2); false && e != nil {",
+    "Selector": "TestPX1ServiceConfigG2",
+    "Marker": "g2 single-use: want SERVICE_CONFIG",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-header",
+    "File": "px1_wallet_seams.go",
+    "Old": "if j == nil || j.Header() != header {",
+    "New": "if j == nil {",
+    "Selector": "TestPX1WalletAttach/header",
+    "Marker": "want JOURNAL_SEGMENT",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-canary",
+    "File": "px1_wallet_seams.go",
+    "Old": "if canary == nil || !canary.Excluded(op.Canary.Outpoint) {",
+    "New": "if canary == nil {",
+    "Selector": "TestPX1WalletAttach/canary",
+    "Marker": "want SERVICE_CONFIG",
+    "Core": false
+  },
+  {
+    "Name": "s1-excluded-retained-input",
+    "File": "px1_wallet_seams.go",
+    "Old": "|| ledger == nil || ledger.InputReserved(p)",
+    "New": "|| ledger == nil",
+    "Selector": "TestPX1WalletPlanExclusions",
+    "Marker": "retained input: want PLAN_RESERVED_INPUT",
+    "Core": false
+  },
+  {
+    "Name": "s1-ledger-poisoned",
+    "File": "px1_wallet_seams.go",
+    "Old": "if w.g2.journal.Poisoned() {\n\t\treturn nil, fail(\"JOURNAL_WRITE_UNCERTAIN\")",
+    "New": "if false {\n\t\treturn nil, fail(\"JOURNAL_WRITE_UNCERTAIN\")",
+    "Selector": "TestPX1WalletSeams",
+    "Marker": "poisoned journal must refuse the ledger",
+    "Core": false
+  },
+  {
+    "Name": "s1-core-t1-fee-inclusive",
+    "File": "wallet.go",
+    "Old": "Reserved: r.Amount + p.Fee, Fee: p.Fee",
+    "New": "Reserved: r.Amount, Fee: p.Fee",
+    "Selector": "TestPX1CoreS1/T1-at-transfer-cap",
+    "Marker": "T1: want executed at cap",
+    "Core": true
+  },
+  {
+    "Name": "s1-core-t4-postplan",
+    "File": "wallet.go",
+    "Old": "if e = x.checker.CheckPostPlan(limits, intent, ledger); e != nil {",
+    "New": "if e = x.checker.CheckPostPlan(limits, intent, ledger); false && e != nil {",
+    "Selector": "TestPX1CoreS1/T4-total-budget",
+    "Marker": "T4 post-plan: want TOTAL_BUDGET_EXCEEDED",
+    "Core": true
+  },
+  {
+    "Name": "s1-core-t6-step21",
+    "File": "wallet.go",
+    "Old": "// Step 21: kernel check #4 (seal incl. mempool, window) and input re-read.\n\tif e = w.px1Recheck(ctx, grantRaw, g, p.Inputs); e != nil {",
+    "New": "// Step 21: kernel check #4 (seal incl. mempool, window) and input re-read.\n\tif e = w.px1Recheck(ctx, grantRaw, g, p.Inputs); false && e != nil {",
+    "Selector": "TestPX1CoreS1/T6-seal-spent",
+    "Marker": "T6 after reservation",
+    "Core": true
+  },
+  {
+    "Name": "s1-service-call-site-omitted",
+    "File": "service.go",
+    "Old": "w, e := px1OpenServiceWallet(wc, c, key)",
+    "New": "w, e := openWallet(wc)",
+    "Selector": "TestPX1ServiceOpenG2FailClosed",
+    "Marker": "G2_PROFILE_FALLTHROUGH",
+    "Core": false
+  },
+  {
+    "Name": "s1-service-select-skipped",
+    "File": "px1_wallet_seams.go",
+    "Old": "if e = px1SelectProfile(w, c, key); e != nil {",
+    "New": "if false {",
+    "Selector": "TestPX1ServiceOpenG2FailClosed",
+    "Marker": "G2_PROFILE_FALLTHROUGH",
+    "Core": false
+  },
+  {
+    "Name": "s1-service-attach-call-removed",
+    "File": "px1_wallet_seams.go",
+    "Old": "if e := w.px1Attach(*c.G2, hex.EncodeToString(schnorr.SerializePubKey(key.PubKey()))); e != nil {",
+    "New": "if e, _ := error(nil), hex.EncodeToString(schnorr.SerializePubKey(key.PubKey())); e != nil {",
+    "Selector": "TestPX1ServiceOpenG2FailClosed",
+    "Marker": "G2 stub refuses: want PX1_NOT_IMPLEMENTED got SERVICE_PROFILE",
+    "Core": false
+  },
+  {
+    "Name": "s1-service-attach-close-dropped",
+    "File": "px1_wallet_seams.go",
+    "Old": "if e = px1SelectProfile(w, c, key); e != nil {\n\t\tw.Close()\n",
+    "New": "if e = px1SelectProfile(w, c, key); e != nil {\n",
+    "Selector": "TestPX1ServiceOpenG2FailClosed",
+    "Marker": "after G2 refusal: W2 neighbour refused",
+    "Core": false
+  },
+  {
+    "Name": "s1-follow-clock-code",
+    "File": "px1_wallet_seams.go",
+    "Old": "if e != nil && e.Error() == CodeClockRollback {",
+    "New": "if false {",
+    "Selector": "TestPX1WalletClockStepBack",
+    "Marker": "step back after broadcast",
+    "Core": false
+  },
+  {
+    "Name": "s1-follow-clock-call-site",
+    "File": "wallet.go",
+    "Old": "return px1Receipt(reserved, \"uncertain\", px1FollowFailure(e))",
+    "New": "return px1Receipt(reserved, \"uncertain\", \"JOURNAL_WRITE_UNCERTAIN\")",
+    "Selector": "TestPX1WalletClockStepBack",
+    "Marker": "step back after broadcast",
+    "Core": false
+  },
+  {
+    "Name": "s1-core-service-call-site-omitted",
+    "File": "service.go",
+    "Old": "w, e := px1OpenServiceWallet(wc, c, key)",
+    "New": "w, e := openWallet(wc)",
+    "Selector": "TestPX1CoreServiceG2FailClosed",
+    "Marker": "G2_PROFILE_FALLTHROUGH",
+    "Core": true
+  },
+  {
+    "Name": "s1-attach-receipt-key-unset",
+    "File": "px1_wallet_seams.go",
+    "Old": "Binding: px1WalletBinding(w.state.Binding, receiptKey), ReceiptKey: receiptKey}",
+    "New": "Binding: px1WalletBinding(w.state.Binding, receiptKey)}",
+    "Selector": "TestPX1WalletAttach/header-keyless",
+    "Marker": "header-keyless: want JOURNAL_SEGMENT",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-receipt-key-other",
+    "File": "px1_wallet_seams.go",
+    "Old": "Binding: px1WalletBinding(w.state.Binding, receiptKey), ReceiptKey: receiptKey}",
+    "New": "Binding: px1WalletBinding(w.state.Binding, receiptKey), ReceiptKey: w.state.Binding}",
+    "Selector": "TestPX1WalletAttach/header-same-exact",
+    "Marker": "header-same-exact: want accepted got JOURNAL_SEGMENT",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-checker-unpinned",
+    "File": "px1_wallet_seams.go",
+    "Old": "checker: NewCapCheckerFor(w.config.Network, w.config.Genesis)",
+    "New": "checker: NewCapChecker()",
+    "Selector": "TestPX1WalletRecipientAnyMode",
+    "Marker": "any-mode main outsider: want executed",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-checker-empty-pin",
+    "File": "px1_wallet_seams.go",
+    "Old": "checker: NewCapCheckerFor(w.config.Network, w.config.Genesis)",
+    "New": "checker: NewCapCheckerFor(\"\", \"\")",
+    "Selector": "TestPX1WalletAttach",
+    "Marker": "cap checker not pinned to the wallet network",
+    "Core": false
+  },
+  {
+    "Name": "s1-networkless-any-admits-all",
+    "File": "px1_terms.go",
+    "Old": "// Networkless rules admit no any-mode recipient (freeze amendment 1).",
+    "New": "return nil //",
+    "Selector": "TestPX1NetworklessCapCheckerAnyMode",
+    "Marker": "networkless any main: want ADDRESS_NOT_ALLOWED",
+    "Core": false
+  },
+  {
+    "Name": "s1-networkless-any-main-or-regtest",
+    "File": "px1_terms.go",
+    "Old": "// Networkless rules admit no any-mode recipient (freeze amendment 1).",
+    "New": "for _, n := range [][2]string{{\"main\", su.MainGenesis}, {\"regtest\", su.RegtestGenesis}} { if _, e := addressScriptForNetwork(address, n[0], n[1]); e == nil { return nil } } //",
+    "Selector": "TestPX1NetworklessCapCheckerAnyMode",
+    "Marker": "networkless any main: want ADDRESS_NOT_ALLOWED",
+    "Core": false
+  },
+  {
+    "Name": "s1-networkless-any-regtest",
+    "File": "px1_terms.go",
+    "Old": "// Networkless rules admit no any-mode recipient (freeze amendment 1).",
+    "New": "if _, e := addressScriptForNetwork(address, \"regtest\", su.RegtestGenesis); e == nil { return nil } //",
+    "Selector": "TestPX1NetworklessCapCheckerAnyMode",
+    "Marker": "networkless any regtest: want ADDRESS_NOT_ALLOWED",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-product-canary-swapped",
+    "File": "px1_wallet_seams.go",
+    "Old": "return px1Deps{openJournal: OpenJournalV2, fold: FoldLedgerV2, day: UTCDay, canary: NewCanary}",
+    "New": "return px1Deps{openJournal: OpenJournalV2, fold: FoldLedgerV2, day: UTCDay, canary: func(su.Node, CanaryConfig) (Canary, error) { return nil, fail(\"SERVICE_CONFIG\") }}",
+    "Selector": "TestPX1WalletAttachProductDeps",
+    "Marker": "product deps: canary is not the frozen entry point",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-product-refusal-substituted",
+    "File": "px1_wallet_seams.go",
+    "Old": "canary, e := deps.canary(w.node, op.Canary)\n\tif e != nil {\n\t\treturn e\n\t}",
+    "New": "canary, e := deps.canary(w.node, op.Canary)\n\tif e != nil {\n\t\treturn fail(\"SERVICE_CONFIG\")\n\t}",
+    "Selector": "TestPX1WalletAttachProductDeps",
+    "Marker": "product deps: want",
+    "Core": false
+  }
+]

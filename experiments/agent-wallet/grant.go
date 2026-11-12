@@ -70,6 +70,26 @@ func bindAuthenticatedRequest(g Grant, t Terms, r Request, sender string, create
 	return nil
 }
 
+// bindG2Request is §3.5 step 12 under the G2 profile: grant ID, sender,
+// request time inside [not_before, not_after) and not in the future, pay in
+// scope, then the recipient by the terms mode. Single-use grants never reach
+// it (SINGLE_USE_DISABLED at step 8).
+func bindG2Request(g Grant, l EffectiveLimits, r Request, sender string, created, now int64, check CapChecker) error {
+	if g.Kind != "" && g.Kind != "standing" {
+		return fail(CodeSingleUseDisabled)
+	}
+	if r.GrantID != g.ID || l.GrantID != g.ID || sender != g.Grantee {
+		return fail("REQUEST_GRANTEE_BINDING")
+	}
+	if created >= g.NotAfter || created < g.NotBefore || created > now {
+		return fail("REQUEST_TIME")
+	}
+	if r.Action != "pay" || !slices.Contains(g.Scope, r.Action) {
+		return fail("GRANT_SCOPE")
+	}
+	return check.CheckRecipient(l, r.Address)
+}
+
 // KernelResolver delegates all landlord name/chain/mempool interpretation to K1.
 type KernelResolver struct {
 	Node   su.Node

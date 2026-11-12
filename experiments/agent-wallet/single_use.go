@@ -201,6 +201,31 @@ func termsForNetwork(g Grant, raw []byte, network, genesis string) (Terms, error
 	return parseTermsForNetwork(raw, g.Budget, network, genesis)
 }
 
+// px1TermsFor is §3.5 step 10 under the G2 profile: terms by
+// contract_sha256, then the terms v2 parser bound to this instance's pins,
+// receipt key and grant budget, then the operator ceilings. A terms v1 object
+// refuses TERMS_VERSION_REQUIRED; single-use refuses SINGLE_USE_DISABLED.
+func (w *Wallet) px1TermsFor(g Grant, raw []byte) (TermsV2, EffectiveLimits, error) {
+	if g.Kind == "single-use" {
+		return TermsV2{}, EffectiveLimits{}, fail(CodeSingleUseDisabled)
+	}
+	if Hash(raw) != g.Contract {
+		return TermsV2{}, EffectiveLimits{}, fail("CONTRACT_HASH")
+	}
+	t, e := ParseTermsV2(raw, TermsV2Pins{Network: w.config.Network, Genesis: w.config.Genesis, ExecutorKey: w.g2.receiptKey, GrantBudget: g.Budget})
+	if e != nil {
+		return TermsV2{}, EffectiveLimits{}, e
+	}
+	if e = w.g2.checker.CheckExecutor(t, w.g2.receiptKey); e != nil {
+		return TermsV2{}, EffectiveLimits{}, e
+	}
+	l, e := EffectiveLimitsFor(g, t, w.g2.operator)
+	if e != nil {
+		return TermsV2{}, EffectiveLimits{}, e
+	}
+	return t, l, nil
+}
+
 func (a CombinedAuthority) networkPins() (string, string) {
 	p := a.Kernel.Policy
 	if p.Network == "" && p.Genesis == "" {
