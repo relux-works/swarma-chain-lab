@@ -12,6 +12,7 @@ package wallet
 //	go test -count=1 -run '^TestPX1CoreService' -v .
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -197,15 +198,18 @@ func TestPX1WalletClockStepBack(t *testing.T) {
 	}
 }
 
-// Claim: with a valid g2 block (terms v2 required, transfer/day/fee ceilings
-// 1000) the public opener never executes a terms-v1 spend under W2: startup
+// Claim: with a valid g2 block (terms v2 required, the fixture operator
+// ceilings) the public opener never executes a terms-v1 spend under W2: startup
 // must succeed (any startup error fails, marker G2_STARTUP_REFUSED), the
 // opened service carries the G2 profile at both layers, refuses every spend with
 // SERVICE_STATE_UNAVAILABLE at journal_seq 0 before the first observation
 // pass (S3 halt, nothing journaled), and after one pass that reads a real
-// unspent canary refuses the same request TERMS_VERSION_REQUIRED; after the
-// canary is spent the next pass succeeds and a fresh nonce refuses
-// FLOAT_CANARY_SPENT at journal_seq 0 (T14_WIRE). Genuine Core
+// unspent canary refuses the same request TERMS_VERSION_REQUIRED; the same
+// service then executes a valid terms-v2 spend (G2_SPEND_NEIGHBOUR: executed,
+// in the mempool, canary still unspent), so the refusal below is shown on a
+// service that was able to spend; after the canary is spent the next pass
+// succeeds and a fresh nonce refuses FLOAT_CANARY_SPENT at journal_seq 0 with
+// nothing journaled or broadcast (T14_WIRE). Genuine Core
 // 28 regtest and the genuine K1 kernel; installedRead keeps its synthetic
 // root-ownership seam and the peer metadata is injected (not a custody test).
 // Adapted from the PR 76 reviewer's TestReviewG2ServiceFailClosed.
@@ -241,10 +245,18 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 	writeInstalled(t, keyPath, []byte(hex.EncodeToString(key.Serialize())))
 	installActionObjects(t, grant.config, grant.raw, terms)
 	operator := px1Operator()
-	operator.MaxTransferSat = 1000
-	operator.MaxDaySat = 1000
-	operator.MaxFeeSat = 1000
+	var spendable px1CoreGrant
 	if g2 {
+		// The valid G2 neighbour's grant: terms v2 under the fixture operator
+		// ceilings, same issuer, grantee and hot wallet, installed into this
+		// service's object directory.
+		// Its window is around the real clock, the clock of G2 requests.
+		budget2 := int64(500000)
+		saved := core.now
+		core.now = time.Now().Unix()
+		spendable = core.px1IssueGrant(px1sTerms(500000, 100000, 300000, 10), &budget2, 0)
+		core.now = saved
+		px1sInstallObjects(t, grant.config, spendable)
 		// A real canary: one 10000-atom output in the hot wallet, so the
 		// observation pass reads it unspent (the fixture outpoint is absent).
 		canary := text(t, core.rpc("issuer", "sendtoaddress", text(t, core.rpc("agent", "getnewaddress", "", "legacy")), su.Coins(10000)))
@@ -310,6 +322,37 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 		if receipt.Receipt.Verdict != "refused" || receipt.Receipt.Reason != CodeTermsVersionRequired {
 			t.Fatalf("G2_PROFILE_BYPASS: attached G2 service did not refuse terms v1: %s", response)
 		}
+		// The valid G2 spend neighbour, before T14: the same service executes
+		// a terms-v2 spend, broadcast to genuine Core, and leaves the canary
+		// unspent (the planner never selects it).
+		// From here both layers read the real clock, as G2 requests carry
+		// real time.
+		service.clock = func() int64 { return time.Now().Unix() }
+		service.wallet.clock = service.clock
+		fee := core.px1sQuoteFee(grant.config, px1RegtestTerms().Recipients[0], 60000)
+		limit := fee + fee/2 // margin: the planner's inputs may differ from the quote's
+		valid := actionFixture(t, "spend")
+		valid.Grant.ID = spendable.id
+		valid.Nonce = strings.Repeat("d", 32)
+		valid.CreatedAt = time.Now().Unix()
+		valid.Params = canonical(SpendParams{To: px1RegtestTerms().Recipients[0], Amount: 60000 - limit, FeeLimit: limit})
+		var executed SignedActionReceipt
+		if e := json.Unmarshal(service.handle(context.Background(), actionEnvelope(t, valid), PeerIdentity{UID: config.PeerUID}), &executed); e != nil {
+			t.Fatal(e)
+		}
+		var paid struct {
+			TxID     string `json:"txid"`
+			Reserved int64  `json:"reserved_sat"`
+		}
+		if executed.Receipt.Verdict != "executed" || json.Unmarshal(executed.Receipt.Effect, &paid) != nil || paid.Reserved <= 60000-limit || paid.Reserved > 60000 || !core.px1sInMempool(paid.TxID) {
+			t.Fatalf("G2_SPEND_NEIGHBOUR: the G2 service must execute a valid terms-v2 spend before T14: %s %s %s", executed.Receipt.Verdict, executed.Receipt.Reason, executed.Receipt.Effect)
+		}
+		if out := core.rpc("", "gettxout", operator.Canary.Outpoint.TxID, operator.Canary.Outpoint.Vout, true); string(bytes.TrimSpace(out)) == "null" {
+			t.Fatal("G2_SPEND_NEIGHBOUR: the valid spend used the canary")
+		}
+		if e := service.PX1Tick(context.Background()); e != nil {
+			t.Fatalf("G2_SPEND_NEIGHBOUR: observation pass after the valid spend: %v", e)
+		}
 		// T14 on the wire: the canary spent out of band (hot wallet, own
 		// node mempool); the next pass halts the service, and a spend with a
 		// fresh nonce refuses FLOAT_CANARY_SPENT before admission.
@@ -331,6 +374,7 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 		}
 		core.rpc("", "sendrawtransaction", signed.Hex)
 		seqBefore := service.PX1ServiceJournal().Usage().LastSeq
+		walletSeq := service.wallet.PX1Journal().Usage().LastSeq
 		if e := service.PX1Tick(context.Background()); e != nil {
 			t.Fatalf("T14_WIRE: observation pass after the canary spend: %v", e)
 		}
@@ -339,7 +383,7 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 		if e := json.Unmarshal(service.handle(context.Background(), actionEnvelope(t, request), PeerIdentity{UID: config.PeerUID}), &spent); e != nil {
 			t.Fatal(e)
 		}
-		if spent.Receipt.Verdict != "refused" || spent.Receipt.Reason != CodeFloatCanarySpent || spent.Receipt.Sequence != 0 || service.PX1ServiceJournal().Usage().LastSeq != seqBefore {
+		if spent.Receipt.Verdict != "refused" || spent.Receipt.Reason != CodeFloatCanarySpent || spent.Receipt.Sequence != 0 || service.PX1ServiceJournal().Usage().LastSeq != seqBefore || walletSeq != service.wallet.PX1Journal().Usage().LastSeq {
 			t.Fatalf("T14_WIRE: want FLOAT_CANARY_SPENT at journal_seq 0, got %+v", spent.Receipt)
 		}
 		return
