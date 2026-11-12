@@ -340,5 +340,14 @@
   "Selector": "TestPX1S5SysusersGIDDomain",
   "Marker": "G2_SYSUSERS_GID",
   "Core": false
+ },
+ {
+  "Name": "s5-client-key-placeholder-absolute",
+  "File": "g2_pay.go",
+  "Old": "G2AgentKeyFilePlaceholder = \"PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH\"",
+  "New": "G2AgentKeyFilePlaceholder = \"/PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH\"",
+  "Selector": "TestPX1S5ClientConsumerPlaceholders",
+  "Marker": "G2_CLIENT_PLACEHOLDER_ACCEPTED key-unresolved",
+  "Core": false
  }
 ]

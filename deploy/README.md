@@ -142,12 +142,21 @@ placeholders and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
   new fixture root under the test temp directory. The consumer part skips where
   `systemd-sysusers` is not installed or has no `--dry-run` option (systemd 249,
   for example).
+- `go test -count=1 -run '^TestPX1S5ClientConsumerPlaceholders$' .` builds the
+  agent-wallet CLI from `../experiments/agent-wallet` into the test temp
+  directory and runs it on the rendered `client.json`. This is a subprocess;
+  `deploy` does not import agent-wallet. An unresolved UID, an unresolved key
+  path, or both, must be refused with `CLIENT_CONFIG`, and the resolved file
+  must pass the loader. It reads no key and opens no socket. It needs the
+  agent-wallet dependencies in the module cache, which the deploy workflow
+  downloads.
 - `W1_MUTATIONS=1 W1_MUTATION_ROOT=/abs/new-dir W1_CORE_DAEMON=/abs/namecoind go
   test -count=1 -timeout 30m -run '^TestPX1S5GuardPlants$' .` runs the S5
   narrowing plants in `testdata/px1-mutations-s5.json`. Each plant must fail its
   named test with its marker, and `results.json` is written to the root. The
   agent-wallet runner cannot host these plants, because it copies only
-  agent-wallet.
+  agent-wallet. The S5 copy includes the unmodified agent-wallet module and its
+  local replace targets, for the client-consumer test.
 
 ## Optional gateway AUTH and model proxy
 

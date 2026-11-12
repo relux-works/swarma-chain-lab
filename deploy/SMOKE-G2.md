@@ -92,7 +92,7 @@ what was checked, and how:
 | File | Consumer | Refusal while unresolved | Evidence |
 | --- | --- | --- | --- |
 | `custody-spec.json` | `deploy-kit g2-custody-probe` and `g2-custody-verify` (`ParseCustodySpec`) | `ErrPlaceholder` for any `PLACEHOLDER` | `TestPX1S5RenderFileSet` |
-| `client.json` | agent-wallet `LoadActionClientConfig` | `CLIENT_CONFIG`: the quoted UID does not decode into an integer, and the key-file placeholder is not an absolute path. Each one alone is refused. | a run of the real loader on the rendered file and its variants (not a committed test: `deploy` does not import agent-wallet) |
+| `client.json` | the agent-wallet CLI, whose first step is `LoadActionClientConfig` | `CLIENT_CONFIG`: the quoted UID does not decode into an integer, and the key-file placeholder is not an absolute path. Each one alone is refused. | `TestPX1S5ClientConsumerPlaceholders`: it builds the CLI from `experiments/agent-wallet` as a subprocess (`deploy` does not import agent-wallet) and runs it on the rendered bytes. UID unresolved, key unresolved and both unresolved each print `CLIENT_CONFIG`; the fully resolved file passes the loader. Plant `s5-client-key-placeholder-absolute` |
 | `sysusers.conf` | `systemd-sysusers` | exit 1, nothing written: `<PLACEHOLDER:AGENT_USER>` is not a valid user name | `TestPX1S5SysusersUnresolvedRefused`, which runs the real consumer with `--dry-run --root=<fixture>` |
 
 The agent-user token must stay an invalid name. systemd-sysusers creates the

@@ -883,6 +883,8 @@ type g2Plant struct {
 // to a fresh copy of this module and fails its named test with its marker.
 // Build failures, setup failures, panics and timeouts are never kills. The
 // agent-wallet runner cannot host these plants (it copies only agent-wallet).
+// The copy also carries the unmodified agent-wallet module and its local
+// replace targets, so the client-consumer test builds the real CLI there.
 func TestPX1S5GuardPlants(t *testing.T) {
 	if os.Getenv("W1_MUTATIONS") != "1" {
 		t.Skip("W1_MUTATIONS=1 with an absolute new W1_MUTATION_ROOT runs the S5 plants")
@@ -920,7 +922,7 @@ func TestPX1S5GuardPlants(t *testing.T) {
 		})
 	}
 	frozen := filepath.Join(root, "baseline")
-	for _, m := range []string{"deploy", "experiments/single-use", "experiments/sealwatch", "experiments/agent-wallet/README.md"} {
+	for _, m := range []string{"deploy", "experiments/single-use", "experiments/sealwatch", "experiments/agent-wallet", "experiments/rental", "experiments/payment-chain", "experiments/rental-booking"} {
 		src, dst := filepath.Join(cwd, "..", m), filepath.Join(frozen, m)
 		if info, e := os.Stat(src); e == nil && !info.IsDir() {
 			os.MkdirAll(filepath.Dir(dst), 0700)
