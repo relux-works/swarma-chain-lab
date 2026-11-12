@@ -85,6 +85,8 @@ type Wallet struct {
 	grantRaw                []byte
 	// Unexported seam for process-exit tests. The CLI does not read hook flags/env.
 	hook func(string)
+	// g2 is the PX1 G2 profile state (px1_wallet_seams.go); nil keeps W2.
+	g2 *px1Wallet
 }
 
 func Open(c Config) (*Wallet, error) {
@@ -165,7 +167,7 @@ func openWallet(c Config) (*Wallet, error) {
 	}
 	return w, nil
 }
-func (w *Wallet) Close() { w.store.Close() }
+func (w *Wallet) Close() { w.px1Close(); w.store.Close() }
 func (w *Wallet) validateState() error {
 	seen := map[string]bool{}
 	inputs := map[su.Point]bool{}
@@ -283,6 +285,9 @@ func (w *Wallet) Execute(ctx context.Context, grantRaw, termsRaw, requestRaw []b
 // Caller holds w.mu and has verified the applicable signature. W1 commits its
 // signed event; LIP-0006 commits unsigned request bytes, never a fabricated event.
 func (w *Wallet) executeAuthenticated(ctx context.Context, grantRaw, termsRaw []byte, r Request, sender string, created int64, requestRaw []byte, useTxID string, beforeEffect func(Record) error) Receipt {
+	if w.g2 != nil {
+		return w.executeG2(ctx, grantRaw, termsRaw, r, sender, created, requestRaw, useTxID, beforeEffect)
+	}
 	if w.config.Network == "main" && r.Action != "pay" {
 		return refuse(fail("MAIN_ACTION_UNSUPPORTED"))
 	}
@@ -348,7 +353,7 @@ func (w *Wallet) executeAuthenticated(ctx context.Context, grantRaw, termsRaw []
 			}
 		}
 	}
-	p, e := w.buildPlan(ctx, g, t, r, prior)
+	p, e := w.buildPlan(ctx, g, t, r, prior, nil)
 	if e != nil {
 		return refuse(e)
 	}
@@ -450,6 +455,138 @@ func (w *Wallet) executeAuthenticated(ctx context.Context, grantRaw, termsRaw []
 	}
 	return receipt(rec, "executed", "EXECUTED")
 }
+
+// px1Receipt is the wallet receipt of a wallet-layer journal v2 record.
+func px1Receipt(r JournalRecordV2, status, reason string) Receipt {
+	return Receipt{Status: status, Reason: reason, Message: Explain(reason), GrantID: r.GrantID, Nonce: r.Nonce, Phase: r.Phase, TxID: r.TxID, Reserved: r.Reserved}
+}
+
+// px1Follow appends a follow-up record of a reserved request. The debit stays
+// retained whatever the follow-up says; an append failure is reported, never
+// hidden, but cannot release anything.
+func (w *Wallet) px1Follow(reserved JournalRecordV2, kind, phase string) (JournalRecordV2, error) {
+	next := reserved
+	next.Seq = 0
+	next.Kind = kind
+	next.Phase = phase
+	next.LastTime = w.clock()
+	return w.g2.journal.Append(next)
+}
+
+// executeG2 is the wallet layer of the G2 spend path (G2-PAYMENT-EXECUTOR-v1
+// §3.5 steps 8-23). The caller holds w.mu and has authenticated the request
+// (steps 1-7 belong to the service layer). Every refusal before step 19 has
+// no debit and no broadcast; after step 19 the debit is retained.
+func (w *Wallet) executeG2(ctx context.Context, grantRaw, termsRaw []byte, r Request, sender string, created int64, requestRaw []byte, useTxID string, beforeEffect func(Record) error) Receipt {
+	x := w.g2
+	if r.Action != "pay" {
+		return refuse(fail("MAIN_ACTION_UNSUPPORTED"))
+	}
+	if useTxID != "" {
+		return refuse(fail(CodeSingleUseDisabled))
+	}
+	if x.journal.Poisoned() {
+		return refuse(fail("JOURNAL_WRITE_UNCERTAIN"))
+	}
+	g, e := w.authority.Parse(grantRaw)
+	if e != nil {
+		return refuse(e)
+	}
+	// Step 8 (defence in depth under the service-layer refusal).
+	if g.Kind == "single-use" {
+		return refuse(fail(CodeSingleUseDisabled))
+	}
+	// Step 10: terms v2 by contract_sha256, executor binding, operator ceilings.
+	_, limits, e := w.px1TermsFor(g, termsRaw)
+	if e != nil {
+		return refuse(e)
+	}
+	// Step 12: binding and recipient by mode.
+	if e = bindG2Request(g, limits, r, sender, created, w.clock(), x.checker); e != nil {
+		return refuse(e)
+	}
+	w.grantRaw = append([]byte{}, grantRaw...)
+	prior, e := w.px1Prior(g.ID, r.Nonce)
+	if e != nil {
+		return refuse(e)
+	}
+	if prior != nil {
+		if Hash(requestRaw) != prior.RequestHash {
+			return refuse(fail("NONCE_CONFLICT"))
+		}
+		return px1Receipt(*prior, "already-executed", "DURABLE_RESERVATION_NO_RETRY")
+	}
+	ledger, e := w.PX1Ledger()
+	if e != nil {
+		return refuse(e)
+	}
+	now := w.clock()
+	intent := SpendIntent{GrantID: g.ID, Recipient: r.Address, AmountSat: r.Amount, FeeLimitSat: r.FeeLimit, Day: x.deps.day(now)}
+	// Steps 13 and 15: dust, conservative transfer cap, cumulative caps on the
+	// amount. Pure checks, so an over-cap request costs no node call.
+	if e = x.checker.CheckPrePlan(limits, intent, ledger); e != nil {
+		return refuse(e)
+	}
+	// Step 14: kernel check #1.
+	if e = w.authority.Check(ctx, grantRaw, g.Grantee, w.clock()); e != nil {
+		return refuse(e)
+	}
+	// Step 16: plan without the canary or retained inputs, fee within
+	// min(fee_limit, fee cap); kernel check #2 runs inside before signing.
+	guard := &planGuard{exclude: func(p su.Point) bool { return w.px1Excluded(p, ledger) }, feeCap: limits.FeeCapSat}
+	p, e := w.buildPlan(ctx, g, Terms{}, r, nil, guard)
+	if e != nil {
+		return refuse(e)
+	}
+	// Step 17: every cap on amount + actual fee.
+	intent.FeeSat = p.Fee
+	if e = x.checker.CheckPostPlan(limits, intent, ledger); e != nil {
+		return refuse(e)
+	}
+	// Step 18: kernel check #3 and every planned prevout re-read.
+	if e = w.px1Recheck(ctx, grantRaw, g, p.Inputs); e != nil {
+		return refuse(e)
+	}
+	// Step 19: durable wallet reservation (debit, day bucket, inputs, txid).
+	reserved, e := x.journal.Append(JournalRecordV2{Kind: RecordReserve, GrantID: g.ID, Nonce: r.Nonce, RequestHash: Hash(requestRaw), Action: "spend", Phase: "reserved", Reserved: r.Amount + p.Fee, Fee: p.Fee, Day: intent.Day, Inputs: p.Inputs, TxID: p.TxID, Created: created, LastTime: now})
+	if e != nil {
+		return refuse(e)
+	}
+	if w.hook != nil {
+		w.hook("after-reservation")
+	}
+	// Step 20 belongs to the service layer.
+	if beforeEffect != nil {
+		if e = beforeEffect(Record{GrantID: reserved.GrantID, Nonce: reserved.Nonce, RequestHash: reserved.RequestHash, Action: "pay", Phase: "reserved", Reserved: reserved.Reserved, Fee: reserved.Fee, Inputs: reserved.Inputs, TxID: reserved.TxID}); e != nil {
+			return px1Receipt(reserved, "uncertain", "SERVICE_RESERVATION_UNCERTAIN")
+		}
+	}
+	// Step 21: kernel check #4 (seal incl. mempool, window) and input re-read.
+	if e = w.px1Recheck(ctx, grantRaw, g, p.Inputs); e != nil {
+		if done, err := w.px1Follow(reserved, RecordRefuseRetained, "refused"); err == nil {
+			reserved = done
+		}
+		return px1Receipt(reserved, "refused", safeCode(e))
+	}
+	// Step 22: broadcast; the returned txid must equal the plan txid.
+	var txid string
+	if e = call(ctx, w.broadcast, "sendrawtransaction", &txid, p.Raw); e != nil || txid != p.TxID {
+		if done, err := w.px1Follow(reserved, RecordUncertain, "uncertain"); err == nil {
+			reserved = done
+		}
+		return px1Receipt(reserved, "uncertain", "BROADCAST_UNCERTAIN")
+	}
+	if w.hook != nil {
+		w.hook("after-broadcast")
+	}
+	// Step 23 (wallet layer): durable complete record.
+	done, e := w.px1Follow(reserved, RecordComplete, "complete")
+	if e != nil {
+		return px1Receipt(reserved, "uncertain", "JOURNAL_WRITE_UNCERTAIN")
+	}
+	return px1Receipt(done, "executed", "EXECUTED")
+}
+
 func (w *Wallet) nameReady(ctx context.Context, r Record) error {
 	o := su.NewReadObservation(ctx, w.node)
 	defer o.Close()
@@ -477,6 +614,14 @@ func (w *Wallet) Budget(ctx context.Context, raw, termsRaw []byte) (Budget, erro
 	var b Budget
 	if w.poisoned {
 		return b, fail("STATE_UNAVAILABLE")
+	}
+	if w.g2 != nil {
+		// G2: the W2-shaped projection of the G2 ledger (no name budget).
+		v, e := w.px1Budget(ctx, raw, termsRaw)
+		if e != nil {
+			return b, e
+		}
+		return Budget{TotalRemaining: v.TotalRemaining, SpendRemaining: v.SpendCap - v.SpendReserved, GrantID: v.GrantID, Live: v.Live, Reason: v.Reason, Total: v.TotalCap, SpendCap: v.SpendCap, SpendReserved: v.SpendReserved}, nil
 	}
 	g, e := w.authority.Parse(raw)
 	if e != nil {
