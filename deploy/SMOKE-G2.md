@@ -31,7 +31,7 @@ canonical member order and compact form, because the parser accepts only exact
 | `operator_gid` | operator status group `swarma-wallet-status` | not 0, 65534, 65535 or 2^32-1 |
 | `service_uid` | UID of `swarma-wallet` (sysusers `u` line, `client.json`, custody spec) | not 0, 65534, 65535 or 2^32-1; differs from `agent_uid` |
 | `agent_user` | the agent's account name on the target host | strict sysusers name (`[A-Za-z_][A-Za-z0-9_-]*`, at most 31 bytes); not `root`, `nobody` or a `swarma-wallet*` name |
-| `agent_key_file` | the agent's action key file (`client.json`) | absolute, clean path; not the node datadir |
+| `agent_key_file` | the agent's action key file (`client.json`) | absolute, clean path; not the node datadir. Every directory from `/` down to it is root-owned, not group- or other-writable, and not a symlink: the slot manager checks this chain before it adopts the agent account and binds the file read-only into the slot. |
 | `node_datadir` | the own node's datadir (cookie and `wallet.dat` in the custody spec) | absolute, clean path, at most 1024 bytes; not under `/var/lib/swarma-wallet`, `/etc/swarma` or `/run` |
 | `grantee` | the agent's x-only action key (pay-grant grantee) | valid BIP-340 key |
 | `receipt_pubkey` | x-only receipt key (terms `executor_key`) | valid BIP-340 key; never equal to `grantee` |
