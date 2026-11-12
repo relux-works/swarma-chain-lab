@@ -9,6 +9,7 @@ package wallet
 import (
 	"errors"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -255,7 +256,7 @@ func TestPX1RecipientAllowMode(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	for _, c := range []CapChecker{NewCapChecker(), newCapCheckerFor("main", su.MainGenesis)} {
+	for _, c := range []CapChecker{NewCapChecker(), NewCapCheckerFor("main", su.MainGenesis)} {
 		for _, ok := range []string{px1AllowA, px1AllowB} {
 			wantCode(t, "listed "+ok, c.CheckRecipient(l, ok), "")
 		}
@@ -265,7 +266,7 @@ func TestPX1RecipientAllowMode(t *testing.T) {
 	}
 }
 
-// Claim: in any mode the bound checker admits every canonical main P2PKH and refuses P2SH, bech32, regtest/testnet and mixed-case encodings; the unbound frozen constructor admits a canonical P2PKH of one pinned network only.
+// Claim: in any mode the frozen NewCapCheckerFor("main") admits every canonical main P2PKH and refuses P2SH, bech32, regtest/testnet and mixed-case encodings, and NewCapCheckerFor("regtest") admits a regtest P2PKH and refuses a main one; an unknown mode refuses on both.
 func TestPX1RecipientAnyMode(t *testing.T) {
 	op := px1Operator()
 	op.AllowAnyRecipients = true
@@ -273,20 +274,48 @@ func TestPX1RecipientAnyMode(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	bound := newCapCheckerFor("main", su.MainGenesis)
+	bound := NewCapCheckerFor("main", su.MainGenesis)
 	v := px1AddressVariants(t)
 	wantCode(t, "bound outsider", bound.CheckRecipient(l, px1Outsider), "")
 	wantCode(t, "bound listed", bound.CheckRecipient(l, px1AllowA), "")
 	for _, name := range []string{"p2sh-main", "bech32-main", "testnet-p2pkh", "mixed-case"} {
 		wantCode(t, "bound "+name, bound.CheckRecipient(l, v[name]), CodeAddressNotAllowed)
 	}
-	unbound := NewCapChecker()
-	wantCode(t, "unbound main", unbound.CheckRecipient(l, px1Outsider), "")
-	wantCode(t, "unbound regtest", unbound.CheckRecipient(l, testAddress(5)), "")
-	for _, name := range []string{"p2sh-main", "bech32-main", "mixed-case"} {
-		wantCode(t, "unbound "+name, unbound.CheckRecipient(l, v[name]), CodeAddressNotAllowed)
+	regtest := NewCapCheckerFor("regtest", su.RegtestGenesis)
+	wantCode(t, "regtest-bound regtest", regtest.CheckRecipient(l, testAddress(5)), "")
+	wantCode(t, "regtest-bound main", regtest.CheckRecipient(l, px1Outsider), CodeAddressNotAllowed)
+	for _, c := range []CapChecker{bound, regtest} {
+		wantCode(t, "unknown mode", c.CheckRecipient(EffectiveLimits{RecipientMode: "deny"}, px1Outsider), CodeAddressNotAllowed)
 	}
-	wantCode(t, "unknown mode", bound.CheckRecipient(EffectiveLimits{RecipientMode: "deny"}, px1Outsider), CodeAddressNotAllowed)
+}
+
+// Claim (amendment 1, A4): the deprecated networkless NewCapChecker admits no any-mode recipient: a canonical main P2PKH, a canonical regtest P2PKH, an address the terms happen to list and every other encoding all refuse ADDRESS_NOT_ALLOWED; its allow mode still admits exactly the listed strings (valid neighbour), and the network-bearing NewCapCheckerFor admits the same main P2PKH in any mode.
+func TestPX1NetworklessCapCheckerAnyMode(t *testing.T) {
+	op := px1Operator()
+	op.AllowAnyRecipients = true
+	anyLimits, e := EffectiveLimitsFor(px1Grant(canonical(px1TermsAny()), 100000), px1TermsAny(), op)
+	if e != nil {
+		t.Fatal(e)
+	}
+	v := px1AddressVariants(t)
+	unbound := NewCapChecker()
+	// Ordered: the canonical P2PKH cases come first, so a plant that restores
+	// the old main-or-regtest admission fails at its own named case.
+	for _, c := range []struct{ name, address string }{
+		{"networkless any main", px1Outsider},
+		{"networkless any regtest", testAddress(5)},
+		{"networkless any listed", px1AllowA},
+		{"networkless any p2sh", v["p2sh-main"]},
+		{"networkless any bech32", v["bech32-main"]},
+		{"networkless any mixed-case", v["mixed-case"]},
+		{"networkless any empty", ""},
+	} {
+		wantCode(t, c.name, unbound.CheckRecipient(anyLimits, c.address), CodeAddressNotAllowed)
+	}
+	allowLimits := px1Limits(t)
+	wantCode(t, "networkless allow listed", unbound.CheckRecipient(allowLimits, px1AllowA), "")
+	wantCode(t, "networkless allow outsider", unbound.CheckRecipient(allowLimits, px1Outsider), CodeAddressNotAllowed)
+	wantCode(t, "pinned any main", NewCapCheckerFor("main", su.MainGenesis).CheckRecipient(anyLimits, px1Outsider), "")
 }
 
 func px1Limits(t *testing.T) EffectiveLimits {
@@ -512,6 +541,25 @@ func TestPX1WalletRecipientNotListed(t *testing.T) {
 	}
 }
 
+// Claim (Q2 phase 2, wallet layer): with an operator that allows any mode, the attached wallet's network-pinned checker executes a spend to a canonical main P2PKH that no list names, and refuses a regtest P2PKH and a P2SH encoding with ADDRESS_NOT_ALLOWED before any node call and with no record. Limit: unit layer with fakes; it proves the wallet uses a checker that admits any-mode recipients of its own network only.
+func TestPX1WalletRecipientAnyMode(t *testing.T) {
+	op := px1Operator()
+	op.AllowAnyRecipients = true
+	l := newPX1Lab(t, px1TermsAny(), op, 100000, px1ExecutorKey)
+	v := px1AddressVariants(t)
+	for i, a := range []string{testAddress(5), v["p2sh-main"]} {
+		r, raw := l.request(a, 20000, 3000, byte(1+i))
+		if got := l.spend(r, raw, nil); got.Reason != CodeAddressNotAllowed || len(l.chain.calls) != 0 {
+			t.Fatalf("any-mode off-network %s: want %s got %+v calls=%v", a, CodeAddressNotAllowed, got, l.chain.calls)
+		}
+		l.noEffect(t, "any-mode off-network")
+	}
+	r, raw := l.request(px1Outsider, 20000, 3000, 9)
+	if got := l.spend(r, raw, nil); got.Status != "executed" || got.Reason != "EXECUTED" {
+		t.Fatalf("any-mode main outsider: want executed got %+v", got)
+	}
+}
+
 // Claim: the canary outpoint and every input of a retained record are never planned (PLAN_RESERVED_INPUT, no reservation); once the wallet offers a free coin the same request executes.
 func TestPX1WalletPlanExclusions(t *testing.T) {
 	l := newPX1Lab(t, px1TermsAllow(), px1Operator(), 500000, px1ExecutorKey)
@@ -713,10 +761,19 @@ func TestPX1WalletBudgetRead(t *testing.T) {
 	}
 }
 
-// Claim: attachment fails closed: an invalid operator block, an invalid receipt key, a journal whose header differs, a W2 journal with records, a second attach, and the not-yet-landed S2/S3 constructors all refuse and leave the wallet without a G2 profile; the fake-backed attach succeeds.
+// Claim: attachment fails closed: an invalid operator block, an invalid receipt key, a journal whose header differs (another layer, or the same header without or with another receipt key), a W2 journal with records, a canary watcher that does not exclude the canary, and a second attach all refuse and leave the wallet without a G2 profile; the fake-backed attach succeeds, opens the wallet-layer journal under a header carrying the receipt key, and pins the cap checker to the wallet's own network (main and regtest).
 func TestPX1WalletAttach(t *testing.T) {
 	fresh := func() *Wallet {
 		return &Wallet{config: Config{Network: "main", Genesis: su.MainGenesis, StateDir: "/state/wallet"}, state: state{Version: 1, Binding: Hash([]byte("w")), Records: []Record{}}}
+	}
+	// want is the header px1Attach must open fresh()'s journal with.
+	want := JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: px1WalletBinding(Hash([]byte("w")), px1ExecutorKey), ReceiptKey: px1ExecutorKey}
+	onDisk := func(mutate func(*JournalHeaderV2)) func(*fakeJournal) px1Deps {
+		return func(j *fakeJournal) px1Deps {
+			j.header = want
+			mutate(&j.header)
+			return px1FakeDeps(j)
+		}
 	}
 	for name, c := range map[string]struct {
 		op   G2OperatorConfig
@@ -731,8 +788,12 @@ func TestPX1WalletAttach(t *testing.T) {
 			j.header = JournalHeaderV2{Version: 2, Layer: JournalLayerService, Binding: strings.Repeat("0", 64)}
 			return px1FakeDeps(j)
 		}, nil, CodeJournalSegment},
-		"w2-records": {px1Operator(), px1ExecutorKey, px1FakeDeps, func(w *Wallet) { w.state.Records = []Record{testRecord()} }, "SERVICE_PROFILE"},
-		"stubs":      {px1Operator(), px1ExecutorKey, func(*fakeJournal) px1Deps { return px1ProductDeps() }, nil, "PX1_NOT_IMPLEMENTED"},
+		// A journal written before amendment 1 (no receipt_key) or under another
+		// reconcile key is never adopted: the receipt key is pinned on disk.
+		"header-keyless":    {px1Operator(), px1ExecutorKey, onDisk(func(h *JournalHeaderV2) { h.ReceiptKey = "" }), nil, CodeJournalSegment},
+		"header-other-key":  {px1Operator(), px1ExecutorKey, onDisk(func(h *JournalHeaderV2) { h.ReceiptKey = px1AllowKeyX(t, 8) }), nil, CodeJournalSegment},
+		"header-same-exact": {px1Operator(), px1ExecutorKey, onDisk(func(*JournalHeaderV2) {}), nil, ""},
+		"w2-records":        {px1Operator(), px1ExecutorKey, px1FakeDeps, func(w *Wallet) { w.state.Records = []Record{testRecord()} }, "SERVICE_PROFILE"},
 		"canary": {px1Operator(), px1ExecutorKey, func(j *fakeJournal) px1Deps {
 			d := px1FakeDeps(j)
 			d.canary = func(su.Node, CanaryConfig) (Canary, error) { return fakeCanary{fakePoint(9)}, nil }
@@ -746,6 +807,12 @@ func TestPX1WalletAttach(t *testing.T) {
 			}
 			e := w.px1AttachWith(c.op, c.key, c.deps(&fakeJournal{}))
 			wantCode(t, name, e, c.want)
+			if c.want == "" {
+				if w.g2 == nil || w.PX1Journal() == nil {
+					t.Fatal("accepted attach left the wallet on W2")
+				}
+				return
+			}
 			if w.g2 != nil || w.PX1Journal() != nil {
 				t.Fatal("refused attach left a G2 profile")
 			}
@@ -757,9 +824,60 @@ func TestPX1WalletAttach(t *testing.T) {
 	if w.PX1Journal() != JournalV2(j) || j.header.Binding != px1WalletBinding(w.state.Binding, px1ExecutorKey) || j.header.Layer != JournalLayerWallet {
 		t.Fatal("journal binding")
 	}
+	if j.header.ReceiptKey != px1ExecutorKey || j.header != want {
+		t.Fatalf("journal header receipt key: got %+v want %+v", j.header, want)
+	}
+	if w.g2.checker != NewCapCheckerFor("main", su.MainGenesis) {
+		t.Fatalf("cap checker not pinned to the wallet network: %#v", w.g2.checker)
+	}
 	wantCode(t, "second attach", w.px1AttachWith(px1Operator(), px1ExecutorKey, px1FakeDeps(j)), "SERVICE_PROFILE")
 	if px1WalletBinding(w.state.Binding, px1AllowKeyX(t, 8)) == j.header.Binding {
 		t.Fatal("another receipt key must bind another journal")
+	}
+	reg := fresh()
+	reg.config.Network, reg.config.Genesis = "regtest", su.RegtestGenesis
+	wantCode(t, "regtest attach", reg.px1AttachWith(px1Operator(), px1ExecutorKey, px1FakeDeps(&fakeJournal{})), "")
+	if reg.g2.checker != NewCapCheckerFor("regtest", su.RegtestGenesis) {
+		t.Fatalf("cap checker not pinned to the regtest wallet network: %#v", reg.g2.checker)
+	}
+}
+
+// Claim: the production attach (px1Attach) consumes exactly the frozen S2/S3
+// entry points (OpenJournalV2, FoldLedgerV2, UTCDay, NewCanary) and returns the
+// first failing one's refusal unchanged, leaving the wallet on W2. A wallet
+// with no observer node makes the product canary constructor refuse, so the
+// attach must report that same code; the fake-backed neighbour attaches.
+// Limit: the code itself belongs to S3 (PX1_NOT_IMPLEMENTED while the S3
+// stubs are present, RPC_UNAVAILABLE once NewCanary is implemented); this test
+// pins only S1's propagation, so it holds on S1's branch and composed with S3.
+func TestPX1WalletAttachProductDeps(t *testing.T) {
+	d := px1ProductDeps()
+	for _, f := range []struct {
+		name       string
+		got, would any
+	}{
+		{"openJournal", d.openJournal, OpenJournalV2},
+		{"fold", d.fold, FoldLedgerV2},
+		{"day", d.day, UTCDay},
+		{"canary", d.canary, NewCanary},
+	} {
+		if f.got == nil || reflect.ValueOf(f.got).Pointer() != reflect.ValueOf(f.would).Pointer() {
+			t.Fatalf("product deps: %s is not the frozen entry point", f.name)
+		}
+	}
+	op := px1Operator()
+	_, canaryErr := NewCanary(nil, op.Canary)
+	if canaryErr == nil {
+		t.Fatal("precondition: the product canary constructor admitted a wallet without an observer node")
+	}
+	w := &Wallet{config: Config{Network: "main", Genesis: su.MainGenesis, StateDir: t.TempDir()}, state: state{Version: 1, Binding: Hash([]byte("w")), Records: []Record{}}}
+	wantCode(t, "product deps", w.px1Attach(op, px1ExecutorKey), canaryErr.Error())
+	if w.g2 != nil || w.PX1Journal() != nil {
+		t.Fatal("refused product attach left a G2 profile")
+	}
+	wantCode(t, "fake neighbour", w.px1AttachWith(op, px1ExecutorKey, px1FakeDeps(&fakeJournal{})), "")
+	if w.g2 == nil {
+		t.Fatal("fake neighbour left the wallet on W2")
 	}
 }
 

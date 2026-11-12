@@ -26,9 +26,13 @@ G2 profile, or `OpenActionService` refuses and returns the attach error
 unchanged after closing the wallet. It never returns a W2 wallet for a G2
 config. A wallet whose W2 `wallet.json` already has records is never continued
 under G2 (`SERVICE_PROFILE`). An attach that reports success but leaves the
-wallet on W2 also refuses `SERVICE_PROFILE`. Until S2 and S3 land, the product
-constructors (`OpenJournalV2`, `NewCanary`) are stubs, so a service with a
-`g2` block refuses to start with `PX1_NOT_IMPLEMENTED`.
+wallet on W2 also refuses `SERVICE_PROFILE`. The attach returns the first
+failing product constructor's refusal unchanged (`px1ProductDeps` is exactly
+`OpenJournalV2`, `FoldLedgerV2`, `UTCDay` and `NewCanary`). While the S2 and S3
+stubs are present, a service with a `g2` block therefore refuses to start with
+`PX1_NOT_IMPLEMENTED`; once they land, it refuses with their own code (for
+example `RPC_UNAVAILABLE` from `NewCanary` without an observer node) or
+attaches.
 
 The call site in `service.go` (an S2 file) is one changed line:
 `openWallet(wc)` became `px1OpenServiceWallet(wc, c, key)`. PR 76 revision 2
@@ -102,27 +106,34 @@ operator block lowers values and never raises one (LIP-0008).
 - The function re-checks the budget binding (`CONTRACT_BUDGET`) and the
   operator block (`SERVICE_CONFIG`) as defence in depth.
 
-## Cap checker (`NewCapChecker`)
+## Cap checker (`NewCapCheckerFor`)
 
-Every method is pure: it makes no node call and no write.
+Every caller, the wallet included, builds its checker with the frozen
+`NewCapCheckerFor(network, genesis)` (freeze amendment 1, A4). The wallet
+passes its own config `network`/`genesis` when it attaches to G2. The frozen
+wrapper refuses `NETWORK_PIN` on every method unless network/genesis is a
+pinned pair, then applies the S1 rules of `NewCapChecker()` below. Every
+method is pure: it makes no node call and no write.
 
 | Method | Order of refusals |
 | --- | --- |
-| `CheckExecutor` | `TERMS_EXECUTOR_MISMATCH` if the receipt key is invalid or differs |
-| `CheckRecipient` | `allow`: exact string membership. `any`: a canonical P2PKH. Otherwise `ADDRESS_NOT_ALLOWED` |
-| `CheckPrePlan` | `AMOUNT_DUST` (below 546), `TRANSFER_CAP_EXCEEDED` (amount + fee_limit), then `TOTAL_BUDGET_EXCEEDED`, `SPEND_BUDGET_EXCEEDED`, `DAY_CAP_EXCEEDED`, `DAY_COUNT_EXCEEDED` on the amount alone |
-| `CheckPostPlan` | `FEE_LIMIT`, `FEE_CAP_EXCEEDED`, `TRANSFER_CAP_EXCEEDED`, then the same four cumulative caps on amount + actual fee |
+| `CheckExecutor` | `NETWORK_PIN`; `TERMS_EXECUTOR_MISMATCH` if the receipt key is invalid or differs |
+| `CheckRecipient` | `NETWORK_PIN`; `ADDRESS_NOT_ALLOWED` unless the address is a canonical P2PKH of the pinned network; then `allow`: exact string membership, `any`: admitted. Any other mode: `ADDRESS_NOT_ALLOWED` |
+| `CheckPrePlan` | `NETWORK_PIN`; `AMOUNT_DUST` (below 546), `TRANSFER_CAP_EXCEEDED` (amount + fee_limit), then `TOTAL_BUDGET_EXCEEDED`, `SPEND_BUDGET_EXCEEDED`, `DAY_CAP_EXCEEDED`, `DAY_COUNT_EXCEEDED` on the amount alone |
+| `CheckPostPlan` | `NETWORK_PIN`; `FEE_LIMIT`, `FEE_CAP_EXCEEDED`, `TRANSFER_CAP_EXCEEDED`, then the same four cumulative caps on amount + actual fee |
 
 `CheckPrePlan` and `CheckPostPlan` refuse `STATE_UNAVAILABLE` for an intent
 that cannot belong to the limits: a nil ledger, another grant, a malformed UTC
 day, or an out-of-range amount or fee limit. A nil error means "within
 limits", never "authorized".
 
-The frozen `NewCapChecker()` is not bound to a network. In `any` mode it
-admits a canonical P2PKH of exactly one pinned network (the main and regtest
-prefixes are disjoint). The wallet always uses the bound form
-`newCapCheckerFor(network, genesis)`, which admits only the service network.
-S1 has proposed a freeze amendment that exposes the bound form.
+The frozen `NewCapChecker()` carries no network. It stays because
+`NewCapCheckerFor` wraps it, and it is deprecated for callers. Its
+`CheckRecipient` admits no `any`-mode recipient at all, whatever the address
+(`ADDRESS_NOT_ALLOWED`), so a caller that passes no network never gets an
+allow-all checker. Its `allow` mode keeps exact string membership. Before
+amendment 1 it admitted a canonical main or regtest P2PKH in `any` mode, and
+the wallet used an unexported bound form; both are gone.
 
 ## Wallet-layer spend path (G2)
 
@@ -164,9 +175,20 @@ Wallet-layer records use these values:
 - `last_time` is the wallet clock.
 
 The journal lives in the wallet `state_dir` under the lock
-`journal-v2.lock`. Its header binding is
-`SHA256(canonical({domain, wallet_binding, receipt_key}))`, so a second
-executor key never adopts another executor's debits.
+`journal-v2.lock`. Its header is
+`{version: 2, layer: "wallet", binding, receipt_key}`:
+
+- `binding` is `SHA256(canonical({domain, wallet_binding, receipt_key}))`, so
+  a second executor key never adopts another executor's debits.
+- `receipt_key` (freeze amendment 1, A5) is this executor's 64-hex x-only
+  receipt key, the one that signs the service receipts. It is the only key
+  whose reconcile records (`VerifyReconcileV2` over `ReconcileDigestV2`)
+  release a debit in this journal.
+
+The attach compares the whole header the journal reports with the one it
+asked for. A journal written without `receipt_key` (before amendment 1) or
+under another key refuses `JOURNAL_SEGMENT`, so the reconcile key is pinned
+on disk.
 
 ## Budget read under G2
 
@@ -189,6 +211,13 @@ budget.
   genuine Namecoin Core 28 regtest node, with the genuine K1 kernel under the
   W construction profile. Until S2/S3 land, the journal, fold, day and canary
   are fakes.
+- **Freeze amendment 1 migration:** `TestPX1WalletAttach` (the header carries
+  `receipt_key`; a keyless or other-key journal refuses `JOURNAL_SEGMENT`;
+  the checker is `NewCapCheckerFor` of the wallet network, main and regtest),
+  `TestPX1WalletAttachProductDeps` (the production attach uses exactly the
+  frozen S2/S3 entry points and returns their refusal unchanged, on this branch
+  and composed with S2/S3), `TestPX1WalletRecipientAnyMode` (phase-2 any mode
+  at the wallet layer) and `TestPX1NetworklessCapCheckerAnyMode`.
 - **Service opener:** `px1_service_test.go`. It covers profile selection at the
   public `OpenActionService` boundary. There is a unit test with installed
   files and no node call. There is also a genuine Core 28 pair adapted from

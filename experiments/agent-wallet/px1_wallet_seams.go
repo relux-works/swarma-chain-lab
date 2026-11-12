@@ -89,7 +89,10 @@ func (w *Wallet) px1AttachWith(op G2OperatorConfig, receiptKey string, deps px1D
 	if canary == nil || !canary.Excluded(op.Canary.Outpoint) {
 		return fail("SERVICE_CONFIG")
 	}
-	header := JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: px1WalletBinding(w.state.Binding, receiptKey)}
+	// The wallet-layer header carries this executor's x-only receipt key: it
+	// signs the journal's reconcile records (VerifyReconcileV2), and the whole
+	// header comparison below pins it on disk (freeze amendment 1, A5).
+	header := JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: px1WalletBinding(w.state.Binding, receiptKey), ReceiptKey: receiptKey}
 	j, e := deps.openJournal(w.config.StateDir, px1WalletJournalLock, header, JournalLimitsV2{SpendCapacity: op.JournalSpendCapacity, SegmentMaxRecords: px1SegmentMaxRecords, SegmentMaxBytes: px1SegmentMaxBytes})
 	if e != nil {
 		return e
@@ -100,7 +103,7 @@ func (w *Wallet) px1AttachWith(op G2OperatorConfig, receiptKey string, deps px1D
 		}
 		return fail(CodeJournalSegment)
 	}
-	w.g2 = &px1Wallet{operator: op, receiptKey: receiptKey, journal: j, canary: canary, checker: newCapCheckerFor(w.config.Network, w.config.Genesis), deps: deps}
+	w.g2 = &px1Wallet{operator: op, receiptKey: receiptKey, journal: j, canary: canary, checker: NewCapCheckerFor(w.config.Network, w.config.Genesis), deps: deps}
 	return nil
 }
 

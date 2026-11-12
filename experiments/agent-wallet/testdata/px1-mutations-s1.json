@@ -100,11 +100,11 @@
   },
   {
     "Name": "s1-recipient-any-bound",
-    "File": "px1_terms.go",
-    "Old": "if _, e := addressScriptForNetwork(address, c.network, c.genesis); e == nil {",
-    "New": "if true {",
-    "Selector": "TestPX1RecipientAnyMode",
-    "Marker": "want ADDRESS_NOT_ALLOWED",
+    "File": "px1_wallet_seams.go",
+    "Old": "checker: NewCapCheckerFor(w.config.Network, w.config.Genesis)",
+    "New": "checker: NewCapCheckerFor(\"main\", su.MainGenesis)",
+    "Selector": "TestPX1WalletAttach",
+    "Marker": "cap checker not pinned to the regtest wallet network",
     "Core": false
   },
   {
@@ -439,5 +439,86 @@
     "Selector": "TestPX1CoreServiceG2FailClosed",
     "Marker": "G2_PROFILE_FALLTHROUGH",
     "Core": true
+  },
+  {
+    "Name": "s1-attach-receipt-key-unset",
+    "File": "px1_wallet_seams.go",
+    "Old": "Binding: px1WalletBinding(w.state.Binding, receiptKey), ReceiptKey: receiptKey}",
+    "New": "Binding: px1WalletBinding(w.state.Binding, receiptKey)}",
+    "Selector": "TestPX1WalletAttach/header-keyless",
+    "Marker": "header-keyless: want JOURNAL_SEGMENT",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-receipt-key-other",
+    "File": "px1_wallet_seams.go",
+    "Old": "Binding: px1WalletBinding(w.state.Binding, receiptKey), ReceiptKey: receiptKey}",
+    "New": "Binding: px1WalletBinding(w.state.Binding, receiptKey), ReceiptKey: w.state.Binding}",
+    "Selector": "TestPX1WalletAttach/header-same-exact",
+    "Marker": "header-same-exact: want accepted got JOURNAL_SEGMENT",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-checker-unpinned",
+    "File": "px1_wallet_seams.go",
+    "Old": "checker: NewCapCheckerFor(w.config.Network, w.config.Genesis)",
+    "New": "checker: NewCapChecker()",
+    "Selector": "TestPX1WalletRecipientAnyMode",
+    "Marker": "any-mode main outsider: want executed",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-checker-empty-pin",
+    "File": "px1_wallet_seams.go",
+    "Old": "checker: NewCapCheckerFor(w.config.Network, w.config.Genesis)",
+    "New": "checker: NewCapCheckerFor(\"\", \"\")",
+    "Selector": "TestPX1WalletAttach",
+    "Marker": "cap checker not pinned to the wallet network",
+    "Core": false
+  },
+  {
+    "Name": "s1-networkless-any-admits-all",
+    "File": "px1_terms.go",
+    "Old": "// Networkless rules admit no any-mode recipient (freeze amendment 1).",
+    "New": "return nil //",
+    "Selector": "TestPX1NetworklessCapCheckerAnyMode",
+    "Marker": "networkless any main: want ADDRESS_NOT_ALLOWED",
+    "Core": false
+  },
+  {
+    "Name": "s1-networkless-any-main-or-regtest",
+    "File": "px1_terms.go",
+    "Old": "// Networkless rules admit no any-mode recipient (freeze amendment 1).",
+    "New": "for _, n := range [][2]string{{\"main\", su.MainGenesis}, {\"regtest\", su.RegtestGenesis}} { if _, e := addressScriptForNetwork(address, n[0], n[1]); e == nil { return nil } } //",
+    "Selector": "TestPX1NetworklessCapCheckerAnyMode",
+    "Marker": "networkless any main: want ADDRESS_NOT_ALLOWED",
+    "Core": false
+  },
+  {
+    "Name": "s1-networkless-any-regtest",
+    "File": "px1_terms.go",
+    "Old": "// Networkless rules admit no any-mode recipient (freeze amendment 1).",
+    "New": "if _, e := addressScriptForNetwork(address, \"regtest\", su.RegtestGenesis); e == nil { return nil } //",
+    "Selector": "TestPX1NetworklessCapCheckerAnyMode",
+    "Marker": "networkless any regtest: want ADDRESS_NOT_ALLOWED",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-product-canary-swapped",
+    "File": "px1_wallet_seams.go",
+    "Old": "return px1Deps{openJournal: OpenJournalV2, fold: FoldLedgerV2, day: UTCDay, canary: NewCanary}",
+    "New": "return px1Deps{openJournal: OpenJournalV2, fold: FoldLedgerV2, day: UTCDay, canary: func(su.Node, CanaryConfig) (Canary, error) { return nil, fail(\"SERVICE_CONFIG\") }}",
+    "Selector": "TestPX1WalletAttachProductDeps",
+    "Marker": "product deps: canary is not the frozen entry point",
+    "Core": false
+  },
+  {
+    "Name": "s1-attach-product-refusal-substituted",
+    "File": "px1_wallet_seams.go",
+    "Old": "canary, e := deps.canary(w.node, op.Canary)\n\tif e != nil {\n\t\treturn e\n\t}",
+    "New": "canary, e := deps.canary(w.node, op.Canary)\n\tif e != nil {\n\t\treturn fail(\"SERVICE_CONFIG\")\n\t}",
+    "Selector": "TestPX1WalletAttachProductDeps",
+    "Marker": "product deps: want",
+    "Core": false
   }
 ]

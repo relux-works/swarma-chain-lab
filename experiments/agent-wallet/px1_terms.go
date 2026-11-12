@@ -155,20 +155,17 @@ func EffectiveLimitsFor(g Grant, t TermsV2, c G2OperatorConfig) (EffectiveLimits
 	}, nil
 }
 
-// capChecker implements CapChecker. network/genesis bind any-mode recipients
-// to one pinned network; the zero value (NewCapChecker) admits a canonical
-// P2PKH of exactly one pinned network and relies on the caller's own network
-// binding (wire parse and plan), which the wallet always applies.
-type capChecker struct{ network, genesis string }
+// capChecker holds the S1 cap rules behind CapChecker. It carries no network:
+// every caller, the wallet included, builds its checker with the frozen
+// NewCapCheckerFor(network, genesis) (freeze amendment 1, A4), which pins the
+// network, requires a canonical P2PKH of that network and decides any-mode
+// recipients itself before it delegates to these rules.
+type capChecker struct{}
 
-// NewCapChecker returns the PX1 cap checker.
+// NewCapChecker returns the networkless S1 cap rules. It is deprecated for
+// callers (use NewCapCheckerFor, which wraps it). Without a network it admits
+// no any-mode recipient; allow mode keeps exact membership.
 func NewCapChecker() CapChecker { return capChecker{} }
-
-// newCapCheckerFor returns a checker whose any-mode recipient check is bound
-// to the given pinned network. The wallet G2 path always uses this form.
-func newCapCheckerFor(network, genesis string) CapChecker {
-	return capChecker{network: network, genesis: genesis}
-}
 
 func (capChecker) CheckExecutor(t TermsV2, receiptKey string) error {
 	if !validXOnly(receiptKey) || t.ExecutorKey != receiptKey {
@@ -177,26 +174,17 @@ func (capChecker) CheckExecutor(t TermsV2, receiptKey string) error {
 	return nil
 }
 
-func (c capChecker) CheckRecipient(l EffectiveLimits, address string) error {
+func (capChecker) CheckRecipient(l EffectiveLimits, address string) error {
 	switch l.RecipientMode {
 	case RecipientModeAllow:
 		if slices.Contains(l.Recipients, address) {
 			return nil
 		}
 	case RecipientModeAny:
-		if c.network != "" || c.genesis != "" {
-			if _, e := addressScriptForNetwork(address, c.network, c.genesis); e == nil {
-				return nil
-			}
-			break
-		}
-		// Unbound checker: main and regtest P2PKH prefixes are disjoint, so a
-		// canonical address decodes on at most one pinned network.
-		for _, n := range [][2]string{{"main", su.MainGenesis}, {"regtest", su.RegtestGenesis}} {
-			if _, e := addressScriptForNetwork(address, n[0], n[1]); e == nil {
-				return nil
-			}
-		}
+		// Networkless rules admit no any-mode recipient (freeze amendment 1).
+		// Only NewCapCheckerFor, which pins the network, admits any-mode
+		// recipients, and only canonical P2PKH addresses of that network.
+		return fail(CodeAddressNotAllowed)
 	}
 	return fail(CodeAddressNotAllowed)
 }
