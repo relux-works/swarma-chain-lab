@@ -44,7 +44,11 @@ func g2ClientMemberValue(t *testing.T, raw []byte, member string) string {
 // that (absent) file with PUBLIC_FILE. Nothing reaches a signing key, socket or
 // network: the request file is absent and the resolved key path does not exist.
 // Limit: one rendering (the main fixture parameters) and this checkout's
-// agent-wallet source, built as a subprocess; deploy does not import it.
+// agent-wallet source, built as a subprocess; deploy does not import it. It
+// skips only where GOPROXY=off and the agent-wallet dependency modules are not
+// in the module cache (a job that downloads only deploy's own dependencies);
+// the deploy workflow downloads them for agent-wallet, a release module. A
+// skip is never a plant kill, and any other build failure fails.
 func TestPX1S5ClientConsumerPlaceholders(t *testing.T) {
 	goBin, e := exec.LookPath("go")
 	if e != nil {
@@ -70,6 +74,9 @@ func TestPX1S5ClientConsumerPlaceholders(t *testing.T) {
 	}
 	build.Env = append(build.Env, "GOWORK=off")
 	if out, e := build.CombinedOutput(); e != nil {
+		if os.Getenv("GOPROXY") == "off" && bytes.Contains(out, []byte("module lookup disabled by GOPROXY=off")) {
+			t.Skipf("G2_CLIENT_CONSUMER_SKIP agent-wallet dependencies are not in the module cache and GOPROXY=off forbids fetching them: %v\n%s", e, out)
+		}
 		t.Fatalf("G2_CLIENT_CONSUMER_SETUP build agent-wallet: %v\n%s", e, out)
 	}
 

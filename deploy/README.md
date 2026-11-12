@@ -147,9 +147,11 @@ placeholders and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
   directory and runs it on the rendered `client.json`. This is a subprocess;
   `deploy` does not import agent-wallet. An unresolved UID, an unresolved key
   path, or both, must be refused with `CLIENT_CONFIG`, and the resolved file
-  must pass the loader. It reads no key and opens no socket. It needs the
-  agent-wallet dependencies in the module cache, which the deploy workflow
-  downloads.
+  must pass the loader. It reads no key and opens no socket. It skips, and
+  says so, only where `GOPROXY=off` and the agent-wallet dependencies are not
+  in the module cache, as in the gateway-auth-model job, which downloads only
+  deploy's and rental-gateway's. The deploy workflow downloads them, because
+  agent-wallet is a release module, and so runs the test.
 - `W1_MUTATIONS=1 W1_MUTATION_ROOT=/abs/new-dir W1_CORE_DAEMON=/abs/namecoind go
   test -count=1 -timeout 30m -run '^TestPX1S5GuardPlants$' .` runs the S5
   narrowing plants in `testdata/px1-mutations-s5.json`. Each plant must fail its
