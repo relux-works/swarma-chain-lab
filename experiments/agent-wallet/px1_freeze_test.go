@@ -64,6 +64,8 @@ func TestPX1FieldOrder(t *testing.T) {
 		{JournalRecordV2{}, "seq kind grant_id nonce request_hash action phase reserved_sat fee_sat day inputs txid created last_time service track reconcile"},
 		{JournalSegmentV2{}, "header index prev_sha256 first_seq records"},
 		{ReconcileRecordV2{}, "target_seq evidence height block_hash conflict_txid released_sat note_sha256 signature"},
+		{JournalHeaderV2{}, "version layer binding receipt_key"},
+		{ReconcilePreimageV2{}, "binding grant_id nonce seq reconcile"},
 		{StatusProjectionV1{}, "v service network receipt_key generated_at poisoned tip grants payments float canary journal refusals alerts"},
 	} {
 		if got := strings.Join(px1JSONTags(reflect.TypeOf(c.v)), " "); got != c.want {
@@ -148,7 +150,7 @@ func TestPX1CodesBounded(t *testing.T) {
 	if safeCode(ErrNotImplemented) != "PX1_NOT_IMPLEMENTED" {
 		t.Fatal("sentinel is not a bounded wire code")
 	}
-	for _, c := range []string{CodeTermsVersionRequired, CodeTermsExecutorMismatch, CodeTermsNetwork, CodeTermsRecipientMode, CodeSingleUseDisabled, CodeAmountDust, CodeTransferCapExceeded, CodeDayCapExceeded, CodeDayCountExceeded, CodeFeeCapExceeded, CodeJournalCapacity, CodeJournalSegment, CodeClockRollback, CodeReadRateLimited, CodeFloatCanarySpent, CodeStateReconcileRequired, CodeReconcileRateLimited, CodeReconcileEvidence, AlertCanarySpent, AlertPaymentConflicted, AlertUncertainVerdict, AlertJournalHighWater, AlertClockRollback, AlertSealClosed, AlertFloatLow, AlertFloatExcess} {
+	for _, c := range []string{CodeTermsVersionRequired, CodeTermsExecutorMismatch, CodeTermsNetwork, CodeTermsRecipientMode, CodeSingleUseDisabled, CodeAmountDust, CodeTransferCapExceeded, CodeDayCapExceeded, CodeDayCountExceeded, CodeFeeCapExceeded, CodeJournalCapacity, CodeJournalSegment, CodeClockRollback, CodeReadRateLimited, CodeReconcileAuthorization, CodeFloatCanarySpent, CodeStateReconcileRequired, CodeReconcileRateLimited, CodeReconcileEvidence, AlertCanarySpent, AlertPaymentConflicted, AlertUncertainVerdict, AlertJournalHighWater, AlertClockRollback, AlertSealClosed, AlertFloatLow, AlertFloatExcess} {
 		if safeCode(errors.New(c)) != c {
 			t.Fatalf("%s is not bounded", c)
 		}

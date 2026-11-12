@@ -58,7 +58,7 @@ func px1StatusFixture() StatusProjectionV1 {
 	return StatusProjectionV1{
 		Version: StatusProjectionVersion, Service: WalletServiceID, Network: "main", ReceiptKey: px1ExecutorKey, GeneratedAt: 1794000600, Poisoned: false,
 		Tip:      StatusTip{Height: 851302, Hash: strings.Repeat("f", 64), ObservedAt: 1794000590},
-		Grants:   []StatusGrant{{GrantID: strings.Repeat("a", 64), TotalCapSat: 500000, SpendCapSat: 500000, TransferCapSat: 100000, DayCapSat: 300000, DayCountCap: 5, SpentSat: 64600, ReservedSat: 64600, UncertainSat: 0, ReleasedSat: 0, TotalRemainingSat: 435400, Day: "2026-11-12", DayUsedSat: 64600, DayCount: 1, DayRemainingSat: 235400, DayCountRemaining: 4, Seal: StatusSealCheck{Verdict: "live", Reason: "LIVE", Height: 851302, At: 1794000590}}},
+		Grants:   []StatusGrant{{GrantID: strings.Repeat("a", 64), TotalCapSat: 500000, SpendCapSat: 500000, TransferCapSat: 100000, DayCapSat: 300000, DayCountCap: 5, SpentSat: 64600, ReservedSat: 64600, UncertainSat: 0, ReleasedSat: 0, TotalRemainingSat: 435400, Day: "2026-11-06", DayUsedSat: 64600, DayCount: 1, DayRemainingSat: 235400, DayCountRemaining: 4, Seal: StatusSealCheck{Verdict: "live", Reason: "LIVE", Height: 851302, At: 1794000590}}},
 		Payments: StatusPayments{Pending: 0, Confirmed: 1, Conflicted: 0, Items: []TrackedPayment{pay}},
 		Float:    FloatReading{BalanceSat: 1935400, MaxFloatSat: 2000000, LowFloatSat: 500000, State: "ok"},
 		Canary:   StatusCanary{Outpoint: su.Point{TxID: strings.Repeat("c", 64), Vout: 0}, ValueSat: 10000, State: CanaryUnspent, At: 1794000590},

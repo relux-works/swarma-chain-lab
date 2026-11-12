@@ -1,0 +1,101 @@
+[
+  {
+    "Name": "s0-a4-unpinned-network",
+    "File": "px1_terms_api.go",
+    "Old": "if !su.NetworkPinned(c.network, c.genesis) {",
+    "New": "if false && !su.NetworkPinned(c.network, c.genesis) {",
+    "Selector": "TestPX1CapCheckerNoNetworkRefuses",
+    "Marker": "no network",
+    "Core": false
+  },
+  {
+    "Name": "s0-a4-recipient-other-network",
+    "File": "px1_terms_api.go",
+    "Old": "if _, e := addressScriptForNetwork(address, c.network, c.genesis); e != nil {",
+    "New": "if _, e := addressScriptForNetwork(address, c.network, c.genesis); false && e != nil {",
+    "Selector": "TestPX1CapCheckerForNetwork",
+    "Marker": "main-any-regtest",
+    "Core": false
+  },
+  {
+    "Name": "s0-a4-public-pin-substitution",
+    "File": "px1_terms_api.go",
+    "Old": "\treturn newPinnedCapChecker(network, genesis, NewCapChecker())\n",
+    "New": "\tif network == \"regtest\" && genesis == su.RegtestGenesis {\n\t\tnetwork, genesis = \"main\", su.MainGenesis\n\t}\n\treturn newPinnedCapChecker(network, genesis, NewCapChecker())\n",
+    "Selector": "TestPX1PublicCapCheckerPin",
+    "Marker": "public-regtest-any-regtest",
+    "Core": false
+  },
+  {
+    "Name": "s0-a4-public-empty-pin-defaults",
+    "File": "px1_terms_api.go",
+    "Old": "\treturn newPinnedCapChecker(network, genesis, NewCapChecker())\n",
+    "New": "\tif network == \"\" {\n\t\tnetwork, genesis = \"main\", su.MainGenesis\n\t}\n\treturn newPinnedCapChecker(network, genesis, NewCapChecker())\n",
+    "Selector": "TestPX1PublicCapCheckerPin",
+    "Marker": "without a valid pin \"\"/\"\"",
+    "Core": false
+  },
+  {
+    "Name": "s0-a5-empty-receipt-key-skips",
+    "File": "px1_journal_api.go",
+    "Old": "\tif !hexN(h.ReceiptKey, 32) {\n\t\treturn fail(CodeReconcileAuthorization)\n\t}",
+    "New": "\tif h.ReceiptKey == \"\" {\n\t\treturn nil\n\t}\n\tif !hexN(h.ReceiptKey, 32) {\n\t\treturn fail(CodeReconcileAuthorization)\n\t}",
+    "Selector": "TestPX1ReconcileReceiptKey",
+    "Marker": "empty receipt key",
+    "Core": false
+  },
+  {
+    "Name": "s0-a5-receipt-key-json-name",
+    "File": "px1_journal_api.go",
+    "Old": "`json:\"receipt_key\"`",
+    "New": "`json:\"receiptKey\"`",
+    "Selector": "TestPX1JournalHeaderReceiptKey",
+    "Marker": "header bytes drifted",
+    "Core": false
+  },
+  {
+    "Name": "s0-a6-drop-binding",
+    "File": "px1_journal_api.go",
+    "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+    "New": "\tp := ReconcilePreimageV2{GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+    "Selector": "TestPX1ReconcileBinding/cross-journal",
+    "Marker": "release signed for journal A verified in journal B",
+    "Core": false
+  },
+  {
+    "Name": "s0-a6-drop-grant-id",
+    "File": "px1_journal_api.go",
+    "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+    "New": "\tp := ReconcilePreimageV2{Binding: h.Binding, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+    "Selector": "TestPX1ReconcileBinding/cross-grant",
+    "Marker": "release moved to another grant_id",
+    "Core": false
+  },
+  {
+    "Name": "s0-a6-drop-nonce",
+    "File": "px1_journal_api.go",
+    "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+    "New": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+    "Selector": "TestPX1ReconcileBinding/cross-nonce",
+    "Marker": "release moved to another nonce",
+    "Core": false
+  },
+  {
+    "Name": "s0-a6-drop-seq",
+    "File": "px1_journal_api.go",
+    "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+    "New": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Reconcile: *rec.Reconcile}",
+    "Selector": "TestPX1ReconcileBinding/cross-seq",
+    "Marker": "release moved to another seq",
+    "Core": false
+  },
+  {
+    "Name": "s0-a8-status-in-wallet-dir",
+    "File": "px1_observe_api.go",
+    "Old": "StatusSocketDir     = \"/run/swarma-wallet-status\"",
+    "New": "StatusSocketDir     = \"/run/swarma-wallet\"",
+    "Selector": "TestPX1StatusSocketSplit",
+    "Marker": "agent-facing path shares a directory with the status socket",
+    "Core": false
+  }
+]
