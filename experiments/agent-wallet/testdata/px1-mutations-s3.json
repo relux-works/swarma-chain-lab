@@ -1,0 +1,299 @@
+[
+ {
+  "Name": "px1-s3-confirm-before-k",
+  "File": "px1_observe.go",
+  "Old": "case o.present && o.depth >= int64(t.cfg.ConfirmationsK):",
+  "New": "case o.present && o.depth >= int64(t.cfg.ConfirmationsK)-1:",
+  "Selector": "TestPX1TrackerConfirmsAtK",
+  "Marker": "confirmed before K",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-ignore-input-conflict",
+  "File": "px1_observe.go",
+  "Old": "\t\tcase o.conflict:\n",
+  "New": "\t\tcase false && o.conflict:\n",
+  "Selector": "TestPX1TrackerReorgThenConflict",
+  "Marker": "conflicting spend not detected",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-conflict-on-any-spend",
+  "File": "px1_observe.go",
+  "Old": "if in.TxID != \"\" && want[su.Point{TxID: in.TxID, Vout: in.Vout}] {",
+  "New": "if in.TxID != \"\" {",
+  "Selector": "TestPX1TrackerReorgThenConflict",
+  "Marker": "conflicting spend not detected",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-absent-one-block-late",
+  "File": "px1_observe.go",
+  "Old": "tip.Height-p.MissingSince >= int64(t.cfg.ConflictBlocksN)",
+  "New": "tip.Height-p.MissingSince > int64(t.cfg.ConflictBlocksN)",
+  "Selector": "TestPX1TrackerAbsentForNBlocks",
+  "Marker": "absent payment not conflicted after N blocks",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-absent-one-block-early",
+  "File": "px1_observe.go",
+  "Old": "tip.Height-p.MissingSince >= int64(t.cfg.ConflictBlocksN)",
+  "New": "tip.Height-p.MissingSince >= int64(t.cfg.ConflictBlocksN)-1",
+  "Selector": "TestPX1TrackerAbsentForNBlocks",
+  "Marker": "absent payment conflicted before N blocks",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-own-spend-is-conflict",
+  "File": "px1_observe.go",
+  "Old": "\tif spender == p.TxID {\n",
+  "New": "\tif false && spender == p.TxID {\n",
+  "Selector": "TestPX1TrackerMinedWithoutIndex",
+  "Marker": "own spend mistaken for a conflict",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-tip-move-ignored",
+  "File": "px1_observe.go",
+  "Old": "\tif after != tip {\n",
+  "New": "\tif false && after != tip {\n",
+  "Selector": "TestPX1TrackerTipMoved",
+  "Marker": "tip move during the pass not detected",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-stale-block-present",
+  "File": "px1_observe.go",
+  "Old": "\tdefault:\n\t\treturn false, 0, nil\n\t}\n}",
+  "New": "\tdefault:\n\t\treturn true, 0, nil\n\t}\n}",
+  "Selector": "TestPX1TrackerTipMoved",
+  "Marker": "stale-block transaction treated as present",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-outage-counts-absent",
+  "File": "px1_observe.go",
+  "Old": "return e != nil && (e.Error() == \"RPC_REMOTE_ERROR\" || e.Error() == \"RPC_REMOTE_REFUSAL\")",
+  "New": "return e != nil",
+  "Selector": "TestPX1TrackerNodeFailure",
+  "Marker": "unreachable node counted as absence",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-reload-tracks-refused",
+  "File": "px1_observe.go",
+  "Old": "\t\tif q.phase == RecordRefuseRetained {\n\t\t\tcontinue\n\t\t}\n",
+  "New": "",
+  "Selector": "TestPX1TrackerReload",
+  "Marker": "reload set wrong",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-enqueue-overwrites",
+  "File": "px1_observe.go",
+  "Old": "\t\treturn fail(\"TRACKER_PAYMENT\")\n\t}\n\tif len(t.payments) >= px1MaxTracked {",
+  "New": "\t\treturn nil\n\t}\n\tif len(t.payments) >= px1MaxTracked {",
+  "Selector": "TestPX1TrackerEnqueue",
+  "Marker": "bad payment 0 accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-not-sticky",
+  "File": "px1_observe.go",
+  "Old": "\tif c.spent {\n\t\treturn CanarySpent, nil\n\t}\n",
+  "New": "",
+  "Selector": "TestPX1CanaryStates",
+  "Marker": "spent canary must stay spent after it reappears",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-value-unchecked",
+  "File": "px1_observe.go",
+  "Old": "\tif value != c.cfg.ValueSat {\n",
+  "New": "\tif false && value != c.cfg.ValueSat {\n",
+  "Selector": "TestPX1CanaryStates",
+  "Marker": "canary with another value read as",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-exclude-txid-only",
+  "File": "px1_observe.go",
+  "Old": "func (c *px1Canary) Excluded(p su.Point) bool { return p == c.cfg.Outpoint }",
+  "New": "func (c *px1Canary) Excluded(p su.Point) bool { return p.TxID == c.cfg.Outpoint.TxID }",
+  "Selector": "TestPX1CanaryStates",
+  "Marker": "canary exclusion wrong",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-float-low-inclusive",
+  "File": "px1_observe.go",
+  "Old": "\tcase r.BalanceSat < f.low:\n",
+  "New": "\tcase r.BalanceSat <= f.low:\n",
+  "Selector": "TestPX1FloatMonitor",
+  "Marker": "float boundary",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-reconcile-unknown-send",
+  "File": "px1_observe.go",
+  "Old": "if category == \"send\" && !known[txid] {",
+  "New": "if category == \"send\" && !known[txid] && false {",
+  "Selector": "TestPX1ReconcilerT13",
+  "Marker": "unknown send accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-reconcile-first-page-only",
+  "File": "px1_observe.go",
+  "Old": "\t\tif len(rows) < px1ReconcilePage {\n",
+  "New": "\t\tif true {\n",
+  "Selector": "TestPX1ReconcilerT13",
+  "Marker": "unknown send on page two accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-reconcile-unbounded",
+  "File": "px1_observe.go",
+  "Old": "\treturn fail(CodeStateReconcileRequired)\n}\n\n// ---",
+  "New": "\treturn nil\n}\n\n// ---",
+  "Selector": "TestPX1ReconcilerT13",
+  "Marker": "unbounded history accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-alert-detail-unredacted",
+  "File": "px1_observe.go",
+  "Old": "\tif !px1DetailSafe(a.Detail) {\n",
+  "New": "\tif false {\n",
+  "Selector": "TestPX1LogAlertSink",
+  "Marker": "alert lines not bounded",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-day-rule-terminal-only",
+  "File": "px1_observe.go",
+  "Old": "if retained > 0 && (nonTerminal || q.day == day) {",
+  "New": "if retained > 0 && (false && nonTerminal || q.day == day) {",
+  "Selector": "TestPX1StatusDayRule",
+  "Marker": "day rule wrong",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-release-ignored",
+  "File": "px1_observe.go",
+  "Old": "\t\tretained := q.reserved - q.released\n",
+  "New": "\t\tretained := q.reserved\n",
+  "Selector": "TestPX1StatusDayRule",
+  "Marker": "day rule wrong",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-over-release",
+  "File": "px1_observe.go",
+  "Old": "r.Reconcile.ReleasedSat > q.reserved-q.released {",
+  "New": "r.Reconcile.ReleasedSat > q.reserved {",
+  "Selector": "TestPX1StatusDayRule",
+  "Marker": "over-release accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-refusals-count-executed",
+  "File": "px1_observe.go",
+  "Old": "r.Service.Receipt.Receipt.Verdict != \"refused\" {",
+  "New": "r.Service.Receipt.Receipt.Verdict == \"\" {",
+  "Selector": "TestPX1ProjectStatusGolden",
+  "Marker": "projection differs from the golden",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-request-loose",
+  "File": "px1_observe.go",
+  "Old": "\tif !bytes.Equal(raw, px1StatusRequest) {\n",
+  "New": "\tif len(raw) == 0 {\n",
+  "Selector": "TestPX1ServeStatus",
+  "Marker": "accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-group-shared",
+  "File": "px1_status_socket.go",
+  "Old": "gid == 0 || gid == agentGID {",
+  "New": "gid == 0 {",
+  "Selector": "TestPX1StatusSocket",
+  "Marker": "operator group equal to the agent group accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-no-poison",
+  "File": "px1_runtime.go",
+  "Old": "\tif state == CanarySpent || r.canaryLast.State == CanarySpent {\n\t\tenv.poison()\n",
+  "New": "\tif state == CanarySpent || r.canaryLast.State == CanarySpent {\n",
+  "Selector": "TestPX1RuntimeCanarySpentPoisons",
+  "Marker": "spent canary must poison every pass",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-poison-not-sticky",
+  "File": "px1_runtime.go",
+  "Old": "\tif state == CanarySpent || r.canaryLast.State == CanarySpent {\n",
+  "New": "\tif state == CanarySpent {\n",
+  "Selector": "TestPX1RuntimeCanarySpentPoisons",
+  "Marker": "a spent canary must stay spent for the runtime",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-reconcile-not-sticky",
+  "File": "px1_runtime.go",
+  "Old": "\tif r.failed != \"\" {\n\t\tenv.poison()\n\t\treturn fail(r.failed)\n\t}\n",
+  "New": "",
+  "Selector": "TestPX1RuntimeReconcileRefusal",
+  "Marker": "reconciliation refusal must poison and stay sticky",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-conflict-no-alert",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif track.State == TrackConflicted {\n",
+  "New": "\t\tif false {\n",
+  "Selector": "TestPX1RuntimeTrackRecords",
+  "Marker": "conflict alert wrong",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-unbound",
+  "File": "px1_runtime.go",
+  "Old": "if !ok || reserve.GrantID != t.Payment.GrantID || reserve.Nonce != t.Payment.Nonce || reserve.TxID != t.Payment.TxID {",
+  "New": "if false && (!ok || reserve.GrantID != t.Payment.GrantID || reserve.Nonce != t.Payment.Nonce || reserve.TxID != t.Payment.TxID) {",
+  "Selector": "TestPX1RuntimeTrackRecords",
+  "Marker": "transition without a reserve accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-highwater-every-pass",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif !r.highWater {\n",
+  "New": "\t\tif true {\n",
+  "Selector": "TestPX1RuntimeAlerts",
+  "Marker": "alerts not once per crossing",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-float-error-fails-pass",
+  "File": "px1_runtime.go",
+  "Old": "\treading, _ := r.float.Check(ctx)\n",
+  "New": "\treading, e := r.float.Check(ctx)\n\tkeep(e)\n",
+  "Selector": "TestPX1RuntimeAlerts",
+  "Marker": "status-only read failure failed the pass",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-error-ignored",
+  "File": "px1_runtime.go",
+  "Old": "\tstate, e := r.canary.Check(ctx)\n\tkeep(e)\n",
+  "New": "\tstate, _ := r.canary.Check(ctx)\n",
+  "Selector": "TestPX1RuntimeAlerts",
+  "Marker": "canary read failure must fail the pass",
+  "Core": false
+ }
+]

@@ -147,6 +147,33 @@ See [deploy wallet templates](../../deploy/templates/wallet/) and the
 instance. Provision separate users/groups/roots/ports for additional agents;
 these templates do not implement a multi-tenant wallet.
 
+## G2 operations (PX1)
+
+A service config with a `g2` block selects the G2 pay-limits profile. For
+that profile, `agent-walletd` takes three extra flags:
+
+- `-status-socket PATH`: the operator status socket, normally
+  `/run/swarma-wallet/status.sock`. Leave it empty to run without one.
+- `-status-gid GID`: the operator group of that socket. It is required with
+  `-status-socket` and must differ from `socket_gid`.
+- `-tick-seconds N`: the observation interval, 1 to 3600, default 30.
+
+Without a `g2` block, the W2 behaviour is unchanged, and the two status flags
+are refused with `SERVICE_ARGUMENTS`.
+
+Before serving, a G2 service runs one observation pass, which covers the
+canary, startup reconciliation, the tracker, the float and the seals. If that
+pass fails, the service exits with status 2 and the bounded code. Two causes
+need the operator:
+
+- `STATE_RECONCILE_REQUIRED`: a hot-wallet send that no journal record
+  carries.
+- A spent canary: it poisons the service.
+
+The hot wallet must start without sends: fund the float and the canary from
+outside it. Alerts are single `PX1_ALERT` lines on stderr. See `STATUS.md`
+for the pass, the tracker rules, the status projection and the socket.
+
 ## Evidence boundaries and checks
 
 Unit/race/vet checks use the README commands. Genuine Core socket suites are
