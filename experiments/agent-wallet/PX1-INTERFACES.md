@@ -251,6 +251,19 @@ owners review it.
   fold a reconcile set `ReceiptKey` and sign with `ReconcileDigestV2`.
 - **S4:** nothing beyond the ownership-map entries above.
 
+## Clarifications (non-normative)
+
+These notes explain the frozen contracts. They change no type, code,
+signature, fixture or test.
+
+- **`fee_limit_sat` and the transfer cap (integration).** `CheckPrePlan`
+  counts the request's `fee_limit` against the effective transfer cap, so a
+  spend can be admitted only with `fee_limit_sat <= transfer_cap_sat -
+  amount_sat`; otherwise it refuses `TRANSFER_CAP_EXCEEDED` before any node
+  call. The Cedar client's default `fee_limit_sat` is 30000, enough for a
+  1-in, 2-out spend at ~110 sat/vB (about 24,900 sat). Details:
+  `FORMAT-TERMS-V2.md`, "Request fee limit".
+
 ## Open items (not decided here)
 
 - Public cap values, the float, the bounty window and Q2 phase 2 are Ivan's.

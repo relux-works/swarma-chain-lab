@@ -251,6 +251,30 @@ service stops. A clean stop unlinks `status.sock`; after a crash the stale
 socket refuses the next start (`STATUS_SOCKET_EXISTS`). As for `wallet.sock`,
 establish that the old process exited, then remove it by hand.
 
+**Runbook: restart after a crash (G2).** The W2 rule holds for the status
+socket: nothing unlinks a socket automatically, so the stale
+`/run/swarma-wallet-status/status.sock` blocks every restart until the
+operator removes it. As root on the executor host:
+
+1. Confirm that the service has no live process: `systemctl status
+   swarma-wallet.service` shows it inactive or failed, and
+   `systemctl show -p MainPID --value swarma-wallet.service` prints `0`.
+2. Confirm that the path is a socket owned by `swarma-wallet` with the
+   operator group: `stat -c '%F %U %G %a' /run/swarma-wallet-status/status.sock`
+   prints `socket swarma-wallet swarma-wallet-status 660`. Remove nothing else.
+3. Remove it: `rm /run/swarma-wallet-status/status.sock`. (`wallet.sock`
+   lives in the unit's `RuntimeDirectory=`, which systemd removes when the
+   unit stops; if startup still refuses `SERVICE_SOCKET_EXISTS`, apply the
+   same three checks to `/run/swarma-wallet/wallet.sock`.)
+4. Start the service: `systemctl start swarma-wallet.service`. It runs its
+   startup reconciliation and one observation pass before it serves; a spend
+   before a successful pass refuses `SERVICE_STATE_UNAVAILABLE`.
+
+PX2 candidate, not implemented: an `ExecStopPost=` line in the G2 drop-in that
+removes `status.sock` after the main process has exited would make the restart
+automatic. It changes the W2 "no automatic unlink" rule for this socket, so it
+needs its own decision.
+
 ## Evidence boundaries and checks
 
 Unit/race/vet checks use the README commands. Genuine Core socket suites are

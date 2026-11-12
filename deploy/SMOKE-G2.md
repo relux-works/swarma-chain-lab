@@ -124,7 +124,12 @@ fixed (freeze amendment 1, A3) and implemented once, in `RunG2HostFlow`:
    UID on a collision and keeps an existing name at its UID, both with exit 0.
 4. **Post-apply check** (required) `VerifyG2AgentAccount(p, G2HostAccounts{})`:
    `agent_user` at exactly `agent_uid`, a member of `agent_socket_gid` and not
-   of `operator_gid`.
+   of `operator_gid`. Right after it, the exact group set (condition 9): the
+   account's group list must be exactly {`agent_uid`, `agent_socket_gid`}, so
+   the agent's own group sits at GID == UID and no other group is present (a
+   repeated GID is not an extra group). An account kept from an earlier
+   install with its own group at another GID, or with a third group, passes
+   the frozen check and is refused here, before activation.
 5. **Activation**, and T18 after it (§4), only after step 4 passed.
 
 A failed step stops the flow before the next one. Run it with the
@@ -264,15 +269,21 @@ the launch packet.
   database. A refused preflight (existing name at another UID, UID owned by
   another name, outage, no database) stops before the apply. A post-apply
   mismatch (substituted UID, missing peer membership, operator-group
-  membership, nothing created, outage, failed apply) stops before activation.
-  The clean first-install and existing-account paths reach activation once,
-  after the post-apply check. `TestPX1S5HostFlowArtifacts` checks the rendered
+  membership, nothing created, outage, failed apply, and by the condition-9
+  group set an own group at another GID or a third group) stops before
+  activation. The clean first-install and existing-account paths, and an
+  account whose list repeats a GID, reach activation once, after the
+  post-apply checks. `TestPX1S5AgentGroupSet` tests the group-set rule on its
+  own. `TestPX1S5HostFlowArtifacts` checks the rendered
   numeric declaration, that only the service and the agent are in
   `swarma-wallet-peer`, the status directory in `tmpfiles.conf` and its denial
   in `custody-spec.json`, and that no rendered file has a placeholder.
   `TestG2HostFlowCommand` runs `deploy-kit g2-host-flow` on the real account
   database of the test host, with recording fakes for `systemd-sysusers` and
-  the activation command.
+  the activation command. The activation positive runs only where the test
+  account meets condition 9 (its own group at GID == UID and exactly one other
+  group); elsewhere the test shows that the account is applied and then
+  refused at the group set, and logs the limit.
 - `TestPX1S5AgentSlotGIDs` derives the primary GID from the agent's own
   declaration and refuses parameters whose derived primary GID is the socket
   or operator GID. `TestPX1S5AgentGroupsReadback` accepts exactly the
@@ -293,7 +304,9 @@ the launch packet.
   `sysusers.conf`, and that no S5 T18 text keeps the reduced form or a group
   name for `--regid`. The tripwire's `t18-readback` part shows that
   an existing account with an extra group of its own passes the frozen
-  post-apply check and is activated, but is refused by the readback.
+  post-apply check but is refused by the condition-9 group set before
+  activation, and by the readback; the host flow now activates exactly the
+  accounts whose readback passes.
 - `TestPX1S5SysusersResolvedConsumer` and `TestPX1S5SysusersGIDDomain` give
   the rendered `sysusers.conf` to the real `systemd-sysusers`, only with
   `--dry-run` and a new fixture root, and check that the fixture `passwd` and
@@ -317,3 +330,37 @@ the launch packet.
   cross-UID denial on a provisioned host, systemd enforcement, slot
   confinement, and the positive own-agent request under G2. Those are the §3
   and T18 host runs themselves.
+
+## 6. Mainnet-safe smoke values (§3.8; not authorized here)
+
+These numbers replace the design text "a 1-in, 2-out P2PKH transaction at 200
+atoms/vB is about 45,000 atoms in fees" (G2-PAYMENT-EXECUTOR §3.8 step 2,
+outside this repository). The smoke itself still runs only after Ivan approves
+and funds it.
+
+- **Fee rate and fee.** The template's `fee_rate_sat_vb` is 110 (relay floor
+  100, never 200). A 1-in, 2-out P2PKH spend is about 226 vB, so its fee is
+  about 24,900 sat. Every cap is fee-inclusive, so each executed spend debits
+  amount + about 24,900 sat.
+- **Request `fee_limit_sat`.** The pre-plan transfer cap counts the request's
+  fee limit in full: a spend passes only with
+  `fee_limit_sat <= transfer_cap_sat - amount_sat`, otherwise
+  `TRANSFER_CAP_EXCEEDED` before any node call. The Cedar client's default
+  `fee_limit_sat` is 30000, which covers the ~24,900 sat fee at ~110 sat/vB
+  and leaves at most 70000 sat for the amount at `transfer_cap_sat` 100000
+  (`experiments/agent-wallet/FORMAT-TERMS-V2.md`, "Request fee limit").
+- **Day count before day cap.** For one request, the pre-plan check runs the
+  cumulative caps in this order: total budget, spend cap, day cap, then day
+  count (`CheckPrePlan`). Which cap a sequence of small transfers hits first
+  depends on the debit per spend. With `day_count_cap` 5 and `day_cap_sat`
+  300000, the day cap is reached first only when the average debit exceeds
+  60000 sat. The 20,000-sat smoke transfers debit about 44,900 sat each, so
+  after five executed spends on one UTC day (about 224,500 sat, below
+  300,000) the sixth refuses `DAY_COUNT_EXCEEDED`, not `DAY_CAP_EXCEEDED`.
+  The step "repeat small transfers until the day cap" therefore expects
+  `DAY_COUNT_EXCEEDED` with 20,000-sat transfers (the S1 positive of the
+  same day counts as one of the five). To see `DAY_CAP_EXCEEDED`, use
+  50,000-sat transfers (about 74,900 sat each) on a UTC day without earlier
+  spends: four reach about 299,600 sat, and the fifth refuses
+  `DAY_CAP_EXCEEDED` (299,600 + 50,000 > 300,000) while the count is 4. A
+  refused request takes no count and no debit.

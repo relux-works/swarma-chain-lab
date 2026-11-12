@@ -127,6 +127,22 @@ that cannot belong to the limits: a nil ledger, another grant, a malformed UTC
 day, or an out-of-range amount or fee limit. A nil error means "within
 limits", never "authorized".
 
+### Request fee limit (`fee_limit_sat`)
+
+The pre-plan transfer cap counts the request's `fee_limit` in full, before
+any plan exists. A spend is therefore admitted only when
+
+    fee_limit_sat <= transfer_cap_sat - amount_sat
+
+with `transfer_cap_sat` the effective transfer cap (`EffectiveLimitsFor`: the
+smaller of the terms value and the operator ceiling). A larger `fee_limit`
+refuses `TRANSFER_CAP_EXCEEDED` before any node call, even when the actual fee
+would fit. The actual fee is then held to min(`fee_limit`, fee cap) by the plan
+(`FEE_LIMIT`, `FEE_CAP_EXCEEDED`). The Cedar client sends a default
+`fee_limit_sat` of 30000: at the operator fee rate of ~110 sat/vB a 1-in,
+2-out P2PKH spend costs about 24,900 sat, and the largest amount it can then
+send under a 100000 transfer cap is 70000.
+
 The frozen `NewCapChecker()` carries no network. It stays because
 `NewCapCheckerFor` wraps it, and it is deprecated for callers. Its
 `CheckRecipient` admits no `any`-mode recipient at all, whatever the address
@@ -221,9 +237,13 @@ budget.
 - **Service opener:** `px1_service_test.go`. It covers profile selection at the
   public `OpenActionService` boundary. There is a unit test with installed
   files and no node call. There is also a genuine Core 28 pair adapted from
-  the reviewer's tests: a G2 config refuses or attaches and never pays a
-  terms-v1 spend; the W2 neighbour pays 50000 atoms. The file also has the
-  step-23 clock step-back test.
+  the reviewer's tests: a G2 config attaches both layers and never pays a
+  terms-v1 spend (before the first observation pass the S3 halt refuses
+  `SERVICE_STATE_UNAVAILABLE`, after a pass with a real unspent canary the
+  spend refuses `TERMS_VERSION_REQUIRED`, and after an out-of-band canary
+  spend a new spend refuses `FLOAT_CANARY_SPENT`, T14 on the wire); the W2
+  neighbour pays 50000 atoms. The file also has the step-23 clock step-back
+  test.
 - **Shared helpers:** `px1_fixture_test.go` (`newPX1Core`, `px1IssueGrant`,
   `px1OpenG2`, `px1OpenG2With`, `px1Spend`, `px1Revoke`, `px1QuoteFee`, the
   fakes). Other streams call them and do not edit them.
@@ -249,12 +269,25 @@ The Core lab accepts the macOS Core 28.0 pair that the W2 harness pins and the
 Linux x86_64 release pair. Regtest names expire after 30 blocks, so the lab
 renews the agent and landlord names before each grant issuance.
 
+## Coverage notes
+
+- **Post-plan `TRANSFER_CAP_EXCEEDED` is mutant-only coverage.** The T2 row
+  of the S1 coverage map ("over cap by 1 atom, pre- and post-plan") rests on
+  the checker for its post-plan half. In the wallet path the post-plan
+  transfer cap is unreachable once the pre-plan cap and `FEE_LIMIT` hold,
+  because amount + fee <= amount + fee_limit <= transfer_cap. No wallet,
+  service or Core request reaches it. It is covered only by
+  `TestPX1CheckPostPlan/transfer-plus-one` and the plant
+  `s1-postplan-transfer`; the wallet relies on the pre-plan cap, which is
+  planted (`s1-preplan-transfer`, `s1-wallet-preplan-call`).
+
 ## Limits
 
 - `TestPX1CoreS1` does not exercise the service layer (peer UID, admission,
   `service-reserve`, receipts). The `TestPX1CoreService*` pair does exercise
-  the production opener and handler, with injected peer metadata, but only
-  for profile selection.
+  the production opener and handler, with injected peer metadata, for
+  profile selection, the S3 halt and T14 on the wire, but no positive G2
+  spend.
 - The Core layer does not exercise the real journal v2, its capacity rules or
   `CLOCK_ROLLBACK`; those are S2's.
 - The Core layer does not exercise the real canary watcher; that is S3's.

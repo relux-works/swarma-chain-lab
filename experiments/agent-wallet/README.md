@@ -22,6 +22,28 @@ This module requires the integrated K1 rental grant v3, `names.register` scope
 and `ResolveLandlordGrantKey` API. It does not reinterpret legacy v1/v2 authority.
 See [FORMAT.md](FORMAT.md) for exact public inputs and [the skill draft](../../skills/namecoin-wallet/SKILL.md).
 
+## PX1: G2 pay limits
+
+`agent-walletd` runs the G2 profile when its service config carries a `g2`
+block (terms v2, operator ceilings, journal v2, tracker, canary and status
+socket); without it the service stays W2. The documents:
+
+- [PX1-INTERFACES.md](PX1-INTERFACES.md): the frozen contracts, ownership,
+  test ids T1-T18, integration order and freeze amendment 1.
+- [FORMAT-TERMS-V2.md](FORMAT-TERMS-V2.md): terms v2, operator ceilings, the
+  cap checker, the request fee limit and the wallet-layer spend path.
+- [FORMAT-JOURNAL-V2.md](FORMAT-JOURNAL-V2.md): journal v2, day buckets,
+  track and reconcile records and the receipt-key release authorization.
+- [STATUS.md](STATUS.md): the tracker, canary, float monitor, alerts and the
+  operator status projection.
+- [SERVICE.md](SERVICE.md): the service, its G2 operations section, the
+  status socket and the crash-restart runbook.
+- [FORMAT.md](FORMAT.md): the W1/W2 public inputs.
+- [PAYGRANT-V2.md](../rental/PAYGRANT-V2.md): the terms-v2 pay-grant issuance
+  helper (rental module).
+- [SMOKE-G2.md](../../deploy/SMOKE-G2.md): the G2 deploy inputs, the
+  target-host flow, T18 and the mainnet-safe smoke values.
+
 ## Commands
 
 Build from this module, with the sibling dependencies present:
