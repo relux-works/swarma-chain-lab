@@ -530,6 +530,16 @@ func (r *px1Runtime) halted() string {
 	return ""
 }
 
+// px1Observer is the S3 observers' own-node client: the wallet's observer node,
+// with getrawtransaction on the transaction lookup route when the wallet has
+// one (OpenWallet always builds it).
+func (w *Wallet) px1Observer() su.Node {
+	if w.txLookup == nil {
+		return w.node
+	}
+	return px1ObserverNode{Node: w.node, tx: w.txLookup}
+}
+
 // px1oEnvFor assembles one pass's view of the service. Caller holds s.mu and
 // s.wallet.mu, in that order.
 func (s *ActionService) px1oEnvFor() (px1oEnv, error) {
@@ -538,7 +548,7 @@ func (s *ActionService) px1oEnvFor() (px1oEnv, error) {
 		return px1oEnv{}, fail("SERVICE_PROFILE")
 	}
 	w := s.wallet
-	env := px1oEnv{profile: profile, service: s.PX1ServiceJournal(), wallet: w.PX1Journal(), observer: w.node, walletRoute: w.wallet, receiptKey: s.pub, network: w.config.Network,
+	env := px1oEnv{profile: profile, service: s.PX1ServiceJournal(), wallet: w.PX1Journal(), observer: w.px1Observer(), walletRoute: w.wallet, receiptKey: s.pub, network: w.config.Network,
 		now: s.clock(), poisoned: s.poisoned, poison: func() { s.poisoned = true }}
 	env.limitsFor = func(id string) (EffectiveLimits, error) {
 		raw, e := LoadGrant(w.config, id)

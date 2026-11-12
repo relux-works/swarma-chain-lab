@@ -87,10 +87,12 @@ func px1oNodeError(e error) error {
 	return fail("RPC_UNAVAILABLE")
 }
 
-// px1oRemoteNo reports a node that answered with an RPC error object (for
-// example "no such transaction"), as opposed to an unreachable node.
+// px1oRemoteNo reports Core's definitive "no such transaction" answer
+// (CodeNoSuchTx from the transaction lookup route) and nothing else: an
+// unreachable node, a refused login, a busy node and every other RPC error
+// keep failing the pass.
 func px1oRemoteNo(e error) bool {
-	return e != nil && (e.Error() == "RPC_REMOTE_ERROR" || e.Error() == "RPC_REMOTE_REFUSAL")
+	return e != nil && e.Error() == CodeNoSuchTx
 }
 
 // px1oOutputSpent reads gettxout with the mempool included. A JSON null means

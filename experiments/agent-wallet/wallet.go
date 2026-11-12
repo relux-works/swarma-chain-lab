@@ -83,6 +83,9 @@ type Wallet struct {
 	clock                   func() int64
 	poisoned                bool
 	grantRaw                []byte
+	// txLookup is the S3 tracker's getrawtransaction route (rpc.go); nil
+	// (a wallet built without OpenWallet) leaves the S3 observers on node.
+	txLookup su.Node
 	// Unexported seam for process-exit tests. The CLI does not read hook flags/env.
 	hook func(string)
 	// g2 is the PX1 G2 profile state (px1_wallet_seams.go); nil keeps W2.
@@ -130,6 +133,10 @@ func openWallet(c Config) (*Wallet, error) {
 	if e != nil {
 		return nil, e
 	}
+	txLookup, e := newTxLookupRPC(c.Observer)
+	if e != nil {
+		return nil, e
+	}
 	wallet, e := NewWalletRPC(c.Wallet)
 	if e != nil {
 		return nil, e
@@ -138,7 +145,7 @@ func openWallet(c Config) (*Wallet, error) {
 	if e != nil {
 		return nil, e
 	}
-	w := &Wallet{config: c, node: node, wallet: wallet, broadcast: broadcast, clock: func() int64 { return time.Now().Unix() }}
+	w := &Wallet{config: c, node: node, txLookup: txLookup, wallet: wallet, broadcast: broadcast, clock: func() int64 { return time.Now().Unix() }}
 	w.authority = CombinedAuthority{Kernel: KernelAuthority{Node: node, Policy: c.Policy}, Resolver: KernelResolver{Node: node, Policy: c.Policy}, Agent: c.Policy.AgentName, Landlord: c.Policy.LandlordName, StateDir: c.Policy.StateDir}
 	w.store, e = durable.Open(c.StateDir, "wallet.lock")
 	if e != nil {

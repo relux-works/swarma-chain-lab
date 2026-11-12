@@ -779,7 +779,7 @@ func TestPX1T10Child(t *testing.T) {
 	os.Exit(3) // the crash point was not reached
 }
 
-// Claim (T10, Core subprocess): a real process killed (SIGKILL) after the wallet reservation, after the service reservation, or after the broadcast leaves a retained debit; after a restart the replay answers uncertain DURABLE_RESERVATION_NO_RETRY and then byte-identically, never broadcasts again, and the status shows the debit as uncertain. A crash before the broadcast leaves no transaction: the tracker marks it conflicted and one operator release (receipt-key signed, evidence absent) frees it exactly once, a second release refuses. A crash after the broadcast leaves exactly the planned transaction: the tracker later shows it confirmed while it stays uncertain (debit retained, nothing released). Each crash point has its valid neighbour: the same request with no crash executes, completes and is tracked confirmed.
+// Claim (T10, Core subprocess): a real process killed (SIGKILL) after the wallet reservation, after the service reservation, or after the broadcast leaves a retained debit; after a restart the replay answers uncertain DURABLE_RESERVATION_NO_RETRY and then byte-identically, never broadcasts again, and the status shows the debit as uncertain. A crash before the broadcast leaves no transaction: every observation pass succeeds (Core's "no such transaction" reads as absent), the tracker marks it conflicted exactly once (one track record, unchanged by a later block and pass, nothing re-sent) and one operator release (receipt-key signed, evidence absent) frees it exactly once, a second release refuses. A crash after the broadcast leaves exactly the planned transaction: the tracker later shows it confirmed while it stays uncertain (debit retained, nothing released). Each crash point has its valid neighbour: the same request with no crash executes, completes and is tracked confirmed.
 func TestPX1CoreS2Crash(t *testing.T) {
 	l := newPX1Core(t)
 	canary := l.px1sCanary()
@@ -877,8 +877,9 @@ func TestPX1CoreS2Crash(t *testing.T) {
 				tick := p.s.PX1Tick(context.Background())
 				status, _ = p.s.PX1Status()
 				if pass != nil || tick != nil || status.Payments.Conflicted != 1 {
-					t.Errorf("T10_TRACKER_UNKNOWN_TX %s: the observation pass must succeed and mark the never-broadcast payment conflicted: first pass %v, later pass %v, payments %+v", stage, pass, tick, status.Payments)
+					t.Fatalf("T10_TRACKER_UNKNOWN_TX %s: the observation pass must succeed and mark the never-broadcast payment conflicted: first pass %v, later pass %v, payments %+v", stage, pass, tick, status.Payments)
 				}
+				px1sConflictedOnce(t, l, p, stage, reserve, 0)
 				if status.Grants[0].UncertainSat != 50000 {
 					t.Fatalf("T10 %s: debit not retained after the observation pass: %+v", stage, status.Grants)
 				}
@@ -923,6 +924,118 @@ func TestPX1CoreS2Crash(t *testing.T) {
 				t.Fatalf("T10 %s neighbour status: %+v %+v", stage, st.Payments, st.Grants)
 			}
 		})
+	}
+
+	// Claim (T10, Core, broadcast refused): when the node refuses the planned
+	// raw transaction (its modified fee is set below the relay minimum with
+	// prioritisetransaction), the request answers uncertain BROADCAST_UNCERTAIN
+	// with the debit retained and nothing sent; after a restart the tracker
+	// reloads the uncertain reservation, every observation pass succeeds, and
+	// after ConflictBlocksN blocks it is marked conflicted exactly once (no
+	// stuck tracker, no repeated mark, no re-send) while the debit stays
+	// uncertain. Valid neighbour: the same request whose broadcast the node
+	// accepts executes and is tracked confirmed, never conflicted.
+	px1sStep(t, l, "broadcast-rejected", func(t *testing.T) {
+		l.now = time.Now().Unix() - 3000
+		clock := &px1sClock{}
+		clock.now.Store(l.now)
+		g := l.px1sIssue(px1sTerms(500000, 100000, 300000, 5), 500000, 2, 2, "s2-t10-rejected")
+		p := l.px1sInstall(g, canary, peer, clock)
+		fee := l.px1sQuoteFee(g.config, px1RegtestTerms().Recipients[0], 50000)
+		p.open(t)
+		var refused string
+		p.s.wallet.hook = func(stage string) {
+			if stage != "after-reservation" {
+				return
+			}
+			rs := px1sRecords(t, p.s.wallet.PX1Journal())
+			refused = rs[len(rs)-1].TxID
+			l.rpc("", "prioritisetransaction", refused, 0, -100000000)
+		}
+		raw := px1sEnvelope(t, p.request(1, 50000-fee, fee), 2)
+		r, first := p.send(t, raw)
+		p.s.wallet.hook = nil
+		if r.Verdict != "uncertain" || r.Reason != "BROADCAST_UNCERTAIN" || refused == "" {
+			t.Fatalf("T10 broadcast-rejected: want uncertain BROADCAST_UNCERTAIN, got %+v", r)
+		}
+		wallet := px1sRecords(t, p.s.wallet.PX1Journal())
+		if got := px1sKinds(wallet); !mapsEqual(got, map[string]int{RecordReserve: 1, RecordUncertain: 1}) || wallet[0].TxID != refused {
+			t.Fatalf("T10 broadcast-rejected: wallet journal %v", got)
+		}
+		reserve := wallet[0]
+		if l.px1sInMempool(refused) || p.sends(t) != 0 {
+			t.Fatal("T10 broadcast-rejected: the node accepted the refused transaction")
+		}
+		p.close()
+		if pass := p.openPass(t); pass != nil || p.s.px1oHalted() != "" {
+			t.Fatalf("T10 broadcast-rejected: first observation pass after restart: %v / %s", pass, p.s.px1oHalted())
+		}
+		l.mine(DefaultConflictBlocksN + 1)
+		if e := p.s.PX1Tick(context.Background()); e != nil {
+			t.Fatalf("T10_TRACKER_UNKNOWN_TX broadcast-rejected: observation pass: %v", e)
+		}
+		status, _ := p.s.PX1Status()
+		if status.Payments.Conflicted != 1 || status.Payments.Confirmed != 0 {
+			t.Fatalf("T10_TRACKER_UNKNOWN_TX broadcast-rejected: want conflicted, payments %+v", status.Payments)
+		}
+		px1sConflictedOnce(t, l, p, "broadcast-rejected", reserve, 0)
+		ledger := p.ledger(t)
+		if ledger.UncertainSat(g.id) != 50000 || ledger.SpendUsed(g.id) != 50000 {
+			t.Fatalf("T10 broadcast-rejected: debit not retained: %+v", status.Grants)
+		}
+		if _, again := p.send(t, raw); string(again) != string(first) || p.sends(t) != 0 {
+			t.Fatal("T10 broadcast-rejected: the replay changed or re-sent")
+		}
+		p.close()
+
+		// Valid neighbour: the node accepts the same request's broadcast.
+		cv := &px1sClock{}
+		cv.now.Store(l.now)
+		gv := l.px1sIssue(px1sTerms(500000, 100000, 300000, 5), 500000, 2, 2, "s2-t10v-rejected")
+		pv := l.px1sInstall(gv, canary, peer, cv)
+		pv.open(t)
+		ok, _ := pv.send(t, px1sEnvelope(t, pv.request(1, 50000-fee, fee), 2))
+		if ok.Verdict != "executed" {
+			t.Fatalf("T10 broadcast-rejected neighbour: %+v", ok)
+		}
+		l.mine(DefaultConfirmationsK)
+		if e := pv.s.PX1Tick(context.Background()); e != nil {
+			t.Fatal("tick", e)
+		}
+		if st, _ := pv.s.PX1Status(); st.Payments.Confirmed != 1 || st.Payments.Conflicted != 0 || pv.sends(t) != 1 {
+			t.Fatalf("T10 broadcast-rejected neighbour status: %+v", st.Payments)
+		}
+	})
+}
+
+// px1sConflictedOnce asserts the tracker's conflicted path for a payment the
+// node never accepted: exactly one conflicted track record for reserve, still
+// exactly one after a further block and pass, the txid not in the mempool and
+// the hot wallet's distinct sends unchanged at sends (nothing re-sent).
+func px1sConflictedOnce(t *testing.T, l *coreLab, p *px1sService, stage string, reserve JournalRecordV2, sends int) {
+	t.Helper()
+	count := func() int {
+		n := 0
+		for _, r := range px1sRecords(t, p.s.wallet.PX1Journal()) {
+			if r.Kind == RecordTrack && r.Track != nil && r.Track.State == TrackConflicted && r.TxID == reserve.TxID {
+				n++
+			}
+		}
+		return n
+	}
+	if got := count(); got != 1 {
+		t.Fatalf("T10 %s: want exactly one conflicted track record, got %d", stage, got)
+	}
+	l.mine(1)
+	if e := p.s.PX1Tick(context.Background()); e != nil {
+		t.Fatalf("T10 %s: pass after the conflicted mark: %v", stage, e)
+	}
+	status, _ := p.s.PX1Status()
+	if got := count(); got != 1 || status.Payments.Conflicted != 1 {
+		t.Fatalf("T10 %s: the conflicted mark repeated: %d records, payments %+v", stage, got, status.Payments)
+	}
+	if l.px1sInMempool(reserve.TxID) || p.sends(t) != sends {
+		t.Fatalf("T10 %s: the never-accepted payment was re-sent", stage)
 	}
 }
 

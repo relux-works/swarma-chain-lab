@@ -33,23 +33,22 @@
 
 ## PX1, open after the integration follow-up
 
-- **T10 blocked by the S3 tracker on genuine Core (open, S3).** The Core
-  layers of T3, T5, T8, T9 and T10 are written (`px1_s2_core_test.go`), and
-  the gate manifest requires every layer of the test table, with no open
-  T-id. T10 still fails at its two crash points before the broadcast
-  (`TestPX1CoreS2Crash/after-reservation` and `/after-service-reservation`,
-  marker `T10_TRACKER_UNKNOWN_TX`). After the restart the tracker reloads the
-  reservation, whose transaction the node never saw. `getrawtransaction` for
-  an unknown txid makes Core answer HTTP 500 with a JSON-RPC error object
-  (legacy JSON-RPC 1.0). The node client reports that as `RPC_RESPONSE`, but
-  `px1oRemoteNo` (`px1_observe.go`) treats only `RPC_REMOTE_ERROR` and
-  `RPC_REMOTE_REFUSAL` as "absent". Every observation pass therefore fails
-  `RPC_RESPONSE`. The tracker stops at that payment, so no payment is tracked
-  any more and the reservation is never marked conflicted. The same applies
-  to a broadcast the node rejects (`BROADCAST_UNCERTAIN`). Funds stay safe:
-  the debit stays retained, nothing is re-sent, and the operator release
-  works. The fix belongs to S3, the owner of `px1_observe.go`, or to the
-  owner of the node client. Until it lands, the hosted gate fails on T10.
+- **T10 tracker on genuine Core (resolved in PX1 S2 completion r2).** For
+  an unknown txid, Core answers `getrawtransaction` (JSON-RPC 1.0) with HTTP
+  500 and an error object. The S3 tracker now reads it through its own lookup
+  route (`newTxLookupRPC`, `rpc.go`), which maps exactly Core's reply
+  `{"result":null,"error":{"code":-5,"message":"No such mempool or blockchain
+  transaction. Use gettransaction for wallet transactions."},"id":1}` to
+  `RPC_NO_SUCH_TX`. `px1oRemoteNo` reads only that code as "absent". Every
+  other answer still fails the pass: another code, another -5 message (no
+  transaction index, index still syncing), a 500 without that body, 401, 503.
+  The wallet and broadcast routes and W2's own observer reads are unchanged.
+  Bounds: a node without `-txindex`, or one whose index is still syncing,
+  answers another -5 message, so the pass fails there (fail-closed); the
+  deploy kit's node config sets `txindex=1`. Open: a running service tracks a broadcast the node refused (uncertain
+  `BROADCAST_UNCERTAIN`) only after a restart, because step 23 enqueues
+  executed payments only; whether to enqueue uncertain ones too is an S2/S3
+  decision.
 - **F6 (matrix row 20 negative test):** not routed to the integration
   follow-up; open.
 - **Replay after a release.** `px1Prior` skips `track` records only. After a

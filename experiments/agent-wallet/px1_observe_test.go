@@ -180,7 +180,7 @@ func (c *px1oFakeChain) Call(_ context.Context, method string, args ...any) (jso
 		if c.stale[txid] {
 			return c.raw(map[string]any{"txid": txid, "blockhash": strings.Repeat("e", 64), "confirmations": 0}), nil
 		}
-		return nil, errors.New("RPC_REMOTE_ERROR")
+		return nil, fail(CodeNoSuchTx)
 	case "gettxout":
 		p := su.Point{TxID: args[0].(string), Vout: args[1].(uint32)}
 		if v, ok := c.utxo[p]; ok {
@@ -409,16 +409,20 @@ func TestPX1TrackerTipMoved(t *testing.T) {
 	}
 }
 
-// Claim: an unreachable node fails the pass and never counts as absence; a
-// node that answers "no such transaction" (RPC_REMOTE_ERROR) does.
+// Claim: an unreachable node, a non-200 reply (RPC_RESPONSE), a remote error
+// object on 200 (RPC_REMOTE_ERROR, RPC_REMOTE_REFUSAL) and a malformed reply
+// each fail the pass with that error and never count as absence; only the
+// lookup route's "no such transaction" (CodeNoSuchTx) does.
 func TestPX1TrackerNodeFailure(t *testing.T) {
 	chain := px1oNewChain()
 	tr, _ := px1oTrackerWith(t, chain)
 	delete(chain.mempool, px1oTx1)
 	chain.utxo[px1oPoint('e', 1)] = 100000
-	chain.failures["getrawtransaction"] = errors.New("RPC_UNAVAILABLE")
-	if _, e := tr.Tick(context.Background()); e == nil || e.Error() != "RPC_UNAVAILABLE" || tr.Snapshot()[0].MissingSince != 0 {
-		t.Fatalf("unreachable node counted as absence: %v %+v", e, tr.Snapshot())
+	for _, code := range []string{"RPC_UNAVAILABLE", "RPC_RESPONSE", "RPC_REMOTE_ERROR", "RPC_REMOTE_REFUSAL", "NODE_PROJECTION"} {
+		chain.failures["getrawtransaction"] = errors.New(code)
+		if _, e := tr.Tick(context.Background()); e == nil || e.Error() != code || tr.Snapshot()[0].MissingSince != 0 {
+			t.Fatalf("unreachable node counted as absence: %s: %v %+v", code, e, tr.Snapshot())
+		}
 	}
 	delete(chain.failures, "getrawtransaction")
 	if px1oTick(t, tr); tr.Snapshot()[0].MissingSince != 200 {
