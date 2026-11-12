@@ -39,11 +39,12 @@ const (
 	CodePlanReservedInput   = "PLAN_RESERVED_INPUT"   // existing path, now also the canary outpoint
 
 	// Journal v2, day buckets and clock (stream S2).
-	CodeServiceJournalLimit = "SERVICE_JOURNAL_LIMIT"   // existing code, journal v2 spend capacity exhausted
-	CodeJournalCapacity     = "JOURNAL_CAPACITY_CONFIG" // startup: configured capacity < RequiredSpendCapacity
-	CodeJournalSegment      = "JOURNAL_SEGMENT"         // startup: segment chain, order or binding broken
-	CodeClockRollback       = "CLOCK_ROLLBACK"          // now < journal last_time
-	CodeReadRateLimited     = "READ_RATE_LIMITED"       // balance/history/budget over the per-grantee hourly limit
+	CodeServiceJournalLimit    = "SERVICE_JOURNAL_LIMIT"   // existing code, journal v2 spend capacity exhausted
+	CodeJournalCapacity        = "JOURNAL_CAPACITY_CONFIG" // startup: configured capacity < RequiredSpendCapacity
+	CodeJournalSegment         = "JOURNAL_SEGMENT"         // startup: segment chain, order or binding broken
+	CodeClockRollback          = "CLOCK_ROLLBACK"          // now < journal last_time
+	CodeReadRateLimited        = "READ_RATE_LIMITED"       // balance/history/budget over the per-grantee hourly limit
+	CodeReconcileAuthorization = "RECONCILE_AUTHORIZATION" // reconcile signature absent, unbound or not by JournalHeaderV2.ReceiptKey (amendment 1)
 
 	// Tracker, canary, float and reconciliation (stream S3).
 	CodeFloatCanarySpent       = "FLOAT_CANARY_SPENT"       // canary outpoint spent: service poisons itself

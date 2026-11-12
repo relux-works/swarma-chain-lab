@@ -238,10 +238,22 @@ type StatusInputs struct {
 // ProjectStatus signature (px1_observe.go): pure projection, no node call.
 var _ func(in StatusInputs) (StatusProjectionV1, error) = ProjectStatus
 
+// Operator status socket placement (freeze amendment 1, A8; the slot AF_UNIX
+// confinement design), frozen. The status socket has its own runtime
+// directory, owned by the service UID with the operator group, mode 0750; it
+// is never bound into a slot. The agent-facing /run/swarma-wallet holds only
+// wallet.sock. No agent-facing path shares a directory with the status socket.
+const (
+	StatusSocketDir     = "/run/swarma-wallet-status"
+	StatusSocketPath    = StatusSocketDir + "/status.sock"
+	StatusSocketDirMode = 0o750 // owner service UID, group operator group
+	StatusSocketMode    = 0o660 // group operator group
+)
+
 // StatusSocketRequest is the only request accepted on the read-only operator
-// status socket (/run/swarma-wallet/status.sock, group = operator group,
-// mode 0660, 4-byte big-endian length frame, one request per connection). The
-// response is canonical(StatusProjectionV1) in the same framing.
+// status socket (StatusSocketPath, group = operator group, mode 0660, 4-byte
+// big-endian length frame, one request per connection). The response is
+// canonical(StatusProjectionV1) in the same framing.
 type StatusSocketRequest struct {
 	Version int    `json:"v"`      // 1
 	Action  string `json:"action"` // "status"
