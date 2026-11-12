@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/relux-works/swarma-chain-lab/deploy"
@@ -198,28 +197,24 @@ func g2HostFlow(args []string, out io.Writer) error {
 	return e
 }
 
-// g2AgentGroups is the T18 credential readback: the GIDs after "--" are the
-// running agent's `id -G` output, one argument each, and must be exactly the
-// set {own primary GID, agent_socket_gid} that deploy.CheckG2AgentGroups
-// derives from the parameters (the primary GID from G2AgentSysusers). A GID
-// that is not a canonical decimal refuses ErrInput. It prints
-// G2_AGENT_GROUPS_OK with the two GIDs only when the readback passes.
+// g2AgentGroups is the T18 credential readback. -gid is the running agent's
+// OBSERVED `id -g` output (its effective primary GID) and the GIDs after "--"
+// are its `id -G` output, one argument each. deploy.CheckG2AgentCredentials
+// compares them with the parameters: the observed primary GID must be the
+// one the agent's sysusers declaration names (G2AgentSysusers), and the GIDs
+// exactly the set {that primary GID, agent_socket_gid}. A missing -gid or a
+// GID that is not a canonical decimal refuses ErrInput. Only when the
+// readback passes does it print G2_AGENT_GROUPS_OK with the observed GID next
+// to the declared ones.
 //
-//	deploy-kit g2-agent-groups -params PARAMS -- GID...
+//	deploy-kit g2-agent-groups -params PARAMS -gid GID -- GID...
 func g2AgentGroups(args []string, out io.Writer) error {
 	f := flag.NewFlagSet("g2-agent-groups", flag.ContinueOnError)
 	f.SetOutput(io.Discard)
 	params := f.String("params", "", "canonical G2PayParameters JSON")
+	gid := f.String("gid", "", "observed `id -g` of the running agent")
 	if f.Parse(args) != nil {
 		return deploy.ErrInput
-	}
-	readback := make([]uint32, 0, f.NArg())
-	for _, s := range f.Args() {
-		v, e := strconv.ParseUint(s, 10, 32)
-		if e != nil || strconv.FormatUint(v, 10) != s {
-			return deploy.ErrInput
-		}
-		readback = append(readback, uint32(v))
 	}
 	raw, e := readBounded(*params, 1<<16)
 	if e != nil {
@@ -229,13 +224,13 @@ func g2AgentGroups(args []string, out io.Writer) error {
 	if e != nil {
 		return e
 	}
-	if e := deploy.CheckG2AgentGroups(p, readback); e != nil {
+	if e := deploy.CheckG2AgentCredentials(p, *gid, f.Args()); e != nil {
 		return e
 	}
 	primary, socket, e := deploy.G2AgentSlotGIDs(p)
 	if e != nil {
 		return e
 	}
-	_, e = fmt.Fprintf(out, "G2_AGENT_GROUPS_OK primary=%d socket=%d\n", primary, socket)
+	_, e = fmt.Fprintf(out, "G2_AGENT_GROUPS_OK observed_gid=%s declared_primary_gid=%d socket_gid=%d\n", *gid, primary, socket)
 	return e
 }

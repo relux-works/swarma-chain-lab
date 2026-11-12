@@ -489,7 +489,7 @@
  {
   "Name": "s5-smoke-clear-groups",
   "File": "SMOKE-G2.md",
-  "Old": "setpriv --reuid=\"$AGENT_USER\" --regid=\"$AGENT_USER\" --init-groups -- \\",
+  "Old": "setpriv --reuid=\"$AGENT_UID\" --regid=\"$AGENT_GID\" --init-groups -- \\",
   "New": "setpriv --reuid=\"$AGENT_UID\" --regid=\"$AGENT_SOCKET_GID\" --clear-groups -- \\",
   "Selector": "TestPX1S5T18LaunchCredentials",
   "Marker": "T18_LAUNCH",
@@ -498,8 +498,8 @@
  {
   "Name": "s5-script-ignores-readback",
   "File": "g2-custody-check.sh",
-  "Old": "if ! \"$deploy_kit\" g2-agent-groups -params \"$params\" -- $groups >\"$out/credentials-check.txt\" 2>&1; then",
-  "New": "if ! \"$deploy_kit\" g2-agent-groups -params \"$params\" -- $groups >\"$out/credentials-check.txt\" 2>&1 && false; then",
+  "Old": "if ! \"$deploy_kit\" g2-agent-groups -params \"$params\" -gid=\"$gid\" -- $groups >\"$out/credentials-check.txt\" 2>&1; then",
+  "New": "if ! \"$deploy_kit\" g2-agent-groups -params \"$params\" -gid=\"$gid\" -- $groups >\"$out/credentials-check.txt\" 2>&1 && false; then",
   "Selector": "TestPX1T18CustodyScript",
   "Marker": "T18_SCRIPT",
   "Core": false
@@ -507,11 +507,66 @@
  {
   "Name": "s5-cli-agent-groups-unchecked",
   "File": "cmd/deploy-kit/g2_pay.go",
-  "Old": "\tif e := deploy.CheckG2AgentGroups(p, readback); e != nil {\n\t\treturn e\n\t}\n",
-  "New": "\t_ = readback\n",
+  "Old": "\tif e := deploy.CheckG2AgentCredentials(p, *gid, f.Args()); e != nil {\n\t\treturn e\n\t}\n",
+  "New": "\t_ = gid\n",
   "Selector": "TestG2AgentGroupsCommand",
   "Marker": "G2_CLI_AGENT_GROUPS",
   "Core": false,
   "Package": "./cmd/deploy-kit"
+ },
+ {
+  "Name": "s5-credentials-drops-primary-compare",
+  "File": "g2_pay.go",
+  "Old": "\tif observed != primary {\n\t\treturn ErrPolicy // a swapped role, or the primary is another group\n\t}\n",
+  "New": "\t_, _ = observed, primary\n",
+  "Selector": "TestPX1S5AgentCredentialsReadback",
+  "Marker": "G2_CREDENTIALS_ROLE_SWAP",
+  "Core": false
+ },
+ {
+  "Name": "s5-script-gid-not-observed",
+  "File": "g2-custody-check.sh",
+  "Old": "-gid=\"$gid\"",
+  "New": "-gid=\"$(id -u)\"",
+  "Selector": "TestPX1T18CustodyScript",
+  "Marker": "T18_SCRIPT guard role-swap-same-two-gids",
+  "Core": false
+ },
+ {
+  "Name": "s5-script-gid-dropped",
+  "File": "g2-custody-check.sh",
+  "Old": "-params \"$params\" -gid=\"$gid\" --",
+  "New": "-params \"$params\" --",
+  "Selector": "TestPX1T18CustodyScript",
+  "Marker": "T18_SCRIPT positive",
+  "Core": false
+ },
+ {
+  "Name": "s5-cli-compares-declared-gid",
+  "File": "cmd/deploy-kit/g2_pay.go",
+  "Old": "deploy.CheckG2AgentCredentials(p, *gid, f.Args())",
+  "New": "deploy.CheckG2AgentCredentials(p, func() string { g, _, _ := deploy.G2AgentSlotGIDs(p); return fmt.Sprint(g) }(), f.Args())",
+  "Selector": "TestG2AgentGroupsCommand",
+  "Marker": "G2_CLI_PRIMARY_GID role-swap",
+  "Core": false,
+  "Package": "./cmd/deploy-kit"
+ },
+ {
+  "Name": "s5-smoke-regid-name",
+  "File": "SMOKE-G2.md",
+  "Old": "--regid=\"$AGENT_GID\" --init-groups",
+  "New": "--regid=\"$AGENT_USER\" --init-groups",
+  "Selector": "TestPX1S5T18LaunchCredentials",
+  "Marker": "T18_LAUNCH SMOKE-G2.md launch is not the slot credential form",
+  "Core": false
+ },
+ {
+  "Name": "s5-smoke-gid-from-uid-field",
+  "File": "SMOKE-G2.md",
+  "Old": "{ n = split($3, id, \":\"); print id[n] }",
+  "New": "{ n = split($3, id, \":\"); print id[1] }",
+  "Selector": "TestPX1S5T18LaunchCredentials",
+  "Marker": "T18_LAUNCH_IDS UID:GID declaration",
+  "Core": false
  }
 ]

@@ -1075,7 +1075,10 @@ func g2BuildDeployKit(t *testing.T) string {
 // steps of deploy-kit, whose exits, receipt verdict and group readback the
 // test controls; the fake wallet keeps a copy of the request it was given.
 // The g2-agent-groups readback is the REAL deploy-kit (realKit). The fake id
-// answers -G with FAKE_ID_G, -g with its first GID and -u with 1201.
+// is the credential readback adapter: it answers -G with FAKE_ID_G, -u with
+// 1201 and -g with FAKE_ID_GID, or with the first GID of FAKE_ID_G when that
+// is unset; FAKE_ID_GID=FAIL makes `id -g` fail with no output, EMPTY makes it
+// print an empty line.
 func g2ScriptFakes(t *testing.T, realKit string) (string, string, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -1085,24 +1088,30 @@ func g2ScriptFakes(t *testing.T, realKit string) (string, string, string) {
 	os.WriteFile(wallet, []byte("#!/bin/sh\ncp \"$4\" \"$FAKE_CAPTURE\"\nprintf '{\"receipt\":{\"verdict\":\"%s\"}}\\n' \"${FAKE_VERDICT:-executed}\"\nexit \"${FAKE_WALLET_EXIT:-0}\"\n"), 0700)
 	bin := filepath.Join(dir, "bin")
 	os.Mkdir(bin, 0700)
-	os.WriteFile(filepath.Join(bin, "id"), []byte("#!/bin/sh\ncase $1 in\n-G) echo \"$FAKE_ID_G\" ;;\n-g) echo \"${FAKE_ID_G%% *}\" ;;\n-u) echo 1201 ;;\n*) exit 9 ;;\nesac\n"), 0700)
+	os.WriteFile(filepath.Join(bin, "id"), []byte("#!/bin/sh\ncase $1 in\n-G) echo \"$FAKE_ID_G\" ;;\n-g) case ${FAKE_ID_GID-} in FAIL) exit 1 ;; EMPTY) echo ;; '') echo \"${FAKE_ID_G%% *}\" ;; *) echo \"$FAKE_ID_GID\" ;; esac ;;\n-u) echo 1201 ;;\n*) exit 9 ;;\nesac\n"), 0700)
 	return kit, wallet, bin
 }
 
 // Claim: g2-custody-check.sh prints T18_PASS and exits 0 only when the real
-// deploy-kit g2-agent-groups accepts the readback `id -G` as exactly
-// {own primary GID 1201 (derived from the agent's sysusers declaration),
-// agent_socket_gid 1301} in any order (a repeated GID is no extra group), and
-// the probe, the own-agent request (exit 0 and verdict "executed") and the
-// verify step all succeed. A third group, the operator GID (supplementary or
+// deploy-kit g2-agent-groups accepts the readback: the observed `id -g` is the
+// own primary GID 1201 derived from the agent's sysusers declaration, and
+// `id -G` is exactly {1201, agent_socket_gid 1301} in any order (a repeated
+// GID is no extra group); and the probe, the own-agent request (exit 0 and
+// verdict "executed") and the verify step all succeed. The script records the
+// observed `id -g` and hands that same value to deploy-kit. Each of these is
+// refused with T18_FAIL, exit 1, before the probe or the request runs: the
+// same two GIDs with swapped roles (`id -g` 1301, `id -G` "1301 1201", the
+// review's regression shape for a group name resolving to the socket GID), an
+// observed third primary GID (listed in `id -G` or not), a failed, empty or
+// unparsable `id -g`, a third group, the operator GID (supplementary or
 // primary), a missing socket GID, a missing primary GID (the old
 // socket-GID-only set), an empty readback and parameters with equal socket and
-// operator GIDs are each refused with T18_FAIL before the probe or the request
-// runs; any failing later step, a non-executed verdict, an existing evidence
-// directory, a malformed grantee, a missing PARAMS file and the old six-argument
-// form fail too. The positive request is a canonical "balance" read with a
-// fresh nonce. Limit: agent-wallet, id, probe and verify are fakes here; the
-// real probe and verify are covered by the T18 Go tests.
+// operator GIDs. Any failing later step, a non-executed verdict, an existing
+// evidence directory, a malformed grantee, a missing PARAMS file and the old
+// six-argument form fail too. The positive request is a canonical "balance"
+// read with a fresh nonce. Limit: id is a fixture adapter for the credential
+// readback (no setpriv runs here); agent-wallet, probe and verify are fakes;
+// the real probe and verify are covered by the T18 Go tests.
 func TestPX1T18CustodyScript(t *testing.T) {
 	kit, wallet, bin := g2ScriptFakes(t, g2BuildDeployKit(t))
 	work := t.TempDir()
@@ -1140,7 +1149,7 @@ func TestPX1T18CustodyScript(t *testing.T) {
 	if creds, _ := os.ReadFile(filepath.Join(work, "pass", "credentials.txt")); string(creds) != "uid=1201 gid=1201 groups=1201 1301\n" {
 		t.Fatalf("T18_SCRIPT credentials evidence %q", creds)
 	}
-	if check, _ := os.ReadFile(filepath.Join(work, "pass", "credentials-check.txt")); string(check) != "G2_AGENT_GROUPS_OK primary=1201 socket=1301\n" {
+	if check, _ := os.ReadFile(filepath.Join(work, "pass", "credentials-check.txt")); string(check) != "G2_AGENT_GROUPS_OK observed_gid=1201 declared_primary_gid=1201 socket_gid=1301\n" {
 		t.Fatalf("T18_SCRIPT readback evidence %q", check)
 	}
 	raw, _ := os.ReadFile(capture)
@@ -1162,11 +1171,12 @@ func TestPX1T18CustodyScript(t *testing.T) {
 	if again, _ := json.Marshal(req); !bytes.Equal(again, raw) {
 		t.Fatal("T18_SCRIPT request not canonical", string(raw))
 	}
-	// Valid neighbours of the readback refusals below: the same two-group set
-	// in the other order, and with a repeated GID.
+	// Valid neighbours of the readback refusals below: the observed primary
+	// GID is the declared 1201, and the same two-group set comes in the other
+	// order or with a repeated GID.
 	for _, groups := range []string{"1301 1201", "1201 1301 1201"} {
 		name := "pass-" + strings.ReplaceAll(groups, " ", "-")
-		if code, got, _ := run(name, []string{spec, client, g2KeyG, params, filepath.Join(work, name)}, "FAKE_ID_G="+groups); code != 0 || got != "T18_PASS" {
+		if code, got, _ := run(name, []string{spec, client, g2KeyG, params, filepath.Join(work, name)}, "FAKE_ID_GID=1201", "FAKE_ID_G="+groups); code != 0 || got != "T18_PASS" {
 			t.Fatal("T18_SCRIPT readback neighbour refused", groups, code, got)
 		}
 	}
@@ -1181,6 +1191,12 @@ func TestPX1T18CustodyScript(t *testing.T) {
 		{"verify-fails", nil, 1, []string{"FAKE_VERIFY_EXIT=1"}, false},
 		{"wallet-fails", nil, 1, []string{"FAKE_WALLET_EXIT=2", "FAKE_VERDICT=refused"}, false},
 		{"refused-exit-zero", nil, 1, []string{"FAKE_VERDICT=refused"}, false},
+		{"role-swap-same-two-gids", nil, 1, []string{"FAKE_ID_GID=1301", "FAKE_ID_G=1301 1201"}, true},
+		{"primary-third-gid", nil, 1, []string{"FAKE_ID_GID=4242", "FAKE_ID_G=4242 1201 1301"}, true},
+		{"primary-third-gid-unlisted", nil, 1, []string{"FAKE_ID_GID=4242", "FAKE_ID_G=1201 1301"}, true},
+		{"primary-gid-readback-fails", nil, 1, []string{"FAKE_ID_GID=FAIL", "FAKE_ID_G=1201 1301"}, true},
+		{"primary-gid-readback-empty", nil, 1, []string{"FAKE_ID_GID=EMPTY", "FAKE_ID_G=1201 1301"}, true},
+		{"primary-gid-unparsable", nil, 1, []string{"FAKE_ID_GID=cedar", "FAKE_ID_G=1201 1301"}, true},
 		{"third-group", nil, 1, []string{"FAKE_ID_G=1201 1301 4242"}, true},
 		{"operator-supplementary", nil, 1, []string{"FAKE_ID_G=1201 1301 1401"}, true},
 		{"operator-primary", nil, 1, []string{"FAKE_ID_G=1401 1301"}, true},
@@ -1210,6 +1226,12 @@ func TestPX1T18CustodyScript(t *testing.T) {
 			exits, _ := os.ReadFile(filepath.Join(work, c.name, "exits.txt"))
 			if probeRan == nil || requestRan == nil || string(exits) != "credentials=refused\n" {
 				t.Fatal("T18_SCRIPT guard ran the probe or the request with refused credentials", c.name)
+			}
+		}
+		if c.name == "role-swap-same-two-gids" {
+			// The evidence records what was observed, never the declared value.
+			if creds, _ := os.ReadFile(filepath.Join(work, c.name, "credentials.txt")); string(creds) != "uid=1201 gid=1301 groups=1301 1201\n" {
+				t.Fatalf("T18_SCRIPT role-swap credentials evidence %q", creds)
 			}
 		}
 	}
@@ -1305,13 +1327,80 @@ func TestPX1S5AgentGroupsReadback(t *testing.T) {
 	}
 }
 
+// Claim: CheckG2AgentCredentials binds the OBSERVED primary GID (`id -g`) to
+// the declared one. With declared primary 1201 and socket 1301 it accepts an
+// observed 1201 with the exact set (either order, a repeat included), and an
+// observed 2201 for an agent declared at 2201. Beside those valid neighbours
+// it refuses, with ErrPolicy, the same two GIDs with the roles swapped
+// (observed 1301, the review's regression shape), an observed third GID
+// (listed in `id -G` or not), the operator GID as observed primary and the
+// 1201 of another agent's declaration; with ErrInput a missing (empty) or
+// unparsable `id -g` (a name, padding, a sign, a leading zero, out of range).
+// A matching primary still has to pass the unchanged set rule. Limit: the
+// rule over given strings; TestG2AgentGroupsCommand and
+// TestPX1T18CustodyScript show the observed values reach it.
+func TestPX1S5AgentCredentialsReadback(t *testing.T) {
+	p := g2Params() // primary 1201, socket 1301, operator 1401
+	moved := p
+	moved.AgentUID = 2201
+	type row struct {
+		p      G2PayParameters
+		gid    string
+		groups []string
+	}
+	for _, ok := range []row{
+		{p, "1201", []string{"1201", "1301"}},
+		{p, "1201", []string{"1301", "1201"}},
+		{p, "1201", []string{"1201", "1301", "1201"}},
+		{moved, "2201", []string{"2201", "1301"}},
+	} {
+		if e := CheckG2AgentCredentials(ok.p, ok.gid, ok.groups); e != nil {
+			t.Errorf("G2_CREDENTIALS_NEIGHBOUR observed gid %q groups %v refused: %v", ok.gid, ok.groups, e)
+		}
+	}
+	for _, c := range []struct {
+		marker string
+		row
+		want error
+	}{
+		{"G2_CREDENTIALS_ROLE_SWAP", row{p, "1301", []string{"1301", "1201"}}, ErrPolicy},
+		{"G2_CREDENTIALS_ROLE_SWAP", row{p, "1301", []string{"1201", "1301"}}, ErrPolicy},
+		{"G2_CREDENTIALS_THIRD_GID", row{p, "4242", []string{"1201", "1301"}}, ErrPolicy},
+		{"G2_CREDENTIALS_THIRD_GID", row{p, "4242", []string{"4242", "1201", "1301"}}, ErrPolicy},
+		{"G2_CREDENTIALS_THIRD_GID", row{p, "1401", []string{"1201", "1301"}}, ErrPolicy},
+		{"G2_CREDENTIALS_THIRD_GID", row{moved, "1201", []string{"1201", "1301"}}, ErrPolicy},
+		{"G2_CREDENTIALS_GID_MISSING", row{p, "", []string{"1201", "1301"}}, ErrInput},
+		{"G2_CREDENTIALS_GID_UNPARSABLE", row{p, "cedar", []string{"1201", "1301"}}, ErrInput},
+		{"G2_CREDENTIALS_GID_UNPARSABLE", row{p, "01201", []string{"1201", "1301"}}, ErrInput},
+		{"G2_CREDENTIALS_GID_UNPARSABLE", row{p, " 1201", []string{"1201", "1301"}}, ErrInput},
+		{"G2_CREDENTIALS_GID_UNPARSABLE", row{p, "1201\n", []string{"1201", "1301"}}, ErrInput},
+		{"G2_CREDENTIALS_GID_UNPARSABLE", row{p, "+1201", []string{"1201", "1301"}}, ErrInput},
+		{"G2_CREDENTIALS_GID_UNPARSABLE", row{p, "1201 1301", []string{"1201", "1301"}}, ErrInput},
+		{"G2_CREDENTIALS_GID_UNPARSABLE", row{p, "4294968497", []string{"1201", "1301"}}, ErrInput},
+		{"G2_CREDENTIALS_SET", row{p, "1201", []string{"1201"}}, ErrPolicy},
+		{"G2_CREDENTIALS_SET", row{p, "1201", []string{"1201", "1301", "1401"}}, ErrPolicy},
+		{"G2_CREDENTIALS_SET", row{p, "1201", nil}, ErrPolicy},
+		{"G2_CREDENTIALS_SET", row{p, "1201", []string{"1201", "peer"}}, ErrInput},
+	} {
+		if e := CheckG2AgentCredentials(c.p, c.gid, c.groups); e != c.want {
+			t.Errorf("%s observed gid %q groups %v: got %v, want %v", c.marker, c.gid, c.groups, e, c.want)
+		}
+	}
+}
+
 // Claim: SMOKE-G2.md launches T18 with the slot's real credentials, once:
-// setpriv with --reuid and --regid naming the agent account and its own group
-// (as the slot's User= and Group= do) and --init-groups (the initgroups the
-// slot applies), handing parameters.json to the script; and no S5 T18 text
-// keeps the reduced form (--clear-groups, --groups, --keep-groups, or the
-// socket GID as the primary GID). The launch paragraph states that equality.
-// Limit: a text check of the documented command; setpriv is never run here.
+// setpriv with the agent's numeric UID as --reuid, the numeric primary GID
+// the agent's declaration names as --regid (never a group name, which can
+// resolve to another GID) and --init-groups (the initgroups the slot
+// applies), handing parameters.json to the script. Its documented AGENT_UID
+// and AGENT_GID lines, run by sh on a rendered sysusers.conf, give exactly
+// agent_uid and the G2AgentSlotGIDs primary GID (also for another agent UID),
+// and the GID part of a hand-edited UID:GID declaration. No S5 T18 text keeps
+// the reduced form (--clear-groups, --groups, --keep-groups, the socket GID as
+// the primary GID) or the agent's name as --regid. The launch paragraph states
+// the equality with the slot and that the readback is the proof. Limit: a
+// check of the documented command and its two derivation lines; setpriv is
+// never run here, and the readback tests carry the proof.
 func TestPX1S5T18LaunchCredentials(t *testing.T) {
 	smoke, e := os.ReadFile("SMOKE-G2.md")
 	if e != nil {
@@ -1323,8 +1412,55 @@ func TestPX1S5T18LaunchCredentials(t *testing.T) {
 			launches = append(launches, strings.TrimSpace(line))
 		}
 	}
-	if len(launches) != 1 || launches[0] != `setpriv --reuid="$AGENT_USER" --regid="$AGENT_USER" --init-groups -- \` {
+	if len(launches) != 1 || launches[0] != `setpriv --reuid="$AGENT_UID" --regid="$AGENT_GID" --init-groups -- \` {
 		t.Fatalf("T18_LAUNCH SMOKE-G2.md launch is not the slot credential form: %q", launches)
+	}
+	var derive []string
+	for _, line := range strings.Split(string(smoke), "\n") {
+		if strings.HasPrefix(line, "AGENT_UID=$(") || strings.HasPrefix(line, "AGENT_GID=$(") {
+			derive = append(derive, line)
+		}
+	}
+	if len(derive) != 2 {
+		t.Fatalf("T18_LAUNCH_IDS SMOKE-G2.md does not derive AGENT_UID and AGENT_GID once each: %q", derive)
+	}
+	ids := func(conf []byte) string {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "sysusers.conf"), conf, 0600)
+		cmd := exec.Command("/bin/sh", "-c", strings.Join(derive, "\n")+"\n"+`printf '%s %s' "$AGENT_UID" "$AGENT_GID"`)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "AGENT_USER="+g2Agent)
+		out, e := cmd.Output()
+		if e != nil {
+			t.Fatal("T18_LAUNCH_IDS", e)
+		}
+		return string(out)
+	}
+	for _, uid := range []uint32{1201, 2201} {
+		q := g2Params()
+		q.AgentUID = uid
+		files, e := RenderG2PayTemplates(q)
+		primary, _, e2 := G2AgentSlotGIDs(q)
+		if e != nil || e2 != nil {
+			t.Fatal("T18_LAUNCH_IDS render", e, e2)
+		}
+		if got, want := ids(files[G2FileSysusers]), strconv.FormatUint(uint64(uid), 10) + " " + strconv.FormatUint(uint64(primary), 10); got != want {
+			t.Errorf("T18_LAUNCH_IDS rendered sysusers.conf gives %q, want %q", got, want)
+		}
+		if uid != 1201 {
+			continue
+		}
+		edited := bytes.Replace(files[G2FileSysusers], []byte("u "+g2Agent+" 1201\n"), []byte("u "+g2Agent+" 1201:1777\n"), 1)
+		gid, e := g2DeclaredPrimaryGID(string(edited), g2Agent, 1201)
+		if e != nil || gid != 1777 {
+			t.Fatal("T18_LAUNCH_IDS edited declaration", gid, e)
+		}
+		if got := ids(edited); got != "1201 1777" {
+			t.Errorf("T18_LAUNCH_IDS UID:GID declaration gives %q, want the declared GID 1777", got)
+		}
+	}
+	if !strings.Contains(string(smoke), "can resolve to another GID") || !strings.Contains(string(smoke), "This readback, not the launch command, is the\nproof") {
+		t.Fatal("T18_LAUNCH SMOKE-G2.md does not say why --regid is numeric and that the readback proves it")
 	}
 	if !strings.Contains(string(smoke), `deploy/g2-custody-check.sh custody-spec.json client.json "$GRANTEE_XONLY" \`+"\n    parameters.json \"$NEW_EVIDENCE_DIR\"") {
 		t.Fatal("T18_LAUNCH SMOKE-G2.md does not hand parameters.json to the script")
@@ -1337,7 +1473,7 @@ func TestPX1S5T18LaunchCredentials(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		for _, reduced := range []string{"--clear-groups", "--keep-groups", "--groups=", `--regid="$AGENT_SOCKET_GID"`, "SOCKET_GID OPERATOR_GID"} {
+		for _, reduced := range []string{"--clear-groups", "--keep-groups", "--groups=", `--regid="$AGENT_SOCKET_GID"`, "SOCKET_GID OPERATOR_GID", `--regid="$AGENT_USER"`} {
 			if bytes.Contains(b, []byte(reduced)) {
 				t.Errorf("T18_LAUNCH %s keeps the reduced credential form %q", name, reduced)
 			}

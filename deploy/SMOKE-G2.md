@@ -168,35 +168,53 @@ account's group list through initgroups. The agent therefore runs with UID
 `agent_uid`, its own primary group (the group `systemd-sysusers` creates for
 `u <agent_user> <agent_uid>`, at GID `agent_uid`) and `swarma-wallet-peer`
 (`agent_socket_gid`), and with nothing else. Root launches T18 with the same
-credentials: `--reuid` and `--regid` name the agent account and its own group
-the way `User=` and `Group=` do, and `--init-groups` applies initgroups for the
-account. This equals what the slot applies (`User=` plus `Group=` plus
+credentials: `--reuid` is the agent's UID, `--regid` the NUMERIC primary GID
+that the agent's own declaration names, and `--init-groups` applies initgroups
+for the account. This equals what the slot applies (`User=` plus `Group=` plus
 initgroups) for an account whose own group is its primary group, which is what
-`systemd-sysusers` creates from the declaration. Run the script with binaries
-built from the reviewed head, and give it the `parameters.json` the files were
-rendered from (it holds no secret):
+`systemd-sysusers` creates from the declaration. Both numbers come from the
+agent's `u` line of the rendered `sysusers.conf` (`u <agent_user> <agent_uid>`;
+the GID is the same number, or the part after the colon of a `UID:GID` field).
+Run the script with binaries built from the reviewed head, and give it the
+`parameters.json` the files were rendered from (it holds no secret):
 
 ```sh
-setpriv --reuid="$AGENT_USER" --regid="$AGENT_USER" --init-groups -- \
+AGENT_UID=$(awk -v u="$AGENT_USER" '$1 == "u" && $2 == u { split($3, id, ":"); print id[1] }' sysusers.conf)
+AGENT_GID=$(awk -v u="$AGENT_USER" '$1 == "u" && $2 == u { n = split($3, id, ":"); print id[n] }' sysusers.conf)
+setpriv --reuid="$AGENT_UID" --regid="$AGENT_GID" --init-groups -- \
   env DEPLOY_KIT=/path/to/deploy-kit AGENT_WALLET=/path/to/agent-wallet \
   deploy/g2-custody-check.sh custody-spec.json client.json "$GRANTEE_XONLY" \
     parameters.json "$NEW_EVIDENCE_DIR"
 ```
 
-`AGENT_USER` is `agent_user` of the parameters. Do not drop to a reduced group
-set (the socket GID alone, or a hand-made group list): such a run tests
-credentials the slot never has.
+`AGENT_USER` is `agent_user` of the parameters. Do not give `--regid` a group
+name: a name is resolved on the host and can resolve to another GID. A group
+of the agent's name at `agent_socket_gid`, for example, makes the socket GID
+the primary GID and the agent's own group a supplementary one. That run has
+exactly the same two-GID set as the right one, so the set alone does not
+reveal it. Do not drop to a reduced group set (the socket GID alone, or a
+hand-made group list) either: such a run tests credentials the slot never
+has.
 
-The script first reads back `id -G` and records it in `credentials.txt`. It
-hands the readback to `deploy-kit g2-agent-groups -params parameters.json`,
-which derives the expected set from the parameters: the agent's own primary
-GID from its sysusers declaration (`G2AgentSysusers`), and `agent_socket_gid`.
-The readback must be exactly that set: both GIDs present, in any order, nothing
-else, and never the operator GID. A repeated GID is not an extra group. The
-result goes to `credentials-check.txt`. On a refused readback the script prints
-`T18_FAIL` and runs nothing else. An account whose own group sits at another
-GID (an existing account, or a GID collision during the apply), or that has any
-other group, fails here. Fix the account; do not change the check.
+The script first reads back `id -g` (the effective primary GID) and `id -G`,
+and records both in `credentials.txt`. It hands the observed `id -g` as `-gid`
+and the GIDs of `id -G` to `deploy-kit g2-agent-groups -params
+parameters.json`, which derives the expected values from the parameters: the
+agent's own primary GID from its sysusers declaration (`G2AgentSysusers`), and
+`agent_socket_gid`. The observed `id -g` must equal that primary GID, and
+`id -G` must be exactly the set {primary GID, `agent_socket_gid`}: both GIDs
+present, in any order, nothing else, and never the operator GID. A repeated
+GID is not an extra group. This readback, not the launch command, is the
+proof: it compares what the process actually holds, so a `--regid` that
+resolved to another GID, a swapped primary and supplementary group, or a
+failed or unparsable `id -g` is refused. The result goes to
+`credentials-check.txt`; a passing readback prints the observed GID next to
+the declared ones (`G2_AGENT_GROUPS_OK observed_gid=... declared_primary_gid=...
+socket_gid=...`). On a refused readback the script prints `T18_FAIL` and runs
+nothing else: no probe and no request. An account whose own group sits at
+another GID (an existing account, or a GID collision during the apply), or
+that has any other group, fails here. Fix the account; do not change the
+check.
 
 It then prints `T18_PASS` and exits 0 only when all three of these hold:
 
@@ -260,13 +278,20 @@ the launch packet.
   or operator GID. `TestPX1S5AgentGroupsReadback` accepts exactly the
   two-group set (any order, repeats allowed) and refuses a third group, the
   operator GID, a missing socket GID, a missing primary GID (the old
-  socket-GID-only set) and an empty readback. `TestG2AgentGroupsCommand` runs
-  the same cases through `deploy-kit g2-agent-groups`.
-  `TestPX1T18CustodyScript` runs the script with the real `deploy-kit
-  g2-agent-groups` and a fake `id`, and shows that a refused readback runs
+  socket-GID-only set) and an empty readback.
+  `TestPX1S5AgentCredentialsReadback` binds the observed `id -g` to the
+  declared primary GID: beside the valid neighbour it refuses the same two
+  GIDs with swapped roles (primary `agent_socket_gid`, the agent's own group
+  supplementary), an observed third GID and a missing or unparsable `id -g`.
+  `TestG2AgentGroupsCommand` runs the same cases through `deploy-kit
+  g2-agent-groups -gid`. `TestPX1T18CustodyScript` runs the script with the
+  real `deploy-kit g2-agent-groups` and a fake `id` as the readback adapter,
+  including the swapped-role shape, and shows that a refused readback runs
   neither the probe nor the request. `TestPX1S5T18LaunchCredentials` checks
-  that the documented launch is the `--init-groups` form and that no S5 T18
-  text keeps the reduced form. The tripwire's `t18-readback` part shows that
+  that the documented launch is the numeric `--init-groups` form, that its
+  `AGENT_UID` and `AGENT_GID` lines give the declared numbers on a rendered
+  `sysusers.conf`, and that no S5 T18 text keeps the reduced form or a group
+  name for `--regid`. The tripwire's `t18-readback` part shows that
   an existing account with an extra group of its own passes the frozen
   post-apply check and is activated, but is refused by the readback.
 - `TestPX1S5SysusersResolvedConsumer` and `TestPX1S5SysusersGIDDomain` give

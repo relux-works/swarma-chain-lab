@@ -21,11 +21,11 @@
 # (defaults: deploy-kit and agent-wallet on PATH).
 #
 # Prints T18_PASS and exits 0 only when all four hold:
-#   0. deploy-kit g2-agent-groups accepts the readback `id -G`: exactly the
-#      set {the agent's own primary GID, agent_socket_gid}, both derived from
-#      PARAMS (the primary GID from the agent's sysusers declaration), in any
-#      order, nothing else and never operator_gid (otherwise nothing else
-#      runs);
+#   0. deploy-kit g2-agent-groups accepts the readback: the observed `id -g`
+#      (the effective primary GID) is the agent's own primary GID, which it
+#      derives from the agent's sysusers declaration in PARAMS, and `id -G` is
+#      exactly the set {that primary GID, agent_socket_gid}, in any order,
+#      nothing else and never operator_gid (otherwise nothing else runs);
 #   1. deploy-kit g2-custody-probe: every denied read is EACCES/EPERM, every
 #      credential-less node RPC call is refused, the wallet socket connects;
 #   2. agent-wallet returns an "executed" receipt for the own-agent request;
@@ -55,16 +55,19 @@ agent_wallet=${AGENT_WALLET:-agent-wallet}
 # A new directory only: earlier evidence is never overwritten.
 mkdir "$out" || usage
 
-# Readback of the credentials this run holds. `id -G` prints the effective
-# GID and every other group of the process; deploy-kit g2-agent-groups gets
-# one argument per GID and accepts exactly {own primary GID,
-# agent_socket_gid} as derived from PARAMS. A failed `id` reads back nothing,
+# Readback of the credentials this run holds, read once: `id -g` prints the
+# effective primary GID, `id -G` that GID and every other group of the
+# process. deploy-kit g2-agent-groups gets the observed `id -g` as -gid and
+# one argument per GID of `id -G`. It requires the observed primary GID to be
+# the agent's own primary GID derived from PARAMS: the two-GID set alone does
+# not tell which of the two is primary. A failed `id` reads back nothing,
 # which is refused.
+gid=$(id -g) || gid=
 groups=$(id -G) || groups=
-printf 'uid=%s gid=%s groups=%s\n' "$(id -u)" "$(id -g)" "$groups" >"$out/credentials.txt"
+printf 'uid=%s gid=%s groups=%s\n' "$(id -u)" "$gid" "$groups" >"$out/credentials.txt"
 set -f
 # shellcheck disable=SC2086 # one argument per GID of the readback
-if ! "$deploy_kit" g2-agent-groups -params "$params" -- $groups >"$out/credentials-check.txt" 2>&1; then
+if ! "$deploy_kit" g2-agent-groups -params "$params" -gid="$gid" -- $groups >"$out/credentials-check.txt" 2>&1; then
 	printf 'credentials=refused\n' >"$out/exits.txt"
 	echo T18_FAIL
 	exit 1

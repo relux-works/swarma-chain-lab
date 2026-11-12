@@ -256,13 +256,17 @@ func TestG2HostFlowCommand(t *testing.T) {
 	}
 }
 
-// Claim: g2-agent-groups accepts the readback only when its GIDs are exactly
-// {own primary GID 1201, agent_socket_gid 1301} derived from the parameters
-// (any order, a repeated GID allowed) and then prints the two GIDs; a third
-// group, the operator GID, a missing primary or socket GID, no GID, a
-// non-canonical GID and invalid parameters are refused and print nothing.
-// The neighbour with another agent_uid shows the primary GID follows the
-// parameters.
+// Claim: g2-agent-groups accepts the readback only when the OBSERVED -gid
+// (`id -g`) is the primary GID the agent's declaration names and the GIDs
+// after "--" (`id -G`) are exactly {that primary GID 1201, agent_socket_gid
+// 1301} (any order, a repeated GID allowed); only then it prints the observed
+// GID next to the declared ones. The neighbour with another agent_uid shows
+// the declared primary follows the parameters. Beside those, the same two
+// GIDs with swapped roles (-gid 1301, the review's regression shape), an
+// observed third GID (listed or not), the operator GID as -gid, and a
+// missing, empty or unparsable -gid are refused, as are a third group, the
+// operator GID, a missing primary or socket GID, no GID, a non-canonical GID
+// and invalid parameters; a refusal prints nothing.
 func TestG2AgentGroupsCommand(t *testing.T) {
 	root := t.TempDir()
 	write := func(name string, p deploy.G2PayParameters) string {
@@ -278,40 +282,69 @@ func TestG2AgentGroupsCommand(t *testing.T) {
 	bad := cliParams()
 	bad.OperatorGID = bad.AgentSocketGID
 	badParams := write("params-bad.json", bad)
+	run := func(params string, gid []string, gids []string) (string, error) {
+		var stdout bytes.Buffer
+		args := append(append([]string{"-params", params}, gid...), "--")
+		e := g2AgentGroups(append(args, gids...), &stdout)
+		return stdout.String(), e
+	}
 	for _, c := range []struct {
 		params string
+		gid    []string
 		gids   []string
 		want   string
 	}{
-		{params, []string{"1201", "1301"}, "G2_AGENT_GROUPS_OK primary=1201 socket=1301\n"},
-		{params, []string{"1301", "1201", "1301"}, "G2_AGENT_GROUPS_OK primary=1201 socket=1301\n"},
-		{movedParams, []string{"2201", "1301"}, "G2_AGENT_GROUPS_OK primary=2201 socket=1301\n"},
+		{params, []string{"-gid", "1201"}, []string{"1201", "1301"}, "G2_AGENT_GROUPS_OK observed_gid=1201 declared_primary_gid=1201 socket_gid=1301\n"},
+		{params, []string{"-gid=1201"}, []string{"1301", "1201", "1301"}, "G2_AGENT_GROUPS_OK observed_gid=1201 declared_primary_gid=1201 socket_gid=1301\n"},
+		{movedParams, []string{"-gid", "2201"}, []string{"2201", "1301"}, "G2_AGENT_GROUPS_OK observed_gid=2201 declared_primary_gid=2201 socket_gid=1301\n"},
 	} {
-		var stdout bytes.Buffer
-		if e := g2AgentGroups(append([]string{"-params", c.params, "--"}, c.gids...), &stdout); e != nil || stdout.String() != c.want {
-			t.Fatalf("G2_CLI_AGENT_GROUPS positive %v: %v %q", c.gids, e, stdout.String())
+		if got, e := run(c.params, c.gid, c.gids); e != nil || got != c.want {
+			t.Fatalf("G2_CLI_AGENT_GROUPS positive %v %v: %v %q", c.gid, c.gids, e, got)
 		}
 	}
+	// The unchanged set rule, with the observed primary GID right.
 	for _, c := range []struct {
 		name   string
 		params string
+		gid    []string
 		gids   []string
 		want   error
 	}{
-		{"third-group", params, []string{"1201", "1301", "4242"}, deploy.ErrPolicy},
-		{"operator", params, []string{"1201", "1301", "1401"}, deploy.ErrPolicy},
-		{"primary-missing", params, []string{"1301"}, deploy.ErrPolicy},
-		{"socket-missing", params, []string{"1201"}, deploy.ErrPolicy},
-		{"no-gid", params, nil, deploy.ErrPolicy},
-		{"other-agent-primary", movedParams, []string{"1201", "1301"}, deploy.ErrPolicy},
-		{"leading-zero", params, []string{"01201", "1301"}, deploy.ErrInput},
-		{"not-a-number", params, []string{"1201", "peer"}, deploy.ErrInput},
-		{"invalid-params", badParams, []string{"1201", "1301"}, deploy.ErrPolicy},
-		{"absent-params", filepath.Join(root, "absent.json"), []string{"1201", "1301"}, deploy.ErrPolicy},
+		{"third-group", params, []string{"-gid", "1201"}, []string{"1201", "1301", "4242"}, deploy.ErrPolicy},
+		{"operator", params, []string{"-gid", "1201"}, []string{"1201", "1301", "1401"}, deploy.ErrPolicy},
+		{"primary-missing", params, []string{"-gid", "1201"}, []string{"1301"}, deploy.ErrPolicy},
+		{"socket-missing", params, []string{"-gid", "1201"}, []string{"1201"}, deploy.ErrPolicy},
+		{"no-gid", params, []string{"-gid", "1201"}, nil, deploy.ErrPolicy},
+		{"other-agent-primary", movedParams, []string{"-gid", "1201"}, []string{"1201", "1301"}, deploy.ErrPolicy},
+		{"leading-zero", params, []string{"-gid", "1201"}, []string{"01201", "1301"}, deploy.ErrInput},
+		{"not-a-number", params, []string{"-gid", "1201"}, []string{"1201", "peer"}, deploy.ErrInput},
+		{"invalid-params", badParams, []string{"-gid", "1201"}, []string{"1201", "1301"}, deploy.ErrPolicy},
+		{"absent-params", filepath.Join(root, "absent.json"), []string{"-gid", "1201"}, []string{"1201", "1301"}, deploy.ErrPolicy},
 	} {
-		var stdout bytes.Buffer
-		if e := g2AgentGroups(append([]string{"-params", c.params, "--"}, c.gids...), &stdout); !errors.Is(e, c.want) || stdout.Len() != 0 {
-			t.Fatalf("G2_CLI_AGENT_GROUPS %s admitted: %v %q", c.name, e, stdout.String())
+		if got, e := run(c.params, c.gid, c.gids); !errors.Is(e, c.want) || got != "" {
+			t.Fatalf("G2_CLI_AGENT_GROUPS %s admitted: %v %q", c.name, e, got)
+		}
+	}
+	// The observed primary GID: each row is a one-value change of the first
+	// positive row above.
+	for _, c := range []struct {
+		name string
+		gid  []string
+		gids []string
+		want error
+	}{
+		{"role-swap", []string{"-gid", "1301"}, []string{"1301", "1201"}, deploy.ErrPolicy},
+		{"third-gid", []string{"-gid", "4242"}, []string{"4242", "1201", "1301"}, deploy.ErrPolicy},
+		{"third-gid-unlisted", []string{"-gid", "4242"}, []string{"1201", "1301"}, deploy.ErrPolicy},
+		{"operator-gid", []string{"-gid", "1401"}, []string{"1201", "1301"}, deploy.ErrPolicy},
+		{"gid-absent", nil, []string{"1201", "1301"}, deploy.ErrInput},
+		{"gid-empty", []string{"-gid="}, []string{"1201", "1301"}, deploy.ErrInput},
+		{"gid-name", []string{"-gid", "cedar"}, []string{"1201", "1301"}, deploy.ErrInput},
+		{"gid-leading-zero", []string{"-gid", "01201"}, []string{"1201", "1301"}, deploy.ErrInput},
+		{"gid-two-values", []string{"-gid", "1201 1301"}, []string{"1201", "1301"}, deploy.ErrInput},
+	} {
+		if got, e := run(params, c.gid, c.gids); !errors.Is(e, c.want) || got != "" {
+			t.Fatalf("G2_CLI_PRIMARY_GID %s admitted: %v %q", c.name, e, got)
 		}
 	}
 }

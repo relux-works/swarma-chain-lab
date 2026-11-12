@@ -807,3 +807,51 @@ func CheckG2AgentGroups(p G2PayParameters, readback []uint32) error {
 	}
 	return nil
 }
+
+// g2ReadbackGID parses one GID as `id` prints it: a canonical decimal in the
+// uint32 range. Anything else, the empty string of a failed or missing
+// readback included, refuses ErrInput.
+func g2ReadbackGID(s string) (uint32, error) {
+	v, e := strconv.ParseUint(s, 10, 32)
+	if e != nil || strconv.FormatUint(v, 10) != s {
+		return 0, ErrInput
+	}
+	return uint32(v), nil
+}
+
+// CheckG2AgentCredentials is the complete T18 credential readback, applied
+// before any probe or request. gid is what the running agent's `id -g`
+// printed (its effective primary GID), groups one entry per GID of its
+// `id -G`. Both are the OBSERVED values, never values derived from p.
+//
+// The observed primary GID must equal the primary GID of G2AgentSlotGIDs(p),
+// the one the agent's own sysusers declaration names. The unordered set rule
+// of CheckG2AgentGroups cannot establish that: swapping the roles (primary
+// agent_socket_gid, the agent's own group supplementary) keeps exactly the
+// same two-GID set. groups must then pass CheckG2AgentGroups unchanged.
+//
+// It refuses with G2AgentSlotGIDs' error; ErrInput when gid is missing or any
+// GID is not a canonical decimal; ErrPolicy when the observed primary GID is
+// not the declared one or the set rule refuses.
+func CheckG2AgentCredentials(p G2PayParameters, gid string, groups []string) error {
+	primary, _, e := G2AgentSlotGIDs(p)
+	if e != nil {
+		return e
+	}
+	observed, e := g2ReadbackGID(gid)
+	if e != nil {
+		return e
+	}
+	readback := make([]uint32, 0, len(groups))
+	for _, s := range groups {
+		g, e := g2ReadbackGID(s)
+		if e != nil {
+			return e
+		}
+		readback = append(readback, g)
+	}
+	if observed != primary {
+		return ErrPolicy // a swapped role, or the primary is another group
+	}
+	return CheckG2AgentGroups(p, readback)
+}

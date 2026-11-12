@@ -139,14 +139,17 @@ target-host order and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
   searchable but unlistable directory fails.
 - `deploy-kit g2-custody-verify -spec custody-spec.json -report REPORT` checks a
   stored report against the launch spec and prints `T18_CUSTODY_VERIFIED <spec sha256>`.
-- `deploy-kit g2-agent-groups -params "$PARAMS" -- GID...` is the T18
-  credential readback. The GIDs (the agent's `id -G`) must be exactly the
-  agent's own primary GID, derived from its sysusers declaration, and
+- `deploy-kit g2-agent-groups -params "$PARAMS" -gid GID -- GID...` is the
+  T18 credential readback. `-gid` (the agent's observed `id -g`) must equal
+  the agent's own primary GID, derived from its sysusers declaration, and the
+  GIDs after `--` (the agent's `id -G`) must be exactly that primary GID and
   `agent_socket_gid`: in any order, nothing else, never the operator GID. It
-  prints `G2_AGENT_GROUPS_OK primary=<gid> socket=<gid>` only then.
+  prints `G2_AGENT_GROUPS_OK observed_gid=<gid> declared_primary_gid=<gid>
+  socket_gid=<gid>` only then.
 - `deploy/g2-custody-check.sh SPEC CLIENT GRANTEE PARAMS OUTDIR` is the T18
-  host script, run with the slot's credentials (`setpriv --reuid="$AGENT_USER"
-  --regid="$AGENT_USER" --init-groups`, see `SMOKE-G2.md` §4). It first hands
+  host script, run with the slot's credentials (`setpriv --reuid="$AGENT_UID"
+  --regid="$AGENT_GID" --init-groups` with the numeric UID and declared
+  primary GID, see `SMOKE-G2.md` §4). It first hands the observed `id -g` and
   `id -G` to `deploy-kit g2-agent-groups`. It then runs the probe, sends one
   own-agent `balance` request and runs verify, and prints `T18_PASS` or
   `T18_FAIL`. Evidence goes into the new `OUTDIR`.
