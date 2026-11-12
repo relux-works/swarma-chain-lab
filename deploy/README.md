@@ -115,6 +115,80 @@ enforcement. For memory/IP cgroup controls see the primary
 [systemd resource-control reference](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html).
 Host support must be checked by Infra; text presence is not runtime proof.
 
+## G2 pay deploy and T18 (PX1 S5)
+
+The G2 pay executor's deploy inputs are rendered from one canonical parameters
+file, `templates/g2-pay/parameters.json`. The frozen contract is
+`g2_pay_api.go`, and the implementation is `g2_pay.go`. The procedure, the
+target-host order and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
+
+- `go run ./cmd/deploy-kit g2-render -params "$PARAMS" -out "$NEW_ABSOLUTE_DIR"`
+  validates the parameters and writes the six frozen G2 files (0600) into a new
+  directory. It never overwrites. It reads no credential and renders none, and
+  it leaves no placeholder. Rendering is pure: it reads no account database.
+- `deploy-kit g2-host-flow -params "$PARAMS" -- ACTIVATION...` is the
+  target-host provisioning order (freeze amendment 1), run as root on the
+  target host only: the preflight `ValidateG2PayIdentity` over this host's
+  accounts, `systemd-sysusers -` on the `sysusers.conf` rendered from the same
+  parameters, the required post-apply `VerifyG2AgentAccount`, and only then the
+  activation command. A refused step stops the flow; it prints
+  `G2_HOST_FLOW_ACTIVATED` only after a successful activation.
+- `deploy-kit g2-custody-probe -spec custody-spec.json` runs T18 as the agent
+  UID and prints a `CustodyReportV1`. It exits 1 unless every probe passes. A
+  denied path passes only if the agent can neither read nor traverse it, so a
+  searchable but unlistable directory fails.
+- `deploy-kit g2-custody-verify -spec custody-spec.json -report REPORT` checks a
+  stored report against the launch spec and prints `T18_CUSTODY_VERIFIED <spec sha256>`.
+- `deploy-kit g2-agent-groups -params "$PARAMS" -gid GID -- GID...` is the
+  T18 credential readback. `-gid` (the agent's observed `id -g`) must equal
+  the agent's own primary GID, derived from its sysusers declaration, and the
+  GIDs after `--` (the agent's `id -G`) must be exactly that primary GID and
+  `agent_socket_gid`: in any order, nothing else, never the operator GID. It
+  prints `G2_AGENT_GROUPS_OK observed_gid=<gid> declared_primary_gid=<gid>
+  socket_gid=<gid>` only then.
+- `deploy/g2-custody-check.sh SPEC CLIENT GRANTEE PARAMS OUTDIR` is the T18
+  host script, run with the slot's credentials (`setpriv --reuid="$AGENT_UID"
+  --regid="$AGENT_GID" --init-groups` with the numeric UID and declared
+  primary GID, see `SMOKE-G2.md` §4). It first hands the observed `id -g` and
+  `id -G` to `deploy-kit g2-agent-groups`. It then runs the probe, sends one
+  own-agent `balance` request and runs verify, and prints `T18_PASS` or
+  `T18_FAIL`. Evidence goes into the new `OUTDIR`.
+- `W1_REGTEST=1 W1_CORE_DAEMON=/abs/namecoind W1_RUN_ROOT=/abs/new-dir go test
+  -count=1 -run '^TestPX1T18CoreNodePolicy$' .` runs the Core layer against a
+  regtest node that the test starts and stops by PID.
+- `go test -count=1 -run '^TestPX1S5HostFlow' .` is the end-to-end tripwire of
+  the target-host order over a fixture account database: a refused preflight
+  stops before the apply, a post-apply mismatch (substituted UID, missing peer
+  membership, operator-group membership) stops before activation, the clean
+  path reaches activation, and the rendered `sysusers.conf`, `tmpfiles.conf`
+  and `custody-spec.json` carry the numeric agent declaration, the status
+  directory and its denial. Its T18 readback part shows that the clean account
+  (own primary group plus `swarma-wallet-peer`) passes the readback, and that
+  an activated account with an extra group of its own is refused.
+- `go test -count=1 -run '^TestPX1S5Sysusers' .` gives the rendered
+  `sysusers.conf` to the real `systemd-sysusers`, only with `--dry-run` and a
+  new fixture root under the test temp directory. The consumer part skips where
+  `systemd-sysusers` is not installed or has no `--dry-run` option (systemd 249,
+  for example).
+- `go test -count=1 -run '^TestPX1S5ClientConsumerResolved$' .` builds the
+  agent-wallet CLI from `../experiments/agent-wallet` into the test temp
+  directory and runs it on the rendered `client.json`. This is a subprocess;
+  `deploy` does not import agent-wallet. The rendered file must pass the
+  loader; the same file with a quoted UID, a relative key path or a
+  placeholder key path must be refused with `CLIENT_CONFIG`. It reads no key
+  and opens no socket. It skips, and
+  says so, only where `GOPROXY=off` and the agent-wallet dependencies are not
+  in the module cache, as in the gateway-auth-model job, which downloads only
+  deploy's and rental-gateway's. The deploy workflow downloads them, because
+  agent-wallet is a release module, and so runs the test.
+- `W1_MUTATIONS=1 W1_MUTATION_ROOT=/abs/new-dir W1_CORE_DAEMON=/abs/namecoind go
+  test -count=1 -timeout 30m -run '^TestPX1S5GuardPlants$' .` runs the S5
+  narrowing plants in `testdata/px1-mutations-s5.json`. Each plant must fail its
+  named test with its marker, and `results.json` is written to the root. The
+  agent-wallet runner cannot host these plants, because it copies only
+  agent-wallet. The S5 copy includes the unmodified agent-wallet module and its
+  local replace targets, for the client-consumer test.
+
 ## Optional gateway AUTH and model proxy
 
 The gateway template sets `relay_auth: off`; choose `when_challenged` or `required`
