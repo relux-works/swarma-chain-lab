@@ -790,5 +790,23 @@
   "Selector": "TestPX1CoreS2Crash/broadcast-rejected",
   "Marker": "T10 broadcast-rejected: first observation pass after restart",
   "Core": true
+ },
+ {
+  "Name": "px1-s3-absent-on-malformed-txid",
+  "File": "px1_observe.go",
+  "Old": "\tif !hexN(txid, 32) {\n\t\treturn false, 0, fail(\"TRACKER_TXID\")\n\t}\n\traw, e := node.Call(ctx, \"getrawtransaction\", txid, true)",
+  "New": "\traw, e := node.Call(ctx, \"getrawtransaction\", txid, true)",
+  "Selector": "TestPX1TxLookupMalformedTxID",
+  "Marker": "read as absent or not refused",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-tracker-malformed-txid",
+  "File": "px1_observe.go",
+  "Old": "\tif !hexN(txid, 32) {\n\t\treturn false, 0, fail(\"TRACKER_TXID\")\n\t}\n\traw, e := node.Call(ctx, \"getrawtransaction\", txid, true)",
+  "New": "\traw, e := node.Call(ctx, \"getrawtransaction\", txid, true)",
+  "Selector": "TestPX1TrackerMalformedTxID",
+  "Marker": "malformed txid not refused",
+  "Core": false
  }
 ]

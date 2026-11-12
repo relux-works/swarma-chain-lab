@@ -121,7 +121,15 @@ func px1oOutputSpent(ctx context.Context, node su.Node, p su.Point) (spent bool,
 // px1oTxDepth reads getrawtransaction verbose. present is true for a mempool
 // transaction (no blockhash) and for one in an active-chain block (depth >= 1).
 // A transaction known only from a stale block (confirmations 0) is absent.
+//
+// Only a well-formed id (64 lowercase hex characters, as Core prints txids)
+// can ever read as absent. Core uses code -5 for malformed keys and ids too,
+// so a malformed id is refused here with TRACKER_TXID and never reaches the
+// node.
 func px1oTxDepth(ctx context.Context, node su.Node, txid string) (present bool, depth int64, e error) {
+	if !hexN(txid, 32) {
+		return false, 0, fail("TRACKER_TXID")
+	}
 	raw, e := node.Call(ctx, "getrawtransaction", txid, true)
 	if px1oRemoteNo(e) {
 		return false, 0, nil

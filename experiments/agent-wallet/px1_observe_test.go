@@ -434,6 +434,37 @@ func TestPX1TrackerNodeFailure(t *testing.T) {
 	}
 }
 
+// Claim: a tracked payment whose txid is malformed (here uppercase, which the
+// node would call unknown) fails the pass with TRACKER_TXID before any
+// getrawtransaction call; MissingSince and the state stay unchanged. Valid
+// neighbour: the same tracker with the lowercase id passes, and with that id
+// gone from the mempool it reads as absent. Limit: Enqueue and reload already
+// refuse such ids; the tracker is built in-package to reach the pass.
+func TestPX1TrackerMalformedTxID(t *testing.T) {
+	in := px1oPoint('e', 1)
+	build := func(chain *px1oFakeChain, txid string) *px1oTracker {
+		return &px1oTracker{node: chain, cfg: TrackerConfig{ConfirmationsK: 2, ConflictBlocksN: 6}, payments: []TrackedPayment{{GrantID: px1oG, Nonce: px1oN1, TxID: txid, Inputs: []su.Point{in}, ReserveSeq: 1, State: TrackPending}}}
+	}
+	chain := px1oNewChain()
+	chain.broadcast(px1oTx1, in)
+	if px1oTick(t, build(chain, px1oTx1)); chain.calls["getrawtransaction"] != 1 {
+		t.Fatalf("valid neighbour: getrawtransaction calls %d", chain.calls["getrawtransaction"])
+	}
+	bad := build(chain, strings.ToUpper(px1oTx1))
+	if _, e := bad.Tick(context.Background()); e == nil || e.Error() != "TRACKER_TXID" {
+		t.Fatalf("malformed txid not refused: %v", e)
+	}
+	if s := bad.Snapshot()[0]; s.MissingSince != 0 || s.State != TrackPending || chain.calls["getrawtransaction"] != 1 {
+		t.Fatalf("malformed txid reached the node or changed state: %+v calls %d", s, chain.calls["getrawtransaction"])
+	}
+	delete(chain.mempool, px1oTx1)
+	chain.utxo[in] = 100000
+	good := build(chain, px1oTx1)
+	if px1oTick(t, good); good.Snapshot()[0].MissingSince != 200 {
+		t.Fatal("well-formed unknown txid not read as absent")
+	}
+}
+
 // Claim: startup reload tracks completed, uncertain and still-reserved
 // requests in ReserveSeq order, restores the latest track state, and skips
 // refuse-retained requests; a complete record without its reserve refuses

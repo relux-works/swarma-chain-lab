@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
@@ -172,5 +174,75 @@ func TestPX1ObserverNodeRouting(t *testing.T) {
 	}
 	if bare := (&Wallet{node: base}).px1Observer(); bare != su.Node(base) {
 		t.Fatal("a wallet without a lookup route must keep its observer node")
+	}
+}
+
+// px1rNoSuchNode answers every call with the lookup route's "no such
+// transaction" and counts the calls.
+type px1rNoSuchNode struct{ calls int }
+
+func (n *px1rNoSuchNode) Call(context.Context, string, ...any) (json.RawMessage, error) {
+	n.calls++
+	return nil, fail(CodeNoSuchTx)
+}
+
+// Claim: "absent" needs a well-formed txid (64 lowercase hex characters)
+// checked before getrawtransaction: an empty, short, long, non-hex, uppercase,
+// mixed-case or padded id fails closed with TRACKER_TXID, is never absent and
+// never reaches the node, even when the node (an HTTP fake sending Core's exact
+// -5 no-such-transaction reply, or a node fake answering CodeNoSuchTx) would
+// call it unknown. The valid neighbour, a well-formed id on the same two
+// fakes, reaches the node once and reads as absent.
+func TestPX1TxLookupMalformedTxID(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(px1rNoSuchTxBody))
+	}))
+	t.Cleanup(srv.Close)
+	host, port, e := net.SplitHostPort(srv.Listener.Addr().String())
+	if e != nil {
+		t.Fatal(e)
+	}
+	p, _ := strconv.Atoi(port)
+	lookup, e := newTxLookupRPC(su.Route{Host: host, Port: p, Username: "w3-observer", Password: "observer-password-0123"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	fake := &px1rNoSuchNode{}
+	valid := px1oHex('a', 1)
+	// Valid neighbour: the well-formed id reaches each node once and is absent.
+	for _, n := range []su.Node{lookup, fake} {
+		if present, depth, e := px1oTxDepth(context.Background(), n, valid); e != nil || present || depth != 0 {
+			t.Fatalf("well-formed unknown id not absent: present=%v depth=%d err=%v", present, depth, e)
+		}
+	}
+	if hits.Load() != 1 || fake.calls != 1 {
+		t.Fatalf("well-formed id calls: http %d, fake %d; want 1, 1", hits.Load(), fake.calls)
+	}
+	malformed := map[string]string{
+		"empty":      "",
+		"63-chars":   valid[:63],
+		"65-chars":   valid + "a",
+		"32-chars":   valid[:32],
+		"non-hex":    "g" + valid[1:],
+		"uppercase":  strings.ToUpper(valid),
+		"mixed-case": "A" + valid[1:],
+		"0x-prefix":  "0x" + valid[2:],
+		"padded":     " " + valid[1:],
+		"newline":    valid[:63] + "\n",
+	}
+	for name, id := range malformed {
+		for _, n := range []su.Node{lookup, fake} {
+			present, depth, e := px1oTxDepth(context.Background(), n, id)
+			if px1rCode(e) != "TRACKER_TXID" || present || depth != 0 {
+				t.Fatalf("malformed txid %s read as absent or not refused: present=%v depth=%d err=%v", name, present, depth, e)
+			}
+		}
+	}
+	if hits.Load() != 1 || fake.calls != 1 {
+		t.Fatalf("a malformed txid reached the node: http %d, fake %d; want 1, 1", hits.Load(), fake.calls)
 	}
 }
