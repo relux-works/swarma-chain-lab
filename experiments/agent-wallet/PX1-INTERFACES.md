@@ -21,6 +21,8 @@ co-lead review (COLEAD-REVIEW-PX1, 2026-11-12) is binding.
   profile that reaches a stub refuses, so it fails closed.
 - **Amendments:** freeze amendment 1 (A1-A8) is summarized in
   [Freeze amendment 1](#freeze-amendment-1), with its MIGRATION list.
+  Freeze amendment 2 (doc only, the `Tracker.Enqueue` precondition) is in
+  [Freeze amendment 2](#freeze-amendment-2).
 - **Behaviour at the freeze:** unchanged. The only existing file this unit edits
   is `mutation_test.go`, which now also loads `testdata/px1-mutations-s*.json`.
   That runner is skipped unless `W1_MUTATIONS=1`.
@@ -81,7 +83,7 @@ co-lead review (COLEAD-REVIEW-PX1, 2026-11-12) is binding.
 | 19 | wallet reservation, `reserve` record with `day` | S1 | `wallet.go` via `PX1Journal` |
 | 20 | `service-reserve` record | S2 | `service.go` |
 | 22 | `sendrawtransaction`, txid equality | existing (S1) | `wallet.go` |
-| 23 | `complete` record (S1, wallet layer); `terminal` receipt and `PX1Enqueue` (S2) | S1, S2 | `wallet.go`, `service.go` |
+| 23 | `complete` record, or `uncertain` record when the broadcast was rejected or may have happened (S1, wallet layer); `terminal` receipt and `PX1Enqueue` of an executed or uncertain spend (S2, amendment 2) | S1, S2 | `wallet.go`, `service.go` |
 
 ## Ownership map (no file has two owners)
 
@@ -250,6 +252,21 @@ owners review it.
   `TestPX1ProjectStatusGolden` becomes a no-op and may be removed. Fakes that
   fold a reconcile set `ReceiptKey` and sign with `ReconcileDigestV2`.
 - **S4:** nothing beyond the ownership-map entries above.
+
+## Freeze amendment 2
+
+Doc only: no API, type, field, constant, signature or behaviour changes.
+
+| Id | Request | Frozen change | S0 tests and plants |
+| --- | --- | --- | --- |
+| A2-1 | PR #80 delta review | `px1_observe_api.go` comments. `Tracker.Enqueue` registers a payment after its reserve record and its terminal outcome record are durable (step 23): `complete` for an executed spend, `uncertain` for a broadcast the node rejected or one that may have happened. A spend left uncertain without an outcome record (that append failed, or the request stopped before its broadcast) is registered on its durable reserve record alone. Before: "after its complete record is durable". The tracker state, `TrackPending`, `TrackedPayment` and `Tracker` descriptions say executed or uncertain (a rejected broadcast included) in place of complete; the `NewTracker` note names the reserve, outcome and track records it folds and says a request with a durable `refuse-retained` record is not reloaded. | `TestPX1EnqueuePreconditionText` (the amended text is present; the pre-amendment text is refused) |
+
+Why: the service enqueues every executed or uncertain spend at step 23, so a
+rejected or uncertain spend reaches `conflicted` on a running service without a
+restart, as the startup reload already tracked them after one. The observation
+never resends a transaction and never releases a debit; the debit stays
+retained until a `ReconcileRecordV2`. The frozen text said only complete
+payments were registered; it now states the behaviour.
 
 ## Clarifications (non-normative)
 

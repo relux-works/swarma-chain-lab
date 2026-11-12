@@ -7,6 +7,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -157,5 +161,77 @@ func TestPX1CodesBounded(t *testing.T) {
 	}
 	if safeCode(errors.New("px1 not implemented")) != "SERVICE_FAILURE" {
 		t.Fatal("negative control: unbounded text admitted")
+	}
+}
+
+// px1EnqueueDoc returns the doc comment of Tracker.Enqueue in src with its
+// whitespace collapsed, or "" when the method or its doc is absent.
+func px1EnqueueDoc(t *testing.T, src string) string {
+	f, e := parser.ParseFile(token.NewFileSet(), "px1_observe_api.go", src, parser.ParseComments)
+	if e != nil {
+		t.Fatal(e)
+	}
+	doc := ""
+	ast.Inspect(f, func(n ast.Node) bool {
+		ts, ok := n.(*ast.TypeSpec)
+		if !ok || ts.Name.Name != "Tracker" {
+			return true
+		}
+		if it, ok := ts.Type.(*ast.InterfaceType); ok {
+			for _, m := range it.Methods.List {
+				if len(m.Names) == 1 && m.Names[0].Name == "Enqueue" && m.Doc != nil {
+					doc = strings.Join(strings.Fields(m.Doc.Text()), " ")
+				}
+			}
+		}
+		return false
+	})
+	return doc
+}
+
+// px1EnqueueAmended reports whether doc states the freeze-amendment-2
+// precondition and no longer the complete-record-only one.
+func px1EnqueueAmended(doc string) bool {
+	for _, want := range []string{
+		"Enqueue registers a payment after its reserve record and its terminal outcome record are durable (step 23)",
+		"complete for an executed spend",
+		"uncertain for a broadcast the node rejected or one that may have happened",
+		"is registered on its durable reserve record alone",
+	} {
+		if !strings.Contains(doc, want) {
+			return false
+		}
+	}
+	return !strings.Contains(doc, "after its complete record is durable")
+}
+
+// Claim (freeze amendment 2): the frozen Tracker.Enqueue doc states the
+// amended precondition: reserve record and terminal outcome record durable
+// (complete, or uncertain for a rejected or possibly sent broadcast), or the
+// reserve record alone when no outcome record was appended. Negative controls:
+// the pre-amendment doc, the amended doc that still keeps the old sentence,
+// and a Tracker without an Enqueue doc are refused. Limit: it pins the frozen
+// text only; the behaviour is covered by the S2/S3 tracker tests.
+func TestPX1EnqueuePreconditionText(t *testing.T) {
+	b, e := os.ReadFile("px1_observe_api.go")
+	if e != nil {
+		t.Fatal(e)
+	}
+	doc := px1EnqueueDoc(t, string(b))
+	if !px1EnqueueAmended(doc) {
+		t.Fatalf("Tracker.Enqueue doc lacks the amendment-2 precondition: %q", doc)
+	}
+	const oldDoc = "Enqueue registers a payment after its complete record is durable (step 23)."
+	tracker := func(comment string) string {
+		return "package wallet\n\ntype Tracker interface {\n" + comment + "\tEnqueue(p TrackedPayment) error\n}\n"
+	}
+	for name, src := range map[string]string{
+		"pre-amendment": tracker("\t// " + oldDoc + "\n"),
+		"old kept":      tracker("\t// " + doc + " " + oldDoc + "\n"),
+		"no doc":        tracker(""),
+	} {
+		if px1EnqueueAmended(px1EnqueueDoc(t, src)) {
+			t.Errorf("negative control %s: accepted", name)
+		}
 	}
 }

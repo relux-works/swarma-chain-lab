@@ -12,14 +12,17 @@ import (
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
-// Tracker states of an executed payment (§3.4 state machine).
+// Tracker states of a payment registered at step 23: an executed spend, or
+// one whose outcome is uncertain, a rejected broadcast included (§3.4 state
+// machine).
 const (
-	TrackPending    = "pending"    // complete, fewer than ConfirmationsK confirmations
+	TrackPending    = "pending"    // registered (executed or uncertain), fewer than ConfirmationsK confirmations
 	TrackConfirmed  = "confirmed"  // depth >= ConfirmationsK on the own node
 	TrackConflicted = "conflicted" // absent from mempool+chain for ConflictBlocksN blocks, or an input spent by another tx
 )
 
-// TrackedPayment is one complete payment under observation.
+// TrackedPayment is one payment under observation: an executed spend, or one
+// whose outcome is uncertain, a rejected broadcast included.
 type TrackedPayment struct {
 	GrantID       string     `json:"grant_id"`
 	Nonce         string     `json:"nonce"` // derived 64-hex wallet-layer nonce
@@ -46,10 +49,17 @@ type TrackTransition struct {
 	Record  TrackRecordV2
 }
 
-// Tracker follows complete payments on the executor's own node through the
-// observer route only (no wallet or broadcast route).
+// Tracker follows executed payments, and payments whose outcome is uncertain
+// (a rejected broadcast included), on the executor's own node through the
+// observer route only (no wallet or broadcast route). It only observes: it
+// never resends a transaction and never releases a debit.
 type Tracker interface {
-	// Enqueue registers a payment after its complete record is durable (step 23).
+	// Enqueue registers a payment after its reserve record and its terminal
+	// outcome record are durable (step 23): complete for an executed spend,
+	// uncertain for a broadcast the node rejected or one that may have
+	// happened. A spend left uncertain without an outcome record (that append
+	// failed, or the request stopped before its broadcast) is registered on
+	// its durable reserve record alone.
 	Enqueue(p TrackedPayment) error
 	// Tick reads the own node once and returns transitions since the last tick.
 	Tick(ctx context.Context) ([]TrackTransition, error)
@@ -58,7 +68,8 @@ type Tracker interface {
 }
 
 // NewTracker signature (px1_observe.go). Startup reloads tracked payments by
-// folding complete and track records of the wallet-layer journal.
+// folding the reserve, outcome and track records of the wallet-layer journal;
+// a request whose refuse-retained record is durable is not reloaded.
 var _ func(node su.Node, cfg TrackerConfig, wallet JournalV2) (Tracker, error) = NewTracker
 
 // Canary states.
