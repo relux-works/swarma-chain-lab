@@ -681,9 +681,9 @@ func px1oFixtureInputs(w, s JournalV2) StatusInputs {
 }
 
 // Claim: ProjectStatus reproduces the frozen golden projection from journals
-// and cached observations, byte for byte except the grant day, which is
-// derived from generated_at (the fixture's day disagrees with its own
-// generated_at; freeze amendment S3-A1). Empty lists encode as [].
+// and cached observations byte for byte, the grant day included: the day is
+// derived from generated_at, and the amended fixture (freeze amendment 1, A1)
+// carries that day. Empty lists encode as [].
 func TestPX1ProjectStatusGolden(t *testing.T) {
 	day := px1oStatusDay(px1StatusFixture().GeneratedAt)
 	w, s := px1oStatusJournals(day)
@@ -692,12 +692,10 @@ func TestPX1ProjectStatusGolden(t *testing.T) {
 		t.Fatal(e)
 	}
 	want := px1StatusFixture()
-	want.Grants[0].Day = day
 	if !bytes.Equal(canonical(got), canonical(want)) {
 		t.Fatalf("projection differs from the golden\n got %s\nwant %s", canonical(got), canonical(want))
 	}
-	golden := bytes.Replace(px1Golden(t, "status-projection-v1.json"), []byte(`"day":"2026-11-12"`), []byte(`"day":"`+day+`"`), 1)
-	if !bytes.Equal(canonical(got), golden) {
+	if !bytes.Equal(canonical(got), px1Golden(t, "status-projection-v1.json")) {
 		t.Fatal("projection differs from the golden bytes")
 	}
 	empty, e := ProjectStatus(StatusInputs{Service: px1oJournal(JournalLayerService), Wallet: px1oJournal(JournalLayerWallet), ReceiptKey: px1ExecutorKey, Network: "regtest", Now: 5})
@@ -885,20 +883,25 @@ func TestPX1ServeStatus(t *testing.T) {
 	}
 }
 
-// Claim: the status socket refuses an existing path and an operator group
-// equal to the agent socket group, binds 0660 otherwise, and serves the
-// projection to ReadPX1Status until its context ends.
+// Claim: the status socket refuses an existing path, a relative path, an
+// operator group equal to the agent socket group and a relative agent socket
+// (STATUS_SOCKET_CONFIG), binds 0660 in a valid status directory otherwise,
+// and serves the projection to ReadPX1Status until its context ends.
 func TestPX1StatusSocket(t *testing.T) {
 	dir := t.TempDir()
+	px1oPrepStatusDir(t, dir)
 	path := filepath.Join(dir, "status.sock")
 	gid := uint32(os.Getgid())
-	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid, agentUID: 65534}); e == nil || e.Error() != "STATUS_SOCKET_CONFIG" {
+	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid, agentUID: 65534, agentSocket: px1oAgentSocketPath}); e == nil || e.Error() != "STATUS_SOCKET_CONFIG" {
 		t.Fatalf("operator group equal to the agent group accepted: %v", e)
 	}
-	if _, e := px1oListenStatus("relative.sock", px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: 65534}); e == nil {
+	if _, e := px1oListenStatus("relative.sock", px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: 65534, agentSocket: px1oAgentSocketPath}); e == nil {
 		t.Fatal("relative socket path accepted")
 	}
-	l, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: 65534})
+	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: 65534, agentSocket: "wallet.sock"}); e == nil || e.Error() != "STATUS_SOCKET_CONFIG" {
+		t.Fatalf("relative agent socket accepted: %v", e)
+	}
+	l, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: 65534, agentSocket: px1oAgentSocketPath})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -906,7 +909,7 @@ func TestPX1StatusSocket(t *testing.T) {
 	if e != nil || i.Mode().Perm() != 0660 {
 		t.Fatal("status socket mode")
 	}
-	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: 65534}); e == nil || e.Error() != "STATUS_SOCKET_EXISTS" {
+	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: 65534, agentSocket: px1oAgentSocketPath}); e == nil || e.Error() != "STATUS_SOCKET_EXISTS" {
 		t.Fatal("existing socket path accepted")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

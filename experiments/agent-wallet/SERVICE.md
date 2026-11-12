@@ -152,11 +152,13 @@ these templates do not implement a multi-tenant wallet.
 A service config with a `g2` block selects the G2 pay-limits profile. For
 that profile, `agent-walletd` takes three extra flags:
 
-- `-status-socket PATH`: the operator status socket, normally
-  `/run/swarma-wallet/status.sock`. Leave it empty to run without one.
-- `-status-gid GID`: the operator group of that socket. It is required with
-  `-status-socket` and must differ from `socket_gid`. The agent account
-  (`peer_uid`) must not be a member of it: startup refuses
+- `-status-socket PATH`: the operator status socket. The only accepted PATH
+  is the frozen `StatusSocketPath`, `/run/swarma-wallet-status/status.sock`
+  (freeze amendment 1, A8); any other path refuses `STATUS_SOCKET_CONFIG`
+  before the startup pass. Leave it empty to run without one.
+- `-status-gid GID`: the operator group of that socket and of its directory.
+  It is required with `-status-socket` and must differ from `socket_gid`. The
+  agent account (`peer_uid`) must not be a member of it: startup refuses
   `STATUS_SOCKET_AGENT` otherwise, or when the agent's groups cannot be read.
 - `-tick-seconds N`: the observation interval, 1 to 3600, default 30.
 
@@ -178,30 +180,76 @@ for the pass, the tracker rules, the status projection and the socket.
 
 ### Status socket access (G2)
 
-The status socket stays in the W2 runtime directory, which keeps its W2 mode
-(0750, group `socket_gid`). Access is granted by group membership:
+The status socket has its own runtime directory (freeze amendment 1, A8).
+The agent-facing `/run/swarma-wallet` holds only `wallet.sock` and is the
+only directory bound into an agent slot; the status directory is never bound.
+
+| Directory | Mode | Owner | Group | Holds |
+| --- | --- | --- | --- | --- |
+| `/run/swarma-wallet` | 0750 | `swarma-wallet` | `swarma-wallet-peer` (`socket_gid`) | `wallet.sock` (0660) only |
+| `/run/swarma-wallet-status` | 0750 | `swarma-wallet` | `swarma-wallet-status` (operator) | `status.sock` (0660) only |
+
+Access is granted by group membership:
 
 | Account | `swarma-wallet-peer` (`socket_gid`) | `swarma-wallet-status` (operator) | Reaches |
 | --- | --- | --- | --- |
-| service `swarma-wallet` | primary group | supplementary | owns both sockets |
-| agent (`peer_uid`) | member | **never** | `wallet.sock` only |
-| operator user | member | member | `status.sock`; `wallet.sock` refuses it with `SERVICE_PEER` |
+| service `swarma-wallet` | primary group | supplementary (unit) | owns both sockets |
+| agent (`peer_uid`) | member | never | `wallet.sock` only |
+| operator user | never | member | `status.sock` only |
 
-The daemon must be in the operator group to give `status.sock` that group.
-Install this drop-in next to the W2 unit, as
-`swarma-wallet.service.d/g2-status.conf`:
+The operator is never a member of `swarma-wallet-peer`: its only G2 group is
+`swarma-wallet-status`. Deploy renders the groups and the directory; for
+reference, the operator's lines and the status directory are:
+
+```text
+# sysusers.d
+g swarma-wallet-status @OPERATOR_GID@
+m @OPERATOR_USER@ swarma-wallet-status
+# tmpfiles.d
+d /run/swarma-wallet-status 0750 swarma-wallet swarma-wallet-status -
+```
+
+The agent's sysusers lines are `G2AgentSysusers` in `deploy`:
+`u <agent_user> <agent_uid>` and `m <agent_user> swarma-wallet-peer`. No line
+puts the agent into `swarma-wallet-status`.
+
+The daemon keeps the operator group as a supplementary group, so that it can
+give `status.sock` that group, and needs write access to the status
+directory, because the W2 unit runs with `ProtectSystem=strict`. Install this
+drop-in next to the W2 unit, as `swarma-wallet.service.d/g2-status.conf`:
 
 ```ini
 [Service]
 SupplementaryGroups=swarma-wallet swarma-wallet-status
+ReadWritePaths=/run/swarma-wallet-status
 ExecStart=
-ExecStart=/opt/swarma/wallet/@VERSION@/bin/agent-walletd --config /etc/swarma/wallet/service.json -status-socket /run/swarma-wallet/status.sock -status-gid @OPERATOR_GID@
+ExecStart=/opt/swarma/wallet/@VERSION@/bin/agent-walletd --config /etc/swarma/wallet/service.json -status-socket /run/swarma-wallet-status/status.sock -status-gid @OPERATOR_GID@
 ```
 
-`@OPERATOR_GID@` is the numeric GID of `swarma-wallet-status`. Without the
-supplementary group the chown fails and startup refuses `STATUS_SOCKET_MODE`.
-The status listener closes, without a reply, any connection whose
-`SO_PEERCRED` UID is `peer_uid`.
+`@OPERATOR_GID@` is the numeric GID of `swarma-wallet-status`. Startup checks,
+in order, before the socket is bound:
+
+- `STATUS_SOCKET_CONFIG`: a path other than `StatusSocketPath`, the operator
+  group equal to `socket_gid`, or an operator group of 0.
+- `STATUS_SOCKET_AGENT`: the agent account is a member of the operator group,
+  or its groups cannot be read.
+- `STATUS_SOCKET_DIR`: the status directory is not a real directory reached
+  without a symlink, mode 0750, owned by the service UID, with the operator
+  group; or it is, contains, or lies inside the directory of `wallet.sock`.
+  The daemon never creates or repairs it.
+- `STATUS_SOCKET_EXISTS`: a file already exists at the socket path.
+- `STATUS_SOCKET_MODE`: the socket cannot be given the operator group and
+  mode 0660; without the supplementary group the chown fails.
+
+The status listener also closes, without a reply, any connection whose
+`SO_PEERCRED` UID is `peer_uid`. The agent is shut out by the directory's
+group first; the agent-group refusal and the peer-UID refusal stay as
+defence in depth.
+
+`/run/swarma-wallet-status` comes from tmpfiles, so it is not removed when the
+service stops. A clean stop unlinks `status.sock`; after a crash the stale
+socket refuses the next start (`STATUS_SOCKET_EXISTS`). As for `wallet.sock`,
+establish that the old process exited, then remove it by hand.
 
 ## Evidence boundaries and checks
 

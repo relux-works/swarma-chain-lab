@@ -520,5 +520,140 @@
   "Selector": "TestPX1oLedgerRefusesUnsignedRelease",
   "Marker": "UNAUTHENTICATED_RELEASE_ACCEPTED",
   "Core": false
+ },
+ {
+  "Name": "px1-s3-status-old-path",
+  "File": "px1_status_socket.go",
+  "Old": "if path != \"\" && path != StatusSocketPath {",
+  "New": "if path != \"\" && path != \"/run/swarma-wallet/status.sock\" {",
+  "Selector": "TestPX1oRunObserversStatusPath",
+  "Marker": "STATUS_PATH_NOT_FROZEN",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-any-path",
+  "File": "px1_status_socket.go",
+  "Old": "if path != \"\" && path != StatusSocketPath {",
+  "New": "if false && path != \"\" && path != StatusSocketPath {",
+  "Selector": "TestPX1oRunObserversStatusPath",
+  "Marker": "STATUS_PATH_NOT_FROZEN",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "\tif e := px1oStatusDir(path, a); e != nil {\n\t\treturn nil, e\n\t}\n",
+  "New": "",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-shared",
+  "File": "px1_status_socket.go",
+  "Old": "\tif px1oSharesDir(a.agentSocket, path) {\n",
+  "New": "\tif false && px1oSharesDir(a.agentSocket, path) {\n",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED agent-same-dir",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-nesting-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "return strings.HasPrefix(da, db) || strings.HasPrefix(db, da)",
+  "New": "return da == db",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED status-inside-agent-dir",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-mode-world-only",
+  "File": "px1_status_socket.go",
+  "Old": "!i.IsDir() || i.Mode().Perm() != StatusSocketDirMode {",
+  "New": "!i.IsDir() || i.Mode().Perm()&0o007 != 0 {",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED mode-0770",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-group-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "int(st.Uid) != os.Getuid() || st.Gid != a.operatorGID {",
+  "New": "int(st.Uid) != os.Getuid() {",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED foreign-group",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-symlink-followed",
+  "File": "px1_status_socket.go",
+  "Old": "if resolved, e := filepath.EvalSymlinks(dir); e != nil || resolved != dir {",
+  "New": "if resolved, e := filepath.EvalSymlinks(dir); false && (e != nil || resolved != dir) {",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED ancestor-symlink",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-agent-socket-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "if !filepath.IsAbs(a.agentSocket) || filepath.Clean(a.agentSocket) != a.agentSocket {",
+  "New": "if false && (!filepath.IsAbs(a.agentSocket) || filepath.Clean(a.agentSocket) != a.agentSocket) {",
+  "Selector": "TestPX1StatusSocket",
+  "Marker": "relative agent socket accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-socket-kept-on-stop",
+  "File": "px1_status_socket.go",
+  "Old": "\tif os.Chown(path, os.Getuid(), int(a.operatorGID)) != nil || os.Chmod(path, StatusSocketMode) != nil {\n",
+  "New": "\tl.SetUnlinkOnClose(false)\n\tif os.Chown(path, os.Getuid(), int(a.operatorGID)) != nil || os.Chmod(path, StatusSocketMode) != nil {\n",
+  "Selector": "TestPX1oStatusListenerUnlinksOnStop",
+  "Marker": "STALE_STATUS_SOCKET",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-doc-operator-peer-member",
+  "File": "SERVICE.md",
+  "Old": "| operator user | never | member | `status.sock` only |",
+  "New": "| operator user | member | member | `status.sock`; `wallet.sock` refuses it with `SERVICE_PEER` |",
+  "Selector": "TestPX1oServiceDocDropIn",
+  "Marker": "SERVICE_DOC_A8 OPERATOR_PEER_MEMBER table",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-doc-operator-peer-line",
+  "File": "SERVICE.md",
+  "Old": "m @OPERATOR_USER@ swarma-wallet-status\n",
+  "New": "m @OPERATOR_USER@ swarma-wallet-status\nm @OPERATOR_USER@ swarma-wallet-peer\n",
+  "Selector": "TestPX1oServiceDocDropIn",
+  "Marker": "SERVICE_DOC_A8 OPERATOR_PEER_MEMBER line",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-doc-old-path",
+  "File": "SERVICE.md",
+  "Old": "-status-socket /run/swarma-wallet-status/status.sock",
+  "New": "-status-socket /run/swarma-wallet/status.sock",
+  "Selector": "TestPX1oServiceDocDropIn",
+  "Marker": "SERVICE_DOC_A8 OLD_STATUS_PATH",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-doc-status-dir-not-writable",
+  "File": "SERVICE.md",
+  "Old": "ReadWritePaths=/run/swarma-wallet-status\n",
+  "New": "",
+  "Selector": "TestPX1oServiceDocDropIn",
+  "Marker": "SERVICE_DOC_A8 DROPIN_MISSING ReadWritePaths",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-doc-status-md-old-path",
+  "File": "STATUS.md",
+  "Old": "`/run/swarma-wallet-status/status.sock` (freeze amendment 1, A8)",
+  "New": "`/run/swarma-wallet/status.sock` (freeze amendment 1, A8)",
+  "Selector": "TestPX1oServiceDocDropIn",
+  "Marker": "SERVICE_DOC_A8 OLD_STATUS_PATH",
+  "Core": false
  }
 ]

@@ -11,11 +11,10 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"syscall"
 	"time"
 )
-
-// PX1StatusSocketPath is the deployed operator status socket.
-const PX1StatusSocketPath = "/run/swarma-wallet/status.sock"
 
 const (
 	px1oStatusTimeout  = 5 * time.Second
@@ -23,17 +22,21 @@ const (
 )
 
 // px1oStatusAccess is the access contract of the operator status socket
-// (decision on S5 request R3, option (a)). The socket stays in the W2 runtime
-// directory /run/swarma-wallet (0750, group socket_gid); operator users join
-// socket_gid to traverse it, and wallet.sock keeps refusing every UID except
-// peer_uid (SERVICE_PEER). The socket itself is (service UID, operator GID,
-// 0660). The agent (peer_uid) must never reach it (T19): the agent account
-// must not be a member of the operator group, and a connection whose
-// SO_PEERCRED UID is peer_uid is closed without a reply.
+// (freeze amendment 1, A8, which replaces the r2 placement in the W2 runtime
+// directory). The socket is StatusSocketPath, in its own runtime directory
+// StatusSocketDir (StatusSocketDirMode 0750, owner the service UID, group the
+// operator group), which is never bound into a slot. The agent-facing
+// /run/swarma-wallet holds only wallet.sock, and operators are never members
+// of socket_gid. The socket itself is (service UID, operator GID, 0660). The
+// agent (peer_uid) must never reach it (T19): the directory's group shuts it
+// out, and as defence in depth the agent account must not be a member of the
+// operator group, and a connection whose SO_PEERCRED UID is peer_uid is closed
+// without a reply.
 type px1oStatusAccess struct {
-	operatorGID uint32 // status socket group
+	operatorGID uint32 // status socket and status directory group
 	agentGID    uint32 // socket_gid: the agent socket group
 	agentUID    uint32 // peer_uid: the agent
+	agentSocket string // the W2 wallet socket: never in, above or below the status directory
 }
 
 // px1oAgentGroups lists the group IDs of the agent account (primary and
@@ -48,11 +51,15 @@ var px1oAgentGroups = func(uid uint32) ([]string, error) {
 
 // px1oListenStatus binds the status socket: an existing path refuses (it is
 // never unlinked), the socket is chowned to (service UID, operator GID) and
-// set to 0660. The operator GID must differ from the agent socket group, and
-// the agent account must not be a member of the operator group; an agent
-// account whose groups cannot be read also refuses (STATUS_SOCKET_AGENT).
+// set to StatusSocketMode (0660). The operator GID must differ from the agent
+// socket group, and the agent account must not be a member of the operator
+// group; an agent account whose groups cannot be read also refuses
+// (STATUS_SOCKET_AGENT). The socket's directory must pass px1oStatusDir.
 func px1oListenStatus(path string, a px1oStatusAccess) (*net.UnixListener, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path || a.operatorGID == 0 || a.operatorGID == a.agentGID || a.agentUID == 0 {
+		return nil, fail("STATUS_SOCKET_CONFIG")
+	}
+	if !filepath.IsAbs(a.agentSocket) || filepath.Clean(a.agentSocket) != a.agentSocket {
 		return nil, fail("STATUS_SOCKET_CONFIG")
 	}
 	groups, e := px1oAgentGroups(a.agentUID)
@@ -64,6 +71,9 @@ func px1oListenStatus(path string, a px1oStatusAccess) (*net.UnixListener, error
 			return nil, fail("STATUS_SOCKET_AGENT")
 		}
 	}
+	if e := px1oStatusDir(path, a); e != nil {
+		return nil, e
+	}
 	if _, e := os.Lstat(path); !os.IsNotExist(e) {
 		return nil, fail("STATUS_SOCKET_EXISTS")
 	}
@@ -71,11 +81,45 @@ func px1oListenStatus(path string, a px1oStatusAccess) (*net.UnixListener, error
 	if e != nil {
 		return nil, fail("STATUS_SOCKET_BIND")
 	}
-	if os.Chown(path, os.Getuid(), int(a.operatorGID)) != nil || os.Chmod(path, 0660) != nil {
+	if os.Chown(path, os.Getuid(), int(a.operatorGID)) != nil || os.Chmod(path, StatusSocketMode) != nil {
 		l.Close()
 		return nil, fail("STATUS_SOCKET_MODE")
 	}
 	return l, nil
+}
+
+// px1oStatusDir checks the status socket's directory (A8). It must be the
+// status socket's own directory: it neither is, nor lies above or below, the
+// agent socket's directory. It must be reached without a symlink, be a real
+// directory of mode StatusSocketDirMode (0750), be owned by this service's
+// UID, and carry the operator group. Anything else refuses STATUS_SOCKET_DIR.
+// The listener never creates or repairs the directory: deploy renders it
+// (tmpfiles) before the service starts.
+func px1oStatusDir(path string, a px1oStatusAccess) error {
+	dir := filepath.Dir(path)
+	if px1oSharesDir(a.agentSocket, path) {
+		return fail("STATUS_SOCKET_DIR")
+	}
+	if resolved, e := filepath.EvalSymlinks(dir); e != nil || resolved != dir {
+		return fail("STATUS_SOCKET_DIR")
+	}
+	i, e := os.Lstat(dir)
+	if e != nil || !i.IsDir() || i.Mode().Perm() != StatusSocketDirMode {
+		return fail("STATUS_SOCKET_DIR")
+	}
+	st, ok := i.Sys().(*syscall.Stat_t)
+	if !ok || int(st.Uid) != os.Getuid() || st.Gid != a.operatorGID {
+		return fail("STATUS_SOCKET_DIR")
+	}
+	return nil
+}
+
+// px1oSharesDir reports whether the directories of two absolute socket paths
+// are the same or one contains the other.
+func px1oSharesDir(a, b string) bool {
+	da := strings.TrimSuffix(filepath.Dir(a), "/") + "/"
+	db := strings.TrimSuffix(filepath.Dir(b), "/") + "/"
+	return strings.HasPrefix(da, db) || strings.HasPrefix(db, da)
 }
 
 // px1oServeStatusListener accepts connections one at a time until ctx ends.
@@ -129,8 +173,13 @@ func ReadPX1Status(ctx context.Context, path string) (StatusProjectionV1, error)
 // RunPX1Observers runs the G2 observation side of agent-walletd: one startup
 // pass that must succeed before the caller serves requests (canary, startup
 // reconciliation), then the tick loop and, when path is set, the status
-// socket. It returns after the startup pass; the loops stop with ctx.
+// socket. The status socket binds only the frozen StatusSocketPath: any other
+// path refuses STATUS_SOCKET_CONFIG before the startup pass. It returns after
+// the startup pass; the loops stop with ctx.
 func (s *ActionService) RunPX1Observers(ctx context.Context, path string, operatorGID uint32, every time.Duration, report func(code string)) (<-chan error, error) {
+	if path != "" && path != StatusSocketPath {
+		return nil, fail("STATUS_SOCKET_CONFIG")
+	}
 	if s.PX1Profile() == nil {
 		return nil, fail("SERVICE_PROFILE")
 	}
@@ -147,10 +196,12 @@ func (s *ActionService) RunPX1Observers(ctx context.Context, path string, operat
 	var l *net.UnixListener
 	if path != "" {
 		var e error
-		if l, e = px1oListenStatus(path, px1oStatusAccess{operatorGID: operatorGID, agentGID: s.config.SocketGID, agentUID: s.config.PeerUID}); e != nil {
+		if l, e = px1oListenStatus(path, px1oStatusAccess{operatorGID: operatorGID, agentGID: s.config.SocketGID, agentUID: s.config.PeerUID, agentSocket: s.config.Socket}); e != nil {
 			return nil, e
 		}
-		go func() { errs <- px1oServeStatusListener(ctx, l, s.config.PeerUID, s.PX1Status); l.Close() }()
+		// Close (and so unlink) the socket before reporting: its directory is
+		// not removed when the service stops.
+		go func() { e := px1oServeStatusListener(ctx, l, s.config.PeerUID, s.PX1Status); l.Close(); errs <- e }()
 	}
 	go px1oTickLoop(ctx, every, s.PX1Tick, report)
 	return errs, nil

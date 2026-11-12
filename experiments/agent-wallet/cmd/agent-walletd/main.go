@@ -65,11 +65,19 @@ func run() int {
 	}
 	served := make(chan error, 1)
 	go func() { served <- s.Serve(ctx) }()
+	statusDone := *statusSocket == ""
 	select {
 	case e = <-served:
 	case e = <-statusErrors:
+		statusDone = true
 		cancel()
 		<-served
+	}
+	if !statusDone {
+		// The status directory (A8) is not removed when the service stops:
+		// wait until the listener has closed and unlinked status.sock.
+		cancel()
+		<-statusErrors
 	}
 	if e != nil {
 		fmt.Fprintln(os.Stderr, wallet.ActionErrorReason(e))

@@ -170,23 +170,33 @@ Before the first pass, the canary and the float are `unknown`.
 
 ## Status socket
 
-`/run/swarma-wallet/status.sock` is owned by the service UID with group
-`-status-gid` (the operator group) and mode 0660. It stays in the W2 runtime
-directory `/run/swarma-wallet` (0750, group `socket_gid`). Operator users
-join `socket_gid` to traverse it; `wallet.sock` keeps refusing every UID
-except `peer_uid` (`SERVICE_PEER`). The daemon needs the operator group as a
+The status socket is the frozen `StatusSocketPath`,
+`/run/swarma-wallet-status/status.sock` (freeze amendment 1, A8). It is owned
+by the service UID with group `-status-gid` (the operator group) and mode
+0660, in its own runtime directory `/run/swarma-wallet-status` (0750, owner
+the service UID, group the operator group). That directory is never bound
+into an agent slot. The agent-facing `/run/swarma-wallet` holds only
+`wallet.sock`, and operators are never members of `socket_gid`
+(`swarma-wallet-peer`). The daemon needs the operator group as a
 supplementary group to set the socket's group (see `SERVICE.md`).
 
-The agent (`peer_uid`) must never reach this socket (T19). Three checks hold
-that:
+The agent (`peer_uid`) must never reach this socket (T19). The directory's
+group shuts it out; startup and the listener add these checks:
 
-- The operator group must differ from the agent socket group.
+- The path must be `StatusSocketPath` (`STATUS_SOCKET_CONFIG`), and the
+  operator group must differ from the agent socket group.
+- Startup refuses `STATUS_SOCKET_DIR` unless the directory is a real
+  directory reached without a symlink, mode 0750, owned by the service UID,
+  with the operator group, and is neither the directory of `wallet.sock` nor
+  above or below it. The daemon never creates or repairs it.
 - Startup refuses `STATUS_SOCKET_AGENT` if the agent account is a member of
-  the operator group, or if its groups cannot be read.
+  the operator group, or if its groups cannot be read (defence in depth).
 - A connection whose `SO_PEERCRED` UID is `peer_uid` is closed without a
-  reply.
+  reply (defence in depth).
 
-An existing path refuses startup and is never unlinked.
+An existing path refuses startup and is never unlinked by the daemon at
+startup. A clean stop closes and unlinks the socket before the daemon exits,
+because the status directory is not removed when the service stops.
 
 The framing is the action-socket framing: a 4-byte big-endian length, then
 one request per connection. The request must be exactly

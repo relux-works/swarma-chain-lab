@@ -8,7 +8,6 @@ package wallet
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -429,19 +428,21 @@ func px1oShortDir(t *testing.T) string {
 // Claim: the status socket refuses to start when the agent account (peer_uid)
 // is a member of the operator group or its groups cannot be read
 // (STATUS_SOCKET_AGENT), using the real account database for this test's own
-// UID and for a UID with no account. Valid neighbour: the same lookup with an
-// operator group the agent is not in passes the agent check and reaches the
-// chown, which this unprivileged test cannot do (STATUS_SOCKET_MODE).
+// UID and for a UID with no account; this check stays as defence in depth
+// beside the A8 directory. Valid neighbour: the same lookup with an operator
+// group the agent is not in passes the agent check and reaches the directory
+// check, which this unprivileged test cannot satisfy for a group it is not in
+// (STATUS_SOCKET_DIR).
 func TestPX1oStatusSocketAgentGroup(t *testing.T) {
-	path := filepath.Join(px1oShortDir(t), "s.sock")
+	path := filepath.Join(px1oStatusTestDir(t), "s.sock")
 	uid, gid := uint32(os.Getuid()), uint32(os.Getgid())
-	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: uid}); e == nil || e.Error() != "STATUS_SOCKET_AGENT" {
+	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: uid, agentSocket: px1oAgentSocketPath}); e == nil || e.Error() != "STATUS_SOCKET_AGENT" {
 		t.Fatalf("AGENT_IN_OPERATOR_GROUP: agent in the operator group accepted: %v", e)
 	}
-	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: 3999999}); e == nil || e.Error() != "STATUS_SOCKET_AGENT" {
+	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: 3999999, agentSocket: px1oAgentSocketPath}); e == nil || e.Error() != "STATUS_SOCKET_AGENT" {
 		t.Fatalf("AGENT_UNKNOWN: unreadable agent account accepted: %v", e)
 	}
-	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: 3999998, agentGID: gid + 1, agentUID: uid}); e == nil || e.Error() != "STATUS_SOCKET_MODE" {
+	if _, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: 3999998, agentGID: gid + 1, agentUID: uid, agentSocket: px1oAgentSocketPath}); e == nil || e.Error() != "STATUS_SOCKET_DIR" {
 		t.Fatalf("agent outside the operator group must pass the agent check: %v", e)
 	}
 	if _, e := os.Lstat(path); !os.IsNotExist(e) {
@@ -451,9 +452,10 @@ func TestPX1oStatusSocketAgentGroup(t *testing.T) {
 
 // Claim: on a real Unix socket, a connection whose SO_PEERCRED UID is the
 // agent's is closed without a reply and the projection source is never
-// called (T19 second barrier); the same client is served when the agent UID
-// is another one (valid neighbour). This test runs as one UID; a distinct
-// operator-only UID traversing /run/swarma-wallet is T18 host work.
+// called (T19 barrier kept as defence in depth under A8); the same client is
+// served when the agent UID is another one (valid neighbour). This test runs
+// as one UID; the agent UID's EACCES on the status directory and an
+// operator-only UID's exchange are T18 host work.
 func TestPX1oStatusSocketAgentPeerRefused(t *testing.T) {
 	saved := px1oAgentGroups
 	t.Cleanup(func() { px1oAgentGroups = saved })
@@ -462,9 +464,9 @@ func TestPX1oStatusSocketAgentPeerRefused(t *testing.T) {
 		agentUID uint32
 		served   bool
 	}{{uint32(os.Getuid()), false}, {65534, true}} {
-		path := filepath.Join(px1oShortDir(t), "s.sock")
+		path := filepath.Join(px1oStatusTestDir(t), "s.sock")
 		gid := uint32(os.Getgid())
-		l, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: c.agentUID})
+		l, e := px1oListenStatus(path, px1oStatusAccess{operatorGID: gid, agentGID: gid + 1, agentUID: c.agentUID, agentSocket: px1oAgentSocketPath})
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -481,20 +483,6 @@ func TestPX1oStatusSocketAgentPeerRefused(t *testing.T) {
 		}
 		if c.served != (e == nil) || c.served != (calls == 1) {
 			t.Fatalf("AGENT_PEER_SERVED: agent uid %d served=%v want %v (err %v, source calls %d)", c.agentUID, e == nil, c.served, e, calls)
-		}
-	}
-}
-
-// Claim: the SERVICE.md G2 section carries the drop-in that gives the daemon
-// the operator group (SupplementaryGroups) and states the R3 access decision.
-func TestPX1oServiceDocDropIn(t *testing.T) {
-	raw, e := os.ReadFile("SERVICE.md")
-	if e != nil {
-		t.Fatal(e)
-	}
-	for _, want := range []string{"SupplementaryGroups=swarma-wallet swarma-wallet-status", "-status-socket /run/swarma-wallet/status.sock", "STATUS_SOCKET_AGENT"} {
-		if !strings.Contains(string(raw), want) {
-			t.Fatal(fmt.Sprintf("SERVICE.md lacks %q", want))
 		}
 	}
 }
