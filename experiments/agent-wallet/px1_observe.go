@@ -123,9 +123,10 @@ func px1oOutputSpent(ctx context.Context, node su.Node, p su.Point) (spent bool,
 // A transaction known only from a stale block (confirmations 0) is absent.
 //
 // Only a well-formed id (64 lowercase hex characters, as Core prints txids)
-// can ever read as absent. Core uses code -5 for malformed keys and ids too,
-// so a malformed id is refused here with TRACKER_TXID and never reaches the
-// node.
+// can ever read as absent. Code -5 also covers malformed keys and ids, and
+// Core 28 parses hex case-insensitively: it answers an unknown uppercase id
+// with the exact "no such transaction" reply. So a malformed id is refused
+// here with TRACKER_TXID and never reaches the node.
 func px1oTxDepth(ctx context.Context, node su.Node, txid string) (present bool, depth int64, e error) {
 	if !hexN(txid, 32) {
 		return false, 0, fail("TRACKER_TXID")
