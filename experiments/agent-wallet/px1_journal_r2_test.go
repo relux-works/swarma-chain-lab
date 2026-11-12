@@ -525,6 +525,36 @@ func TestPX1jServicePoisoned(t *testing.T) {
 	}
 }
 
+// Claim (integration, T14 on the wire): S3's pass poisons the service AND
+// sets the sticky halt when the canary is spent, so the halt is asked before
+// the poison flag: a poisoned service whose halt reports a spent canary
+// refuses a spend FLOAT_CANARY_SPENT (journal_seq 0, nothing journaled); a
+// read on it still refuses SERVICE_STATE_UNAVAILABLE (reads are not halted);
+// a poisoned service with no halt answer refuses SERVICE_STATE_UNAVAILABLE
+// (neighbour, poison still refuses), and the healthy service admits.
+func TestPX1jServiceHaltBeforePoison(t *testing.T) {
+	clock := int64(500)
+	s := px1jServiceFixture(t, px1jStateDir(t), &clock, 4)
+	ctx := context.Background()
+	halt := CodeFloatCanarySpent
+	s.g2.halt = func(*ActionService) string { return halt }
+	s.poisoned = true
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 1, nil), px1jPeer)); r.Reason != CodeFloatCanarySpent || r.Sequence != 0 || s.g2.journal.Usage().LastSeq != 0 {
+		t.Fatal("HALT_MASKED_BY_POISON", r.Reason, r.Sequence)
+	}
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "balance", 2, nil), px1jPeer)); r.Reason != "SERVICE_STATE_UNAVAILABLE" || r.Sequence != 0 {
+		t.Fatal("poisoned read", r.Reason)
+	}
+	halt = ""
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 1, nil), px1jPeer)); r.Reason != "SERVICE_STATE_UNAVAILABLE" || r.Sequence != 0 || s.g2.journal.Usage().LastSeq != 0 {
+		t.Fatal("POISON_IGNORED without a halt", r.Reason, r.Sequence)
+	}
+	s.poisoned = false
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 1, nil), px1jPeer)); r.Sequence != 1 {
+		t.Fatal("healthy neighbour", r.Reason)
+	}
+}
+
 // px1jStreamFiles are the files S2 alone owns in this package.
 var px1jStreamFiles = []string{"px1_journal.go", "px1_service_seams.go", "px1_journal_test.go", "px1_journal_r2_test.go", "px1_journal_review_test.go", "px1_journal_fa1_test.go"}
 

@@ -520,5 +520,14 @@
     "Selector": "TestPX1WalletAttachProductDeps",
     "Marker": "product deps: want",
     "Core": false
+  },
+  {
+    "Name": "s1-integ-prior-skips-track",
+    "File": "px1_wallet_seams.go",
+    "Old": "if r.GrantID == grantID && r.Nonce == nonce && r.Kind != RecordTrack {",
+    "New": "if r.GrantID == grantID && r.Nonce == nonce {",
+    "Selector": "TestPX1WalletReplaySkipsTrack",
+    "Marker": "TRACK_AS_REPLAY",
+    "Core": false
   }
 ]

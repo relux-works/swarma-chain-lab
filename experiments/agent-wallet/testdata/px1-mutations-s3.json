@@ -387,15 +387,6 @@
   "Core": false
  },
  {
-  "Name": "px1-s3-halted-unbound-admits",
-  "File": "px1_runtime.go",
-  "Old": "\tif r == nil {\n\t\treturn ErrNotImplemented.Error()\n\t}\n",
-  "New": "\tif r == nil {\n\t\treturn \"\"\n\t}\n",
-  "Selector": "TestPX1oHalted",
-  "Marker": "HALT_UNBOUND",
-  "Core": false
- },
- {
   "Name": "px1-s3-uncertain-service-ignored",
   "File": "px1_runtime.go",
   "Old": "rec.Service.Receipt.Receipt.Verdict == \"uncertain\" {",
@@ -726,6 +717,15 @@
   "New": "\t\tif e := px1jAuthorize(h, r); e != nil && h.ReceiptKey != \"\" {\n\t\t\treturn e\n",
   "Selector": "TestPX1oLedgerFoldsOnlySignedForeignRelease",
   "Marker": "a keyless foreign journal folded a release",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-state-unbound",
+  "File": "px1_runtime.go",
+  "Old": "func (s *ActionService) px1oState() *px1Runtime { return &s.px1 }",
+  "New": "func (s *ActionService) px1oState() *px1Runtime { return nil }",
+  "Selector": "TestPX1RuntimeSeamsBound",
+  "Marker": "RUNTIME_UNBOUND",
   "Core": false
  }
 ]

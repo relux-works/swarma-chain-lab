@@ -672,6 +672,40 @@ func TestPX1WalletReplay(t *testing.T) {
 	}
 }
 
+// Claim (integration, S3-R3 S1 part): a tracker `track` record of a request is
+// never the replay answer: after a confirmed and then a conflicted track
+// record, replaying the same bytes returns the execution record's phase and
+// txid with DURABLE_RESERVATION_NO_RETRY and no second broadcast, and the same
+// nonce with other bytes still refuses NONCE_CONFLICT. Neighbour: before any
+// track record the replay answer is the same execution record.
+func TestPX1WalletReplaySkipsTrack(t *testing.T) {
+	l := newPX1Lab(t, px1TermsAllow(), px1Operator(), 500000, px1ExecutorKey)
+	r, raw := l.request(px1AllowA, 50000, 3000, 1)
+	first := l.spend(r, raw, nil)
+	before := l.spend(r, raw, nil)
+	if first.Status != "executed" || before.Status != "already-executed" || before.Phase != "complete" || before.TxID != first.TxID {
+		t.Fatalf("neighbour replay before tracking: %+v %+v", first, before)
+	}
+	complete := l.journal.records[len(l.journal.records)-1]
+	if complete.Kind != RecordComplete {
+		t.Fatalf("journal: %s", l.kinds())
+	}
+	for _, state := range []string{TrackConfirmed, TrackConflicted} {
+		track := complete
+		track.Seq, track.Kind, track.Phase = 0, RecordTrack, state
+		track.Track = &TrackRecordV2{State: state, Height: 7, BlockHash: strings.Repeat("b", 64), Confirmations: 2}
+		l.journal.records = append(l.journal.records, track)
+		again := l.spend(r, raw, nil)
+		if again.Status != "already-executed" || again.Reason != "DURABLE_RESERVATION_NO_RETRY" || again.Phase != "complete" || again.TxID != first.TxID || len(l.chain.sent) != 1 {
+			t.Fatalf("TRACK_AS_REPLAY after %s: %+v", state, again)
+		}
+	}
+	r.Amount++
+	if got := l.spend(r, canonical(r), nil); got.Reason != "NONCE_CONFLICT" || len(l.chain.sent) != 1 {
+		t.Fatalf("conflict after track: %+v", got)
+	}
+}
+
 // Claim: a broadcast error leaves the request uncertain (uncertain record, debit retained); a failing service reservation leaves it uncertain without a broadcast; a failing complete record reports JOURNAL_WRITE_UNCERTAIN.
 func TestPX1WalletUncertainOutcomes(t *testing.T) {
 	l := newPX1Lab(t, px1TermsAllow(), px1Operator(), 500000, px1ExecutorKey)

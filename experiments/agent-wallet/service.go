@@ -376,6 +376,16 @@ func (s *ActionService) px1jHandle(ctx context.Context, v VerifiedAction, peer P
 	reject := func(code string) []byte {
 		return canonical(s.reply(v.Hash, peer, 0, 0, "refused", code, struct{}{}))
 	}
+	// Step 5 for a spend: S3's admission halt (spent canary:
+	// FLOAT_CANARY_SPENT, T14) refuses before admission, nothing journaled.
+	// It is asked before the poison flag: S3's pass also poisons the service
+	// on a spent canary, and the halt names the cause on the wire. Either
+	// check alone refuses, so the order changes only the reported code.
+	if r.Action == "spend" {
+		if code := px1jHaltCode(x.halt(s)); code != "" {
+			return reject(code)
+		}
+	}
 	// Step 5: poisoned service or journal.
 	if s.poisoned || x.journal.Poisoned() {
 		return reject("SERVICE_STATE_UNAVAILABLE")
@@ -383,13 +393,6 @@ func (s *ActionService) px1jHandle(ctx context.Context, v VerifiedAction, peer P
 	switch r.Action {
 	case "balance", "history", "budget":
 		return s.px1jRead(ctx, v, peer)
-	}
-	// Step 5 for a spend: S3's admission halt (spent canary:
-	// FLOAT_CANARY_SPENT, T14) refuses before admission, nothing journaled.
-	if r.Action == "spend" {
-		if code := px1jHaltCode(x.halt(s)); code != "" {
-			return reject(code)
-		}
 	}
 	// Step 6: nonce lookup.
 	entry := x.entries[r.Nonce]

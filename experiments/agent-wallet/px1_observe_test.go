@@ -1178,15 +1178,29 @@ func TestPX1RuntimeEnqueueAndStatus(t *testing.T) {
 	}
 }
 
-// Claim: until S2's `px1 px1Runtime` field binds the runtime to the service,
-// every ActionService seam refuses PX1_NOT_IMPLEMENTED (fail closed).
-func TestPX1RuntimeSeamsUnbound(t *testing.T) {
-	var s ActionService
-	if !errors.Is(s.PX1Enqueue(TrackedPayment{}), ErrNotImplemented) || !errors.Is(s.PX1Tick(context.Background()), ErrNotImplemented) {
-		t.Fatal("runtime seams must fail closed")
+// Claim (integration, S3-R1): the seams are bound to each service's own
+// `px1 px1Runtime` field (two services never share a runtime). A fresh runtime
+// fails closed without PX1_NOT_IMPLEMENTED: on a service without a G2 profile
+// PX1Tick and PX1Status refuse SERVICE_PROFILE, PX1Enqueue before the first
+// pass records nothing, and the admission halt refuses
+// SERVICE_STATE_UNAVAILABLE. The admitting neighbour (a pass with an unspent
+// canary) is TestPX1oHalted.
+func TestPX1RuntimeSeamsBound(t *testing.T) {
+	a, b := &ActionService{wallet: &Wallet{}}, &ActionService{wallet: &Wallet{}}
+	if a.px1oState() != &a.px1 || b.px1oState() != &b.px1 || a.px1oState() == b.px1oState() {
+		t.Fatal("RUNTIME_UNBOUND: the seams do not use the service's own px1 field")
 	}
-	if _, e := s.PX1Status(); !errors.Is(e, ErrNotImplemented) {
-		t.Fatal(e)
+	if e := a.PX1Tick(context.Background()); e == nil || e.Error() != "SERVICE_PROFILE" {
+		t.Fatalf("W2 tick: want SERVICE_PROFILE, got %v", e)
+	}
+	if _, e := a.PX1Status(); e == nil || e.Error() != "SERVICE_PROFILE" {
+		t.Fatalf("W2 status: want SERVICE_PROFILE, got %v", e)
+	}
+	if e := a.PX1Enqueue(TrackedPayment{TxID: strings.Repeat("a", 64)}); e != nil || a.px1.tracker != nil || a.px1.ready {
+		t.Fatalf("enqueue before the first pass: %v", e)
+	}
+	if got := a.px1oHalted(); got != "SERVICE_STATE_UNAVAILABLE" {
+		t.Fatalf("fresh runtime halt: want SERVICE_STATE_UNAVAILABLE, got %q", got)
 	}
 }
 

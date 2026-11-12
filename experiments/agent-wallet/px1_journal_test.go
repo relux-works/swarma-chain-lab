@@ -785,11 +785,17 @@ func TestPX1ServiceStartup(t *testing.T) {
 	}
 }
 
-// Claim: until integration step 3 the G2 profile is never selected from a
-// service configuration, so every opened service keeps W2 behaviour.
-func TestPX1ProfileSelectionPending(t *testing.T) {
+// Claim (integration step 3): the service layer selects exactly S1's g2 block
+// of the service configuration; a configuration without g2 selects nothing,
+// so that service stays W2 (valid neighbour). The opener end to end (both
+// layers attached on genuine Core) is TestPX1CoreServiceG2FailClosed.
+func TestPX1ProfileSelection(t *testing.T) {
 	if px1jProfileOf(ServiceConfig{}) != nil {
-		t.Fatal("G2 selected before S1's config member lands")
+		t.Fatal("G2 selected without a g2 block")
+	}
+	op := px1Operator()
+	if got := px1jProfileOf(ServiceConfig{G2: &op}); got != &op {
+		t.Fatalf("PROFILE_NOT_SELECTED: the g2 block was not selected: %v", got)
 	}
 }
 

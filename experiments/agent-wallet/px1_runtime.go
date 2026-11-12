@@ -493,13 +493,12 @@ func (r *px1Runtime) status(env px1oEnv) (StatusProjectionV1, error) {
 // ---------------------------------------------------------------------------
 // ActionService seams (frozen in px1_seams_api.go).
 
-// px1oState returns this service's S3 runtime. The frozen design stores it in
-// the single field `px1 px1Runtime` that S2 adds to ActionService in
-// service.go. Until that field exists on this branch there is no
-// per-service storage, so every seam refuses PX1_NOT_IMPLEMENTED (fail
-// closed); once S2's field lands this returns &s.px1 (cross-stream request
-// S3-R1).
-func (s *ActionService) px1oState() *px1Runtime { return nil }
+// px1oState returns this service's S3 runtime: the single field
+// `px1 px1Runtime` that S2 adds to ActionService in service.go (cross-stream
+// request S3-R1, bound at integration). The zero runtime is ready to use: the
+// first PX1Tick builds the observers, and until a pass succeeds px1oHalted
+// refuses SERVICE_STATE_UNAVAILABLE (fail closed).
+func (s *ActionService) px1oState() *px1Runtime { return &s.px1 }
 
 // px1oHalted is the G2 admission halt check that S2 calls in handleG2 before
 // a spend, with ActionService.mu held (cross-stream request S2 To S3 #1). It

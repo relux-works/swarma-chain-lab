@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
@@ -170,11 +171,14 @@ func TestPX1WalletClockStepBack(t *testing.T) {
 
 // Claim: with a valid g2 block (terms v2 required, transfer/day/fee ceilings
 // 1000) the public opener never executes a terms-v1 spend under W2: startup
-// refuses while the S2/S3 constructors are stubs, and an attached service
-// refuses TERMS_VERSION_REQUIRED. Genuine Core 28 regtest and the genuine K1
-// kernel; installedRead keeps its synthetic root-ownership seam and the peer
-// metadata is injected (not a custody test). Adapted from the PR 76 reviewer's
-// TestReviewG2ServiceFailClosed.
+// refuses while the S2/S3 constructors are stubs; once integrated, the opened
+// service carries the G2 profile at both layers, refuses every spend with
+// SERVICE_STATE_UNAVAILABLE at journal_seq 0 before the first observation
+// pass (S3 halt, nothing journaled), and after one pass that reads a real
+// unspent canary refuses the same request TERMS_VERSION_REQUIRED. Genuine Core
+// 28 regtest and the genuine K1 kernel; installedRead keeps its synthetic
+// root-ownership seam and the peer metadata is injected (not a custody test).
+// Adapted from the PR 76 reviewer's TestReviewG2ServiceFailClosed.
 func TestPX1CoreServiceG2FailClosed(t *testing.T) { px1CoreServiceProfile(t, true) }
 
 // Claim: without g2 the same signed terms-v1 request executes and genuine Core
@@ -210,6 +214,24 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 	operator.MaxTransferSat = 1000
 	operator.MaxDaySat = 1000
 	operator.MaxFeeSat = 1000
+	if g2 {
+		// A real canary: one 10000-atom output in the hot wallet, so the
+		// observation pass reads it unspent (the fixture outpoint is absent).
+		canary := text(t, core.rpc("issuer", "sendtoaddress", text(t, core.rpc("agent", "getnewaddress", "", "legacy")), su.Coins(10000)))
+		core.mine(1)
+		var view su.TransactionView
+		if e := json.Unmarshal(core.rpc("", "getrawtransaction", canary, true), &view); e != nil {
+			t.Fatal(e)
+		}
+		for i, out := range view.Vout {
+			if int64(out.Value) == 10000 {
+				operator.Canary = CanaryConfig{Outpoint: su.Point{TxID: canary, Vout: uint32(i)}, ValueSat: 10000}
+			}
+		}
+		if operator.Canary.Outpoint.TxID != canary {
+			t.Fatal("canary output")
+		}
+	}
 	_, grantee := testKey(2)
 	config := ServiceConfig{Network: "regtest", Genesis: su.RegtestGenesis, Version: 1, Service: WalletServiceID, Socket: filepath.Join(runtime, "wallet.sock"), SocketGID: uint32(os.Getgid()), PeerUID: uint32(os.Getuid() + 1), Grantee: grantee, SkewSeconds: 60, TimeoutSeconds: 2, StateDir: stateDir, WalletConfig: configPath, ReceiptKeyFile: keyPath}
 	if g2 {
@@ -235,7 +257,28 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 	request := actionFixture(t, "spend")
 	request.Grant.ID = grant.id
 	request.Params = canonical(SpendParams{To: terms.Recipients[0], Amount: 50000, FeeLimit: 30000})
-	response := service.handle(context.Background(), actionEnvelope(t, request), PeerIdentity{UID: config.PeerUID})
+	if g2 {
+		// The G2 admission clock guard keeps the service clock it was opened
+		// with (the real clock), so the G2 request is created now.
+		request.CreatedAt = time.Now().Unix()
+	}
+	envelope := actionEnvelope(t, request)
+	if g2 {
+		if service.PX1ServiceJournal() == nil || service.PX1Profile() == nil {
+			t.Fatal("G2_PROFILE_FALLTHROUGH: the service layer stayed W2")
+		}
+		var halted SignedActionReceipt
+		if e := json.Unmarshal(service.handle(context.Background(), envelope, PeerIdentity{UID: config.PeerUID}), &halted); e != nil {
+			t.Fatal(e)
+		}
+		if halted.Receipt.Verdict != "refused" || halted.Receipt.Reason != "SERVICE_STATE_UNAVAILABLE" || halted.Receipt.Sequence != 0 || service.PX1ServiceJournal().Usage().LastSeq != 0 {
+			t.Fatalf("G2_HALT_BEFORE_PASS: want SERVICE_STATE_UNAVAILABLE at journal_seq 0, got %+v", halted.Receipt)
+		}
+		if e := service.PX1Tick(context.Background()); e != nil {
+			t.Fatal("observation pass", e)
+		}
+	}
+	response := service.handle(context.Background(), envelope, PeerIdentity{UID: config.PeerUID})
 	var receipt SignedActionReceipt
 	if err := json.Unmarshal(response, &receipt); err != nil {
 		t.Fatal(err)
@@ -243,6 +286,38 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 	if g2 {
 		if receipt.Receipt.Verdict != "refused" || receipt.Receipt.Reason != CodeTermsVersionRequired {
 			t.Fatalf("G2_PROFILE_BYPASS: attached G2 service did not refuse terms v1: %s", response)
+		}
+		// T14 on the wire: the canary spent out of band (hot wallet, own
+		// node mempool); the next pass halts the service, and a spend with a
+		// fresh nonce refuses FLOAT_CANARY_SPENT before admission.
+		raw := text(t, core.rpc("agent", "createrawtransaction", []map[string]any{{"txid": operator.Canary.Outpoint.TxID, "vout": operator.Canary.Outpoint.Vout}}, map[string]any{text(t, core.rpc("agent", "getnewaddress", "", "legacy")): su.Coins(5000)}))
+		// The 10000-atom canary alone cannot pay the relay floor; the wallet
+		// adds a funding input and change.
+		var funded struct {
+			Hex string `json:"hex"`
+		}
+		if e := json.Unmarshal(core.rpc("agent", "fundrawtransaction", raw), &funded); e != nil {
+			t.Fatal("canary spend funding", e)
+		}
+		var signed struct {
+			Hex      string `json:"hex"`
+			Complete bool   `json:"complete"`
+		}
+		if e := json.Unmarshal(core.rpc("agent", "signrawtransactionwithwallet", funded.Hex), &signed); e != nil || !signed.Complete {
+			t.Fatal("canary spend signature", e)
+		}
+		core.rpc("", "sendrawtransaction", signed.Hex)
+		seqBefore := service.PX1ServiceJournal().Usage().LastSeq
+		if e := service.PX1Tick(context.Background()); e != nil {
+			t.Logf("observation pass after the canary spend: %v", e)
+		}
+		request.Nonce = strings.Repeat("e", 32)
+		var spent SignedActionReceipt
+		if e := json.Unmarshal(service.handle(context.Background(), actionEnvelope(t, request), PeerIdentity{UID: config.PeerUID}), &spent); e != nil {
+			t.Fatal(e)
+		}
+		if spent.Receipt.Verdict != "refused" || spent.Receipt.Reason != CodeFloatCanarySpent || spent.Receipt.Sequence != 0 || service.PX1ServiceJournal().Usage().LastSeq != seqBefore {
+			t.Fatalf("T14_WIRE: want FLOAT_CANARY_SPENT at journal_seq 0, got %+v", spent.Receipt)
 		}
 		return
 	}

@@ -184,10 +184,13 @@ func (w *Wallet) px1Excluded(p su.Point, ledger LedgerView) bool {
 }
 
 // px1Prior finds the latest wallet-layer record of (grantID, nonce), if any.
+// A `track` record is the tracker's observation only (S3) and never changes
+// the request's accounting phase, so it is skipped: a replay receipt keeps
+// the phase of the execution record (cross-stream request S3-R3, S1 part).
 func (w *Wallet) px1Prior(grantID, nonce string) (*JournalRecordV2, error) {
 	var prior *JournalRecordV2
 	e := w.g2.journal.Iterate(1, func(r JournalRecordV2) error {
-		if r.GrantID == grantID && r.Nonce == nonce {
+		if r.GrantID == grantID && r.Nonce == nonce && r.Kind != RecordTrack {
 			found := r
 			prior = &found
 		}

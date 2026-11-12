@@ -326,14 +326,13 @@ func TestPX1oTrackSkipsReleased(t *testing.T) {
 // Claim: the halt seam refuses FLOAT_CANARY_SPENT exactly when the canary was
 // observed spent (T14 service half), keeps a sticky reconciliation refusal,
 // refuses SERVICE_STATE_UNAVAILABLE before the first pass and while the last
-// canary read is unknown (unknown never admits), fails closed with
-// PX1_NOT_IMPLEMENTED while the runtime is unbound, and admits ("") after a
-// pass with an unspent canary (valid neighbour), also once a later read
-// recovers.
+// canary read is unknown (unknown never admits), also through the service's
+// bound runtime (a fresh service, integration), and admits ("") after a pass
+// with an unspent canary (valid neighbour), also once a later read recovers.
 func TestPX1oHalted(t *testing.T) {
-	var unbound ActionService
-	if got := unbound.px1oHalted(); got != ErrNotImplemented.Error() {
-		t.Fatalf("HALT_UNBOUND: unbound runtime admitted: %q", got)
+	var fresh ActionService
+	if got := fresh.px1oHalted(); got != "SERVICE_STATE_UNAVAILABLE" {
+		t.Fatalf("HALT_FRESH_SERVICE: fresh service runtime admitted: %q", got)
 	}
 	l := px1oNewRuntimeLab(t)
 	if got := l.r.halted(); got != "SERVICE_STATE_UNAVAILABLE" {

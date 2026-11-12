@@ -47,12 +47,13 @@ func px1jServiceProductDeps() px1jServiceDeps {
 	return px1jServiceDeps{validate: ValidateG2OperatorConfig, open: OpenJournalV2}
 }
 
-// px1jProfileOf selects the G2 profile from the service configuration. The
-// `g2` member of ServiceConfig belongs to S1 (service_config.go) and is not
-// on the frozen base, so until S1 lands every service stays W2. Integration
-// step 3 (PX1-INTERFACES.md) replaces the body with `return c.G2` and attaches
-// the wallet layer with S1's px1Attach before px1jOpenService.
-func px1jProfileOf(c ServiceConfig) *G2OperatorConfig { return nil }
+// px1jProfileOf selects the G2 profile from the service configuration: S1's
+// `g2` member of ServiceConfig (service_config.go), validated with the rest of
+// the config. Integration step 3 (PX1-INTERFACES.md): the wallet layer is
+// attached first by S1's px1OpenServiceWallet (px1Attach), then
+// OpenActionService opens the service layer with px1jOpenService. Without a
+// g2 block the service stays W2.
+func px1jProfileOf(c ServiceConfig) *G2OperatorConfig { return c.G2 }
 
 // px1jOpenService attaches the G2 service layer: it opens the service-layer
 // journal v2 bound to the W2 service binding, re-verifies every admitted
