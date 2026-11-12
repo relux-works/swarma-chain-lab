@@ -1006,6 +1006,128 @@ func TestPX1CoreS2Crash(t *testing.T) {
 			t.Fatalf("T10 broadcast-rejected neighbour status: %+v", st.Payments)
 		}
 	})
+
+	// Claim (T10, Core, broadcast refused, no restart): the running service
+	// queues the payment whose broadcast the node refused at its verdict, and
+	// raises ALERT_UNCERTAIN_VERDICT then, before any pass: once for the
+	// service verdict (detail BROADCAST_UNCERTAIN) and once for the wallet
+	// record (detail the txid). With no restart every pass succeeds, and after
+	// ConflictBlocksN blocks the payment is conflicted exactly once; nothing
+	// is re-sent, the debit stays uncertain, and neither alert repeats. Valid
+	// neighbour: an accepted broadcast is queued, confirmed, never conflicted,
+	// and raises no uncertain alert.
+	px1sStep(t, l, "broadcast-rejected-live", func(t *testing.T) {
+		l.now = time.Now().Unix() - 3000
+		clock := &px1sClock{}
+		clock.now.Store(l.now)
+		g := l.px1sIssue(px1sTerms(500000, 100000, 300000, 5), 500000, 2, 2, "s2-t10-rejected-live")
+		p := l.px1sInstall(g, canary, peer, clock)
+		fee := l.px1sQuoteFee(g.config, px1RegtestTerms().Recipients[0], 50000)
+		p.open(t)
+		var refused string
+		p.s.wallet.hook = func(stage string) {
+			if stage != "after-reservation" {
+				return
+			}
+			rs := px1sRecords(t, p.s.wallet.PX1Journal())
+			refused = rs[len(rs)-1].TxID
+			l.rpc("", "prioritisetransaction", refused, 0, -100000000)
+		}
+		raw := px1sEnvelope(t, p.request(1, 50000-fee, fee), 2)
+		r, first := p.send(t, raw)
+		p.s.wallet.hook = nil
+		if r.Verdict != "uncertain" || r.Reason != "BROADCAST_UNCERTAIN" || refused == "" {
+			t.Fatalf("T10 broadcast-rejected-live: want uncertain BROADCAST_UNCERTAIN, got %+v", r)
+		}
+		wallet := px1sRecords(t, p.s.wallet.PX1Journal())
+		if got := px1sKinds(wallet); !mapsEqual(got, map[string]int{RecordReserve: 1, RecordUncertain: 1}) || wallet[0].TxID != refused {
+			t.Fatalf("T10 broadcast-rejected-live: wallet journal %v", got)
+		}
+		reserve := wallet[0]
+		if l.px1sInMempool(refused) || p.sends(t) != 0 {
+			t.Fatal("T10 broadcast-rejected-live: the node accepted the refused transaction")
+		}
+		// At the verdict, before any pass: the alert and the queued payment.
+		wantAlerts := map[string]int{"BROADCAST_UNCERTAIN": 1, refused: 1}
+		if got := px1sAlertDetails(t, p.s, AlertUncertainVerdict); !mapsEqual(got, wantAlerts) {
+			t.Fatalf("T10_UNCERTAIN_ALERT broadcast-rejected-live: at the verdict want %v, got %v", wantAlerts, got)
+		}
+		status, _ := p.s.PX1Status()
+		if status.Payments.Pending != 1 || len(status.Payments.Items) != 1 || status.Payments.Items[0].TxID != refused || status.Payments.Items[0].ReserveSeq != reserve.Seq {
+			t.Fatalf("T10_REJECTED_NOT_QUEUED broadcast-rejected-live: not tracked at the verdict: %+v", status.Payments)
+		}
+		// The same running service, no restart: a pass, then ConflictBlocksN+1 blocks.
+		if e := p.s.PX1Tick(context.Background()); e != nil {
+			t.Fatalf("T10_TRACKER_UNKNOWN_TX broadcast-rejected-live: pass after the verdict: %v", e)
+		}
+		l.mine(DefaultConflictBlocksN + 1)
+		if e := p.s.PX1Tick(context.Background()); e != nil {
+			t.Fatalf("T10_TRACKER_UNKNOWN_TX broadcast-rejected-live: observation pass: %v", e)
+		}
+		status, _ = p.s.PX1Status()
+		if status.Payments.Conflicted != 1 || status.Payments.Confirmed != 0 {
+			t.Fatalf("T10_REJECTED_NOT_QUEUED broadcast-rejected-live: want conflicted without a restart, payments %+v", status.Payments)
+		}
+		px1sConflictedOnce(t, l, p, "broadcast-rejected-live", reserve, 0)
+		status, _ = p.s.PX1Status()
+		ledger := p.ledger(t)
+		if ledger.UncertainSat(g.id) != 50000 || ledger.SpendUsed(g.id) != 50000 || len(status.Grants) != 1 || status.Grants[0].UncertainSat != 50000 || status.Grants[0].ReleasedSat != 0 {
+			t.Fatalf("T10 broadcast-rejected-live: debit not retained: %+v", status.Grants)
+		}
+		if got := px1sAlertDetails(t, p.s, AlertUncertainVerdict); !mapsEqual(got, wantAlerts) {
+			t.Fatalf("T10_UNCERTAIN_ALERT broadcast-rejected-live: after the passes want %v, got %v", wantAlerts, got)
+		}
+		if got := px1sAlertDetails(t, p.s, AlertPaymentConflicted); !mapsEqual(got, map[string]int{refused: 1}) {
+			t.Fatalf("T10 broadcast-rejected-live: conflict alert %v", got)
+		}
+		if _, again := p.send(t, raw); string(again) != string(first) || p.sends(t) != 0 {
+			t.Fatal("T10 broadcast-rejected-live: the replay changed or re-sent")
+		}
+		p.close()
+
+		// Valid neighbour: the node accepts the same request's broadcast.
+		cv := &px1sClock{}
+		cv.now.Store(l.now)
+		gv := l.px1sIssue(px1sTerms(500000, 100000, 300000, 5), 500000, 2, 2, "s2-t10v-rejected-live")
+		pv := l.px1sInstall(gv, canary, peer, cv)
+		pv.open(t)
+		ok, _ := pv.send(t, px1sEnvelope(t, pv.request(1, 50000-fee, fee), 2))
+		if ok.Verdict != "executed" {
+			t.Fatalf("T10 broadcast-rejected-live neighbour: %+v", ok)
+		}
+		if got := px1sAlertDetails(t, pv.s, AlertUncertainVerdict); len(got) != 0 {
+			t.Fatalf("T10 broadcast-rejected-live neighbour: uncertain alert %v", got)
+		}
+		if st, _ := pv.s.PX1Status(); st.Payments.Pending != 1 {
+			t.Fatalf("T10 broadcast-rejected-live neighbour: not queued: %+v", st.Payments)
+		}
+		l.mine(DefaultConfirmationsK)
+		if e := pv.s.PX1Tick(context.Background()); e != nil {
+			t.Fatal("tick", e)
+		}
+		if st, _ := pv.s.PX1Status(); st.Payments.Confirmed != 1 || st.Payments.Conflicted != 0 || pv.sends(t) != 1 {
+			t.Fatalf("T10 broadcast-rejected-live neighbour status: %+v", st.Payments)
+		}
+		if got := px1sAlertDetails(t, pv.s, AlertUncertainVerdict); len(got) != 0 {
+			t.Fatalf("T10 broadcast-rejected-live neighbour: uncertain alert after the pass %v", got)
+		}
+	})
+}
+
+// px1sAlertDetails counts the status projection's alerts of code by detail.
+func px1sAlertDetails(t *testing.T, s *ActionService, code string) map[string]int {
+	t.Helper()
+	status, e := s.PX1Status()
+	if e != nil {
+		t.Fatal("status", e)
+	}
+	n := map[string]int{}
+	for _, a := range status.Alerts {
+		if a.Code == code {
+			n[a.Detail]++
+		}
+	}
+	return n
 }
 
 // px1sConflictedOnce asserts the tracker's conflicted path for a payment the

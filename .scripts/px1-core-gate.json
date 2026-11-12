@@ -22,7 +22,7 @@
     "T7": {"layers": ["core"], "core": ["TestPX1CoreS1/T7-expired-window"], "unit": ["TestPX1WalletExpiredWindow"]},
     "T8": {"layers": ["core"], "core": ["TestPX1CoreS2/T8-replay"], "unit": ["TestPX1T8ServiceReplay", "TestPX1WalletReplay", "TestPX1WalletReplaySkipsTrack"]},
     "T9": {"layers": ["core"], "core": ["TestPX1CoreS2Race"]},
-    "T10": {"layers": ["core"], "core": ["TestPX1CoreS2Crash/after-reservation", "TestPX1CoreS2Crash/after-service-reservation", "TestPX1CoreS2Crash/after-broadcast", "TestPX1CoreS2Crash/broadcast-rejected"]},
+    "T10": {"layers": ["core"], "core": ["TestPX1CoreS2Crash/after-reservation", "TestPX1CoreS2Crash/after-service-reservation", "TestPX1CoreS2Crash/after-broadcast", "TestPX1CoreS2Crash/broadcast-rejected", "TestPX1CoreS2Crash/broadcast-rejected-live"]},
     "T11": {"layers": ["core"], "core": ["TestPX1CoreObserve"], "unit": ["TestPX1TrackerConfirmsAtK", "TestPX1TrackerReorgThenConflict"]},
     "T12": {"layers": ["unit", "core"], "core": ["TestPX1CoreS1/T12-second-instance"], "unit": ["TestPX1ExecutorBinding", "TestPX1WalletSecondInstance"]},
     "T13": {"layers": ["core"], "core": ["TestPX1CoreObserve"], "unit": ["TestPX1ReconcilerT13", "TestPX1RuntimeReconcileRefusal"]},

@@ -172,8 +172,8 @@ func (s *ActionService) px1jJournalCode(e error) string {
 	return safeCode(e)
 }
 
-// px1jTracked finds the wallet-layer reserve record of an executed spend and
-// builds the tracker registration (step 23). BroadcastTip is the own-node
+// px1jTracked finds the wallet-layer reserve record of an executed or
+// uncertain spend and builds the tracker registration (step 23). BroadcastTip is the own-node
 // height observed for this request (step 11), the last tip before broadcast.
 func (s *ActionService) px1jTracked(result Receipt, height int64) (TrackedPayment, bool) {
 	j := s.wallet.PX1Journal()

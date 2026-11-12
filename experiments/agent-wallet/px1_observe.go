@@ -294,9 +294,11 @@ func NewTracker(node su.Node, cfg TrackerConfig, wallet JournalV2) (Tracker, err
 	return t, nil
 }
 
-// Enqueue registers a payment after its complete record is durable. A second
-// Enqueue of the same reservation with the same txid is a no-op (startup may
-// already have reloaded it); with another txid it is refused.
+// Enqueue registers a payment at step 23, after its reserve record is durable:
+// an executed spend, or one whose outcome is uncertain (the same requests the
+// startup reload tracks). A second Enqueue of the same reservation with the
+// same txid is a no-op (startup may already have reloaded it); with another
+// txid it is refused.
 func (t *px1oTracker) Enqueue(p TrackedPayment) error {
 	if !hexN(p.GrantID, 32) || !hexN(p.Nonce, 32) || !hexN(p.TxID, 32) || p.ReserveSeq < 1 || p.BroadcastTip < 0 || !px1oValidTrackedInputs(p.Inputs) {
 		return fail("TRACKER_PAYMENT")
