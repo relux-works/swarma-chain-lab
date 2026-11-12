@@ -2,10 +2,74 @@
   {
     "Name": "s0-a3-agent-user-unbound",
     "File": "g2_pay_api.go",
-    "Old": "if uid, e := lookup(p.AgentUser); e != nil || uid != p.AgentUID {",
-    "New": "if _, e := lookup(p.AgentUser); e != nil {",
+    "Old": "if uid != p.AgentUID {",
+    "New": "if false && uid != p.AgentUID {",
     "Selector": "TestPX1PayIdentityBinding",
     "Marker": "agent_user bound to another UID accepted"
+  },
+  {
+    "Name": "s0-a3-first-install-uid-conflict",
+    "File": "g2_pay_api.go",
+    "Old": "if _, e := db.UIDUser(p.AgentUID); !errors.Is(e, ErrG2AccountAbsent) {",
+    "New": "if _, e := db.UIDUser(p.AgentUID); e != nil && !errors.Is(e, ErrG2AccountAbsent) {",
+    "Selector": "TestPX1PayIdentityBinding",
+    "Marker": "first install: agent_uid owned by another name accepted"
+  },
+  {
+    "Name": "s0-a3-first-install-uid-outage",
+    "File": "g2_pay_api.go",
+    "Old": "if _, e := db.UIDUser(p.AgentUID); !errors.Is(e, ErrG2AccountAbsent) {",
+    "New": "if _, e := db.UIDUser(p.AgentUID); e == nil {",
+    "Selector": "TestPX1PayIdentityBinding",
+    "Marker": "first install: uid lookup outage accepted"
+  },
+  {
+    "Name": "s0-a3-outage-as-absent",
+    "File": "g2_pay_api.go",
+    "Old": "case errors.Is(e, ErrG2AccountAbsent):",
+    "New": "case e != nil:",
+    "Selector": "TestPX1PayIdentityBinding",
+    "Marker": "account lookup outage treated as absence"
+  },
+  {
+    "Name": "s0-a3-host-error-as-absent",
+    "File": "g2_pay_api.go",
+    "Old": "if errors.As(e, &name) || errors.As(e, &id) {",
+    "New": "if errors.As(e, &name) || errors.As(e, &id) || e != nil {",
+    "Selector": "TestPX1HostAccountErrors",
+    "Marker": "outage classified as absence"
+  },
+  {
+    "Name": "s0-a3-membership-only",
+    "File": "g2_pay_api.go",
+    "Old": "return \"u \" + p.AgentUser + \" \" + strconv.FormatUint(uint64(p.AgentUID), 10) + \"\\n\" +",
+    "New": "return \"\" +",
+    "Selector": "TestPX1AgentSysusers",
+    "Marker": "agent declaration drifted"
+  },
+  {
+    "Name": "s0-a3-post-apply-uid",
+    "File": "g2_pay_api.go",
+    "Old": "if uid, e := db.UserUID(p.AgentUser); e != nil || uid != p.AgentUID {",
+    "New": "if _, e := db.UserUID(p.AgentUser); e != nil {",
+    "Selector": "TestPX1AgentAccountPostApply",
+    "Marker": "post-apply: substituted agent uid accepted"
+  },
+  {
+    "Name": "s0-a3-post-apply-socket-group",
+    "File": "g2_pay_api.go",
+    "Old": "if !socket {",
+    "New": "if false && !socket {",
+    "Selector": "TestPX1AgentAccountPostApply",
+    "Marker": "post-apply: agent without agent_socket_gid accepted"
+  },
+  {
+    "Name": "s0-a3-post-apply-operator-group",
+    "File": "g2_pay_api.go",
+    "Old": "if g == p.OperatorGID {",
+    "New": "if false && g == p.OperatorGID {",
+    "Selector": "TestPX1AgentAccountPostApply",
+    "Marker": "post-apply: agent in operator_gid accepted"
   },
   {
     "Name": "s0-a3-id-65535",
@@ -38,5 +102,13 @@
     "New": " || strings.HasPrefix(p.AgentUser, \"swarma-wallet-\") {",
     "Selector": "TestPX1PayIdentityDomain",
     "Marker": "agent_user \"swarma-wallet\""
+  },
+  {
+    "Name": "s0-a8-status-in-wallet-dir",
+    "File": "g2_pay_api.go",
+    "Old": "G2StatusSocketDir     = \"/run/swarma-wallet-status\"",
+    "New": "G2StatusSocketDir     = \"/run/swarma-wallet\"",
+    "Selector": "TestPX1StatusSocketSplit",
+    "Marker": "agent-facing path shares a directory with the status socket"
   }
 ]

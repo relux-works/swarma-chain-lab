@@ -18,6 +18,24 @@
     "Core": false
   },
   {
+    "Name": "s0-a4-public-pin-substitution",
+    "File": "px1_terms_api.go",
+    "Old": "\treturn newPinnedCapChecker(network, genesis, NewCapChecker())\n",
+    "New": "\tif network == \"regtest\" && genesis == su.RegtestGenesis {\n\t\tnetwork, genesis = \"main\", su.MainGenesis\n\t}\n\treturn newPinnedCapChecker(network, genesis, NewCapChecker())\n",
+    "Selector": "TestPX1PublicCapCheckerPin",
+    "Marker": "public-regtest-any-regtest",
+    "Core": false
+  },
+  {
+    "Name": "s0-a4-public-empty-pin-defaults",
+    "File": "px1_terms_api.go",
+    "Old": "\treturn newPinnedCapChecker(network, genesis, NewCapChecker())\n",
+    "New": "\tif network == \"\" {\n\t\tnetwork, genesis = \"main\", su.MainGenesis\n\t}\n\treturn newPinnedCapChecker(network, genesis, NewCapChecker())\n",
+    "Selector": "TestPX1PublicCapCheckerPin",
+    "Marker": "without a valid pin \"\"/\"\"",
+    "Core": false
+  },
+  {
     "Name": "s0-a5-empty-receipt-key-skips",
     "File": "px1_journal_api.go",
     "Old": "\tif !hexN(h.ReceiptKey, 32) {\n\t\treturn fail(CodeReconcileAuthorization)\n\t}",
@@ -69,6 +87,15 @@
     "New": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Reconcile: *rec.Reconcile}",
     "Selector": "TestPX1ReconcileBinding/cross-seq",
     "Marker": "release moved to another seq",
+    "Core": false
+  },
+  {
+    "Name": "s0-a8-status-in-wallet-dir",
+    "File": "px1_observe_api.go",
+    "Old": "StatusSocketDir     = \"/run/swarma-wallet-status\"",
+    "New": "StatusSocketDir     = \"/run/swarma-wallet\"",
+    "Selector": "TestPX1StatusSocketSplit",
+    "Marker": "agent-facing path shares a directory with the status socket",
     "Core": false
   }
 ]

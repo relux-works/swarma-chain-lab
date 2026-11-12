@@ -19,7 +19,7 @@ co-lead review (COLEAD-REVIEW-PX1, 2026-11-12) is binding.
   returns the sentinel `ErrNotImplemented` (`PX1_NOT_IMPLEMENTED`, a bounded wire
   code), or a zero value that can never pass. No W2 path calls a stub. A G2
   profile that reaches a stub refuses, so it fails closed.
-- **Amendments:** freeze amendment 1 (A1-A7) is summarized in
+- **Amendments:** freeze amendment 1 (A1-A8) is summarized in
   [Freeze amendment 1](#freeze-amendment-1), with its MIGRATION list.
 - **Behaviour at the freeze:** unchanged. The only existing file this unit edits
   is `mutation_test.go`, which now also loads `testdata/px1-mutations-s*.json`.
@@ -35,7 +35,7 @@ co-lead review (COLEAD-REVIEW-PX1, 2026-11-12) is binding.
 | Q5(a): a new issuer entry point, signed with the **rotated** landlord key in Ivan's Mac Keychain, never the exec1 M5 key | `IssuePayGrantV2` takes `DigestSigner`s and never a key path; `NewFileExchangeSigner` is the offline transport |
 | Q7: single-use disabled | `AllowSingleUse` must be false; code `SINGLE_USE_DISABLED` |
 | Q8: operator reconciliation only | `ReconcileRecordV2`: signed by the receipt key (`JournalHeaderV2.ReceiptKey`) over `ReconcileDigestV2`, which binds the journal binding and the record's grant_id, nonce and seq; rate-limited, citing chain evidence; nothing releases a debit automatically |
-| Q9: same host, separate UID | `deploy.G2PayParameters.AgentUID != ServiceUID` and `agent_user` bound to `agent_uid` (`ValidateG2PayIdentity`); T18 `CustodySpecV1` |
+| Q9: same host, separate UID | `deploy.G2PayParameters.AgentUID != ServiceUID` and `agent_user` bound to `agent_uid` on the target host (`ValidateG2PayIdentity` before the sysusers apply, `VerifyG2AgentAccount` after it); T18 `CustodySpecV1` |
 | Q10: retire the rental-executor `pay` path | S4 marks it superseded in `experiments/rental-executor/README.md` (docs only, no code) |
 | Q12: k=2, for alerts only | `DefaultConfirmationsK = 2`; tracker states never grant or restore authority |
 | Fee rate ~110 sat/vB (relay floor 100), never 200 | `G2PayParameters.FeeRateSatVB`; the existing wallet `fee_rate_sat_vb` stays the only fee source |
@@ -59,9 +59,9 @@ co-lead review (COLEAD-REVIEW-PX1, 2026-11-12) is binding.
 | --- | --- | --- |
 | S1: terms v2, caps, executor binding | `px1_terms_api.go`, `px1_api.go` (codes) | `ParseTermsV2(raw, TermsV2Pins)`, with a 10-row refusal table; `ValidateG2OperatorConfig`; `EffectiveLimitsFor` (min of terms and operator ceiling); `CapChecker{CheckExecutor, CheckRecipient, CheckPrePlan, CheckPostPlan}`; `NewCapCheckerFor(network, genesis)` (frozen network binding over `NewCapChecker`); `SpendIntent` |
 | S2: journal v2, day buckets | `px1_journal_api.go` | `JournalRecordV2` (kinds `admit, reserve, service-reserve, complete, uncertain, refuse-retained, terminal, track, reconcile`); `JournalHeaderV2{Version, Layer, Binding, ReceiptKey}`; `ReconcileDigestV2` and `VerifyReconcileV2` (frozen, `RECONCILE_AUTHORIZATION`); `JournalV2{Header, Append, Iterate, Usage, Poisoned, Close}`; `OpenJournalV2`; `JournalSegmentV2` hash chain; capacity rules in `JournalLimitsV2`; `RequiredSpendCapacity`; `LedgerView` and `FoldLedgerV2`; `ClockGuard` and `NewClockGuard` (`CLOCK_ROLLBACK`); `ReadLimiter` (`READ_RATE_LIMITED`) |
-| S3: tracker, canary, status | `px1_observe_api.go` | `Tracker{Enqueue, Tick, Snapshot}`; `Canary{Excluded, Check}`; `FloatMonitor`; `StartupReconciler` (`STATE_RECONCILE_REQUIRED`); `AlertSink`; `StatusProjectionV1` and `ProjectStatus`; `ServeStatus` on `/run/swarma-wallet/status.sock` |
+| S3: tracker, canary, status | `px1_observe_api.go` | `Tracker{Enqueue, Tick, Snapshot}`; `Canary{Excluded, Check}`; `FloatMonitor`; `StartupReconciler` (`STATE_RECONCILE_REQUIRED`); `AlertSink`; `StatusProjectionV1` and `ProjectStatus`; `ServeStatus` on `StatusSocketPath` (`/run/swarma-wallet-status/status.sock`, its own 0750 directory, amendment 1, A8) |
 | S4: terms-v2 issuance helper | `rental/paygrant_v2_api.go` | `IssuePayGrantV2(ctx, in, grantee, landlord DigestSigner)`; signer call order: consent, then contract countersign, then grant; `PayGrantSigningRequest` and `PayGrantSignature`; `EncodePayTermsV2`; `PayGrantBookingRef`; `NewFileExchangeSigner`; the issuance tx is planned by the existing `MakeGrantIssuancePlan` |
-| S5: deploy, T18 | `deploy/g2_pay_api.go` | `G2PayParameters` (with `service_uid`, `agent_user`, `agent_key_file`, `node_datadir`); `ValidateG2PayParameters`; `ValidateG2PayIdentity` and `LookupG2HostAccount` (frozen); `RenderG2PayTemplates`, which renders exactly the `G2File*` set; `CustodySpecV1`; `RunCustodyProbe`; `VerifyCustodyReport` |
+| S5: deploy, T18 | `deploy/g2_pay_api.go` | `G2PayParameters` (with `service_uid`, `agent_user`, `agent_key_file`, `node_datadir`); `ValidateG2PayParameters`; the frozen identity helpers `ValidateG2PayIdentityDomain`, `ValidateG2PayIdentity`, `G2AgentSysusers`, `VerifyG2AgentAccount`, `G2AccountDB`, `G2HostAccounts`, `ErrG2AccountAbsent`; the socket placement `G2WalletSocketPath`, `G2StatusSocketDir`, `G2StatusSocketPath` and the group names `G2AgentSocketGroup`, `G2OperatorGroup`; `RenderG2PayTemplates`, which renders exactly the `G2File*` set; `CustodySpecV1`; `RunCustodyProbe`; `VerifyCustodyReport` |
 | Cross-stream seams | `px1_seams_api.go` | `Wallet.PX1Journal/PX1Ledger` (S1); `ActionService.PX1ServiceJournal/PX1Profile` (S2); `ActionService.PX1Enqueue/PX1Tick/PX1Status` (S3) |
 
 ### Spend path: §3.5 steps by owner
@@ -148,7 +148,7 @@ before the Core layer can pass. Unit layers use fakes of the frozen interfaces.
 | T15 | allow mode: non-listed, P2SH, bech32, testnet and mixed-case addresses | S1 | unit | none |
 | T16 | clock rollback | S2 | unit | none |
 | T17 | read flood: 10,000 `balance` requests | S2 | unit | none |
-| T18 | different-UID custody: denied reads plus one positive own-agent request | S5 | host script on an agents1-class VM (users pre-provisioned by the owner) | S1-S3 for the positive request |
+| T18 | different-UID custody: denied reads plus one positive own-agent request | S5 | host script on an agents1-class VM (users pre-provisioned by the owner, or created from the rendered `sysusers.conf` and confirmed by `VerifyG2AgentAccount`) | S1-S3 for the positive request |
 
 S4 owns no T-id. It owns the issuance tests:
 - signer call order;
@@ -194,11 +194,12 @@ owners review it.
 | --- | --- | --- | --- |
 | A1 | S3-A1 | `status-projection-v1.json` and `px1StatusFixture()`: grant `day` `2026-11-12` -> `2026-11-06`, the UTC day of `generated_at` 1794000600. No other fixture member changes; no other hash pinned these bytes. | `TestPX1StatusProjectionGolden`, `TestPX1StatusFixtureDayMatchesGeneratedAt` (the old day is refused) |
 | A2 | S4 R1 | Docs: new own-package test files and testdata, including a stream's own manifest and runner in its own module, belong to that stream; S4 row lists its Core/mutation tests and manifest; integration runs every module's runner. | docs only |
-| A3 | S5 R1 | `G2PayParameters` gains `service_uid`, `agent_user`, `agent_key_file`, `node_datadir` after `operator_gid`. Frozen `ValidateG2PayIdentity(p, lookup)`: the four IDs refuse 0, 65534, 65535 and 2^32-1 (`G2ReservedID`); `service_uid != agent_uid`; strict sysusers name, not root, nobody or `swarma-wallet*`; absolute clean paths; `agent_user` must resolve to `agent_uid` through the lookup. `LookupG2HostAccount` is the host lookup. `ValidateG2PayParameters` returns `ValidateG2PayIdentity(p, LookupG2HostAccount)`'s error first. | `TestPX1PayParametersOrder`, `TestPX1PayIdentityDomain`, `TestPX1PayIdentityBinding`, `TestPX1HostAccountLookup`; plants `s0-a3-*` (deploy) |
-| A4 | S1 FA-S1-2 | Frozen `NewCapCheckerFor(network, genesis)`, implemented in `px1_terms_api.go` around S1's `NewCapChecker()`: an unpinned network refuses `NETWORK_PIN` on every method; recipients must be canonical P2PKH of the pinned network; `any` admits those, `allow` keeps membership. `NewCapChecker()` stays (the S1 request is additive), is deprecated for callers, and admits no `any`-mode recipient. | `TestPX1CapCheckerForNetwork`, `TestPX1CapCheckerNoNetworkRefuses`, `TestPX1NetworklessCapCheckerNoAnyMode`; plants `s0-a4-*` |
+| A3 | S5 R1, rev 2 | `G2PayParameters` gains `service_uid`, `agent_user`, `agent_key_file`, `node_datadir` after `operator_gid`. Pure `ValidateG2PayIdentityDomain(p)`: the four IDs refuse 0, 65534, 65535 and 2^32-1 (`G2ReservedID`); `service_uid != agent_uid`; strict sysusers name, not root, nobody or `swarma-wallet*`; absolute clean paths, key file != datadir. `ValidateG2PayParameters` returns its error first and reads no account database. On the TARGET host (`G2AccountDB`; `G2HostAccounts` over os/user, where only `UnknownUserError`/`UnknownUserIdError` are `ErrG2AccountAbsent` and any other error is an outage): the preflight `ValidateG2PayIdentity(p, db)` admits an existing `agent_user` only at exactly `agent_uid`, and an absent `agent_user` only when no other name owns `agent_uid`; an outage or a nil db refuses. `G2AgentSysusers(p)` is the rendered declaration `u <agent_user> <agent_uid>` plus `m <agent_user> swarma-wallet-peer` (never `m`-only). `VerifyG2AgentAccount(p, db)` is REQUIRED after the apply and before any service activation: `agent_user` at exactly `agent_uid` (sysusers substitutes a UID on a collision and keeps an existing name at its UID), in `agent_socket_gid`, not in `operator_gid`. | `TestPX1PayParametersOrder`, `TestPX1PayIdentityDomain`, `TestPX1PayIdentityBinding` (existing, first install, outage branches), `TestPX1AgentSysusers`, `TestPX1AgentAccountPostApply`, `TestPX1HostAccountErrors`, `TestPX1HostAccounts`; plants `s0-a3-*` (deploy) |
+| A4 | S1 FA-S1-2 | Frozen `NewCapCheckerFor(network, genesis)`, implemented in `px1_terms_api.go` around S1's `NewCapChecker()`: an unpinned network refuses `NETWORK_PIN` on every method; recipients must be canonical P2PKH of the pinned network; `any` admits those, `allow` keeps membership. `NewCapChecker()` stays (the S1 request is additive), is deprecated for callers, and admits no `any`-mode recipient. | `TestPX1PublicCapCheckerPin` (rev 2: main/regtest positives, opposite-network and malformed/empty pins through `NewCapCheckerFor` itself), `TestPX1CapCheckerForNetwork` (wrapper isolated over fake rules), `TestPX1CapCheckerNoNetworkRefuses`, `TestPX1NetworklessCapCheckerNoAnyMode`; plants `s0-a4-*`, including the public pin substitution `s0-a4-public-pin-substitution` |
 | A5 | S2 receipt key | `JournalHeaderV2.ReceiptKey` (`receipt_key`, 64-hex x-only). `""` refuses every reconcile; the `JOURNAL_SEGMENT` header check pins it; `FoldLedgerV2` reads `j.Header().ReceiptKey`. No signature changes. New code `RECONCILE_AUTHORIZATION`. | `TestPX1JournalHeaderReceiptKey`, `TestPX1ReconcileReceiptKey`; plants `s0-a5-*` |
 | A6 | S2 hardening | `ReconcileRecordV2` is signed by the receipt key (the decision for this stage) over `ReconcileDigestV2` = SHA256(`swarma-wallet-reconcile-v2` \|\| canonical(`ReconcilePreimageV2{binding, grant_id, nonce, seq, reconcile with signature ""}`)). `VerifyReconcileV2` is the one verifier. | `TestPX1ReconcileDigestVector`, `TestPX1ReconcileBinding` (cross-journal, cross-grant, cross-nonce, cross-seq); plants `s0-a6-drop-*` |
 | A7 | S2 | Docs: `ActionService` may carry S2's `g2` field beside S3's `px1` field. | docs only |
+| A8 | slot AF_UNIX confinement design | The operator status socket moves to its own directory: `StatusSocketDir` / `G2StatusSocketDir` = `/run/swarma-wallet-status` (0750, owner service UID, operator group), `StatusSocketPath` / `G2StatusSocketPath` = `/run/swarma-wallet-status/status.sock` (0660, operator group). `/run/swarma-wallet` (`G2WalletSocketDir`) holds only `wallet.sock` and is the only directory bound into a slot; the status directory is never bound. No frozen agent-facing path shares a directory with the status socket. | `TestPX1StatusSocketSplit` in agent-wallet and deploy (placement, modes, no shared directory, no non-test source naming the old path); plants `s0-a8-status-in-wallet-dir` |
 
 ### MIGRATION (what each stream changes at integration)
 
@@ -219,15 +220,33 @@ owners review it.
   `ActionService` is confirmed (A7).
 - **S5:** add the four parameters to `templates/g2-pay/parameters.json` and
   render them: no placeholder remains (`client.json` UID and key path,
-  `custody-spec.json` service UID and node datadir, the `sysusers.conf` agent
-  user and the `u swarma-wallet` UID). Call
-  `ValidateG2PayIdentity(p, LookupG2HostAccount)` first in
-  `ValidateG2PayParameters`; `G2ReservedID` may replace the local
-  `reservedID`/`sysusersGID`. Render on the host whose account database the
-  rendered `sysusers.conf` applies to; tests use an account that exists on the
-  test host (`os/user.Current()`) or a test seam over the lookup. The
-  placeholder consumer tests become resolved-render tests.
-- **S3:** nothing. The interim one-member substitution in
+  `custody-spec.json` service UID and node datadir, the `u swarma-wallet`
+  UID). `ValidateG2PayParameters` returns `ValidateG2PayIdentityDomain(p)`'s
+  error first and stays a pure function (no account lookup at render time);
+  `G2ReservedID` may replace the local `reservedID`/`sysusersGID`.
+  `sysusers.conf` contains `G2AgentSysusers(p)` verbatim in place of the
+  placeholder `m` line: the explicit numeric declaration
+  `u <agent_user> <agent_uid>` and `m <agent_user> swarma-wallet-peer`. The
+  operator is never put into `swarma-wallet-peer`; the operator's only G2
+  group is `swarma-wallet-status`. `tmpfiles.conf` renders the status
+  directory `d /run/swarma-wallet-status 0750 swarma-wallet swarma-wallet-status -`.
+  The host flow, on the TARGET host, in this order: the preflight
+  `ValidateG2PayIdentity(p, G2HostAccounts{})`; `systemd-sysusers` applies
+  `sysusers.conf`; the REQUIRED `VerifyG2AgentAccount(p, G2HostAccounts{})`;
+  only then any service activation and T18. A failed check stops the flow
+  before activation. T18's `custody-spec.json` adds `G2StatusSocketDir` to
+  `denied_reads` (the agent UID gets `EACCES`; it is not in the operator
+  group). Tests use the fixture `G2AccountDB` seam or an account that exists
+  on the test host. The placeholder consumer tests become resolved-render
+  tests.
+- **S3 (A8):** the status listener binds `StatusSocketPath`
+  (`/run/swarma-wallet-status/status.sock`, 0660, operator group) in place of
+  its own `/run/swarma-wallet/status.sock` constant; no non-test source names
+  the old path (`TestPX1StatusSocketSplit` enforces it). The status runtime
+  directory is 0750 with the operator group. `SERVICE.md` drops the
+  operator's `swarma-wallet-peer` membership: the operator is a member of
+  `swarma-wallet-status` only, and the unit example uses the new path.
+- **S3 (A1, A5):** the interim one-member substitution in
   `TestPX1ProjectStatusGolden` becomes a no-op and may be removed. Fakes that
   fold a reconcile set `ReceiptKey` and sign with `ReconcileDigestV2`.
 - **S4:** nothing beyond the ownership-map entries above.

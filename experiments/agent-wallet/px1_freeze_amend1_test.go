@@ -9,6 +9,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -269,6 +273,102 @@ func TestPX1CapCheckerNoNetworkRefuses(t *testing.T) {
 	}
 	if _, ok := NewCapCheckerFor("main", su.MainGenesis).(pinnedCapChecker); !ok {
 		t.Fatal("NewCapCheckerFor does not return the frozen network binding")
+	}
+}
+
+// Claim (A4, rev 2): the PUBLIC constructor itself keeps the caller's pin. In
+// any mode (implemented in the frozen wrapper, so no fake rules are involved)
+// NewCapCheckerFor("main") admits a main P2PKH and refuses a regtest one, and
+// NewCapCheckerFor("regtest") admits a regtest P2PKH and refuses a main one.
+// Empty, half, crossed, unknown and mis-cased pins refuse NETWORK_PIN on every
+// method through the public constructor. Limit: allow-mode membership and the
+// cap rules are S1's real rules (TestPX1CapCheckerForNetwork isolates the
+// wrapper with a fake).
+func TestPX1PublicCapCheckerPin(t *testing.T) {
+	anyMode := EffectiveLimits{GrantID: strings.Repeat("a", 64), RecipientMode: RecipientModeAny, Recipients: []string{}}
+	pubMain := NewCapCheckerFor("main", su.MainGenesis)
+	pubReg := NewCapCheckerFor("regtest", su.RegtestGenesis)
+	regAddr := testAddress(4)
+	for _, c := range []struct {
+		name   string
+		c      CapChecker
+		addr   string
+		admits bool
+	}{
+		{"public-main-any-main", pubMain, px1Outsider, true},
+		{"public-main-any-regtest", pubMain, regAddr, false},
+		{"public-regtest-any-regtest", pubReg, regAddr, true},
+		{"public-regtest-any-main", pubReg, px1Outsider, false},
+	} {
+		e := c.c.CheckRecipient(anyMode, c.addr)
+		if c.admits && e != nil || !c.admits && (e == nil || e.Error() != CodeAddressNotAllowed) {
+			t.Errorf("%s: got %v, admits=%v", c.name, e, c.admits)
+		}
+	}
+	in := SpendIntent{GrantID: anyMode.GrantID, Recipient: px1Outsider, AmountSat: 1000, FeeLimitSat: 1000, Day: "2026-11-06"}
+	for _, pin := range [][2]string{{"", ""}, {"main", ""}, {"", su.MainGenesis}, {"main", su.RegtestGenesis}, {"regtest", su.MainGenesis}, {"testnet", su.MainGenesis}, {"MAIN", su.MainGenesis}, {"main", strings.ToUpper(su.MainGenesis)}} {
+		c := NewCapCheckerFor(pin[0], pin[1])
+		for _, m := range []struct {
+			name string
+			e    error
+		}{
+			{"recipient-main", c.CheckRecipient(anyMode, px1Outsider)},
+			{"recipient-regtest", c.CheckRecipient(anyMode, regAddr)},
+			{"executor", c.CheckExecutor(px1TermsAny(), px1ExecutorKey)},
+			{"preplan", c.CheckPrePlan(anyMode, in, nil)},
+			{"postplan", c.CheckPostPlan(anyMode, in, nil)},
+		} {
+			if m.e == nil || m.e.Error() != "NETWORK_PIN" {
+				t.Errorf("public constructor admitted without a valid pin %q/%q: %s %v", pin[0], pin[1], m.name, m.e)
+			}
+		}
+	}
+}
+
+// px1SharesDir reports whether binding the directory of either socket would
+// expose the other: same directory, or one directory nested in the other.
+func px1SharesDir(a, b string) bool {
+	da, db := path.Dir(a)+"/", path.Dir(b)+"/"
+	return strings.HasPrefix(da, db) || strings.HasPrefix(db, da)
+}
+
+// Claim (A8): the operator status socket has its own 0750 directory and keeps
+// 0660; the agent-facing wallet socket (/run/swarma-wallet/wallet.sock, the
+// only path bound into a slot) does not share a directory with it; and no
+// non-test Go source of this module names the old /run/swarma-wallet status
+// path. The checker flags the old and a nested layout (controls) and does not
+// confuse the -status prefix with the wallet directory.
+func TestPX1StatusSocketSplit(t *testing.T) {
+	const agentSocket = "/run/swarma-wallet/wallet.sock"
+	if !px1SharesDir(agentSocket, "/run/swarma-wallet/status.sock") || !px1SharesDir(agentSocket, "/run/swarma-wallet/s/status.sock") || px1SharesDir(agentSocket, "/run/swarma-wallet-status/status.sock") {
+		t.Fatal("shared-directory checker is broken")
+	}
+	if StatusSocketPath != "/run/swarma-wallet-status/status.sock" || path.Dir(StatusSocketPath) != StatusSocketDir || StatusSocketDirMode != 0o750 || StatusSocketMode != 0o660 {
+		t.Errorf("status socket placement drifted: %s %o %o", StatusSocketPath, StatusSocketDirMode, StatusSocketMode)
+	}
+	for _, a := range []string{agentSocket, path.Dir(agentSocket) + "/"} {
+		if px1SharesDir(a, StatusSocketPath) {
+			t.Errorf("agent-facing path shares a directory with the status socket: %s", a)
+		}
+	}
+	e := filepath.WalkDir(".", func(p string, d fs.DirEntry, e error) error {
+		if e != nil {
+			return e
+		}
+		if d.IsDir() && (d.Name() == "testdata" || d.Name() == ".temp") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
+			return nil
+		}
+		b, e := os.ReadFile(p)
+		if e == nil && strings.Contains(string(b), "/run/swarma-wallet/status.sock") {
+			t.Errorf("old status socket path in %s (A8 migration)", p)
+		}
+		return e
+	})
+	if e != nil {
+		t.Fatal(e)
 	}
 }
 
