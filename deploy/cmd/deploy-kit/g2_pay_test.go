@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -162,10 +163,14 @@ func g2FreeID(t *testing.T, start uint32, taken map[uint32]bool) uint32 {
 // after it, because the account still does not exist; a failed apply, a
 // failed activation and a missing activation command refuse; the existing
 // test account at its own UID, in its primary group and outside the operator
-// GID, is activated once and prints G2_HOST_FLOW_ACTIVATED. Limit: the
-// sysusers and activation binaries are recording fakes, so no account or
-// service changes; skipped as root or when the test account is outside the
-// frozen identity domain.
+// GID, with exactly one group besides its own at GID == UID (condition 9),
+// is activated once and prints G2_HOST_FLOW_ACTIVATED; an account that does
+// not meet condition 9 is applied and refused at the post-apply group set,
+// never activated. Limit: the sysusers and activation binaries are recording
+// fakes, so no account or service changes; the activation positive and the
+// failed-activation row run only where the account meets condition 9;
+// skipped as root or when the test account is outside the frozen identity
+// domain.
 func TestG2HostFlowCommand(t *testing.T) {
 	cur, e := user.Current()
 	if e != nil {
@@ -182,8 +187,20 @@ func TestG2HostFlowCommand(t *testing.T) {
 		t.Skip("[setup] the test account's groups cannot be read:", e)
 	}
 	taken := map[uint32]bool{uid: true, gid: true}
+	var others []uint32
 	for _, g := range groups {
+		if g != uid && !taken[g] {
+			others = append(others, g)
+		}
 		taken[g] = true
+	}
+	// Condition 9 (post-apply exact set {agent_uid, agent_socket_gid}): the
+	// account stands in for a valid agent only when its own group sits at
+	// GID == UID and it has exactly one other group, which then plays
+	// agent_socket_gid. Otherwise the clean run must stop at the group set.
+	standIn := gid == uid && len(others) == 1
+	if standIn {
+		base.AgentSocketGID = others[0]
 	}
 	base.OperatorGID = g2FreeID(t, 3000000000, taken)
 	taken[base.OperatorGID] = true
@@ -228,11 +245,19 @@ func TestG2HostFlowCommand(t *testing.T) {
 		return e, stdout.String(), appliedBytes, activated == nil
 	}
 
-	// Valid neighbour: the existing account at its own UID is activated once.
+	// Valid neighbour: the existing account at its own UID, whose groups are
+	// exactly {uid, one other GID}, is activated once. An account that cannot
+	// stand in is applied and then refused at the group set, never activated.
 	e, out, applied, activated := run("clean", base, true)
 	files, _ := deploy.RenderG2PayTemplates(base)
-	if e != nil || out != "G2_HOST_FLOW_ACTIVATED\n" || !activated || !bytes.Equal(applied, files[deploy.G2FileSysusers]) {
+	if standIn && (e != nil || out != "G2_HOST_FLOW_ACTIVATED\n" || !activated || !bytes.Equal(applied, files[deploy.G2FileSysusers])) {
 		t.Fatalf("G2_CLI_HOST_FLOW clean path: err=%v out=%q activated=%v applied=%q", e, out, activated, applied)
+	}
+	if !standIn {
+		if !errors.Is(e, deploy.ErrPolicy) || !strings.Contains(fmt.Sprint(e), "post-apply group set") || out != "" || activated || !bytes.Equal(applied, files[deploy.G2FileSysusers]) {
+			t.Fatalf("G2_CLI_HOST_FLOW group set on the real database: err=%v out=%q activated=%v", e, out, activated)
+		}
+		t.Logf("limit: the account's groups %v are not {uid %d, one other GID}; the activation positive on the real database is not exercised on this host (the fixture-database tripwire covers it)", groups, uid)
 	}
 
 	preflight := base
@@ -245,11 +270,13 @@ func TestG2HostFlowCommand(t *testing.T) {
 	if e, _, applied, activated := run("post-apply-refused", post, true); !errors.Is(e, deploy.ErrPolicy) || applied == nil || activated {
 		t.Fatalf("G2_CLI_HOST_FLOW activated past a refused post-apply check: err=%v applied=%v activated=%v", e, applied != nil, activated)
 	}
-	if e, _, _, activated := run("sysusers-failed", base, true, "G2_FAKE_SYSUSERS_EXIT=1"); !errors.Is(e, deploy.ErrPolicy) || activated {
-		t.Fatalf("G2_CLI_HOST_FLOW activated after a failed apply: err=%v activated=%v", e, activated)
+	if e, _, _, activated := run("sysusers-failed", base, true, "G2_FAKE_SYSUSERS_EXIT=1"); !errors.Is(e, deploy.ErrPolicy) || activated || !strings.Contains(fmt.Sprint(e), "sysusers apply") {
+		t.Fatalf("G2_CLI_HOST_FLOW activated or went on after a failed apply: err=%v activated=%v", e, activated)
 	}
-	if e, out, _, _ := run("activation-failed", base, true, "G2_FAKE_ACTIVATE_EXIT=1"); !errors.Is(e, deploy.ErrPolicy) || out != "" {
-		t.Fatalf("G2_CLI_HOST_FLOW reported a failed activation: err=%v out=%q", e, out)
+	if standIn {
+		if e, out, _, _ := run("activation-failed", base, true, "G2_FAKE_ACTIVATE_EXIT=1"); !errors.Is(e, deploy.ErrPolicy) || out != "" || !strings.Contains(fmt.Sprint(e), "activation") {
+			t.Fatalf("G2_CLI_HOST_FLOW reported a failed activation: err=%v out=%q", e, out)
+		}
 	}
 	if e, _, applied, _ := run("no-activation", base, false); e != deploy.ErrInput || applied != nil {
 		t.Fatalf("G2_CLI_HOST_FLOW ran without an activation command: err=%v", e)

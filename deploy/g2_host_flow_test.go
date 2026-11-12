@@ -125,15 +125,17 @@ func g2Members(conf, group string) []string {
 // name, an outage, no database); (b) stops after the apply and before any
 // activation on every post-apply mismatch (a substituted UID, a missing peer
 // membership, an operator-group membership, an account the apply did not
-// create, a failed apply); (c) reaches activation exactly once, last, on the
-// clean first-install and existing-account paths, with the post-apply check
-// between apply and activation; and (g) the T18 readback (R9 as adopted) of
-// the activated account: the clean account's group list, its own primary
-// group plus swarma-wallet-peer, passes CheckG2AgentGroups, while an existing
-// account with an extra group of its own passes the frozen post-apply check,
-// is activated, and is still refused by the readback, as is the old
-// socket-GID-only set. Every refusal row has the clean path as its valid
-// neighbour. Limit: the apply is a fake; the real consumer's behaviour on the
+// create, a failed apply, and, by the condition-9 exact group set, an
+// account whose own group sits at another GID and an account with a third
+// group, both of which pass the frozen check); (c) reaches activation exactly
+// once, last, on the clean first-install and existing-account paths and on an
+// account whose list repeats a GID (a duplicate is not an extra group), with
+// the post-apply checks between apply and activation; and (g) the T18
+// readback (R9 as adopted): the clean account's group list, its own primary
+// group plus swarma-wallet-peer, passes CheckG2AgentGroups and is activated,
+// while an existing account with an extra group of its own is now refused
+// before activation and by the readback, as is the old socket-GID-only set.
+// Every refusal row has the clean path as its valid neighbour. Limit: the apply is a fake; the real consumer's behaviour on the
 // same rendered bytes, including the primary GID, is grounded in
 // g2_sysusers_test.go.
 func TestPX1S5HostFlowTripwire(t *testing.T) {
@@ -153,7 +155,7 @@ func TestPX1S5HostFlowTripwire(t *testing.T) {
 		}{
 			{"first-install", nil, clean},
 			{"existing-account", clean, nil},
-			{"existing-with-own-groups", created(p.AgentSocketGID, 4242), nil},
+			{"existing-duplicate-group", created(p.AgentSocketGID, p.AgentSocketGID, p.AgentUID), nil},
 		} {
 			log, applied, e := g2FlowRun(p, c.setup, c.outcome, nil)
 			if e != nil || len(log) == 0 || log[len(log)-1] != "activate" || strings.Count(strings.Join(log, ","), "activate") != 1 {
@@ -161,8 +163,9 @@ func TestPX1S5HostFlowTripwire(t *testing.T) {
 			}
 			i := strings.Index(strings.Join(log, ","), "apply")
 			post := strings.Split(strings.Join(log, ",")[i:], ",")
-			// The required post-apply check runs between apply and activation.
-			if !reflect.DeepEqual(post, []string{"apply", "UserUID", "UserGroups", "activate"}) || i == 0 {
+			// The required post-apply check and the exact group set run
+			// between apply and activation.
+			if !reflect.DeepEqual(post, []string{"apply", "UserUID", "UserGroups", "UserGroups", "activate"}) || i == 0 {
 				t.Fatalf("G2_FLOW_CLEAN %s: post-apply check not between apply and activation: %v", c.name, log)
 			}
 			files, _ := RenderG2PayTemplates(p)
@@ -211,6 +214,12 @@ func TestPX1S5HostFlowTripwire(t *testing.T) {
 			{"apply-created-nothing", nil, nil},
 			{"post-apply-outage", func(db *g2FixtureDB) { clean(db); db.outage = true }, nil},
 			{"apply-failed", clean, errors.New("fixture: sysusers exit 1")},
+			// Condition 9: the frozen check passes these, the exact set does not.
+			{"own-group-at-other-gid", func(db *g2FixtureDB) {
+				db.users[p.AgentUser] = p.AgentUID
+				db.groups[p.AgentUser] = []uint32{p.AgentUID + 300, p.AgentSocketGID}
+			}, nil},
+			{"extra-third-group", created(p.AgentSocketGID, 4242), nil},
 		} {
 			log, _, e := g2FlowRun(p, nil, c.outcome, c.applyErr)
 			if e == nil || !g2Has(log, "apply") || g2Has(log, "activate") {
@@ -236,9 +245,11 @@ func TestPX1S5HostFlowTripwire(t *testing.T) {
 			{"first-install", clean, true},
 			{"existing-with-own-groups", created(p.AgentSocketGID, 4242), false},
 		} {
+			// Since condition 9 the flow activates exactly the accounts
+			// whose readback passes: the post-apply set equals the T18 set.
 			log, _, e := g2FlowRun(p, nil, c.state, nil)
-			if e != nil || !g2Has(log, "activate") {
-				t.Fatalf("G2_FLOW_T18_READBACK %s: the flow did not activate: err=%v log=%v", c.name, e, log)
+			if (e == nil && g2Has(log, "activate")) != c.readback {
+				t.Fatalf("G2_FLOW_T18_READBACK %s: activation %v, want %v: err=%v log=%v", c.name, e == nil, c.readback, e, log)
 			}
 			var l []string
 			db := newG2FixtureDB(&l)
@@ -348,5 +359,54 @@ func TestPX1S5HostFlowArtifacts(t *testing.T) {
 		if !bytes.Contains(files[G2FileClientConfig], []byte(`"socket":"`+G2WalletSocketPath+`"`)) {
 			t.Fatalf("G2_FLOW_SLOT %s: client socket", network)
 		}
+	}
+}
+
+// Claim (condition 9, GID == UID): the post-apply group rule admits exactly
+// the set {agent_uid, agent_socket_gid}, in either order and with repeats;
+// it refuses ErrPolicy for an own group at another GID, a third group (the
+// operator group or any other), a missing own or socket group, an empty
+// list, a failed lookup, a nil database, and parameters whose socket GID
+// equals agent_uid (the set can then never hold both). Valid neighbour: the
+// exact set beside each refusal.
+func TestPX1S5AgentGroupSet(t *testing.T) {
+	p := g2Params()
+	run := func(gids []uint32, outage bool, q G2PayParameters) error {
+		var log []string
+		db := newG2FixtureDB(&log)
+		db.users[q.AgentUser] = q.AgentUID
+		db.groups[q.AgentUser] = gids
+		db.outage = outage
+		return g2AgentGroupSet(q, db)
+	}
+	for _, c := range []struct {
+		name string
+		gids []uint32
+		ok   bool
+	}{
+		{"exact", []uint32{p.AgentUID, p.AgentSocketGID}, true},
+		{"reordered", []uint32{p.AgentSocketGID, p.AgentUID}, true},
+		{"repeated", []uint32{p.AgentUID, p.AgentSocketGID, p.AgentUID, p.AgentSocketGID}, true},
+		{"own-group-at-other-gid", []uint32{p.AgentUID + 300, p.AgentSocketGID}, false},
+		{"third-group", []uint32{p.AgentUID, p.AgentSocketGID, 4242}, false},
+		{"operator-group", []uint32{p.AgentUID, p.AgentSocketGID, p.OperatorGID}, false},
+		{"missing-socket", []uint32{p.AgentUID}, false},
+		{"missing-own", []uint32{p.AgentSocketGID}, false},
+		{"empty", nil, false},
+	} {
+		if e := run(c.gids, false, p); (e == nil) != c.ok || (e != nil && !errors.Is(e, ErrPolicy)) {
+			t.Fatalf("G2_GROUP_SET %s %v: err=%v, want ok=%v", c.name, c.gids, e, c.ok)
+		}
+	}
+	if e := run([]uint32{p.AgentUID, p.AgentSocketGID}, true, p); !errors.Is(e, ErrPolicy) {
+		t.Fatalf("G2_GROUP_SET outage admitted: %v", e)
+	}
+	if e := g2AgentGroupSet(p, nil); !errors.Is(e, ErrPolicy) {
+		t.Fatalf("G2_GROUP_SET nil database admitted: %v", e)
+	}
+	same := p
+	same.AgentSocketGID = same.AgentUID
+	if e := run([]uint32{same.AgentUID}, false, same); !errors.Is(e, ErrPolicy) {
+		t.Fatalf("G2_GROUP_SET socket GID == agent_uid admitted: %v", e)
 	}
 }

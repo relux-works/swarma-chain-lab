@@ -685,11 +685,12 @@ type G2HostSteps struct {
 //  1. render (pure: ValidateG2PayParameters, no account lookup);
 //  2. the preflight ValidateG2PayIdentity(p, db);
 //  3. steps.Apply with the sysusers.conf rendered from the same p;
-//  4. the REQUIRED VerifyG2AgentAccount(p, db);
+//  4. the REQUIRED VerifyG2AgentAccount(p, db), then the exact group set
+//     (g2AgentGroupSet, condition 9: the agent's own group at GID == UID);
 //  5. only then steps.Activate.
 //
 // A failed step stops the flow before the next one; in particular nothing is
-// activated unless the post-apply check passed. Missing steps refuse ErrInput
+// activated unless the post-apply checks passed. Missing steps refuse ErrInput
 // before anything runs. The error names the step and wraps its cause.
 func RunG2HostFlow(p G2PayParameters, db G2AccountDB, steps G2HostSteps) error {
 	if steps.Apply == nil || steps.Activate == nil {
@@ -708,8 +709,46 @@ func RunG2HostFlow(p G2PayParameters, db G2AccountDB, steps G2HostSteps) error {
 	if e := VerifyG2AgentAccount(p, db); e != nil {
 		return fmt.Errorf("g2 host flow: post-apply account check: %w", e)
 	}
+	if e := g2AgentGroupSet(p, db); e != nil {
+		return fmt.Errorf("g2 host flow: post-apply group set: %w", e)
+	}
 	if e := steps.Activate(); e != nil {
 		return fmt.Errorf("g2 host flow: activation: %w", e)
+	}
+	return nil
+}
+
+// g2AgentGroupSet is the post-apply group rule that follows the frozen
+// VerifyG2AgentAccount in RunG2HostFlow (condition 9): the agent account's
+// group list on the target host must be exactly {agent_uid, agent_socket_gid}
+// as a set (a repeated GID is not an extra group). The agent's own group then
+// sits at GID == UID, as its declaration `u <agent_user> <agent_uid>` asks, and
+// nothing else is present. The frozen check only requires agent_socket_gid
+// and forbids operator_gid, so an account kept from an earlier install with
+// its own group at another GID, or with a third group, would otherwise reach
+// activation. It refuses ErrPolicy on a nil db, a failed lookup, a missing
+// member or any other GID; agent_uid == agent_socket_gid can never pass.
+func g2AgentGroupSet(p G2PayParameters, db G2AccountDB) error {
+	if db == nil {
+		return ErrPolicy
+	}
+	gids, e := db.UserGroups(p.AgentUser)
+	if e != nil {
+		return ErrPolicy
+	}
+	own, socket := false, false
+	for _, g := range gids {
+		switch g {
+		case p.AgentUID:
+			own = true
+		case p.AgentSocketGID:
+			socket = true
+		default:
+			return ErrPolicy
+		}
+	}
+	if !own || !socket {
+		return ErrPolicy
 	}
 	return nil
 }

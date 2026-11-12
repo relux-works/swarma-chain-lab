@@ -568,5 +568,14 @@
   "Selector": "TestPX1S5T18LaunchCredentials",
   "Marker": "T18_LAUNCH_IDS UID:GID declaration",
   "Core": false
+ },
+ {
+  "Name": "s5-integ-group-set-dropped",
+  "File": "g2_pay.go",
+  "Old": "\tif e := g2AgentGroupSet(p, db); e != nil {\n\t\treturn fmt.Errorf(\"g2 host flow: post-apply group set: %w\", e)\n\t}\n",
+  "New": "",
+  "Selector": "TestPX1S5HostFlowTripwire/post-apply",
+  "Marker": "G2_FLOW_POST_APPLY own-group-at-other-gid",
+  "Core": false
  }
 ]
