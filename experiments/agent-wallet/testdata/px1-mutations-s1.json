@@ -12,7 +12,7 @@
     "Name": "s1-parse-network",
     "File": "px1_terms.go",
     "Old": "if t.Network != pins.Network || t.Genesis != pins.Genesis || !su.NetworkPinned(pins.Network, pins.Genesis) {",
-    "New": "if false {",
+    "New": "if _ = su.NetworkPinned; false {",
     "Selector": "TestPX1ParseTermsV2Refusals/row5-genesis",
     "Marker": "want TERMS_NETWORK",
     "Core": false
