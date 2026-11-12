@@ -759,7 +759,7 @@
   "Name": "px1-s3-absent-on-any-5-message",
   "File": "rpc.go",
   "Old": "return string(bytes.TrimSpace(remote[\"code\"])) == \"-5\" && json.Unmarshal(remote[\"message\"], &message) == nil && message == coreNoSuchTxMessage",
-  "New": "return string(bytes.TrimSpace(remote[\"code\"])) == \"-5\"",
+  "New": "return string(bytes.TrimSpace(remote[\"code\"])) == \"-5\" && json.Unmarshal(remote[\"message\"], &message) == nil",
   "Selector": "TestPX1TxLookupNoSuchTx/code-5-index-syncing",
   "Marker": "lookup code-5-index-syncing",
   "Core": false
