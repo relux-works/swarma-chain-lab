@@ -16,6 +16,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
@@ -25,48 +26,48 @@ import (
 
 // Bounds of the S3 observers. They are fixed, not operator values.
 const (
-	px1MaxConfirmationsK   = 100     // TrackerConfig.ConfirmationsK upper bound
-	px1MaxConflictBlocksN  = 1000    // TrackerConfig.ConflictBlocksN upper bound
-	px1MaxTracked          = 1 << 16 // tracked payments per process
-	px1MaxTrackedInputs    = 32      // inputs per payment (W2 plan bound)
-	px1ConflictScanBlocks  = 64      // newest blocks searched for an input spender
-	px1ReconcilePage       = 1000    // listtransactions page size
-	px1ReconcileMaxPages   = 100     // more wallet rows than this refuses startup
-	px1StatusRequestMax    = 256     // status request frame bound
-	px1StatusResponseMax   = 4 << 20 // status response frame bound
-	px1AlertTail           = 64      // alerts kept in the status projection
-	px1AlertDetailMax      = 128     // schema bound of Alert.Detail
-	px1StatusSocketVersion = 1
+	px1oMaxConfirmationsK   = 100     // TrackerConfig.ConfirmationsK upper bound
+	px1oMaxConflictBlocksN  = 1000    // TrackerConfig.ConflictBlocksN upper bound
+	px1oMaxTracked          = 1 << 16 // tracked payments per process
+	px1oMaxTrackedInputs    = 32      // inputs per payment (W2 plan bound)
+	px1oConflictScanBlocks  = 64      // newest blocks searched for an input spender
+	px1oReconcilePage       = 1000    // listtransactions page size
+	px1oReconcileMaxPages   = 100     // more wallet rows than this refuses startup
+	px1oStatusRequestMax    = 256     // status request frame bound
+	px1oStatusResponseMax   = 4 << 20 // status response frame bound
+	px1oAlertTail           = 64      // alerts kept in the status projection
+	px1oAlertDetailMax      = 128     // schema bound of Alert.Detail
+	px1oStatusSocketVersion = 1
 )
 
-// px1StatusRequest is the only accepted status request, byte for byte.
-var px1StatusRequest = canonical(StatusSocketRequest{Version: px1StatusSocketVersion, Action: "status"})
+// px1oStatusRequest is the only accepted status request, byte for byte.
+var px1oStatusRequest = canonical(StatusSocketRequest{Version: px1oStatusSocketVersion, Action: "status"})
 
 // ---------------------------------------------------------------------------
 // Own-node observation helpers (observer route).
 
-type px1Tip struct {
+type px1oTip struct {
 	Height int64
 	Hash   string
 }
 
-func px1ReadTip(ctx context.Context, node su.Node) (px1Tip, error) {
-	var t px1Tip
+func px1oReadTip(ctx context.Context, node su.Node) (px1oTip, error) {
+	var t px1oTip
 	if node == nil {
 		return t, fail("RPC_UNAVAILABLE")
 	}
 	raw, e := node.Call(ctx, "getblockchaininfo")
 	if e != nil {
-		return t, px1NodeError(e)
+		return t, px1oNodeError(e)
 	}
 	if sw.ProjectJSON(raw, map[string]any{"blocks": &t.Height, "bestblockhash": &t.Hash}, nil) != nil || t.Height < 0 || !hexN(t.Hash, 32) {
-		return px1Tip{}, fail("NODE_PROJECTION")
+		return px1oTip{}, fail("NODE_PROJECTION")
 	}
 	return t, nil
 }
 
-// px1XOnly reports a valid BIP-340 x-only public key in lowercase hex.
-func px1XOnly(s string) bool {
+// px1oXOnly reports a valid BIP-340 x-only public key in lowercase hex.
+func px1oXOnly(s string) bool {
 	if !hexN(s, 32) {
 		return false
 	}
@@ -75,8 +76,8 @@ func px1XOnly(s string) bool {
 	return e == nil
 }
 
-// px1NodeError keeps a bounded node failure code and collapses anything else.
-func px1NodeError(e error) error {
+// px1oNodeError keeps a bounded node failure code and collapses anything else.
+func px1oNodeError(e error) error {
 	if e == nil {
 		return nil
 	}
@@ -86,19 +87,19 @@ func px1NodeError(e error) error {
 	return fail("RPC_UNAVAILABLE")
 }
 
-// px1RemoteNo reports a node that answered with an RPC error object (for
+// px1oRemoteNo reports a node that answered with an RPC error object (for
 // example "no such transaction"), as opposed to an unreachable node.
-func px1RemoteNo(e error) bool {
+func px1oRemoteNo(e error) bool {
 	return e != nil && (e.Error() == "RPC_REMOTE_ERROR" || e.Error() == "RPC_REMOTE_REFUSAL")
 }
 
-// px1OutputSpent reads gettxout with the mempool included. A JSON null means
+// px1oOutputSpent reads gettxout with the mempool included. A JSON null means
 // the outpoint is spent (mempool or chain) or does not exist on the active
 // chain; both mean the outpoint is no longer available.
-func px1OutputSpent(ctx context.Context, node su.Node, p su.Point) (spent bool, valueSat int64, e error) {
+func px1oOutputSpent(ctx context.Context, node su.Node, p su.Point) (spent bool, valueSat int64, e error) {
 	raw, e := node.Call(ctx, "gettxout", p.TxID, p.Vout, true)
 	if e != nil {
-		return false, 0, px1NodeError(e)
+		return false, 0, px1oNodeError(e)
 	}
 	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return true, 0, nil
@@ -115,16 +116,16 @@ func px1OutputSpent(ctx context.Context, node su.Node, p su.Point) (spent bool, 
 	return false, v, nil
 }
 
-// px1TxDepth reads getrawtransaction verbose. present is true for a mempool
+// px1oTxDepth reads getrawtransaction verbose. present is true for a mempool
 // transaction (no blockhash) and for one in an active-chain block (depth >= 1).
 // A transaction known only from a stale block (confirmations 0) is absent.
-func px1TxDepth(ctx context.Context, node su.Node, txid string) (present bool, depth int64, e error) {
+func px1oTxDepth(ctx context.Context, node su.Node, txid string) (present bool, depth int64, e error) {
 	raw, e := node.Call(ctx, "getrawtransaction", txid, true)
-	if px1RemoteNo(e) {
+	if px1oRemoteNo(e) {
 		return false, 0, nil
 	}
 	if e != nil {
-		return false, 0, px1NodeError(e)
+		return false, 0, px1oNodeError(e)
 	}
 	var got, block string
 	confirmations := int64(-1)
@@ -141,7 +142,7 @@ func px1TxDepth(ctx context.Context, node su.Node, txid string) (present bool, d
 	}
 }
 
-type px1BlockTx struct {
+type px1oBlockTx struct {
 	TxID string `json:"txid"`
 	Vin  []struct {
 		TxID string `json:"txid"`
@@ -149,28 +150,28 @@ type px1BlockTx struct {
 	} `json:"vin"`
 }
 
-// px1FindSpender searches the newest blocks (down to floor) for a transaction
+// px1oFindSpender searches the newest blocks (down to floor) for a transaction
 // spending one of inputs. It returns the spender txid and its height, or "".
-func px1FindSpender(ctx context.Context, node su.Node, tip px1Tip, floor int64, inputs []su.Point) (string, int64, error) {
+func px1oFindSpender(ctx context.Context, node su.Node, tip px1oTip, floor int64, inputs []su.Point) (string, int64, error) {
 	want := map[su.Point]bool{}
 	for _, p := range inputs {
 		want[p] = true
 	}
-	lowest := max(floor, tip.Height-px1ConflictScanBlocks+1, 0)
+	lowest := max(floor, tip.Height-px1oConflictScanBlocks+1, 0)
 	for h := tip.Height; h >= lowest; h-- {
 		var hash string
 		if e := call(ctx, node, "getblockhash", &hash, h); e != nil {
-			return "", 0, px1NodeError(e)
+			return "", 0, px1oNodeError(e)
 		}
 		if !hexN(hash, 32) {
 			return "", 0, fail("NODE_PROJECTION")
 		}
 		var block struct {
-			Hash string       `json:"hash"`
-			Tx   []px1BlockTx `json:"tx"`
+			Hash string        `json:"hash"`
+			Tx   []px1oBlockTx `json:"tx"`
 		}
 		if e := call(ctx, node, "getblock", &block, hash, 2); e != nil {
-			return "", 0, px1NodeError(e)
+			return "", 0, px1oNodeError(e)
 		}
 		if block.Hash != hash {
 			return "", 0, fail("NODE_PROJECTION")
@@ -189,18 +190,18 @@ func px1FindSpender(ctx context.Context, node su.Node, tip px1Tip, floor int64, 
 // ---------------------------------------------------------------------------
 // Tracker.
 
-type px1Tracker struct {
+type px1oTracker struct {
 	node     su.Node
 	cfg      TrackerConfig
 	payments []TrackedPayment // ordered by ReserveSeq
 }
 
-func validTrackerConfig(c TrackerConfig) bool {
-	return c.ConfirmationsK >= 1 && c.ConfirmationsK <= px1MaxConfirmationsK && c.ConflictBlocksN >= 1 && c.ConflictBlocksN <= px1MaxConflictBlocksN
+func px1oValidTrackerConfig(c TrackerConfig) bool {
+	return c.ConfirmationsK >= 1 && c.ConfirmationsK <= px1oMaxConfirmationsK && c.ConflictBlocksN >= 1 && c.ConflictBlocksN <= px1oMaxConflictBlocksN
 }
 
-func validTrackedInputs(in []su.Point) bool {
-	if len(in) < 1 || len(in) > px1MaxTrackedInputs {
+func px1oValidTrackedInputs(in []su.Point) bool {
+	if len(in) < 1 || len(in) > px1oMaxTrackedInputs {
 		return false
 	}
 	for _, p := range in {
@@ -211,7 +212,7 @@ func validTrackedInputs(in []su.Point) bool {
 	return true
 }
 
-func px1PaymentKey(grantID, nonce string) string { return grantID + "/" + nonce }
+func px1oPaymentKey(grantID, nonce string) string { return grantID + "/" + nonce }
 
 // NewTracker returns the payment confirmation tracker. Startup reloads tracked
 // payments from the wallet-layer journal: every request whose reservation was
@@ -224,7 +225,7 @@ func NewTracker(node su.Node, cfg TrackerConfig, wallet JournalV2) (Tracker, err
 	if node == nil {
 		return nil, fail("RPC_UNAVAILABLE")
 	}
-	if !validTrackerConfig(cfg) {
+	if !px1oValidTrackerConfig(cfg) {
 		return nil, fail("SERVICE_CONFIG")
 	}
 	if wallet == nil {
@@ -242,11 +243,11 @@ func NewTracker(node su.Node, cfg TrackerConfig, wallet JournalV2) (Tracker, err
 	requests := map[string]*request{}
 	order := []string{}
 	e := wallet.Iterate(1, func(r JournalRecordV2) error {
-		key := px1PaymentKey(r.GrantID, r.Nonce)
+		key := px1oPaymentKey(r.GrantID, r.Nonce)
 		q := requests[key]
 		switch r.Kind {
 		case RecordReserve:
-			if q != nil || !hexN(r.TxID, 32) || !validTrackedInputs(r.Inputs) {
+			if q != nil || !hexN(r.TxID, 32) || !px1oValidTrackedInputs(r.Inputs) {
 				return fail(CodeJournalSegment)
 			}
 			requests[key] = &request{reserve: r, phase: RecordReserve, state: TrackPending}
@@ -267,13 +268,13 @@ func NewTracker(node su.Node, cfg TrackerConfig, wallet JournalV2) (Tracker, err
 	if e != nil {
 		return nil, e
 	}
-	t := &px1Tracker{node: node, cfg: cfg, payments: []TrackedPayment{}}
+	t := &px1oTracker{node: node, cfg: cfg, payments: []TrackedPayment{}}
 	for _, key := range order {
 		q := requests[key]
 		if q.phase == RecordRefuseRetained {
 			continue
 		}
-		if len(t.payments) >= px1MaxTracked {
+		if len(t.payments) >= px1oMaxTracked {
 			return nil, fail("TRACKER_LIMIT")
 		}
 		t.payments = append(t.payments, TrackedPayment{GrantID: q.reserve.GrantID, Nonce: q.reserve.Nonce, TxID: q.reserve.TxID, Inputs: append([]su.Point{}, q.reserve.Inputs...), ReserveSeq: q.reserve.Seq, State: q.state, Confirmations: q.depth})
@@ -285,8 +286,8 @@ func NewTracker(node su.Node, cfg TrackerConfig, wallet JournalV2) (Tracker, err
 // Enqueue registers a payment after its complete record is durable. A second
 // Enqueue of the same reservation with the same txid is a no-op (startup may
 // already have reloaded it); with another txid it is refused.
-func (t *px1Tracker) Enqueue(p TrackedPayment) error {
-	if !hexN(p.GrantID, 32) || !hexN(p.Nonce, 32) || !hexN(p.TxID, 32) || p.ReserveSeq < 1 || p.BroadcastTip < 0 || !validTrackedInputs(p.Inputs) {
+func (t *px1oTracker) Enqueue(p TrackedPayment) error {
+	if !hexN(p.GrantID, 32) || !hexN(p.Nonce, 32) || !hexN(p.TxID, 32) || p.ReserveSeq < 1 || p.BroadcastTip < 0 || !px1oValidTrackedInputs(p.Inputs) {
 		return fail("TRACKER_PAYMENT")
 	}
 	i := sort.Search(len(t.payments), func(i int) bool { return t.payments[i].ReserveSeq >= p.ReserveSeq })
@@ -299,7 +300,7 @@ func (t *px1Tracker) Enqueue(p TrackedPayment) error {
 		}
 		return fail("TRACKER_PAYMENT")
 	}
-	if len(t.payments) >= px1MaxTracked {
+	if len(t.payments) >= px1oMaxTracked {
 		return fail("TRACKER_LIMIT")
 	}
 	p.Inputs = append([]su.Point{}, p.Inputs...)
@@ -310,25 +311,25 @@ func (t *px1Tracker) Enqueue(p TrackedPayment) error {
 	return nil
 }
 
-// px1Observation is one payment's view at one tip.
-type px1Observation struct {
+// px1oObservation is one payment's view at one tip.
+type px1oObservation struct {
 	present  bool   // in the mempool or an active-chain block
 	depth    int64  // confirmations on the active chain, 0 if unmined
 	conflict bool   // an input is no longer available and the payment is absent
 	spender  string // the mined spender of a planned input, or ""
 }
 
-func (t *px1Tracker) observe(ctx context.Context, tip px1Tip, p TrackedPayment) (px1Observation, error) {
-	var o px1Observation
-	present, depth, e := px1TxDepth(ctx, t.node, p.TxID)
+func (t *px1oTracker) observe(ctx context.Context, tip px1oTip, p TrackedPayment) (px1oObservation, error) {
+	var o px1oObservation
+	present, depth, e := px1oTxDepth(ctx, t.node, p.TxID)
 	if e != nil {
 		return o, e
 	}
 	if present {
-		return px1Observation{present: true, depth: depth}, nil
+		return px1oObservation{present: true, depth: depth}, nil
 	}
 	for _, in := range p.Inputs {
-		spent, _, e := px1OutputSpent(ctx, t.node, in)
+		spent, _, e := px1oOutputSpent(ctx, t.node, in)
 		if e != nil {
 			return o, e
 		}
@@ -346,12 +347,12 @@ func (t *px1Tracker) observe(ctx context.Context, tip px1Tip, p TrackedPayment) 
 	if p.BroadcastTip > 0 {
 		floor = p.BroadcastTip
 	}
-	spender, height, e := px1FindSpender(ctx, t.node, tip, floor, p.Inputs)
+	spender, height, e := px1oFindSpender(ctx, t.node, tip, floor, p.Inputs)
 	if e != nil {
 		return o, e
 	}
 	if spender == p.TxID {
-		return px1Observation{present: true, depth: tip.Height - height + 1}, nil
+		return px1oObservation{present: true, depth: tip.Height - height + 1}, nil
 	}
 	o.spender = spender
 	return o, nil
@@ -369,11 +370,11 @@ func (t *px1Tracker) observe(ctx context.Context, tip px1Tip, p TrackedPayment) 
 //
 // Only transitions to confirmed or conflicted are returned (they are the two
 // track record states). No transition grants, restores or releases a debit.
-func (t *px1Tracker) Tick(ctx context.Context) ([]TrackTransition, error) {
+func (t *px1oTracker) Tick(ctx context.Context) ([]TrackTransition, error) {
 	if len(t.payments) == 0 {
 		return []TrackTransition{}, nil
 	}
-	tip, e := px1ReadTip(ctx, t.node)
+	tip, e := px1oReadTip(ctx, t.node)
 	if e != nil {
 		return nil, e
 	}
@@ -408,7 +409,7 @@ func (t *px1Tracker) Tick(ctx context.Context) ([]TrackTransition, error) {
 			out = append(out, TrackTransition{Payment: p, Record: TrackRecordV2{State: p.State, Height: tip.Height, BlockHash: tip.Hash, Confirmations: p.Confirmations, ConflictTxID: conflictTxID}})
 		}
 	}
-	after, e := px1ReadTip(ctx, t.node)
+	after, e := px1oReadTip(ctx, t.node)
 	if e != nil {
 		return nil, e
 	}
@@ -420,7 +421,7 @@ func (t *px1Tracker) Tick(ctx context.Context) ([]TrackTransition, error) {
 }
 
 // Snapshot returns a copy of every tracked payment, ordered by ReserveSeq.
-func (t *px1Tracker) Snapshot() []TrackedPayment {
+func (t *px1oTracker) Snapshot() []TrackedPayment {
 	out := make([]TrackedPayment, len(t.payments))
 	for i, p := range t.payments {
 		p.Inputs = append([]su.Point{}, p.Inputs...)
@@ -432,13 +433,13 @@ func (t *px1Tracker) Snapshot() []TrackedPayment {
 // ---------------------------------------------------------------------------
 // Canary.
 
-type px1Canary struct {
+type px1oCanary struct {
 	node  su.Node
 	cfg   CanaryConfig
 	spent bool // sticky: once spent, always spent for this process
 }
 
-func validCanaryConfig(c CanaryConfig) bool {
+func px1oValidCanaryConfig(c CanaryConfig) bool {
 	return hexN(c.Outpoint.TxID, 32) && c.ValueSat >= DustLimitSat && c.ValueSat <= MaxMoney
 }
 
@@ -447,24 +448,24 @@ func NewCanary(node su.Node, cfg CanaryConfig) (Canary, error) {
 	if node == nil {
 		return nil, fail("RPC_UNAVAILABLE")
 	}
-	if !validCanaryConfig(cfg) {
+	if !px1oValidCanaryConfig(cfg) {
 		return nil, fail("SERVICE_CONFIG")
 	}
-	return &px1Canary{node: node, cfg: cfg}, nil
+	return &px1oCanary{node: node, cfg: cfg}, nil
 }
 
 // Excluded reports whether p is the canary outpoint.
-func (c *px1Canary) Excluded(p su.Point) bool { return p == c.cfg.Outpoint }
+func (c *px1oCanary) Excluded(p su.Point) bool { return p == c.cfg.Outpoint }
 
 // Check reads gettxout (mempool included). A missing outpoint is spent, and a
 // spent canary stays spent for the life of the watcher even if a reorg makes
 // it visible again. A node failure or an outpoint with another value is
 // unknown, which is never treated as unspent.
-func (c *px1Canary) Check(ctx context.Context) (string, error) {
+func (c *px1oCanary) Check(ctx context.Context) (string, error) {
 	if c.spent {
 		return CanarySpent, nil
 	}
-	spent, value, e := px1OutputSpent(ctx, c.node, c.cfg.Outpoint)
+	spent, value, e := px1oOutputSpent(ctx, c.node, c.cfg.Outpoint)
 	if e != nil {
 		return CanaryUnknown, e
 	}
@@ -481,7 +482,7 @@ func (c *px1Canary) Check(ctx context.Context) (string, error) {
 // ---------------------------------------------------------------------------
 // Float monitor.
 
-type px1Float struct {
+type px1oFloat struct {
 	wallet   su.Node
 	max, low int64
 }
@@ -494,18 +495,18 @@ func NewFloatMonitor(wallet su.Node, maxFloatSat, lowFloatSat int64) (FloatMonit
 	if maxFloatSat < 1 || maxFloatSat > MaxMoney || lowFloatSat < 0 || lowFloatSat > maxFloatSat {
 		return nil, fail("SERVICE_CONFIG")
 	}
-	return &px1Float{wallet: wallet, max: maxFloatSat, low: lowFloatSat}, nil
+	return &px1oFloat{wallet: wallet, max: maxFloatSat, low: lowFloatSat}, nil
 }
 
 // Check reads getbalances once. The float is mine.trusted plus
 // mine.untrusted_pending (immature coinbase is not spendable float). It is
 // "low" strictly below the low-water mark, "excess" strictly above the
 // ceiling, else "ok"; any read failure gives "unknown" and a zero balance.
-func (f *px1Float) Check(ctx context.Context) (FloatReading, error) {
+func (f *px1oFloat) Check(ctx context.Context) (FloatReading, error) {
 	r := FloatReading{MaxFloatSat: f.max, LowFloatSat: f.low, State: "unknown"}
 	raw, e := f.wallet.Call(ctx, "getbalances")
 	if e != nil {
-		return r, px1NodeError(e)
+		return r, px1oNodeError(e)
 	}
 	var mine json.RawMessage
 	var trusted, pending json.Number
@@ -532,22 +533,22 @@ func (f *px1Float) Check(ctx context.Context) (FloatReading, error) {
 // ---------------------------------------------------------------------------
 // Startup reconciliation.
 
-type px1Reconciler struct{ wallet su.Node }
+type px1oReconciler struct{ wallet su.Node }
 
 // NewStartupReconciler returns the wallet-versus-journal startup check.
 func NewStartupReconciler(walletRoute su.Node) (StartupReconciler, error) {
 	if walletRoute == nil {
 		return nil, fail("RPC_UNAVAILABLE")
 	}
-	return &px1Reconciler{wallet: walletRoute}, nil
+	return &px1oReconciler{wallet: walletRoute}, nil
 }
 
-// Reconcile lists every hot-wallet transaction (pages of px1ReconcilePage)
+// Reconcile lists every hot-wallet transaction (pages of px1oReconcilePage)
 // and refuses STATE_RECONCILE_REQUIRED for any "send" whose txid no
 // wallet-layer record carries: an out-of-band spend or a restored older
 // journal (T13). More rows than the bound also refuse, because the check
 // could not be completed. The hot wallet must therefore start without sends.
-func (r *px1Reconciler) Reconcile(ctx context.Context, wallet JournalV2) error {
+func (r *px1oReconciler) Reconcile(ctx context.Context, wallet JournalV2) error {
 	if wallet == nil {
 		return fail("STATE_UNAVAILABLE")
 	}
@@ -563,12 +564,12 @@ func (r *px1Reconciler) Reconcile(ctx context.Context, wallet JournalV2) error {
 	}); e != nil {
 		return e
 	}
-	for page := 0; page < px1ReconcileMaxPages; page++ {
+	for page := 0; page < px1oReconcileMaxPages; page++ {
 		var rows []json.RawMessage
-		if e := call(ctx, r.wallet, "listtransactions", &rows, "*", px1ReconcilePage, page*px1ReconcilePage, false); e != nil {
-			return px1NodeError(e)
+		if e := call(ctx, r.wallet, "listtransactions", &rows, "*", px1oReconcilePage, page*px1oReconcilePage, false); e != nil {
+			return px1oNodeError(e)
 		}
-		if rows == nil || len(rows) > px1ReconcilePage {
+		if rows == nil || len(rows) > px1oReconcilePage {
 			return fail("HISTORY_BOUND")
 		}
 		for _, row := range rows {
@@ -580,7 +581,7 @@ func (r *px1Reconciler) Reconcile(ctx context.Context, wallet JournalV2) error {
 				return fail(CodeStateReconcileRequired)
 			}
 		}
-		if len(rows) < px1ReconcilePage {
+		if len(rows) < px1oReconcilePage {
 			return nil
 		}
 	}
@@ -590,46 +591,69 @@ func (r *px1Reconciler) Reconcile(ctx context.Context, wallet JournalV2) error {
 // ---------------------------------------------------------------------------
 // Alerts.
 
-var px1AlertCodes = map[string]bool{AlertCanarySpent: true, AlertPaymentConflicted: true, AlertUncertainVerdict: true, AlertJournalHighWater: true, AlertClockRollback: true, AlertSealClosed: true, AlertFloatLow: true, AlertFloatExcess: true}
+var px1oAlertCodes = map[string]bool{AlertCanarySpent: true, AlertPaymentConflicted: true, AlertUncertainVerdict: true, AlertJournalHighWater: true, AlertClockRollback: true, AlertSealClosed: true, AlertFloatLow: true, AlertFloatExcess: true}
 
-func px1DetailSafe(s string) bool {
-	if len(s) > px1AlertDetailMax {
+// px1oDetailSafe admits only the typed public detail shapes that the
+// production callers emit: "", a bounded code, a 64-hex txid or grant id, an
+// outpoint "<txid>:<vout>", a decimal amount or count, and the journal ratio
+// "<admitted>.<capacity>". Anything else (free text, lowercase words, a
+// key=value pair) is not one of these shapes. This is a shape allowlist, not
+// a secret detector: a 64-hex secret or an upper-case word still has an
+// allowed shape, so callers pass only journal and configuration identifiers.
+func px1oDetailSafe(s string) bool {
+	if len(s) > px1oAlertDetailMax {
+		return false
+	}
+	if s == "" || boundedCode(s) || hexN(s, 32) {
+		return true
+	}
+	if i := strings.IndexByte(s, ':'); i >= 0 {
+		return hexN(s[:i], 32) && px1oDecimal(s[i+1:], 10)
+	}
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		return px1oDecimal(s[:i], 19) && px1oDecimal(s[i+1:], 19)
+	}
+	return px1oDecimal(s, 19)
+}
+
+// px1oDecimal reports 1..n ASCII digits.
+func px1oDecimal(s string, n int) bool {
+	if len(s) < 1 || len(s) > n {
 		return false
 	}
 	for _, c := range s {
-		if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_' || c == ':' || c == '.' || c == '-') {
+		if c < '0' || c > '9' {
 			return false
 		}
 	}
 	return true
 }
 
-// px1SanitizeAlert admits only the closed alert code set. A detail outside the
-// schema alphabet or bound is replaced by "REDACTED", so free text (keys,
-// passwords, request or terms bodies) never reaches a log or the status page.
-func px1SanitizeAlert(a Alert) (Alert, bool) {
-	if !px1AlertCodes[a.Code] {
+// px1oSanitizeAlert admits only the closed alert code set. A detail that is
+// not one of the typed shapes of px1oDetailSafe is replaced by "REDACTED".
+func px1oSanitizeAlert(a Alert) (Alert, bool) {
+	if !px1oAlertCodes[a.Code] {
 		return Alert{}, false
 	}
 	if a.At < 0 {
 		a.At = 0
 	}
-	if !px1DetailSafe(a.Detail) {
+	if !px1oDetailSafe(a.Detail) {
 		a.Detail = "REDACTED"
 	}
 	return a, true
 }
 
-type px1LogSink struct{ write func(string) }
+type px1oLogSink struct{ write func(string) }
 
 // NewLogAlertSink returns the bounded single-line log sink. A nil writer
 // gives a sink that drops every alert.
-func NewLogAlertSink(write func(line string)) AlertSink { return px1LogSink{write: write} }
+func NewLogAlertSink(write func(line string)) AlertSink { return px1oLogSink{write: write} }
 
 // Raise writes "PX1_ALERT code=<code> at=<unix> detail=<detail>". Codes
 // outside the closed set are dropped.
-func (s px1LogSink) Raise(a Alert) {
-	a, ok := px1SanitizeAlert(a)
+func (s px1oLogSink) Raise(a Alert) {
+	a, ok := px1oSanitizeAlert(a)
 	if !ok || s.write == nil {
 		return
 	}
@@ -639,37 +663,51 @@ func (s px1LogSink) Raise(a Alert) {
 // ---------------------------------------------------------------------------
 // Status projection.
 
-// px1StatusDay is the UTC calendar day of the projection (Q4); it equals
+// px1oStatusDay is the UTC calendar day of the projection (Q4); it equals
 // UTCDay (S2) by contract, and TestPX1StatusDayMatchesUTCDay pins that.
-func px1StatusDay(unix int64) string { return time.Unix(unix, 0).UTC().Format("2006-01-02") }
+func px1oStatusDay(unix int64) string { return time.Unix(unix, 0).UTC().Format("2006-01-02") }
 
-// px1Request is one wallet-layer request folded for the status projection.
-type px1Request struct {
+// px1oRequest is one wallet-layer request folded for the status projection.
+// phase is the accounting phase only: a track record never changes it (Q12).
+type px1oRequest struct {
 	grantID  string
 	day      string
-	phase    string // reserve | uncertain | refuse-retained | complete
+	phase    string // reserve | uncertain | refuse-retained | complete | released
 	reserved int64
 	released int64
 }
 
-// px1FoldGrants folds the wallet-layer journal per the frozen ledger rules:
+// px1oReleased is the accounting phase of a request whose whole debit an
+// operator reconciliation released.
+const px1oReleased = "released"
+
+// open reports the signer-service non-terminal set: a reservation without an
+// outcome (a crash between reservation and broadcast) or an uncertain one,
+// while any of its debit is still retained. An open request is charged in
+// every day until a later outcome or a full release.
+func (q *px1oRequest) open() bool {
+	return q.phase == RecordReserve || q.phase == RecordUncertain
+}
+
+// px1oFoldGrants folds the wallet-layer journal per the frozen ledger rules:
 // a debit is retained from reserve onward (reserve, uncertain,
 // refuse-retained, complete, track) and only a reconcile record releases it,
-// never above the retained amount. Day rule (signer-service): a request
-// counts toward day D if it is non-terminal (reserved or uncertain) or its
-// reservation day is D.
-func px1FoldGrants(j JournalV2) (map[string][]*px1Request, error) {
-	bySeq := map[uint64]*px1Request{}
-	byKey := map[string]*px1Request{}
-	out := map[string][]*px1Request{}
+// never above the retained amount. A partial release keeps the accounting
+// phase (an open request stays open); only a release of the whole retained
+// debit closes the request. A track record is observation only: it never
+// changes the accounting phase, the day carry or the uncertain amount.
+func px1oFoldGrants(j JournalV2) (map[string][]*px1oRequest, error) {
+	bySeq := map[uint64]*px1oRequest{}
+	byKey := map[string]*px1oRequest{}
+	out := map[string][]*px1oRequest{}
 	e := j.Iterate(1, func(r JournalRecordV2) error {
-		key := px1PaymentKey(r.GrantID, r.Nonce)
+		key := px1oPaymentKey(r.GrantID, r.Nonce)
 		switch r.Kind {
 		case RecordReserve:
 			if byKey[key] != nil || r.Reserved < 0 || r.Reserved > MaxMoney {
 				return fail(CodeJournalSegment)
 			}
-			q := &px1Request{grantID: r.GrantID, day: r.Day, phase: RecordReserve, reserved: r.Reserved}
+			q := &px1oRequest{grantID: r.GrantID, day: r.Day, phase: RecordReserve, reserved: r.Reserved}
 			bySeq[r.Seq], byKey[key] = q, q
 			out[r.GrantID] = append(out[r.GrantID], q)
 		case RecordComplete, RecordUncertain, RecordRefuseRetained:
@@ -678,6 +716,10 @@ func px1FoldGrants(j JournalV2) (map[string][]*px1Request, error) {
 				return fail(CodeJournalSegment)
 			}
 			q.phase = r.Kind
+		case RecordTrack:
+			if byKey[key] == nil {
+				return fail(CodeJournalSegment)
+			}
 		case RecordReconcile:
 			if r.Reconcile == nil {
 				return fail(CodeJournalSegment)
@@ -687,26 +729,35 @@ func px1FoldGrants(j JournalV2) (map[string][]*px1Request, error) {
 				return fail(CodeJournalSegment)
 			}
 			q.released += r.Reconcile.ReleasedSat
+			if q.released == q.reserved {
+				q.phase = px1oReleased
+			}
 		}
 		return nil
 	})
 	return out, e
 }
 
-func px1GrantStatus(l EffectiveLimits, requests []*px1Request, day string, seal StatusSealCheck) StatusGrant {
+// px1oGrantStatus applies the ledger's numbers (FoldLedgerV2): reserved_sat
+// is SpendUsed, uncertain_sat is UncertainSat (the retained debit of open
+// requests) and day_used_sat/day_count are DayUsage. Day rule
+// (signer-service): a request counts toward day D if it is open or its
+// reservation day is D. The day count is a count of requests, not of
+// retained atoms: a release lowers day_used_sat but never gives back a
+// request counted today.
+func px1oGrantStatus(l EffectiveLimits, requests []*px1oRequest, day string, seal StatusSealCheck) StatusGrant {
 	g := StatusGrant{GrantID: l.GrantID, TotalCapSat: l.TotalCapSat, SpendCapSat: l.SpendCapSat, TransferCapSat: l.TransferCapSat, DayCapSat: l.DayCapSat, DayCountCap: l.DayCountCap, Day: day, Seal: seal}
 	for _, q := range requests {
 		retained := q.reserved - q.released
 		g.ReservedSat += retained
 		g.ReleasedSat += q.released
-		switch q.phase {
-		case RecordComplete:
+		if q.phase == RecordComplete {
 			g.SpentSat += retained
-		case RecordUncertain:
+		}
+		if q.open() {
 			g.UncertainSat += retained
 		}
-		nonTerminal := q.phase == RecordReserve || q.phase == RecordUncertain
-		if retained > 0 && (nonTerminal || q.day == day) {
+		if q.open() || q.day == day {
 			g.DayUsedSat += retained
 			g.DayCount++
 		}
@@ -717,14 +768,14 @@ func px1GrantStatus(l EffectiveLimits, requests []*px1Request, day string, seal 
 	return g
 }
 
-var px1SealVerdicts = map[string]bool{"live": true, "closed": true, "pending": true, "unknown": true}
+var px1oSealVerdicts = map[string]bool{"live": true, "closed": true, "pending": true, "unknown": true}
 
-func px1UnobservedSeal() StatusSealCheck {
+func px1oUnobservedSeal() StatusSealCheck {
 	return StatusSealCheck{Verdict: "unknown", Reason: "UNOBSERVED"}
 }
 
-// px1RefusalCounts counts terminal refusals of the service layer by reason.
-func px1RefusalCounts(j JournalV2) ([]StatusCount, error) {
+// px1oRefusalCounts counts terminal refusals of the service layer by reason.
+func px1oRefusalCounts(j JournalV2) ([]StatusCount, error) {
 	counts := map[string]int{}
 	e := j.Iterate(1, func(r JournalRecordV2) error {
 		if r.Kind != RecordTerminal || r.Service == nil || r.Service.Receipt == nil || r.Service.Receipt.Receipt.Verdict != "refused" {
@@ -759,11 +810,11 @@ func ProjectStatus(in StatusInputs) (StatusProjectionV1, error) {
 	if in.Service.Header().Layer != JournalLayerService || in.Wallet.Header().Layer != JournalLayerWallet {
 		return p, fail(CodeJournalSegment)
 	}
-	if (in.Network != "main" && in.Network != "regtest") || !px1XOnly(in.ReceiptKey) || in.Now < 0 {
+	if (in.Network != "main" && in.Network != "regtest") || !px1oXOnly(in.ReceiptKey) || in.Now < 0 {
 		return p, fail("SERVICE_CONFIG")
 	}
-	day := px1StatusDay(in.Now)
-	folded, e := px1FoldGrants(in.Wallet)
+	day := px1oStatusDay(in.Now)
+	folded, e := px1oFoldGrants(in.Wallet)
 	if e != nil {
 		return p, e
 	}
@@ -776,12 +827,12 @@ func ProjectStatus(in StatusInputs) (StatusProjectionV1, error) {
 		}
 		seal, ok := in.Seals[l.GrantID]
 		if !ok {
-			seal = px1UnobservedSeal()
+			seal = px1oUnobservedSeal()
 		}
-		if !px1SealVerdicts[seal.Verdict] || !boundedCode(seal.Reason) {
-			seal = px1UnobservedSeal()
+		if !px1oSealVerdicts[seal.Verdict] || !boundedCode(seal.Reason) {
+			seal = px1oUnobservedSeal()
 		}
-		grants = append(grants, px1GrantStatus(l, folded[l.GrantID], day, seal))
+		grants = append(grants, px1oGrantStatus(l, folded[l.GrantID], day, seal))
 	}
 	items := make([]TrackedPayment, 0, len(in.Tracked))
 	payments := StatusPayments{}
@@ -801,7 +852,7 @@ func ProjectStatus(in StatusInputs) (StatusProjectionV1, error) {
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].ReserveSeq < items[j].ReserveSeq })
 	payments.Items = items
-	refusals, e := px1RefusalCounts(in.Service)
+	refusals, e := px1oRefusalCounts(in.Service)
 	if e != nil {
 		return p, e
 	}
@@ -820,12 +871,12 @@ func ProjectStatus(in StatusInputs) (StatusProjectionV1, error) {
 	}
 	alerts := []Alert{}
 	for _, a := range in.Alerts {
-		if a, ok := px1SanitizeAlert(a); ok {
+		if a, ok := px1oSanitizeAlert(a); ok {
 			alerts = append(alerts, a)
 		}
 	}
-	if len(alerts) > px1AlertTail {
-		alerts = alerts[len(alerts)-px1AlertTail:]
+	if len(alerts) > px1oAlertTail {
+		alerts = alerts[len(alerts)-px1oAlertTail:]
 	}
 	return StatusProjectionV1{
 		Version: StatusProjectionVersion, Service: WalletServiceID, Network: in.Network, ReceiptKey: in.ReceiptKey, GeneratedAt: in.Now,
@@ -839,7 +890,7 @@ func ProjectStatus(in StatusInputs) (StatusProjectionV1, error) {
 // ---------------------------------------------------------------------------
 // Status socket exchange.
 
-func px1ReadFrame(r io.Reader, limit int) ([]byte, error) {
+func px1oReadFrame(r io.Reader, limit int) ([]byte, error) {
 	var prefix [4]byte
 	if _, e := io.ReadFull(r, prefix[:]); e != nil {
 		return nil, fail("STATUS_FRAME")
@@ -855,7 +906,7 @@ func px1ReadFrame(r io.Reader, limit int) ([]byte, error) {
 	return b, nil
 }
 
-func px1WriteFrame(w io.Writer, b []byte, limit int) error {
+func px1oWriteFrame(w io.Writer, b []byte, limit int) error {
 	if len(b) == 0 || len(b) > limit {
 		return fail("STATUS_FRAME_SIZE")
 	}
@@ -884,16 +935,16 @@ func ServeStatus(ctx context.Context, conn StatusConn, source func() (StatusProj
 	defer conn.Close()
 	stop := context.AfterFunc(ctx, func() { conn.Close() })
 	defer stop()
-	raw, e := px1ReadFrame(conn, px1StatusRequestMax)
+	raw, e := px1oReadFrame(conn, px1oStatusRequestMax)
 	if e != nil {
 		return e
 	}
-	if !bytes.Equal(raw, px1StatusRequest) {
+	if !bytes.Equal(raw, px1oStatusRequest) {
 		return fail("STATUS_REQUEST")
 	}
 	p, e := source()
 	if e != nil {
-		return px1NodeError(e)
+		return px1oNodeError(e)
 	}
 	if p.Version != StatusProjectionVersion || p.Service != WalletServiceID {
 		return fail("STATUS_PROJECTION")
@@ -901,7 +952,7 @@ func ServeStatus(ctx context.Context, conn StatusConn, source func() (StatusProj
 	if ctx.Err() != nil {
 		return fail("STATUS_CANCELLED")
 	}
-	return px1WriteFrame(conn, canonical(p), px1StatusResponseMax)
+	return px1oWriteFrame(conn, canonical(p), px1oStatusResponseMax)
 }
 
 // ExchangeStatus sends one status request over conn and strictly decodes the
@@ -914,10 +965,10 @@ func ExchangeStatus(ctx context.Context, conn StatusConn) (StatusProjectionV1, e
 	defer conn.Close()
 	stop := context.AfterFunc(ctx, func() { conn.Close() })
 	defer stop()
-	if e := px1WriteFrame(conn, px1StatusRequest, px1StatusRequestMax); e != nil {
+	if e := px1oWriteFrame(conn, px1oStatusRequest, px1oStatusRequestMax); e != nil {
 		return p, e
 	}
-	raw, e := px1ReadFrame(conn, px1StatusResponseMax)
+	raw, e := px1oReadFrame(conn, px1oStatusResponseMax)
 	if e != nil {
 		return p, e
 	}

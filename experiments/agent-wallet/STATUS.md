@@ -30,9 +30,23 @@ and then one pass every `-tick-seconds` (default 30). A pass takes
    `ALERT_CANARY_SPENT` is raised once. A node failure, or an outpoint with
    another value, is `unknown`, which is never read as unspent.
 5. **Tracker.** Each state change becomes a wallet-layer `track` record. A
-   change to `conflicted` also raises `ALERT_PAYMENT_CONFLICTED`.
-6. **Uncertain records.** Each new wallet-layer `uncertain` record raises
-   `ALERT_UNCERTAIN_VERDICT` once.
+   change to `conflicted` also raises `ALERT_PAYMENT_CONFLICTED`, once, when
+   it is observed. The tracker has moved on when it reports a change, so the
+   runtime keeps each change in a queue until its `track` record is durable.
+   An `Append` refusal (for example `CLOCK_ROLLBACK`) fails the pass and keeps
+   that change and every later one queued. The next pass writes them first, in
+   order, each exactly once. After a restart the tracker reloads from the
+   durable journal, so an unwritten change is observed again and written then.
+   The queue holds at most 65536 changes; past that it keeps only the newest
+   change of each payment. A change whose `reserve` record is missing can never
+   be written: it is dropped and the pass fails `JOURNAL_SEGMENT`. A change of
+   a request whose whole debit was released is dropped without a record: the
+   request is closed, and the journal table accepts no `track` after a full
+   release. Its conflict alert is still raised.
+6. **Uncertain records.** Each new wallet-layer `uncertain` record (detail: its
+   txid) and each new service-layer `terminal` record whose receipt verdict is
+   `uncertain` (detail: the receipt's reason code) raises
+   `ALERT_UNCERTAIN_VERDICT` once. One request can raise one alert per layer.
 7. **Journal high-water.** When the service journal reaches 80% of its spend
    capacity, the pass raises `ALERT_JOURNAL_HIGH_WATER`, once per upward
    crossing.
@@ -116,14 +130,25 @@ node call and no journal write. It combines the two journals with the
 observations cached by the last pass.
 
 - **Grants.** One entry per grant with cached limits, sorted by `grant_id`.
+  The numbers are the ledger's (`FoldLedgerV2`, S2), which is the authority:
+  the status repeats them and never decides anything with them.
   Per request, `retained = reserve.reserved_sat - Σ reconcile.released_sat`.
-  - `reserved_sat` is the sum of retained debits.
-  - `spent_sat` covers completed requests.
-  - `uncertain_sat` covers uncertain requests.
+  The accounting phase of a request is set by `reserve`, `complete`,
+  `uncertain` and `refuse-retained` records. A `track` record is observation
+  only: it never changes the phase, the day carry or `uncertain_sat`. A
+  reconcile that releases the whole retained debit closes the request; a
+  partial release keeps its phase. A request is *open* while it is reserved
+  without an outcome, or uncertain, and not fully released.
+  - `reserved_sat` is the sum of retained debits (`SpendUsed`).
+  - `spent_sat` is the retained debit of completed requests.
+  - `uncertain_sat` is the retained debit of open requests (`UncertainSat`),
+    so a reservation still in flight shows here too.
   - `released_sat` is the sum of releases.
-  - Day usage follows the signer rule: a request counts toward day D if it is
-    reserved or uncertain, or if its reservation day is D. A fully released
-    request no longer counts.
+  - Day usage (`DayUsage`): a request counts toward day D if it is open or if
+    its reservation day is D. `day_used_sat` adds its retained debit, and
+    `day_count` adds one request. A release lowers `day_used_sat` but never
+    gives back a request counted today: a request completed and fully released
+    today still counts once, with 0 atoms.
   - `day` is the UTC calendar day of `generated_at`.
 - **Payments.** Tracker snapshot, sorted by `reserve_seq`.
 - **Refusals.** Terminal service-layer refusals, counted by reason. Refusals
@@ -137,9 +162,22 @@ Before the first pass, the canary and the float are `unknown`.
 ## Status socket
 
 `/run/swarma-wallet/status.sock` is owned by the service UID with group
-`-status-gid` (the operator group) and mode 0660. The operator group must
-differ from the agent socket group. An existing path refuses startup and is
-never unlinked.
+`-status-gid` (the operator group) and mode 0660. It stays in the W2 runtime
+directory `/run/swarma-wallet` (0750, group `socket_gid`). Operator users
+join `socket_gid` to traverse it; `wallet.sock` keeps refusing every UID
+except `peer_uid` (`SERVICE_PEER`). The daemon needs the operator group as a
+supplementary group to set the socket's group (see `SERVICE.md`).
+
+The agent (`peer_uid`) must never reach this socket (T19). Three checks hold
+that:
+
+- The operator group must differ from the agent socket group.
+- Startup refuses `STATUS_SOCKET_AGENT` if the agent account is a member of
+  the operator group, or if its groups cannot be read.
+- A connection whose `SO_PEERCRED` UID is `peer_uid` is closed without a
+  reply.
+
+An existing path refuses startup and is never unlinked.
 
 The framing is the action-socket framing: a 4-byte big-endian length, then
 one request per connection. The request must be exactly
@@ -158,20 +196,29 @@ PX1_ALERT code=<ALERT_*> at=<unix> detail=<detail>
 ```
 
 The code set is closed (`px1_api.go`), and any other code is dropped. A detail
-outside `[A-Za-z0-9_:.-]{0,128}` is replaced by `REDACTED`. So a key,
-password, request body or terms body never reaches a log or the status page.
+must have one of the typed public shapes that the callers emit: empty, a
+bounded code, a 64-hex txid or grant id, an outpoint `<txid>:<vout>`, a
+decimal amount or count, or the journal ratio `<admitted>.<capacity>`.
+Anything else is replaced by `REDACTED`. This is a shape check, not a secret
+detector: a 64-hex secret has the txid shape. The callers therefore pass only
+journal and configuration identifiers, never a key, password, request body or
+terms body.
 Tick failures are logged as `PX1_TICK <bounded code>`.
 
 ## Tests
 
-- **Unit layer** (`px1_observe_test.go`): runs against a simulated own node
-  and an in-memory `JournalV2`.
+- **Unit layer** (`px1_observe_test.go`, `px1_observe_r2_test.go`,
+  `px1_observe_rev154_test.go`): runs against a simulated own node and an
+  in-memory `JournalV2`. `TestPX1oStatusMatchesLedgerPhases` compares the
+  status with S2's `FoldLedgerV2` in every accounting phase and across the
+  UTC rollover; it skips while the S2 stub is in place.
 - **Core layer** (`px1_observe_core_test.go`, `TestPX1CoreObserve`): runs a
   genuine Namecoin Core 28 regtest node and covers T11 (confirmation at k=2,
   `invalidateblock`, a conflicting spend mined from the admin route), T13 and
   T14 at the observer level. The journals are fakes there.
 - **Pending S1/S2:**
-  - the service-level spend refusal `FLOAT_CANARY_SPENT`;
+  - the service-level spend refusal `FLOAT_CANARY_SPENT`: S3 provides the
+    admission seam `px1oHalted` (tested in `TestPX1oHalted`), which S2 calls;
   - `agent-walletd` startup refusing `STATE_RECONCILE_REQUIRED` with real
     journals.
 

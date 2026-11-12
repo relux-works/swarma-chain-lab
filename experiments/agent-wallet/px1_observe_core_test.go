@@ -29,19 +29,19 @@ import (
 
 // Accepted Core 28 binary pins: the existing harness pins, and the Linux
 // x86_64 namecoin-28.0 release build (namecoind, namecoin-cli).
-var px1CorePins = map[string]bool{
+var px1oCorePins = map[string]bool{
 	"86b85483da23c83f7de134a5bf28bad8e3c6a8dbfe2af71a5e889a7b1547787f": true, "5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d": true,
 	"dc7430676e445af3992430e036f7c1a17bea44f757e9cf25b69205e39625f2f7": true, "318b6c881c8071abbafd984550172369c3498b4c65c389797350f2d458f085b1": true,
 }
 
-type px1Core struct {
+type px1oCore struct {
 	t                      *testing.T
 	data, conf, cli, miner string
 	node                   *exec.Cmd
 	routes                 map[string]su.Route
 }
 
-func px1StartCore(t *testing.T) *px1Core {
+func px1oStartCore(t *testing.T) *px1oCore {
 	t.Helper()
 	if os.Getenv("W1_REGTEST") != "1" {
 		t.Skip("requires W1_REGTEST=1 genuine isolated Core")
@@ -53,11 +53,11 @@ func px1StartCore(t *testing.T) *px1Core {
 	if e := os.Mkdir(root, 0700); e != nil {
 		t.Fatal(e)
 	}
-	c := &px1Core{t: t, data: filepath.Join(root, "private"), cli: os.Getenv("W1_CORE_CLI"), routes: map[string]su.Route{}}
+	c := &px1oCore{t: t, data: filepath.Join(root, "private"), cli: os.Getenv("W1_CORE_CLI"), routes: map[string]su.Route{}}
 	daemon := os.Getenv("W1_CORE_DAEMON")
 	for _, p := range []string{daemon, c.cli} {
 		b, e := os.ReadFile(p)
-		if e != nil || !px1CorePins[Hash(b)] {
+		if e != nil || !px1oCorePins[Hash(b)] {
 			t.Fatal("Core binary pin")
 		}
 	}
@@ -124,7 +124,7 @@ func px1StartCore(t *testing.T) *px1Core {
 }
 
 // rpc is the admin route (cookie); it is never given to the S3 observers.
-func (c *px1Core) rpc(wallet, method string, args ...any) json.RawMessage {
+func (c *px1oCore) rpc(wallet, method string, args ...any) json.RawMessage {
 	c.t.Helper()
 	argv := []string{"-regtest", "-datadir=" + c.data, "-conf=" + c.conf}
 	if wallet != "" {
@@ -149,7 +149,7 @@ func (c *px1Core) rpc(wallet, method string, args ...any) json.RawMessage {
 	}
 	return b
 }
-func (c *px1Core) str(wallet, method string, args ...any) string {
+func (c *px1oCore) str(wallet, method string, args ...any) string {
 	c.t.Helper()
 	var s string
 	if json.Unmarshal(c.rpc(wallet, method, args...), &s) != nil {
@@ -157,8 +157,8 @@ func (c *px1Core) str(wallet, method string, args ...any) string {
 	}
 	return s
 }
-func (c *px1Core) mine(n int) { c.rpc("", "generatetoaddress", n, c.miner) }
-func (c *px1Core) height() int64 {
+func (c *px1oCore) mine(n int) { c.rpc("", "generatetoaddress", n, c.miner) }
+func (c *px1oCore) height() int64 {
 	var info struct {
 		Blocks int64 `json:"blocks"`
 	}
@@ -166,7 +166,7 @@ func (c *px1Core) height() int64 {
 	return info.Blocks
 }
 
-type px1CoreTx struct {
+type px1oCoreTx struct {
 	Vin []struct {
 		TxID string `json:"txid"`
 		Vout uint32 `json:"vout"`
@@ -177,8 +177,8 @@ type px1CoreTx struct {
 	} `json:"vout"`
 }
 
-func (c *px1Core) tx(txid string) px1CoreTx {
-	var tx px1CoreTx
+func (c *px1oCore) tx(txid string) px1oCoreTx {
+	var tx px1oCoreTx
 	if json.Unmarshal(c.rpc("", "getrawtransaction", txid, true), &tx) != nil {
 		c.t.Fatal("transaction view")
 	}
@@ -187,7 +187,7 @@ func (c *px1Core) tx(txid string) px1CoreTx {
 
 // spend signs, with the agent wallet, a raw transaction moving p (worth
 // value atoms) to the miner minus fee. It is the out-of-band admin route.
-func (c *px1Core) spend(p su.Point, value, fee int64) string {
+func (c *px1oCore) spend(p su.Point, value, fee int64) string {
 	c.t.Helper()
 	raw := c.str("", "createrawtransaction", []map[string]any{{"txid": p.TxID, "vout": p.Vout}}, map[string]any{c.miner: json.RawMessage(su.Coins(value - fee))})
 	var signed struct {
@@ -200,7 +200,7 @@ func (c *px1Core) spend(p su.Point, value, fee int64) string {
 	return signed.Hex
 }
 
-func (c *px1Core) outpointTo(txid, address string) (su.Point, int64) {
+func (c *px1oCore) outpointTo(txid, address string) (su.Point, int64) {
 	var tx struct {
 		Vout []struct {
 			Value  json.Number `json:"value"`
@@ -235,7 +235,7 @@ func (c *px1Core) outpointTo(txid, address string) (su.Point, int64) {
 // Limit: the journals are fakes of the frozen JournalV2; the service-layer
 // refusal codes on the spend path are pending S1/S2.
 func TestPX1CoreObserve(t *testing.T) {
-	c := px1StartCore(t)
+	c := px1oStartCore(t)
 	ctx := context.Background()
 	observer, e := su.NewRPC(c.routes["w3-observer"])
 	if e != nil {
@@ -255,9 +255,9 @@ func TestPX1CoreObserve(t *testing.T) {
 	for _, in := range view.Vin {
 		inputs = append(inputs, su.Point{TxID: in.TxID, Vout: in.Vout})
 	}
-	journal := px1Journal(JournalLayerWallet)
-	reserve := journal.add(px1Reserve(px1G, px1N1, payment, 10100000, px1StatusDay(time.Now().Unix()), inputs...))
-	journal.add(px1Follow(RecordComplete, "complete", reserve))
+	journal := px1oJournal(JournalLayerWallet)
+	reserve := journal.add(px1oReserve(px1oG, px1oN1, payment, 10100000, px1oStatusDay(time.Now().Unix()), inputs...))
+	journal.add(px1oFollow(RecordComplete, "complete", reserve))
 
 	// T13: positive with the full journal, refusal with an older journal.
 	reconciler, e := NewStartupReconciler(walletRoute)
@@ -267,7 +267,7 @@ func TestPX1CoreObserve(t *testing.T) {
 	if e := reconciler.Reconcile(ctx, journal); e != nil {
 		t.Fatalf("T13: journaled send refused: %v", e)
 	}
-	if e := reconciler.Reconcile(ctx, px1Journal(JournalLayerWallet)); e == nil || e.Error() != CodeStateReconcileRequired {
+	if e := reconciler.Reconcile(ctx, px1oJournal(JournalLayerWallet)); e == nil || e.Error() != CodeStateReconcileRequired {
 		t.Fatalf("T13: restored older journal accepted: %v", e)
 	}
 
@@ -276,16 +276,16 @@ func TestPX1CoreObserve(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if out := px1Tick(t, tracker); len(out) != 0 || tracker.Snapshot()[0].State != TrackPending {
+	if out := px1oTick(t, tracker); len(out) != 0 || tracker.Snapshot()[0].State != TrackPending {
 		t.Fatal("T11: mempool payment not pending")
 	}
 	c.mine(1)
 	mined := c.height()
-	if out := px1Tick(t, tracker); len(out) != 0 || tracker.Snapshot()[0].Confirmations != 1 {
+	if out := px1oTick(t, tracker); len(out) != 0 || tracker.Snapshot()[0].Confirmations != 1 {
 		t.Fatal("T11: depth 1 must stay pending")
 	}
 	c.mine(1)
-	out := px1Tick(t, tracker)
+	out := px1oTick(t, tracker)
 	if len(out) != 1 || out[0].Record.State != TrackConfirmed || out[0].Record.Confirmations != 2 || out[0].Record.Height != mined+1 {
 		t.Fatalf("T11: not confirmed at depth 2: %+v", out)
 	}
@@ -297,12 +297,12 @@ func TestPX1CoreObserve(t *testing.T) {
 	op := px1Operator()
 	op.Canary = CanaryConfig{Outpoint: outpoint, ValueSat: value}
 	op.MaxFloatSat, op.LowFloatSat = 1000000000, 1000000
-	service := px1Journal(JournalLayerService)
+	service := px1oJournal(JournalLayerService)
 	service.usage = JournalUsageV2{SpendCapacity: 2048}
 	poisons := 0
 	lines := []string{}
 	runtime := &px1Runtime{sink: NewLogAlertSink(func(s string) { lines = append(lines, s) })}
-	env := px1Env{profile: &op, service: service, wallet: journal, observer: observer, walletRoute: walletRoute, receiptKey: px1ExecutorKey, network: "regtest", now: time.Now().Unix(), poison: func() { poisons++ }}
+	env := px1oEnv{profile: &op, service: service, wallet: journal, observer: observer, walletRoute: walletRoute, receiptKey: px1ExecutorKey, network: "regtest", now: time.Now().Unix(), poison: func() { poisons++ }}
 	if e := runtime.tick(ctx, env); e != nil || poisons != 0 || runtime.canaryLast.State != CanaryUnspent || runtime.floatLast.State != "ok" {
 		t.Fatalf("T14: unspent canary pass: %v poisons=%d canary=%s float=%+v", e, poisons, runtime.canaryLast.State, runtime.floatLast)
 	}
@@ -331,7 +331,7 @@ func TestPX1CoreObserve(t *testing.T) {
 
 	// T11 part 2: invalidateblock returns the payment to the mempool.
 	c.rpc("", "invalidateblock", c.str("", "getblockhash", mined))
-	if out := px1Tick(t, tracker); len(out) != 0 || tracker.Snapshot()[0].State != TrackPending || tracker.Snapshot()[0].Confirmations != 0 {
+	if out := px1oTick(t, tracker); len(out) != 0 || tracker.Snapshot()[0].State != TrackPending || tracker.Snapshot()[0].Confirmations != 0 {
 		t.Fatalf("T11: reorged payment must be pending without a record: %+v", tracker.Snapshot())
 	}
 	// A conflicting spend of the payment's input, mined from the admin route.
@@ -343,7 +343,7 @@ func TestPX1CoreObserve(t *testing.T) {
 	}
 	json.Unmarshal(c.rpc("", "decoderawtransaction", conflictHex), &conflictTx)
 	c.rpc("", "generateblock", c.miner, []string{conflictHex})
-	out = px1Tick(t, tracker)
+	out = px1oTick(t, tracker)
 	if len(out) != 1 || out[0].Record.State != TrackConflicted || out[0].Record.ConflictTxID != conflictTx.TxID {
 		t.Fatalf("T11: conflicting spend not detected: %+v", out)
 	}

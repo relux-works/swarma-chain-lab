@@ -15,23 +15,23 @@ import (
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
-// px1RuntimeDeps are the S3 constructors the runtime uses. Production values
+// px1oRuntimeDeps are the S3 constructors the runtime uses. Production values
 // are the frozen entry points; tests replace them with fakes of the same
 // frozen interfaces.
-type px1RuntimeDeps struct {
+type px1oRuntimeDeps struct {
 	newTracker    func(node su.Node, cfg TrackerConfig, wallet JournalV2) (Tracker, error)
 	newCanary     func(node su.Node, cfg CanaryConfig) (Canary, error)
 	newFloat      func(wallet su.Node, maxFloatSat, lowFloatSat int64) (FloatMonitor, error)
 	newReconciler func(walletRoute su.Node) (StartupReconciler, error)
 }
 
-func px1ProductRuntimeDeps() px1RuntimeDeps {
-	return px1RuntimeDeps{newTracker: NewTracker, newCanary: NewCanary, newFloat: NewFloatMonitor, newReconciler: NewStartupReconciler}
+func px1oProductRuntimeDeps() px1oRuntimeDeps {
+	return px1oRuntimeDeps{newTracker: NewTracker, newCanary: NewCanary, newFloat: NewFloatMonitor, newReconciler: NewStartupReconciler}
 }
 
-// px1Env is everything one runtime pass reads from the service. The service
-// assembles it under ActionService.mu and Wallet.mu (px1EnvFor).
-type px1Env struct {
+// px1oEnv is everything one runtime pass reads from the service. The service
+// assembles it under ActionService.mu and Wallet.mu (px1oEnvFor).
+type px1oEnv struct {
 	profile     *G2OperatorConfig
 	service     JournalV2 // service layer (S2)
 	wallet      JournalV2 // wallet layer (S1)
@@ -52,8 +52,8 @@ type px1Env struct {
 // px1Runtime is S3's per-service state. The zero value is ready for use: the
 // first tick constructs the observers and runs startup reconciliation.
 type px1Runtime struct {
-	deps       *px1RuntimeDeps // nil: product constructors
-	sink       AlertSink       // nil: single-line stderr sink
+	deps       *px1oRuntimeDeps // nil: product constructors
+	sink       AlertSink        // nil: single-line stderr sink
 	ready      bool
 	failed     string // sticky startup refusal (STATE_RECONCILE_REQUIRED)
 	tracker    Tracker
@@ -68,23 +68,28 @@ type px1Runtime struct {
 	highWater  bool
 	clockBack  bool
 	lastSeq    uint64 // wallet-layer Seq already scanned for uncertain records
+	lastSvcSeq uint64 // service-layer Seq already scanned for uncertain verdicts
+	// tracks holds tracker transitions that are observed but not yet durable,
+	// oldest first. A refused append leaves them queued; the next pass retries
+	// exactly these before any newer one (the tracker has already moved on).
+	tracks []TrackTransition
 }
 
-func (r *px1Runtime) constructors() px1RuntimeDeps {
+func (r *px1Runtime) constructors() px1oRuntimeDeps {
 	if r.deps != nil {
 		return *r.deps
 	}
-	return px1ProductRuntimeDeps()
+	return px1oProductRuntimeDeps()
 }
 
 func (r *px1Runtime) raise(code string, at int64, detail string) {
-	a, ok := px1SanitizeAlert(Alert{Code: code, At: at, Detail: detail})
+	a, ok := px1oSanitizeAlert(Alert{Code: code, At: at, Detail: detail})
 	if !ok {
 		return
 	}
 	r.alerts = append(r.alerts, a)
-	if len(r.alerts) > px1AlertTail {
-		r.alerts = append([]Alert{}, r.alerts[len(r.alerts)-px1AlertTail:]...)
+	if len(r.alerts) > px1oAlertTail {
+		r.alerts = append([]Alert{}, r.alerts[len(r.alerts)-px1oAlertTail:]...)
 	}
 	sink := r.sink
 	if sink == nil {
@@ -93,7 +98,7 @@ func (r *px1Runtime) raise(code string, at int64, detail string) {
 	sink.Raise(a)
 }
 
-func (r *px1Runtime) validEnv(env px1Env) error {
+func (r *px1Runtime) validEnv(env px1oEnv) error {
 	if env.profile == nil {
 		return fail("SERVICE_PROFILE")
 	}
@@ -106,7 +111,7 @@ func (r *px1Runtime) validEnv(env px1Env) error {
 // start builds the observers and reconciles the hot wallet against the
 // wallet-layer journal. A reconciliation refusal poisons the service and is
 // sticky: every later pass returns the same code until a restart.
-func (r *px1Runtime) start(ctx context.Context, env px1Env) error {
+func (r *px1Runtime) start(ctx context.Context, env px1oEnv) error {
 	d := r.constructors()
 	op := env.profile
 	tracker, e := d.newTracker(env.observer, TrackerConfig{ConfirmationsK: op.ConfirmationsK, ConflictBlocksN: op.ConflictBlocksN}, env.wallet)
@@ -142,8 +147,8 @@ func (r *px1Runtime) start(ctx context.Context, env px1Env) error {
 	return nil
 }
 
-// px1SealVerdict maps a kernel refusal code to the status verdict.
-func px1SealVerdict(e error) StatusSealCheck {
+// px1oSealVerdict maps a kernel refusal code to the status verdict.
+func px1oSealVerdict(e error) StatusSealCheck {
 	if e == nil {
 		return StatusSealCheck{Verdict: "live", Reason: "LIVE"}
 	}
@@ -158,7 +163,7 @@ func px1SealVerdict(e error) StatusSealCheck {
 }
 
 // grantIDs lists the grants named by spend records of either journal.
-func px1GrantIDs(env px1Env) ([]string, error) {
+func px1oGrantIDs(env px1oEnv) ([]string, error) {
 	seen := map[string]bool{}
 	collect := func(rec JournalRecordV2) error {
 		if hexN(rec.GrantID, 32) {
@@ -187,7 +192,7 @@ func px1GrantIDs(env px1Env) ([]string, error) {
 // returned; a float or grant read failure shows only in the projection
 // (float "unknown", seal "unknown", grant omitted) and never fails the pass,
 // so a status-only fault cannot block startup. A spent canary poisons.
-func (r *px1Runtime) tick(ctx context.Context, env px1Env) error {
+func (r *px1Runtime) tick(ctx context.Context, env px1oEnv) error {
 	if e := r.validEnv(env); e != nil {
 		return e
 	}
@@ -217,7 +222,7 @@ func (r *px1Runtime) tick(ctx context.Context, env px1Env) error {
 	} else {
 		r.clockBack = false
 	}
-	tip, e := px1ReadTip(ctx, env.observer)
+	tip, e := px1oReadTip(ctx, env.observer)
 	keep(e)
 	if e == nil {
 		r.tip = StatusTip{Height: tip.Height, Hash: tip.Hash, ObservedAt: now}
@@ -232,26 +237,38 @@ func (r *px1Runtime) tick(ctx context.Context, env px1Env) error {
 		env.poison()
 		if r.canaryLast.State != CanarySpent {
 			op := env.profile.Canary.Outpoint
-			r.raise(AlertCanarySpent, now, op.TxID+":"+itoa(int64(op.Vout)))
+			r.raise(AlertCanarySpent, now, op.TxID+":"+px1oItoa(int64(op.Vout)))
 		}
 	}
 	if r.canaryLast.State != CanarySpent {
 		r.canaryLast.State = state
 	}
 	r.canaryLast.At = now
-	// Tracker: each transition becomes a wallet-layer track record.
+	// Tracker: each transition becomes a wallet-layer track record. The
+	// tracker commits its state when it returns a transition, so the runtime
+	// owns the transition until the record is durable: it is queued, the
+	// conflict alert is raised once on observation, and a refused append
+	// (for example CLOCK_ROLLBACK) leaves it queued for the next pass.
 	transitions, e := r.tracker.Tick(ctx)
 	keep(e)
-	if e == nil && len(transitions) > 0 {
-		keep(r.appendTracks(env, transitions))
+	if e == nil {
+		for _, t := range transitions {
+			if t.Record.State == TrackConflicted {
+				r.raise(AlertPaymentConflicted, now, t.Payment.TxID)
+			}
+		}
+		r.tracks = px1oQueueTracks(r.tracks, transitions)
 	}
-	// Uncertain verdicts: one alert per new wallet-layer uncertain record.
+	if len(r.tracks) > 0 {
+		keep(r.appendTracks(env))
+	}
+	// Uncertain verdicts: one alert per new uncertain record of either layer.
 	keep(r.scanUncertain(env))
 	// Journal high-water: once per upward crossing.
 	usage := env.service.Usage()
 	if usage.SpendCapacity > 0 && usage.Admitted*100 >= JournalAlertPercent*usage.SpendCapacity {
 		if !r.highWater {
-			r.raise(AlertJournalHighWater, now, itoa(int64(usage.Admitted))+"."+itoa(int64(usage.SpendCapacity)))
+			r.raise(AlertJournalHighWater, now, px1oItoa(int64(usage.Admitted))+"."+px1oItoa(int64(usage.SpendCapacity)))
 		}
 		r.highWater = true
 	} else {
@@ -262,9 +279,9 @@ func (r *px1Runtime) tick(ctx context.Context, env px1Env) error {
 	if reading.State != r.floatLast.State {
 		switch reading.State {
 		case "low":
-			r.raise(AlertFloatLow, now, itoa(reading.BalanceSat))
+			r.raise(AlertFloatLow, now, px1oItoa(reading.BalanceSat))
 		case "excess":
-			r.raise(AlertFloatExcess, now, itoa(reading.BalanceSat))
+			r.raise(AlertFloatExcess, now, px1oItoa(reading.BalanceSat))
 		}
 	}
 	r.floatLast = reading
@@ -273,23 +290,65 @@ func (r *px1Runtime) tick(ctx context.Context, env px1Env) error {
 	return first
 }
 
-// appendTracks writes one track record per transition. The record repeats
-// the request's binding fields from its reserve record (S2 validates them),
-// carries the tracker observation, and never changes a debit.
-func (r *px1Runtime) appendTracks(env px1Env, transitions []TrackTransition) error {
+// px1oQueueTracks puts new transitions behind the ones not yet written. The
+// queue is bounded by px1oMaxTracked: past it, only the newest transition of
+// each payment is kept (a track record may follow a track record, so the
+// journal still ends at the tracker's latest state).
+func px1oQueueTracks(queue, next []TrackTransition) []TrackTransition {
+	out := append(append([]TrackTransition{}, queue...), next...)
+	if len(out) <= px1oMaxTracked {
+		return out
+	}
+	last := map[uint64]int{}
+	for i, t := range out {
+		last[t.Payment.ReserveSeq] = i
+	}
+	kept := make([]TrackTransition, 0, len(last))
+	for i, t := range out {
+		if last[t.Payment.ReserveSeq] == i {
+			kept = append(kept, t)
+		}
+	}
+	return kept
+}
+
+// appendTracks writes the queued transitions in order, one track record
+// each, and removes a transition only after its Append succeeded. The record
+// repeats the request's binding fields from its reserve record (S2 validates
+// them), carries the tracker observation, and never changes a debit. An
+// Append refusal stops the pass and keeps that transition and every later
+// one queued, so a retry writes each record exactly once and in order. A
+// transition whose reserve record is missing or does not match can never be
+// written: it is dropped and the pass refuses JOURNAL_SEGMENT. A request
+// whose whole debit an operator released is closed: its observation is
+// alert-only, so its transition is dropped without a record (the journal
+// table has no track after a full release).
+func (r *px1Runtime) appendTracks(env px1oEnv) error {
 	reserves := map[uint64]JournalRecordV2{}
+	released := map[uint64]int64{}
 	if e := env.wallet.Iterate(1, func(rec JournalRecordV2) error {
 		if rec.Kind == RecordReserve {
 			reserves[rec.Seq] = rec
+		}
+		if rec.Kind == RecordReconcile && rec.Reconcile != nil {
+			released[rec.Reconcile.TargetSeq] += rec.Reconcile.ReleasedSat
 		}
 		return nil
 	}); e != nil {
 		return e
 	}
-	for _, t := range transitions {
+	var unbound error
+	for len(r.tracks) > 0 {
+		t := r.tracks[0]
 		reserve, ok := reserves[t.Payment.ReserveSeq]
 		if !ok || reserve.GrantID != t.Payment.GrantID || reserve.Nonce != t.Payment.Nonce || reserve.TxID != t.Payment.TxID {
-			return fail(CodeJournalSegment)
+			r.tracks = r.tracks[1:]
+			unbound = fail(CodeJournalSegment)
+			continue
+		}
+		if released[reserve.Seq] >= reserve.Reserved {
+			r.tracks = r.tracks[1:]
+			continue
 		}
 		track := t.Record
 		rec := JournalRecordV2{Kind: RecordTrack, GrantID: reserve.GrantID, Nonce: reserve.Nonce, RequestHash: reserve.RequestHash, Action: reserve.Action, Phase: track.State,
@@ -297,34 +356,49 @@ func (r *px1Runtime) appendTracks(env px1Env, transitions []TrackTransition) err
 		if _, e := env.wallet.Append(rec); e != nil {
 			return e
 		}
-		if track.State == TrackConflicted {
-			r.raise(AlertPaymentConflicted, env.now, t.Payment.TxID)
-		}
+		r.tracks = r.tracks[1:]
 	}
-	return nil
+	if len(r.tracks) == 0 {
+		r.tracks = nil
+	}
+	return unbound
 }
 
-// scanUncertain raises ALERT_UNCERTAIN_VERDICT once for each wallet-layer
-// uncertain record appended since the previous pass (startup scans all).
-func (r *px1Runtime) scanUncertain(env px1Env) error {
-	from := r.lastSeq + 1
-	return env.wallet.Iterate(from, func(rec JournalRecordV2) error {
+// scanUncertain raises ALERT_UNCERTAIN_VERDICT once for each uncertain record
+// appended since the previous pass (startup scans all): a wallet-layer
+// uncertain record (detail: its txid) and a service-layer terminal record
+// whose receipt verdict is uncertain (detail: the receipt's bounded reason
+// code). One request can therefore raise one alert per layer.
+func (r *px1Runtime) scanUncertain(env px1oEnv) error {
+	e := env.wallet.Iterate(r.lastSeq+1, func(rec JournalRecordV2) error {
 		if rec.Seq > r.lastSeq {
 			r.lastSeq = rec.Seq
 		}
 		if rec.Kind == RecordUncertain {
-			detail := rec.TxID
-			if detail == "" {
-				detail = rec.Nonce
+			r.raise(AlertUncertainVerdict, env.now, rec.TxID)
+		}
+		return nil
+	})
+	if e != nil {
+		return e
+	}
+	return env.service.Iterate(r.lastSvcSeq+1, func(rec JournalRecordV2) error {
+		if rec.Seq > r.lastSvcSeq {
+			r.lastSvcSeq = rec.Seq
+		}
+		if rec.Kind == RecordTerminal && rec.Service != nil && rec.Service.Receipt != nil && rec.Service.Receipt.Receipt.Verdict == "uncertain" {
+			reason := rec.Service.Receipt.Receipt.Reason
+			if !boundedCode(reason) {
+				reason = "SERVICE_FAILURE"
 			}
-			r.raise(AlertUncertainVerdict, env.now, detail)
+			r.raise(AlertUncertainVerdict, env.now, reason)
 		}
 		return nil
 	})
 }
 
-func (r *px1Runtime) observeGrants(ctx context.Context, env px1Env, now int64) error {
-	ids, e := px1GrantIDs(env)
+func (r *px1Runtime) observeGrants(ctx context.Context, env px1oEnv, now int64) error {
+	ids, e := px1oGrantIDs(env)
 	if e != nil {
 		return e
 	}
@@ -346,7 +420,7 @@ func (r *px1Runtime) observeGrants(ctx context.Context, env px1Env, now int64) e
 		if env.sealFor == nil {
 			continue
 		}
-		seal := px1SealVerdict(env.sealFor(ctx, id))
+		seal := px1oSealVerdict(env.sealFor(ctx, id))
 		seal.Height, seal.At = r.tip.Height, now
 		if seal.Verdict == "closed" && r.seals[id].Verdict != "closed" {
 			r.raise(AlertSealClosed, now, id)
@@ -370,7 +444,7 @@ func (r *px1Runtime) enqueue(p TrackedPayment) error {
 }
 
 // status projects the journals and the cached observations; no node call.
-func (r *px1Runtime) status(env px1Env) (StatusProjectionV1, error) {
+func (r *px1Runtime) status(env px1oEnv) (StatusProjectionV1, error) {
 	if e := r.validEnv(env); e != nil {
 		return StatusProjectionV1{}, e
 	}
@@ -401,23 +475,53 @@ func (r *px1Runtime) status(env px1Env) (StatusProjectionV1, error) {
 // ---------------------------------------------------------------------------
 // ActionService seams (frozen in px1_seams_api.go).
 
-// px1State returns this service's S3 runtime. The frozen design stores it in
+// px1oState returns this service's S3 runtime. The frozen design stores it in
 // the single field `px1 px1Runtime` that S2 adds to ActionService in
 // service.go. Until that field exists on this branch there is no
 // per-service storage, so every seam refuses PX1_NOT_IMPLEMENTED (fail
 // closed); once S2's field lands this returns &s.px1 (cross-stream request
 // S3-R1).
-func (s *ActionService) px1State() *px1Runtime { return nil }
+func (s *ActionService) px1oState() *px1Runtime { return nil }
 
-// px1EnvFor assembles one pass's view of the service. Caller holds s.mu and
+// px1oHalted is the G2 admission halt check that S2 calls in handleG2 before
+// a spend, with ActionService.mu held (cross-stream request S2 To S3 #1). It
+// returns "" or the bounded refusal code for the spend. No node call, no
+// journal write. Unbound runtime: PX1_NOT_IMPLEMENTED (fail closed).
+func (s *ActionService) px1oHalted() string {
+	r := s.px1oState()
+	if r == nil {
+		return ErrNotImplemented.Error()
+	}
+	return r.halted()
+}
+
+// halted maps the runtime's observation state to an admission refusal:
+//   - a sticky startup refusal keeps its code (STATE_RECONCILE_REQUIRED);
+//   - a canary ever observed spent refuses FLOAT_CANARY_SPENT (T14);
+//   - before the first successful pass, or while the last canary read is
+//     unknown, SERVICE_STATE_UNAVAILABLE: unknown is never read as unspent;
+//   - otherwise "" (admission continues to the cap checks).
+func (r *px1Runtime) halted() string {
+	switch {
+	case r.failed != "":
+		return r.failed
+	case r.canaryLast.State == CanarySpent:
+		return CodeFloatCanarySpent
+	case !r.ready || r.canaryLast.State != CanaryUnspent:
+		return "SERVICE_STATE_UNAVAILABLE"
+	}
+	return ""
+}
+
+// px1oEnvFor assembles one pass's view of the service. Caller holds s.mu and
 // s.wallet.mu, in that order.
-func (s *ActionService) px1EnvFor() (px1Env, error) {
+func (s *ActionService) px1oEnvFor() (px1oEnv, error) {
 	profile := s.PX1Profile()
 	if profile == nil {
-		return px1Env{}, fail("SERVICE_PROFILE")
+		return px1oEnv{}, fail("SERVICE_PROFILE")
 	}
 	w := s.wallet
-	env := px1Env{profile: profile, service: s.PX1ServiceJournal(), wallet: w.PX1Journal(), observer: w.node, walletRoute: w.wallet, receiptKey: s.pub, network: w.config.Network,
+	env := px1oEnv{profile: profile, service: s.PX1ServiceJournal(), wallet: w.PX1Journal(), observer: w.node, walletRoute: w.wallet, receiptKey: s.pub, network: w.config.Network,
 		now: s.clock(), poisoned: s.poisoned, poison: func() { s.poisoned = true }}
 	env.limitsFor = func(id string) (EffectiveLimits, error) {
 		raw, e := LoadGrant(w.config, id)
@@ -455,7 +559,7 @@ func (s *ActionService) px1EnvFor() (px1Env, error) {
 // PX1Enqueue registers a complete payment with the tracker. S2 calls it at
 // step 23 with ActionService.mu held, so it takes no lock.
 func (s *ActionService) PX1Enqueue(p TrackedPayment) error {
-	r := s.px1State()
+	r := s.px1oState()
 	if r == nil {
 		return ErrNotImplemented
 	}
@@ -464,7 +568,7 @@ func (s *ActionService) PX1Enqueue(p TrackedPayment) error {
 
 // PX1Tick runs one observation pass under ActionService.mu then Wallet.mu.
 func (s *ActionService) PX1Tick(ctx context.Context) error {
-	r := s.px1State()
+	r := s.px1oState()
 	if r == nil {
 		return ErrNotImplemented
 	}
@@ -472,7 +576,7 @@ func (s *ActionService) PX1Tick(ctx context.Context) error {
 	defer s.mu.Unlock()
 	s.wallet.mu.Lock()
 	defer s.wallet.mu.Unlock()
-	env, e := s.px1EnvFor()
+	env, e := s.px1oEnvFor()
 	if e != nil {
 		return e
 	}
@@ -481,7 +585,7 @@ func (s *ActionService) PX1Tick(ctx context.Context) error {
 
 // PX1Status returns the status projection; no node call, no journal write.
 func (s *ActionService) PX1Status() (StatusProjectionV1, error) {
-	r := s.px1State()
+	r := s.px1oState()
 	if r == nil {
 		return StatusProjectionV1{}, ErrNotImplemented
 	}
@@ -489,16 +593,16 @@ func (s *ActionService) PX1Status() (StatusProjectionV1, error) {
 	defer s.mu.Unlock()
 	s.wallet.mu.Lock()
 	defer s.wallet.mu.Unlock()
-	env, e := s.px1EnvFor()
+	env, e := s.px1oEnvFor()
 	if e != nil {
 		return StatusProjectionV1{}, e
 	}
 	return r.status(env)
 }
 
-// px1TickLoop drives tick every interval until ctx ends, reporting each
+// px1oTickLoop drives tick every interval until ctx ends, reporting each
 // failure as one bounded code line. It is the agent-walletd tick loop.
-func px1TickLoop(ctx context.Context, every time.Duration, tick func(context.Context) error, report func(code string)) {
+func px1oTickLoop(ctx context.Context, every time.Duration, tick func(context.Context) error, report func(code string)) {
 	if every <= 0 {
 		return
 	}
@@ -520,4 +624,4 @@ func px1TickLoop(ctx context.Context, every time.Duration, tick func(context.Con
 	}
 }
 
-func itoa(v int64) string { return strconv.FormatInt(max(v, 0), 10) }
+func px1oItoa(v int64) string { return strconv.FormatInt(max(v, 0), 10) }

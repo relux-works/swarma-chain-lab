@@ -155,7 +155,9 @@ that profile, `agent-walletd` takes three extra flags:
 - `-status-socket PATH`: the operator status socket, normally
   `/run/swarma-wallet/status.sock`. Leave it empty to run without one.
 - `-status-gid GID`: the operator group of that socket. It is required with
-  `-status-socket` and must differ from `socket_gid`.
+  `-status-socket` and must differ from `socket_gid`. The agent account
+  (`peer_uid`) must not be a member of it: startup refuses
+  `STATUS_SOCKET_AGENT` otherwise, or when the agent's groups cannot be read.
 - `-tick-seconds N`: the observation interval, 1 to 3600, default 30.
 
 Without a `g2` block, the W2 behaviour is unchanged, and the two status flags
@@ -173,6 +175,33 @@ need the operator:
 The hot wallet must start without sends: fund the float and the canary from
 outside it. Alerts are single `PX1_ALERT` lines on stderr. See `STATUS.md`
 for the pass, the tracker rules, the status projection and the socket.
+
+### Status socket access (G2)
+
+The status socket stays in the W2 runtime directory, which keeps its W2 mode
+(0750, group `socket_gid`). Access is granted by group membership:
+
+| Account | `swarma-wallet-peer` (`socket_gid`) | `swarma-wallet-status` (operator) | Reaches |
+| --- | --- | --- | --- |
+| service `swarma-wallet` | primary group | supplementary | owns both sockets |
+| agent (`peer_uid`) | member | **never** | `wallet.sock` only |
+| operator user | member | member | `status.sock`; `wallet.sock` refuses it with `SERVICE_PEER` |
+
+The daemon must be in the operator group to give `status.sock` that group.
+Install this drop-in next to the W2 unit, as
+`swarma-wallet.service.d/g2-status.conf`:
+
+```ini
+[Service]
+SupplementaryGroups=swarma-wallet swarma-wallet-status
+ExecStart=
+ExecStart=/opt/swarma/wallet/@VERSION@/bin/agent-walletd --config /etc/swarma/wallet/service.json -status-socket /run/swarma-wallet/status.sock -status-gid @OPERATOR_GID@
+```
+
+`@OPERATOR_GID@` is the numeric GID of `swarma-wallet-status`. Without the
+supplementary group the chown fails and startup refuses `STATUS_SOCKET_MODE`.
+The status listener closes, without a reply, any connection whose
+`SO_PEERCRED` UID is `peer_uid`.
 
 ## Evidence boundaries and checks
 

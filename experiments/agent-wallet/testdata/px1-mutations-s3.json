@@ -92,8 +92,8 @@
  {
   "Name": "px1-s3-enqueue-overwrites",
   "File": "px1_observe.go",
-  "Old": "\t\treturn fail(\"TRACKER_PAYMENT\")\n\t}\n\tif len(t.payments) >= px1MaxTracked {",
-  "New": "\t\treturn nil\n\t}\n\tif len(t.payments) >= px1MaxTracked {",
+  "Old": "\t\treturn fail(\"TRACKER_PAYMENT\")\n\t}\n\tif len(t.payments) >= px1oMaxTracked {",
+  "New": "\t\treturn nil\n\t}\n\tif len(t.payments) >= px1oMaxTracked {",
   "Selector": "TestPX1TrackerEnqueue",
   "Marker": "bad payment 0 accepted",
   "Core": false
@@ -119,8 +119,8 @@
  {
   "Name": "px1-s3-canary-exclude-txid-only",
   "File": "px1_observe.go",
-  "Old": "func (c *px1Canary) Excluded(p su.Point) bool { return p == c.cfg.Outpoint }",
-  "New": "func (c *px1Canary) Excluded(p su.Point) bool { return p.TxID == c.cfg.Outpoint.TxID }",
+  "Old": "func (c *px1oCanary) Excluded(p su.Point) bool { return p == c.cfg.Outpoint }",
+  "New": "func (c *px1oCanary) Excluded(p su.Point) bool { return p.TxID == c.cfg.Outpoint.TxID }",
   "Selector": "TestPX1CanaryStates",
   "Marker": "canary exclusion wrong",
   "Core": false
@@ -146,7 +146,7 @@
  {
   "Name": "px1-s3-reconcile-first-page-only",
   "File": "px1_observe.go",
-  "Old": "\t\tif len(rows) < px1ReconcilePage {\n",
+  "Old": "\t\tif len(rows) < px1oReconcilePage {\n",
   "New": "\t\tif true {\n",
   "Selector": "TestPX1ReconcilerT13",
   "Marker": "unknown send on page two accepted",
@@ -164,7 +164,7 @@
  {
   "Name": "px1-s3-alert-detail-unredacted",
   "File": "px1_observe.go",
-  "Old": "\tif !px1DetailSafe(a.Detail) {\n",
+  "Old": "\tif !px1oDetailSafe(a.Detail) {\n",
   "New": "\tif false {\n",
   "Selector": "TestPX1LogAlertSink",
   "Marker": "alert lines not bounded",
@@ -173,8 +173,8 @@
  {
   "Name": "px1-s3-day-rule-terminal-only",
   "File": "px1_observe.go",
-  "Old": "if retained > 0 && (nonTerminal || q.day == day) {",
-  "New": "if retained > 0 && (false && nonTerminal || q.day == day) {",
+  "Old": "\t\tif q.open() || q.day == day {\n",
+  "New": "\t\tif false && q.open() || q.day == day {\n",
   "Selector": "TestPX1StatusDayRule",
   "Marker": "day rule wrong",
   "Core": false
@@ -209,7 +209,7 @@
  {
   "Name": "px1-s3-status-request-loose",
   "File": "px1_observe.go",
-  "Old": "\tif !bytes.Equal(raw, px1StatusRequest) {\n",
+  "Old": "\tif !bytes.Equal(raw, px1oStatusRequest) {\n",
   "New": "\tif len(raw) == 0 {\n",
   "Selector": "TestPX1ServeStatus",
   "Marker": "accepted",
@@ -218,8 +218,8 @@
  {
   "Name": "px1-s3-status-group-shared",
   "File": "px1_status_socket.go",
-  "Old": "gid == 0 || gid == agentGID {",
-  "New": "gid == 0 {",
+  "Old": "a.operatorGID == 0 || a.operatorGID == a.agentGID ||",
+  "New": "a.operatorGID == 0 ||",
   "Selector": "TestPX1StatusSocket",
   "Marker": "operator group equal to the agent group accepted",
   "Core": false
@@ -254,8 +254,8 @@
  {
   "Name": "px1-s3-conflict-no-alert",
   "File": "px1_runtime.go",
-  "Old": "\t\tif track.State == TrackConflicted {\n",
-  "New": "\t\tif false {\n",
+  "Old": "\t\t\tif t.Record.State == TrackConflicted {\n",
+  "New": "\t\t\tif false {\n",
   "Selector": "TestPX1RuntimeTrackRecords",
   "Marker": "conflict alert wrong",
   "Core": false
@@ -294,6 +294,159 @@
   "New": "\tstate, _ := r.canary.Check(ctx)\n",
   "Selector": "TestPX1RuntimeAlerts",
   "Marker": "canary read failure must fail the pass",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-count-follows-retained",
+  "File": "px1_observe.go",
+  "Old": "\t\tif q.open() || q.day == day {\n",
+  "New": "\t\tif q.reserved > q.released && (q.open() || q.day == day) {\n",
+  "Selector": "TestRev154StatusCountRetained",
+  "Marker": "STATUS_COUNT_RELEASED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-partial-release-closes",
+  "File": "px1_observe.go",
+  "Old": "\t\t\tif q.released == q.reserved {\n",
+  "New": "\t\t\tif q.released > 0 {\n",
+  "Selector": "TestPX1oStatusLedgerPhases",
+  "Marker": "STATUS_LEDGER_PHASE uncertain+partial-release",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-sets-phase",
+  "File": "px1_observe.go",
+  "Old": "\t\tcase RecordTrack:\n\t\t\tif byKey[key] == nil {\n\t\t\t\treturn fail(CodeJournalSegment)\n\t\t\t}\n",
+  "New": "\t\tcase RecordTrack:\n\t\t\tif byKey[key] == nil {\n\t\t\t\treturn fail(CodeJournalSegment)\n\t\t\t}\n\t\t\tbyKey[key].phase = r.Phase\n",
+  "Selector": "TestPX1oStatusLedgerPhases",
+  "Marker": "STATUS_LEDGER_PHASE uncertain+track-conflicted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-uncertain-omits-reserved",
+  "File": "px1_observe.go",
+  "Old": "\t\tif q.open() {\n\t\t\tg.UncertainSat += retained\n",
+  "New": "\t\tif q.phase == RecordUncertain {\n\t\t\tg.UncertainSat += retained\n",
+  "Selector": "TestPX1oStatusLedgerPhases",
+  "Marker": "STATUS_LEDGER_PHASE reserved day+0",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-dequeue-before-append",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif _, e := env.wallet.Append(rec); e != nil {\n\t\t\treturn e\n\t\t}\n\t\tr.tracks = r.tracks[1:]\n",
+  "New": "\t\tr.tracks = r.tracks[1:]\n\t\tif _, e := env.wallet.Append(rec); e != nil {\n\t\t\treturn e\n\t\t}\n",
+  "Selector": "TestRev154TrackAppendRetry",
+  "Marker": "TRACK_RETRY_LOST",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-queue-dropped",
+  "File": "px1_runtime.go",
+  "Old": "\t\tr.tracks = px1oQueueTracks(r.tracks, transitions)\n",
+  "New": "\t\tr.tracks = px1oQueueTracks(nil, transitions)\n",
+  "Selector": "TestPX1oTrackAppendPartialRetry",
+  "Marker": "TRACK_RETRY_LOST",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-queue-unbounded",
+  "File": "px1_runtime.go",
+  "Old": "\tif len(out) <= px1oMaxTracked {\n",
+  "New": "\tif true || len(out) <= px1oMaxTracked {\n",
+  "Selector": "TestPX1oQueueTracksBound",
+  "Marker": "TRACK_QUEUE_UNBOUNDED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-halted-canary-code",
+  "File": "px1_runtime.go",
+  "Old": "\tcase r.canaryLast.State == CanarySpent:\n\t\treturn CodeFloatCanarySpent\n",
+  "New": "\tcase false && r.canaryLast.State == CanarySpent:\n\t\treturn CodeFloatCanarySpent\n",
+  "Selector": "TestPX1oHalted",
+  "Marker": "HALT_CANARY",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-halted-unknown-admits",
+  "File": "px1_runtime.go",
+  "Old": "\tcase !r.ready || r.canaryLast.State != CanaryUnspent:\n",
+  "New": "\tcase !r.ready:\n",
+  "Selector": "TestPX1oHalted",
+  "Marker": "HALT_UNKNOWN",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-halted-not-ready-admits",
+  "File": "px1_runtime.go",
+  "Old": "\tcase !r.ready || r.canaryLast.State != CanaryUnspent:\n",
+  "New": "\tcase r.ready && r.canaryLast.State != CanaryUnspent:\n",
+  "Selector": "TestPX1oHalted",
+  "Marker": "HALT_NOT_READY",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-halted-unbound-admits",
+  "File": "px1_runtime.go",
+  "Old": "\tif r == nil {\n\t\treturn ErrNotImplemented.Error()\n\t}\n",
+  "New": "\tif r == nil {\n\t\treturn \"\"\n\t}\n",
+  "Selector": "TestPX1oHalted",
+  "Marker": "HALT_UNBOUND",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-uncertain-service-ignored",
+  "File": "px1_runtime.go",
+  "Old": "rec.Service.Receipt.Receipt.Verdict == \"uncertain\" {",
+  "New": "rec.Service.Receipt.Receipt.Verdict == \"uncertain-never\" {",
+  "Selector": "TestPX1oUncertainServiceVerdict",
+  "Marker": "SERVICE_UNCERTAIN_ALERT",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-detail-untyped-words",
+  "File": "px1_observe.go",
+  "Old": "\tif s == \"\" || boundedCode(s) || hexN(s, 32) {\n",
+  "New": "\tif s == \"\" || boundedCode(strings.ToUpper(s)) || hexN(s, 32) {\n",
+  "Selector": "TestPX1oAlertDetailShapes",
+  "Marker": "DETAIL_NOT_TYPED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-agent-group-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "\t\tif g == strconv.FormatUint(uint64(a.operatorGID), 10) {\n",
+  "New": "\t\tif false && g == strconv.FormatUint(uint64(a.operatorGID), 10) {\n",
+  "Selector": "TestPX1oStatusSocketAgentGroup",
+  "Marker": "AGENT_IN_OPERATOR_GROUP",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-agent-lookup-fail-open",
+  "File": "px1_status_socket.go",
+  "Old": "\tgroups, e := px1oAgentGroups(a.agentUID)\n\tif e != nil {\n",
+  "New": "\tgroups, e := px1oAgentGroups(a.agentUID)\n\tif false && e != nil {\n",
+  "Selector": "TestPX1oStatusSocketAgentGroup",
+  "Marker": "AGENT_UNKNOWN",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-peer-uid-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "if peer, e := socketPeer(c); e != nil || peer.UID == agentUID {",
+  "New": "if peer, e := socketPeer(c); e != nil || false && peer.UID == agentUID {",
+  "Selector": "TestPX1oStatusSocketAgentPeerRefused",
+  "Marker": "AGENT_PEER_SERVED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-after-full-release",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif released[reserve.Seq] >= reserve.Reserved {\n",
+  "New": "\t\tif false && released[reserve.Seq] >= reserve.Reserved {\n",
+  "Selector": "TestPX1oTrackSkipsReleased",
+  "Marker": "TRACK_AFTER_RELEASE",
   "Core": false
  }
 ]
