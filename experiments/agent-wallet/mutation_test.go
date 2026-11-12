@@ -45,6 +45,20 @@ func TestGuardPlants(t *testing.T) {
 		t.Fatal("service plant manifest")
 	}
 	plants = append(plants, servicePlants...)
+	// PX1: each stream owns one manifest testdata/px1-mutations-s<N>.json, so
+	// no two producer seats edit the same plant list (PX1-INTERFACES.md).
+	px1Manifests, e := filepath.Glob("testdata/px1-mutations-s*.json")
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, path := range px1Manifests {
+		raw, readErr := os.ReadFile(path)
+		var streamPlants []plant
+		if readErr != nil || json.Unmarshal(raw, &streamPlants) != nil || len(streamPlants) < 1 {
+			t.Fatal("PX1 plant manifest", path)
+		}
+		plants = append(plants, streamPlants...)
+	}
 	cwd, e := os.Getwd()
 	if e != nil {
 		t.Fatal(e)

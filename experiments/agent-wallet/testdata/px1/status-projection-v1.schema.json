@@ -1,0 +1,479 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/relux-works/swarma-chain-lab/experiments/agent-wallet/testdata/px1/status-projection-v1.schema.json",
+  "title": "agent-walletd PX1 status projection v1",
+  "description": "Frozen by PX1-S0. Canonical member order equals the 'required' order. Mirrors wallet.StatusProjectionV1; TestPX1StatusSchemaMatchesStructs keeps them equal.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "service",
+    "network",
+    "receipt_key",
+    "generated_at",
+    "poisoned",
+    "tip",
+    "grants",
+    "payments",
+    "float",
+    "canary",
+    "journal",
+    "refusals",
+    "alerts"
+  ],
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "service": {
+      "const": "wallet.nmc"
+    },
+    "network": {
+      "enum": [
+        "main",
+        "regtest"
+      ]
+    },
+    "receipt_key": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "generated_at": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "poisoned": {
+      "type": "boolean"
+    },
+    "tip": {
+      "$ref": "#/$defs/tip"
+    },
+    "grants": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/grant"
+      }
+    },
+    "payments": {
+      "$ref": "#/$defs/payments"
+    },
+    "float": {
+      "$ref": "#/$defs/float"
+    },
+    "canary": {
+      "$ref": "#/$defs/canary"
+    },
+    "journal": {
+      "$ref": "#/$defs/journal"
+    },
+    "refusals": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/count"
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/alert"
+      }
+    }
+  },
+  "$defs": {
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "txid",
+        "vout"
+      ],
+      "properties": {
+        "txid": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "vout": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "tip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "height",
+        "hash",
+        "observed_at"
+      ],
+      "properties": {
+        "height": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{64})?$"
+        },
+        "observed_at": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "seal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verdict",
+        "reason",
+        "height",
+        "at"
+      ],
+      "properties": {
+        "verdict": {
+          "enum": [
+            "live",
+            "closed",
+            "pending",
+            "unknown"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]{1,96}$"
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "at": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grant_id",
+        "total_cap_sat",
+        "spend_cap_sat",
+        "transfer_cap_sat",
+        "day_cap_sat",
+        "day_count_cap",
+        "spent_sat",
+        "reserved_sat",
+        "uncertain_sat",
+        "released_sat",
+        "total_remaining_sat",
+        "day",
+        "day_used_sat",
+        "day_count",
+        "day_remaining_sat",
+        "day_count_remaining",
+        "seal"
+      ],
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "total_cap_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "spend_cap_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "transfer_cap_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "day_cap_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "day_count_cap": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "spent_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reserved_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uncertain_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "released_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_remaining_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "day": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "day_used_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "day_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "day_remaining_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "day_count_remaining": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seal": {
+          "$ref": "#/$defs/seal"
+        }
+      }
+    },
+    "payment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grant_id",
+        "nonce",
+        "txid",
+        "inputs",
+        "reserve_seq",
+        "broadcast_tip",
+        "state",
+        "confirmations",
+        "missing_since"
+      ],
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "txid": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/point"
+          }
+        },
+        "reserve_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "broadcast_tip": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "confirmed",
+            "conflicted"
+          ]
+        },
+        "confirmations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_since": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "payments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pending",
+        "confirmed",
+        "conflicted",
+        "items"
+      ],
+      "properties": {
+        "pending": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "confirmed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "conflicted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/payment"
+          }
+        }
+      }
+    },
+    "float": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "balance_sat",
+        "max_float_sat",
+        "low_float_sat",
+        "state"
+      ],
+      "properties": {
+        "balance_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_float_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "low_float_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state": {
+          "enum": [
+            "ok",
+            "low",
+            "excess",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "canary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outpoint",
+        "value_sat",
+        "state",
+        "at"
+      ],
+      "properties": {
+        "outpoint": {
+          "$ref": "#/$defs/point"
+        },
+        "value_sat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state": {
+          "enum": [
+            "unspent",
+            "spent",
+            "unknown"
+          ]
+        },
+        "at": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "journal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "admitted",
+        "spend_capacity",
+        "percent_used",
+        "segments"
+      ],
+      "properties": {
+        "admitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "spend_capacity": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "percent_used": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "segments": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "count": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "count"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]{1,96}$"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "alert": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "at",
+        "detail"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "ALERT_CANARY_SPENT",
+            "ALERT_PAYMENT_CONFLICTED",
+            "ALERT_UNCERTAIN_VERDICT",
+            "ALERT_JOURNAL_HIGH_WATER",
+            "ALERT_CLOCK_ROLLBACK",
+            "ALERT_SEAL_CLOSED",
+            "ALERT_FLOAT_LOW",
+            "ALERT_FLOAT_EXCESS"
+          ]
+        },
+        "at": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "detail": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_:.-]{0,128}$"
+        }
+      }
+    }
+  }
+}

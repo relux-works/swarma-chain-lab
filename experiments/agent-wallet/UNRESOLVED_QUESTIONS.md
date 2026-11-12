@@ -21,3 +21,12 @@
 - Observed key rotation is sticky; an unobserved rotate-away-and-back is not
   reconstructed by the current K1 resolver. A complete historical name walk
   would require a separate bounded design and evidence.
+
+## PX1 (G2 pay limits), open at the interface freeze
+
+- Public cap values, float, bounty window and the phase-2 switch to recipient
+  mode `any` are Ivan's decisions; PX1 fixtures carry only the smoke values.
+- Real pay-grant issuance waits for the rotated landlord grant key in Ivan's
+  Mac Keychain (G1 Q4); the exec1 M5 key must not sign it.
+- The terms-v2 LIP (Q11) lands in swarma-link-spec, outside this repository.
+- Stream ownership, fixtures and test owners: `PX1-INTERFACES.md`.
