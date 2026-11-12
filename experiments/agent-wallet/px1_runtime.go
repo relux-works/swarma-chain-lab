@@ -598,9 +598,10 @@ func (s *ActionService) PX1Enqueue(p TrackedPayment) error {
 // after the verdict is final, with ActionService.mu held and Wallet.mu free;
 // it takes Wallet.mu. It runs the pass's own incremental scan, so each
 // uncertain record still alerts exactly once (the next pass finds nothing new).
-// Before the first pass, or after a sticky startup refusal, it does nothing:
-// the startup scan covers every record. A journal read error leaves the
-// unscanned records to the next pass. No node call, no journal write.
+// Before the first pass it does nothing: the startup scan covers every record.
+// After a sticky startup refusal it does nothing either: the service is halted
+// and no spend reaches a verdict. A journal read error leaves the unscanned
+// records to the next pass. No node call, no journal write.
 func (s *ActionService) px1oAtVerdict() {
 	r := s.px1oState()
 	if r == nil || !r.ready || r.failed != "" {
