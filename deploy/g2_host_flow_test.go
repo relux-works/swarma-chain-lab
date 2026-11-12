@@ -123,7 +123,9 @@ func g2Members(conf, group string) []string {
 // account database, the target-host flow (a) stops before the apply on every
 // preflight refusal (an existing name at another UID, a UID owned by another
 // name, an outage, no database); (b) stops after the apply and before any
-// activation on every post-apply mismatch (a substituted UID, a missing peer
+// activation on every post-apply mismatch (a substituted UID, also one whose
+// own group kept GID agent_uid so that only the frozen UID check sees it, a
+// missing peer
 // membership, an operator-group membership, an account the apply did not
 // create, a failed apply, and, by the condition-9 exact group set, an
 // account whose own group sits at another GID and an account with a third
@@ -208,6 +210,13 @@ func TestPX1S5HostFlowTripwire(t *testing.T) {
 			applyErr error
 		}{
 			{"uid-substituted", func(db *g2FixtureDB) { db.add(p.AgentUser, 999, p.AgentSocketGID) }, nil},
+			// UID substituted while the own group kept GID agent_uid: the
+			// group set is exactly {agent_uid, socket}, so only the frozen
+			// UID check refuses it.
+			{"uid-substituted-group-kept", func(db *g2FixtureDB) {
+				db.users[p.AgentUser] = 999
+				db.groups[p.AgentUser] = []uint32{p.AgentUID, p.AgentSocketGID}
+			}, nil},
 			{"missing-peer-membership", created(), nil},
 			{"operator-group-membership", created(p.AgentSocketGID, p.OperatorGID), nil},
 			{"operator-group-only", created(p.OperatorGID), nil},
