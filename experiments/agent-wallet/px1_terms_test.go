@@ -376,19 +376,24 @@ func TestPX1CheckIntentInvariants(t *testing.T) {
 	ok := SpendIntent{GrantID: l.GrantID, Recipient: px1AllowA, AmountSat: 1000, FeeLimitSat: 1000, Day: day}
 	c := NewCapChecker()
 	wantCode(t, "neighbour", c.CheckPrePlan(l, ok, fixedLedger{day: day}), "")
-	for name, f := range map[string]func(*SpendIntent){
-		"other-grant": func(s *SpendIntent) { s.GrantID = strings.Repeat("b", 64) },
-		"empty-day":   func(s *SpendIntent) { s.Day = "" },
-		"bad-day":     func(s *SpendIntent) { s.Day = "2026-11-31" },
-		"long-day":    func(s *SpendIntent) { s.Day = "2026-11-07T00" },
-		"zero-amount": func(s *SpendIntent) { s.AmountSat = 0 },
-		"fee-limit":   func(s *SpendIntent) { s.FeeLimitSat = 0 },
+	// A slice, not a map: the cases run in this fixed order, so the first
+	// failing case (and the plant marker that names it) is deterministic.
+	for _, entry := range []struct {
+		name string
+		f    func(*SpendIntent)
+	}{
+		{"other-grant", func(s *SpendIntent) { s.GrantID = strings.Repeat("b", 64) }},
+		{"empty-day", func(s *SpendIntent) { s.Day = "" }},
+		{"bad-day", func(s *SpendIntent) { s.Day = "2026-11-31" }},
+		{"long-day", func(s *SpendIntent) { s.Day = "2026-11-07T00" }},
+		{"zero-amount", func(s *SpendIntent) { s.AmountSat = 0 }},
+		{"fee-limit", func(s *SpendIntent) { s.FeeLimitSat = 0 }},
 	} {
 		x := ok
-		f(&x)
-		wantCode(t, name, c.CheckPrePlan(l, x, fixedLedger{day: day}), "STATE_UNAVAILABLE")
+		entry.f(&x)
+		wantCode(t, entry.name, c.CheckPrePlan(l, x, fixedLedger{day: day}), "STATE_UNAVAILABLE")
 		x.FeeSat = 1
-		wantCode(t, name+" post", c.CheckPostPlan(l, x, fixedLedger{day: day}), "STATE_UNAVAILABLE")
+		wantCode(t, entry.name+" post", c.CheckPostPlan(l, x, fixedLedger{day: day}), "STATE_UNAVAILABLE")
 	}
 	wantCode(t, "nil-ledger", c.CheckPrePlan(l, ok, nil), "STATE_UNAVAILABLE")
 }

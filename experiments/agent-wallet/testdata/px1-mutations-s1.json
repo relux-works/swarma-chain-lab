@@ -376,5 +376,68 @@
     "Selector": "TestPX1CoreS1/T6-seal-spent",
     "Marker": "T6 after reservation",
     "Core": true
+  },
+  {
+    "Name": "s1-service-call-site-omitted",
+    "File": "service.go",
+    "Old": "w, e := px1OpenServiceWallet(wc, c, key)",
+    "New": "w, e := openWallet(wc)",
+    "Selector": "TestPX1ServiceOpenG2FailClosed",
+    "Marker": "G2_PROFILE_FALLTHROUGH",
+    "Core": false
+  },
+  {
+    "Name": "s1-service-select-skipped",
+    "File": "px1_wallet_seams.go",
+    "Old": "if e = px1SelectProfile(w, c, key); e != nil {",
+    "New": "if false {",
+    "Selector": "TestPX1ServiceOpenG2FailClosed",
+    "Marker": "G2_PROFILE_FALLTHROUGH",
+    "Core": false
+  },
+  {
+    "Name": "s1-service-attach-call-removed",
+    "File": "px1_wallet_seams.go",
+    "Old": "if e := w.px1Attach(*c.G2, hex.EncodeToString(schnorr.SerializePubKey(key.PubKey()))); e != nil {",
+    "New": "if e, _ := error(nil), hex.EncodeToString(schnorr.SerializePubKey(key.PubKey())); e != nil {",
+    "Selector": "TestPX1ServiceOpenG2FailClosed",
+    "Marker": "G2 stub refuses: want PX1_NOT_IMPLEMENTED got SERVICE_PROFILE",
+    "Core": false
+  },
+  {
+    "Name": "s1-service-attach-close-dropped",
+    "File": "px1_wallet_seams.go",
+    "Old": "if e = px1SelectProfile(w, c, key); e != nil {\n\t\tw.Close()\n",
+    "New": "if e = px1SelectProfile(w, c, key); e != nil {\n",
+    "Selector": "TestPX1ServiceOpenG2FailClosed",
+    "Marker": "after G2 refusal: W2 neighbour refused",
+    "Core": false
+  },
+  {
+    "Name": "s1-follow-clock-code",
+    "File": "px1_wallet_seams.go",
+    "Old": "if e != nil && e.Error() == CodeClockRollback {",
+    "New": "if false {",
+    "Selector": "TestPX1WalletClockStepBack",
+    "Marker": "step back after broadcast",
+    "Core": false
+  },
+  {
+    "Name": "s1-follow-clock-call-site",
+    "File": "wallet.go",
+    "Old": "return px1Receipt(reserved, \"uncertain\", px1FollowFailure(e))",
+    "New": "return px1Receipt(reserved, \"uncertain\", \"JOURNAL_WRITE_UNCERTAIN\")",
+    "Selector": "TestPX1WalletClockStepBack",
+    "Marker": "step back after broadcast",
+    "Core": false
+  },
+  {
+    "Name": "s1-core-service-call-site-omitted",
+    "File": "service.go",
+    "Old": "w, e := px1OpenServiceWallet(wc, c, key)",
+    "New": "w, e := openWallet(wc)",
+    "Selector": "TestPX1CoreServiceG2FailClosed",
+    "Marker": "G2_PROFILE_FALLTHROUGH",
+    "Core": true
   }
 ]

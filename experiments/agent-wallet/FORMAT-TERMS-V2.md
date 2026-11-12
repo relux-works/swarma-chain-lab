@@ -13,16 +13,28 @@ are in `px1_terms_api.go`, `px1_api.go` and `px1_seams_api.go` (see
 
 - **Absent:** the service config bytes, the W2 journal binding and W2
   behaviour are unchanged. Terms v1 keeps its parser.
-- **Present:** `validServiceConfig` runs `ValidateG2OperatorConfig`. The wallet
-  is then attached to the G2 profile with `px1Attach(operator, receiptKey)`.
-  The attachment validates the block and the receipt key, opens the canary
-  watcher and opens the wallet-layer journal v2.
+- **Present:** `validServiceConfig` runs `ValidateG2OperatorConfig`. Then
+  `OpenActionService` opens the wallet through `px1OpenServiceWallet`
+  (`px1_wallet_seams.go`). That function attaches the wallet to the G2 profile
+  with `px1Attach(operator, receiptKey)` before the service is built or serves
+  anything. The receipt key is the service receipt x-only key. The attachment
+  validates the block and the receipt key, opens the canary watcher and opens
+  the wallet-layer journal v2.
 
-Attachment fails closed. A wallet whose W2 `wallet.json` already has records
-is never continued under G2 (`SERVICE_PROFILE`). A refused attachment leaves
-the wallet without a G2 profile. Until S2 and S3 land, the product constructors
-(`OpenJournalV2`, `NewCanary`) are stubs, so a G2 attach refuses
-`PX1_NOT_IMPLEMENTED`.
+Attachment fails closed, and so does startup. A present `g2` block selects the
+G2 profile, or `OpenActionService` refuses and returns the attach error
+unchanged after closing the wallet. It never returns a W2 wallet for a G2
+config. A wallet whose W2 `wallet.json` already has records is never continued
+under G2 (`SERVICE_PROFILE`). An attach that reports success but leaves the
+wallet on W2 also refuses `SERVICE_PROFILE`. Until S2 and S3 land, the product
+constructors (`OpenJournalV2`, `NewCanary`) are stubs, so a service with a
+`g2` block refuses to start with `PX1_NOT_IMPLEMENTED`.
+
+The call site in `service.go` (an S2 file) is one changed line:
+`openWallet(wc)` became `px1OpenServiceWallet(wc, c, key)`. PR 76 revision 2
+made that change at the review's request, for finding
+g2-profile-falls-through-to-w2. Before it, a G2 config opened a W2 wallet,
+which paid terms-v1 spends past the G2 ceilings.
 
 ## Terms v2 object
 
@@ -131,10 +143,17 @@ Steps follow §3.5. Steps 1-7 and 20 belong to the service layer (S2).
 | 19 | `reserve` record: debit = amount + fee, `day` = UTC day of the executor clock at admission, inputs, txid | debit charged from here on |
 | 21 | kernel check #4, re-read of every input | `refuse-retained` record; debit retained; no broadcast |
 | 22 | `sendrawtransaction`; the returned txid must equal the plan txid | otherwise an `uncertain` record, `BROADCAST_UNCERTAIN` |
-| 23 | `complete` record | `EXECUTED`; a write failure gives `JOURNAL_WRITE_UNCERTAIN` |
+| 23 | `complete` record | `EXECUTED`; a write failure gives `uncertain`, `JOURNAL_WRITE_UNCERTAIN`; a clock step back below the reservation's `last_time` gives `uncertain`, `CLOCK_ROLLBACK` |
 
 Follow-up records copy the reserve record's debit, fee, day, inputs and txid,
-so a fold sees one retained debit per request. Nothing is ever released by
+so a fold sees one retained debit per request. A follow-up's `last_time` is
+the executor clock when it is appended. If the clock stepped back after the
+reservation, the journal refuses the follow-up with `CLOCK_ROLLBACK`. That
+refusal does not poison the journal. The reserve record keeps the debit
+retained on every day, and the step-23 receipt names `CLOCK_ROLLBACK`
+(`px1FollowFailure`) instead of the misleading `JOURNAL_WRITE_UNCERTAIN`.
+While the clock stays behind, the next reservation refuses `CLOCK_ROLLBACK`
+before any broadcast. Nothing is ever released by
 S1. Only an operator `reconcile` record releases a debit (S2/S3, Q8).
 
 Wallet-layer records use these values:
@@ -170,6 +189,12 @@ budget.
   genuine Namecoin Core 28 regtest node, with the genuine K1 kernel under the
   W construction profile. Until S2/S3 land, the journal, fold, day and canary
   are fakes.
+- **Service opener:** `px1_service_test.go`. It covers profile selection at the
+  public `OpenActionService` boundary. There is a unit test with installed
+  files and no node call. There is also a genuine Core 28 pair adapted from
+  the reviewer's tests: a G2 config refuses or attaches and never pays a
+  terms-v1 spend; the W2 neighbour pays 50000 atoms. The file also has the
+  step-23 clock step-back test.
 - **Shared helpers:** `px1_fixture_test.go` (`newPX1Core`, `px1IssueGrant`,
   `px1OpenG2`, `px1OpenG2With`, `px1Spend`, `px1Revoke`, `px1QuoteFee`, the
   fakes). Other streams call them and do not edit them.
@@ -179,6 +204,9 @@ go test -count=1 -run 'PX1' .
 W1_REGTEST=1 W1_RUN_ROOT=FRESH_ABSOLUTE_DIRECTORY \
 W1_CORE_CLI=ABSOLUTE_NAMECOIN_CLI W1_CORE_DAEMON=ABSOLUTE_NAMECOIND \
 go test -count=1 -run '^TestPX1CoreS1$' -v .
+# fresh W1_RUN_ROOT per invocation, likewise:
+go test -count=1 -run '^TestPX1CoreServiceG2FailClosed$' -v .
+go test -count=1 -run '^TestPX1CoreServiceW2Positive$' -v .
 W1_MUTATIONS=1 W1_MUTATION_ROOT=FRESH_ABSOLUTE_DIRECTORY \
 W1_DEP_ROOT=ABSOLUTE_EXPERIMENTS_DIRECTORY \
 W1_CORE_CLI=ABSOLUTE_NAMECOIN_CLI W1_CORE_DAEMON=ABSOLUTE_NAMECOIND \
@@ -194,8 +222,10 @@ renews the agent and landlord names before each grant issuance.
 
 ## Limits
 
-- The Core layer does not exercise the service layer (peer UID, admission,
-  `service-reserve`, receipts).
+- `TestPX1CoreS1` does not exercise the service layer (peer UID, admission,
+  `service-reserve`, receipts). The `TestPX1CoreService*` pair does exercise
+  the production opener and handler, with injected peer metadata, but only
+  for profile selection.
 - The Core layer does not exercise the real journal v2, its capacity rules or
   `CLOCK_ROLLBACK`; those are S2's.
 - The Core layer does not exercise the real canary watcher; that is S3's.

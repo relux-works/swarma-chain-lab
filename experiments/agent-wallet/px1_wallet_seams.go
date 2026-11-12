@@ -6,7 +6,10 @@ package wallet
 
 import (
 	"context"
+	"encoding/hex"
 
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
@@ -98,6 +101,45 @@ func (w *Wallet) px1AttachWith(op G2OperatorConfig, receiptKey string, deps px1D
 		return fail(CodeJournalSegment)
 	}
 	w.g2 = &px1Wallet{operator: op, receiptKey: receiptKey, journal: j, canary: canary, checker: newCapCheckerFor(w.config.Network, w.config.Genesis), deps: deps}
+	return nil
+}
+
+// px1OpenServiceWallet is the wallet opener of the production service
+// (OpenActionService). It selects the profile before the service is built or
+// serves anything: without a g2 block it is exactly openWallet (W2 unchanged);
+// with a g2 block it attaches the wallet to the G2 profile under the service
+// receipt key, and any failure closes the wallet and refuses startup. A present
+// g2 block therefore never runs under W2 (review finding
+// g2-profile-falls-through-to-w2). The call site in service.go is S2's file and
+// was changed to this one call at the review's request.
+func px1OpenServiceWallet(wc Config, c ServiceConfig, key *btcec.PrivateKey) (*Wallet, error) {
+	w, e := openWallet(wc)
+	if e != nil {
+		return nil, e
+	}
+	if e = px1SelectProfile(w, c, key); e != nil {
+		w.Close()
+		return nil, e
+	}
+	return w, nil
+}
+
+// px1SelectProfile attaches w to the G2 profile when c carries a g2 block.
+// The attach error is returned unchanged; an attach that reports success but
+// leaves the wallet on W2 refuses SERVICE_PROFILE.
+func px1SelectProfile(w *Wallet, c ServiceConfig, key *btcec.PrivateKey) error {
+	if c.G2 == nil {
+		return nil
+	}
+	if key == nil {
+		return fail("SERVICE_CONFIG")
+	}
+	if e := w.px1Attach(*c.G2, hex.EncodeToString(schnorr.SerializePubKey(key.PubKey()))); e != nil {
+		return e
+	}
+	if w.g2 == nil {
+		return fail("SERVICE_PROFILE")
+	}
 	return nil
 }
 
@@ -231,4 +273,17 @@ func (w *Wallet) px1Budget(ctx context.Context, raw, termsRaw []byte) (BudgetV2,
 		b.Reason = safeCode(e)
 	}
 	return b, nil
+}
+
+// px1FollowFailure is the receipt reason when the step-23 complete record
+// cannot be appended after the broadcast. The debit stays retained in every
+// case (the reserve record has no outcome). A clock step back below the
+// reservation's last_time is refused by the journal with CLOCK_ROLLBACK and
+// does not poison it, so it is reported as CLOCK_ROLLBACK rather than as a
+// write uncertainty; every other append failure is JOURNAL_WRITE_UNCERTAIN.
+func px1FollowFailure(e error) string {
+	if e != nil && e.Error() == CodeClockRollback {
+		return CodeClockRollback
+	}
+	return "JOURNAL_WRITE_UNCERTAIN"
 }

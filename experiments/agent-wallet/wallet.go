@@ -582,7 +582,7 @@ func (w *Wallet) executeG2(ctx context.Context, grantRaw, termsRaw []byte, r Req
 	// Step 23 (wallet layer): durable complete record.
 	done, e := w.px1Follow(reserved, RecordComplete, "complete")
 	if e != nil {
-		return px1Receipt(reserved, "uncertain", "JOURNAL_WRITE_UNCERTAIN")
+		return px1Receipt(reserved, "uncertain", px1FollowFailure(e))
 	}
 	return px1Receipt(done, "executed", "EXECUTED")
 }
