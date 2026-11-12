@@ -45,10 +45,11 @@
   The wallet and broadcast routes and W2's own observer reads are unchanged.
   Bounds: a node without `-txindex`, or one whose index is still syncing,
   answers another -5 message, so the pass fails there (fail-closed); the
-  deploy kit's node config sets `txindex=1`. Open: a running service tracks a broadcast the node refused (uncertain
-  `BROADCAST_UNCERTAIN`) only after a restart, because step 23 enqueues
-  executed payments only; whether to enqueue uncertain ones too is an S2/S3
-  decision.
+  deploy kit's node config sets `txindex=1`. Resolved: step 23 also
+  enqueues a spend whose outcome is uncertain, including a broadcast the node
+  refused (`BROADCAST_UNCERTAIN`), so a running service tracks it to
+  `conflicted` without a restart; the debit stays retained until an operator
+  release.
 - **F6 (matrix row 20 negative test):** not routed to the integration
   follow-up; open.
 - **Replay after a release.** `px1Prior` skips `track` records only. After a
