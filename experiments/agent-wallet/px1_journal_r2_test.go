@@ -327,29 +327,27 @@ func TestPX1jTrackObservationOnly(t *testing.T) {
 	}
 	for _, phase := range []string{"reserved", "uncertain", "complete"} {
 		for _, states := range [][]string{{TrackConfirmed, TrackConflicted}, {TrackConflicted, TrackConfirmed}} {
-			t.Run(phase+"/"+states[0], func(t *testing.T) {
-				build := func(tracked bool) (JournalV2, JournalRecordV2, string) {
+			t.Run(phase+"-"+states[0], func(t *testing.T) {
+				open := func() (JournalV2, JournalRecordV2, string) {
 					dir := px1jPrivateDir(t)
 					j := px1jOpenWallet(t, dir, l)
 					reserve := px1jMust(t, j, px1jReserve(1, 1, now, 50000, 1))
 					if phase != "reserved" {
 						px1jMust(t, j, px1jFollowRec(reserve, map[string]string{"uncertain": RecordUncertain, "complete": RecordComplete}[phase], phase, now))
 					}
-					for i, state := range states {
-						if tracked {
-							rec := px1jFollowRec(reserve, RecordTrack, state, now+1+int64(i))
-							rec.Track = observe(state)
-							px1jMust(t, j, rec)
-						}
-					}
 					return j, reserve, dir
 				}
-				plain, reserve, _ := build(false)
+				plain, reserve, _ := open()
 				want := px1jSnapOf(t, plain, reserve)
 				plain.Close()
-				j, _, dir := build(true)
-				if got := px1jSnapOf(t, j, reserve); got != want {
-					t.Fatalf("TRACK_CHANGED_LEDGER: got %+v want %+v", got, want)
+				j, _, dir := open()
+				for i, state := range states {
+					rec := px1jFollowRec(reserve, RecordTrack, state, now+1+int64(i))
+					rec.Track = observe(state)
+					px1jMust(t, j, rec)
+					if got := px1jSnapOf(t, j, reserve); got != want {
+						t.Fatalf("TRACK_CHANGED_LEDGER after %s: got %+v want %+v", state, got, want)
+					}
 				}
 				j.Close()
 				j = px1jOpenWallet(t, dir, l)
