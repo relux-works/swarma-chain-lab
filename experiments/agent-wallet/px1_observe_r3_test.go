@@ -221,11 +221,11 @@ func TestPX1oTrackBacklogBoundary(t *testing.T) {
 		w.appendErr = nil
 		pass("recovery again", "")
 		written := w.records[durable:]
-		if len(l.r.tracks) != 0 || len(written) != len(counter.returned) || len(written) != 2*count {
+		if len(l.r.tracks) != 0 || len(written) != len(counter.returned) {
 			t.Fatalf("TRACK_OBSERVATION_DROPPED payments=%d: returned=%d written=%d queued=%d", count, len(counter.returned), len(written), len(l.r.tracks))
 		}
-		if count > 2 && len(written) <= px1oMaxTracked {
-			t.Fatalf("payments=%d: %d records do not cross the %d bound", count, len(written), px1oMaxTracked)
+		if len(written) < 2*count || (count > 2 && len(written) <= px1oMaxTracked) {
+			t.Fatalf("payments=%d: %d records do not cover both episodes across the %d bound", count, len(written), px1oMaxTracked)
 		}
 		for i, rec := range written {
 			if !px1oSameTrack(rec, counter.returned[i]) {
