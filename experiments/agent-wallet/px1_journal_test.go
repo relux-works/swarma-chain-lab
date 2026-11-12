@@ -6,40 +6,98 @@ package wallet
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
-func px1Hex(n int) string { return fmt.Sprintf("%064x", n) }
+func px1jHex(n int) string { return fmt.Sprintf("%064x", n) }
 
-// px1Reserve is a well-formed wallet-layer reserve record at time t.
-func px1Reserve(grant, nonce int, t, reserved int64, input int) JournalRecordV2 {
-	return JournalRecordV2{Kind: RecordReserve, GrantID: px1Hex(grant), Nonce: px1Hex(1000 + nonce), RequestHash: px1Hex(2000 + nonce), Action: "spend", Phase: "reserved", Reserved: reserved, Fee: 1000, Day: UTCDay(t), Inputs: []su.Point{{TxID: px1Hex(3000 + input), Vout: 0}}, TxID: px1Hex(4000 + nonce), Created: t, LastTime: t}
+// px1jPrivateDir is a fresh 0700 state root. t.TempDir follows the process
+// umask (0755 under umask 022), and durable.Open requires 0700, so every
+// journal fixture uses this child instead of weakening durable.Open.
+func px1jPrivateDir(t *testing.T) string {
+	t.Helper()
+	d := filepath.Join(t.TempDir(), "state")
+	if e := os.Mkdir(d, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.Chmod(d, 0700); e != nil {
+		t.Fatal(e)
+	}
+	return d
 }
 
-func px1FollowRec(r JournalRecordV2, kind, phase string, t int64) JournalRecordV2 {
+// px1jReceiptKeyN is the fixture receipt key (testKey(9), the frozen executor
+// key); wallet journals in these tests verify reconcile records under it.
+const px1jReceiptKeyN = 9
+
+// px1jSignReconcile signs c with testKey(n) over the frozen preimage,
+// computed here independently of the product digest function:
+// SHA256("swarma-wallet-reconcile-v1" || canonical(c with Signature "")).
+func px1jSignReconcile(t *testing.T, c ReconcileRecordV2, n int) *ReconcileRecordV2 {
+	t.Helper()
+	c.Signature = ""
+	digest := sha256.Sum256(append([]byte("swarma-wallet-reconcile-v1"), canonical(c)...))
+	key, _ := testKey(byte(n))
+	sig, e := schnorr.Sign(key, digest[:])
+	if e != nil {
+		t.Fatal(e)
+	}
+	c.Signature = hex.EncodeToString(sig.Serialize())
+	return &c
+}
+
+// px1jReserve is a well-formed wallet-layer reserve record at time t.
+func px1jReserve(grant, nonce int, t, reserved int64, input int) JournalRecordV2 {
+	return JournalRecordV2{Kind: RecordReserve, GrantID: px1jHex(grant), Nonce: px1jHex(1000 + nonce), RequestHash: px1jHex(2000 + nonce), Action: "spend", Phase: "reserved", Reserved: reserved, Fee: 1000, Day: UTCDay(t), Inputs: []su.Point{{TxID: px1jHex(3000 + input), Vout: 0}}, TxID: px1jHex(4000 + nonce), Created: t, LastTime: t}
+}
+
+func px1jFollowRec(r JournalRecordV2, kind, phase string, t int64) JournalRecordV2 {
 	r.Seq, r.Kind, r.Phase, r.LastTime = 0, kind, phase, t
 	return r
 }
 
-func px1OpenWallet(t *testing.T, dir string, l JournalLimitsV2) JournalV2 {
+// px1jOpenWallet opens a wallet-layer journal that verifies reconcile
+// signatures under the fixture receipt key.
+func px1jOpenWallet(t *testing.T, dir string, l JournalLimitsV2) JournalV2 {
 	t.Helper()
-	j, e := OpenJournalV2(dir, "journal-v2.lock", JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: px1Hex(7)}, l)
+	j, e := px1jOpenWalletKey(dir, l, px1jReceiptKeyN)
 	if e != nil {
 		t.Fatal(e)
 	}
 	return j
 }
 
-func px1Must(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2 {
+// px1jOpenWalletKey opens the wallet journal under testKey(n)'s public key,
+// or with no receipt key at all for n == 0 (the frozen OpenJournalV2).
+func px1jOpenWalletKey(dir string, l JournalLimitsV2, n int) (JournalV2, error) {
+	h := JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: px1jHex(7)}
+	if n == 0 {
+		return OpenJournalV2(dir, "journal-v2.lock", h, l)
+	}
+	priv, _ := testKey(byte(n))
+	key, e := schnorr.ParsePubKey(schnorr.SerializePubKey(priv.PubKey()))
+	if e != nil {
+		return nil, e
+	}
+	j, e := px1jOpenJournal(dir, "journal-v2.lock", h, l, key)
+	if e != nil {
+		return nil, e
+	}
+	return j, nil
+}
+
+func px1jMust(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2 {
 	t.Helper()
 	out, e := j.Append(r)
 	if e != nil {
@@ -48,7 +106,7 @@ func px1Must(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2 {
 	return out
 }
 
-func px1Code(t *testing.T, e error, code string) {
+func px1jCode(t *testing.T, e error, code string) {
 	t.Helper()
 	if e == nil || e.Error() != code {
 		t.Fatalf("want %s, got %v", code, e)
@@ -79,7 +137,7 @@ func TestPX1DaysAndCapacity(t *testing.T) {
 	if RequiredSpendCapacity(0, 0, day) != -1 || RequiredSpendCapacity(MaxDayCountCap+1, 0, day) != -1 || RequiredSpendCapacity(MaxDayCountCap, 0, 1<<62) != -1 {
 		t.Fatal("invalid capacity input must be unsatisfiable")
 	}
-	if px1CapacityFits(2048, -1) || !px1CapacityFits(2048, 2048) || px1CapacityFits(2047, 2048) {
+	if px1jCapacityFits(2048, -1) || !px1jCapacityFits(2048, 2048) || px1jCapacityFits(2047, 2048) {
 		t.Fatal("capacity fit")
 	}
 }
@@ -89,22 +147,22 @@ func TestPX1DaysAndCapacity(t *testing.T) {
 // tampered sealed segment, a missing middle segment, a foreign binding or a
 // stray segment name refuses JOURNAL_SEGMENT, while the untouched copy reopens.
 func TestPX1JournalSegmentsChain(t *testing.T) {
-	dir := t.TempDir()
+	dir := px1jPrivateDir(t)
 	l := JournalLimitsV2{SpendCapacity: 8, SegmentMaxRecords: 2}
-	j := px1OpenWallet(t, dir, l)
+	j := px1jOpenWallet(t, dir, l)
 	base := int64(1794009600)
 	for i := 0; i < 3; i++ {
-		r := px1Must(t, j, px1Reserve(1, i, base+int64(i), 50000, i))
+		r := px1jMust(t, j, px1jReserve(1, i, base+int64(i), 50000, i))
 		if r.Seq != uint64(2*i+1) {
 			t.Fatal("seq", r.Seq)
 		}
-		px1Must(t, j, px1FollowRec(r, RecordComplete, "complete", base+int64(i)))
+		px1jMust(t, j, px1jFollowRec(r, RecordComplete, "complete", base+int64(i)))
 	}
 	if u := j.Usage(); u.Segments != 3 || u.LastSeq != 6 || u.LastTime != base+2 || u.Admitted != 0 {
 		t.Fatal("usage", u)
 	}
 	j.Close()
-	j = px1OpenWallet(t, dir, l)
+	j = px1jOpenWallet(t, dir, l)
 	var seqs []uint64
 	_ = j.Iterate(3, func(r JournalRecordV2) error { seqs = append(seqs, r.Seq); return nil })
 	if len(seqs) != 4 || seqs[0] != 3 || seqs[3] != 6 {
@@ -112,10 +170,10 @@ func TestPX1JournalSegmentsChain(t *testing.T) {
 	}
 	j.Close()
 	copyDir := func(t *testing.T) string {
-		d := t.TempDir()
+		d := px1jPrivateDir(t)
 		for i := 1; i <= 3; i++ {
-			b, _ := os.ReadFile(filepath.Join(dir, px1SegmentName(i)))
-			os.WriteFile(filepath.Join(d, px1SegmentName(i)), b, 0600)
+			b, _ := os.ReadFile(filepath.Join(dir, px1jSegmentName(i)))
+			os.WriteFile(filepath.Join(d, px1jSegmentName(i)), b, 0600)
 		}
 		return d
 	}
@@ -126,25 +184,25 @@ func TestPX1JournalSegmentsChain(t *testing.T) {
 		}
 		return e
 	}
-	if e := open(copyDir(t), px1Hex(7)); e != nil {
+	if e := open(copyDir(t), px1jHex(7)); e != nil {
 		t.Fatal("untouched copy must reopen", e)
 	}
 	// Re-encode segment 1 canonically with a different amount: the bytes stay
 	// canonical, so only the prev_sha256 chain of segment 2 can catch it.
 	d := copyDir(t)
 	var seg JournalSegmentV2
-	b, _ := os.ReadFile(filepath.Join(d, px1SegmentName(1)))
+	b, _ := os.ReadFile(filepath.Join(d, px1jSegmentName(1)))
 	json.Unmarshal(b, &seg)
 	seg.Records[0].Reserved, seg.Records[1].Reserved = 49999, 49999
-	os.WriteFile(filepath.Join(d, px1SegmentName(1)), canonical(seg), 0600)
-	px1Code(t, open(d, px1Hex(7)), CodeJournalSegment)
+	os.WriteFile(filepath.Join(d, px1jSegmentName(1)), canonical(seg), 0600)
+	px1jCode(t, open(d, px1jHex(7)), CodeJournalSegment)
 	d = copyDir(t)
-	os.Remove(filepath.Join(d, px1SegmentName(2)))
-	px1Code(t, open(d, px1Hex(7)), CodeJournalSegment)
-	px1Code(t, open(copyDir(t), px1Hex(8)), CodeJournalSegment)
+	os.Remove(filepath.Join(d, px1jSegmentName(2)))
+	px1jCode(t, open(d, px1jHex(7)), CodeJournalSegment)
+	px1jCode(t, open(copyDir(t), px1jHex(8)), CodeJournalSegment)
 	d = copyDir(t)
-	os.WriteFile(filepath.Join(d, px1SegmentPrefix+"stray"), []byte("x"), 0600)
-	px1Code(t, open(d, px1Hex(7)), CodeJournalSegment)
+	os.WriteFile(filepath.Join(d, px1jSegmentPrefix+"stray"), []byte("x"), 0600)
+	px1jCode(t, open(d, px1jHex(7)), CodeJournalSegment)
 }
 
 // Claim: Append enforces the frozen kind/layer/phase table, the per-request
@@ -152,21 +210,21 @@ func TestPX1JournalSegmentsChain(t *testing.T) {
 // reconcile release bound and rate limit; each refusal has an accepted
 // neighbour and a refused record is never stored.
 func TestPX1JournalRecordTable(t *testing.T) {
-	j := px1OpenWallet(t, t.TempDir(), JournalLimitsV2{SpendCapacity: 4})
+	j := px1jOpenWallet(t, px1jPrivateDir(t), JournalLimitsV2{SpendCapacity: 4})
 	defer j.Close()
 	t0 := int64(1794009600)
-	r := px1Reserve(1, 1, t0, 50000, 1)
+	r := px1jReserve(1, 1, t0, 50000, 1)
 	bad := []struct {
 		name string
 		rec  JournalRecordV2
 		code string
 	}{
-		{"service kind on wallet layer", func() JournalRecordV2 { x := r; x.Kind = RecordAdmit; x.Phase = "pending"; return x }(), codeJournalRecord},
-		{"follow-up before reserve", px1FollowRec(r, RecordComplete, "complete", t0), codeJournalRecord},
-		{"wrong phase for kind", func() JournalRecordV2 { x := r; x.Phase = "complete"; return x }(), codeJournalRecord},
-		{"day not of the reservation clock", func() JournalRecordV2 { x := r; x.Day = UTCDay(t0 - 1); return x }(), codeJournalRecord},
-		{"fee not below the debit", func() JournalRecordV2 { x := r; x.Fee = x.Reserved; return x }(), codeJournalRecord},
-		{"no planned input", func() JournalRecordV2 { x := r; x.Inputs = []su.Point{}; return x }(), codeJournalRecord},
+		{"service kind on wallet layer", func() JournalRecordV2 { x := r; x.Kind = RecordAdmit; x.Phase = "pending"; return x }(), px1jCodeRecord},
+		{"follow-up before reserve", px1jFollowRec(r, RecordComplete, "complete", t0), px1jCodeRecord},
+		{"wrong phase for kind", func() JournalRecordV2 { x := r; x.Phase = "complete"; return x }(), px1jCodeRecord},
+		{"day not of the reservation clock", func() JournalRecordV2 { x := r; x.Day = UTCDay(t0 - 1); return x }(), px1jCodeRecord},
+		{"fee not below the debit", func() JournalRecordV2 { x := r; x.Fee = x.Reserved; return x }(), px1jCodeRecord},
+		{"no planned input", func() JournalRecordV2 { x := r; x.Inputs = []su.Point{}; return x }(), px1jCodeRecord},
 	}
 	for _, c := range bad {
 		_, e := j.Append(c.rec)
@@ -177,38 +235,38 @@ func TestPX1JournalRecordTable(t *testing.T) {
 	if j.Usage().LastSeq != 0 {
 		t.Fatal("refused record stored")
 	}
-	res := px1Must(t, j, r)
+	res := px1jMust(t, j, r)
 	_, e := j.Append(r)
-	px1Code(t, e, codeJournalRecord) // a second reserve of the same request
-	other := px1FollowRec(res, RecordComplete, "complete", t0+1)
+	px1jCode(t, e, px1jCodeRecord) // a second reserve of the same request
+	other := px1jFollowRec(res, RecordComplete, "complete", t0+1)
 	other.Reserved--
 	_, e = j.Append(other)
-	px1Code(t, e, codeJournalRecord) // follow-up with another plan
-	done := px1Must(t, j, px1FollowRec(res, RecordComplete, "complete", t0+1))
-	_, e = j.Append(px1FollowRec(res, RecordUncertain, "uncertain", t0+1))
-	px1Code(t, e, codeJournalRecord) // uncertain after complete
-	track := px1FollowRec(done, RecordTrack, TrackConfirmed, t0+2)
-	track.Track = &TrackRecordV2{State: TrackConfirmed, Height: 10, BlockHash: px1Hex(9), Confirmations: 0}
+	px1jCode(t, e, px1jCodeRecord) // follow-up with another plan
+	done := px1jMust(t, j, px1jFollowRec(res, RecordComplete, "complete", t0+1))
+	_, e = j.Append(px1jFollowRec(res, RecordUncertain, "uncertain", t0+1))
+	px1jCode(t, e, px1jCodeRecord) // uncertain after complete
+	track := px1jFollowRec(done, RecordTrack, TrackConfirmed, t0+2)
+	track.Track = &TrackRecordV2{State: TrackConfirmed, Height: 10, BlockHash: px1jHex(9), Confirmations: 0}
 	_, e = j.Append(track)
-	px1Code(t, e, codeJournalRecord) // confirmed with zero confirmations
+	px1jCode(t, e, px1jCodeRecord) // confirmed with zero confirmations
 	track.Track.Confirmations = 2
-	px1Must(t, j, track)
-	rec := px1FollowRec(done, RecordReconcile, "released", t0+3)
-	rec.Reconcile = &ReconcileRecordV2{TargetSeq: res.Seq, Evidence: "absent", Height: 11, BlockHash: px1Hex(9), ReleasedSat: 50001, NoteSHA256: px1Hex(5), Signature: strings.Repeat("ab", 64)}
+	px1jMust(t, j, track)
+	rec := px1jFollowRec(done, RecordReconcile, "released", t0+3)
+	rec.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: res.Seq, Evidence: "absent", Height: 11, BlockHash: px1jHex(9), ReleasedSat: 50001, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
 	_, e = j.Append(rec)
-	px1Code(t, e, codeJournalRecord) // release above the retained debit
-	rec.Reconcile.ReleasedSat, rec.Reconcile.TargetSeq = 50000, done.Seq
+	px1jCode(t, e, px1jCodeRecord) // release above the retained debit
+	rec.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: done.Seq, Evidence: "absent", Height: 11, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
 	_, e = j.Append(rec)
-	px1Code(t, e, codeJournalRecord) // target is not the reserve record
-	rec.Reconcile.TargetSeq = res.Seq
-	px1Must(t, j, rec)
-	second := px1Must(t, j, px1Reserve(1, 2, t0+4, 30000, 2))
-	rel := px1FollowRec(second, RecordReconcile, "released", t0+4)
-	rel.Reconcile = &ReconcileRecordV2{TargetSeq: second.Seq, Evidence: "conflict", Height: 12, BlockHash: px1Hex(9), ConflictTxID: px1Hex(6), ReleasedSat: 1, NoteSHA256: px1Hex(5), Signature: strings.Repeat("ab", 64)}
+	px1jCode(t, e, px1jCodeRecord) // target is not the reserve record
+	rec.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: res.Seq, Evidence: "absent", Height: 11, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
+	px1jMust(t, j, rec)
+	second := px1jMust(t, j, px1jReserve(1, 2, t0+4, 30000, 2))
+	rel := px1jFollowRec(second, RecordReconcile, "released", t0+4)
+	rel.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: second.Seq, Evidence: "conflict", Height: 12, BlockHash: px1jHex(9), ConflictTxID: px1jHex(6), ReleasedSat: 1, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
 	_, e = j.Append(rel)
-	px1Code(t, e, CodeReconcileRateLimited)
+	px1jCode(t, e, CodeReconcileRateLimited)
 	rel.LastTime = t0 + 3 + ReconcileMinIntervalSeconds
-	px1Must(t, j, rel)
+	px1jMust(t, j, rel)
 }
 
 // Claim (T16, unit): the guard refuses CLOCK_ROLLBACK at startup when the
@@ -219,7 +277,7 @@ func TestPX1T16ClockRollback(t *testing.T) {
 	now := int64(1000)
 	clock := func() int64 { return now }
 	_, e := NewClockGuard(clock, 1001)
-	px1Code(t, e, CodeClockRollback)
+	px1jCode(t, e, CodeClockRollback)
 	g, e := NewClockGuard(clock, 1000)
 	if e != nil {
 		t.Fatal("equal startup time", e)
@@ -230,7 +288,7 @@ func TestPX1T16ClockRollback(t *testing.T) {
 	}
 	now = 1004
 	_, e = g.Now()
-	px1Code(t, e, CodeClockRollback)
+	px1jCode(t, e, CodeClockRollback)
 	if g.LastTime() != 1005 {
 		t.Fatal("rollback lowered the guard")
 	}
@@ -238,20 +296,20 @@ func TestPX1T16ClockRollback(t *testing.T) {
 	if _, e = g.Now(); e != nil {
 		t.Fatal("equal time", e)
 	}
-	dir := t.TempDir()
-	j := px1OpenWallet(t, dir, JournalLimitsV2{SpendCapacity: 4})
+	dir := px1jPrivateDir(t)
+	j := px1jOpenWallet(t, dir, JournalLimitsV2{SpendCapacity: 4})
 	t0 := int64(1794009600)
-	px1Must(t, j, px1Reserve(1, 1, t0, 50000, 1))
-	_, e = j.Append(px1Reserve(1, 2, t0-1, 50000, 2))
-	px1Code(t, e, CodeClockRollback)
-	px1Must(t, j, px1Reserve(1, 3, t0, 50000, 3))
+	px1jMust(t, j, px1jReserve(1, 1, t0, 50000, 1))
+	_, e = j.Append(px1jReserve(1, 2, t0-1, 50000, 2))
+	px1jCode(t, e, CodeClockRollback)
+	px1jMust(t, j, px1jReserve(1, 3, t0, 50000, 3))
 	j.Close()
-	j = px1OpenWallet(t, dir, JournalLimitsV2{SpendCapacity: 4})
+	j = px1jOpenWallet(t, dir, JournalLimitsV2{SpendCapacity: 4})
 	defer j.Close()
 	_, e = NewClockGuard(func() int64 { return t0 - 1 }, j.Usage().LastTime)
-	px1Code(t, e, CodeClockRollback)
-	_, e = j.Append(px1Reserve(1, 4, t0-1, 50000, 4))
-	px1Code(t, e, CodeClockRollback)
+	px1jCode(t, e, CodeClockRollback)
+	_, e = j.Append(px1jReserve(1, 4, t0-1, 50000, 4))
+	px1jCode(t, e, CodeClockRollback)
 }
 
 // Claim (T3, unit with injected clock): day usage follows the signer rule.
@@ -265,12 +323,12 @@ func TestPX1T16ClockRollback(t *testing.T) {
 // The cap arithmetic here mirrors S1's CapChecker rule; the CapChecker itself
 // is covered by S1 and by the Core layer.
 func TestPX1T3DayBuckets(t *testing.T) {
-	j := px1OpenWallet(t, t.TempDir(), JournalLimitsV2{SpendCapacity: 64})
+	j := px1jOpenWallet(t, px1jPrivateDir(t), JournalLimitsV2{SpendCapacity: 64})
 	defer j.Close()
 	const dayCap, countCap = int64(300000), 5
 	midnight := int64(1794441600) // 2026-11-12T00:00:00Z
 	d0, d1 := UTCDay(midnight-1), UTCDay(midnight)
-	grant := px1Hex(1)
+	grant := px1jHex(1)
 	fits := func(l LedgerView, day string, cost int64) bool {
 		used, count := l.DayUsage(grant, day)
 		return used+cost <= dayCap && count+1 <= countCap
@@ -285,14 +343,14 @@ func TestPX1T3DayBuckets(t *testing.T) {
 	// Day d0: complete 149999, uncertain 50000, refused-retained 50000,
 	// reserved (crash) 50000: 299999 of the 300000 cap, count 4.
 	at := midnight - 100
-	a := px1Must(t, j, px1Reserve(1, 1, at, 149999, 1))
-	px1Must(t, j, px1FollowRec(a, RecordComplete, "complete", at))
-	b := px1Must(t, j, px1Reserve(1, 2, at, 50000, 2))
-	px1Must(t, j, px1FollowRec(b, RecordUncertain, "uncertain", at))
-	c := px1Must(t, j, px1Reserve(1, 3, at, 50000, 3))
-	px1Must(t, j, px1FollowRec(c, RecordRefuseRetained, "refused", at))
-	px1Must(t, j, px1Reserve(1, 4, at, 50000, 4))
-	px1Must(t, j, px1Reserve(2, 5, at, 90000, 5)) // another grant never mixes in
+	a := px1jMust(t, j, px1jReserve(1, 1, at, 149999, 1))
+	px1jMust(t, j, px1jFollowRec(a, RecordComplete, "complete", at))
+	b := px1jMust(t, j, px1jReserve(1, 2, at, 50000, 2))
+	px1jMust(t, j, px1jFollowRec(b, RecordUncertain, "uncertain", at))
+	c := px1jMust(t, j, px1jReserve(1, 3, at, 50000, 3))
+	px1jMust(t, j, px1jFollowRec(c, RecordRefuseRetained, "refused", at))
+	px1jMust(t, j, px1jReserve(1, 4, at, 50000, 4))
+	px1jMust(t, j, px1jReserve(2, 5, at, 90000, 5)) // another grant never mixes in
 	l := ledger()
 	if used, count := l.DayUsage(grant, d0); used != 299999 || count != 4 {
 		t.Fatal("d0 usage", used, count)
@@ -300,7 +358,7 @@ func TestPX1T3DayBuckets(t *testing.T) {
 	if !fits(l, d0, 1) || fits(l, d0, 2) {
 		t.Fatal("day cap boundary: cap must fit, cap+1 must not")
 	}
-	if l.SpendUsed(grant) != 299999 || l.UncertainSat(grant) != 100000 || l.SpendUsed(px1Hex(2)) != 90000 {
+	if l.SpendUsed(grant) != 299999 || l.UncertainSat(grant) != 100000 || l.SpendUsed(px1jHex(2)) != 90000 {
 		t.Fatal("spend/uncertain", l.SpendUsed(grant), l.UncertainSat(grant))
 	}
 	// One second before midnight is still d0: no rollover.
@@ -313,8 +371,8 @@ func TestPX1T3DayBuckets(t *testing.T) {
 	}
 	// Day count: fill d1 to 5 transfers with small completes, then refuse.
 	for i := 0; i < 3; i++ {
-		r := px1Must(t, j, px1Reserve(1, 10+i, midnight+int64(i), 10000, 10+i))
-		px1Must(t, j, px1FollowRec(r, RecordComplete, "complete", midnight+int64(i)))
+		r := px1jMust(t, j, px1jReserve(1, 10+i, midnight+int64(i), 10000, 10+i))
+		px1jMust(t, j, px1jFollowRec(r, RecordComplete, "complete", midnight+int64(i)))
 		if !fits(ledger(), d1, 10000) && i < 2 {
 			t.Fatal("count below cap must fit", i)
 		}
@@ -325,17 +383,17 @@ func TestPX1T3DayBuckets(t *testing.T) {
 	// Operator reconciliation of the uncertain record releases its sats and
 	// inputs, never its count; the debit returns only through this record.
 	l = ledger()
-	if !l.InputReserved(su.Point{TxID: px1Hex(3002), Vout: 0}) || !l.InputReserved(su.Point{TxID: px1Hex(3003), Vout: 0}) {
+	if !l.InputReserved(su.Point{TxID: px1jHex(3002), Vout: 0}) || !l.InputReserved(su.Point{TxID: px1jHex(3003), Vout: 0}) {
 		t.Fatal("retained inputs must stay reserved")
 	}
-	rel := px1FollowRec(b, RecordReconcile, "released", midnight+10)
-	rel.Reconcile = &ReconcileRecordV2{TargetSeq: b.Seq, Evidence: "absent", Height: 100, BlockHash: px1Hex(9), ReleasedSat: 50000, NoteSHA256: px1Hex(5), Signature: strings.Repeat("ab", 64)}
-	px1Must(t, j, rel)
+	rel := px1jFollowRec(b, RecordReconcile, "released", midnight+10)
+	rel.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: b.Seq, Evidence: "absent", Height: 100, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
+	px1jMust(t, j, rel)
 	l = ledger()
 	// The released record is terminal now: it leaves d1 (open set) and keeps
 	// its d0 count with a zero remaining debit.
 	used, count := l.DayUsage(grant, d1)
-	if used != 80000 || count != 4 || l.SpendUsed(grant) != 279999 || l.UncertainSat(grant) != 50000 || l.InputReserved(su.Point{TxID: px1Hex(3002), Vout: 0}) {
+	if used != 80000 || count != 4 || l.SpendUsed(grant) != 279999 || l.UncertainSat(grant) != 50000 || l.InputReserved(su.Point{TxID: px1jHex(3002), Vout: 0}) {
 		t.Fatal("reconcile release", used, count, l.SpendUsed(grant), l.UncertainSat(grant))
 	}
 	if usedD0, countD0 := l.DayUsage(grant, d0); usedD0 != 249999 || countD0 != 4 {
@@ -347,7 +405,7 @@ func TestPX1T3DayBuckets(t *testing.T) {
 // admission refuses SERVICE_JOURNAL_LIMIT, while follow-ups of admitted
 // requests are still accepted; the high-water helper fires at 80%.
 func TestPX1JournalCapacity(t *testing.T) {
-	j, e := OpenJournalV2(t.TempDir(), "service-v2.lock", JournalHeaderV2{Version: 2, Layer: JournalLayerService, Binding: px1Hex(7)}, JournalLimitsV2{SpendCapacity: 2})
+	j, e := OpenJournalV2(px1jPrivateDir(t), "service-v2.lock", JournalHeaderV2{Version: 2, Layer: JournalLayerService, Binding: px1jHex(7)}, JournalLimitsV2{SpendCapacity: 2})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -357,21 +415,21 @@ func TestPX1JournalCapacity(t *testing.T) {
 		q.Nonce = fmt.Sprintf("%032x", n)
 		return JournalRecordV2{Kind: RecordAdmit, GrantID: q.Grant.ID, Nonce: q.Nonce, RequestHash: Hash(canonical(q)), Action: "spend", Phase: "pending", Inputs: []su.Point{}, Created: q.CreatedAt, LastTime: 600, Service: &ServiceRecordV2{Request: q, Peer: PeerIdentity{1201, 1301}}}
 	}
-	if px1JournalHighWater(j.Usage()) {
+	if px1jHighWater(j.Usage()) {
 		t.Fatal("empty journal above high water")
 	}
-	first := px1Must(t, j, admit(1))
-	px1Must(t, j, admit(2))
-	if !px1JournalHighWater(j.Usage()) {
+	first := px1jMust(t, j, admit(1))
+	px1jMust(t, j, admit(2))
+	if !px1jHighWater(j.Usage()) {
 		t.Fatal("full journal below high water")
 	}
 	_, e = j.Append(admit(3))
-	px1Code(t, e, CodeServiceJournalLimit)
+	px1jCode(t, e, CodeServiceJournalLimit)
 	follow := first
 	follow.Seq, follow.Kind, follow.Phase = 0, RecordServiceReserve, "reserved"
-	px1Must(t, j, follow)
+	px1jMust(t, j, follow)
 	_, e = j.Append(admit(1))
-	px1Code(t, e, codeJournalRecord) // a second admit of the same nonce
+	px1jCode(t, e, px1jCodeRecord) // a second admit of the same nonce
 	if u := j.Usage(); u.Admitted != 2 || u.SpendCapacity != 2 {
 		t.Fatal(u)
 	}
@@ -384,20 +442,20 @@ func TestPX1JournalPoison(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("directory permissions do not bind root")
 	}
-	dir := t.TempDir()
-	j := px1OpenWallet(t, dir, JournalLimitsV2{SpendCapacity: 4})
+	dir := px1jPrivateDir(t)
+	j := px1jOpenWallet(t, dir, JournalLimitsV2{SpendCapacity: 4})
 	defer j.Close()
 	t0 := int64(1794009600)
-	px1Must(t, j, px1Reserve(1, 1, t0, 50000, 1))
+	px1jMust(t, j, px1jReserve(1, 1, t0, 50000, 1))
 	os.Chmod(dir, 0500)
-	_, e := j.Append(px1Reserve(1, 2, t0, 50000, 2))
+	_, e := j.Append(px1jReserve(1, 2, t0, 50000, 2))
 	os.Chmod(dir, 0700)
-	px1Code(t, e, codeJournalUncertain)
+	px1jCode(t, e, px1jCodeUncertain)
 	if !j.Poisoned() {
 		t.Fatal("not poisoned")
 	}
-	_, e = j.Append(px1Reserve(1, 3, t0, 50000, 3))
-	px1Code(t, e, codeJournalUncertain)
+	_, e = j.Append(px1jReserve(1, 3, t0, 50000, 3))
+	px1jCode(t, e, px1jCodeUncertain)
 	if _, e = FoldLedgerV2(j); e == nil {
 		t.Fatal("poisoned ledger folded")
 	}
@@ -424,7 +482,7 @@ func TestPX1T17ReadLimiter(t *testing.T) {
 	if r.Admit("b", 2000) != nil {
 		t.Fatal("other grantee limited")
 	}
-	px1Code(t, r.Admit("a", 999), CodeReadRateLimited)
+	px1jCode(t, r.Admit("a", 999), CodeReadRateLimited)
 	if r.Admit("a", 1000+3600) != nil {
 		t.Fatal("read after the trailing hour")
 	}
@@ -432,52 +490,52 @@ func TestPX1T17ReadLimiter(t *testing.T) {
 	if len(tail) != ReadAuditTailSize || tail[len(tail)-1].At != 4600 || tail[len(tail)-1].Verdict != "executed" || tail[len(tail)-2].Reason != CodeReadRateLimited {
 		t.Fatal("tail", len(tail))
 	}
-	px1Code(t, NewReadLimiter(0).Admit("a", 1), CodeReadRateLimited)
+	px1jCode(t, NewReadLimiter(0).Admit("a", 1), CodeReadRateLimited)
 }
 
-// failNode answers every RPC with a bounded error: no read can succeed and
+// px1jFailNode answers every RPC with a bounded error: no read can succeed and
 // no effect can happen through it.
-type failNode struct{}
+type px1jFailNode struct{}
 
-func (failNode) Call(context.Context, string, ...any) (json.RawMessage, error) {
+func (px1jFailNode) Call(context.Context, string, ...any) (json.RawMessage, error) {
 	return nil, errors.New("NODE_UNAVAILABLE")
 }
 
-// px1ServiceFixture is a G2 service over a node that refuses every call,
+// px1jServiceFixture is a G2 service over a node that refuses every call,
 // with S1's operator validator replaced by an accept-all fake (the S1 stub
 // returns PX1_NOT_IMPLEMENTED until S1 lands).
-func px1ServiceFixture(t *testing.T, stateDir string, clock *int64, capacity int) *ActionService {
+func px1jServiceFixture(t *testing.T, stateDir string, clock *int64, capacity int) *ActionService {
 	t.Helper()
 	key, pub := testKey(9)
 	_, grantee := testKey(2)
 	objects := filepath.Join(filepath.Dir(stateDir), "objects")
 	os.MkdirAll(objects, 0700)
-	w := &Wallet{config: Config{Network: "regtest", Genesis: su.RegtestGenesis, ObjectsDir: objects}, node: failNode{}, wallet: failNode{}, broadcast: failNode{}}
+	w := &Wallet{config: Config{Network: "regtest", Genesis: su.RegtestGenesis, ObjectsDir: objects}, node: px1jFailNode{}, wallet: px1jFailNode{}, broadcast: px1jFailNode{}}
 	s := &ActionService{config: ServiceConfig{Version: 1, Service: WalletServiceID, PeerUID: 1201, Grantee: grantee, SkewSeconds: 120, StateDir: stateDir}, wallet: w, key: key, pub: pub, clock: func() int64 { return *clock }}
 	store, e := durable.Open(stateDir, "service.lock")
 	if e != nil {
 		t.Fatal(e)
 	}
 	s.store = store
-	s.state = serviceState{1, px1Hex(77), []serviceEntry{}}
+	s.state = serviceState{1, px1jHex(77), []serviceEntry{}}
 	op := px1Operator()
 	op.JournalSpendCapacity = capacity
-	if e = s.px1OpenService(op, s.state.Binding, px1ServiceDeps{validate: func(G2OperatorConfig) error { return nil }, open: OpenJournalV2}); e != nil {
+	if e = s.px1jOpenService(op, s.state.Binding, px1jServiceDeps{validate: func(G2OperatorConfig) error { return nil }, open: OpenJournalV2}); e != nil {
 		store.Close()
 		t.Fatal(e)
 	}
-	t.Cleanup(func() { px1CloseFixture(s) })
+	t.Cleanup(func() { px1jCloseFixture(s) })
 	return s
 }
 
-func px1CloseFixture(s *ActionService) {
+func px1jCloseFixture(s *ActionService) {
 	if s.g2 != nil {
 		s.g2.journal.Close()
 	}
 	s.store.Close()
 }
 
-func px1StateDir(t *testing.T) string {
+func px1jStateDir(t *testing.T) string {
 	d := filepath.Join(t.TempDir(), "service")
 	if e := os.Mkdir(d, 0700); e != nil {
 		t.Fatal(e)
@@ -485,7 +543,7 @@ func px1StateDir(t *testing.T) string {
 	return d
 }
 
-func s2Request(t *testing.T, action string, nonce int, mutate func(*ActionRequest)) []byte {
+func px1jActionRaw(t *testing.T, action string, nonce int, mutate func(*ActionRequest)) []byte {
 	t.Helper()
 	q := actionFixture(t, action)
 	q.Nonce = fmt.Sprintf("%032x", nonce)
@@ -495,7 +553,7 @@ func s2Request(t *testing.T, action string, nonce int, mutate func(*ActionReques
 	return actionEnvelope(t, q)
 }
 
-func s2Receipt(t *testing.T, raw []byte) ActionReceipt {
+func px1jReceipt(t *testing.T, raw []byte) ActionReceipt {
 	t.Helper()
 	var r SignedActionReceipt
 	if e := strict(raw, &r); e != nil {
@@ -504,18 +562,18 @@ func s2Receipt(t *testing.T, raw []byte) ActionReceipt {
 	return r.Receipt
 }
 
-var px1Peer = PeerIdentity{UID: 1201, GID: 1301}
+var px1jPeer = PeerIdentity{UID: 1201, GID: 1301}
 
 // Claim (T17, service): 10,000 balance requests consume no journal capacity
 // (60 reach the node, the rest refuse READ_RATE_LIMITED before any node call),
 // and a spend is still admitted afterwards with journal_seq 1.
 func TestPX1T17ReadFloodService(t *testing.T) {
 	clock := int64(500)
-	s := px1ServiceFixture(t, px1StateDir(t), &clock, 4)
+	s := px1jServiceFixture(t, px1jStateDir(t), &clock, 4)
 	ctx := context.Background()
 	limited := 0
 	for i := 0; i < 10000; i++ {
-		r := s2Receipt(t, s.handle(ctx, s2Request(t, "balance", i, nil), px1Peer))
+		r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "balance", i, nil), px1jPeer))
 		if r.Verdict != "refused" || r.Sequence != 0 {
 			t.Fatal("read", r.Verdict, r.Sequence)
 		}
@@ -526,7 +584,7 @@ func TestPX1T17ReadFloodService(t *testing.T) {
 	if limited != 10000-DefaultReadRatePerHour || s.g2.journal.Usage().Admitted != 0 || s.g2.journal.Usage().LastSeq != 0 {
 		t.Fatal("reads journaled or not limited", limited, s.g2.journal.Usage())
 	}
-	r := s2Receipt(t, s.handle(ctx, s2Request(t, "spend", 20000, nil), px1Peer))
+	r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 20000, nil), px1jPeer))
 	if r.Sequence != 1 || r.Reason == CodeServiceJournalLimit || s.g2.journal.Usage().Admitted != 1 {
 		t.Fatal("spend after read flood", r.Reason, r.Sequence)
 	}
@@ -540,7 +598,7 @@ func TestPX1T17ReadFloodService(t *testing.T) {
 // object (Core layer, pending S1 fixtures).
 func TestPX1T5ServiceRefusals(t *testing.T) {
 	clock := int64(500)
-	s := px1ServiceFixture(t, px1StateDir(t), &clock, 8)
+	s := px1jServiceFixture(t, px1jStateDir(t), &clock, 8)
 	ctx := context.Background()
 	other := func(q *ActionRequest) { _, q.Grantee = testKey(4) }
 	otherRaw := func() []byte {
@@ -549,22 +607,22 @@ func TestPX1T5ServiceRefusals(t *testing.T) {
 		other(&q)
 		return canonical(ActionEnvelope{Request: q, Signature: signDigest(t, ActionDigest(q), 4)})
 	}()
-	if r := s2Receipt(t, s.handle(ctx, otherRaw, px1Peer)); r.Reason != "GRANTEE_MISMATCH" || r.Sequence != 0 {
+	if r := px1jReceipt(t, s.handle(ctx, otherRaw, px1jPeer)); r.Reason != "GRANTEE_MISMATCH" || r.Sequence != 0 {
 		t.Fatal("grantee", r.Reason)
 	}
-	if r := s2Receipt(t, s.handle(ctx, s2Request(t, "spend", 2, nil), PeerIdentity{UID: 1202, GID: 1301})); r.Reason != "SERVICE_PEER" || r.Sequence != 0 {
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 2, nil), PeerIdentity{UID: 1202, GID: 1301})); r.Reason != "SERVICE_PEER" || r.Sequence != 0 {
 		t.Fatal("peer", r.Reason)
 	}
 	if s.g2.journal.Usage().LastSeq != 0 {
 		t.Fatal("refusal before admission was journaled")
 	}
-	single := s2Request(t, "spend", 3, func(q *ActionRequest) { q.Grant.Kind = "single-use" })
-	if r := s2Receipt(t, s.handle(ctx, single, px1Peer)); r.Reason != CodeSingleUseDisabled || r.Verdict != "refused" || r.Sequence != 1 {
+	single := px1jActionRaw(t, "spend", 3, func(q *ActionRequest) { q.Grant.Kind = "single-use" })
+	if r := px1jReceipt(t, s.handle(ctx, single, px1jPeer)); r.Reason != CodeSingleUseDisabled || r.Verdict != "refused" || r.Sequence != 1 {
 		t.Fatal("single-use", r.Reason)
 	}
 	// Valid neighbour: the standing request passes steps 4-8 and refuses only
 	// at the grant object lookup (no object provisioned in this fixture).
-	if r := s2Receipt(t, s.handle(ctx, s2Request(t, "spend", 4, nil), px1Peer)); r.Sequence != 3 || r.Reason == CodeSingleUseDisabled || r.Reason == "GRANTEE_MISMATCH" {
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 4, nil), px1jPeer)); r.Sequence != 3 || r.Reason == CodeSingleUseDisabled || r.Reason == "GRANTEE_MISMATCH" {
 		t.Fatal("standing neighbour", r.Reason, r.Sequence)
 	}
 }
@@ -577,49 +635,49 @@ func TestPX1T5ServiceRefusals(t *testing.T) {
 // (PX1_NOT_IMPLEMENTED). Replay after a successful spend is Core, pending S1.
 func TestPX1T8ServiceReplay(t *testing.T) {
 	clock := int64(500)
-	dir := px1StateDir(t)
-	s := px1ServiceFixture(t, dir, &clock, 8)
+	dir := px1jStateDir(t)
+	s := px1jServiceFixture(t, dir, &clock, 8)
 	ctx := context.Background()
-	raw := s2Request(t, "spend", 1, nil)
-	first := s.handle(ctx, raw, px1Peer)
-	if s2Receipt(t, first).Sequence != 1 {
+	raw := px1jActionRaw(t, "spend", 1, nil)
+	first := s.handle(ctx, raw, px1jPeer)
+	if px1jReceipt(t, first).Sequence != 1 {
 		t.Fatal("first")
 	}
 	clock = 1000 // replay is outside the skew window: it never re-admits
-	if string(s.handle(ctx, raw, px1Peer)) != string(first) {
+	if string(s.handle(ctx, raw, px1jPeer)) != string(first) {
 		t.Fatal("replay not byte-identical")
 	}
-	conflict := s2Request(t, "spend", 1, func(q *ActionRequest) {
+	conflict := px1jActionRaw(t, "spend", 1, func(q *ActionRequest) {
 		q.Params = canonical(SpendParams{To: testAddress(3), Amount: 100001, FeeLimit: 100000})
 	})
-	if r := s2Receipt(t, s.handle(ctx, conflict, px1Peer)); r.Reason != "NONCE_CONFLICT" {
+	if r := px1jReceipt(t, s.handle(ctx, conflict, px1jPeer)); r.Reason != "NONCE_CONFLICT" {
 		t.Fatal("nonce conflict", r.Reason)
 	}
 	// A durable service reservation (crash after step 20) for nonce 2.
 	clock = 500
 	q := actionFixture(t, "spend")
 	q.Nonce = fmt.Sprintf("%032x", 2)
-	admit, e := s.g2.journal.Append(JournalRecordV2{Kind: RecordAdmit, GrantID: q.Grant.ID, Nonce: q.Nonce, RequestHash: Hash(canonical(q)), Action: "spend", Phase: "pending", Inputs: []su.Point{}, Created: q.CreatedAt, LastTime: 500, Service: &ServiceRecordV2{Request: q, Peer: px1Peer}})
+	admit, e := s.g2.journal.Append(JournalRecordV2{Kind: RecordAdmit, GrantID: q.Grant.ID, Nonce: q.Nonce, RequestHash: Hash(canonical(q)), Action: "spend", Phase: "pending", Inputs: []su.Point{}, Created: q.CreatedAt, LastTime: 500, Service: &ServiceRecordV2{Request: q, Peer: px1jPeer}})
 	if e != nil {
 		t.Fatal(e)
 	}
 	reserve := admit
 	reserve.Seq, reserve.Kind, reserve.Phase = 0, RecordServiceReserve, "reserved"
-	reserve.Reserved, reserve.Fee, reserve.Inputs, reserve.TxID = 101000, 1000, []su.Point{{TxID: px1Hex(5), Vout: 1}}, px1Hex(6)
+	reserve.Reserved, reserve.Fee, reserve.Inputs, reserve.TxID = 101000, 1000, []su.Point{{TxID: px1jHex(5), Vout: 1}}, px1jHex(6)
 	if _, e = s.g2.journal.Append(reserve); e != nil {
 		t.Fatal(e)
 	}
-	px1CloseFixture(s)
+	px1jCloseFixture(s)
 	clock = 2000
-	s = px1ServiceFixture(t, dir, &clock, 8)
-	if string(s.handle(ctx, raw, px1Peer)) != string(first) {
+	s = px1jServiceFixture(t, dir, &clock, 8)
+	if string(s.handle(ctx, raw, px1jPeer)) != string(first) {
 		t.Fatal("replay after restart not byte-identical")
 	}
-	reserved := s.handle(ctx, actionEnvelope(t, q), px1Peer)
-	if r := s2Receipt(t, reserved); r.Verdict != "uncertain" || r.Reason != "DURABLE_RESERVATION_NO_RETRY" || r.Sequence != admit.Seq {
+	reserved := s.handle(ctx, actionEnvelope(t, q), px1jPeer)
+	if r := px1jReceipt(t, reserved); r.Verdict != "uncertain" || r.Reason != "DURABLE_RESERVATION_NO_RETRY" || r.Sequence != admit.Seq {
 		t.Fatal("reserved replay", r.Verdict, r.Reason)
 	}
-	if string(s.handle(ctx, actionEnvelope(t, q), px1Peer)) != string(reserved) {
+	if string(s.handle(ctx, actionEnvelope(t, q), px1jPeer)) != string(reserved) {
 		t.Fatal("uncertain answer not stored")
 	}
 	// Fail closed until S1 attaches the wallet layer: a fully bound standing
@@ -634,11 +692,14 @@ func TestPX1T8ServiceReplay(t *testing.T) {
 // (SERVICE_PROFILE), a stored receipt that does not verify under this
 // receipt key (SERVICE_JOURNAL_RECEIPT), and a clock below the journal's
 // last_time (CLOCK_ROLLBACK); the untouched journal reopens. The seams report
-// the journal and a copy of the profile under G2 and nil under W2.
+// the journal and a copy of the profile under G2 and nil under W2. With the
+// product dependencies the operator block goes through S1's validator in any
+// landing order: the stub refuses PX1_NOT_IMPLEMENTED, S1's validator admits
+// the frozen operator fixture; a single-use block never opens either way.
 func TestPX1ServiceStartup(t *testing.T) {
 	clock := int64(500)
-	dir := px1StateDir(t)
-	s := px1ServiceFixture(t, dir, &clock, 8)
+	dir := px1jStateDir(t)
+	s := px1jServiceFixture(t, dir, &clock, 8)
 	if s.PX1ServiceJournal() == nil || s.PX1Profile() == nil || s.PX1Profile().JournalSpendCapacity != 8 {
 		t.Fatal("G2 seams")
 	}
@@ -650,51 +711,58 @@ func TestPX1ServiceStartup(t *testing.T) {
 	if w2.PX1ServiceJournal() != nil || w2.PX1Profile() != nil {
 		t.Fatal("W2 seams")
 	}
-	s.handle(context.Background(), s2Request(t, "spend", 1, nil), px1Peer)
-	px1CloseFixture(s)
+	s.handle(context.Background(), px1jActionRaw(t, "spend", 1, nil), px1jPeer)
+	px1jCloseFixture(s)
 	op := px1Operator()
-	open := func(mutate func(*ActionService)) error {
+	openWith := func(mutate func(*ActionService), deps px1jServiceDeps) error {
 		key, pub := testKey(9)
 		_, grantee := testKey(2)
-		w := &Wallet{config: Config{Network: "regtest", Genesis: su.RegtestGenesis}, node: failNode{}}
-		x := &ActionService{config: ServiceConfig{Version: 1, Service: WalletServiceID, PeerUID: 1201, Grantee: grantee, SkewSeconds: 120, StateDir: dir}, wallet: w, key: key, pub: pub, clock: func() int64 { return clock }, state: serviceState{1, px1Hex(77), []serviceEntry{}}}
+		w := &Wallet{config: Config{Network: "regtest", Genesis: su.RegtestGenesis}, node: px1jFailNode{}}
+		x := &ActionService{config: ServiceConfig{Version: 1, Service: WalletServiceID, PeerUID: 1201, Grantee: grantee, SkewSeconds: 120, StateDir: dir}, wallet: w, key: key, pub: pub, clock: func() int64 { return clock }, state: serviceState{1, px1jHex(77), []serviceEntry{}}}
 		if mutate != nil {
 			mutate(x)
 		}
-		e := x.px1OpenService(op, x.state.Binding, px1ServiceDeps{validate: func(G2OperatorConfig) error { return nil }, open: OpenJournalV2})
+		e := x.px1jOpenService(op, x.state.Binding, deps)
 		if e == nil {
 			x.g2.journal.Close()
 		}
 		return e
 	}
+	open := func(mutate func(*ActionService)) error {
+		return openWith(mutate, px1jServiceDeps{validate: func(G2OperatorConfig) error { return nil }, open: OpenJournalV2})
+	}
 	if e := open(nil); e != nil {
 		t.Fatal("untouched reopen", e)
 	}
-	px1Code(t, open(func(x *ActionService) { x.state.Entries = []serviceEntry{{}} }), "SERVICE_PROFILE")
-	px1Code(t, open(func(x *ActionService) { x.key, x.pub = testKey(8) }), "SERVICE_JOURNAL_RECEIPT")
-	px1Code(t, open(func(x *ActionService) { x.config.PeerUID = 1202 }), "SERVICE_JOURNAL_ENTRY")
+	px1jCode(t, open(func(x *ActionService) { x.state.Entries = []serviceEntry{{}} }), "SERVICE_PROFILE")
+	px1jCode(t, open(func(x *ActionService) { x.key, x.pub = testKey(8) }), "SERVICE_JOURNAL_RECEIPT")
+	px1jCode(t, open(func(x *ActionService) { x.config.PeerUID = 1202 }), "SERVICE_JOURNAL_ENTRY")
 	clock = 499
-	px1Code(t, open(nil), CodeClockRollback)
+	px1jCode(t, open(nil), CodeClockRollback)
 	clock = 500
-	px1Code(t, open(func(x *ActionService) { x.state.Binding = px1Hex(78) }), CodeJournalSegment)
+	px1jCode(t, open(func(x *ActionService) { x.state.Binding = px1jHex(78) }), CodeJournalSegment)
 	if e := open(nil); e != nil {
 		t.Fatal("reopen after refusals", e)
 	}
 	// A G2 operator block that enables single-use never opens (Q7).
 	op.AllowSingleUse = true
-	px1Code(t, open(nil), "SERVICE_CONFIG")
+	px1jCode(t, open(nil), "SERVICE_CONFIG")
 	op.AllowSingleUse = false
-	x := &ActionService{config: ServiceConfig{StateDir: dir}, clock: func() int64 { return clock }}
-	// With the product dependencies the S1 validator stub fails closed.
-	if e := x.px1OpenService(px1Operator(), px1Hex(77), px1ServiceProductDeps()); !errors.Is(e, ErrNotImplemented) && (e == nil || e.Error() != "PX1_NOT_IMPLEMENTED") {
+	// Product dependencies: S1's stub refuses PX1_NOT_IMPLEMENTED; once S1
+	// lands, its validator admits the frozen operator fixture.
+	if e := openWith(nil, px1jServiceProductDeps()); e != nil && !errors.Is(e, ErrNotImplemented) && e.Error() != "PX1_NOT_IMPLEMENTED" {
 		t.Fatal("product validator", e)
+	}
+	op.AllowSingleUse = true
+	if e := openWith(nil, px1jServiceProductDeps()); e == nil {
+		t.Fatal("product dependencies opened a single-use operator block")
 	}
 }
 
 // Claim: until integration step 3 the G2 profile is never selected from a
 // service configuration, so every opened service keeps W2 behaviour.
 func TestPX1ProfileSelectionPending(t *testing.T) {
-	if px1ProfileOf(ServiceConfig{}) != nil {
+	if px1jProfileOf(ServiceConfig{}) != nil {
 		t.Fatal("G2 selected before S1's config member lands")
 	}
 }
@@ -704,23 +772,23 @@ func TestPX1ProfileSelectionPending(t *testing.T) {
 // (journal_seq 0, nothing journaled); at T itself it is admitted.
 func TestPX1T16ServiceClockRollback(t *testing.T) {
 	clock := int64(500)
-	s := px1ServiceFixture(t, px1StateDir(t), &clock, 8)
+	s := px1jServiceFixture(t, px1jStateDir(t), &clock, 8)
 	ctx := context.Background()
-	if r := s2Receipt(t, s.handle(ctx, s2Request(t, "spend", 1, nil), px1Peer)); r.Sequence != 1 {
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 1, nil), px1jPeer)); r.Sequence != 1 {
 		t.Fatal("first admission", r.Reason)
 	}
 	clock = 499
-	if r := s2Receipt(t, s.handle(ctx, s2Request(t, "spend", 2, nil), px1Peer)); r.Reason != CodeClockRollback || r.Sequence != 0 {
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 2, nil), px1jPeer)); r.Reason != CodeClockRollback || r.Sequence != 0 {
 		t.Fatal("rollback admission", r.Reason, r.Sequence)
 	}
-	if r := s2Receipt(t, s.handle(ctx, s2Request(t, "balance", 3, nil), px1Peer)); r.Reason != CodeClockRollback {
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "balance", 3, nil), px1jPeer)); r.Reason != CodeClockRollback {
 		t.Fatal("rollback read", r.Reason)
 	}
 	if s.g2.journal.Usage().Admitted != 1 {
 		t.Fatal("rollback journaled")
 	}
 	clock = 500
-	if r := s2Receipt(t, s.handle(ctx, s2Request(t, "spend", 2, nil), px1Peer)); r.Sequence != 3 { // admit 1, terminal 2, admit 3
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 2, nil), px1jPeer)); r.Sequence != 3 { // admit 1, terminal 2, admit 3
 		t.Fatal("equal time neighbour", r.Reason)
 	}
 }

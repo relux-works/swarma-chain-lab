@@ -16,40 +16,50 @@ import (
 	"sync"
 	"time"
 
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 const (
-	px1SegmentPrefix               = "journal-v2-"
-	px1SegmentSuffix               = ".json"
-	px1DefaultSegmentRecords       = 128
-	px1DefaultSegmentBytes         = 61440
-	px1MinSegmentBytes             = 4096
-	px1MaxSegmentBytes             = 65536 // durable.Store read and write cap
-	px1MaxPlanInputs               = 16    // plan.go: at most 16 P2PKH inputs
-	px1MaxMoney              int64 = 21000000 * 100000000
-	px1SecondsPerDay         int64 = 86400
-	px1ZeroHash                    = "0000000000000000000000000000000000000000000000000000000000000000"
+	px1jSegmentPrefix               = "journal-v2-"
+	px1jSegmentSuffix               = ".json"
+	px1jDefaultSegmentRecords       = 128
+	px1jDefaultSegmentBytes         = 61440
+	px1jMinSegmentBytes             = 4096
+	px1jMaxSegmentBytes             = 65536 // durable.Store read and write cap
+	px1jMaxPlanInputs               = 16    // plan.go: at most 16 P2PKH inputs
+	px1jMaxMoney              int64 = 21000000 * 100000000
+	px1jSecondsPerDay         int64 = 86400
+	px1jZeroHash                    = "0000000000000000000000000000000000000000000000000000000000000000"
 )
 
 // Bounded refusal codes local to the journal engine (never wire-visible
 // beyond safeCode, all upper-case).
 const (
-	codeJournalRecord     = "JOURNAL_RECORD"          // record violates the kind/layer/phase/transition table
-	codeJournalRecordSize = "JOURNAL_RECORD_SIZE"     // a single record cannot fit an empty segment
-	codeJournalUncertain  = "JOURNAL_WRITE_UNCERTAIN" // a write failed: poisoned
-	codeJournalClosed     = "STATE_UNAVAILABLE"       // Append after Close
-	codeJournalLayer      = "JOURNAL_LAYER"           // ledger fold of a non-wallet journal
+	px1jCodeRecord     = "JOURNAL_RECORD"          // record violates the kind/layer/phase/transition table
+	px1jCodeRecordSize = "JOURNAL_RECORD_SIZE"     // a single record cannot fit an empty segment
+	px1jCodeUncertain  = "JOURNAL_WRITE_UNCERTAIN" // a write failed: poisoned
+	px1jCodeClosed     = "STATE_UNAVAILABLE"       // Append after Close
+	px1jCodeLayer      = "JOURNAL_LAYER"           // ledger fold of a non-wallet journal
+	// px1jCodeReconcileAuth: a reconcile record whose BIP-340 signature does
+	// not verify under the journal's receipt key, or a journal without a
+	// receipt key (the frozen OpenJournalV2 cannot carry one; see
+	// FORMAT-JOURNAL-V2.md). Nothing is released in either case.
+	px1jCodeReconcileAuth = "RECONCILE_AUTHORIZATION"
 )
 
-// px1Kind is one row of the frozen kind table (px1_journal_api.go).
-type px1Kind struct {
+// px1jReconcileDomain is the frozen signing domain of ReconcileRecordV2.
+const px1jReconcileDomain = "swarma-wallet-reconcile-v1"
+
+// px1jKind is one row of the frozen kind table (px1_journal_api.go).
+type px1jKind struct {
 	layer  string
 	phases []string
 }
 
-var px1Kinds = map[string]px1Kind{
+var px1jKinds = map[string]px1jKind{
 	RecordAdmit:          {JournalLayerService, []string{"pending"}},
 	RecordReserve:        {JournalLayerWallet, []string{"reserved"}},
 	RecordServiceReserve: {JournalLayerService, []string{"reserved"}},
@@ -61,57 +71,92 @@ var px1Kinds = map[string]px1Kind{
 	RecordReconcile:      {JournalLayerWallet, []string{"released"}},
 }
 
-// px1Next is the transition table: the phase of a request before the record
-// (the empty phase means "no record yet") and the kinds allowed to follow it.
-var px1Next = map[string]map[string][]string{
+// px1jNext is the transition table: the accounting phase of a request before
+// the record (the empty phase means "no record yet") and the kinds allowed to
+// follow it. A track record never changes the accounting phase (Q12), and a
+// partially released request keeps its phase, so the same rows apply after
+// either; "released" (nothing retained) admits no further record.
+var px1jNext = map[string]map[string][]string{
 	JournalLayerService: {
 		"":         {RecordAdmit},
 		"pending":  {RecordServiceReserve, RecordTerminal},
 		"reserved": {RecordTerminal},
 	},
 	JournalLayerWallet: {
-		"":              {RecordReserve},
-		"reserved":      {RecordComplete, RecordUncertain, RecordRefuseRetained, RecordTrack, RecordReconcile},
-		"uncertain":     {RecordTrack, RecordReconcile},
-		"refused":       {RecordReconcile},
-		"complete":      {RecordTrack, RecordReconcile},
-		TrackConfirmed:  {RecordTrack, RecordReconcile},
-		TrackConflicted: {RecordTrack, RecordReconcile},
+		"":          {RecordReserve},
+		"reserved":  {RecordComplete, RecordUncertain, RecordRefuseRetained, RecordTrack, RecordReconcile},
+		"uncertain": {RecordTrack, RecordReconcile},
+		"refused":   {RecordReconcile},
+		"complete":  {RecordTrack, RecordReconcile},
 	},
 }
 
-// px1Request is the folded state of one request key inside one journal.
-type px1Request struct {
+// px1jRequest is the folded state of one request key inside one journal.
+type px1jRequest struct {
 	first JournalRecordV2 // admit (service) or reserve (wallet) record
+	// phase is the accounting phase. Execution records set it to their own
+	// phase. A track record (observation only, Q12) leaves it unchanged. A
+	// reconcile record sets it to "released" only when nothing stays retained,
+	// so a partial release keeps the remainder reserved, with its inputs and
+	// its day carry.
 	phase string
 	// released is the sum of reconcile ReleasedSat (wallet layer only).
 	released int64
 }
 
-// px1JournalState is the validated in-memory image of the segments. It is
+// px1jState is the validated in-memory image of the segments. It is
 // rebuilt at open and extended only after a durable write succeeds.
-type px1JournalState struct {
+type px1jState struct {
 	layer         string
 	records       []JournalRecordV2
-	requests      map[string]*px1Request
+	requests      map[string]*px1jRequest
 	admitted      int
 	lastSeq       uint64
 	lastTime      int64
 	lastReconcile int64 // LastTime of the latest reconcile record, or -1
+	// receiptKey verifies reconcile signatures; nil refuses every reconcile.
+	receiptKey *btcec.PublicKey
+	// authorized holds the signed digests already applied: one operator
+	// authorization releases once, never again by replaying its bytes.
+	authorized map[[32]byte]bool
 }
 
-func newPX1JournalState(layer string) *px1JournalState {
-	return &px1JournalState{layer: layer, records: []JournalRecordV2{}, requests: map[string]*px1Request{}, lastReconcile: -1}
+func px1jNewState(layer string, receiptKey *btcec.PublicKey) *px1jState {
+	return &px1jState{layer: layer, records: []JournalRecordV2{}, requests: map[string]*px1jRequest{}, lastReconcile: -1, receiptKey: receiptKey, authorized: map[[32]byte]bool{}}
 }
 
-func px1Key(layer string, r JournalRecordV2) string {
+// px1jReconcileDigest is the frozen signing preimage of a reconcile record:
+// SHA256("swarma-wallet-reconcile-v1" || canonical(record with Signature "")).
+func px1jReconcileDigest(c ReconcileRecordV2) [32]byte {
+	c.Signature = ""
+	return sha256.Sum256(append([]byte(px1jReconcileDomain), canonical(c)...))
+}
+
+// px1jReconcileSigned verifies the BIP-340 signature of c under key.
+func px1jReconcileSigned(c ReconcileRecordV2, key *btcec.PublicKey) bool {
+	if key == nil {
+		return false
+	}
+	raw, e := hex.DecodeString(c.Signature)
+	if e != nil || len(raw) != schnorr.SignatureSize {
+		return false
+	}
+	sig, e := schnorr.ParseSignature(raw)
+	if e != nil {
+		return false
+	}
+	digest := px1jReconcileDigest(c)
+	return sig.Verify(digest[:], key)
+}
+
+func px1jKey(layer string, r JournalRecordV2) string {
 	if layer == JournalLayerService {
 		return r.Nonce
 	}
 	return r.GrantID + "/" + r.Nonce
 }
 
-func px1Day(s string) bool {
+func px1jDay(s string) bool {
 	if len(s) != 10 {
 		return false
 	}
@@ -119,8 +164,8 @@ func px1Day(s string) bool {
 	return e == nil && t.Format("2006-01-02") == s
 }
 
-func px1Inputs(in []su.Point) bool {
-	if len(in) < 1 || len(in) > px1MaxPlanInputs {
+func px1jInputs(in []su.Point) bool {
+	if len(in) < 1 || len(in) > px1jMaxPlanInputs {
 		return false
 	}
 	seen := map[su.Point]bool{}
@@ -133,7 +178,7 @@ func px1Inputs(in []su.Point) bool {
 	return true
 }
 
-func px1SamePoints(a, b []su.Point) bool {
+func px1jSamePoints(a, b []su.Point) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -145,97 +190,115 @@ func px1SamePoints(a, b []su.Point) bool {
 	return true
 }
 
-// px1PlanZero reports a record without plan fields (admit, receive).
-func px1PlanZero(r JournalRecordV2) bool {
+// px1jPlanZero reports a record without plan fields (admit, receive).
+func px1jPlanZero(r JournalRecordV2) bool {
 	return r.Reserved == 0 && r.Fee == 0 && r.Day == "" && len(r.Inputs) == 0 && r.TxID == ""
 }
 
-// px1PlanValid reports a well-formed plan (reserve onward).
-func px1PlanValid(r JournalRecordV2) bool {
-	return r.Reserved > r.Fee && r.Fee >= 1 && r.Reserved <= px1MaxMoney && hexN(r.TxID, 32) && px1Inputs(r.Inputs)
+// px1jPlanValid reports a well-formed plan (reserve onward).
+func px1jPlanValid(r JournalRecordV2) bool {
+	return r.Reserved > r.Fee && r.Fee >= 1 && r.Reserved <= px1jMaxMoney && hexN(r.TxID, 32) && px1jInputs(r.Inputs)
 }
 
-func px1SamePlan(a, b JournalRecordV2) bool {
-	return a.Reserved == b.Reserved && a.Fee == b.Fee && a.Day == b.Day && a.TxID == b.TxID && px1SamePoints(a.Inputs, b.Inputs)
+func px1jSamePlan(a, b JournalRecordV2) bool {
+	return a.Reserved == b.Reserved && a.Fee == b.Fee && a.Day == b.Day && a.TxID == b.TxID && px1jSamePoints(a.Inputs, b.Inputs)
 }
 
 // check validates rec (Seq already assigned) against the table, the request's
 // folded phase and the journal clock. It never mutates the state.
-func (s *px1JournalState) check(rec JournalRecordV2) error {
+func (s *px1jState) check(rec JournalRecordV2) error {
 	if rec.LastTime < s.lastTime {
 		return fail(CodeClockRollback)
 	}
-	kind, ok := px1Kinds[rec.Kind]
+	kind, ok := px1jKinds[rec.Kind]
 	if !ok || kind.layer != s.layer || rec.Seq != s.lastSeq+1 || rec.LastTime < 0 || rec.Created < 0 || rec.Inputs == nil {
-		return fail(codeJournalRecord)
+		return fail(px1jCodeRecord)
 	}
 	phaseOK := false
 	for _, p := range kind.phases {
 		phaseOK = phaseOK || rec.Phase == p
 	}
 	if !phaseOK || !hexN(rec.RequestHash, 32) {
-		return fail(codeJournalRecord)
+		return fail(px1jCodeRecord)
 	}
 	// Exactly the optional member of the kind, and only that one.
 	service := rec.Kind == RecordAdmit || rec.Kind == RecordServiceReserve || rec.Kind == RecordTerminal
 	if (rec.Service != nil) != service || (rec.Track != nil) != (rec.Kind == RecordTrack) || (rec.Reconcile != nil) != (rec.Kind == RecordReconcile) {
-		return fail(codeJournalRecord)
+		return fail(px1jCodeRecord)
 	}
 	if s.layer == JournalLayerService {
 		if !hexN(rec.Nonce, 16) || (rec.Action != "spend" && rec.Action != "receive") || (rec.Action == "spend") != hexN(rec.GrantID, 32) || (rec.Action == "receive" && rec.GrantID != "") {
-			return fail(codeJournalRecord)
+			return fail(px1jCodeRecord)
 		}
 		q := rec.Service.Request
 		if (rec.Service.Receipt != nil) != (rec.Kind == RecordTerminal) || q.Nonce != rec.Nonce || q.Action != rec.Action || q.Grant.ID != rec.GrantID || q.CreatedAt != rec.Created || Hash(canonical(q)) != rec.RequestHash {
-			return fail(codeJournalRecord)
+			return fail(px1jCodeRecord)
 		}
 		// Service-layer plan fields mirror the wallet reservation (spend) or
 		// stay empty; the day bucket authority is the wallet layer only.
-		if !px1PlanZero(rec) && (rec.Kind == RecordAdmit || rec.Action != "spend" || !px1PlanValid(rec) || (rec.Day != "" && !px1Day(rec.Day))) {
-			return fail(codeJournalRecord)
+		if !px1jPlanZero(rec) && (rec.Kind == RecordAdmit || rec.Action != "spend" || !px1jPlanValid(rec) || (rec.Day != "" && !px1jDay(rec.Day))) {
+			return fail(px1jCodeRecord)
 		}
 	} else {
-		if !hexN(rec.Nonce, 32) || !hexN(rec.GrantID, 32) || rec.Action != "spend" || !px1PlanValid(rec) || rec.Day != UTCDay(s.firstTime(rec)) {
-			return fail(codeJournalRecord)
+		if !hexN(rec.Nonce, 32) || !hexN(rec.GrantID, 32) || rec.Action != "spend" || !px1jPlanValid(rec) || rec.Day != UTCDay(s.firstTime(rec)) {
+			return fail(px1jCodeRecord)
 		}
 	}
-	prior := s.requests[px1Key(s.layer, rec)]
+	prior := s.requests[px1jKey(s.layer, rec)]
 	phase := ""
 	if prior != nil {
 		phase = prior.phase
 	}
 	allowed := false
-	for _, k := range px1Next[s.layer][phase] {
+	for _, k := range px1jNext[s.layer][phase] {
 		allowed = allowed || k == rec.Kind
 	}
 	if !allowed {
-		return fail(codeJournalRecord)
+		return fail(px1jCodeRecord)
 	}
 	if prior != nil {
 		f := prior.first
 		if f.RequestHash != rec.RequestHash || f.Action != rec.Action || f.Created != rec.Created {
-			return fail(codeJournalRecord)
+			return fail(px1jCodeRecord)
 		}
-		if s.layer == JournalLayerWallet && !px1SamePlan(f, rec) {
-			return fail(codeJournalRecord)
+		if s.layer == JournalLayerWallet && !px1jSamePlan(f, rec) {
+			return fail(px1jCodeRecord)
 		}
 		if s.layer == JournalLayerService && (string(canonical(f.Service.Request)) != string(canonical(rec.Service.Request)) || f.Service.Peer != rec.Service.Peer) {
-			return fail(codeJournalRecord)
+			return fail(px1jCodeRecord)
 		}
 	}
 	switch rec.Kind {
 	case RecordTrack:
 		t := rec.Track
 		if t.State != rec.Phase || t.Height < 0 || !hexN(t.BlockHash, 32) || t.Confirmations < 0 || (t.State == TrackConfirmed && t.Confirmations < 1) || (t.ConflictTxID != "" && !hexN(t.ConflictTxID, 32)) {
-			return fail(codeJournalRecord)
+			return fail(px1jCodeRecord)
+		}
+		// A confirmed observation names no spender; a conflicting spender is
+		// never the payment's own plan txid.
+		if (t.State == TrackConfirmed && t.ConflictTxID != "") || t.ConflictTxID == rec.TxID {
+			return fail(px1jCodeRecord)
 		}
 	case RecordReconcile:
 		c := rec.Reconcile
 		retained := prior.first.Reserved - prior.released
-		if c.TargetSeq != prior.first.Seq || (c.Evidence != "absent" && c.Evidence != "conflict") || c.Height < 0 || !hexN(c.BlockHash, 32) ||
-			(c.Evidence == "conflict") != hexN(c.ConflictTxID, 32) || (c.Evidence == "absent" && c.ConflictTxID != "") ||
+		if c.TargetSeq != prior.first.Seq || c.Height < 0 || !hexN(c.BlockHash, 32) ||
 			c.ReleasedSat < 1 || c.ReleasedSat > retained || !hexN(c.NoteSHA256, 32) || !hexN(c.Signature, 64) {
-			return fail(codeJournalRecord)
+			return fail(px1jCodeRecord)
+		}
+		// Evidence rules that hold without a node: "absent" cites no
+		// spender; "conflict" cites a spender other than the plan txid.
+		if (c.Evidence != "absent" && c.Evidence != "conflict") || (c.Evidence == "conflict") != hexN(c.ConflictTxID, 32) ||
+			(c.Evidence == "absent" && c.ConflictTxID != "") || c.ConflictTxID == prior.first.TxID {
+			return fail(CodeReconcileEvidence)
+		}
+		// Authentication, not shape: the receipt key signed exactly these
+		// bytes, and this authorization was never applied before.
+		if !px1jReconcileSigned(*c, s.receiptKey) {
+			return fail(px1jCodeReconcileAuth)
+		}
+		if s.authorized[px1jReconcileDigest(*c)] {
+			return fail(px1jCodeRecord)
 		}
 		if s.lastReconcile >= 0 && rec.LastTime < s.lastReconcile+ReconcileMinIntervalSeconds {
 			return fail(CodeReconcileRateLimited)
@@ -246,41 +309,49 @@ func (s *px1JournalState) check(rec JournalRecordV2) error {
 
 // firstTime is the reservation clock of a wallet request: the reserve
 // record's own LastTime, or the stored reserve record's for a follow-up.
-func (s *px1JournalState) firstTime(rec JournalRecordV2) int64 {
-	if p := s.requests[px1Key(s.layer, rec)]; p != nil {
+func (s *px1jState) firstTime(rec JournalRecordV2) int64 {
+	if p := s.requests[px1jKey(s.layer, rec)]; p != nil {
 		return p.first.LastTime
 	}
 	return rec.LastTime
 }
 
 // apply extends the state with an already checked record.
-func (s *px1JournalState) apply(rec JournalRecordV2) {
-	key := px1Key(s.layer, rec)
+func (s *px1jState) apply(rec JournalRecordV2) {
+	key := px1jKey(s.layer, rec)
 	p := s.requests[key]
 	if p == nil {
-		p = &px1Request{first: rec}
+		p = &px1jRequest{first: rec}
 		s.requests[key] = p
 	}
-	p.phase = rec.Phase
+	switch rec.Kind {
+	case RecordTrack:
+		// Observation only (Q12): no accounting phase change.
+	case RecordReconcile:
+		p.released += rec.Reconcile.ReleasedSat
+		if p.first.Reserved-p.released <= 0 {
+			p.phase = "released"
+		}
+		s.lastReconcile = rec.LastTime
+		s.authorized[px1jReconcileDigest(*rec.Reconcile)] = true
+	default:
+		p.phase = rec.Phase
+	}
 	if rec.Kind == RecordAdmit {
 		s.admitted++
-	}
-	if rec.Kind == RecordReconcile {
-		p.released += rec.Reconcile.ReleasedSat
-		s.lastReconcile = rec.LastTime
 	}
 	s.records = append(s.records, rec)
 	s.lastSeq = rec.Seq
 	s.lastTime = rec.LastTime
 }
 
-// px1Journal is the durable JournalV2 implementation.
-type px1Journal struct {
+// px1jJournal is the durable JournalV2 implementation.
+type px1jJournal struct {
 	mu        sync.Mutex
 	store     *durable.Store
 	header    JournalHeaderV2
 	limits    JournalLimitsV2
-	state     *px1JournalState
+	state     *px1jState
 	index     int    // active segment index (1-based)
 	active    []byte // exact bytes of the active segment as last written/read
 	firstSeq  uint64 // first_seq of the active segment
@@ -290,34 +361,47 @@ type px1Journal struct {
 	closed    bool
 }
 
-func px1SegmentName(index int) string {
-	return fmt.Sprintf("%s%06d%s", px1SegmentPrefix, index, px1SegmentSuffix)
+func px1jSegmentName(index int) string {
+	return fmt.Sprintf("%s%06d%s", px1jSegmentPrefix, index, px1jSegmentSuffix)
 }
 
-func px1SHA256(b []byte) string {
+func px1jSHA256(b []byte) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
 }
 
-// OpenJournalV2 opens or creates one layer journal.
+// OpenJournalV2 opens or creates one layer journal. The frozen signature
+// carries no receipt key, so a journal opened here refuses every reconcile
+// record at Append, at open and at fold (fail closed) until a freeze
+// amendment delivers the key (FORMAT-JOURNAL-V2.md, "Release authorization").
 func OpenJournalV2(dir, lockName string, h JournalHeaderV2, l JournalLimitsV2) (JournalV2, error) {
+	j, e := px1jOpenJournal(dir, lockName, h, l, nil)
+	if e != nil {
+		return nil, e
+	}
+	return j, nil
+}
+
+// px1jOpenJournal is OpenJournalV2 with the receipt key that verifies
+// reconcile signatures on append and on load.
+func px1jOpenJournal(dir, lockName string, h JournalHeaderV2, l JournalLimitsV2, receiptKey *btcec.PublicKey) (*px1jJournal, error) {
 	if h.Version != 2 || (h.Layer != JournalLayerWallet && h.Layer != JournalLayerService) || !hexN(h.Binding, 32) {
 		return nil, fail(CodeJournalSegment)
 	}
 	if l.SegmentMaxRecords == 0 {
-		l.SegmentMaxRecords = px1DefaultSegmentRecords
+		l.SegmentMaxRecords = px1jDefaultSegmentRecords
 	}
 	if l.SegmentMaxBytes == 0 {
-		l.SegmentMaxBytes = px1DefaultSegmentBytes
+		l.SegmentMaxBytes = px1jDefaultSegmentBytes
 	}
-	if l.SpendCapacity < 1 || l.SegmentMaxRecords < 1 || l.SegmentMaxBytes < px1MinSegmentBytes || l.SegmentMaxBytes > px1MaxSegmentBytes {
+	if l.SpendCapacity < 1 || l.SegmentMaxRecords < 1 || l.SegmentMaxBytes < px1jMinSegmentBytes || l.SegmentMaxBytes > px1jMaxSegmentBytes {
 		return nil, fail(CodeJournalCapacity)
 	}
 	store, e := durable.Open(dir, lockName)
 	if e != nil {
 		return nil, e
 	}
-	j := &px1Journal{store: store, header: h, limits: l, state: newPX1JournalState(h.Layer)}
+	j := &px1jJournal{store: store, header: h, limits: l, state: px1jNewState(h.Layer, receiptKey)}
 	if e = j.load(dir); e != nil {
 		store.Close()
 		return nil, e
@@ -327,23 +411,23 @@ func OpenJournalV2(dir, lockName string, h JournalHeaderV2, l JournalLimitsV2) (
 
 // load verifies every segment (header, index, prev_sha256 chain, first_seq,
 // Seq contiguity, record table) or creates segment 1 for a new journal.
-func (j *px1Journal) load(dir string) error {
+func (j *px1jJournal) load(dir string) error {
 	entries, e := os.ReadDir(dir)
 	if e != nil {
 		return fail(CodeJournalSegment)
 	}
 	count := 0
 	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), px1SegmentPrefix) {
+		if strings.HasPrefix(entry.Name(), px1jSegmentPrefix) {
 			count++
 		}
 	}
 	if count == 0 {
 		return j.create()
 	}
-	prev := px1ZeroHash
+	prev := px1jZeroHash
 	for index := 1; index <= count; index++ {
-		raw, e := j.store.Read(px1SegmentName(index), px1MaxSegmentBytes)
+		raw, e := j.store.Read(px1jSegmentName(index), px1jMaxSegmentBytes)
 		if e != nil || raw == nil {
 			return fail(CodeJournalSegment)
 		}
@@ -357,38 +441,38 @@ func (j *px1Journal) load(dir string) error {
 			}
 			j.state.apply(rec)
 		}
-		prev = px1SHA256(raw)
+		prev = px1jSHA256(raw)
 		j.index, j.active, j.firstSeq, j.prevHash, j.activeLen = index, raw, seg.FirstSeq, seg.PrevSHA256, len(seg.Records)
 	}
 	return nil
 }
 
 // create durably writes an empty segment 1, pinning the header binding.
-func (j *px1Journal) create() error {
-	seg := JournalSegmentV2{Header: j.header, Index: 1, PrevSHA256: px1ZeroHash, FirstSeq: 1, Records: []JournalRecordV2{}}
+func (j *px1jJournal) create() error {
+	seg := JournalSegmentV2{Header: j.header, Index: 1, PrevSHA256: px1jZeroHash, FirstSeq: 1, Records: []JournalRecordV2{}}
 	raw := canonical(seg)
-	if e := j.store.Write(px1SegmentName(1), raw); e != nil {
-		return fail(codeJournalUncertain)
+	if e := j.store.Write(px1jSegmentName(1), raw); e != nil {
+		return fail(px1jCodeUncertain)
 	}
-	j.index, j.active, j.firstSeq, j.prevHash, j.activeLen = 1, raw, 1, px1ZeroHash, 0
+	j.index, j.active, j.firstSeq, j.prevHash, j.activeLen = 1, raw, 1, px1jZeroHash, 0
 	return nil
 }
 
-func (j *px1Journal) Header() JournalHeaderV2 { return j.header }
+func (j *px1jJournal) Header() JournalHeaderV2 { return j.header }
 
-func (j *px1Journal) Append(rec JournalRecordV2) (JournalRecordV2, error) {
+func (j *px1jJournal) Append(rec JournalRecordV2) (JournalRecordV2, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if j.closed {
-		return JournalRecordV2{}, fail(codeJournalClosed)
+		return JournalRecordV2{}, fail(px1jCodeClosed)
 	}
 	if j.poisoned {
-		return JournalRecordV2{}, fail(codeJournalUncertain)
+		return JournalRecordV2{}, fail(px1jCodeUncertain)
 	}
 	if rec.Inputs == nil {
 		rec.Inputs = []su.Point{}
 	}
-	rec = px1Clone(rec)
+	rec = px1jClone(rec)
 	rec.Seq = j.state.lastSeq + 1
 	if e := j.state.check(rec); e != nil {
 		return JournalRecordV2{}, e
@@ -401,19 +485,19 @@ func (j *px1Journal) Append(rec JournalRecordV2) (JournalRecordV2, error) {
 	candidate := canonical(JournalSegmentV2{Header: j.header, Index: index, PrevSHA256: prev, FirstSeq: first, Records: append(records, rec)})
 	if len(records)+1 > j.limits.SegmentMaxRecords || len(candidate) > j.limits.SegmentMaxBytes {
 		if len(records) == 0 {
-			return JournalRecordV2{}, fail(codeJournalRecordSize)
+			return JournalRecordV2{}, fail(px1jCodeRecordSize)
 		}
 		// Seal the active segment (its bytes are already durable) and open
 		// the next one chained to the sealed bytes.
-		index, prev, first = j.index+1, px1SHA256(j.active), rec.Seq
+		index, prev, first = j.index+1, px1jSHA256(j.active), rec.Seq
 		candidate = canonical(JournalSegmentV2{Header: j.header, Index: index, PrevSHA256: prev, FirstSeq: first, Records: []JournalRecordV2{rec}})
 		if len(candidate) > j.limits.SegmentMaxBytes {
-			return JournalRecordV2{}, fail(codeJournalRecordSize)
+			return JournalRecordV2{}, fail(px1jCodeRecordSize)
 		}
 	}
-	if e := j.store.Write(px1SegmentName(index), candidate); e != nil {
+	if e := j.store.Write(px1jSegmentName(index), candidate); e != nil {
 		j.poisoned = true
-		return JournalRecordV2{}, fail(codeJournalUncertain)
+		return JournalRecordV2{}, fail(px1jCodeUncertain)
 	}
 	if index != j.index {
 		j.activeLen = 0
@@ -421,18 +505,18 @@ func (j *px1Journal) Append(rec JournalRecordV2) (JournalRecordV2, error) {
 	j.index, j.active, j.firstSeq, j.prevHash = index, candidate, first, prev
 	j.activeLen++
 	j.state.apply(rec)
-	return px1Clone(rec), nil
+	return px1jClone(rec), nil
 }
 
 // activeRecords returns a copy of the active segment's records.
-func (j *px1Journal) activeRecords() []JournalRecordV2 {
+func (j *px1jJournal) activeRecords() []JournalRecordV2 {
 	all := j.state.records
 	out := make([]JournalRecordV2, j.activeLen, j.activeLen+1)
 	copy(out, all[len(all)-j.activeLen:])
 	return out
 }
 
-func (j *px1Journal) Iterate(from uint64, fn func(JournalRecordV2) error) error {
+func (j *px1jJournal) Iterate(from uint64, fn func(JournalRecordV2) error) error {
 	j.mu.Lock()
 	records := j.state.records
 	j.mu.Unlock()
@@ -440,26 +524,26 @@ func (j *px1Journal) Iterate(from uint64, fn func(JournalRecordV2) error) error 
 		if r.Seq < from {
 			continue
 		}
-		if e := fn(px1Clone(r)); e != nil {
+		if e := fn(px1jClone(r)); e != nil {
 			return e
 		}
 	}
 	return nil
 }
 
-func (j *px1Journal) Usage() JournalUsageV2 {
+func (j *px1jJournal) Usage() JournalUsageV2 {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return JournalUsageV2{Admitted: j.state.admitted, SpendCapacity: j.limits.SpendCapacity, Segments: j.index, LastSeq: j.state.lastSeq, LastTime: j.state.lastTime}
 }
 
-func (j *px1Journal) Poisoned() bool {
+func (j *px1jJournal) Poisoned() bool {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.poisoned
 }
 
-func (j *px1Journal) Close() {
+func (j *px1jJournal) Close() {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if !j.closed {
@@ -468,8 +552,8 @@ func (j *px1Journal) Close() {
 	}
 }
 
-// px1Clone deep-copies a record so callers can never alias journal memory.
-func px1Clone(r JournalRecordV2) JournalRecordV2 {
+// px1jClone deep-copies a record so callers can never alias journal memory.
+func px1jClone(r JournalRecordV2) JournalRecordV2 {
 	r.Inputs = append([]su.Point{}, r.Inputs...)
 	if r.Service != nil {
 		s := *r.Service
@@ -492,9 +576,9 @@ func px1Clone(r JournalRecordV2) JournalRecordV2 {
 	return r
 }
 
-// px1JournalHighWater reports usage at or above JournalAlertPercent of the
+// px1jHighWater reports usage at or above JournalAlertPercent of the
 // spend capacity (ALERT_JOURNAL_HIGH_WATER is raised by the S3 runtime).
-func px1JournalHighWater(u JournalUsageV2) bool {
+func px1jHighWater(u JournalUsageV2) bool {
 	return u.SpendCapacity > 0 && int64(u.Admitted)*100 >= int64(u.SpendCapacity)*JournalAlertPercent
 }
 
@@ -513,17 +597,17 @@ func RequiredSpendCapacity(dayCountCap int, notBefore, notAfter int64) int {
 	return dayCountCap*days + JournalCapacityHeadroom
 }
 
-// px1CapacityFits is the admission-side reading of RequiredSpendCapacity.
-func px1CapacityFits(capacity, required int) bool {
+// px1jCapacityFits is the admission-side reading of RequiredSpendCapacity.
+func px1jCapacityFits(capacity, required int) bool {
 	return required >= 0 && capacity >= required
 }
 
 // UTCDay is the UTC calendar day key of a Unix time (Q4).
 func UTCDay(unix int64) string { return time.Unix(unix, 0).UTC().Format("2006-01-02") }
 
-func px1FloorDay(t int64) int64 {
-	d := t / px1SecondsPerDay
-	if t%px1SecondsPerDay < 0 {
+func px1jFloorDay(t int64) int64 {
+	d := t / px1jSecondsPerDay
+	if t%px1jSecondsPerDay < 0 {
 		d--
 	}
 	return d
@@ -534,19 +618,19 @@ func UTCDaysSpanned(notBefore, notAfter int64) int {
 	if notAfter <= notBefore {
 		return 0
 	}
-	days := px1FloorDay(notAfter-1) - px1FloorDay(notBefore) + 1
+	days := px1jFloorDay(notAfter-1) - px1jFloorDay(notBefore) + 1
 	if days > math.MaxInt32 {
 		return math.MaxInt32
 	}
 	return int(days)
 }
 
-// px1Ledger is the folded wallet-layer journal.
-type px1Ledger struct {
-	requests []px1LedgerRequest
+// px1jLedger is the folded wallet-layer journal.
+type px1jLedger struct {
+	requests []px1jLedgerRequest
 }
 
-type px1LedgerRequest struct {
+type px1jLedgerRequest struct {
 	grantID  string
 	day      string
 	phase    string
@@ -554,7 +638,7 @@ type px1LedgerRequest struct {
 	inputs   []su.Point
 }
 
-func px1AddSat(a, b int64) int64 {
+func px1jAddSat(a, b int64) int64 {
 	if b > 0 && a > math.MaxInt64-b {
 		return math.MaxInt64
 	}
@@ -567,20 +651,26 @@ func FoldLedgerV2(j JournalV2) (LedgerView, error) {
 		return nil, fail("STATE_UNAVAILABLE")
 	}
 	if j.Header().Layer != JournalLayerWallet {
-		return nil, fail(codeJournalLayer)
+		return nil, fail(px1jCodeLayer)
 	}
 	if j.Poisoned() {
-		return nil, fail(codeJournalUncertain)
+		return nil, fail(px1jCodeUncertain)
 	}
-	// Re-check the table on the way in: the fold accepts any JournalV2, so a
-	// foreign implementation cannot smuggle an unbacked release or phase.
-	state := newPX1JournalState(JournalLayerWallet)
+	// Re-check the table and every reconcile signature on the way in: the
+	// fold accepts any JournalV2, so a foreign implementation cannot smuggle
+	// an unbacked release or phase. Only this package's journal carries a
+	// receipt key; any other JournalV2 folds no release at all.
+	var key *btcec.PublicKey
+	if own, ok := j.(*px1jJournal); ok {
+		key = own.state.receiptKey
+	}
+	state := px1jNewState(JournalLayerWallet, key)
 	e := j.Iterate(1, func(r JournalRecordV2) error {
 		if r.Inputs == nil {
 			r.Inputs = []su.Point{}
 		}
 		if e := state.check(r); e != nil {
-			return fail(codeJournalRecord)
+			return fail(px1jCodeRecord)
 		}
 		state.apply(r)
 		return nil
@@ -588,55 +678,57 @@ func FoldLedgerV2(j JournalV2) (LedgerView, error) {
 	if e != nil {
 		return nil, e
 	}
-	l := &px1Ledger{requests: make([]px1LedgerRequest, 0, len(state.requests))}
+	l := &px1jLedger{requests: make([]px1jLedgerRequest, 0, len(state.requests))}
 	for _, r := range state.records {
 		if r.Kind != RecordReserve {
 			continue
 		}
-		p := state.requests[px1Key(JournalLayerWallet, r)]
-		l.requests = append(l.requests, px1LedgerRequest{grantID: r.GrantID, day: r.Day, phase: p.phase, retained: r.Reserved - p.released, inputs: r.Inputs})
+		p := state.requests[px1jKey(JournalLayerWallet, r)]
+		l.requests = append(l.requests, px1jLedgerRequest{grantID: r.GrantID, day: r.Day, phase: p.phase, retained: r.Reserved - p.released, inputs: r.Inputs})
 	}
 	return l, nil
 }
 
-func (l *px1Ledger) SpendUsed(grantID string) int64 {
+func (l *px1jLedger) SpendUsed(grantID string) int64 {
 	var sum int64
 	for _, r := range l.requests {
 		if r.grantID == grantID {
-			sum = px1AddSat(sum, r.retained)
+			sum = px1jAddSat(sum, r.retained)
 		}
 	}
 	return sum
 }
 
-// px1Open is the signer-service "non-terminal" set: a reserved record with no
-// follow-up (a crash between reservation and outcome) or an uncertain one.
-// Both are charged in every day until a later record or a reconcile.
-func px1Open(phase string) bool { return phase == "reserved" || phase == "uncertain" }
+// px1jOpen is the signer-service "non-terminal" set: a reserved record with no
+// outcome (a crash between reservation and outcome) or an uncertain one, by
+// accounting phase. Both are charged in every day with their retained debit
+// until an outcome or a reconcile releases all of it; a track record or a
+// partial release leaves them open.
+func px1jOpen(phase string) bool { return phase == "reserved" || phase == "uncertain" }
 
-func (l *px1Ledger) DayUsage(grantID, day string) (int64, int) {
+func (l *px1jLedger) DayUsage(grantID, day string) (int64, int) {
 	var used int64
 	count := 0
 	for _, r := range l.requests {
-		if r.grantID == grantID && (px1Open(r.phase) || r.day == day) {
-			used = px1AddSat(used, r.retained)
+		if r.grantID == grantID && (px1jOpen(r.phase) || r.day == day) {
+			used = px1jAddSat(used, r.retained)
 			count++
 		}
 	}
 	return used, count
 }
 
-func (l *px1Ledger) UncertainSat(grantID string) int64 {
+func (l *px1jLedger) UncertainSat(grantID string) int64 {
 	var sum int64
 	for _, r := range l.requests {
-		if r.grantID == grantID && px1Open(r.phase) {
-			sum = px1AddSat(sum, r.retained)
+		if r.grantID == grantID && px1jOpen(r.phase) {
+			sum = px1jAddSat(sum, r.retained)
 		}
 	}
 	return sum
 }
 
-func (l *px1Ledger) InputReserved(p su.Point) bool {
+func (l *px1jLedger) InputReserved(p su.Point) bool {
 	for _, r := range l.requests {
 		if r.phase == "released" {
 			continue
@@ -650,8 +742,8 @@ func (l *px1Ledger) InputReserved(p su.Point) bool {
 	return false
 }
 
-// px1ClockGuard implements CLOCK_ROLLBACK.
-type px1ClockGuard struct {
+// px1jClockGuard implements CLOCK_ROLLBACK.
+type px1jClockGuard struct {
 	mu    sync.Mutex
 	clock func() int64
 	last  int64
@@ -665,10 +757,10 @@ func NewClockGuard(clock func() int64, lastTime int64) (ClockGuard, error) {
 	if clock() < lastTime {
 		return nil, fail(CodeClockRollback)
 	}
-	return &px1ClockGuard{clock: clock, last: lastTime}, nil
+	return &px1jClockGuard{clock: clock, last: lastTime}, nil
 }
 
-func (g *px1ClockGuard) Now() (int64, error) {
+func (g *px1jClockGuard) Now() (int64, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	now := g.clock()
@@ -679,35 +771,35 @@ func (g *px1ClockGuard) Now() (int64, error) {
 	return now, nil
 }
 
-func (g *px1ClockGuard) LastTime() int64 {
+func (g *px1jClockGuard) LastTime() int64 {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.last
 }
 
-// px1ReadLimiter is a per-grantee trailing-hour read limiter with a rolling
+// px1jReadLimiter is a per-grantee trailing-hour read limiter with a rolling
 // audit tail. It holds no request bodies.
-type px1ReadLimiter struct {
+type px1jReadLimiter struct {
 	mu      sync.Mutex
 	perHour int
 	seen    map[string][]int64
 	tail    []ReadAuditEntry
 }
 
-const px1ReadMaxGrantees = 1024
+const px1jReadMaxGrantees = 1024
 
 // NewReadLimiter returns the per-grantee read limiter. perHour < 1 refuses
 // every read (fail closed).
 func NewReadLimiter(perHour int) ReadLimiter {
-	return &px1ReadLimiter{perHour: perHour, seen: map[string][]int64{}, tail: []ReadAuditEntry{}}
+	return &px1jReadLimiter{perHour: perHour, seen: map[string][]int64{}, tail: []ReadAuditEntry{}}
 }
 
-func (r *px1ReadLimiter) Admit(grantee string, now int64) error {
+func (r *px1jReadLimiter) Admit(grantee string, now int64) error {
 	return r.admit(grantee, "read", now)
 }
 
 // admit is Admit with the read action recorded in the audit tail.
-func (r *px1ReadLimiter) admit(grantee, action string, now int64) error {
+func (r *px1jReadLimiter) admit(grantee, action string, now int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	// Keep reads inside the trailing hour. A timestamp after now (clock went
@@ -718,7 +810,7 @@ func (r *px1ReadLimiter) admit(grantee, action string, now int64) error {
 			kept = append(kept, t)
 		}
 	}
-	if _, known := r.seen[grantee]; !known && len(r.seen) >= px1ReadMaxGrantees {
+	if _, known := r.seen[grantee]; !known && len(r.seen) >= px1jReadMaxGrantees {
 		for g, ts := range r.seen {
 			if len(ts) == 0 || ts[len(ts)-1] <= now-3600 {
 				delete(r.seen, g)
@@ -728,7 +820,7 @@ func (r *px1ReadLimiter) admit(grantee, action string, now int64) error {
 	_, known := r.seen[grantee]
 	verdict, reason := "executed", "READ"
 	var e error
-	if r.perHour < 1 || len(kept) >= r.perHour || (!known && len(r.seen) >= px1ReadMaxGrantees) {
+	if r.perHour < 1 || len(kept) >= r.perHour || (!known && len(r.seen) >= px1jReadMaxGrantees) {
 		verdict, reason, e = "refused", CodeReadRateLimited, fail(CodeReadRateLimited)
 	} else {
 		kept = append(kept, now)
@@ -745,7 +837,7 @@ func (r *px1ReadLimiter) admit(grantee, action string, now int64) error {
 	return e
 }
 
-func (r *px1ReadLimiter) Tail() []ReadAuditEntry {
+func (r *px1jReadLimiter) Tail() []ReadAuditEntry {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]ReadAuditEntry{}, r.tail...)

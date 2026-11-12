@@ -46,8 +46,9 @@ stray `journal-v2-*` file) refuses `JOURNAL_SEGMENT`.
 
 1. a closed journal (`STATE_UNAVAILABLE`) or a poisoned one (`JOURNAL_WRITE_UNCERTAIN`);
 2. `last_time` below the previous record's `last_time` (`CLOCK_ROLLBACK`);
-3. any violation of the table below (`JOURNAL_RECORD`, or
-   `RECONCILE_RATE_LIMITED` for the reconcile interval);
+3. any violation of the table below (`JOURNAL_RECORD`), and for a
+   `reconcile`: its evidence rules (`RECONCILE_EVIDENCE`), its signature
+   (`RECONCILE_AUTHORIZATION`), then the interval (`RECONCILE_RATE_LIMITED`);
 4. an `admit` when `admitted == SpendCapacity` (`SERVICE_JOURNAL_LIMIT`);
 5. a record too large for an empty segment (`JOURNAL_RECORD_SIZE`).
 
@@ -57,7 +58,15 @@ journal.
 
 ### Kind, layer and phase
 
-| Kind | Layer | Phase after | May follow phase |
+The record's `phase` field follows the frozen kind table. The column "May
+follow" is keyed by the request's **accounting phase**: execution records
+(`reserve`, `complete`, `uncertain`, `refuse-retained`, and the service
+kinds) set it; a `track` record never changes it (Q12); a `reconcile` sets
+it to `released` only when nothing stays retained. A partially released
+request therefore keeps its accounting phase, and nothing may follow a fully
+released one.
+
+| Kind | Layer | Phase field | May follow accounting phase |
 | --- | --- | --- | --- |
 | `admit` | service | `pending` | (no record for this nonce) |
 | `service-reserve` | service | `reserved` | `pending` |
@@ -66,8 +75,8 @@ journal.
 | `complete` | wallet | `complete` | `reserved` |
 | `uncertain` | wallet | `uncertain` | `reserved` |
 | `refuse-retained` | wallet | `refused` | `reserved` |
-| `track` | wallet | `confirmed` or `conflicted` (= `track.state`) | `reserved`, `uncertain`, `complete`, `confirmed`, `conflicted` |
-| `reconcile` | wallet | `released` | `reserved`, `uncertain`, `refused`, `complete`, `confirmed`, `conflicted` |
+| `track` | wallet | `confirmed` or `conflicted` (= `track.state`) | `reserved`, `uncertain`, `complete` |
+| `reconcile` | wallet | `released` | `reserved`, `uncertain`, `refused`, `complete` |
 
 The request key is the action nonce (32 hex) in the service layer, and
 `grant_id` + derived wallet nonce (64 hex) in the wallet layer.
@@ -94,19 +103,62 @@ The request key is the action nonce (32 hex) in the service layer, and
   layer it also repeats the plan (`reserved_sat`, `fee_sat`, `day`, `inputs`,
   `txid`). In the service layer it repeats `service.request` and `service.peer`.
   The record then adds its own `kind`, `phase`, `last_time` and payload.
-- **`track`:** `state` equals the phase; `height >= 0`; `block_hash` is 64 hex;
-  `confirmations >= 1` for `confirmed`; `conflict_txid` is empty or 64 hex.
+- **`track`** (S3 writes it, S2 stores it): the binding fields are copied from
+  the request's `reserve` record (`grant_id`, wallet `nonce`, `request_hash`,
+  `action`, `reserved_sat`, `fee_sat`, `day`, `inputs`, `txid`, `created`);
+  `last_time` is the executor clock; `state` equals the phase; `height >= 0`;
+  `block_hash` is 64 hex; `confirmations >= 1` for `confirmed`;
+  `conflict_txid` is empty or 64 hex, empty for `confirmed`, and never the
+  payment's own `txid`. A track record never changes a debit, a day count,
+  an input reservation or the accounting phase.
 - **`reconcile`:**
   - `target_seq` is the `seq` of the request's `reserve` record.
-  - `evidence` is `absent` (empty `conflict_txid`) or `conflict` (64-hex
-    `conflict_txid`).
-  - `released_sat` is between 1 and the debit still retained.
-  - `note_sha256` is 64 hex and `signature` is 128 hex.
+  - `released_sat` is between 1 and the debit still retained; several
+    partial releases may follow each other.
+  - `note_sha256` is 64 hex and `signature` is 128 hex (`JOURNAL_RECORD`).
+  - Evidence (`RECONCILE_EVIDENCE`): `evidence` is `absent` (empty
+    `conflict_txid`) or `conflict` (a 64-hex `conflict_txid` that is not the
+    payment's own `txid`).
+  - Authorization (`RECONCILE_AUTHORIZATION`): see below.
+  - An authorization whose signed digest was already applied in this journal
+    refuses `JOURNAL_RECORD` (no replay).
   - `last_time` is at least `ReconcileMinIntervalSeconds` after the previous
     reconcile record (`RECONCILE_RATE_LIMITED`).
-  - The journal checks only the shape. Verifying the signature against the
-    receipt key, and checking the evidence against the chain, is the
-    reconciliation tool's job (S3).
+
+### Release authorization (Q8)
+
+S2 verifies every `reconcile` record. The check is a BIP-340 signature by
+the receipt key over
+`SHA256("swarma-wallet-reconcile-v1" || canonical(reconcile with signature ""))`.
+It runs at `Append`, again at open (every stored record is re-checked while
+loading, so a replaced signature refuses `JOURNAL_SEGMENT`), and again in
+`FoldLedgerV2`. A shape-valid signature is not authentication.
+
+The verifying key lives in the journal engine. The frozen `OpenJournalV2`
+signature cannot carry it, so a journal opened through `OpenJournalV2` has
+no receipt key. Such a journal:
+
+- refuses every `reconcile` append (`RECONCILE_AUTHORIZATION`);
+- refuses to open when a `reconcile` is stored (`JOURNAL_SEGMENT`).
+
+`FoldLedgerV2` folds a release only from this package's journal under its
+key. A release served by any other `JournalV2` implementation refuses
+`JOURNAL_RECORD`.
+
+The unexported opener `px1jOpenJournal` takes the key, and the tests use it.
+The product wiring waits for a freeze amendment that adds the receipt key to
+`JournalHeaderV2` (S2 request, PR #78 r2). Until it lands, no debit can be
+released (fail closed).
+
+Two checks stay outside the journal:
+
+- Whether the cited chain evidence is true (the tip `height`/`block_hash`,
+  absence, the conflicting spender) needs a node. That is the operator tool's
+  job.
+- The frozen preimage binds `target_seq` but not the journal binding or the
+  request. A release signed for one journal therefore verifies at the same
+  `target_seq` of another journal under the same receipt key. The amendment
+  proposes binding them.
 
 ## Capacity
 
@@ -122,7 +174,7 @@ The request key is the action nonce (32 hex) in the service layer, and
   narrow this to the effective terms value.
 - The service refuses an admission whose record could not leave room for its
   terminal receipt in an empty segment (`SERVICE_JOURNAL_LIMIT`).
-- `px1JournalHighWater` reports usage at or above 80 % for the S3 alert.
+- `px1jHighWater` reports usage at or above 80 % for the S3 alert.
 
 ## Ledger fold and day buckets (Q4, signer-service rule)
 
@@ -131,14 +183,17 @@ cannot inject an unbacked release. For every `reserve` record of a grant:
 
 - **Retained debit** = `reserved_sat` minus the sum of reconcile
   `released_sat`. `SpendUsed` sums it over all records, released or not.
-- **Open records** are those whose latest phase is `reserved` (no outcome
+- **Open records** are those whose accounting phase is `reserved` (no outcome
   recorded, for example after a crash) or `uncertain`. An open record counts
-  toward **every** day until a later record closes it. `UncertainSat` sums
-  the open records.
-- **Other records** (`complete`, `refused`, `confirmed`, `conflicted`,
-  `released`) count only toward their reservation `day`. A release lowers the
-  sats but keeps the count, because a day count is never given back.
-- `InputReserved` covers the inputs of every record that is not `released`.
+  its retained debit toward **every** day until an outcome or a release of
+  the whole debit closes it. `UncertainSat` sums the open records. A `track`
+  record or a partial release leaves the record open.
+- **Other records** (accounting phase `complete`, `refused` or `released`)
+  count only toward their reservation `day`, with their retained debit. A
+  release lowers the sats but keeps the count, because a day count is never
+  given back.
+- `InputReserved` covers the inputs of every record that still retains a
+  debit (accounting phase other than `released`).
 - The day key is `UTCDay(executor clock)`, so a new day starts at
   00:00:00 UTC exactly. The request's `created_at` never selects a day.
 
@@ -167,8 +222,11 @@ second layer.
 
 ## G2 service flow (steps 5-23 at the service layer)
 
-1. Refuse `SERVICE_STATE_UNAVAILABLE` if the service or its journal is
-   poisoned.
+1. Ask the S3 runtime for a halt (`px1oHalt`, an optional method of
+   `*px1Runtime`). The answer `FLOAT_CANARY_SPENT` or
+   `STATE_RECONCILE_REQUIRED` is the refusal code (T14); any other non-empty
+   answer refuses `SERVICE_STATE_UNAVAILABLE`. Then refuse
+   `SERVICE_STATE_UNAVAILABLE` if the service or its journal is poisoned.
 2. Send reads to the limiter path.
 3. Look up the nonce in the service journal:
    - other bytes: `NONCE_CONFLICT`;
@@ -213,4 +271,4 @@ It also re-checks the PX1 decisions it depends on: terms v2 only,
 (`SERVICE_CONFIG`).
 
 The profile is not selected from `ServiceConfig` yet. The `g2` member belongs
-to S1, so `px1ProfileOf` returns nil until integration step 3.
+to S1, so `px1jProfileOf` returns nil until integration step 3.

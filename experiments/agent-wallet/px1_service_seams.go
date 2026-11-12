@@ -8,54 +8,54 @@ import su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 
 // Service-layer journal v2 location: the service state_dir, next to the W2
 // service.json, under its own lock so the W2 store lock is never shared.
-const px1ServiceJournalLock = "service-v2.lock"
+const px1jServiceJournalLock = "service-v2.lock"
 
-// px1ServiceReserve is the bytes kept free in an empty segment for the
+// px1jServiceReserve is the bytes kept free in an empty segment for the
 // terminal record of an admitted request (request + receipt + plan + JSON).
-const px1ServiceReserve = maxServiceReceipt + 4096
+const px1jServiceReserve = maxServiceReceipt + 4096
 
-// px1Service is the G2 service-layer state. ActionService.g2 == nil means W2.
-type px1Service struct {
+// px1jService is the G2 service-layer state. ActionService.g2 == nil means W2.
+type px1jService struct {
 	operator G2OperatorConfig
 	journal  JournalV2
 	clock    ClockGuard
-	reads    *px1ReadLimiter
+	reads    *px1jReadLimiter
 	limits   JournalLimitsV2
-	entries  map[string]*px1ServiceEntry // by action nonce (one grantee)
+	entries  map[string]*px1jServiceEntry // by action nonce (one grantee)
 }
 
-// px1ServiceEntry is the folded service-layer state of one admitted request.
-type px1ServiceEntry struct {
+// px1jServiceEntry is the folded service-layer state of one admitted request.
+type px1jServiceEntry struct {
 	admit   JournalRecordV2 // the admit record (Seq is the receipt journal_seq)
 	phase   string          // pending | reserved | terminal
 	plan    JournalRecordV2 // plan fields of the service-reserve record (spend)
 	receipt *SignedActionReceipt
 }
 
-// px1ServiceDeps are the cross-stream entry points the service layer
+// px1jServiceDeps are the cross-stream entry points the service layer
 // consumes. Product values are the frozen functions; unit tests substitute
 // fakes of the same frozen signatures while S1's validator is still a stub.
-type px1ServiceDeps struct {
+type px1jServiceDeps struct {
 	validate func(G2OperatorConfig) error
 	open     func(dir, lockName string, h JournalHeaderV2, l JournalLimitsV2) (JournalV2, error)
 }
 
-func px1ServiceProductDeps() px1ServiceDeps {
-	return px1ServiceDeps{validate: ValidateG2OperatorConfig, open: OpenJournalV2}
+func px1jServiceProductDeps() px1jServiceDeps {
+	return px1jServiceDeps{validate: ValidateG2OperatorConfig, open: OpenJournalV2}
 }
 
-// px1ProfileOf selects the G2 profile from the service configuration. The
+// px1jProfileOf selects the G2 profile from the service configuration. The
 // `g2` member of ServiceConfig belongs to S1 (service_config.go) and is not
 // on the frozen base, so until S1 lands every service stays W2. Integration
 // step 3 (PX1-INTERFACES.md) replaces the body with `return c.G2` and attaches
-// the wallet layer with S1's px1Attach before px1OpenService.
-func px1ProfileOf(c ServiceConfig) *G2OperatorConfig { return nil }
+// the wallet layer with S1's px1Attach before px1jOpenService.
+func px1jProfileOf(c ServiceConfig) *G2OperatorConfig { return nil }
 
-// px1OpenService attaches the G2 service layer: it opens the service-layer
+// px1jOpenService attaches the G2 service layer: it opens the service-layer
 // journal v2 bound to the W2 service binding, re-verifies every admitted
 // request and stored receipt, and starts the clock guard at the journal's
 // last_time (CLOCK_ROLLBACK at startup) and the read limiter.
-func (s *ActionService) px1OpenService(op G2OperatorConfig, binding string, deps px1ServiceDeps) error {
+func (s *ActionService) px1jOpenService(op G2OperatorConfig, binding string, deps px1jServiceDeps) error {
 	if s.g2 != nil || len(s.state.Entries) != 0 {
 		// A W2 service journal with entries is never silently continued
 		// under G2: its nonces would be forgotten.
@@ -72,35 +72,35 @@ func (s *ActionService) px1OpenService(op G2OperatorConfig, binding string, deps
 	if op.RequireTermsVersion != TermsV2Version || op.AllowSingleUse || op.ReadRatePerHour < 1 || op.JournalSpendCapacity < 1 || op.MaxDayCount < 1 || op.MaxDayCount > MaxDayCountCap {
 		return fail("SERVICE_CONFIG")
 	}
-	limits := JournalLimitsV2{SpendCapacity: op.JournalSpendCapacity, SegmentMaxRecords: px1DefaultSegmentRecords, SegmentMaxBytes: px1DefaultSegmentBytes}
+	limits := JournalLimitsV2{SpendCapacity: op.JournalSpendCapacity, SegmentMaxRecords: px1jDefaultSegmentRecords, SegmentMaxBytes: px1jDefaultSegmentBytes}
 	header := JournalHeaderV2{Version: 2, Layer: JournalLayerService, Binding: binding}
-	j, e := deps.open(s.config.StateDir, px1ServiceJournalLock, header, limits)
+	j, e := deps.open(s.config.StateDir, px1jServiceJournalLock, header, limits)
 	if e != nil {
 		return e
 	}
-	x := &px1Service{operator: op, journal: j, limits: limits, entries: map[string]*px1ServiceEntry{}}
+	x := &px1jService{operator: op, journal: j, limits: limits, entries: map[string]*px1jServiceEntry{}}
 	if j == nil || j.Header() != header {
 		if j != nil {
 			j.Close()
 		}
 		return fail(CodeJournalSegment)
 	}
-	if e = s.px1LoadEntries(x); e == nil {
+	if e = s.px1jLoadEntries(x); e == nil {
 		x.clock, e = NewClockGuard(s.clock, j.Usage().LastTime)
 	}
 	if e != nil {
 		j.Close()
 		return e
 	}
-	x.reads = NewReadLimiter(op.ReadRatePerHour).(*px1ReadLimiter)
+	x.reads = NewReadLimiter(op.ReadRatePerHour).(*px1jReadLimiter)
 	s.g2 = x
 	return nil
 }
 
-// px1LoadEntries folds the service-layer journal and re-verifies what W2
+// px1jLoadEntries folds the service-layer journal and re-verifies what W2
 // verifies at open: request shape and network, pinned grantee and peer, and
 // every stored receipt against this instance's receipt key and admit Seq.
-func (s *ActionService) px1LoadEntries(x *px1Service) error {
+func (s *ActionService) px1jLoadEntries(x *px1jService) error {
 	return x.journal.Iterate(1, func(r JournalRecordV2) error {
 		entry := x.entries[r.Nonce]
 		if r.Kind == RecordAdmit {
@@ -108,7 +108,7 @@ func (s *ActionService) px1LoadEntries(x *px1Service) error {
 			if _, e := actionFieldsForNetwork(q, s.config.Service, s.wallet.config.Network, s.wallet.config.Genesis); e != nil || q.Grantee != s.config.Grantee || r.Service.Peer.UID != s.config.PeerUID || entry != nil {
 				return fail("SERVICE_JOURNAL_ENTRY")
 			}
-			x.entries[r.Nonce] = &px1ServiceEntry{admit: r, phase: "pending"}
+			x.entries[r.Nonce] = &px1jServiceEntry{admit: r, phase: "pending"}
 			return nil
 		}
 		if entry == nil {
@@ -128,8 +128,8 @@ func (s *ActionService) px1LoadEntries(x *px1Service) error {
 	})
 }
 
-// px1Append writes one service-layer follow-up of entry with the guarded clock.
-func (s *ActionService) px1Append(entry *px1ServiceEntry, kind, phase string, plan JournalRecordV2, receipt *SignedActionReceipt) error {
+// px1jAppend writes one service-layer follow-up of entry with the guarded clock.
+func (s *ActionService) px1jAppend(entry *px1jServiceEntry, kind, phase string, plan JournalRecordV2, receipt *SignedActionReceipt) error {
 	now, e := s.g2.clock.Now()
 	if e != nil {
 		return e
@@ -157,18 +157,18 @@ func (s *ActionService) px1Append(entry *px1ServiceEntry, kind, phase string, pl
 	return nil
 }
 
-// px1JournalCode maps a service-layer append error to the W2 wire code.
-func (s *ActionService) px1JournalCode(e error) string {
+// px1jJournalCode maps a service-layer append error to the W2 wire code.
+func (s *ActionService) px1jJournalCode(e error) string {
 	if s.g2.journal.Poisoned() {
 		return "SERVICE_JOURNAL_UNCERTAIN"
 	}
 	return safeCode(e)
 }
 
-// px1Tracked finds the wallet-layer reserve record of an executed spend and
+// px1jTracked finds the wallet-layer reserve record of an executed spend and
 // builds the tracker registration (step 23). BroadcastTip is the own-node
 // height observed for this request (step 11), the last tip before broadcast.
-func (s *ActionService) px1Tracked(result Receipt, height int64) (TrackedPayment, bool) {
+func (s *ActionService) px1jTracked(result Receipt, height int64) (TrackedPayment, bool) {
 	j := s.wallet.PX1Journal()
 	if j == nil {
 		return TrackedPayment{}, false

@@ -47,7 +47,7 @@ type ActionService struct {
 	// defines and mutates its content (px1_runtime.go).
 	px1 px1Runtime
 	// g2 is the S2 service-layer G2 state (px1_service_seams.go); nil keeps W2.
-	g2 *px1Service
+	g2 *px1jService
 }
 
 func OpenActionService(c ServiceConfig) (*ActionService, error) {
@@ -141,8 +141,8 @@ func openActionService(c ServiceConfig, w *Wallet, key *btcec.PrivateKey) (*Acti
 		}
 	}
 	if e == nil {
-		if op := px1ProfileOf(c); op != nil {
-			e = s.px1OpenService(*op, binding, px1ServiceProductDeps())
+		if op := px1jProfileOf(c); op != nil {
+			e = s.px1jOpenService(*op, binding, px1jServiceProductDeps())
 		}
 	}
 	if e != nil {
@@ -222,7 +222,7 @@ func (s *ActionService) handle(ctx context.Context, raw []byte, peer PeerIdentit
 		return reject(v.Hash, "GRANTEE_MISMATCH")
 	}
 	if s.g2 != nil {
-		return s.handleG2(ctx, v, peer)
+		return s.px1jHandle(ctx, v, peer)
 	}
 	if s.poisoned {
 		return reject(v.Hash, "SERVICE_STATE_UNAVAILABLE")
@@ -366,23 +366,27 @@ func (s *ActionService) handle(ctx context.Context, raw []byte, peer PeerIdentit
 	return refused(fail("ACTION_UNSUPPORTED"))
 }
 
-// handleG2 is the G2 profile of steps 5-23 at the service layer (§3.5).
+// px1jHandle is the G2 profile of steps 5-23 at the service layer (§3.5).
 // Steps 1-4 (peer UID, frame, signature, pinned grantee) ran in handle.
 // Reads never touch the journal; spends and receives are admitted into the
 // service-layer journal v2 and replay byte-identically from it.
-func (s *ActionService) handleG2(ctx context.Context, v VerifiedAction, peer PeerIdentity) []byte {
+func (s *ActionService) px1jHandle(ctx context.Context, v VerifiedAction, peer PeerIdentity) []byte {
 	x := s.g2
 	r := v.Envelope.Request
 	reject := func(code string) []byte {
 		return canonical(s.reply(v.Hash, peer, 0, 0, "refused", code, struct{}{}))
 	}
-	// Step 5: poisoned service or journal.
+	// Step 5: an S3 halt (spent canary: FLOAT_CANARY_SPENT, T14), then a
+	// poisoned service or journal.
+	if code := px1jHaltCode(&s.px1); code != "" {
+		return reject(code)
+	}
 	if s.poisoned || x.journal.Poisoned() {
 		return reject("SERVICE_STATE_UNAVAILABLE")
 	}
 	switch r.Action {
 	case "balance", "history", "budget":
-		return s.px1Read(ctx, v, peer)
+		return s.px1jRead(ctx, v, peer)
 	}
 	// Step 6: nonce lookup.
 	entry := x.entries[r.Nonce]
@@ -394,7 +398,7 @@ func (s *ActionService) handleG2(ctx context.Context, v VerifiedAction, peer Pee
 		case "terminal":
 			return canonical(entry.receipt)
 		case "reserved":
-			return s.px1Finish(entry, 0, "uncertain", "DURABLE_RESERVATION_NO_RETRY", struct{}{})
+			return s.px1jFinish(entry, 0, "uncertain", "DURABLE_RESERVATION_NO_RETRY", struct{}{})
 		}
 		// pending: no service reservation yet; the wallet layer answers a
 		// retained reservation itself (DURABLE_RESERVATION_NO_RETRY).
@@ -408,17 +412,17 @@ func (s *ActionService) handleG2(ctx context.Context, v VerifiedAction, peer Pee
 			return reject("ACTION_SKEW")
 		}
 		admit := JournalRecordV2{Kind: RecordAdmit, GrantID: r.Grant.ID, Nonce: r.Nonce, RequestHash: v.Hash, Action: r.Action, Phase: "pending", Inputs: []su.Point{}, Created: r.CreatedAt, LastTime: now, Service: &ServiceRecordV2{Request: r, Peer: peer}}
-		if x.journal.Usage().Admitted >= x.limits.SpendCapacity || len(canonical(admit))+px1ServiceReserve > x.limits.SegmentMaxBytes {
+		if x.journal.Usage().Admitted >= x.limits.SpendCapacity || len(canonical(admit))+px1jServiceReserve > x.limits.SegmentMaxBytes {
 			return reject(CodeServiceJournalLimit)
 		}
 		stored, e := x.journal.Append(admit)
 		if e != nil {
-			return reject(s.px1JournalCode(e))
+			return reject(s.px1jJournalCode(e))
 		}
-		entry = &px1ServiceEntry{admit: stored, phase: "pending"}
+		entry = &px1jServiceEntry{admit: stored, phase: "pending"}
 		x.entries[r.Nonce] = entry
 	}
-	refused := func(err error) []byte { return s.px1Finish(entry, 0, "refused", safeCode(err), struct{}{}) }
+	refused := func(err error) []byte { return s.px1jFinish(entry, 0, "refused", safeCode(err), struct{}{}) }
 	var grantRaw, termsRaw []byte
 	if r.Action == "spend" {
 		// Step 8: single-use is disabled under G2 (Q7), before any grant read.
@@ -442,7 +446,7 @@ func (s *ActionService) handleG2(ctx context.Context, v VerifiedAction, peer Pee
 		}
 		// Capacity rule for this grant's window, bounded by the operator day
 		// count ceiling (the effective day count never exceeds it).
-		if !px1CapacityFits(x.operator.JournalSpendCapacity, RequiredSpendCapacity(x.operator.MaxDayCount, g.NotBefore, g.NotAfter)) {
+		if !px1jCapacityFits(x.operator.JournalSpendCapacity, RequiredSpendCapacity(x.operator.MaxDayCount, g.NotBefore, g.NotAfter)) {
 			return refused(fail(CodeJournalCapacity))
 		}
 		// Step 10 starts here (terms bytes by contract_sha256); the terms v2
@@ -457,20 +461,20 @@ func (s *ActionService) handleG2(ctx context.Context, v VerifiedAction, peer Pee
 		return refused(e)
 	}
 	if r.Action == "receive" {
-		if e = s.px1Append(entry, RecordServiceReserve, "reserved", JournalRecordV2{}, nil); e != nil {
-			return reject(s.px1JournalCode(e))
+		if e = s.px1jAppend(entry, RecordServiceReserve, "reserved", JournalRecordV2{}, nil); e != nil {
+			return reject(s.px1jJournalCode(e))
 		}
 		if s.hook != nil {
 			s.hook("after-service-reservation")
 		}
 		if height, e = s.observe(ctx); e != nil {
-			return s.px1Finish(entry, 0, "refused", safeCode(e), struct{}{})
+			return s.px1jFinish(entry, 0, "refused", safeCode(e), struct{}{})
 		}
 		address, e := s.wallet.Receive(ctx)
 		if e != nil {
-			return s.px1Finish(entry, height, "uncertain", safeCode(e), struct{}{})
+			return s.px1jFinish(entry, height, "uncertain", safeCode(e), struct{}{})
 		}
-		return s.px1Finish(entry, height, "executed", "ALLOCATED", struct {
+		return s.px1jFinish(entry, height, "executed", "ALLOCATED", struct {
 			Address string `json:"address"`
 		}{address})
 	}
@@ -485,7 +489,7 @@ func (s *ActionService) handleG2(ctx context.Context, v VerifiedAction, peer Pee
 	// Step 20: the service reservation, after the wallet reservation.
 	before := func(rec Record) error {
 		plan := JournalRecordV2{Reserved: rec.Reserved, Fee: rec.Fee, Inputs: rec.Inputs, TxID: rec.TxID}
-		if e := s.px1Append(entry, RecordServiceReserve, "reserved", plan, nil); e != nil {
+		if e := s.px1jAppend(entry, RecordServiceReserve, "reserved", plan, nil); e != nil {
 			return e
 		}
 		if s.hook != nil {
@@ -509,20 +513,46 @@ func (s *ActionService) handleG2(ctx context.Context, v VerifiedAction, peer Pee
 	// tracker is alerting only and reloads complete records at startup, so
 	// an enqueue error never changes the verdict.
 	if status == "executed" {
-		if p, ok := s.px1Tracked(result, height); ok {
+		if p, ok := s.px1jTracked(result, height); ok {
 			_ = s.PX1Enqueue(p)
 		}
 	}
-	return s.px1Finish(entry, height, status, result.Reason, struct {
+	return s.px1jFinish(entry, height, status, result.Reason, struct {
 		TxID     string `json:"txid,omitempty"`
 		Reserved int64  `json:"reserved_sat"`
 		Phase    string `json:"phase,omitempty"`
 	}{result.TxID, result.Reserved, result.Phase})
 }
 
-// px1Finish signs the receipt of an admitted request and stores it in a
+// px1jHalter is the observation-state interface S2 reads at step 5. S3's
+// runtime (px1_runtime.go) implements it on *px1Runtime; the caller holds
+// ActionService.mu, so the method must not take it (PX1Status does, and
+// would deadlock here). It returns "" while spends may proceed. S2 never
+// reads the runtime's fields.
+type px1jHalter interface{ px1oHalt() string }
+
+// px1jHaltCode maps the runtime's halt to a bounded refusal code. A runtime
+// without the method (the frozen base) never halts here; the poisoned flag
+// still refuses SERVICE_STATE_UNAVAILABLE. An unknown code from the runtime
+// is never put on the wire verbatim.
+func px1jHaltCode(runtime any) string {
+	h, ok := runtime.(px1jHalter)
+	if !ok {
+		return ""
+	}
+	switch code := h.px1oHalt(); code {
+	case "":
+		return ""
+	case CodeFloatCanarySpent, CodeStateReconcileRequired:
+		return code
+	default:
+		return "SERVICE_STATE_UNAVAILABLE"
+	}
+}
+
+// px1jFinish signs the receipt of an admitted request and stores it in a
 // terminal record; a replay returns these exact bytes.
-func (s *ActionService) px1Finish(entry *px1ServiceEntry, height int64, verdict, reason string, effect any) []byte {
+func (s *ActionService) px1jFinish(entry *px1jServiceEntry, height int64, verdict, reason string, effect any) []byte {
 	hash, peer, seq := entry.admit.RequestHash, entry.admit.Service.Peer, entry.admit.Seq
 	r := s.reply(hash, peer, seq, height, verdict, reason, effect)
 	if len(canonical(r)) > maxServiceReceipt {
@@ -532,15 +562,15 @@ func (s *ActionService) px1Finish(entry *px1ServiceEntry, height int64, verdict,
 	if entry.phase == "reserved" {
 		plan = entry.plan
 	}
-	if e := s.px1Append(entry, RecordTerminal, "terminal", plan, &r); e != nil {
-		return canonical(s.reply(hash, peer, seq, height, "uncertain", s.px1JournalCode(e), struct{}{}))
+	if e := s.px1jAppend(entry, RecordTerminal, "terminal", plan, &r); e != nil {
+		return canonical(s.reply(hash, peer, seq, height, "uncertain", s.px1jJournalCode(e), struct{}{}))
 	}
 	return canonical(r)
 }
 
-// px1Read serves balance, history and budget under G2: rate-limited per
+// px1jRead serves balance, history and budget under G2: rate-limited per
 // grantee, never journaled, signed with journal_seq 0 (§3.4).
-func (s *ActionService) px1Read(ctx context.Context, v VerifiedAction, peer PeerIdentity) []byte {
+func (s *ActionService) px1jRead(ctx context.Context, v VerifiedAction, peer PeerIdentity) []byte {
 	r := v.Envelope.Request
 	reply := func(height int64, verdict, code string, effect any) []byte {
 		return canonical(s.reply(v.Hash, peer, 0, height, verdict, code, effect))
