@@ -43,6 +43,11 @@ type ActionService struct {
 	clock    func() int64
 	poisoned bool
 	hook     func(string) // Unexported crash/race fixture seam; never configured by CLI.
+	// px1 is the S3 runtime (tracker, canary, float, status); S3 alone
+	// defines and mutates its content (px1_runtime.go).
+	px1 px1Runtime
+	// g2 is the S2 service-layer G2 state (px1_service_seams.go); nil keeps W2.
+	g2 *px1jService
 }
 
 func OpenActionService(c ServiceConfig) (*ActionService, error) {
@@ -135,13 +140,24 @@ func openActionService(c ServiceConfig, w *Wallet, key *btcec.PrivateKey) (*Acti
 			}
 		}
 	}
+	if e == nil {
+		if op := px1jProfileOf(c); op != nil {
+			e = s.px1jOpenService(*op, binding, px1jServiceProductDeps())
+		}
+	}
 	if e != nil {
 		store.Close()
 		return nil, e
 	}
 	return s, nil
 }
-func (s *ActionService) Close() { s.store.Close(); s.wallet.Close() }
+func (s *ActionService) Close() {
+	if s.g2 != nil {
+		s.g2.journal.Close()
+	}
+	s.store.Close()
+	s.wallet.Close()
+}
 func (s *ActionService) persist() error {
 	if s.poisoned {
 		return fail("SERVICE_STATE_UNAVAILABLE")
@@ -204,6 +220,9 @@ func (s *ActionService) handle(ctx context.Context, raw []byte, peer PeerIdentit
 	r := v.Envelope.Request
 	if r.Grantee != s.config.Grantee {
 		return reject(v.Hash, "GRANTEE_MISMATCH")
+	}
+	if s.g2 != nil {
+		return s.px1jHandle(ctx, v, peer)
 	}
 	if s.poisoned {
 		return reject(v.Hash, "SERVICE_STATE_UNAVAILABLE")
@@ -345,4 +364,267 @@ func (s *ActionService) handle(ctx context.Context, raw []byte, peer PeerIdentit
 		}{result.TxID, result.Reserved, result.Phase})
 	}
 	return refused(fail("ACTION_UNSUPPORTED"))
+}
+
+// px1jHandle is the G2 profile of steps 5-23 at the service layer (§3.5).
+// Steps 1-4 (peer UID, frame, signature, pinned grantee) ran in handle.
+// Reads never touch the journal; spends and receives are admitted into the
+// service-layer journal v2 and replay byte-identically from it.
+func (s *ActionService) px1jHandle(ctx context.Context, v VerifiedAction, peer PeerIdentity) []byte {
+	x := s.g2
+	r := v.Envelope.Request
+	reject := func(code string) []byte {
+		return canonical(s.reply(v.Hash, peer, 0, 0, "refused", code, struct{}{}))
+	}
+	// Step 5: poisoned service or journal.
+	if s.poisoned || x.journal.Poisoned() {
+		return reject("SERVICE_STATE_UNAVAILABLE")
+	}
+	switch r.Action {
+	case "balance", "history", "budget":
+		return s.px1jRead(ctx, v, peer)
+	}
+	// Step 5 for a spend: S3's admission halt (spent canary:
+	// FLOAT_CANARY_SPENT, T14) refuses before admission, nothing journaled.
+	if r.Action == "spend" {
+		if code := px1jHaltCode(x.halt(s)); code != "" {
+			return reject(code)
+		}
+	}
+	// Step 6: nonce lookup.
+	entry := x.entries[r.Nonce]
+	if entry != nil {
+		if entry.admit.RequestHash != v.Hash {
+			return reject("NONCE_CONFLICT")
+		}
+		switch entry.phase {
+		case "terminal":
+			return canonical(entry.receipt)
+		case "reserved":
+			return s.px1jFinish(entry, 0, "uncertain", "DURABLE_RESERVATION_NO_RETRY", struct{}{})
+		}
+		// pending: no service reservation yet; the wallet layer answers a
+		// retained reservation itself (DURABLE_RESERVATION_NO_RETRY).
+	} else {
+		// Step 7: first admission (clock guard, skew, capacity, admit).
+		now, e := x.clock.Now()
+		if e != nil {
+			return reject(CodeClockRollback)
+		}
+		if r.CreatedAt < now-s.config.SkewSeconds || r.CreatedAt > now+s.config.SkewSeconds {
+			return reject("ACTION_SKEW")
+		}
+		admit := JournalRecordV2{Kind: RecordAdmit, GrantID: r.Grant.ID, Nonce: r.Nonce, RequestHash: v.Hash, Action: r.Action, Phase: "pending", Inputs: []su.Point{}, Created: r.CreatedAt, LastTime: now, Service: &ServiceRecordV2{Request: r, Peer: peer}}
+		if x.journal.Usage().Admitted >= x.limits.SpendCapacity || len(canonical(admit))+px1jServiceReserve > x.limits.SegmentMaxBytes {
+			return reject(CodeServiceJournalLimit)
+		}
+		stored, e := x.journal.Append(admit)
+		if e != nil {
+			return reject(s.px1jJournalCode(e))
+		}
+		entry = &px1jServiceEntry{admit: stored, phase: "pending"}
+		x.entries[r.Nonce] = entry
+	}
+	refused := func(err error) []byte { return s.px1jFinish(entry, 0, "refused", safeCode(err), struct{}{}) }
+	var grantRaw, termsRaw []byte
+	if r.Action == "spend" {
+		// Step 8: single-use is disabled under G2 (Q7), before any grant read.
+		if r.Grant.Kind != "standing" || v.Envelope.Proof != nil {
+			return refused(fail(CodeSingleUseDisabled))
+		}
+		var e error
+		if grantRaw, e = LoadGrant(s.wallet.config, r.Grant.ID); e != nil {
+			return refused(e)
+		}
+		g, e := s.wallet.Grant(grantRaw)
+		if e != nil {
+			return refused(e)
+		}
+		if g.Kind != "" && g.Kind != "standing" {
+			return refused(fail(CodeSingleUseDisabled))
+		}
+		// Step 9.
+		if g.Grantee != r.Grantee {
+			return refused(fail("GRANT_GRANTEE_MISMATCH"))
+		}
+		// Capacity rule for this grant's window, bounded by the operator day
+		// count ceiling (the effective day count never exceeds it).
+		if !px1jCapacityFits(x.operator.JournalSpendCapacity, RequiredSpendCapacity(x.operator.MaxDayCount, g.NotBefore, g.NotAfter)) {
+			return refused(fail(CodeJournalCapacity))
+		}
+		// Step 10 starts here (terms bytes by contract_sha256); the terms v2
+		// parse and every cap belong to the wallet layer (S1).
+		if termsRaw, e = LoadTerms(s.wallet.config, g); e != nil {
+			return refused(e)
+		}
+	}
+	// Step 11: own-node observation.
+	height, e := s.observe(ctx)
+	if e != nil {
+		return refused(e)
+	}
+	if r.Action == "receive" {
+		if e = s.px1jAppend(entry, RecordServiceReserve, "reserved", JournalRecordV2{}, nil); e != nil {
+			return reject(s.px1jJournalCode(e))
+		}
+		if s.hook != nil {
+			s.hook("after-service-reservation")
+		}
+		if height, e = s.observe(ctx); e != nil {
+			return s.px1jFinish(entry, 0, "refused", safeCode(e), struct{}{})
+		}
+		address, e := s.wallet.Receive(ctx)
+		if e != nil {
+			return s.px1jFinish(entry, height, "uncertain", safeCode(e), struct{}{})
+		}
+		return s.px1jFinish(entry, height, "executed", "ALLOCATED", struct {
+			Address string `json:"address"`
+		}{address})
+	}
+	if r.Action != "spend" {
+		return refused(fail("ACTION_UNSUPPORTED"))
+	}
+	// Steps 12-23 run in the wallet layer on journal v2 (S1). Until S1
+	// attaches it, a G2 spend refuses before any effect (fail closed).
+	if s.wallet.PX1Journal() == nil {
+		return refused(ErrNotImplemented)
+	}
+	// Step 20: the service reservation, after the wallet reservation.
+	before := func(rec Record) error {
+		plan := JournalRecordV2{Reserved: rec.Reserved, Fee: rec.Fee, Inputs: rec.Inputs, TxID: rec.TxID}
+		if e := s.px1jAppend(entry, RecordServiceReserve, "reserved", plan, nil); e != nil {
+			return e
+		}
+		if s.hook != nil {
+			s.hook("after-service-reservation")
+		}
+		return nil
+	}
+	s.wallet.mu.Lock()
+	var result Receipt
+	if s.wallet.poisoned {
+		result = refuse(fail("STATE_UNAVAILABLE"))
+	} else {
+		result = s.wallet.executeAuthenticated(ctx, grantRaw, termsRaw, v.walletRequest(), r.Grantee, r.CreatedAt, v.RequestBytes, "", before)
+	}
+	s.wallet.mu.Unlock()
+	status := result.Status
+	if status == "already-executed" {
+		status = "uncertain"
+	}
+	// Step 23 (service layer): enqueue the durable complete payment. The
+	// tracker is alerting only and reloads complete records at startup, so
+	// an enqueue error never changes the verdict.
+	if status == "executed" {
+		if p, ok := s.px1jTracked(result, height); ok {
+			_ = s.PX1Enqueue(p)
+		}
+	}
+	return s.px1jFinish(entry, height, status, result.Reason, struct {
+		TxID     string `json:"txid,omitempty"`
+		Reserved int64  `json:"reserved_sat"`
+		Phase    string `json:"phase,omitempty"`
+	}{result.TxID, result.Reserved, result.Phase})
+}
+
+// px1jHalter is S3's admission halt seam (px1_runtime.go, px1oHalted on
+// *ActionService). The caller holds ActionService.mu, so the seam takes no
+// lock (PX1Status does, and would deadlock here); it calls no node and
+// writes nothing. S2 never reads S3's runtime fields.
+type px1jHalter interface{ px1oHalted() string }
+
+// px1jProbeHalt asks the seam when it is compiled in. Without it (S3 not
+// landed) nothing halts here; the poisoned flag still refuses, and a G2
+// spend refuses PX1_NOT_IMPLEMENTED until S1 attaches the wallet layer.
+func px1jProbeHalt(v any) string {
+	h, ok := v.(px1jHalter)
+	if !ok {
+		return ""
+	}
+	return h.px1oHalted()
+}
+
+// px1jHaltCode bounds the halt answer on the wire: the codes the seam
+// documents pass through, anything else refuses SERVICE_STATE_UNAVAILABLE
+// and is never echoed.
+func px1jHaltCode(code string) string {
+	switch code {
+	case "", CodeFloatCanarySpent, CodeStateReconcileRequired, "SERVICE_STATE_UNAVAILABLE", ErrNotImplemented.Error():
+		return code
+	default:
+		return "SERVICE_STATE_UNAVAILABLE"
+	}
+}
+
+// px1jFinish signs the receipt of an admitted request and stores it in a
+// terminal record; a replay returns these exact bytes.
+func (s *ActionService) px1jFinish(entry *px1jServiceEntry, height int64, verdict, reason string, effect any) []byte {
+	hash, peer, seq := entry.admit.RequestHash, entry.admit.Service.Peer, entry.admit.Seq
+	r := s.reply(hash, peer, seq, height, verdict, reason, effect)
+	if len(canonical(r)) > maxServiceReceipt {
+		r = s.reply(hash, peer, seq, height, "uncertain", "SERVICE_RECEIPT_LIMIT", struct{}{})
+	}
+	plan := JournalRecordV2{}
+	if entry.phase == "reserved" {
+		plan = entry.plan
+	}
+	if e := s.px1jAppend(entry, RecordTerminal, "terminal", plan, &r); e != nil {
+		return canonical(s.reply(hash, peer, seq, height, "uncertain", s.px1jJournalCode(e), struct{}{}))
+	}
+	return canonical(r)
+}
+
+// px1jRead serves balance, history and budget under G2: rate-limited per
+// grantee, never journaled, signed with journal_seq 0 (§3.4).
+func (s *ActionService) px1jRead(ctx context.Context, v VerifiedAction, peer PeerIdentity) []byte {
+	r := v.Envelope.Request
+	reply := func(height int64, verdict, code string, effect any) []byte {
+		return canonical(s.reply(v.Hash, peer, 0, height, verdict, code, effect))
+	}
+	now, e := s.g2.clock.Now()
+	if e != nil {
+		return reply(0, "refused", CodeClockRollback, struct{}{})
+	}
+	if r.CreatedAt < now-s.config.SkewSeconds || r.CreatedAt > now+s.config.SkewSeconds {
+		return reply(0, "refused", "ACTION_SKEW", struct{}{})
+	}
+	if e = s.g2.reads.admit(r.Grantee, r.Action, now); e != nil {
+		return reply(0, "refused", CodeReadRateLimited, struct{}{})
+	}
+	var grantRaw, termsRaw []byte
+	if r.Action == "budget" {
+		if r.Grant.Kind != "standing" {
+			return reply(0, "refused", CodeSingleUseDisabled, struct{}{})
+		}
+		if grantRaw, e = LoadGrant(s.wallet.config, r.Grant.ID); e != nil {
+			return reply(0, "refused", safeCode(e), struct{}{})
+		}
+		g, e := s.wallet.Grant(grantRaw)
+		if e != nil {
+			return reply(0, "refused", safeCode(e), struct{}{})
+		}
+		if g.Grantee != r.Grantee {
+			return reply(0, "refused", "GRANT_GRANTEE_MISMATCH", struct{}{})
+		}
+		if termsRaw, e = LoadTerms(s.wallet.config, g); e != nil {
+			return reply(0, "refused", safeCode(e), struct{}{})
+		}
+	}
+	height, e := s.observe(ctx)
+	if e != nil {
+		return reply(0, "refused", safeCode(e), struct{}{})
+	}
+	var value any
+	switch r.Action {
+	case "balance":
+		value, e = s.wallet.Balance(ctx)
+	case "history":
+		value, e = s.wallet.History(ctx)
+	default:
+		value, e = s.wallet.Budget(ctx, grantRaw, termsRaw)
+	}
+	if e != nil {
+		return reply(height, "refused", safeCode(e), struct{}{})
+	}
+	return reply(height, "executed", "READ", value)
 }
