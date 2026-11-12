@@ -117,6 +117,18 @@ func (l *coreLab) start() {
 	}
 	l.t.Fatal("Core startup timeout")
 }
+
+// coreBinariesPinned reports whether daemon and cli are one of the Core 28.0
+// executable pairs the PX1 Core layer pins (px1CorePins): the macOS pair this
+// harness pinned first, or the official x86_64-linux-gnu release pair (archive
+// SHA-256 6f12031926f0999b8507e073648cc2b4488d452531301a2244a562a92f2f7860).
+// A mixed pair or any other binary never runs.
+func coreBinariesPinned(daemon, cli string) bool {
+	d, e1 := os.ReadFile(daemon)
+	c, e2 := os.ReadFile(cli)
+	return e1 == nil && e2 == nil && px1CorePins[[2]string{Hash(d), Hash(c)}]
+}
+
 func newCore(t *testing.T) *coreLab {
 	t.Helper()
 	if os.Getenv("W1_REGTEST") != "1" {
@@ -135,11 +147,8 @@ func newCore(t *testing.T) *coreLab {
 			t.Fatal(e)
 		}
 	}
-	for p, want := range map[string]string{l.daemon: "86b85483da23c83f7de134a5bf28bad8e3c6a8dbfe2af71a5e889a7b1547787f", l.cli: "5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d"} {
-		b, e := os.ReadFile(p)
-		if e != nil || Hash(b) != want {
-			t.Fatal("Core binary pin")
-		}
+	if !coreBinariesPinned(l.daemon, l.cli) {
+		t.Fatal("Core binary pin")
 	}
 	ln, e := net.Listen("tcp4", "127.0.0.1:0")
 	if e != nil {
@@ -358,4 +367,35 @@ func (l *coreLab) issueProof(s rental.SignedGrant) []byte {
 		l.t.Fatal(e)
 	}
 	return raw
+}
+
+// Claim: the W2 Core harness admits exactly the two pinned Core 28.0 pairs:
+// the official Linux release pair (when W1_CORE_DAEMON/W1_CORE_CLI name it)
+// passes; a mixed pair, a swapped pair, an unknown binary and a missing file
+// are refused. Limit: the macOS pair is checked as a table row, not as files.
+func TestCoreBinaryPinPairs(t *testing.T) {
+	linux := [2]string{"dc7430676e445af3992430e036f7c1a17bea44f757e9cf25b69205e39625f2f7", "318b6c881c8071abbafd984550172369c3498b4c65c389797350f2d458f085b1"}
+	mac := [2]string{"86b85483da23c83f7de134a5bf28bad8e3c6a8dbfe2af71a5e889a7b1547787f", "5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d"}
+	if len(px1CorePins) != 2 || !px1CorePins[linux] || !px1CorePins[mac] || px1CorePins[[2]string{linux[0], mac[1]}] || px1CorePins[[2]string{linux[1], linux[0]}] {
+		t.Fatal("CORE_PIN_TABLE: the pin table is not exactly the two release pairs")
+	}
+	dir := t.TempDir()
+	other := filepath.Join(dir, "other")
+	if e := os.WriteFile(other, []byte("not a Core binary"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if coreBinariesPinned(other, other) || coreBinariesPinned(filepath.Join(dir, "absent"), filepath.Join(dir, "absent")) {
+		t.Fatal("CORE_PIN_UNKNOWN: an unknown or missing binary was admitted")
+	}
+	daemon, cli := os.Getenv("W1_CORE_DAEMON"), os.Getenv("W1_CORE_CLI")
+	if daemon == "" || cli == "" {
+		t.Log("W1_CORE_DAEMON/W1_CORE_CLI unset: the file-level positive is not exercised")
+		return
+	}
+	if !coreBinariesPinned(daemon, cli) {
+		t.Fatal("CORE_PIN_RELEASE: the configured Core pair was refused")
+	}
+	if coreBinariesPinned(cli, daemon) || coreBinariesPinned(daemon, other) {
+		t.Fatal("CORE_PIN_MIXED: a swapped or mixed pair was admitted")
+	}
 }
