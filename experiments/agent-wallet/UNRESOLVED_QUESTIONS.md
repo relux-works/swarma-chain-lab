@@ -33,14 +33,23 @@
 
 ## PX1, open after the integration follow-up
 
-- **Test ids without a Core layer.** T3, T5 and T8 have unit layers only;
-  their Core layers (S2) can now be written, because the service layer
-  selects G2 since integration step 3. T9 (32 parallel spends over the day
-  cap, two parallel same-nonce requests, `-count=50`) and T10 (crash
-  subprocess after the wallet reservation, the service reservation and the
-  broadcast) have no test at any layer. The hosted `px1-core-gate` job lists
-  them as open in `.scripts/px1-core-gate.json` and never reports them as a
-  pass.
+- **T10 tracker on genuine Core (resolved in PX1 S2 completion r2).** For
+  an unknown txid, Core answers `getrawtransaction` (JSON-RPC 1.0) with HTTP
+  500 and an error object. The S3 tracker now reads it through its own lookup
+  route (`newTxLookupRPC`, `rpc.go`), which maps exactly Core's reply
+  `{"result":null,"error":{"code":-5,"message":"No such mempool or blockchain
+  transaction. Use gettransaction for wallet transactions."},"id":1}` to
+  `RPC_NO_SUCH_TX`. `px1oRemoteNo` reads only that code as "absent". Every
+  other answer still fails the pass: another code, another -5 message (no
+  transaction index, index still syncing), a 500 without that body, 401, 503.
+  The wallet and broadcast routes and W2's own observer reads are unchanged.
+  Bounds: a node without `-txindex`, or one whose index is still syncing,
+  answers another -5 message, so the pass fails there (fail-closed); the
+  deploy kit's node config sets `txindex=1`. Resolved: step 23 also
+  enqueues a spend whose outcome is uncertain, including a broadcast the node
+  refused (`BROADCAST_UNCERTAIN`), so a running service tracks it to
+  `conflicted` without a restart; the debit stays retained until an operator
+  release.
 - **F6 (matrix row 20 negative test):** not routed to the integration
   follow-up; open.
 - **Replay after a release.** `px1Prior` skips `track` records only. After a

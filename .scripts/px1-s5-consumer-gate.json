@@ -1,11 +1,18 @@
 {
   "v": 1,
   "package": "github.com/relux-works/swarma-chain-lab/deploy",
-  "labels": ["S5-client-consumer"],
+  "labels": [
+    "S5-client-consumer"
+  ],
   "core_tests": [],
   "tids": {
     "S5-client-consumer": {
-      "unit": ["TestPX1S5ClientConsumerResolved"]
+      "layers": [
+        "unit"
+      ],
+      "unit": [
+        "TestPX1S5ClientConsumerResolved"
+      ]
     }
   }
 }

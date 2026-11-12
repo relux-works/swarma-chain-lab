@@ -87,10 +87,12 @@ func px1oNodeError(e error) error {
 	return fail("RPC_UNAVAILABLE")
 }
 
-// px1oRemoteNo reports a node that answered with an RPC error object (for
-// example "no such transaction"), as opposed to an unreachable node.
+// px1oRemoteNo reports Core's definitive "no such transaction" answer
+// (CodeNoSuchTx from the transaction lookup route) and nothing else: an
+// unreachable node, a refused login, a busy node and every other RPC error
+// keep failing the pass.
 func px1oRemoteNo(e error) bool {
-	return e != nil && (e.Error() == "RPC_REMOTE_ERROR" || e.Error() == "RPC_REMOTE_REFUSAL")
+	return e != nil && e.Error() == CodeNoSuchTx
 }
 
 // px1oOutputSpent reads gettxout with the mempool included. A JSON null means
@@ -119,7 +121,16 @@ func px1oOutputSpent(ctx context.Context, node su.Node, p su.Point) (spent bool,
 // px1oTxDepth reads getrawtransaction verbose. present is true for a mempool
 // transaction (no blockhash) and for one in an active-chain block (depth >= 1).
 // A transaction known only from a stale block (confirmations 0) is absent.
+//
+// Only a well-formed id (64 lowercase hex characters, as Core prints txids)
+// can ever read as absent. Code -5 also covers malformed keys and ids, and
+// Core 28 parses hex case-insensitively: it answers an unknown uppercase id
+// with the exact "no such transaction" reply. So a malformed id is refused
+// here with TRACKER_TXID and never reaches the node.
 func px1oTxDepth(ctx context.Context, node su.Node, txid string) (present bool, depth int64, e error) {
+	if !hexN(txid, 32) {
+		return false, 0, fail("TRACKER_TXID")
+	}
 	raw, e := node.Call(ctx, "getrawtransaction", txid, true)
 	if px1oRemoteNo(e) {
 		return false, 0, nil
@@ -283,9 +294,11 @@ func NewTracker(node su.Node, cfg TrackerConfig, wallet JournalV2) (Tracker, err
 	return t, nil
 }
 
-// Enqueue registers a payment after its complete record is durable. A second
-// Enqueue of the same reservation with the same txid is a no-op (startup may
-// already have reloaded it); with another txid it is refused.
+// Enqueue registers a payment at step 23, after its reserve record is durable:
+// an executed spend, or one whose outcome is uncertain (the same requests the
+// startup reload tracks). A second Enqueue of the same reservation with the
+// same txid is a no-op (startup may already have reloaded it); with another
+// txid it is refused.
 func (t *px1oTracker) Enqueue(p TrackedPayment) error {
 	if !hexN(p.GrantID, 32) || !hexN(p.Nonce, 32) || !hexN(p.TxID, 32) || p.ReserveSeq < 1 || p.BroadcastTip < 0 || !px1oValidTrackedInputs(p.Inputs) {
 		return fail("TRACKER_PAYMENT")

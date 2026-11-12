@@ -515,10 +515,15 @@ func (s *ActionService) px1jHandle(ctx context.Context, v VerifiedAction, peer P
 	if status == "already-executed" {
 		status = "uncertain"
 	}
-	// Step 23 (service layer): enqueue the durable complete payment. The
-	// tracker is alerting only and reloads complete records at startup, so
-	// an enqueue error never changes the verdict.
-	if status == "executed" {
+	// Step 23 (service layer): hand the durable reservation to the tracker.
+	// An executed spend is queued, and so is a spend whose outcome is
+	// uncertain at execution (a broadcast the node rejected, or one that may
+	// have happened): the same requests the startup reload tracks, so a
+	// running service reaches the tracker verdict without a restart.
+	// Tracking only observes: nothing is re-sent, nothing is released, and
+	// the debit stays retained. The tracker is alerting only and reloads
+	// these records at startup, so an enqueue error never changes the verdict.
+	if status == "executed" || status == "uncertain" {
 		if p, ok := s.px1jTracked(result, height); ok {
 			_ = s.PX1Enqueue(p)
 		}
@@ -572,7 +577,13 @@ func (s *ActionService) px1jFinish(entry *px1jServiceEntry, height int64, verdic
 		plan = entry.plan
 	}
 	if e := s.px1jAppend(entry, RecordTerminal, "terminal", plan, &r); e != nil {
-		return canonical(s.reply(hash, peer, seq, height, "uncertain", s.px1jJournalCode(e), struct{}{}))
+		out := canonical(s.reply(hash, peer, seq, height, "uncertain", s.px1jJournalCode(e), struct{}{}))
+		s.px1oAtVerdict()
+		return out
+	}
+	// An uncertain verdict alerts the operator now, not at the next pass.
+	if r.Receipt.Verdict == "uncertain" {
+		s.px1oAtVerdict()
 	}
 	return canonical(r)
 }

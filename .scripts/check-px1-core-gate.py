@@ -5,20 +5,31 @@ Input: a gate manifest (.scripts/px1-core-gate.json for T1-T17,
 .scripts/px1-s5-consumer-gate.json for the S5 client consumer) and one or more
 `go test -json` event files of that manifest's package.
 
-A required test passes only when its last action is "pass". The gate fails on:
-- a required test that skipped, failed or never ran;
+Each label (T-id) declares its REQUIRED layers ("layers": unit and/or core,
+as the PX1 test table says) and lists the tests of each layer. The checker
+keeps, per test, the set of EVERY terminal action it reported across all input
+files and all `-count` repetitions (never only the last one). A test passes
+only when that set is exactly {pass}: a skip or a fail anywhere, before or
+after a pass, in the same file or another, fails it. The gate fails on:
+- a label that is OPEN (it carries an "open" reason): a missing test is never
+  a pass;
+- a required layer with no test listed (MISSING_LAYER);
+- a listed test that skipped, failed or never ran;
+- a Core test with a required repetition count ("core_runs") that passed
+  fewer times than that count;
 - any skip anywhere in the streams (a Core test skips without W1_REGTEST, so a
   gate that admitted a skip would pass with no node at all);
 - any failed test, a package or build failure;
 - a line that is not a JSON event, an event of another package, or an empty
   stream.
-A label (T-id) with no required test must carry an "open" reason; it is
-reported as OPEN and never as a pass. The manifest must name exactly the labels
-listed in "labels".
+The manifest must name exactly the labels listed in "labels". The summary line
+says PX1_GATE PASS only when every required layer of every label passed.
 
 Usage:
   check-px1-core-gate.py check --manifest M EVENTS.json [EVENTS.json ...]
   check-px1-core-gate.py list --manifest M {core,unit}
+    core: one line per Core test, "NAME FLAGS" (go test flags from core_runs,
+    default -count=1); unit: the top-level unit test names.
 
 Exit status: 0 gate passed, 1 gate failed, 2 usage, manifest or input error.
 """
@@ -29,6 +40,7 @@ import sys
 
 TEST_NAME = re.compile(r"^Test[A-Za-z0-9_]+(/[A-Za-z0-9_.+-]+)*$")
 TERMINAL = ("pass", "fail", "skip")
+LAYERS = ("unit", "core")
 
 
 class InputError(Exception):
@@ -48,10 +60,22 @@ def load_manifest(path):
         raise InputError("manifest: tids must name exactly the listed labels")
     if not isinstance(core, list) or any(not isinstance(n, str) or "/" in n or not TEST_NAME.match(n) for n in core):
         raise InputError("manifest: core_tests must be top-level test names")
+    runs = m.get("core_runs", {})
+    if not isinstance(runs, dict):
+        raise InputError("manifest: core_runs must be an object")
+    for n, r in runs.items():
+        if n not in core or not isinstance(r, dict) or set(r) - {"count", "race"} or type(r.get("count")) is not int or not 1 <= r["count"] <= 100 or type(r.get("race", False)) is not bool:
+            raise InputError(f"manifest core_runs {n}: a core test with count 1..100 and an optional race flag")
     for label in labels:
         entry = tids[label]
-        if not isinstance(entry, dict) or set(entry) - {"core", "unit", "open"}:
-            raise InputError(f"manifest {label}: only core, unit and open are allowed")
+        if not isinstance(entry, dict) or set(entry) - {"core", "unit", "open", "layers"}:
+            raise InputError(f"manifest {label}: only layers, core, unit and open are allowed")
+        layers = entry.get("layers")
+        if not isinstance(layers, list) or not layers or len(set(layers)) != len(layers) or any(x not in LAYERS for x in layers):
+            raise InputError(f"manifest {label}: layers must list the required layers (unit, core)")
+        for layer in LAYERS:
+            if not isinstance(entry.get(layer, []), list):
+                raise InputError(f"manifest {label}: {layer} must be a list")
         names = entry.get("core", []) + entry.get("unit", [])
         for n in names:
             if not isinstance(n, str) or not TEST_NAME.match(n):
@@ -65,13 +89,13 @@ def load_manifest(path):
         open_reason = entry.get("open")
         if open_reason is not None and (not isinstance(open_reason, str) or not open_reason.strip()):
             raise InputError(f"manifest {label}: open must be a non-empty reason")
-        if not names and open_reason is None:
-            raise InputError(f"manifest {label}: no required test and no open reason")
     return m
 
 
 def read_events(paths, package):
-    status, problems, events = {}, [], 0
+    """history[test] is the set of every terminal action the test reported in
+    any of paths; passes[test] counts its passes."""
+    history, passes, problems, events = {}, {}, [], 0
     for path in paths:
         try:
             with open(path, encoding="utf-8") as f:
@@ -105,44 +129,64 @@ def read_events(paths, package):
                 if action == "fail":
                     problems.append(f"PACKAGE_FAILED {path}")
                 continue
-            status[test] = action
+            history.setdefault(test, set()).add(action)
+            if action == "pass":
+                passes[test] = passes.get(test, 0) + 1
     if events == 0:
         problems.append("EMPTY_STREAM")
-    return status, problems
+    return history, passes, problems
 
 
 def check(manifest, paths):
-    status, problems = read_events(paths, manifest["package"])
+    history, passes, problems = read_events(paths, manifest["package"])
     lines, failed = [], bool(problems)
     lines.extend(problems)
-    for test, action in sorted(status.items()):
-        if action == "skip":
+    for test, actions in sorted(history.items()):
+        if "skip" in actions:
             failed = True
             lines.append(f"SKIPPED {test}")
-        elif action == "fail":
+        if "fail" in actions:
             failed = True
             lines.append(f"FAILED {test}")
-    passed = 0
+    for n, r in sorted(manifest.get("core_runs", {}).items()):
+        if passes.get(n, 0) < r["count"]:
+            failed = True
+            lines.append(f"REQUIRED_RUNS {n} passed={passes.get(n, 0)} want={r['count']}")
+    passed, labels_failed = 0, 0
     for label in manifest["labels"]:
         entry = manifest["tids"][label]
-        names = entry.get("core", []) + entry.get("unit", [])
-        row = []
-        for n in names:
-            got = status.get(n)
-            if got == "pass":
-                passed += 1
-                row.append(f"pass {n}")
-                continue
-            failed = True
-            code = {"skip": "REQUIRED_SKIPPED", "fail": "REQUIRED_FAILED"}.get(got, "REQUIRED_MISSING")
-            lines.append(f"{code} {label} {n}")
-            row.append(f"{got or 'missing'} {n}")
-        state = "PASS" if names and all(r.startswith("pass ") for r in row) else ("FAIL" if names else "OPEN")
-        detail = "; ".join(row)
+        row, ok = [], True
+        for layer in LAYERS:
+            names = entry.get(layer, [])
+            if layer in entry["layers"] and not names:
+                ok = False
+                lines.append(f"MISSING_LAYER {label} {layer}")
+                row.append(f"{layer}: missing")
+            for n in names:
+                got = history.get(n, set())
+                if got == {"pass"}:
+                    passed += 1
+                    row.append(f"{layer}: pass {n}")
+                    continue
+                ok = False
+                codes = [c for a, c in (("skip", "REQUIRED_SKIPPED"), ("fail", "REQUIRED_FAILED")) if a in got] or ["REQUIRED_MISSING"]
+                for code in codes:
+                    lines.append(f"{code} {label} {n}")
+                row.append(f"{layer}: {'+'.join(sorted(got)) or 'missing'} {n}")
+        state = "PASS" if ok else "FAIL"
         if "open" in entry:
-            detail = (detail + "; " if detail else "") + "open: " + entry["open"]
-        lines.append(f"{label} {state} {detail}")
-    lines.append(f"PX1_GATE {'FAIL' if failed else 'PASS'} required_passed={passed}")
+            # OPEN is never a pass, whatever else the label lists.
+            ok, state = False, "OPEN"
+            lines.append(f"OPEN_TID {label}")
+            row.append("open: " + entry["open"])
+        if not ok:
+            failed = True
+            labels_failed += 1
+        lines.append(f"{label} {state} layers={'+'.join(entry['layers'])} " + "; ".join(row))
+    if failed:
+        lines.append(f"PX1_GATE FAIL labels_failed={labels_failed} required_passed={passed}")
+    else:
+        lines.append(f"PX1_GATE PASS labels={len(manifest['labels'])} required_passed={passed}")
     return (1 if failed else 0), lines
 
 
@@ -162,9 +206,15 @@ def main(argv):
     try:
         manifest = load_manifest(args.manifest)
         if args.cmd == "list":
-            # core: every Core test (each needs its own fresh W1_RUN_ROOT);
-            # unit: the top-level names of the unit tests, in label order.
-            tops = list(manifest.get("core_tests", [])) if args.layer == "core" else []
+            # core: every Core test (each needs its own fresh W1_RUN_ROOT) with
+            # its go test flags; unit: the top-level unit test names, in
+            # label order.
+            tops = []
+            if args.layer == "core":
+                runs = manifest.get("core_runs", {})
+                for n in manifest.get("core_tests", []):
+                    r = runs.get(n, {"count": 1})
+                    tops.append(n + (" -race" if r.get("race") else "") + f" -count={r['count']}")
             if args.layer == "unit":
                 for label in manifest["labels"]:
                     for n in manifest["tids"][label].get("unit", []):

@@ -74,7 +74,7 @@
  {
   "Name": "px1-s3-outage-counts-absent",
   "File": "px1_observe.go",
-  "Old": "return e != nil && (e.Error() == \"RPC_REMOTE_ERROR\" || e.Error() == \"RPC_REMOTE_REFUSAL\")",
+  "Old": "return e != nil && e.Error() == CodeNoSuchTx",
   "New": "return e != nil",
   "Selector": "TestPX1TrackerNodeFailure",
   "Marker": "unreachable node counted as absence",
@@ -727,5 +727,95 @@
   "Selector": "TestPX1RuntimeSeamsBound",
   "Marker": "RUNTIME_UNBOUND",
   "Core": false
+ },
+ {
+  "Name": "px1-s3-absent-on-any-500",
+  "File": "rpc.go",
+  "Old": "if e == nil && len(b) <= 2<<20 && n.noSuchTx && res.StatusCode == http.StatusInternalServerError && coreNoSuchTx(b) {",
+  "New": "if e == nil && len(b) <= 2<<20 && n.noSuchTx && res.StatusCode == http.StatusInternalServerError {",
+  "Selector": "TestPX1TxLookupNoSuchTx/500-no-json",
+  "Marker": "lookup 500-no-json",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-absent-on-any-non-200",
+  "File": "rpc.go",
+  "Old": "if e == nil && len(b) <= 2<<20 && n.noSuchTx && res.StatusCode == http.StatusInternalServerError && coreNoSuchTx(b) {",
+  "New": "if e == nil && len(b) <= 2<<20 && n.noSuchTx && coreNoSuchTx(b) {",
+  "Selector": "TestPX1TxLookupNoSuchTx/503-with-no-such-body",
+  "Marker": "lookup 503-with-no-such-body",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-absent-on-any-error-code",
+  "File": "rpc.go",
+  "Old": "return string(bytes.TrimSpace(remote[\"code\"])) == \"-5\" && json.Unmarshal(remote[\"message\"], &message) == nil && message == coreNoSuchTxMessage",
+  "New": "return json.Unmarshal(remote[\"message\"], &message) == nil && message == coreNoSuchTxMessage",
+  "Selector": "TestPX1TxLookupNoSuchTx/code-8",
+  "Marker": "lookup code-8",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-absent-on-any-5-message",
+  "File": "rpc.go",
+  "Old": "return string(bytes.TrimSpace(remote[\"code\"])) == \"-5\" && json.Unmarshal(remote[\"message\"], &message) == nil && message == coreNoSuchTxMessage",
+  "New": "return string(bytes.TrimSpace(remote[\"code\"])) == \"-5\" && json.Unmarshal(remote[\"message\"], &message) == nil",
+  "Selector": "TestPX1TxLookupNoSuchTx/code-5-index-syncing",
+  "Marker": "lookup code-5-index-syncing",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-tracker-ignores-no-such-tx",
+  "File": "px1_observe.go",
+  "Old": "return e != nil && e.Error() == CodeNoSuchTx",
+  "New": "return e != nil && e.Error() == \"RPC_REMOTE_ERROR\"",
+  "Selector": "TestPX1TxLookupNoSuchTx/core-no-such-tx",
+  "Marker": "no-such-tx not read as absent",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-tracker-ignores-no-such-tx-core",
+  "File": "px1_observe.go",
+  "Old": "return e != nil && e.Error() == CodeNoSuchTx",
+  "New": "return e != nil && e.Error() == \"RPC_REMOTE_ERROR\"",
+  "Selector": "TestPX1CoreS2Crash/after-reservation",
+  "Marker": "T10_TRACKER_UNKNOWN_TX",
+  "Core": true
+ },
+ {
+  "Name": "px1-s3-tracker-on-observer-node-core",
+  "File": "px1_runtime.go",
+  "Old": "observer: w.px1Observer(), walletRoute: w.wallet,",
+  "New": "observer: w.node, walletRoute: w.wallet,",
+  "Selector": "TestPX1CoreS2Crash/broadcast-rejected",
+  "Marker": "T10 broadcast-rejected: first observation pass after restart",
+  "Core": true
+ },
+ {
+  "Name": "px1-s3-absent-on-malformed-txid",
+  "File": "px1_observe.go",
+  "Old": "\tif !hexN(txid, 32) {\n\t\treturn false, 0, fail(\"TRACKER_TXID\")\n\t}\n\traw, e := node.Call(ctx, \"getrawtransaction\", txid, true)",
+  "New": "\traw, e := node.Call(ctx, \"getrawtransaction\", txid, true)",
+  "Selector": "TestPX1TxLookupMalformedTxID",
+  "Marker": "read as absent or not refused",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-tracker-malformed-txid",
+  "File": "px1_observe.go",
+  "Old": "\tif !hexN(txid, 32) {\n\t\treturn false, 0, fail(\"TRACKER_TXID\")\n\t}\n\traw, e := node.Call(ctx, \"getrawtransaction\", txid, true)",
+  "New": "\traw, e := node.Call(ctx, \"getrawtransaction\", txid, true)",
+  "Selector": "TestPX1TrackerMalformedTxID",
+  "Marker": "malformed txid not refused",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-uncertain-alert-not-at-verdict-core",
+  "File": "px1_runtime.go",
+  "Old": "\t_ = r.scanUncertain(env)\n",
+  "New": "\t_ = env\n",
+  "Selector": "TestPX1CoreS2Crash/broadcast-rejected-live",
+  "Marker": "T10_UNCERTAIN_ALERT broadcast-rejected-live: at the verdict",
+  "Core": true
  }
 ]

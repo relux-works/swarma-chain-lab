@@ -16,6 +16,16 @@ operator status socket lives in its own directory, `/run/swarma-wallet-status`
 (freeze amendment 1, A8), which is never bound into a slot. The executor host
 runs its own Namecoin node (txindex, listen=0) with the dedicated hot wallet.
 
+**Node prerequisite: `txindex=1`, index synced.** The payment tracker reads a
+transaction as absent only from Core's exact `getrawtransaction` answer for a
+well-formed txid with a ready index (code -5, "No such mempool or blockchain
+transaction. Use gettransaction for wallet transactions."). A node without
+`txindex=1`, or one whose index is still syncing, answers other -5 messages.
+The tracker treats those as node failures and fails closed: the observation
+pass fails, so tracking stalls instead of reading a mined payment as absent.
+Start the service only after the node runs with `txindex=1` and
+`getindexinfo` reports `txindex` with `synced: true`.
+
 ## 1. Parameters
 
 Copy `templates/g2-pay/parameters.json` and replace every `PLACEHOLDER` with an

@@ -65,13 +65,14 @@ jobs:
   # PX1 gate of record: every T1-T17 test of .scripts/px1-core-gate.json on a
   # genuine Namecoin Core 28.0 regtest node (the official release, verified
   # against the upstream SHA256SUMS and the repository pin), with `go test
-  # -json`; any skip, failure or missing required test fails the job. T-ids
-  # whose layers are not written are listed there as open and are never
-  # reported as a pass.
+  # -json`. Each T-id declares its required layers (unit, Core) as the PX1
+  # test table says; an open T-id, a required layer without a test, a skip,
+  # a failure, a missing test or a short repetition count fails the job. T9
+  # runs as the table says: -race -count=50.
   px1-core-gate:
     name: px1-core-gate
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 150
     defaults:
       run:
         working-directory: experiments/agent-wallet
@@ -151,16 +152,17 @@ jobs:
           out="$RUNNER_TEMP/px1-gate"
           mkdir "$out" || exit 1
           status=0
-          core=$(python3 -B "$checker" list --manifest "$manifest" core) || exit 1
+          python3 -B "$checker" list --manifest "$manifest" core > "$RUNNER_TEMP/px1-core-list.txt" || exit 1
           unit=$(python3 -B "$checker" list --manifest "$manifest" unit | paste -sd '|') || exit 1
-          test -n "$core" && test -n "$unit" || exit 1
-          # Each Core test starts its own node under a fresh W1_RUN_ROOT.
-          for name in $core; do
-            W1_RUN_ROOT="$RUNNER_TEMP/px1-core-$name" go test -count=1 -timeout 20m -json -run "^${name}\$" . > "$out/$name.json"
+          test -s "$RUNNER_TEMP/px1-core-list.txt" && test -n "$unit" || exit 1
+          # Each Core test starts its own node(s) under a fresh W1_RUN_ROOT,
+          # with the go test flags the manifest names (default -count=1).
+          while read -r name flags; do
+            W1_RUN_ROOT="$RUNNER_TEMP/px1-core-$name" go test $flags -timeout 120m -json -run "^${name}\$" . > "$out/$name.json" < /dev/null
             code=$?
-            echo "go test $name exit $code"
+            echo "go test $name $flags exit $code"
             test "$code" = 0 || status=1
-          done
+          done < "$RUNNER_TEMP/px1-core-list.txt"
           go test -count=1 -timeout 20m -json -run "^(${unit})\$" . > "$out/unit.json"
           code=$?
           echo "go test unit exit $code"
@@ -170,3 +172,12 @@ jobs:
           echo "gate exit $gate"
           test "$gate" = 0 || status=1
           exit "$status"
+      - name: Gate control on a real skip before the passing streams (a skip anywhere must fail the gate)
+        run: |
+          set +e
+          python3 -B ../../.scripts/check-px1-core-gate.py check --manifest ../../.scripts/px1-core-gate.json "$RUNNER_TEMP/px1-gate-control.json" "$RUNNER_TEMP"/px1-gate/*.json > "$RUNNER_TEMP/px1-gate-control-2.txt"
+          gate_exit=$?
+          grep -x 'SKIPPED TestPX1CoreS1' "$RUNNER_TEMP/px1-gate-control-2.txt"
+          skip_seen=$?
+          echo "control: real skip first, then the passing streams: gate exit $gate_exit (want 1), skip reported $skip_seen (want 0)"
+          test "$gate_exit" = 1 && test "$skip_seen" = 0

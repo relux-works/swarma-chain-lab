@@ -25,7 +25,22 @@ type RPC struct {
 	endpoint string
 	methods  map[string]bool
 	client   *http.Client
+	// noSuchTx is set only on the S3 transaction lookup route
+	// (newTxLookupRPC). No wallet or broadcast route sets it, so their answers
+	// are unchanged.
+	noSuchTx bool
 }
+
+// CodeNoSuchTx is the transaction lookup route's answer when Core states that
+// it knows the transaction neither in its mempool nor in its chain. It is the
+// only node answer the S3 tracker reads as "absent".
+const CodeNoSuchTx = "RPC_NO_SUCH_TX"
+
+// coreNoSuchTxMessage is Namecoin Core 28's getrawtransaction message with a
+// ready transaction index. The other -5 messages of that call (no index, index
+// still syncing, block hash given) cannot rule out a mined transaction, so
+// they stay RPC_RESPONSE.
+const coreNoSuchTxMessage = "No such mempool or blockchain transaction. Use gettransaction for wallet transactions."
 
 var walletMethods = map[string]bool{"getbalances": true, "getnewaddress": true, "listtransactions": true, "fundrawtransaction": true, "signrawtransactionwithwallet": true}
 var broadcastMethods = map[string]bool{"sendrawtransaction": true}
@@ -45,6 +60,51 @@ func NewWalletRPC(r WalletRoute) (*RPC, error) {
 }
 func NewBroadcasterRPC(r su.Route) (*RPC, error) {
 	return newRPC(r, "/", "w1-broadcast", broadcastMethods)
+}
+
+// newTxLookupRPC is the S3 tracker's getrawtransaction client on the observer
+// route (the same route, user and node as the wallet's observer).
+func newTxLookupRPC(r su.Route) (*RPC, error) {
+	n, e := newRPC(r, "/", "w3-observer", map[string]bool{"getrawtransaction": true})
+	if e != nil {
+		return nil, e
+	}
+	n.noSuchTx = true
+	return n, nil
+}
+
+// coreNoSuchTx reports Core's JSON-RPC 1.0 error reply to getrawtransaction for
+// a transaction it does not know: exactly {"result":null,"error":{"code":-5,
+// "message":coreNoSuchTxMessage},"id":1}. Anything else is not this answer.
+func coreNoSuchTx(b []byte) bool {
+	var reply map[string]json.RawMessage
+	if sw.DecodeJSON(b, &reply) != nil || len(reply) != 3 {
+		return false
+	}
+	if string(bytes.TrimSpace(reply["result"])) != "null" || string(bytes.TrimSpace(reply["id"])) != "1" {
+		return false
+	}
+	var remote map[string]json.RawMessage
+	if sw.DecodeJSON(reply["error"], &remote) != nil || len(remote) != 2 {
+		return false
+	}
+	var message string
+	return string(bytes.TrimSpace(remote["code"])) == "-5" && json.Unmarshal(remote["message"], &message) == nil && message == coreNoSuchTxMessage
+}
+
+// px1ObserverNode is the S3 observers' own-node client: getrawtransaction goes
+// to the transaction lookup route, every other read to the wallet's observer
+// node unchanged.
+type px1ObserverNode struct {
+	su.Node
+	tx su.Node
+}
+
+func (o px1ObserverNode) Call(ctx context.Context, method string, args ...any) (json.RawMessage, error) {
+	if method == "getrawtransaction" {
+		return o.tx.Call(ctx, method, args...)
+	}
+	return o.Node.Call(ctx, method, args...)
 }
 func (n *RPC) Call(ctx context.Context, method string, args ...any) (json.RawMessage, error) {
 	if !n.methods[method] {
@@ -70,6 +130,9 @@ func (n *RPC) Call(ctx context.Context, method string, args ...any) (json.RawMes
 	defer res.Body.Close()
 	b, e = io.ReadAll(io.LimitReader(res.Body, 2<<20+1))
 	if e != nil || len(b) > 2<<20 || res.StatusCode != 200 {
+		if e == nil && len(b) <= 2<<20 && n.noSuchTx && res.StatusCode == http.StatusInternalServerError && coreNoSuchTx(b) {
+			return nil, fail(CodeNoSuchTx)
+		}
 		return nil, fail("RPC_RESPONSE")
 	}
 	var id int

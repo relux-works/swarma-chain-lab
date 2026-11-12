@@ -448,9 +448,9 @@ func (r *px1Runtime) observeGrants(ctx context.Context, env px1oEnv, now int64) 
 	return nil
 }
 
-// enqueue hands a complete payment to the tracker. Before the first pass the
-// tracker does not exist yet; the payment's complete record is already
-// durable, so the startup fold of the wallet journal picks it up.
+// enqueue hands an executed or uncertain payment to the tracker. Before the
+// first pass the tracker does not exist yet; the payment's reserve record is
+// already durable, so the startup fold of the wallet journal picks it up.
 func (r *px1Runtime) enqueue(p TrackedPayment) error {
 	if r.failed != "" {
 		return fail(r.failed)
@@ -530,6 +530,16 @@ func (r *px1Runtime) halted() string {
 	return ""
 }
 
+// px1Observer is the S3 observers' own-node client: the wallet's observer node,
+// with getrawtransaction on the transaction lookup route when the wallet has
+// one (OpenWallet always builds it).
+func (w *Wallet) px1Observer() su.Node {
+	if w.txLookup == nil {
+		return w.node
+	}
+	return px1ObserverNode{Node: w.node, tx: w.txLookup}
+}
+
 // px1oEnvFor assembles one pass's view of the service. Caller holds s.mu and
 // s.wallet.mu, in that order.
 func (s *ActionService) px1oEnvFor() (px1oEnv, error) {
@@ -538,7 +548,7 @@ func (s *ActionService) px1oEnvFor() (px1oEnv, error) {
 		return px1oEnv{}, fail("SERVICE_PROFILE")
 	}
 	w := s.wallet
-	env := px1oEnv{profile: profile, service: s.PX1ServiceJournal(), wallet: w.PX1Journal(), observer: w.node, walletRoute: w.wallet, receiptKey: s.pub, network: w.config.Network,
+	env := px1oEnv{profile: profile, service: s.PX1ServiceJournal(), wallet: w.PX1Journal(), observer: w.px1Observer(), walletRoute: w.wallet, receiptKey: s.pub, network: w.config.Network,
 		now: s.clock(), poisoned: s.poisoned, poison: func() { s.poisoned = true }}
 	env.limitsFor = func(id string) (EffectiveLimits, error) {
 		raw, e := LoadGrant(w.config, id)
@@ -573,14 +583,37 @@ func (s *ActionService) px1oEnvFor() (px1oEnv, error) {
 	return env, nil
 }
 
-// PX1Enqueue registers a complete payment with the tracker. S2 calls it at
-// step 23 with ActionService.mu held, so it takes no lock.
+// PX1Enqueue registers an executed or uncertain payment with the tracker. S2
+// calls it at step 23 with ActionService.mu held, so it takes no lock.
 func (s *ActionService) PX1Enqueue(p TrackedPayment) error {
 	r := s.px1oState()
 	if r == nil {
 		return ErrNotImplemented
 	}
 	return r.enqueue(p)
+}
+
+// px1oAtVerdict raises ALERT_UNCERTAIN_VERDICT at an uncertain verdict, so the
+// operator sees it without waiting for the next pass or a restart. S2 calls it
+// after the verdict is final, with ActionService.mu held and Wallet.mu free;
+// it takes Wallet.mu. It runs the pass's own incremental scan, so each
+// uncertain record still alerts exactly once (the next pass finds nothing new).
+// Before the first pass it does nothing: the startup scan covers every record.
+// After a sticky startup refusal it does nothing either: the service is halted
+// and no spend reaches a verdict. A journal read error leaves the unscanned
+// records to the next pass. No node call, no journal write.
+func (s *ActionService) px1oAtVerdict() {
+	r := s.px1oState()
+	if r == nil || !r.ready || r.failed != "" {
+		return
+	}
+	s.wallet.mu.Lock()
+	defer s.wallet.mu.Unlock()
+	env, e := s.px1oEnvFor()
+	if e != nil || r.validEnv(env) != nil {
+		return
+	}
+	_ = r.scanUncertain(env)
 }
 
 // PX1Tick runs one observation pass under ActionService.mu then Wallet.mu.

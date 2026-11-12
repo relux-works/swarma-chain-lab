@@ -56,6 +56,8 @@ and then one pass every `-tick-seconds` (default 30). A pass takes
    txid) and each new service-layer `terminal` record whose receipt verdict is
    `uncertain` (detail: the receipt's reason code) raises
    `ALERT_UNCERTAIN_VERDICT` once. One request can raise one alert per layer.
+   A running service raises it at the uncertain verdict itself; the pass then
+   finds nothing new. Startup scans every record.
 7. **Journal high-water.** When the service journal reaches 80% of its spend
    capacity, the pass raises `ALERT_JOURNAL_HIGH_WATER`, once per upward
    crossing.
@@ -104,7 +106,9 @@ A conflicted payment is not searched again. On a node without a transaction
 index, a conflicted payment that is later mined therefore stays
 `conflicted`. The executor node runs with `txindex=1`.
 
-On startup the tracker reloads these requests from the wallet-layer journal:
+A running service queues a spend at its verdict (step 23) when it executed
+or its outcome is uncertain, for example a broadcast the node refused. On
+startup the tracker reloads these requests from the wallet-layer journal:
 - completed requests;
 - uncertain requests;
 - requests still left `reserve`d (their broadcast may have happened before a
