@@ -6,71 +6,29 @@
     "TestPX1CoreS1",
     "TestPX1CoreObserve",
     "TestPX1CoreServiceG2FailClosed",
-    "TestPX1CoreServiceW2Positive"
+    "TestPX1CoreServiceW2Positive",
+    "TestPX1CoreS2",
+    "TestPX1CoreS2Race",
+    "TestPX1CoreS2Crash"
   ],
+  "core_runs": {"TestPX1CoreS2Race": {"count": 50, "race": true}},
   "tids": {
-    "T1": {
-      "core": ["TestPX1CoreS1/T1-at-transfer-cap"],
-      "unit": ["TestPX1WalletSpendAtTransferCap"]
-    },
-    "T2": {
-      "core": ["TestPX1CoreS1/T2-over-transfer-cap"],
-      "unit": ["TestPX1CheckPrePlan", "TestPX1CheckPostPlan", "TestPX1WalletTransferCapOver"]
-    },
-    "T3": {
-      "unit": ["TestPX1T3DayBuckets", "TestPX1DaysAndCapacity"],
-      "open": "Core layer not written (S2; possible since integration step 3)"
-    },
-    "T4": {
-      "core": ["TestPX1CoreS1/T4-total-budget"],
-      "unit": ["TestPX1WalletTotalBudget", "TestPX1WalletBudgetAbsent", "TestPX1EffectiveLimits"]
-    },
-    "T5": {
-      "unit": ["TestPX1T5ServiceRefusals"],
-      "open": "Core layer not written (S2; possible since integration step 3)"
-    },
-    "T6": {
-      "core": ["TestPX1CoreS1/T6-seal-spent"],
-      "unit": ["TestPX1WalletSealSpent"]
-    },
-    "T7": {
-      "core": ["TestPX1CoreS1/T7-expired-window"],
-      "unit": ["TestPX1WalletExpiredWindow"]
-    },
-    "T8": {
-      "unit": ["TestPX1T8ServiceReplay", "TestPX1WalletReplay", "TestPX1WalletReplaySkipsTrack"],
-      "open": "Core layer not written (S2; possible since integration step 3)"
-    },
-    "T9": {
-      "open": "no test at any layer (S2: 32 parallel spends over the day cap, 2 parallel same-nonce requests, -count=50)"
-    },
-    "T10": {
-      "open": "no test at any layer (S2: crash subprocess after wallet reservation, service reservation and broadcast)"
-    },
-    "T11": {
-      "core": ["TestPX1CoreObserve"],
-      "unit": ["TestPX1TrackerConfirmsAtK", "TestPX1TrackerReorgThenConflict"]
-    },
-    "T12": {
-      "core": ["TestPX1CoreS1/T12-second-instance"],
-      "unit": ["TestPX1ExecutorBinding", "TestPX1WalletSecondInstance"]
-    },
-    "T13": {
-      "core": ["TestPX1CoreObserve"],
-      "unit": ["TestPX1ReconcilerT13", "TestPX1RuntimeReconcileRefusal"]
-    },
-    "T14": {
-      "core": ["TestPX1CoreObserve", "TestPX1CoreServiceG2FailClosed", "TestPX1CoreServiceW2Positive"],
-      "unit": ["TestPX1RuntimeCanarySpentPoisons", "TestPX1oHalted", "TestPX1jServiceHalt", "TestPX1jServiceHaltBeforePoison"]
-    },
-    "T15": {
-      "unit": ["TestPX1RecipientAllowMode", "TestPX1WalletRecipientNotListed"]
-    },
-    "T16": {
-      "unit": ["TestPX1T16ClockRollback", "TestPX1T16ServiceClockRollback"]
-    },
-    "T17": {
-      "unit": ["TestPX1T17ReadLimiter", "TestPX1T17ReadFloodService"]
-    }
+    "T1": {"layers": ["core"], "core": ["TestPX1CoreS1/T1-at-transfer-cap"], "unit": ["TestPX1WalletSpendAtTransferCap"]},
+    "T2": {"layers": ["unit", "core"], "core": ["TestPX1CoreS1/T2-over-transfer-cap"], "unit": ["TestPX1CheckPrePlan", "TestPX1CheckPostPlan", "TestPX1WalletTransferCapOver"]},
+    "T3": {"layers": ["unit", "core"], "core": ["TestPX1CoreS2/T3-day-buckets"], "unit": ["TestPX1T3DayBuckets", "TestPX1DaysAndCapacity"]},
+    "T4": {"layers": ["unit", "core"], "core": ["TestPX1CoreS1/T4-total-budget"], "unit": ["TestPX1WalletTotalBudget", "TestPX1WalletBudgetAbsent", "TestPX1EffectiveLimits"]},
+    "T5": {"layers": ["unit", "core"], "core": ["TestPX1CoreS2/T5-grantee"], "unit": ["TestPX1T5ServiceRefusals"]},
+    "T6": {"layers": ["core"], "core": ["TestPX1CoreS1/T6-seal-spent"], "unit": ["TestPX1WalletSealSpent"]},
+    "T7": {"layers": ["core"], "core": ["TestPX1CoreS1/T7-expired-window"], "unit": ["TestPX1WalletExpiredWindow"]},
+    "T8": {"layers": ["core"], "core": ["TestPX1CoreS2/T8-replay"], "unit": ["TestPX1T8ServiceReplay", "TestPX1WalletReplay", "TestPX1WalletReplaySkipsTrack"]},
+    "T9": {"layers": ["core"], "core": ["TestPX1CoreS2Race"]},
+    "T10": {"layers": ["core"], "core": ["TestPX1CoreS2Crash/after-reservation", "TestPX1CoreS2Crash/after-service-reservation", "TestPX1CoreS2Crash/after-broadcast"]},
+    "T11": {"layers": ["core"], "core": ["TestPX1CoreObserve"], "unit": ["TestPX1TrackerConfirmsAtK", "TestPX1TrackerReorgThenConflict"]},
+    "T12": {"layers": ["unit", "core"], "core": ["TestPX1CoreS1/T12-second-instance"], "unit": ["TestPX1ExecutorBinding", "TestPX1WalletSecondInstance"]},
+    "T13": {"layers": ["core"], "core": ["TestPX1CoreObserve"], "unit": ["TestPX1ReconcilerT13", "TestPX1RuntimeReconcileRefusal"]},
+    "T14": {"layers": ["core"], "core": ["TestPX1CoreObserve", "TestPX1CoreServiceG2FailClosed", "TestPX1CoreServiceW2Positive"], "unit": ["TestPX1RuntimeCanarySpentPoisons", "TestPX1oHalted", "TestPX1jServiceHalt", "TestPX1jServiceHaltBeforePoison"]},
+    "T15": {"layers": ["unit"], "unit": ["TestPX1RecipientAllowMode", "TestPX1WalletRecipientNotListed"]},
+    "T16": {"layers": ["unit"], "unit": ["TestPX1T16ClockRollback", "TestPX1T16ServiceClockRollback"]},
+    "T17": {"layers": ["unit"], "unit": ["TestPX1T17ReadLimiter", "TestPX1T17ReadFloodService"]}
   }
 }

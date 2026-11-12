@@ -14,10 +14,33 @@ import sys
 import tempfile
 import unittest
 
+import re
+
 REPO = Path(__file__).resolve().parents[1]
 CHECKER = Path(os.environ.get("PX1_GATE_CHECKER", REPO / ".scripts" / "check-px1-core-gate.py"))
 MANIFEST = REPO / ".scripts" / "px1-core-gate.json"
 CONSUMER = REPO / ".scripts" / "px1-s5-consumer-gate.json"
+INTERFACES = REPO / "experiments" / "agent-wallet" / "PX1-INTERFACES.md"
+
+
+def table_layers(path=INTERFACES):
+    """The required layers of T1-T17 from the frozen test table ("Test ids"
+    in PX1-INTERFACES.md): "unit" and/or "Core" in the Layer column; T10's
+    "Core subprocess" is a Core layer. T18 (host script) is not a gate label."""
+    out = {}
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) == 5 and re.fullmatch(r"T([1-9]|1[0-7])", cells[0]):
+            layer = cells[3]
+            out[cells[0]] = [x for x, word in (("unit", "unit"), ("core", "Core")) if word in layer]
+    return out
+
+
+def layer_mismatches(manifest, table):
+    """Labels whose declared layers differ from the table, or that the
+    manifest and the table do not both name."""
+    names = set(manifest["labels"]) | set(table)
+    return sorted(n for n in names if sorted(manifest["tids"].get(n, {}).get("layers", [])) != sorted(table.get(n, [])))
 
 
 def load(path):
@@ -49,13 +72,17 @@ def stream(manifest, override=None, extra=()):
             if t not in tests:
                 tests.append(t)
     lines = []
+    runs = manifest.get("core_runs", {})
     for t in tests:
         action = override.get(t, "pass")
         if action is None:
             continue
-        lines.append({"Action": "run", "Package": pkg, "Test": t})
-        lines.append({"Action": "output", "Package": pkg, "Test": t, "Output": "=== RUN   " + t + "\n"})
-        lines.append({"Action": action, "Package": pkg, "Test": t, "Elapsed": 0.01})
+        # A Core test with a required count runs that many times (go test
+        # -count=N reports each repetition).
+        for _ in range(runs.get(t, {}).get("count", 1)):
+            lines.append({"Action": "run", "Package": pkg, "Test": t})
+            lines.append({"Action": "output", "Package": pkg, "Test": t, "Output": "=== RUN   " + t + "\n"})
+            lines.append({"Action": action, "Package": pkg, "Test": t, "Elapsed": 0.01})
     lines.extend(extra)
     lines.append({"Action": "pass" if "fail" not in override.values() else "fail", "Package": pkg, "Elapsed": 0.5})
     return "\n".join(json.dumps(x) for x in lines) + "\n"
@@ -73,15 +100,104 @@ class Gate(unittest.TestCase):
                                capture_output=True, text=True, timeout=60)
             return r.returncode, r.stdout + r.stderr
 
-    # Claim: the valid neighbour passes: every required test passing gives
-    # exit 0 and PX1_GATE PASS, with T9/T10 reported OPEN, never PASS.
+    def run_manifest(self, manifest, *texts):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "m.json"
+            p.write_text(json.dumps(manifest), encoding="utf-8")
+            return self.run_checker(*texts, manifest=p)
+
+    # Claim: the valid neighbour passes: a complete run in which every listed
+    # test of every required layer of T1-T17 passes (T9 50 times) gives exit 0
+    # and PX1_GATE PASS, with every label reported PASS and none OPEN.
     def test_all_required_pass(self):
-        code, out = self.run_checker(stream(load(MANIFEST)))
+        m = load(MANIFEST)
+        code, out = self.run_checker(stream(m))
         self.assertEqual(code, 0, out)
-        self.assertIn("PX1_GATE PASS", out)
-        self.assertIn("T9 OPEN", out)
-        self.assertIn("T10 OPEN", out)
-        self.assertIn("T1 PASS", out)
+        self.assertIn("PX1_GATE PASS labels=17", out)
+        for label in m["labels"]:
+            self.assertRegex(out, rf"(?m)^{label} PASS layers=")
+        self.assertNotIn("OPEN", out)
+
+    # Claim: the gate manifest declares, for every T1-T17, exactly the
+    # required layers of the frozen test table, and every required layer
+    # lists at least one test. Control: the comparison reports a manifest
+    # whose T3 drops its Core layer, and one that omits T9.
+    def test_manifest_layers_match_table(self):
+        m, table = load(MANIFEST), table_layers()
+        self.assertEqual(sorted(table, key=lambda x: int(x[1:])), m["labels"])
+        self.assertEqual(layer_mismatches(m, table), [])
+        self.assertEqual(table["T9"], ["core"])
+        self.assertEqual(table["T10"], ["core"])
+        self.assertEqual(table["T3"], ["unit", "core"])
+        for label in m["labels"]:
+            for layer in m["tids"][label]["layers"]:
+                self.assertTrue(m["tids"][label].get(layer), f"{label} {layer}")
+        weak = json.loads(json.dumps(m))
+        weak["tids"]["T3"]["layers"] = ["unit"]
+        self.assertEqual(layer_mismatches(weak, table), ["T3"])
+        gap = json.loads(json.dumps(m))
+        gap["labels"].remove("T9")
+        del gap["tids"]["T9"]
+        self.assertEqual(layer_mismatches(gap, table), ["T9"])
+
+    # Claim (known-bad control): a planted OPEN T-id fails the gate (exit 1,
+    # OPEN_TID, never PX1_GATE PASS), both with no test at all and when its
+    # listed tests pass; the passing neighbour is test_all_required_pass.
+    def test_open_tid_fails(self):
+        base = load(MANIFEST)
+        for name, entry in [("no-test", {"layers": ["core"], "open": "not written"}),
+                            ("tests-pass", dict(base["tids"]["T9"], open="still open"))]:
+            with self.subTest(case=name):
+                m = json.loads(json.dumps(base))
+                m["tids"]["T9"] = entry
+                code, out = self.run_manifest(m, stream(m))
+                self.assertEqual(code, 1, out)
+                self.assertIn("OPEN_TID T9", out)
+                self.assertRegex(out, r"(?m)^T9 OPEN ")
+                self.assertIn("PX1_GATE FAIL", out)
+                self.assertNotIn("PX1_GATE PASS", out)
+
+    # Claim (known-bad control): a T-id whose required Core layer lists no
+    # test fails the gate with MISSING_LAYER even though its unit tests pass
+    # (T3, T5), and so does a Core-only T-id with no test (T10).
+    def test_missing_core_layer_fails(self):
+        base = load(MANIFEST)
+        for label in ("T3", "T5", "T10"):
+            with self.subTest(label=label):
+                m = json.loads(json.dumps(base))
+                m["tids"][label].pop("core")
+                if not m["tids"][label].get("unit"):
+                    m["tids"][label]["unit"] = ["TestPX1T16ClockRollback"]
+                code, out = self.run_manifest(m, stream(m))
+                self.assertEqual(code, 1, out)
+                self.assertIn(f"MISSING_LAYER {label} core", out)
+                self.assertRegex(out, rf"(?m)^{label} FAIL ")
+                self.assertNotIn("PX1_GATE PASS", out)
+
+    # Claim (known-bad control): T9 must pass in every one of its 50 required
+    # repetitions: 49 passes fail REQUIRED_RUNS, and a failing repetition
+    # followed by passes fails although the last action is a pass.
+    def test_required_runs(self):
+        m = load(MANIFEST)
+        pkg = m["package"]
+        full = stream(m).splitlines()
+        passes = [i for i, line in enumerate(full) if json.loads(line) == {"Action": "pass", "Package": pkg, "Test": "TestPX1CoreS2Race", "Elapsed": 0.01}]
+        self.assertEqual(len(passes), 50)
+        short = "\n".join(line for i, line in enumerate(full) if i != passes[0]) + "\n"
+        code, out = self.run_checker(short)
+        self.assertEqual(code, 1, out)
+        self.assertIn("REQUIRED_RUNS TestPX1CoreS2Race passed=49 want=50", out)
+        flaky = list(full)
+        flaky[passes[0]] = json.dumps({"Action": "fail", "Package": pkg, "Test": "TestPX1CoreS2Race", "Elapsed": 0.01})
+        flaky.append(json.dumps({"Action": "pass", "Package": pkg, "Test": "TestPX1CoreS2Race", "Elapsed": 0.01}))
+        code, out = self.run_checker("\n".join(flaky) + "\n")
+        self.assertEqual(code, 1, out)
+        self.assertIn("REQUIRED_FAILED T9 TestPX1CoreS2Race", out)
+        self.assertNotIn("PX1_GATE PASS", out)
+        listed = subprocess.run([sys.executable, "-I", "-B", str(CHECKER), "list", "--manifest", str(MANIFEST), "core"], capture_output=True, text=True, timeout=60)
+        self.assertEqual(listed.returncode, 0, listed.stderr)
+        self.assertIn("TestPX1CoreS2Race -race -count=50", listed.stdout.splitlines())
+        self.assertIn("TestPX1CoreS2 -count=1", listed.stdout.splitlines())
 
     # Claim (the brief's known-bad control): for EVERY T-id with a required
     # test, a skip of that test fails the gate with REQUIRED_SKIPPED naming the
@@ -167,13 +283,19 @@ class Gate(unittest.TestCase):
                 self.assertIn("PX1_GATE FAIL", out)
                 self.assertIn(reason, out)
 
-    # Claim: a manifest that could hide a gap is refused (exit 2): a T-id with
-    # no test and no open reason, labels that differ from the tids, and a
-    # Core test listed as a unit test; the real manifest is accepted.
+    # Claim: a manifest that could hide a gap is refused (exit 2): a T-id
+    # with no declared layers, an unknown layer, labels that differ from the
+    # tids, a Core test listed as a unit test, and a repetition count for a
+    # test that is not a Core test or out of range; the real manifest is
+    # accepted (test_all_required_pass).
     def test_manifest_refusals(self):
         base = load(MANIFEST)
         bad = []
         m = json.loads(json.dumps(base)); m["tids"]["T9"] = {}; bad.append(("silent-gap", m))
+        m = json.loads(json.dumps(base)); m["tids"]["T9"].pop("layers"); bad.append(("no-layers", m))
+        m = json.loads(json.dumps(base)); m["tids"]["T9"]["layers"] = ["core", "host"]; bad.append(("unknown-layer", m))
+        m = json.loads(json.dumps(base)); m["core_runs"] = {"TestPX1T16ClockRollback": {"count": 50}}; bad.append(("runs-not-core", m))
+        m = json.loads(json.dumps(base)); m["core_runs"]["TestPX1CoreS2Race"]["count"] = 0; bad.append(("runs-zero", m))
         m = json.loads(json.dumps(base)); m["labels"] = m["labels"][:-1]; bad.append(("labels", m))
         m = json.loads(json.dumps(base)); m["tids"]["T1"]["unit"].append("TestPX1CoreS1/T1-at-transfer-cap"); bad.append(("core-as-unit", m))
         for name, m in bad:
