@@ -1,0 +1,731 @@
+[
+ {
+  "Name": "px1-s3-confirm-before-k",
+  "File": "px1_observe.go",
+  "Old": "case o.present && o.depth >= int64(t.cfg.ConfirmationsK):",
+  "New": "case o.present && o.depth >= int64(t.cfg.ConfirmationsK)-1:",
+  "Selector": "TestPX1TrackerConfirmsAtK",
+  "Marker": "confirmed before K",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-ignore-input-conflict",
+  "File": "px1_observe.go",
+  "Old": "\t\tcase o.conflict:\n",
+  "New": "\t\tcase false && o.conflict:\n",
+  "Selector": "TestPX1TrackerReorgThenConflict",
+  "Marker": "conflicting spend not detected",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-conflict-on-any-spend",
+  "File": "px1_observe.go",
+  "Old": "if in.TxID != \"\" && want[su.Point{TxID: in.TxID, Vout: in.Vout}] {",
+  "New": "if in.TxID != \"\" {",
+  "Selector": "TestPX1TrackerReorgThenConflict",
+  "Marker": "conflicting spend not detected",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-absent-one-block-late",
+  "File": "px1_observe.go",
+  "Old": "tip.Height-p.MissingSince >= int64(t.cfg.ConflictBlocksN)",
+  "New": "tip.Height-p.MissingSince > int64(t.cfg.ConflictBlocksN)",
+  "Selector": "TestPX1TrackerAbsentForNBlocks",
+  "Marker": "absent payment not conflicted after N blocks",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-absent-one-block-early",
+  "File": "px1_observe.go",
+  "Old": "tip.Height-p.MissingSince >= int64(t.cfg.ConflictBlocksN)",
+  "New": "tip.Height-p.MissingSince >= int64(t.cfg.ConflictBlocksN)-1",
+  "Selector": "TestPX1TrackerAbsentForNBlocks",
+  "Marker": "absent payment conflicted before N blocks",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-own-spend-is-conflict",
+  "File": "px1_observe.go",
+  "Old": "\tif spender == p.TxID {\n",
+  "New": "\tif false && spender == p.TxID {\n",
+  "Selector": "TestPX1TrackerMinedWithoutIndex",
+  "Marker": "own spend mistaken for a conflict",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-tip-move-ignored",
+  "File": "px1_observe.go",
+  "Old": "\tif after != tip {\n",
+  "New": "\tif false && after != tip {\n",
+  "Selector": "TestPX1TrackerTipMoved",
+  "Marker": "tip move during the pass not detected",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-stale-block-present",
+  "File": "px1_observe.go",
+  "Old": "\tdefault:\n\t\treturn false, 0, nil\n\t}\n}",
+  "New": "\tdefault:\n\t\treturn true, 0, nil\n\t}\n}",
+  "Selector": "TestPX1TrackerTipMoved",
+  "Marker": "stale-block transaction treated as present",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-outage-counts-absent",
+  "File": "px1_observe.go",
+  "Old": "return e != nil && (e.Error() == \"RPC_REMOTE_ERROR\" || e.Error() == \"RPC_REMOTE_REFUSAL\")",
+  "New": "return e != nil",
+  "Selector": "TestPX1TrackerNodeFailure",
+  "Marker": "unreachable node counted as absence",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-reload-tracks-refused",
+  "File": "px1_observe.go",
+  "Old": "\t\tif q.phase == RecordRefuseRetained {\n\t\t\tcontinue\n\t\t}\n",
+  "New": "",
+  "Selector": "TestPX1TrackerReload",
+  "Marker": "reload set wrong",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-enqueue-overwrites",
+  "File": "px1_observe.go",
+  "Old": "\t\treturn fail(\"TRACKER_PAYMENT\")\n\t}\n\tif len(t.payments) >= px1oMaxTracked {",
+  "New": "\t\treturn nil\n\t}\n\tif len(t.payments) >= px1oMaxTracked {",
+  "Selector": "TestPX1TrackerEnqueue",
+  "Marker": "bad payment 0 accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-not-sticky",
+  "File": "px1_observe.go",
+  "Old": "\tif c.spent {\n\t\treturn CanarySpent, nil\n\t}\n",
+  "New": "",
+  "Selector": "TestPX1CanaryStates",
+  "Marker": "spent canary must stay spent after it reappears",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-value-unchecked",
+  "File": "px1_observe.go",
+  "Old": "\tif value != c.cfg.ValueSat {\n",
+  "New": "\tif false && value != c.cfg.ValueSat {\n",
+  "Selector": "TestPX1CanaryStates",
+  "Marker": "canary with another value read as",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-exclude-txid-only",
+  "File": "px1_observe.go",
+  "Old": "func (c *px1oCanary) Excluded(p su.Point) bool { return p == c.cfg.Outpoint }",
+  "New": "func (c *px1oCanary) Excluded(p su.Point) bool { return p.TxID == c.cfg.Outpoint.TxID }",
+  "Selector": "TestPX1CanaryStates",
+  "Marker": "canary exclusion wrong",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-float-low-inclusive",
+  "File": "px1_observe.go",
+  "Old": "\tcase r.BalanceSat < f.low:\n",
+  "New": "\tcase r.BalanceSat <= f.low:\n",
+  "Selector": "TestPX1FloatMonitor",
+  "Marker": "float boundary",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-reconcile-unknown-send",
+  "File": "px1_observe.go",
+  "Old": "if category == \"send\" && !known[txid] {",
+  "New": "if category == \"send\" && !known[txid] && false {",
+  "Selector": "TestPX1ReconcilerT13",
+  "Marker": "unknown send accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-reconcile-first-page-only",
+  "File": "px1_observe.go",
+  "Old": "\t\tif len(rows) < px1oReconcilePage {\n",
+  "New": "\t\tif true {\n",
+  "Selector": "TestPX1ReconcilerT13",
+  "Marker": "unknown send on page two accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-reconcile-unbounded",
+  "File": "px1_observe.go",
+  "Old": "\treturn fail(CodeStateReconcileRequired)\n}\n\n// ---",
+  "New": "\treturn nil\n}\n\n// ---",
+  "Selector": "TestPX1ReconcilerT13",
+  "Marker": "unbounded history accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-alert-detail-unredacted",
+  "File": "px1_observe.go",
+  "Old": "\tif !px1oDetailSafe(a.Detail) {\n",
+  "New": "\tif false {\n",
+  "Selector": "TestPX1LogAlertSink",
+  "Marker": "alert lines not bounded",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-day-rule-terminal-only",
+  "File": "px1_observe.go",
+  "Old": "\t\tif q.open() || q.day == day {\n",
+  "New": "\t\tif false && q.open() || q.day == day {\n",
+  "Selector": "TestPX1StatusDayRule",
+  "Marker": "day rule wrong",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-release-ignored",
+  "File": "px1_observe.go",
+  "Old": "\t\tretained := q.reserved - q.released\n",
+  "New": "\t\tretained := q.reserved\n",
+  "Selector": "TestPX1StatusDayRule",
+  "Marker": "day rule wrong",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-over-release",
+  "File": "px1_observe.go",
+  "Old": "r.Reconcile.ReleasedSat > q.reserved-q.released {",
+  "New": "r.Reconcile.ReleasedSat > q.reserved {",
+  "Selector": "TestPX1StatusDayRule",
+  "Marker": "over-release accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-refusals-count-executed",
+  "File": "px1_observe.go",
+  "Old": "r.Service.Receipt.Receipt.Verdict != \"refused\" {",
+  "New": "r.Service.Receipt.Receipt.Verdict == \"\" {",
+  "Selector": "TestPX1ProjectStatusGolden",
+  "Marker": "projection differs from the golden",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-request-loose",
+  "File": "px1_observe.go",
+  "Old": "\tif !bytes.Equal(raw, px1oStatusRequest) {\n",
+  "New": "\tif len(raw) == 0 {\n",
+  "Selector": "TestPX1ServeStatus",
+  "Marker": "accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-group-shared",
+  "File": "px1_status_socket.go",
+  "Old": "a.operatorGID == 0 || a.operatorGID == a.agentGID ||",
+  "New": "a.operatorGID == 0 ||",
+  "Selector": "TestPX1StatusSocket",
+  "Marker": "operator group equal to the agent group accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-no-poison",
+  "File": "px1_runtime.go",
+  "Old": "\tif state == CanarySpent || r.canaryLast.State == CanarySpent {\n\t\tenv.poison()\n",
+  "New": "\tif state == CanarySpent || r.canaryLast.State == CanarySpent {\n",
+  "Selector": "TestPX1RuntimeCanarySpentPoisons",
+  "Marker": "spent canary must poison every pass",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-poison-not-sticky",
+  "File": "px1_runtime.go",
+  "Old": "\tif state == CanarySpent || r.canaryLast.State == CanarySpent {\n",
+  "New": "\tif state == CanarySpent {\n",
+  "Selector": "TestPX1RuntimeCanarySpentPoisons",
+  "Marker": "a spent canary must stay spent for the runtime",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-reconcile-not-sticky",
+  "File": "px1_runtime.go",
+  "Old": "\tif r.failed != \"\" {\n\t\tenv.poison()\n\t\treturn fail(r.failed)\n\t}\n",
+  "New": "",
+  "Selector": "TestPX1RuntimeReconcileRefusal",
+  "Marker": "reconciliation refusal must poison and stay sticky",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-conflict-no-alert",
+  "File": "px1_runtime.go",
+  "Old": "\t\t\tif t.Record.State == TrackConflicted {\n",
+  "New": "\t\t\tif false {\n",
+  "Selector": "TestPX1RuntimeTrackRecords",
+  "Marker": "conflict alert wrong",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-unbound",
+  "File": "px1_runtime.go",
+  "Old": "if !ok || reserve.GrantID != t.Payment.GrantID || reserve.Nonce != t.Payment.Nonce || reserve.TxID != t.Payment.TxID {",
+  "New": "if false && (!ok || reserve.GrantID != t.Payment.GrantID || reserve.Nonce != t.Payment.Nonce || reserve.TxID != t.Payment.TxID) {",
+  "Selector": "TestPX1RuntimeTrackRecords",
+  "Marker": "transition without a reserve accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-highwater-every-pass",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif !r.highWater {\n",
+  "New": "\t\tif true {\n",
+  "Selector": "TestPX1RuntimeAlerts",
+  "Marker": "alerts not once per crossing",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-float-error-fails-pass",
+  "File": "px1_runtime.go",
+  "Old": "\treading, _ := r.float.Check(ctx)\n",
+  "New": "\treading, e := r.float.Check(ctx)\n\tkeep(e)\n",
+  "Selector": "TestPX1RuntimeAlerts",
+  "Marker": "status-only read failure failed the pass",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-canary-error-ignored",
+  "File": "px1_runtime.go",
+  "Old": "\tstate, e := r.canary.Check(ctx)\n\tkeep(e)\n",
+  "New": "\tstate, _ := r.canary.Check(ctx)\n",
+  "Selector": "TestPX1RuntimeAlerts",
+  "Marker": "canary read failure must fail the pass",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-count-follows-retained",
+  "File": "px1_observe.go",
+  "Old": "\t\tif q.open() || q.day == day {\n",
+  "New": "\t\tif q.reserved > q.released && (q.open() || q.day == day) {\n",
+  "Selector": "TestRev154StatusCountRetained",
+  "Marker": "STATUS_COUNT_RELEASED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-partial-release-closes",
+  "File": "px1_observe.go",
+  "Old": "\t\t\tif q.released == q.reserved {\n",
+  "New": "\t\t\tif q.released > 0 {\n",
+  "Selector": "TestPX1oStatusLedgerPhases",
+  "Marker": "STATUS_LEDGER_PHASE uncertain+partial-release",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-sets-phase",
+  "File": "px1_observe.go",
+  "Old": "\t\tcase RecordTrack:\n\t\t\tif byKey[key] == nil {\n\t\t\t\treturn fail(CodeJournalSegment)\n\t\t\t}\n",
+  "New": "\t\tcase RecordTrack:\n\t\t\tif byKey[key] == nil {\n\t\t\t\treturn fail(CodeJournalSegment)\n\t\t\t}\n\t\t\tbyKey[key].phase = r.Phase\n",
+  "Selector": "TestPX1oStatusLedgerPhases",
+  "Marker": "STATUS_LEDGER_PHASE uncertain+track-conflicted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-uncertain-omits-reserved",
+  "File": "px1_observe.go",
+  "Old": "\t\tif q.open() {\n\t\t\tg.UncertainSat += retained\n",
+  "New": "\t\tif q.phase == RecordUncertain {\n\t\t\tg.UncertainSat += retained\n",
+  "Selector": "TestPX1oStatusLedgerPhases",
+  "Marker": "STATUS_LEDGER_PHASE reserved day+0",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-dequeue-before-append",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif _, e := env.wallet.Append(rec); e != nil {\n\t\t\treturn e\n\t\t}\n\t\tr.tracks = r.tracks[1:]\n",
+  "New": "\t\tr.tracks = r.tracks[1:]\n\t\tif _, e := env.wallet.Append(rec); e != nil {\n\t\t\treturn e\n\t\t}\n",
+  "Selector": "TestRev154TrackAppendRetry",
+  "Marker": "TRACK_RETRY_LOST",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-queue-dropped",
+  "File": "px1_runtime.go",
+  "Old": "\tif len(r.tracks) > 0 {\n\t\twrite()\n\t}\n",
+  "New": "\tr.tracks = nil\n",
+  "Selector": "TestPX1oTrackAppendPartialRetry",
+  "Marker": "TRACK_RETRY_LOST",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-queue-unbounded",
+  "File": "px1_runtime.go",
+  "Old": "\tif len(r.tracks) == 0 {\n\t\tr.backlog = false\n",
+  "New": "\tif true {\n\t\tr.backlog = false\n",
+  "Selector": "TestPX1oTrackBacklogBoundary",
+  "Marker": "TRACK_QUEUE_UNBOUNDED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-halted-canary-code",
+  "File": "px1_runtime.go",
+  "Old": "\tcase r.canaryLast.State == CanarySpent:\n\t\treturn CodeFloatCanarySpent\n",
+  "New": "\tcase false && r.canaryLast.State == CanarySpent:\n\t\treturn CodeFloatCanarySpent\n",
+  "Selector": "TestPX1oHalted",
+  "Marker": "HALT_CANARY",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-halted-unknown-admits",
+  "File": "px1_runtime.go",
+  "Old": "\tcase !r.ready || r.canaryLast.State != CanaryUnspent:\n",
+  "New": "\tcase !r.ready:\n",
+  "Selector": "TestPX1oHalted",
+  "Marker": "HALT_UNKNOWN",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-halted-not-ready-admits",
+  "File": "px1_runtime.go",
+  "Old": "\tcase !r.ready || r.canaryLast.State != CanaryUnspent:\n",
+  "New": "\tcase r.ready && r.canaryLast.State != CanaryUnspent:\n",
+  "Selector": "TestPX1oHalted",
+  "Marker": "HALT_NOT_READY",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-halted-unbound-admits",
+  "File": "px1_runtime.go",
+  "Old": "\tif r == nil {\n\t\treturn ErrNotImplemented.Error()\n\t}\n",
+  "New": "\tif r == nil {\n\t\treturn \"\"\n\t}\n",
+  "Selector": "TestPX1oHalted",
+  "Marker": "HALT_UNBOUND",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-uncertain-service-ignored",
+  "File": "px1_runtime.go",
+  "Old": "rec.Service.Receipt.Receipt.Verdict == \"uncertain\" {",
+  "New": "rec.Service.Receipt.Receipt.Verdict == \"uncertain-never\" {",
+  "Selector": "TestPX1oUncertainServiceVerdict",
+  "Marker": "SERVICE_UNCERTAIN_ALERT",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-detail-untyped-words",
+  "File": "px1_observe.go",
+  "Old": "\tif s == \"\" || boundedCode(s) || hexN(s, 32) {\n",
+  "New": "\tif s == \"\" || boundedCode(strings.ToUpper(s)) || hexN(s, 32) {\n",
+  "Selector": "TestPX1oAlertDetailShapes",
+  "Marker": "DETAIL_NOT_TYPED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-agent-group-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "\t\tif g == strconv.FormatUint(uint64(a.operatorGID), 10) {\n",
+  "New": "\t\tif false && g == strconv.FormatUint(uint64(a.operatorGID), 10) {\n",
+  "Selector": "TestPX1oStatusSocketAgentGroup",
+  "Marker": "AGENT_IN_OPERATOR_GROUP",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-agent-lookup-fail-open",
+  "File": "px1_status_socket.go",
+  "Old": "\tgroups, e := px1oAgentGroups(a.agentUID)\n\tif e != nil {\n",
+  "New": "\tgroups, e := px1oAgentGroups(a.agentUID)\n\tif false && e != nil {\n",
+  "Selector": "TestPX1oStatusSocketAgentGroup",
+  "Marker": "AGENT_UNKNOWN",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-peer-uid-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "if peer, e := socketPeer(c); e != nil || peer.UID == agentUID {",
+  "New": "if peer, e := socketPeer(c); e != nil || false && peer.UID == agentUID {",
+  "Selector": "TestPX1oStatusSocketAgentPeerRefused",
+  "Marker": "AGENT_PEER_SERVED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-after-full-release",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif released[reserve.Seq] >= reserve.Reserved {\n",
+  "New": "\t\tif false && released[reserve.Seq] >= reserve.Reserved {\n",
+  "Selector": "TestPX1oTrackSkipsReleased",
+  "Marker": "TRACK_AFTER_RELEASE",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-compact-at-bound",
+  "File": "px1_runtime.go",
+  "Old": "\tif len(r.tracks) == 0 {\n\t\tr.backlog = false\n\t\ttransitions, e := r.tracker.Tick(ctx)\n\t\tkeep(e)\n\t\tif e == nil && len(transitions) > 0 {\n\t\t\tfor _, t := range transitions {\n\t\t\t\tif t.Record.State == TrackConflicted {\n\t\t\t\t\tr.raise(AlertPaymentConflicted, now, t.Payment.TxID)\n\t\t\t\t}\n\t\t\t}\n\t\t\tr.tracks = append(r.tracks, transitions...)\n",
+  "New": "\tif true {\n\t\tr.backlog = false\n\t\ttransitions, e := r.tracker.Tick(ctx)\n\t\tkeep(e)\n\t\tif e == nil && len(transitions) > 0 {\n\t\t\tfor _, t := range transitions {\n\t\t\t\tif t.Record.State == TrackConflicted {\n\t\t\t\t\tr.raise(AlertPaymentConflicted, now, t.Payment.TxID)\n\t\t\t\t}\n\t\t\t}\n\t\t\tr.tracks = append(r.tracks, transitions...)\n\t\t\tif len(r.tracks) > px1oMaxTracked {\n\t\t\t\tlast := map[uint64]int{}\n\t\t\t\tfor i, t := range r.tracks {\n\t\t\t\t\tlast[t.Payment.ReserveSeq] = i\n\t\t\t\t}\n\t\t\t\tkept := []TrackTransition{}\n\t\t\t\tfor i, t := range r.tracks {\n\t\t\t\t\tif last[t.Payment.ReserveSeq] == i {\n\t\t\t\t\t\tkept = append(kept, t)\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tr.tracks = kept\n\t\t\t}\n",
+  "Selector": "TestPX1oTrackBacklogBoundary",
+  "Marker": "TRACK_OBSERVATION_DROPPED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-poll-while-backlogged",
+  "File": "px1_runtime.go",
+  "Old": "\tif len(r.tracks) == 0 {\n\t\tr.backlog = false\n",
+  "New": "\tif true {\n\t\tr.backlog = false\n",
+  "Selector": "TestPX1oTrackBacklogBackpressure",
+  "Marker": "TRACK_POLLED_WHILE_BACKLOGGED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-refusal-drops-head",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif _, e := env.wallet.Append(rec); e != nil {\n\t\t\treturn e\n",
+  "New": "\t\tif _, e := env.wallet.Append(rec); e != nil {\n\t\t\tif len(r.tracks) > 1 {\n\t\t\t\tr.tracks = r.tracks[1:]\n\t\t\t}\n\t\t\treturn e\n",
+  "Selector": "TestRev160RetryHeadAtomic",
+  "Marker": "REFUSAL_LOST_QUEUED_HEAD",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-backlog-silent",
+  "File": "px1_runtime.go",
+  "Old": "\t\tr.raise(code, now, px1oTrackBacklog)\n",
+  "New": "\t\t_ = code\n",
+  "Selector": "TestPX1oTrackBacklogBackpressure",
+  "Marker": "TRACK_BACKLOG_ALERT",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-backlog-alert-every-pass",
+  "File": "px1_runtime.go",
+  "Old": "\tif len(r.tracks) > 0 && !r.backlog {\n",
+  "New": "\tif len(r.tracks) > 0 {\n",
+  "Selector": "TestPX1oTrackBacklogBackpressure",
+  "Marker": "TRACK_BACKLOG_ALERT",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-backlog-cause-ignored",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif stalled != nil && stalled.Error() == CodeClockRollback {\n",
+  "New": "\t\tif _ = stalled; false {\n",
+  "Selector": "TestPX1oTrackBacklogBackpressure",
+  "Marker": "TRACK_BACKLOG_ALERT",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-ignores-release",
+  "File": "px1_observe.go",
+  "Old": "\t\t\tq.released += r.Reconcile.ReleasedSat\n",
+  "New": "",
+  "Selector": "TestPX1oStatusMatchesLedgerPhases",
+  "Marker": "STATUS_NOT_LEDGER complete+full-release",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-ledger-accepts-unsigned-release",
+  "File": "px1_journal.go",
+  "Old": "\tif e := px1jAuthorize(j.header, rec); e != nil {\n",
+  "New": "\tif e := px1jAuthorize(j.header, rec); false && e != nil {\n",
+  "Selector": "TestPX1oLedgerRefusesUnsignedRelease",
+  "Marker": "UNAUTHENTICATED_RELEASE_ACCEPTED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-old-path",
+  "File": "px1_status_socket.go",
+  "Old": "if path != \"\" && path != StatusSocketPath {",
+  "New": "if path != \"\" && path != \"/run/swarma-wallet/status.sock\" {",
+  "Selector": "TestPX1oRunObserversStatusPath",
+  "Marker": "STATUS_PATH_NOT_FROZEN",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-any-path",
+  "File": "px1_status_socket.go",
+  "Old": "if path != \"\" && path != StatusSocketPath {",
+  "New": "if false && path != \"\" && path != StatusSocketPath {",
+  "Selector": "TestPX1oRunObserversStatusPath",
+  "Marker": "STATUS_PATH_NOT_FROZEN",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "\tif e := px1oStatusDir(path, a); e != nil {\n\t\treturn nil, e\n\t}\n",
+  "New": "",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-shared",
+  "File": "px1_status_socket.go",
+  "Old": "\tif px1oSharesDir(a.agentSocket, path) {\n",
+  "New": "\tif false && px1oSharesDir(a.agentSocket, path) {\n",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED agent-same-dir",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-nesting-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "return strings.HasPrefix(da, db) || strings.HasPrefix(db, da)",
+  "New": "return da == db",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED status-inside-agent-dir",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-mode-world-only",
+  "File": "px1_status_socket.go",
+  "Old": "!i.IsDir() || i.Mode().Perm() != StatusSocketDirMode {",
+  "New": "!i.IsDir() || i.Mode().Perm()&0o007 != 0 {",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED mode-0770",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-group-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "int(st.Uid) != os.Getuid() || st.Gid != a.operatorGID {",
+  "New": "int(st.Uid) != os.Getuid() {",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED foreign-group",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-dir-symlink-followed",
+  "File": "px1_status_socket.go",
+  "Old": "if resolved, e := filepath.EvalSymlinks(dir); e != nil || resolved != dir {",
+  "New": "if resolved, e := filepath.EvalSymlinks(dir); false && (e != nil || resolved != dir) {",
+  "Selector": "TestPX1oStatusSocketDir",
+  "Marker": "STATUS_DIR_ACCEPTED ancestor-symlink",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-agent-socket-unchecked",
+  "File": "px1_status_socket.go",
+  "Old": "if !filepath.IsAbs(a.agentSocket) || filepath.Clean(a.agentSocket) != a.agentSocket {",
+  "New": "if false && (!filepath.IsAbs(a.agentSocket) || filepath.Clean(a.agentSocket) != a.agentSocket) {",
+  "Selector": "TestPX1StatusSocket",
+  "Marker": "relative agent socket accepted",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-socket-kept-on-stop",
+  "File": "px1_status_socket.go",
+  "Old": "\tif os.Chown(path, os.Getuid(), int(a.operatorGID)) != nil || os.Chmod(path, StatusSocketMode) != nil {\n",
+  "New": "\tl.SetUnlinkOnClose(false)\n\tif os.Chown(path, os.Getuid(), int(a.operatorGID)) != nil || os.Chmod(path, StatusSocketMode) != nil {\n",
+  "Selector": "TestPX1oStatusListenerUnlinksOnStop",
+  "Marker": "STALE_STATUS_SOCKET",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-doc-operator-peer-member",
+  "File": "SERVICE.md",
+  "Old": "| operator user | never | member | `status.sock` only |",
+  "New": "| operator user | member | member | `status.sock`; `wallet.sock` refuses it with `SERVICE_PEER` |",
+  "Selector": "TestPX1oServiceDocDropIn",
+  "Marker": "SERVICE_DOC_A8 OPERATOR_PEER_MEMBER table",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-doc-operator-peer-line",
+  "File": "SERVICE.md",
+  "Old": "m @OPERATOR_USER@ swarma-wallet-status\n",
+  "New": "m @OPERATOR_USER@ swarma-wallet-status\nm @OPERATOR_USER@ swarma-wallet-peer\n",
+  "Selector": "TestPX1oServiceDocDropIn",
+  "Marker": "SERVICE_DOC_A8 OPERATOR_PEER_MEMBER line",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-doc-old-path",
+  "File": "SERVICE.md",
+  "Old": "-status-socket /run/swarma-wallet-status/status.sock",
+  "New": "-status-socket /run/swarma-wallet/status.sock",
+  "Selector": "TestPX1oServiceDocDropIn",
+  "Marker": "SERVICE_DOC_A8 OLD_STATUS_PATH",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-doc-status-dir-not-writable",
+  "File": "SERVICE.md",
+  "Old": "ReadWritePaths=/run/swarma-wallet-status\n",
+  "New": "",
+  "Selector": "TestPX1oServiceDocDropIn",
+  "Marker": "SERVICE_DOC_A8 DROPIN_MISSING ReadWritePaths",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-doc-status-md-old-path",
+  "File": "STATUS.md",
+  "Old": "`/run/swarma-wallet-status/status.sock` (freeze amendment 1, A8)",
+  "New": "`/run/swarma-wallet/status.sock` (freeze amendment 1, A8)",
+  "Selector": "TestPX1oServiceDocDropIn",
+  "Marker": "SERVICE_DOC_A8 OLD_STATUS_PATH",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-fixture-v1-preimage",
+  "File": "px1_observe_r3_test.go",
+  "Old": "\tdigest := sha256.Sum256(append([]byte(\"swarma-wallet-reconcile-v2\"), canonical(preimage)...))\n",
+  "New": "\t_ = preimage\n\tdigest := sha256.Sum256(append([]byte(\"swarma-wallet-reconcile-v1\"), canonical(c)...))\n",
+  "Selector": "TestPX1oStatusMatchesLedgerPhases",
+  "Marker": "RECONCILE_PREIMAGE",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-fixture-v1-preimage-unchecked",
+  "File": "px1_observe_r3_test.go",
+  "Old": "\tdigest := sha256.Sum256(append([]byte(\"swarma-wallet-reconcile-v2\"), canonical(preimage)...))\n\tif frozen, e := ReconcileDigestV2(h, rec); e != nil || !bytes.Equal(frozen, digest[:]) {\n",
+  "New": "\t_ = preimage\n\tdigest := sha256.Sum256(append([]byte(\"swarma-wallet-reconcile-v1\"), canonical(c)...))\n\tif frozen, e := ReconcileDigestV2(h, rec); false && (e != nil || !bytes.Equal(frozen, digest[:])) {\n",
+  "Selector": "TestPX1oStatusMatchesLedgerPhases",
+  "Marker": "FIXTURE_RELEASE_UNVERIFIED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-fixture-header-keyless",
+  "File": "px1_observe_r3_test.go",
+  "Old": "\th := px1oLedgerKeyedHeader(t)\n\tfake := px1oJournal(JournalLayerWallet)\n\tbuild(fake)\n",
+  "New": "\th := px1oLedgerHeader(\"\")\n\tfake := px1oJournal(JournalLayerWallet)\n\tbuild(fake)\n",
+  "Selector": "TestPX1oStatusMatchesLedgerPhases",
+  "Marker": "FIXTURE_RELEASE_UNVERIFIED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-unbound-digest-binding",
+  "File": "px1_journal_api.go",
+  "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "New": "\tp := ReconcilePreimageV2{GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "Selector": "TestPX1oLedgerRefusesUnsignedRelease/cross-binding",
+  "Marker": "UNBOUND_RELEASE_ACCEPTED cross-binding/",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-unbound-digest-grant",
+  "File": "px1_journal_api.go",
+  "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "New": "\tp := ReconcilePreimageV2{Binding: h.Binding, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "Selector": "TestPX1oLedgerRefusesUnsignedRelease/cross-grant",
+  "Marker": "UNBOUND_RELEASE_ACCEPTED cross-grant/",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-unbound-digest-nonce",
+  "File": "px1_journal_api.go",
+  "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "New": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "Selector": "TestPX1oLedgerRefusesUnsignedRelease/cross-nonce",
+  "Marker": "UNBOUND_RELEASE_ACCEPTED cross-nonce/",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-unbound-digest-seq",
+  "File": "px1_journal_api.go",
+  "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "New": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Reconcile: *rec.Reconcile}",
+  "Selector": "TestPX1oLedgerRefusesUnsignedRelease/cross-seq",
+  "Marker": "UNBOUND_RELEASE_ACCEPTED cross-seq/",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-foreign-keyless-fold",
+  "File": "px1_journal.go",
+  "Old": "\t\tif e := px1jAuthorize(h, r); e != nil {\n\t\t\treturn e\n",
+  "New": "\t\tif e := px1jAuthorize(h, r); e != nil && h.ReceiptKey != \"\" {\n\t\t\treturn e\n",
+  "Selector": "TestPX1oLedgerFoldsOnlySignedForeignRelease",
+  "Marker": "a keyless foreign journal folded a release",
+  "Core": false
+ }
+]
