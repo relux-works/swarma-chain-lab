@@ -5,6 +5,14 @@ rechecks M1 on its own node, reserves nonce/budget/inputs durably, then performs
 one bounded effect. It also exposes the intentionally unguarded Track B claim
 endpoint. No production wallet, public deployment or live spending is admitted.
 
+> **Superseded for G2 payments (PX1, Q10).** The `pay` action of this
+> laboratory is retired for the G2 demo: it is not the G2 payment executor
+> and nothing in G2 builds on it. G2 payments go through `agent-walletd`
+> (`experiments/agent-wallet`, the terms-v2 pay-limits profile) with a pay
+> grant issued by the terms-v2 helper (`experiments/rental/PAYGRANT-V2.md`).
+> This note changes no code; the M4a `pay` path keeps its regtest evidence.
+> The Prize-A canary and Track B ideas remain inputs to the G2 bounty canary.
+
 ## Authority and effects
 
 The incoming body supplies only a signed Nostr event and optional file bytes.

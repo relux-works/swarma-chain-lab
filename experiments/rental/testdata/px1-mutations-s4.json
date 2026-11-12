@@ -1,0 +1,452 @@
+[
+  {
+    "Name": "s4-terms-executor-key",
+    "File": "paygrant_v2.go",
+    "Old": "t.DayBasis != payTermsDayBasis || !pubkey(t.ExecutorKey) {",
+    "New": "t.DayBasis != payTermsDayBasis {",
+    "Selector": "TestPayGrantV2TermsRefusals/executor-off-curve",
+    "Marker": "want CONTRACT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-day-basis",
+    "File": "paygrant_v2.go",
+    "Old": "t.Service != payTermsService || t.DayBasis != payTermsDayBasis ||",
+    "New": "t.Service != payTermsService ||",
+    "Selector": "TestPayGrantV2TermsRefusals/day-basis",
+    "Marker": "want CONTRACT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-network",
+    "File": "paygrant_v2.go",
+    "Old": "if !su.NetworkPinned(t.Network, t.Genesis) {\n\t\treturn nil, bad(\"TERMS_NETWORK\")",
+    "New": "if false {\n\t\treturn nil, bad(\"TERMS_NETWORK\")",
+    "Selector": "TestPayGrantV2TermsRefusals/network-unpinned",
+    "Marker": "want TERMS_NETWORK",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-recipients-null",
+    "File": "paygrant_v2.go",
+    "Old": "case t.Recipients == nil:",
+    "New": "case false:",
+    "Selector": "TestPayGrantV2TermsRefusals/any-null",
+    "Marker": "want CONTRACT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-allow-32",
+    "File": "paygrant_v2.go",
+    "Old": "len(t.Recipients) > payTermsMaxRecipients",
+    "New": "len(t.Recipients) > payTermsMaxRecipients+1",
+    "Selector": "TestPayGrantV2TermsRefusals/allow-33",
+    "Marker": "want CONTRACT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-allow-sorted",
+    "File": "paygrant_v2.go",
+    "Old": " || !sort.StringsAreSorted(t.Recipients)",
+    "New": " || false && !sort.StringsAreSorted(t.Recipients)",
+    "Selector": "TestPayGrantV2TermsRefusals/allow-unsorted",
+    "Marker": "want CONTRACT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-any-empty",
+    "File": "paygrant_v2.go",
+    "Old": "if len(t.Recipients) != 0 {",
+    "New": "if false {",
+    "Selector": "TestPayGrantV2TermsRefusals/any-nonempty",
+    "Marker": "want CONTRACT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-mode-unknown",
+    "File": "paygrant_v2.go",
+    "Old": "\tdefault:\n\t\treturn nil, bad(\"CONTRACT_SCHEMA\")\n\t}\n\t// Row 8.",
+    "New": "\t}\n\t// Row 8.",
+    "Selector": "TestPayGrantV2TermsRefusals/mode-unknown",
+    "Marker": "want CONTRACT_SCHEMA",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-address-p2pkh",
+    "File": "paygrant_v2.go",
+    "Old": "if _, ok := a.(*btcutil.AddressPubKeyHash); !ok {",
+    "New": "if _, ok := a.(*btcutil.AddressPubKeyHash); false && !ok {",
+    "Selector": "TestPayGrantV2TermsRefusals/p2sh",
+    "Marker": "want ADDRESS_P2PKH_ONLY",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-address-row",
+    "File": "paygrant_v2.go",
+    "Old": "if e := payTermsAddress(r, t.Network, t.Genesis); e != nil {",
+    "New": "if e := payTermsAddress(r, t.Network, t.Genesis); false && e != nil {",
+    "Selector": "TestPayGrantV2TermsRefusals/testnet",
+    "Marker": "want ADDRESS_MAIN",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-duplicate",
+    "File": "paygrant_v2.go",
+    "Old": "if t.Recipients[i] == t.Recipients[i-1] {",
+    "New": "if false {",
+    "Selector": "TestPayGrantV2TermsRefusals/duplicate",
+    "Marker": "want CONTRACT_RECIPIENTS",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-transfer-positive",
+    "File": "paygrant_v2.go",
+    "Old": "!(0 < t.TransferCap && ",
+    "New": "!(",
+    "Selector": "TestPayGrantV2TermsRefusals/transfer-zero",
+    "Marker": "want CONTRACT_BUDGET",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-transfer-le-day",
+    "File": "paygrant_v2.go",
+    "Old": "t.TransferCap <= t.DayCap && ",
+    "New": "",
+    "Selector": "TestPayGrantV2TermsRefusals/transfer-over-day",
+    "Marker": "want CONTRACT_BUDGET",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-day-le-spend",
+    "File": "paygrant_v2.go",
+    "Old": "t.DayCap <= t.SpendCap && ",
+    "New": "",
+    "Selector": "TestPayGrantV2TermsRefusals/day-over-spend",
+    "Marker": "want CONTRACT_BUDGET",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-spend-maxmoney",
+    "File": "paygrant_v2.go",
+    "Old": "t.SpendCap <= MaxMoney)",
+    "New": "true)",
+    "Selector": "TestPayGrantV2TermsRefusals/spend-over-maxmoney",
+    "Marker": "want CONTRACT_BUDGET",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-count-1000",
+    "File": "paygrant_v2.go",
+    "Old": "t.DayCountCap > payTermsMaxDayCount",
+    "New": "t.DayCountCap > payTermsMaxDayCount+1",
+    "Selector": "TestPayGrantV2TermsRefusals/count-1001",
+    "Marker": "want CONTRACT_BUDGET",
+    "Core": false
+  },
+  {
+    "Name": "s4-terms-fee-max",
+    "File": "paygrant_v2.go",
+    "Old": "t.FeeCap > payTermsMaxFeeSat",
+    "New": "t.FeeCap > payTermsMaxFeeSat+1",
+    "Selector": "TestPayGrantV2TermsRefusals/fee-over-max",
+    "Marker": "want CONTRACT_BUDGET",
+    "Core": false
+  },
+  {
+    "Name": "s4-booking-domain",
+    "File": "paygrant_v2.go",
+    "Old": "return Hash(append([]byte(payGrantBookingDomain), terms...))",
+    "New": "return Hash(terms)",
+    "Selector": "TestPayGrantV2BookingRef",
+    "Marker": "booking ref is not domain separated",
+    "Core": false
+  },
+  {
+    "Name": "s4-input-network-pair",
+    "File": "paygrant_v2.go",
+    "Old": "in.Network != in.Terms.Network || in.Genesis != in.Terms.Genesis",
+    "New": "false",
+    "Selector": "TestPayGrantV2ValidateInput/network-not-terms",
+    "Marker": "want PAY_GRANT_NETWORK",
+    "Core": false
+  },
+  {
+    "Name": "s4-input-same-names",
+    "File": "paygrant_v2.go",
+    "Old": " || in.AgentName == in.LandlordName {",
+    "New": " {",
+    "Selector": "TestPayGrantV2ValidateInput/same-names",
+    "Marker": "want GRANT_NAME",
+    "Core": false
+  },
+  {
+    "Name": "s4-input-grantee-executor",
+    "File": "paygrant_v2.go",
+    "Old": "in.GranteeKey == in.Terms.ExecutorKey || ",
+    "New": "",
+    "Selector": "TestPayGrantV2ValidateInput/grantee-is-executor",
+    "Marker": "want PAY_GRANT_KEY_ROLES",
+    "Core": false
+  },
+  {
+    "Name": "s4-input-issuer-executor",
+    "File": "paygrant_v2.go",
+    "Old": " || in.IssuerKey == in.Terms.ExecutorKey {",
+    "New": " {",
+    "Selector": "TestPayGrantV2ValidateInput/issuer-is-executor",
+    "Marker": "want PAY_GRANT_KEY_ROLES",
+    "Core": false
+  },
+  {
+    "Name": "s4-input-budget-spend",
+    "File": "paygrant_v2.go",
+    "Old": "if in.BudgetSat < in.Terms.SpendCap {",
+    "New": "if in.BudgetSat < in.Terms.SpendCap-1 {",
+    "Selector": "TestPayGrantV2ValidateInput/budget-below-spend",
+    "Marker": "want CONTRACT_BUDGET",
+    "Core": false
+  },
+  {
+    "Name": "s4-input-consent-end",
+    "File": "paygrant_v2.go",
+    "Old": "in.ConsentCreatedAt >= in.NotAfter",
+    "New": "in.ConsentCreatedAt > in.NotAfter",
+    "Selector": "TestPayGrantV2ValidateInput/consent-at-end",
+    "Marker": "want PAY_GRANT_CONSENT_TIME",
+    "Core": false
+  },
+  {
+    "Name": "s4-input-consent-start",
+    "File": "paygrant_v2.go",
+    "Old": "in.ConsentCreatedAt < in.NotBefore || ",
+    "New": "",
+    "Selector": "TestPayGrantV2ValidateInput/consent-before-window",
+    "Marker": "want PAY_GRANT_CONSENT_TIME",
+    "Core": false
+  },
+  {
+    "Name": "s4-input-privacy",
+    "File": "paygrant_v2.go",
+    "Old": "if !digest(in.PrivacyNoticeSHA256) {",
+    "New": "if false {",
+    "Selector": "TestPayGrantV2ValidateInput/privacy",
+    "Marker": "want PAY_GRANT_PRIVACY",
+    "Core": false
+  },
+  {
+    "Name": "s4-signer-grantee-key",
+    "File": "paygrant_v2.go",
+    "Old": "grantee.XOnlyKey() != in.GranteeKey || ",
+    "New": "",
+    "Selector": "TestPayGrantV2SignerRefusals/grantee-wrong-key",
+    "Marker": "want PAY_GRANT_SIGNER_KEY",
+    "Core": false
+  },
+  {
+    "Name": "s4-signer-landlord-key",
+    "File": "paygrant_v2.go",
+    "Old": " || landlord.XOnlyKey() != in.IssuerKey {",
+    "New": " {",
+    "Selector": "TestPayGrantV2SignerRefusals/landlord-wrong-key",
+    "Marker": "want PAY_GRANT_SIGNER_KEY",
+    "Core": false
+  },
+  {
+    "Name": "s4-signer-context",
+    "File": "paygrant_v2.go",
+    "Old": "if e := ctx.Err(); e != nil {",
+    "New": "if e := ctx.Err(); false && e != nil {",
+    "Selector": "TestPayGrantV2SignerRefusals/cancelled",
+    "Marker": "want PAY_GRANT_SIGNER",
+    "Core": false
+  },
+  {
+    "Name": "s4-signature-verify",
+    "File": "paygrant_v2.go",
+    "Old": "if !VerifySignature(key, digestHex, resp.Signature) {",
+    "New": "if false {",
+    "Selector": "TestPayGrantV2SignerRefusals/countersign-other-digest",
+    "Marker": "want PAY_GRANT_SIGNATURE",
+    "Core": false
+  },
+  {
+    "Name": "s4-signature-echo-purpose",
+    "File": "paygrant_v2.go",
+    "Old": "resp.Purpose != purpose || ",
+    "New": "",
+    "Selector": "TestPayGrantV2SignerRefusals/echo-purpose",
+    "Marker": "want PAY_GRANT_SIGNATURE_ECHO",
+    "Core": false
+  },
+  {
+    "Name": "s4-signature-echo-key",
+    "File": "paygrant_v2.go",
+    "Old": "resp.SignerKey != key || ",
+    "New": "",
+    "Selector": "TestPayGrantV2SignerRefusals/echo-key",
+    "Marker": "want PAY_GRANT_SIGNATURE_ECHO",
+    "Core": false
+  },
+  {
+    "Name": "s4-request-copies",
+    "File": "paygrant_v2.go",
+    "Old": "Terms: bytes.Clone(terms), Payload: bytes.Clone(payload)",
+    "New": "Terms: terms, Payload: payload",
+    "Selector": "TestPayGrantV2SignerCannotRewrite",
+    "Marker": "signer rewrote issuance state",
+    "Core": false
+  },
+  {
+    "Name": "s4-consent-created-at",
+    "File": "paygrant_v2.go",
+    "Old": "CreatedAt: in.ConsentCreatedAt, Kind: payGrantConsentKind",
+    "New": "CreatedAt: in.NotBefore, Kind: payGrantConsentKind",
+    "Selector": "TestPayGrantV2RoundTrip",
+    "Marker": "consent event",
+    "Core": false
+  },
+  {
+    "Name": "s4-verify-consent-tags",
+    "File": "paygrant_v2.go",
+    "Old": "if !sameJSON(p.Tags, payGrantConsentTags(contract, PayGrantBookingRef(terms), p.Tags[3][1])) {",
+    "New": "if false {",
+    "Selector": "TestPayGrantV2DigestRecomputation/consent-other-terms",
+    "Marker": "want SIGNING_REQUEST_PAYLOAD",
+    "Core": false
+  },
+  {
+    "Name": "s4-verify-consent-signer",
+    "File": "paygrant_v2.go",
+    "Old": "p.Pubkey != req.SignerKey || ",
+    "New": "",
+    "Selector": "TestPayGrantV2DigestRecomputation/consent-signer",
+    "Marker": "want SIGNING_REQUEST_PAYLOAD",
+    "Core": false
+  },
+  {
+    "Name": "s4-verify-contract-payload",
+    "File": "paygrant_v2.go",
+    "Old": "canonical(req.Payload, &p) != nil || p.ContractSHA256 != contract {",
+    "New": "canonical(req.Payload, &p) != nil {",
+    "Selector": "TestPayGrantV2DigestRecomputation/contract-other-terms",
+    "Marker": "want SIGNING_REQUEST_PAYLOAD",
+    "Core": false
+  },
+  {
+    "Name": "s4-verify-grant-scope",
+    "File": "paygrant_v2.go",
+    "Old": "!sameJSON(g.Scope, []string{\"pay\"}) || ",
+    "New": "",
+    "Selector": "TestPayGrantV2DigestRecomputation/grant-scope",
+    "Marker": "want SIGNING_REQUEST_PAYLOAD",
+    "Core": false
+  },
+  {
+    "Name": "s4-verify-grant-budget",
+    "File": "paygrant_v2.go",
+    "Old": "*g.Budget < t.SpendCap",
+    "New": "*g.Budget < t.SpendCap-1",
+    "Selector": "TestPayGrantV2DigestRecomputation/grant-budget-below-spend",
+    "Marker": "want SIGNING_REQUEST_PAYLOAD",
+    "Core": false
+  },
+  {
+    "Name": "s4-verify-grant-issuer",
+    "File": "paygrant_v2.go",
+    "Old": "g.IssuerKey != req.SignerKey || ",
+    "New": "",
+    "Selector": "TestPayGrantV2DigestRecomputation/grant-issuer",
+    "Marker": "want SIGNING_REQUEST_PAYLOAD",
+    "Core": false
+  },
+  {
+    "Name": "s4-verify-digest",
+    "File": "paygrant_v2.go",
+    "Old": "if req.Digest != want {",
+    "New": "if false {",
+    "Selector": "TestPayGrantV2DigestRecomputation/contract-digest",
+    "Marker": "want SIGNING_REQUEST_DIGEST",
+    "Core": false
+  },
+  {
+    "Name": "s4-verify-terms-rows",
+    "File": "paygrant_v2.go",
+    "Old": "if e != nil || !bytes.Equal(terms, req.Terms) {\n\t\treturn PayTermsV2{}, bad(\"SIGNING_REQUEST_TERMS\")",
+    "New": "if false && (e != nil || !bytes.Equal(terms, req.Terms)) {\n\t\treturn PayTermsV2{}, bad(\"SIGNING_REQUEST_TERMS\")",
+    "Selector": "TestPayGrantV2DigestRecomputation/terms-invalid-caps",
+    "Marker": "want SIGNING_REQUEST_TERMS",
+    "Core": false
+  },
+  {
+    "Name": "s4-file-signer-key",
+    "File": "paygrant_v2.go",
+    "Old": "if req.SignerKey != s.key {",
+    "New": "if false {",
+    "Selector": "TestPayGrantV2FileExchangeRefusals/foreign-key",
+    "Marker": "want PAY_GRANT_SIGNER_KEY",
+    "Core": false
+  },
+  {
+    "Name": "s4-file-digest-name",
+    "File": "paygrant_v2.go",
+    "Old": "if !digest(req.Digest) {\n\t\treturn none, bad(\"SIGNING_REQUEST_KEY\")",
+    "New": "if false {\n\t\treturn none, bad(\"SIGNING_REQUEST_KEY\")",
+    "Selector": "TestPayGrantV2FileExchangeRefusals/digest-path",
+    "Marker": "want SIGNING_REQUEST_KEY",
+    "Core": false
+  },
+  {
+    "Name": "s4-file-request-conflict",
+    "File": "paygrant_v2.go",
+    "Old": "if !bytes.Equal(old, body) {",
+    "New": "if false && !bytes.Equal(old, body) {",
+    "Selector": "TestPayGrantV2FileExchangeRefusals/conflicting-request",
+    "Marker": "want SIGNING_REQUEST_CONFLICT",
+    "Core": false
+  },
+  {
+    "Name": "s4-file-answer-regular",
+    "File": "paygrant_v2.go",
+    "Old": "if !info.Mode().IsRegular() || ",
+    "New": "if ",
+    "Selector": "TestPayGrantV2FileExchangeRefusals/answer-symlink",
+    "Marker": "want SIGNATURE_FILE",
+    "Core": false
+  },
+  {
+    "Name": "s4-file-answer-canonical",
+    "File": "paygrant_v2.go",
+    "Old": "if canonical(raw, &sig) != nil {",
+    "New": "if json.Unmarshal(raw, &sig) != nil {",
+    "Selector": "TestPayGrantV2FileExchangeRefusals/answer-noncanonical",
+    "Marker": "want SIGNATURE_FILE_ENCODING",
+    "Core": false
+  },
+  {
+    "Name": "s4-cli-no-overwrite",
+    "File": "cmd/paygrant-v2/main.go",
+    "Old": "os.O_WRONLY|os.O_CREATE|os.O_EXCL",
+    "New": "os.O_WRONLY|os.O_CREATE|os.O_TRUNC",
+    "Selector": "TestCLITerms",
+    "Marker": "overwrite",
+    "Core": false
+  },
+  {
+    "Name": "s4-cli-check-request",
+    "File": "cmd/paygrant-v2/main.go",
+    "Old": "t, e := rental.VerifyPayGrantSigningRequest(req)\n\t\tif e != nil {",
+    "New": "t, e := rental.VerifyPayGrantSigningRequest(req)\n\t\tif false && e != nil {",
+    "Selector": "TestCLIIssueCeremony",
+    "Marker": "tampered digest",
+    "Core": false
+  },
+  {
+    "Name": "s4-core-seal-binding",
+    "File": "paygrant_v2.go",
+    "Old": "NotAfter: in.NotAfter, Seal: in.Seal, Budget: &budget",
+    "New": "NotAfter: in.NotAfter, Seal: Point{TxID: in.Seal.TxID, Vout: in.Seal.Vout + 1}, Budget: &budget",
+    "Selector": "TestCorePayGrantV2Issuance",
+    "Marker": "paygrant-live: want live/LIVE",
+    "Core": true
+  }
+]
