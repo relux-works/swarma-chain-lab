@@ -4,14 +4,17 @@ This is the operator procedure for the G2 pay executor's deploy inputs and for
 T18, the different-UID custody check. It sits on the frozen PX1 contract in
 `g2_pay_api.go` (see `experiments/agent-wallet/PX1-INTERFACES.md`).
 
-Nothing here funds a wallet, starts a service, creates users or spends coins.
-The mainnet-safe smoke (G2-PAYMENT-EXECUTOR §3.8) runs only after Ivan approves
+Nothing here funds a wallet or spends coins. Users are created and services
+started only by the owner, as root, through the target-host flow in §3. The
+mainnet-safe smoke (G2-PAYMENT-EXECUTOR §3.8) runs only after Ivan approves
 and funds it, and nothing in this document authorizes it.
 
 Placement (Q9): `agent-walletd` and the rented agent run on the same host under
-separate UIDs. The agent reaches only `/run/swarma-wallet/wallet.sock`. The
-executor host runs its own Namecoin node (txindex, listen=0) with the dedicated
-hot wallet.
+separate UIDs. The agent reaches only `/run/swarma-wallet/wallet.sock`; that
+directory holds only `wallet.sock` and is the only one bound into a slot. The
+operator status socket lives in its own directory, `/run/swarma-wallet-status`
+(freeze amendment 1, A8), which is never bound into a slot. The executor host
+runs its own Namecoin node (txindex, listen=0) with the dedicated hot wallet.
 
 ## 1. Parameters
 
@@ -23,9 +26,13 @@ canonical member order and compact form, because the parser accepts only exact
 | Member | Meaning | Rule |
 | --- | --- | --- |
 | `network`, `genesis` | chain pin | `main` with the main genesis. `regtest` with the regtest genesis is accepted for rehearsals only. |
-| `agent_uid` | the rented agent's UID (service `peer_uid`) | not 0, 65534 or 2^32-1 |
-| `agent_socket_gid` | per-agent socket group (service `socket_gid`) | not 0, 65534, 65535 or 2^32-1; differs from `operator_gid` |
-| `operator_gid` | operator status group | not 0, 65534, 65535 or 2^32-1 |
+| `agent_uid` | the rented agent's UID (service `peer_uid`) | not 0, 65534, 65535 or 2^32-1 |
+| `agent_socket_gid` | per-agent socket group `swarma-wallet-peer` (service `socket_gid`) | not 0, 65534, 65535 or 2^32-1; differs from `operator_gid` |
+| `operator_gid` | operator status group `swarma-wallet-status` | not 0, 65534, 65535 or 2^32-1 |
+| `service_uid` | UID of `swarma-wallet` (sysusers `u` line, `client.json`, custody spec) | not 0, 65534, 65535 or 2^32-1; differs from `agent_uid` |
+| `agent_user` | the agent's account name on the target host | strict sysusers name (`[A-Za-z_][A-Za-z0-9_-]*`, at most 31 bytes); not `root`, `nobody` or a `swarma-wallet*` name |
+| `agent_key_file` | the agent's action key file (`client.json`) | absolute, clean path; not the node datadir |
+| `node_datadir` | the own node's datadir (cookie and `wallet.dat` in the custody spec) | absolute, clean path, at most 1024 bytes; not under `/var/lib/swarma-wallet`, `/etc/swarma` or `/run` |
 | `grantee` | the agent's x-only action key (pay-grant grantee) | valid BIP-340 key |
 | `receipt_pubkey` | x-only receipt key (terms `executor_key`) | valid BIP-340 key; never equal to `grantee` |
 | `fee_rate_sat_vb` | fee rate for the private `wallet.json` | 100..1000. The template uses 110 (co-lead review: relay floor 100, never 200). |
@@ -33,9 +40,14 @@ canonical member order and compact form, because the parser accepts only exact
 | `node_rpc_port` | loopback RPC port of the own node | 1..65535 |
 | `g2` | the operator block, mirror of agent-wallet `G2OperatorConfig` | see below |
 
-Both group IDs are written into `g` lines of `sysusers.conf`. systemd-sysusers
-cannot parse GID 65535 (the 16-bit `(gid_t)-1`), so the deploy check refuses it
-for both groups before anything is rendered. 65533 and 65536 are valid.
+`ValidateG2PayParameters` first runs the frozen pure
+`ValidateG2PayIdentityDomain` (the four IDs, `service_uid != agent_uid`, the
+name rule and the two paths); its refusal wins over every other error. It reads
+no account database: whether `agent_user` exists, and at which UID, is checked
+on the target host in §3. The two group IDs and both UIDs are written into
+`sysusers.conf`. systemd-sysusers cannot parse ID 65535 (the 16-bit
+`(uid_t)-1`), so it is refused for all four before anything is rendered. 65533
+and 65536 are valid.
 
 The `g2` block in the template carries the §3.8 smoke values, which are pinned
 byte-for-byte by the frozen golden (`max_transfer_sat` 100000, `max_day_sat`
@@ -63,62 +75,28 @@ never overwrites an existing one:
 | File | Content | Installed as |
 | --- | --- | --- |
 | `service.json` | W2 public pins plus the `g2` block | `/etc/swarma/wallet/service.json`, root:swarma-wallet 0640 |
-| `client.json` | the agent's client pins (socket, service UID, receipt key, key file) | the agent's own config; no RPC, no coin key |
-| `sysusers.conf` | `swarma-wallet`, `swarma-wallet-peer` (GID pinned), `swarma-wallet-status` (GID pinned) | applied by root |
-| `tmpfiles.conf` | `/etc/swarma/wallet` 0750, the state root and its four subdirectories 0700 | applied by root |
+| `client.json` | the agent's client pins (socket, `service_uid`, receipt key, `agent_key_file`) | the agent's own config; no RPC, no coin key |
+| `sysusers.conf` | `u swarma-wallet <service_uid>`, `swarma-wallet-peer` and `swarma-wallet-status` (GIDs pinned), the service in both groups, then `G2AgentSysusers` verbatim: `u <agent_user> <agent_uid>` and `m <agent_user> swarma-wallet-peer` | applied by root only through §3 |
+| `tmpfiles.conf` | `/etc/swarma/wallet` 0750, the state root and its four subdirectories 0700, and `d /run/swarma-wallet-status 0750 swarma-wallet swarma-wallet-status -` | applied by root |
 | `namecoin-rpc.conf` | chain section; `listen=0`, `txindex=1`, loopback RPC; `rpcwhitelistdefault=0`; the three route whitelists; `wallet=` | merged into the node config by root |
-| `custody-spec.json` | the T18 input (`CustodySpecV1`) | read by the probe |
+| `custody-spec.json` | the T18 input (`CustodySpecV1`): `service_uid`, the private paths, `/run/swarma-wallet-status`, `<node_datadir>` cookie and `wallet.dat` | read by the probe |
 
-No rendered file carries a credential. The operator adds one `rpcauth` line per
-route (`w3-observer`, `w1-wallet`, `w1-broadcast`) to the node config. The
-route passwords go only into the private `wallet.json`.
+No rendered file carries a credential or a placeholder. The operator adds one
+`rpcauth` line per route (`w3-observer`, `w1-wallet`, `w1-broadcast`) to the
+node config. The route passwords go only into the private `wallet.json`.
 
-### Placeholders the parameters cannot fill
+Each rendered file was given to its own consumer:
 
-The frozen `G2PayParameters` has no service UID, no agent key path, no node
-datadir and no agent user name. A freeze amendment is proposed to add them.
-Until it lands, the render leaves these placeholders:
-
-| Placeholder | Where | Resolve with |
+| File | Consumer | Evidence |
 | --- | --- | --- |
-| `"PLACEHOLDER_WALLET_UID_INTEGER"` (quoted) | `client.json`, `custody-spec.json` | the numeric UID of `swarma-wallet` after provisioning, unquoted |
-| `PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH` | `client.json` | the agent's action key file |
-| `PLACEHOLDER_NODE_DATADIR` | `custody-spec.json` | the own node's datadir, without a trailing slash |
-| `<PLACEHOLDER:AGENT_USER>` | `sysusers.conf`, last line | the existing user name whose UID is `agent_uid` |
+| `custody-spec.json` | `deploy-kit g2-custody-probe` and `g2-custody-verify` (`ParseCustodySpec`, `ValidateG2CustodyLaunchSpec`) | `TestPX1S5RenderFileSet`, `TestPX1S5HostFlowArtifacts` |
+| `client.json` | the agent-wallet CLI, whose first step is `LoadActionClientConfig` | `TestPX1S5ClientConsumerResolved` builds the CLI from `experiments/agent-wallet` as a subprocess and runs it on the rendered bytes: the loader accepts them. The same file with a quoted UID, a relative key path or a placeholder key path is refused with `CLIENT_CONFIG`. |
+| `sysusers.conf` | `systemd-sysusers` | `TestPX1S5SysusersResolvedConsumer` runs the real consumer with `--dry-run --root=<fixture>`: on a first install it would create the agent at exactly `agent_uid` and the service at `service_uid`; an existing agent is kept. On a UID collision it still exits 0 but would create the agent at another UID, which is why §3 has the preflight and the post-apply check. |
 
-Each file's own consumer refuses it while a placeholder is left in it. This is
-what was checked, and how:
-
-| File | Consumer | Refusal while unresolved | Evidence |
-| --- | --- | --- | --- |
-| `custody-spec.json` | `deploy-kit g2-custody-probe` and `g2-custody-verify` (`ParseCustodySpec`) | `ErrPlaceholder` for any `PLACEHOLDER` | `TestPX1S5RenderFileSet` |
-| `client.json` | the agent-wallet CLI, whose first step is `LoadActionClientConfig` | `CLIENT_CONFIG`: the quoted UID does not decode into an integer, and the key-file placeholder is not an absolute path. Each one alone is refused. | `TestPX1S5ClientConsumerPlaceholders`: it builds the CLI from `experiments/agent-wallet` as a subprocess (`deploy` does not import agent-wallet) and runs it on the rendered bytes. UID unresolved, key unresolved and both unresolved each print `CLIENT_CONFIG`; the fully resolved file passes the loader. Plant `s5-client-key-placeholder-absolute` |
-| `sysusers.conf` | `systemd-sysusers` | exit 1, nothing written: `<PLACEHOLDER:AGENT_USER>` is not a valid user name | `TestPX1S5SysusersUnresolvedRefused`, which runs the real consumer with `--dry-run --root=<fixture>` |
-
-The agent-user token must stay an invalid name. systemd-sysusers creates the
-user of an `m` line when no such user exists, so a token that is a valid name
-(as `PLACEHOLDER_AGENT_USER` was before this revision) would be applied: the
-consumer would create an account of that name and add it to
-`swarma-wallet-peer`. For the same reason the resolved name must be an
-existing account. Check it before applying the file:
-
-```sh
-test "$(id -u "$AGENT_USER")" = "$AGENT_UID"
-sed "s/<PLACEHOLDER:AGENT_USER>/$AGENT_USER/" sysusers.conf > sysusers.resolved.conf
-systemd-sysusers --dry-run sysusers.resolved.conf   # must not print "Creating user '$AGENT_USER'"
-```
-
-The `--dry-run` output must create only `swarma-wallet`, `swarma-wallet-peer`
-and `swarma-wallet-status`, with the two pinned GIDs. A typo in the name would
-show as a new user here. This check is the owner's; the parameters cannot bind
-a name to `agent_uid` until the amendment lands.
-
-The node paths in the spec are `<datadir>/.cookie` and
-`<datadir>/wallets/<hot_wallet_name>/wallet.dat` on main. On regtest they sit
-under `<datadir>/regtest/`. A Core-initialized datadir has a `wallets/`
-directory. The Core test checks this layout on Namecoin Core 28. Keep the
-resolved spec in canonical form: replace the values in place and add no
-whitespace.
+The node paths in the spec are `<node_datadir>/.cookie` and
+`<node_datadir>/wallets/<hot_wallet_name>/wallet.dat` on main. On regtest they
+sit under `<node_datadir>/regtest/`. A Core-initialized datadir has a
+`wallets/` directory. The Core test checks this layout on Namecoin Core 28.
 
 ### Validate
 
@@ -130,21 +108,51 @@ The wallet validator accepts the `g2` member only with an explicit chain pin and
 a launch-valid operator block. A W2 `service.json` without `g2` validates
 exactly as before.
 
-## 3. Status socket (open item)
+## 3. Target-host flow (root, on the target host only)
 
-S3 owns the status socket `/run/swarma-wallet/status.sock` (mode 0660, operator
-group). Its directory `/run/swarma-wallet` is 0750 with group
-`swarma-wallet-peer`, and the daemon requires exactly that. An operator user
-outside `swarma-wallet-peer` therefore cannot reach the status socket. The
-rendered `sysusers.conf` creates `swarma-wallet-status` with `operator_gid` and
-adds the service user to it, so the daemon can set the socket group. It adds no
-operator user. The choice between putting the operator user in the peer group
-and moving the status socket to its own runtime directory is open with S3.
+The account binding is checked on the TARGET host, the host that applies
+`sysusers.conf` and runs the slot, never on the rendering machine. The order is
+fixed (freeze amendment 1, A3) and implemented once, in `RunG2HostFlow`:
+
+1. **Render** (pure, as in §2).
+2. **Preflight** `ValidateG2PayIdentity(p, G2HostAccounts{})`: an existing
+   `agent_user` is admitted only at exactly `agent_uid`; an absent
+   `agent_user` only when no other name owns `agent_uid`. A lookup outage
+   refuses; it is never absence.
+3. **Apply**: `systemd-sysusers -` on the `sysusers.conf` rendered from the same
+   parameters. Its exit status authorizes nothing: sysusers substitutes a free
+   UID on a collision and keeps an existing name at its UID, both with exit 0.
+4. **Post-apply check** (required) `VerifyG2AgentAccount(p, G2HostAccounts{})`:
+   `agent_user` at exactly `agent_uid`, a member of `agent_socket_gid` and not
+   of `operator_gid`.
+5. **Activation**, and T18 after it (§4), only after step 4 passed.
+
+A failed step stops the flow before the next one. Run it with the
+`deploy-kit` binary built from the reviewed head:
+
+```sh
+deploy-kit g2-host-flow -params "$PARAMS" -- systemctl start swarma-wallet.service
+```
+
+The command after `--` is the activation; it runs only after the post-apply
+check. The command prints `G2_HOST_FLOW_ACTIVATED` only after a successful
+activation. Do not run `systemd-sysusers` on the rendered file by hand, and do
+not start a G2 service before this command has printed that line.
+
+**Groups (A8).** The service account `swarma-wallet` is in
+`swarma-wallet-peer` (it owns `wallet.sock`) and in `swarma-wallet-status` (it
+gives `status.sock` that group); its unit keeps the operator group as a
+supplementary group (S3's G2 unit section). The agent's only G2 group is
+`swarma-wallet-peer`. The operator user's only G2 group is
+`swarma-wallet-status`, and the operator is never put into
+`swarma-wallet-peer`. `sysusers.conf` renders no operator account; the owner
+adds the operator user to `swarma-wallet-status` only. Nothing rendered here
+binds `/run/swarma-wallet-status` into a slot.
 
 ## 4. T18: different-UID custody check
 
-T18 runs on the executor host, whose users the owner has provisioned. Neither
-the probe nor the script needs root.
+T18 runs on the executor host after §3 printed `G2_HOST_FLOW_ACTIVATED`.
+Neither the probe nor the script needs root.
 
 **Root preflight (owner).** The probe runs as the agent and often sees `EACCES`
 on a parent directory, so the probe cannot tell that a file exists. Before T18,
@@ -154,14 +162,23 @@ root confirms that every path in the resolved spec exists:
 grep -o '"/[^"]*"' custody-spec.json | tr -d '"' | while read -r p; do test -e "$p" || echo "MISSING $p"; done
 ```
 
-**Agent run.** As the agent user, with binaries built from the reviewed head:
+**Agent run.** With the agent's slot credentials: UID `agent_uid`, primary
+GID `agent_socket_gid` and no supplementary group. Root drops to exactly these
+credentials, for example with `setpriv`, and runs the script with binaries
+built from the reviewed head:
 
 ```sh
-DEPLOY_KIT=/path/to/deploy-kit AGENT_WALLET=/path/to/agent-wallet \
-  deploy/g2-custody-check.sh custody-spec.json client.json "$GRANTEE_XONLY" "$NEW_EVIDENCE_DIR"
+setpriv --reuid="$AGENT_UID" --regid="$AGENT_SOCKET_GID" --clear-groups -- \
+  env DEPLOY_KIT=/path/to/deploy-kit AGENT_WALLET=/path/to/agent-wallet \
+  deploy/g2-custody-check.sh custody-spec.json client.json "$GRANTEE_XONLY" \
+    "$AGENT_SOCKET_GID" "$OPERATOR_GID" "$NEW_EVIDENCE_DIR"
 ```
 
-The script prints `T18_PASS` and exits 0 only when all three of these hold:
+The script first reads back `id -G` and records it in `credentials.txt`. The
+readback must be exactly `AGENT_SOCKET_GID`: the primary GID is
+`agent_socket_gid`, there is no supplementary group, and the operator GID is
+never among the groups. Otherwise it prints `T18_FAIL` and runs nothing else.
+It then prints `T18_PASS` and exits 0 only when all three of these hold:
 
 1. **`deploy-kit g2-custody-probe`** runs only as `agent_uid` (real and effective
    UID), never as the service UID. Every denied read must be `EACCES` or
@@ -186,8 +203,12 @@ The script prints `T18_PASS` and exits 0 only when all three of these hold:
    target in spec order. Every probe must pass under the recomputed rule; a
    reported pass bit is never trusted.
 
-The evidence directory keeps `custody-report.json`, the positive request and
-receipt, the verify output, and `exits.txt`. Keep it with the launch packet.
+The denied reads include `/run/swarma-wallet-status`: the agent is not in the
+operator group, so it must get `EACCES` there.
+
+The evidence directory keeps `credentials.txt`, `custody-report.json`, the
+positive request and receipt, the verify output, and `exits.txt`. Keep it with
+the launch packet.
 
 ## 5. What the tests prove and what they do not
 
@@ -201,12 +222,25 @@ receipt, the verify output, and `exits.txt`. Keep it with the launch packet.
   directory, a file behind a mode-0000 parent, and a private file probed
   directly are the passing neighbours. Same-UID modes stand in for the agent's
   view of another user's mode-0711 or mode-0700 directory.
-- `TestPX1S5SysusersUnresolvedRefused` and `TestPX1S5SysusersGIDDomain` give
+- `TestPX1S5HostFlowTripwire` drives `RunG2HostFlow` over a fixture account
+  database. A refused preflight (existing name at another UID, UID owned by
+  another name, outage, no database) stops before the apply. A post-apply
+  mismatch (substituted UID, missing peer membership, operator-group
+  membership, nothing created, outage, failed apply) stops before activation.
+  The clean first-install and existing-account paths reach activation once,
+  after the post-apply check. `TestPX1S5HostFlowArtifacts` checks the rendered
+  numeric declaration, that only the service and the agent are in
+  `swarma-wallet-peer`, the status directory in `tmpfiles.conf` and its denial
+  in `custody-spec.json`, and that no rendered file has a placeholder.
+  `TestG2HostFlowCommand` runs `deploy-kit g2-host-flow` on the real account
+  database of the test host, with recording fakes for `systemd-sysusers` and
+  the activation command.
+- `TestPX1S5SysusersResolvedConsumer` and `TestPX1S5SysusersGIDDomain` give
   the rendered `sysusers.conf` to the real `systemd-sysusers`, only with
   `--dry-run` and a new fixture root, and check that the fixture `passwd` and
-  `group` are unchanged afterwards. The unresolved file is refused. The
-  resolved file is accepted with GIDs 1301/1401, 65533 and 65536, and a
-  hand-edited GID 65535 line is refused by the consumer itself. The consumer
+  `group` are unchanged afterwards. The rendered file is accepted with GIDs
+  1301/1401, 65533 and 65536, and a hand-edited GID 65535 line is refused by
+  the consumer itself. The consumer
   part skips, and says so, where `systemd-sysusers` is not installed or has no
   `--dry-run` option. systemd 249 on the hosted ubuntu-22.04 runner refuses the
   option and does nothing, so there it skips. It never runs without
@@ -219,6 +253,7 @@ receipt, the verify output, and `exits.txt`. Keep it with the launch packet.
   sit at the spec paths. The probe, run as the node's own UID, reads both
   (`READ_OK`) and the report is refused. This shows that same-UID custody fails
   T18.
-- **Not proven here:** a cross-UID denial on a provisioned host, systemd
-  enforcement, and the positive own-agent request under G2. Those are the T18
-  host run itself.
+- **Not proven here:** a real apply and post-apply check on a target host, a
+  cross-UID denial on a provisioned host, systemd enforcement, slot
+  confinement, and the positive own-agent request under G2. Those are the §3
+  and T18 host runs themselves.
