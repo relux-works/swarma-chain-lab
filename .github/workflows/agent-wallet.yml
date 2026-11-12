@@ -9,6 +9,9 @@ on:
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/agent-wallet.yml'
+      - '.scripts/check-px1-core-gate.py'
+      - '.scripts/test_check_px1_core_gate.py'
+      - '.scripts/px1-core-gate.json'
   push:
     branches: [main]
     paths:
@@ -19,6 +22,9 @@ on:
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/agent-wallet.yml'
+      - '.scripts/check-px1-core-gate.py'
+      - '.scripts/test_check_px1_core_gate.py'
+      - '.scripts/px1-core-gate.json'
   workflow_dispatch:
 permissions:
   contents: read
@@ -55,3 +61,112 @@ jobs:
           go build -trimpath ./cmd/agent-wallet
           go build -trimpath ./cmd/agent-walletd
           go build -trimpath ./cmd/agent-wallet-legacy
+
+  # PX1 gate of record: every T1-T17 test of .scripts/px1-core-gate.json on a
+  # genuine Namecoin Core 28.0 regtest node (the official release, verified
+  # against the upstream SHA256SUMS and the repository pin), with `go test
+  # -json`; any skip, failure or missing required test fails the job. T-ids
+  # whose layers are not written are listed there as open and are never
+  # reported as a pass.
+  px1-core-gate:
+    name: px1-core-gate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: experiments/agent-wallet
+    env:
+      NMC_ARCHIVE: namecoin-28.0-x86_64-linux-gnu.tar.gz
+      NMC_URL: https://www.namecoin.org/files/namecoin-core/namecoin-core-28.0/namecoin-28.0-x86_64-linux-gnu.tar.gz
+      # Upstream release SHA256SUMS: the Guix attestations of three builders
+      # in namecoin/guix.sigs, pinned to one commit.
+      NMC_SUMS_BASE: https://raw.githubusercontent.com/namecoin/guix.sigs/9a4df23a6ce1ab79b140e7d16f914881e5de406e/28.0
+      # Recorded in this repository (experiments/fullnode-trusts/README.md,
+      # px1CorePins in px1_fixture_test.go).
+      NMC_ARCHIVE_SHA256: 6f12031926f0999b8507e073648cc2b4488d452531301a2244a562a92f2f7860
+      NMC_DAEMON_SHA256: dc7430676e445af3992430e036f7c1a17bea44f757e9cf25b69205e39625f2f7
+      NMC_CLI_SHA256: 318b6c881c8071abbafd984550172369c3498b4c65c389797350f2d458f085b1
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Require integrated K1 dependency
+        run: test -f ../rental/landlord_resolver.go && test -f ../single-use/observation.go
+      - name: Verify pinned dependencies
+        run: |
+          go mod download
+          go mod verify
+      - name: Gate checker controls (a skipped required T-id must fail the gate)
+        working-directory: .
+        run: python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v
+      - name: Fetch and verify Namecoin Core 28.0 (upstream SHA256SUMS and repository pin)
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          mkdir nmc-core && cd nmc-core
+          curl -fsSL --retry 3 --max-time 900 -o "$NMC_ARCHIVE" "$NMC_URL"
+          for signer in 'Robert%20Mindo' 'Rose%20Turing' 'mjgill89'; do
+            sums="sums-${signer%%\%*}.txt"
+            curl -fsSL --retry 3 --max-time 60 -o "$sums" "$NMC_SUMS_BASE/$signer/noncodesigned.SHA256SUMS"
+            # Each attestation names this archive once, with the repository pin.
+            test "$(grep -c "  $NMC_ARCHIVE\$" "$sums")" = 1
+            grep -qx "$NMC_ARCHIVE_SHA256  $NMC_ARCHIVE" "$sums"
+            grep -x "[0-9a-f]\{64\}  $NMC_ARCHIVE" "$sums" | sha256sum -c -
+          done
+          mkdir x && tar -C x -xzf "$NMC_ARCHIVE"
+          echo "$NMC_DAEMON_SHA256  x/namecoin-28.0/bin/namecoind" | sha256sum -c -
+          echo "$NMC_CLI_SHA256  x/namecoin-28.0/bin/namecoin-cli" | sha256sum -c -
+          echo "W1_CORE_DAEMON=$PWD/x/namecoin-28.0/bin/namecoind" >> "$GITHUB_ENV"
+          echo "W1_CORE_CLI=$PWD/x/namecoin-28.0/bin/namecoin-cli" >> "$GITHUB_ENV"
+      - name: Gate control on a real skip (without W1_REGTEST the Core test skips and the gate must fail)
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          set +e
+          go test -count=1 -json -run '^TestPX1CoreS1$' . > "$RUNNER_TEMP/px1-gate-control.json"
+          test_exit=$?
+          python3 -B ../../.scripts/check-px1-core-gate.py check --manifest ../../.scripts/px1-core-gate.json "$RUNNER_TEMP/px1-gate-control.json" > "$RUNNER_TEMP/px1-gate-control.txt"
+          gate_exit=$?
+          grep -x 'SKIPPED TestPX1CoreS1' "$RUNNER_TEMP/px1-gate-control.txt"
+          skip_seen=$?
+          echo "control: go test exit $test_exit (want 0), gate exit $gate_exit (want 1), skip reported $skip_seen (want 0)"
+          test "$test_exit" = 0 && test "$gate_exit" = 1 && test "$skip_seen" = 0
+      - name: PX1 T1-T17 on Namecoin Core 28 regtest (go test -json, no skip allowed)
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+          W1_REGTEST: '1'
+        run: |
+          set +e
+          manifest=../../.scripts/px1-core-gate.json
+          checker=../../.scripts/check-px1-core-gate.py
+          out="$RUNNER_TEMP/px1-gate"
+          mkdir "$out" || exit 1
+          status=0
+          core=$(python3 -B "$checker" list --manifest "$manifest" core) || exit 1
+          unit=$(python3 -B "$checker" list --manifest "$manifest" unit | paste -sd '|') || exit 1
+          test -n "$core" && test -n "$unit" || exit 1
+          # Each Core test starts its own node under a fresh W1_RUN_ROOT.
+          for name in $core; do
+            W1_RUN_ROOT="$RUNNER_TEMP/px1-core-$name" go test -count=1 -timeout 20m -json -run "^${name}\$" . > "$out/$name.json"
+            code=$?
+            echo "go test $name exit $code"
+            test "$code" = 0 || status=1
+          done
+          go test -count=1 -timeout 20m -json -run "^(${unit})\$" . > "$out/unit.json"
+          code=$?
+          echo "go test unit exit $code"
+          test "$code" = 0 || status=1
+          python3 -B "$checker" check --manifest "$manifest" "$out"/*.json
+          gate=$?
+          echo "gate exit $gate"
+          test "$gate" = 0 || status=1
+          exit "$status"

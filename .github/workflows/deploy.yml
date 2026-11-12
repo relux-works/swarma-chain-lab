@@ -24,6 +24,8 @@ on:
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/deploy.yml'
+      - '.scripts/check-px1-core-gate.py'
+      - '.scripts/px1-s5-consumer-gate.json'
   push:
     branches: [main]
     paths:
@@ -42,6 +44,8 @@ on:
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/deploy.yml'
+      - '.scripts/check-px1-core-gate.py'
+      - '.scripts/px1-s5-consumer-gate.json'
   workflow_dispatch:
 
 permissions:
@@ -94,6 +98,18 @@ jobs:
           go vet ./...
           go test -race -count=1 ./...
           go build -trimpath -o "$RUNNER_TEMP/deploy-kit" ./cmd/deploy-kit
+      # The S5 client consumer builds the agent-wallet CLI (its closure was
+      # fetched above) and runs it on the resolved render. It skips only when
+      # that closure is missing, so here every case must pass with no skip.
+      - name: PX1 S5 client consumer (resolved render, all cases pass, no skip)
+        run: |
+          set +e
+          go test -count=1 -json -run '^TestPX1S5ClientConsumerResolved$' . > "$RUNNER_TEMP/s5-consumer.json"
+          code=$?
+          python3 -B ../.scripts/check-px1-core-gate.py check --manifest ../.scripts/px1-s5-consumer-gate.json "$RUNNER_TEMP/s5-consumer.json"
+          gate=$?
+          echo "go test exit $code, gate exit $gate"
+          test "$code" = 0 && test "$gate" = 0
       # No Core node or credentials are needed: the test builds all release
       # Linux/amd64 artifacts twice, then plants differing source in an isolated
       # second tree and requires refusal without partial output or lost release.

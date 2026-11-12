@@ -204,12 +204,16 @@ not an authority substitute. CLI controls build a fresh production executable
 and use real wall-clock grant windows. The crash case exits a real subprocess
 with 73 after reservation, before effect.
 
-The executable pins are:
+The executable pins are two pairs (`px1CorePins`); a mixed pair never runs:
 
-| Executable | SHA256 |
-| --- | --- |
-| `namecoind` | `86b85483da23c83f7de134a5bf28bad8e3c6a8dbfe2af71a5e889a7b1547787f` |
-| `namecoin-cli` | `5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d` |
+| Executable | macOS pair | official x86_64-linux-gnu release pair |
+| --- | --- | --- |
+| `namecoind` | `86b85483da23c83f7de134a5bf28bad8e3c6a8dbfe2af71a5e889a7b1547787f` | `dc7430676e445af3992430e036f7c1a17bea44f757e9cf25b69205e39625f2f7` |
+| `namecoin-cli` | `5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d` | `318b6c881c8071abbafd984550172369c3498b4c65c389797350f2d458f085b1` |
+
+The Linux pair comes from `namecoin-28.0-x86_64-linux-gnu.tar.gz` (SHA-256
+`6f12031926f0999b8507e073648cc2b4488d452531301a2244a562a92f2f7860`, as listed
+by the Guix attestations in `namecoin/guix.sigs`).
 
 Harness `private/` contains node credentials, wallet data and local fixture
 secrets; never publish it. Its `public/` contains sanitized receipts, command
@@ -232,9 +236,34 @@ go test -count=1 -run '^TestGuardPlants$' -v .
 Per-plant logs and `results.json` remain in the fresh mutation root. These
 controls establish that the selected assertions detect their planted guard
 violations; they do not establish exhaustive security or removal of all
-redundant defenses. CI runs unit/race/vet/build only; real Core requires the
-explicit admitted local harness. Signed delivery evidence is separate from
-these reproducible instructions.
+redundant defenses. Signed delivery evidence is separate from these
+reproducible instructions.
+
+### PX1 gate of record (`px1-core-gate`)
+
+The hosted job `px1-core-gate` (`.github/workflows/agent-wallet.yml`) is the
+PX1 gate of record. It downloads the official Namecoin Core 28.0 Linux
+tarball, verifies it against the upstream SHA256SUMS (three Guix builder
+attestations at a pinned `namecoin/guix.sigs` commit) and the repository pin,
+checks both executables, and runs every test of
+`.scripts/px1-core-gate.json` with `W1_REGTEST=1`: each Core test in its own
+`go test -json` invocation with a fresh `W1_RUN_ROOT`, then the unit tests.
+`.scripts/check-px1-core-gate.py` fails the job on any skip, failure, missing
+required test, package or build failure, or empty stream; T-ids with
+unwritten layers are listed in the manifest as open and are reported `OPEN`,
+never `PASS`. Its known-bad controls run first
+(`.scripts/test_check_px1_core_gate.py`, and a real `go test` skip without
+`W1_REGTEST` that must fail the gate). Locally, from the repository root:
+
+```sh
+python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v
+python3 -B .scripts/check-px1-core-gate.py list --manifest .scripts/px1-core-gate.json core
+python3 -B .scripts/check-px1-core-gate.py check --manifest .scripts/px1-core-gate.json EVENTS.json...
+```
+
+The deploy job runs the S5 client-consumer test the same way
+(`.scripts/px1-s5-consumer-gate.json`: every case passes, no skip). Outputs go
+to the runner's temporary directory; locally keep them under `.temp/`.
 
 ## SW1 grant-v3 compatibility
 
