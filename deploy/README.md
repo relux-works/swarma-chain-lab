@@ -139,12 +139,17 @@ target-host order and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
   searchable but unlistable directory fails.
 - `deploy-kit g2-custody-verify -spec custody-spec.json -report REPORT` checks a
   stored report against the launch spec and prints `T18_CUSTODY_VERIFIED <spec sha256>`.
-- `deploy/g2-custody-check.sh SPEC CLIENT GRANTEE SOCKET_GID OPERATOR_GID OUTDIR`
-  is the T18 host script. It first reads back `id -G`, which must be exactly
-  `SOCKET_GID` (primary group `agent_socket_gid`, no supplementary group, never
-  the operator group). It then runs the probe, sends one own-agent `balance`
-  request and runs verify, and prints `T18_PASS` or `T18_FAIL`. Evidence goes
-  into the new `OUTDIR`.
+- `deploy-kit g2-agent-groups -params "$PARAMS" -- GID...` is the T18
+  credential readback. The GIDs (the agent's `id -G`) must be exactly the
+  agent's own primary GID, derived from its sysusers declaration, and
+  `agent_socket_gid`: in any order, nothing else, never the operator GID. It
+  prints `G2_AGENT_GROUPS_OK primary=<gid> socket=<gid>` only then.
+- `deploy/g2-custody-check.sh SPEC CLIENT GRANTEE PARAMS OUTDIR` is the T18
+  host script, run with the slot's credentials (`setpriv --reuid="$AGENT_USER"
+  --regid="$AGENT_USER" --init-groups`, see `SMOKE-G2.md` §4). It first hands
+  `id -G` to `deploy-kit g2-agent-groups`. It then runs the probe, sends one
+  own-agent `balance` request and runs verify, and prints `T18_PASS` or
+  `T18_FAIL`. Evidence goes into the new `OUTDIR`.
 - `W1_REGTEST=1 W1_CORE_DAEMON=/abs/namecoind W1_RUN_ROOT=/abs/new-dir go test
   -count=1 -run '^TestPX1T18CoreNodePolicy$' .` runs the Core layer against a
   regtest node that the test starts and stops by PID.
@@ -154,7 +159,9 @@ target-host order and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
   membership, operator-group membership) stops before activation, the clean
   path reaches activation, and the rendered `sysusers.conf`, `tmpfiles.conf`
   and `custody-spec.json` carry the numeric agent declaration, the status
-  directory and its denial.
+  directory and its denial. Its T18 readback part shows that the clean account
+  (own primary group plus `swarma-wallet-peer`) passes the readback, and that
+  an activated account with an extra group of its own is refused.
 - `go test -count=1 -run '^TestPX1S5Sysusers' .` gives the rendered
   `sysusers.conf` to the real `systemd-sysusers`, only with `--dry-run` and a
   new fixture root under the test temp directory. The consumer part skips where
