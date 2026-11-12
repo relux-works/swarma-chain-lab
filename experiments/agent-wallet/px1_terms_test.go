@@ -690,11 +690,17 @@ func TestPX1WalletReplaySkipsTrack(t *testing.T) {
 	if complete.Kind != RecordComplete {
 		t.Fatalf("journal: %s", l.kinds())
 	}
+	next := complete.Seq + 1
 	for _, state := range []string{TrackConfirmed, TrackConflicted} {
 		track := complete
-		track.Seq, track.Kind, track.Phase = 0, RecordTrack, state
+		track.Kind, track.Phase = RecordTrack, state
 		track.Track = &TrackRecordV2{State: state, Height: 7, BlockHash: strings.Repeat("b", 64), Confirmations: 2}
-		l.journal.records = append(l.journal.records, track)
+		// Journaled through Append, as S3's tracker does: it assigns the
+		// next Seq, so the record is visible to Iterate.
+		if appended, e := l.journal.Append(track); e != nil || appended.Seq != next {
+			t.Fatalf("track append: %v %+v", e, appended)
+		}
+		next++
 		again := l.spend(r, raw, nil)
 		if again.Status != "already-executed" || again.Reason != "DURABLE_RESERVATION_NO_RETRY" || again.Phase != "complete" || again.TxID != first.TxID || len(l.chain.sent) != 1 {
 			t.Fatalf("TRACK_AS_REPLAY after %s: %+v", state, again)

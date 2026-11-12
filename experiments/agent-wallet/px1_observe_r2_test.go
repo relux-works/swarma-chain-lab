@@ -332,7 +332,7 @@ func TestPX1oTrackSkipsReleased(t *testing.T) {
 func TestPX1oHalted(t *testing.T) {
 	var fresh ActionService
 	if got := fresh.px1oHalted(); got != "SERVICE_STATE_UNAVAILABLE" {
-		t.Fatalf("HALT_FRESH_SERVICE: fresh service runtime admitted: %q", got)
+		t.Fatalf("HALT_NOT_READY: a fresh service runtime admitted before the first pass: %q", got)
 	}
 	l := px1oNewRuntimeLab(t)
 	if got := l.r.halted(); got != "SERVICE_STATE_UNAVAILABLE" {

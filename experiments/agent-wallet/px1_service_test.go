@@ -75,6 +75,9 @@ func px1ProductDepsStubbed() bool {
 // land, an opened service must be attached (wallet.g2 and its journal set).
 // A refused G2 open releases the wallet lock (a W2 reopen of the same files
 // succeeds), and the W2 neighbour without g2 opens unattached before and after.
+// Integrated, the refusal is driven by a foreign journal v2 in the wallet
+// state directory: the attach's JOURNAL_SEGMENT comes back unchanged and the
+// W2 neighbour on those files opens afterwards.
 // Limit: unit layer, no node call; the Core tests below cover the spend.
 func TestPX1ServiceOpenG2FailClosed(t *testing.T) {
 	c := px1ServiceUnitConfig(t)
@@ -113,6 +116,39 @@ func TestPX1ServiceOpenG2FailClosed(t *testing.T) {
 		t.Logf("G2 startup refused with product dependencies: %v", e)
 	}
 	openW2("after G2 refusal")
+	if px1ProductDepsStubbed() {
+		return
+	}
+	// Integrated (product S2/S3 constructors): the attach above succeeds, so
+	// the refusal path is driven by a wallet state directory that already
+	// holds a journal v2 under another header. The product attach refuses
+	// JOURNAL_SEGMENT, OpenActionService returns that code unchanged (never a
+	// substitute such as SERVICE_PROFILE), and the refused open releases the
+	// wallet lock, so the W2 neighbour on the same files opens.
+	c2 := px1ServiceUnitConfig(t)
+	var wc Config
+	if raw, e := os.ReadFile(c2.WalletConfig); e != nil || json.Unmarshal(raw, &wc) != nil {
+		t.Fatal("fixture wallet config", e)
+	}
+	_, other := testKey(5)
+	foreign, e := OpenJournalV2(wc.StateDir, px1WalletJournalLock, JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: strings.Repeat("a", 64), ReceiptKey: other}, JournalLimitsV2{SpendCapacity: op.JournalSpendCapacity, SegmentMaxRecords: px1SegmentMaxRecords, SegmentMaxBytes: px1SegmentMaxBytes})
+	if e != nil {
+		t.Fatal("fixture foreign journal", e)
+	}
+	foreign.Close()
+	g2b := c2
+	g2b.G2 = &op
+	if s, e := OpenActionService(g2b); e == nil {
+		s.Close()
+		t.Fatal("G2 opened over a foreign wallet journal")
+	} else {
+		wantCode(t, "integrated attach refusal", e, CodeJournalSegment)
+	}
+	if s, e := OpenActionService(c2); e != nil {
+		t.Fatalf("after integrated G2 refusal: W2 neighbour refused: %v", e)
+	} else {
+		s.Close()
+	}
 }
 
 // Claim: px1SelectProfile is a no-op without g2, refuses SERVICE_CONFIG for
