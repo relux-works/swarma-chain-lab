@@ -38,23 +38,55 @@ func px1jPrivateDir(t *testing.T) string {
 }
 
 // px1jReceiptKeyN is the fixture receipt key (testKey(9), the frozen executor
-// key); wallet journals in these tests verify reconcile records under it.
+// key); wallet journals in these tests carry its x-only key in the header
+// (JournalHeaderV2.ReceiptKey, freeze amendment 1) and verify reconcile
+// records under it.
 const px1jReceiptKeyN = 9
 
-// px1jSignReconcile signs c with testKey(n) over the frozen preimage,
-// computed here independently of the product digest function:
-// SHA256("swarma-wallet-reconcile-v1" || canonical(c with Signature "")).
-func px1jSignReconcile(t *testing.T, c ReconcileRecordV2, n int) *ReconcileRecordV2 {
+// px1jWalletHeader is the fixture wallet-layer header: binding px1jHex(7)
+// and the x-only key of testKey(n) as the reconcile signer, or "" (no
+// signer) for n == 0.
+func px1jWalletHeader(n int) JournalHeaderV2 {
+	h := JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: px1jHex(7)}
+	if n != 0 {
+		_, h.ReceiptKey = testKey(byte(n))
+	}
+	return h
+}
+
+// px1jSignAt returns rec at position seq with its reconcile payload signed
+// by testKey(n) for the journal headed by h. The amendment-1 preimage is
+// assembled here independently of the frozen ReconcileDigestV2:
+// SHA256("swarma-wallet-reconcile-v2" || canonical({binding, grant_id,
+// nonce, seq, reconcile with signature ""})).
+func px1jSignAt(t *testing.T, h JournalHeaderV2, rec JournalRecordV2, seq uint64, n int) JournalRecordV2 {
 	t.Helper()
+	c := *rec.Reconcile
 	c.Signature = ""
-	digest := sha256.Sum256(append([]byte("swarma-wallet-reconcile-v1"), canonical(c)...))
+	preimage := struct {
+		Binding   string            `json:"binding"`
+		GrantID   string            `json:"grant_id"`
+		Nonce     string            `json:"nonce"`
+		Seq       uint64            `json:"seq"`
+		Reconcile ReconcileRecordV2 `json:"reconcile"`
+	}{h.Binding, rec.GrantID, rec.Nonce, seq, c}
+	digest := sha256.Sum256(append([]byte("swarma-wallet-reconcile-v2"), canonical(preimage)...))
 	key, _ := testKey(byte(n))
 	sig, e := schnorr.Sign(key, digest[:])
 	if e != nil {
 		t.Fatal(e)
 	}
 	c.Signature = hex.EncodeToString(sig.Serialize())
-	return &c
+	rec.Seq, rec.Reconcile = seq, &c
+	return rec
+}
+
+// px1jSignNext signs rec for the Seq that j's next Append assigns
+// (Usage().LastSeq+1) under j's own header, as the operator CLI does while
+// it holds the journal lock.
+func px1jSignNext(t *testing.T, j JournalV2, rec JournalRecordV2, n int) JournalRecordV2 {
+	t.Helper()
+	return px1jSignAt(t, j.Header(), rec, j.Usage().LastSeq+1, n)
 }
 
 // px1jReserve is a well-formed wallet-layer reserve record at time t.
@@ -67,8 +99,8 @@ func px1jFollowRec(r JournalRecordV2, kind, phase string, t int64) JournalRecord
 	return r
 }
 
-// px1jOpenWallet opens a wallet-layer journal that verifies reconcile
-// signatures under the fixture receipt key.
+// px1jOpenWallet opens a wallet-layer journal through the public
+// OpenJournalV2 whose header names the fixture receipt key.
 func px1jOpenWallet(t *testing.T, dir string, l JournalLimitsV2) JournalV2 {
 	t.Helper()
 	j, e := px1jOpenWalletKey(dir, l, px1jReceiptKeyN)
@@ -78,23 +110,11 @@ func px1jOpenWallet(t *testing.T, dir string, l JournalLimitsV2) JournalV2 {
 	return j
 }
 
-// px1jOpenWalletKey opens the wallet journal under testKey(n)'s public key,
-// or with no receipt key at all for n == 0 (the frozen OpenJournalV2).
+// px1jOpenWalletKey opens the wallet journal through the public
+// OpenJournalV2 under px1jWalletHeader(n): testKey(n)'s x-only key as the
+// reconcile signer, or ReceiptKey "" for n == 0.
 func px1jOpenWalletKey(dir string, l JournalLimitsV2, n int) (JournalV2, error) {
-	h := JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: px1jHex(7)}
-	if n == 0 {
-		return OpenJournalV2(dir, "journal-v2.lock", h, l)
-	}
-	priv, _ := testKey(byte(n))
-	key, e := schnorr.ParsePubKey(schnorr.SerializePubKey(priv.PubKey()))
-	if e != nil {
-		return nil, e
-	}
-	j, e := px1jOpenJournal(dir, "journal-v2.lock", h, l, key)
-	if e != nil {
-		return nil, e
-	}
-	return j, nil
+	return OpenJournalV2(dir, "journal-v2.lock", px1jWalletHeader(n), l)
 }
 
 func px1jMust(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2 {
@@ -178,7 +198,9 @@ func TestPX1JournalSegmentsChain(t *testing.T) {
 		return d
 	}
 	open := func(d string, binding string) error {
-		j, e := OpenJournalV2(d, "journal-v2.lock", JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: binding}, l)
+		h := px1jWalletHeader(px1jReceiptKeyN)
+		h.Binding = binding
+		j, e := OpenJournalV2(d, "journal-v2.lock", h, l)
 		if e == nil {
 			j.Close()
 		}
@@ -252,20 +274,21 @@ func TestPX1JournalRecordTable(t *testing.T) {
 	track.Track.Confirmations = 2
 	px1jMust(t, j, track)
 	rec := px1jFollowRec(done, RecordReconcile, "released", t0+3)
-	rec.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: res.Seq, Evidence: "absent", Height: 11, BlockHash: px1jHex(9), ReleasedSat: 50001, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
-	_, e = j.Append(rec)
+	rec.Reconcile = &ReconcileRecordV2{TargetSeq: res.Seq, Evidence: "absent", Height: 11, BlockHash: px1jHex(9), ReleasedSat: 50001, NoteSHA256: px1jHex(5)}
+	_, e = j.Append(px1jSignNext(t, j, rec, px1jReceiptKeyN))
 	px1jCode(t, e, px1jCodeRecord) // release above the retained debit
-	rec.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: done.Seq, Evidence: "absent", Height: 11, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
-	_, e = j.Append(rec)
+	rec.Reconcile = &ReconcileRecordV2{TargetSeq: done.Seq, Evidence: "absent", Height: 11, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}
+	_, e = j.Append(px1jSignNext(t, j, rec, px1jReceiptKeyN))
 	px1jCode(t, e, px1jCodeRecord) // target is not the reserve record
-	rec.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: res.Seq, Evidence: "absent", Height: 11, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
-	px1jMust(t, j, rec)
+	rec.Reconcile = &ReconcileRecordV2{TargetSeq: res.Seq, Evidence: "absent", Height: 11, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}
+	px1jMust(t, j, px1jSignNext(t, j, rec, px1jReceiptKeyN))
 	second := px1jMust(t, j, px1jReserve(1, 2, t0+4, 30000, 2))
 	rel := px1jFollowRec(second, RecordReconcile, "released", t0+4)
-	rel.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: second.Seq, Evidence: "conflict", Height: 12, BlockHash: px1jHex(9), ConflictTxID: px1jHex(6), ReleasedSat: 1, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
+	rel.Reconcile = &ReconcileRecordV2{TargetSeq: second.Seq, Evidence: "conflict", Height: 12, BlockHash: px1jHex(9), ConflictTxID: px1jHex(6), ReleasedSat: 1, NoteSHA256: px1jHex(5)}
+	rel = px1jSignNext(t, j, rel, px1jReceiptKeyN)
 	_, e = j.Append(rel)
 	px1jCode(t, e, CodeReconcileRateLimited)
-	rel.LastTime = t0 + 3 + ReconcileMinIntervalSeconds
+	rel.LastTime = t0 + 3 + ReconcileMinIntervalSeconds // last_time is outside the signed preimage
 	px1jMust(t, j, rel)
 }
 
@@ -387,8 +410,8 @@ func TestPX1T3DayBuckets(t *testing.T) {
 		t.Fatal("retained inputs must stay reserved")
 	}
 	rel := px1jFollowRec(b, RecordReconcile, "released", midnight+10)
-	rel.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: b.Seq, Evidence: "absent", Height: 100, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
-	px1jMust(t, j, rel)
+	rel.Reconcile = &ReconcileRecordV2{TargetSeq: b.Seq, Evidence: "absent", Height: 100, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}
+	px1jMust(t, j, px1jSignNext(t, j, rel, px1jReceiptKeyN))
 	l = ledger()
 	// The released record is terminal now: it leaves d1 (open set) and keeps
 	// its d0 count with a zero remaining debit.

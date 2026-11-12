@@ -76,7 +76,10 @@ func (s *ActionService) px1jOpenService(op G2OperatorConfig, binding string, dep
 		return fail("SERVICE_CONFIG")
 	}
 	limits := JournalLimitsV2{SpendCapacity: op.JournalSpendCapacity, SegmentMaxRecords: px1jDefaultSegmentRecords, SegmentMaxBytes: px1jDefaultSegmentBytes}
-	header := JournalHeaderV2{Version: 2, Layer: JournalLayerService, Binding: binding}
+	// The service layer never holds a reconcile record, so its header names
+	// no reconcile signer (freeze amendment 1: ReceiptKey "" refuses every
+	// release); the whole-header comparison below pins that too.
+	header := JournalHeaderV2{Version: 2, Layer: JournalLayerService, Binding: binding, ReceiptKey: ""}
 	j, e := deps.open(s.config.StateDir, px1jServiceJournalLock, header, limits)
 	if e != nil {
 		return e

@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
@@ -43,15 +42,7 @@ const (
 	px1jCodeUncertain  = "JOURNAL_WRITE_UNCERTAIN" // a write failed: poisoned
 	px1jCodeClosed     = "STATE_UNAVAILABLE"       // Append after Close
 	px1jCodeLayer      = "JOURNAL_LAYER"           // ledger fold of a non-wallet journal
-	// px1jCodeReconcileAuth: a reconcile record whose BIP-340 signature does
-	// not verify under the journal's receipt key, or a journal without a
-	// receipt key (the frozen OpenJournalV2 cannot carry one; see
-	// FORMAT-JOURNAL-V2.md). Nothing is released in either case.
-	px1jCodeReconcileAuth = "RECONCILE_AUTHORIZATION"
 )
-
-// px1jReconcileDomain is the frozen signing domain of ReconcileRecordV2.
-const px1jReconcileDomain = "swarma-wallet-reconcile-v1"
 
 // px1jKind is one row of the frozen kind table (px1_journal_api.go).
 type px1jKind struct {
@@ -114,39 +105,44 @@ type px1jState struct {
 	lastSeq       uint64
 	lastTime      int64
 	lastReconcile int64 // LastTime of the latest reconcile record, or -1
-	// receiptKey verifies reconcile signatures; nil refuses every reconcile.
-	receiptKey *btcec.PublicKey
-	// authorized holds the signed digests already applied: one operator
-	// authorization releases once, never again by replaying its bytes.
-	authorized map[[32]byte]bool
 }
 
-func px1jNewState(layer string, receiptKey *btcec.PublicKey) *px1jState {
-	return &px1jState{layer: layer, records: []JournalRecordV2{}, requests: map[string]*px1jRequest{}, lastReconcile: -1, receiptKey: receiptKey, authorized: map[[32]byte]bool{}}
+func px1jNewState(layer string) *px1jState {
+	return &px1jState{layer: layer, records: []JournalRecordV2{}, requests: map[string]*px1jRequest{}, lastReconcile: -1}
 }
 
-// px1jReconcileDigest is the frozen signing preimage of a reconcile record:
-// SHA256("swarma-wallet-reconcile-v1" || canonical(record with Signature "")).
-func px1jReconcileDigest(c ReconcileRecordV2) [32]byte {
-	c.Signature = ""
-	return sha256.Sum256(append([]byte(px1jReconcileDomain), canonical(c)...))
+// px1jAuthorize is the release gate (freeze amendment 1, A5/A6): a reconcile
+// record is accepted only when the frozen VerifyReconcileV2(h, rec) passes,
+// that is when h.ReceiptKey signed ReconcileDigestV2 over h.Binding and the
+// record's own grant_id, nonce, seq and payload. An empty or malformed
+// ReceiptKey refuses every reconcile. Other kinds carry no authorization.
+// Append (after assigning Seq, before the write), load (open/replay) and
+// FoldLedgerV2 each call it before the table checks; check never
+// authenticates, so each of the three calls is load-bearing on its own.
+//
+// Seq is in the signed preimage, so a signature is valid at exactly one
+// position of one journal: replaying the bytes of an applied release at a
+// later Seq, in another journal, or for another grant or nonce refuses here.
+func px1jAuthorize(h JournalHeaderV2, rec JournalRecordV2) error {
+	if rec.Kind != RecordReconcile {
+		return nil
+	}
+	return VerifyReconcileV2(h, rec)
 }
 
-// px1jReconcileSigned verifies the BIP-340 signature of c under key.
-func px1jReconcileSigned(c ReconcileRecordV2, key *btcec.PublicKey) bool {
-	if key == nil {
+// px1jReceiptKeyValid reports a usable JournalHeaderV2.ReceiptKey: "" (the
+// journal holds no reconcile signer, so every release refuses) or 64-hex
+// lowercase bytes that parse as a BIP-340 x-only public key on the curve.
+func px1jReceiptKeyValid(k string) bool {
+	if k == "" {
+		return true
+	}
+	if !hexN(k, 32) {
 		return false
 	}
-	raw, e := hex.DecodeString(c.Signature)
-	if e != nil || len(raw) != schnorr.SignatureSize {
-		return false
-	}
-	sig, e := schnorr.ParseSignature(raw)
-	if e != nil {
-		return false
-	}
-	digest := px1jReconcileDigest(c)
-	return sig.Verify(digest[:], key)
+	raw, _ := hex.DecodeString(k)
+	_, e := schnorr.ParsePubKey(raw)
+	return e == nil
 }
 
 func px1jKey(layer string, r JournalRecordV2) string {
@@ -280,10 +276,12 @@ func (s *px1jState) check(rec JournalRecordV2) error {
 			return fail(px1jCodeRecord)
 		}
 	case RecordReconcile:
+		// The signature was verified by px1jAuthorize before this check;
+		// what follows are the journal's own amount, evidence and rate rules.
 		c := rec.Reconcile
 		retained := prior.first.Reserved - prior.released
 		if c.TargetSeq != prior.first.Seq || c.Height < 0 || !hexN(c.BlockHash, 32) ||
-			c.ReleasedSat < 1 || c.ReleasedSat > retained || !hexN(c.NoteSHA256, 32) || !hexN(c.Signature, 64) {
+			c.ReleasedSat < 1 || c.ReleasedSat > retained || !hexN(c.NoteSHA256, 32) {
 			return fail(px1jCodeRecord)
 		}
 		// Evidence rules that hold without a node: "absent" cites no
@@ -291,14 +289,6 @@ func (s *px1jState) check(rec JournalRecordV2) error {
 		if (c.Evidence != "absent" && c.Evidence != "conflict") || (c.Evidence == "conflict") != hexN(c.ConflictTxID, 32) ||
 			(c.Evidence == "absent" && c.ConflictTxID != "") || c.ConflictTxID == prior.first.TxID {
 			return fail(CodeReconcileEvidence)
-		}
-		// Authentication, not shape: the receipt key signed exactly these
-		// bytes, and this authorization was never applied before.
-		if !px1jReconcileSigned(*c, s.receiptKey) {
-			return fail(px1jCodeReconcileAuth)
-		}
-		if s.authorized[px1jReconcileDigest(*c)] {
-			return fail(px1jCodeRecord)
 		}
 		if s.lastReconcile >= 0 && rec.LastTime < s.lastReconcile+ReconcileMinIntervalSeconds {
 			return fail(CodeReconcileRateLimited)
@@ -333,7 +323,6 @@ func (s *px1jState) apply(rec JournalRecordV2) {
 			p.phase = "released"
 		}
 		s.lastReconcile = rec.LastTime
-		s.authorized[px1jReconcileDigest(*rec.Reconcile)] = true
 	default:
 		p.phase = rec.Phase
 	}
@@ -370,22 +359,16 @@ func px1jSHA256(b []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
-// OpenJournalV2 opens or creates one layer journal. The frozen signature
-// carries no receipt key, so a journal opened here refuses every reconcile
-// record at Append, at open and at fold (fail closed) until a freeze
-// amendment delivers the key (FORMAT-JOURNAL-V2.md, "Release authorization").
+// OpenJournalV2 opens or creates one layer journal. The header carries the
+// reconcile signer (freeze amendment 1): h.ReceiptKey is "" (every release
+// refuses) or a valid x-only key; anything else refuses JOURNAL_SEGMENT
+// before the directory is touched. Every stored segment header must equal h
+// in every member, receipt_key included, so the key is pinned on disk.
 func OpenJournalV2(dir, lockName string, h JournalHeaderV2, l JournalLimitsV2) (JournalV2, error) {
-	j, e := px1jOpenJournal(dir, lockName, h, l, nil)
-	if e != nil {
-		return nil, e
-	}
-	return j, nil
-}
-
-// px1jOpenJournal is OpenJournalV2 with the receipt key that verifies
-// reconcile signatures on append and on load.
-func px1jOpenJournal(dir, lockName string, h JournalHeaderV2, l JournalLimitsV2, receiptKey *btcec.PublicKey) (*px1jJournal, error) {
 	if h.Version != 2 || (h.Layer != JournalLayerWallet && h.Layer != JournalLayerService) || !hexN(h.Binding, 32) {
+		return nil, fail(CodeJournalSegment)
+	}
+	if !px1jReceiptKeyValid(h.ReceiptKey) {
 		return nil, fail(CodeJournalSegment)
 	}
 	if l.SegmentMaxRecords == 0 {
@@ -401,7 +384,7 @@ func px1jOpenJournal(dir, lockName string, h JournalHeaderV2, l JournalLimitsV2,
 	if e != nil {
 		return nil, e
 	}
-	j := &px1jJournal{store: store, header: h, limits: l, state: px1jNewState(h.Layer, receiptKey)}
+	j := &px1jJournal{store: store, header: h, limits: l, state: px1jNewState(h.Layer)}
 	if e = j.load(dir); e != nil {
 		store.Close()
 		return nil, e
@@ -436,7 +419,7 @@ func (j *px1jJournal) load(dir string) error {
 			return fail(CodeJournalSegment)
 		}
 		for _, rec := range seg.Records {
-			if j.state.check(rec) != nil {
+			if px1jAuthorize(j.header, rec) != nil || j.state.check(rec) != nil {
 				return fail(CodeJournalSegment)
 			}
 			j.state.apply(rec)
@@ -474,6 +457,11 @@ func (j *px1jJournal) Append(rec JournalRecordV2) (JournalRecordV2, error) {
 	}
 	rec = px1jClone(rec)
 	rec.Seq = j.state.lastSeq + 1
+	// Authenticate a release for exactly this journal and this Seq before any
+	// other rule, and long before the record can become durable.
+	if e := px1jAuthorize(j.header, rec); e != nil {
+		return JournalRecordV2{}, e
+	}
 	if e := j.state.check(rec); e != nil {
 		return JournalRecordV2{}, e
 	}
@@ -656,18 +644,19 @@ func FoldLedgerV2(j JournalV2) (LedgerView, error) {
 	if j.Poisoned() {
 		return nil, fail(px1jCodeUncertain)
 	}
-	// Re-check the table and every reconcile signature on the way in: the
-	// fold accepts any JournalV2, so a foreign implementation cannot smuggle
-	// an unbacked release or phase. Only this package's journal carries a
-	// receipt key; any other JournalV2 folds no release at all.
-	var key *btcec.PublicKey
-	if own, ok := j.(*px1jJournal); ok {
-		key = own.state.receiptKey
-	}
-	state := px1jNewState(JournalLayerWallet, key)
+	// Re-verify every reconcile signature and re-check the table on the way
+	// in: the fold accepts any JournalV2, so a foreign implementation cannot
+	// smuggle an unbacked release or phase. The signer is the journal's own
+	// header key (j.Header().ReceiptKey); a release that does not verify
+	// under it refuses RECONCILE_AUTHORIZATION and nothing is folded.
+	h := j.Header()
+	state := px1jNewState(JournalLayerWallet)
 	e := j.Iterate(1, func(r JournalRecordV2) error {
 		if r.Inputs == nil {
 			r.Inputs = []su.Point{}
+		}
+		if e := px1jAuthorize(h, r); e != nil {
+			return e
 		}
 		if e := state.check(r); e != nil {
 			return fail(px1jCodeRecord)

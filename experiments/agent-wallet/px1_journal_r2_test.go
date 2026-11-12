@@ -48,13 +48,21 @@ func px1jRelease(reserve JournalRecordV2, c *ReconcileRecordV2, at int64) Journa
 	return rec
 }
 
-// px1jListJournal is a foreign JournalV2 (not this package's engine) that
-// serves fixed wallet-layer records; it carries no receipt key.
-type px1jListJournal struct{ records []JournalRecordV2 }
-
-func (l px1jListJournal) Header() JournalHeaderV2 {
-	return JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: px1jHex(7)}
+// px1jSignedRelease is the release auth of reserve at time at, signed by the
+// fixture receipt key for j's next Seq under j's header.
+func px1jSignedRelease(t *testing.T, j JournalV2, reserve JournalRecordV2, auth ReconcileRecordV2, at int64) JournalRecordV2 {
+	t.Helper()
+	return px1jSignNext(t, j, px1jRelease(reserve, &auth, at), px1jReceiptKeyN)
 }
+
+// px1jListJournal is a foreign JournalV2 (not this package's engine) that
+// serves fixed wallet-layer records under the header h.
+type px1jListJournal struct {
+	h       JournalHeaderV2
+	records []JournalRecordV2
+}
+
+func (l px1jListJournal) Header() JournalHeaderV2 { return l.h }
 func (l px1jListJournal) Append(JournalRecordV2) (JournalRecordV2, error) {
 	return JournalRecordV2{}, errors.New("READ_ONLY")
 }
@@ -72,13 +80,14 @@ func (l px1jListJournal) Usage() JournalUsageV2 { return JournalUsageV2{} }
 func (l px1jListJournal) Poisoned() bool        { return false }
 func (l px1jListJournal) Close()                {}
 
-// Claim (finding reconcile-authorization-unchecked, Append): a retained
-// debit is released only by a reconcile whose BIP-340 signature verifies
-// under the journal's receipt key over the frozen preimage. A zero
-// signature, another key's signature, a record altered after signing (amount,
-// evidence height, note) and any reconcile on a journal opened without a
-// receipt key (the frozen OpenJournalV2) refuse RECONCILE_AUTHORIZATION;
-// replaying an applied authorization refuses JOURNAL_RECORD. Every refusal
+// Claim (finding reconcile-authorization-unchecked, Append, migrated to
+// freeze amendment 1): a retained debit is released only by a reconcile
+// whose BIP-340 signature verifies under the header's ReceiptKey over
+// ReconcileDigestV2. A zero signature, another key's signature, a record
+// altered after signing (amount, evidence height, note) and any reconcile on
+// a journal whose header names no receipt key ("") refuse
+// RECONCILE_AUTHORIZATION; replaying an applied authorization at the next
+// Seq refuses RECONCILE_AUTHORIZATION too (the Seq is signed). Every refusal
 // leaves the journal and the ledger unchanged; the signed neighbour releases.
 func TestPX1jReconcileAuthorization(t *testing.T) {
 	now := int64(1794441599)
@@ -95,41 +104,42 @@ func TestPX1jReconcileAuthorization(t *testing.T) {
 	refusals := []struct {
 		name string
 		keyN int
-		auth func(t *testing.T, r JournalRecordV2) *ReconcileRecordV2
+		rel  func(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2
 	}{
-		{"zero signature", px1jReceiptKeyN, func(t *testing.T, r JournalRecordV2) *ReconcileRecordV2 {
+		{"zero signature", px1jReceiptKeyN, func(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2 {
 			c := px1jAuth(r, 50000, 100)
 			c.Signature = strings.Repeat("00", 64)
-			return &c
+			return px1jRelease(r, &c, now)
 		}},
-		{"another key", px1jReceiptKeyN, func(t *testing.T, r JournalRecordV2) *ReconcileRecordV2 {
-			return px1jSignReconcile(t, px1jAuth(r, 50000, 100), 8)
+		{"another key", px1jReceiptKeyN, func(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2 {
+			return px1jSignNext(t, j, px1jRelease(r, &ReconcileRecordV2{TargetSeq: r.Seq, Evidence: "absent", Height: 100, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}, now), 8)
 		}},
-		{"amount altered after signing", px1jReceiptKeyN, func(t *testing.T, r JournalRecordV2) *ReconcileRecordV2 {
-			c := px1jSignReconcile(t, px1jAuth(r, 1, 100), px1jReceiptKeyN)
-			c.ReleasedSat = 50000
-			return c
+		{"amount altered after signing", px1jReceiptKeyN, func(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2 {
+			rec := px1jSignedRelease(t, j, r, px1jAuth(r, 1, 100), now)
+			rec.Reconcile.ReleasedSat = 50000
+			return rec
 		}},
-		{"evidence altered after signing", px1jReceiptKeyN, func(t *testing.T, r JournalRecordV2) *ReconcileRecordV2 {
-			c := px1jSignReconcile(t, px1jAuth(r, 50000, 100), px1jReceiptKeyN)
-			c.Height = 101
-			return c
+		{"evidence altered after signing", px1jReceiptKeyN, func(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2 {
+			rec := px1jSignedRelease(t, j, r, px1jAuth(r, 50000, 100), now)
+			rec.Reconcile.Height = 101
+			return rec
 		}},
-		{"note altered after signing", px1jReceiptKeyN, func(t *testing.T, r JournalRecordV2) *ReconcileRecordV2 {
-			c := px1jSignReconcile(t, px1jAuth(r, 50000, 100), px1jReceiptKeyN)
-			c.NoteSHA256 = px1jHex(6)
-			return c
+		{"note altered after signing", px1jReceiptKeyN, func(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2 {
+			rec := px1jSignedRelease(t, j, r, px1jAuth(r, 50000, 100), now)
+			rec.Reconcile.NoteSHA256 = px1jHex(6)
+			return rec
 		}},
-		{"journal without a receipt key", 0, func(t *testing.T, r JournalRecordV2) *ReconcileRecordV2 {
-			return px1jSignReconcile(t, px1jAuth(r, 50000, 100), px1jReceiptKeyN)
+		{"journal without a receipt key", 0, func(t *testing.T, j JournalV2, r JournalRecordV2) JournalRecordV2 {
+			// Signed by the fixture key over this very journal's binding and Seq.
+			return px1jSignNext(t, j, px1jRelease(r, &ReconcileRecordV2{TargetSeq: r.Seq, Evidence: "absent", Height: 100, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}, now), px1jReceiptKeyN)
 		}},
 	}
 	for _, c := range refusals {
 		t.Run(c.name, func(t *testing.T) {
 			j, reserve := setup(t, c.keyN)
 			before, seq := px1jSnapOf(t, j, reserve), j.Usage().LastSeq
-			_, e := j.Append(px1jRelease(reserve, c.auth(t, reserve), now))
-			px1jCode(t, e, px1jCodeReconcileAuth)
+			_, e := j.Append(c.rel(t, j, reserve))
+			px1jCode(t, e, CodeReconcileAuthorization)
 			if after := px1jSnapOf(t, j, reserve); j.Usage().LastSeq != seq || after != before || before.Spend != 50000 {
 				t.Fatal("refused release changed the journal or the ledger", after)
 			}
@@ -137,36 +147,45 @@ func TestPX1jReconcileAuthorization(t *testing.T) {
 	}
 	t.Run("signed release then replay", func(t *testing.T) {
 		j, reserve := setup(t, px1jReceiptKeyN)
-		signed := px1jSignReconcile(t, px1jAuth(reserve, 20000, 100), px1jReceiptKeyN)
-		px1jMust(t, j, px1jRelease(reserve, signed, now))
+		signed := px1jSignedRelease(t, j, reserve, px1jAuth(reserve, 20000, 100), now)
+		px1jMust(t, j, signed)
 		after := px1jSnapOf(t, j, reserve)
 		if after.Spend != 30000 || !after.Input || after.NextUsed != 30000 || after.NextCount != 1 {
 			t.Fatal("signed partial release", after)
 		}
-		replay := *signed
-		if _, e := j.Append(px1jRelease(reserve, &replay, now+ReconcileMinIntervalSeconds)); e == nil || e.Error() != px1jCodeRecord {
+		replay := signed
+		replay.LastTime = now + ReconcileMinIntervalSeconds
+		if _, e := j.Append(replay); e == nil || e.Error() != CodeReconcileAuthorization {
 			t.Fatal("RECONCILE_REPLAY_ACCEPTED", e)
 		}
 		if px1jSnapOf(t, j, reserve) != after {
 			t.Fatal("replay changed the ledger")
 		}
+		// The same payload re-signed for the new Seq is a fresh authorization.
+		px1jMust(t, j, px1jSignNext(t, j, replay, px1jReceiptKeyN))
+		if s := px1jSnapOf(t, j, reserve); s.Spend != 10000 {
+			t.Fatal("re-signed neighbour", s)
+		}
 	})
 }
 
-// Claim (finding reconcile-authorization-unchecked, open and fold): a
-// journal holding a signed release reopens under its receipt key and folds
-// the same release. The same bytes refuse JOURNAL_SEGMENT when reopened
-// under another key or with no key (the frozen OpenJournalV2), and when the
-// active segment's signature is replaced on disk by another key's valid
-// signature. FoldLedgerV2 refuses a release served by any other JournalV2
-// implementation (no receipt key); the same records without it fold.
+// Claim (finding reconcile-authorization-unchecked, open and fold, migrated
+// to freeze amendment 1): a journal holding a signed release reopens under
+// its header and folds the same release. The same bytes refuse
+// JOURNAL_SEGMENT when reopened under a header naming another key or no key
+// (receipt_key is pinned on disk), and when the stored signature is replaced
+// by another key's valid signature over the same preimage (replay
+// verification). FoldLedgerV2 verifies a foreign JournalV2's release under
+// that journal's own Header().ReceiptKey: it folds under the signer's key and
+// refuses RECONCILE_AUTHORIZATION under another key or "", while the same
+// records without the release fold under "".
 func TestPX1jReconcileReplayOpen(t *testing.T) {
 	dir := px1jPrivateDir(t)
 	l := JournalLimitsV2{SpendCapacity: 4}
 	now := int64(1794441599)
 	j := px1jOpenWallet(t, dir, l)
 	reserve := px1jMust(t, j, px1jReserve(1, 1, now, 50000, 1))
-	px1jMust(t, j, px1jRelease(reserve, px1jSignReconcile(t, px1jAuth(reserve, 50000, 100), px1jReceiptKeyN), now))
+	px1jMust(t, j, px1jSignedRelease(t, j, reserve, px1jAuth(reserve, 50000, 100), now))
 	var records []JournalRecordV2
 	_ = j.Iterate(1, func(r JournalRecordV2) error { records = append(records, r); return nil })
 	j.Close()
@@ -199,14 +218,19 @@ func TestPX1jReconcileReplayOpen(t *testing.T) {
 	if e = strict(raw, &seg); e != nil || len(seg.Records) != 2 {
 		t.Fatal("segment", e)
 	}
-	seg.Records[1].Reconcile = px1jSignReconcile(t, *seg.Records[1].Reconcile, 8)
+	seg.Records[1] = px1jSignAt(t, seg.Header, seg.Records[1], seg.Records[1].Seq, 8)
 	if _, e = px1jOpenWalletKey(copyDir(t, canonical(seg)), l, px1jReceiptKeyN); e == nil || e.Error() != CodeJournalSegment {
 		t.Fatal("RECONCILE_LOADED_UNVERIFIED replaced signature", e)
 	}
-	if _, e = FoldLedgerV2(px1jListJournal{records}); e == nil {
-		t.Fatal("FOREIGN_RELEASE_FOLDED")
+	if l, e := FoldLedgerV2(px1jListJournal{px1jWalletHeader(px1jReceiptKeyN), records}); e != nil || l.SpendUsed(reserve.GrantID) != 0 {
+		t.Fatal("foreign journal under the signer's key must fold the release", e)
 	}
-	if l, e := FoldLedgerV2(px1jListJournal{records[:1]}); e != nil || l.SpendUsed(reserve.GrantID) != 50000 {
+	for _, keyN := range []int{8, 0} {
+		if _, e = FoldLedgerV2(px1jListJournal{px1jWalletHeader(keyN), records}); e == nil || e.Error() != CodeReconcileAuthorization {
+			t.Fatal("FOREIGN_RELEASE_FOLDED key", keyN, e)
+		}
+	}
+	if l, e := FoldLedgerV2(px1jListJournal{px1jWalletHeader(0), records[:1]}); e != nil || l.SpendUsed(reserve.GrantID) != 50000 {
 		t.Fatal("foreign journal without a release must fold", e)
 	}
 }
@@ -235,7 +259,7 @@ func TestPX1jReconcileEvidence(t *testing.T) {
 			reserve := px1jMust(t, j, px1jReserve(1, 1, now, 50000, 1))
 			auth := px1jAuth(reserve, 50000, 100)
 			auth.Evidence, auth.ConflictTxID = c.evidence, c.conflict
-			_, e := j.Append(px1jRelease(reserve, px1jSignReconcile(t, auth, px1jReceiptKeyN), now))
+			_, e := j.Append(px1jSignedRelease(t, j, reserve, auth, now))
 			if c.code == "" {
 				if e != nil || px1jSnapOf(t, j, reserve).Spend != 0 {
 					t.Fatal("valid evidence refused", e)
@@ -267,7 +291,7 @@ func TestPX1jPartialRelease(t *testing.T) {
 	px1jMust(t, j, px1jFollowRec(reserve, RecordUncertain, "uncertain", now))
 	at := now
 	release := func(sat int64) error {
-		_, e := j.Append(px1jRelease(reserve, px1jSignReconcile(t, px1jAuth(reserve, sat, at), px1jReceiptKeyN), at))
+		_, e := j.Append(px1jSignedRelease(t, j, reserve, px1jAuth(reserve, sat, at), at))
 		at += ReconcileMinIntervalSeconds
 		return e
 	}
@@ -301,7 +325,7 @@ func TestPX1jPartialRelease(t *testing.T) {
 	defer c.Close()
 	paid := px1jMust(t, c, px1jReserve(1, 2, now, 50000, 2))
 	px1jMust(t, c, px1jFollowRec(paid, RecordComplete, "complete", now))
-	px1jMust(t, c, px1jRelease(paid, px1jSignReconcile(t, px1jAuth(paid, 1, 100), px1jReceiptKeyN), now))
+	px1jMust(t, c, px1jSignedRelease(t, c, paid, px1jAuth(paid, 1, 100), now))
 	if got := px1jSnapOf(t, c, paid); got != (px1jSnap{Spend: 49999, DayUsed: 49999, DayCount: 1, Input: true}) {
 		t.Fatal("partially released complete payment", got)
 	}
@@ -355,7 +379,7 @@ func TestPX1jTrackObservationOnly(t *testing.T) {
 				if got := px1jSnapOf(t, j, reserve); got != want {
 					t.Fatalf("TRACK_CHANGED_LEDGER after reopen: got %+v want %+v", got, want)
 				}
-				next := px1jRelease(reserve, px1jSignReconcile(t, px1jAuth(reserve, 50000, 100), px1jReceiptKeyN), now+3)
+				next := px1jSignedRelease(t, j, reserve, px1jAuth(reserve, 50000, 100), now+3)
 				if phase == "reserved" {
 					next = px1jFollowRec(reserve, RecordComplete, "complete", now+3)
 				}
@@ -502,7 +526,7 @@ func TestPX1jServicePoisoned(t *testing.T) {
 }
 
 // px1jStreamFiles are the files S2 alone owns in this package.
-var px1jStreamFiles = []string{"px1_journal.go", "px1_service_seams.go", "px1_journal_test.go", "px1_journal_r2_test.go", "px1_journal_review_test.go"}
+var px1jStreamFiles = []string{"px1_journal.go", "px1_service_seams.go", "px1_journal_test.go", "px1_journal_r2_test.go", "px1_journal_review_test.go", "px1_journal_fa1_test.go"}
 
 // px1jFrozenNames are the exported names S2 implements from the frozen API.
 var px1jFrozenNames = map[string]bool{"OpenJournalV2": true, "RequiredSpendCapacity": true, "UTCDay": true, "UTCDaysSpanned": true, "FoldLedgerV2": true, "NewClockGuard": true, "NewReadLimiter": true, "PX1ServiceJournal": true, "PX1Profile": true}
