@@ -3,11 +3,16 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -20,7 +25,7 @@ const (
 )
 
 func cliParams() deploy.G2PayParameters {
-	return deploy.G2PayParameters{Network: "main", Genesis: "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770", AgentUID: 1201, AgentSocketGID: 1301, OperatorGID: 1401, Grantee: cliKeyG, ReceiptPubkey: cliKey2G, FeeRateSatVB: 110, HotWalletName: "swarma-g2-hot", NodeRPCPort: 8336, G2: deploy.G2OperatorParameters{RequireTermsVersion: 2, MaxTransferSat: 100000, MaxDaySat: 300000, MaxDayCount: 10, MaxFeeSat: 100000, MaxFloatSat: 2000000, LowFloatSat: 500000, Canary: deploy.G2CanaryParameters{Outpoint: deploy.G2Outpoint{TxID: strings.Repeat("c", 64)}, ValueSat: 10000}, ConfirmationsK: 2, ConflictBlocksN: 6, ReadRatePerHour: 60, JournalSpendCapacity: 2048}}
+	return deploy.G2PayParameters{Network: "main", Genesis: "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770", AgentUID: 1201, AgentSocketGID: 1301, OperatorGID: 1401, ServiceUID: 1101, AgentUser: "cedar", AgentKeyFile: "/srv/agent/action.key", NodeDataDir: "/var/lib/namecoind-main", Grantee: cliKeyG, ReceiptPubkey: cliKey2G, FeeRateSatVB: 110, HotWalletName: "swarma-g2-hot", NodeRPCPort: 8336, G2: deploy.G2OperatorParameters{RequireTermsVersion: 2, MaxTransferSat: 100000, MaxDaySat: 300000, MaxDayCount: 10, MaxFeeSat: 100000, MaxFloatSat: 2000000, LowFloatSat: 500000, Canary: deploy.G2CanaryParameters{Outpoint: deploy.G2Outpoint{TxID: strings.Repeat("c", 64)}, ValueSat: 10000}, ConfirmationsK: 2, ConflictBlocksN: 6, ReadRatePerHour: 60, JournalSpendCapacity: 2048}}
 }
 
 // Claim: g2-render writes exactly the six G2 files (0600) into a new
@@ -128,5 +133,125 @@ func TestG2CustodyCommands(t *testing.T) {
 	}
 	if r, e := deploy.RunCustodyProbe(context.Background(), spec); e != nil || r.Pass {
 		t.Fatal("library disagrees with the command", e)
+	}
+}
+
+// g2FreeID returns an ID above the usual account ranges that lookup reports
+// as genuinely absent on this host.
+func g2FreeID(t *testing.T, start uint32, taken map[uint32]bool) uint32 {
+	t.Helper()
+	for id := start; id < start+1000; id++ {
+		if taken[id] || deploy.G2ReservedID(id) {
+			continue
+		}
+		var unknown user.UnknownUserIdError
+		if _, e := user.LookupId(strconv.FormatUint(uint64(id), 10)); errors.As(e, &unknown) {
+			return id
+		}
+	}
+	t.Fatal("[setup failed] no free UID on this host")
+	return 0
+}
+
+// Claim: g2-host-flow, on this host's REAL account database, runs the
+// systemd-sysusers step only after the preflight passed and the activation
+// command only after the post-apply account check passed: an absent agent
+// name whose agent_uid another account owns is refused before the apply; an
+// absent name at a free UID passes the preflight, is applied (with exactly the
+// rendered sysusers.conf on standard input, argument "-") and is refused
+// after it, because the account still does not exist; a failed apply, a
+// failed activation and a missing activation command refuse; the existing
+// test account at its own UID, in its primary group and outside the operator
+// GID, is activated once and prints G2_HOST_FLOW_ACTIVATED. Limit: the
+// sysusers and activation binaries are recording fakes, so no account or
+// service changes; skipped as root or when the test account is outside the
+// frozen identity domain.
+func TestG2HostFlowCommand(t *testing.T) {
+	cur, e := user.Current()
+	if e != nil {
+		t.Skip("[setup] the test account cannot be looked up on this host:", e)
+	}
+	uid, gid := uint32(os.Getuid()), uint32(os.Getgid())
+	base := cliParams()
+	base.AgentUser, base.AgentUID, base.AgentSocketGID = cur.Username, uid, gid
+	if deploy.G2ReservedID(uid) || deploy.G2ReservedID(gid) || deploy.ValidateG2PayIdentityDomain(deploy.G2PayParameters{AgentUID: uid, ServiceUID: uid + 1, AgentSocketGID: gid, OperatorGID: gid + 1, AgentUser: cur.Username, AgentKeyFile: "/k", NodeDataDir: "/d"}) != nil {
+		t.Skip("the test account (root, a reserved ID or a name outside the sysusers rule) cannot stand in for the agent")
+	}
+	groups, e := deploy.G2HostAccounts{}.UserGroups(cur.Username)
+	if e != nil {
+		t.Skip("[setup] the test account's groups cannot be read:", e)
+	}
+	taken := map[uint32]bool{uid: true, gid: true}
+	for _, g := range groups {
+		taken[g] = true
+	}
+	base.OperatorGID = g2FreeID(t, 3000000000, taken)
+	taken[base.OperatorGID] = true
+	base.ServiceUID = g2FreeID(t, 3000000000, taken)
+	taken[base.ServiceUID] = true
+	salt := make([]byte, 6)
+	rand.Read(salt)
+	absent := "g2absent" + hex.EncodeToString(salt)
+	var unknown user.UnknownUserError
+	if _, e := user.Lookup(absent); !errors.As(e, &unknown) {
+		t.Fatal("[setup failed] fixture name is not absent", absent, e)
+	}
+
+	work := t.TempDir()
+	sysusers := filepath.Join(work, "systemd-sysusers")
+	activate := filepath.Join(work, "activate")
+	os.WriteFile(sysusers, []byte("#!/bin/sh\n[ \"$#\" -eq 1 ] && [ \"$1\" = - ] || exit 7\ncat >\"$G2_FAKE_APPLIED\"\nexit \"${G2_FAKE_SYSUSERS_EXIT:-0}\"\n"), 0700)
+	os.WriteFile(activate, []byte("#!/bin/sh\necho activated >>\"$1\"\nexit \"${G2_FAKE_ACTIVATE_EXIT:-0}\"\n"), 0700)
+
+	run := func(name string, p deploy.G2PayParameters, withActivation bool, env ...string) (error, string, []byte, bool) {
+		t.Helper()
+		dir := filepath.Join(work, name)
+		os.Mkdir(dir, 0700)
+		params, applied, marker := filepath.Join(dir, "params.json"), filepath.Join(dir, "applied.conf"), filepath.Join(dir, "activated")
+		raw, _ := json.Marshal(p)
+		os.WriteFile(params, append(raw, '\n'), 0600)
+		t.Setenv("G2_FAKE_APPLIED", applied)
+		t.Setenv("G2_FAKE_SYSUSERS_EXIT", "0")
+		t.Setenv("G2_FAKE_ACTIVATE_EXIT", "0")
+		for _, kv := range env {
+			k, v, _ := strings.Cut(kv, "=")
+			t.Setenv(k, v)
+		}
+		args := []string{"-params", params, "-sysusers", sysusers}
+		if withActivation {
+			args = append(args, "--", activate, marker)
+		}
+		var stdout bytes.Buffer
+		e := g2HostFlow(args, &stdout)
+		appliedBytes, _ := os.ReadFile(applied)
+		_, activated := os.Stat(marker)
+		return e, stdout.String(), appliedBytes, activated == nil
+	}
+
+	// Valid neighbour: the existing account at its own UID is activated once.
+	e, out, applied, activated := run("clean", base, true)
+	files, _ := deploy.RenderG2PayTemplates(base)
+	if e != nil || out != "G2_HOST_FLOW_ACTIVATED\n" || !activated || !bytes.Equal(applied, files[deploy.G2FileSysusers]) {
+		t.Fatalf("G2_CLI_HOST_FLOW clean path: err=%v out=%q activated=%v applied=%q", e, out, activated, applied)
+	}
+
+	preflight := base
+	preflight.AgentUser = absent // agent_uid stays owned by the test account
+	if e, _, applied, activated := run("preflight-refused", preflight, true); !errors.Is(e, deploy.ErrPolicy) || applied != nil || activated {
+		t.Fatalf("G2_CLI_HOST_FLOW applied past a refused preflight: err=%v applied=%v activated=%v", e, applied != nil, activated)
+	}
+	post := base
+	post.AgentUser, post.AgentUID = absent, g2FreeID(t, 3000000000, taken)
+	if e, _, applied, activated := run("post-apply-refused", post, true); !errors.Is(e, deploy.ErrPolicy) || applied == nil || activated {
+		t.Fatalf("G2_CLI_HOST_FLOW activated past a refused post-apply check: err=%v applied=%v activated=%v", e, applied != nil, activated)
+	}
+	if e, _, _, activated := run("sysusers-failed", base, true, "G2_FAKE_SYSUSERS_EXIT=1"); !errors.Is(e, deploy.ErrPolicy) || activated {
+		t.Fatalf("G2_CLI_HOST_FLOW activated after a failed apply: err=%v activated=%v", e, activated)
+	}
+	if e, out, _, _ := run("activation-failed", base, true, "G2_FAKE_ACTIVATE_EXIT=1"); !errors.Is(e, deploy.ErrPolicy) || out != "" {
+		t.Fatalf("G2_CLI_HOST_FLOW reported a failed activation: err=%v out=%q", e, out)
+	}
+	if e, _, applied, _ := run("no-activation", base, false); e != deploy.ErrInput || applied != nil {
+		t.Fatalf("G2_CLI_HOST_FLOW ran without an activation command: err=%v", e)
 	}
 }

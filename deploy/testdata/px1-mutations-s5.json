@@ -227,8 +227,8 @@
  {
   "Name": "s5-render-agent-private-group",
   "File": "g2_pay.go",
-  "Old": "\" swarma-wallet-peer\\n\")\n\treturn",
-  "New": "\" swarma-wallet\\n\")\n\treturn",
+  "Old": "\tb.WriteString(agent)\n",
+  "New": "\tb.WriteString(strings.ReplaceAll(agent, \" swarma-wallet-peer\\n\", \" swarma-wallet\\n\"))\n",
   "Selector": "TestPX1S5RenderNoSecrets",
   "Marker": "G2_AGENT_GROUP",
   "Core": false
@@ -326,17 +326,17 @@
  {
   "Name": "s5-sysusers-placeholder-applicable",
   "File": "g2_pay.go",
-  "Old": "G2AgentUserPlaceholder    = \"<PLACEHOLDER:AGENT_USER>\"",
-  "New": "G2AgentUserPlaceholder    = \"PLACEHOLDER_AGENT_USER\"",
-  "Selector": "TestPX1S5SysusersUnresolvedRefused",
-  "Marker": "G2_SYSUSERS_UNRESOLVED",
+  "Old": "\tb.WriteString(agent)\n",
+  "New": "\tb.WriteString(agent[strings.Index(agent, \"\\n\")+1:])\n",
+  "Selector": "TestPX1S5SysusersResolvedConsumer/first-install",
+  "Marker": "G2_SYSUSERS_AGENT_UID",
   "Core": false
  },
  {
   "Name": "s5-sysusers-gid-65535",
   "File": "g2_pay.go",
-  "Old": "func sysusersGID(id uint32) bool { return id != 65535 }",
-  "New": "func sysusersGID(id uint32) bool { return true }",
+  "Old": "\tif e := ValidateG2PayIdentityDomain(p); e != nil {\n\t\treturn e\n\t}\n\tif !g2Pins(p.Network, p.Genesis) {",
+  "New": "\tif !g2Pins(p.Network, p.Genesis) {",
   "Selector": "TestPX1S5SysusersGIDDomain",
   "Marker": "G2_SYSUSERS_GID",
   "Core": false
@@ -344,10 +344,110 @@
  {
   "Name": "s5-client-key-placeholder-absolute",
   "File": "g2_pay.go",
-  "Old": "G2AgentKeyFilePlaceholder = \"PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH\"",
-  "New": "G2AgentKeyFilePlaceholder = \"/PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH\"",
-  "Selector": "TestPX1S5ClientConsumerPlaceholders",
-  "Marker": "G2_CLIENT_PLACEHOLDER_ACCEPTED key-unresolved",
+  "Old": "KeyFile: p.AgentKeyFile",
+  "New": "KeyFile: \"/PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH\"",
+  "Selector": "TestPX1S5ClientConsumerResolved",
+  "Marker": "G2_CLIENT_UNRESOLVED",
   "Core": false
+ },
+ {
+  "Name": "s5-flow-skip-preflight",
+  "File": "g2_pay.go",
+  "Old": "if e := ValidateG2PayIdentity(p, db); e != nil {",
+  "New": "if e := error(nil); e != nil {",
+  "Selector": "TestPX1S5HostFlowTripwire",
+  "Marker": "G2_FLOW_PREFLIGHT",
+  "Core": false
+ },
+ {
+  "Name": "s5-flow-skip-post-apply",
+  "File": "g2_pay.go",
+  "Old": "if e := VerifyG2AgentAccount(p, db); e != nil {",
+  "New": "if e := error(nil); e != nil {",
+  "Selector": "TestPX1S5HostFlowTripwire",
+  "Marker": "G2_FLOW_POST_APPLY",
+  "Core": false
+ },
+ {
+  "Name": "s5-render-operator-peer",
+  "File": "g2_pay.go",
+  "Old": "\tb.WriteString(agent)\n",
+  "New": "\tb.WriteString(agent)\n\tb.WriteString(\"m operator \" + G2AgentSocketGroup + \"\\n\")\n",
+  "Selector": "TestPX1S5HostFlowArtifacts",
+  "Marker": "G2_FLOW_SYSUSERS",
+  "Core": false
+ },
+ {
+  "Name": "s5-tmpfiles-no-status-dir",
+  "File": "g2_pay.go",
+  "Old": "d ` + G2StatusSocketDir + ` 0750 swarma-wallet ` + G2OperatorGroup + ` -\n",
+  "New": "",
+  "Selector": "TestPX1S5HostFlowArtifacts",
+  "Marker": "G2_FLOW_TMPFILES",
+  "Core": false
+ },
+ {
+  "Name": "s5-custody-no-status-dir",
+  "File": "g2_pay.go",
+  "Old": "\t\"/var/lib/swarma-wallet/objects\",\n\tG2StatusSocketDir,\n",
+  "New": "\t\"/var/lib/swarma-wallet/objects\",\n",
+  "Selector": "TestPX1S5HostFlowArtifacts",
+  "Marker": "G2_FLOW_CUSTODY",
+  "Core": false
+ },
+ {
+  "Name": "s5-render-leaves-placeholder",
+  "File": "g2_pay.go",
+  "Old": "G2NodeCustodyPaths(p.Network, p.NodeDataDir, p.HotWalletName)",
+  "New": "G2NodeCustodyPaths(p.Network, \"/PLACEHOLDER_NODE_DATADIR\", p.HotWalletName)",
+  "Selector": "TestPX1S5HostFlowArtifacts",
+  "Marker": "G2_FLOW_PLACEHOLDER",
+  "Core": false
+ },
+ {
+  "Name": "s5-params-domain-not-first",
+  "File": "g2_pay.go",
+  "Old": "\tif e := ValidateG2PayIdentityDomain(p); e != nil {\n\t\treturn e\n\t}\n\tif !g2Pins(p.Network, p.Genesis) {\n\t\treturn ErrNetwork\n\t}\n",
+  "New": "\tif !g2Pins(p.Network, p.Genesis) {\n\t\treturn ErrNetwork\n\t}\n\tif e := ValidateG2PayIdentityDomain(p); e != nil {\n\t\treturn e\n\t}\n",
+  "Selector": "TestPX1S5ParametersRefusalTable/domain-before-pin",
+  "Marker": "G2_PARAMS_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-params-node-datadir",
+  "File": "g2_pay.go",
+  "Old": "case !g2NodeDatadir(p.NodeDataDir):",
+  "New": "case false:",
+  "Selector": "TestPX1S5ParametersRefusalTable/datadir-in-state",
+  "Marker": "G2_PARAMS_GUARD",
+  "Core": false
+ },
+ {
+  "Name": "s5-script-ignores-supplementary",
+  "File": "g2-custody-check.sh",
+  "Old": "if [ \"$groups\" != \"$socket_gid\" ]; then",
+  "New": "if [ \"${groups%% *}\" != \"$socket_gid\" ]; then",
+  "Selector": "TestPX1T18CustodyScript",
+  "Marker": "T18_SCRIPT",
+  "Core": false
+ },
+ {
+  "Name": "s5-script-socket-is-operator",
+  "File": "g2-custody-check.sh",
+  "Old": "[ \"$socket_gid\" != \"$operator_gid\" ] || usage",
+  "New": "true",
+  "Selector": "TestPX1T18CustodyScript",
+  "Marker": "T18_SCRIPT",
+  "Core": false
+ },
+ {
+  "Name": "s5-cli-apply-exit-ignored",
+  "File": "cmd/deploy-kit/g2_pay.go",
+  "Old": "\t\t\tif cmd.Run() != nil {\n\t\t\t\treturn deploy.ErrPolicy\n\t\t\t}\n\t\t\treturn nil\n\t\t},\n\t\tActivate:",
+  "New": "\t\t\tcmd.Run()\n\t\t\treturn nil\n\t\t},\n\t\tActivate:",
+  "Selector": "TestG2HostFlowCommand",
+  "Marker": "G2_CLI_HOST_FLOW",
+  "Core": false,
+  "Package": "./cmd/deploy-kit"
  }
 ]

@@ -1,22 +1,29 @@
 #!/bin/sh
 # T18: different-UID custody check for the G2 pay executor (PX1 stream S5).
 #
-# Run as the AGENT user on the executor host, after the owner has provisioned
-# the users, rendered and resolved templates/g2-pay (see deploy/SMOKE-G2.md)
-# and started agent-walletd. This script never needs root, never reads a
-# credential and never spends: the positive request is a "balance" read.
+# Run with the agent's slot credentials on the executor host (UID agent_uid,
+# primary GID agent_socket_gid, no supplementary groups), after
+# deploy-kit g2-host-flow provisioned and verified the accounts and activated
+# agent-walletd (see deploy/SMOKE-G2.md). This script never needs root, never
+# reads a credential and never spends: the positive request is a "balance"
+# read.
 #
-#   g2-custody-check.sh SPEC CLIENT GRANTEE OUTDIR
+#   g2-custody-check.sh SPEC CLIENT GRANTEE SOCKET_GID OPERATOR_GID OUTDIR
 #
-#   SPEC     resolved custody-spec.json (launch layout)
-#   CLIENT   the agent's resolved client.json
-#   GRANTEE  the agent's x-only action public key (64 lowercase hex)
-#   OUTDIR   new evidence directory (must not exist)
+#   SPEC          rendered custody-spec.json (launch layout)
+#   CLIENT        the agent's rendered client.json
+#   GRANTEE       the agent's x-only action public key (64 lowercase hex)
+#   SOCKET_GID    agent_socket_gid of the parameters (swarma-wallet-peer)
+#   OPERATOR_GID  operator_gid of the parameters (swarma-wallet-status)
+#   OUTDIR        new evidence directory (must not exist)
 #
 # DEPLOY_KIT and AGENT_WALLET name the binaries built from the reviewed head
 # (defaults: deploy-kit and agent-wallet on PATH).
 #
-# Prints T18_PASS and exits 0 only when all three hold:
+# Prints T18_PASS and exits 0 only when all four hold:
+#   0. the readback `id -G` is exactly SOCKET_GID: the primary GID is
+#      agent_socket_gid, there is no supplementary group, and OPERATOR_GID is
+#      never among the groups (otherwise nothing else runs);
 #   1. deploy-kit g2-custody-probe: every denied read is EACCES/EPERM, every
 #      credential-less node RPC call is refused, the wallet socket connects;
 #   2. agent-wallet returns an "executed" receipt for the own-agent request;
@@ -26,24 +33,45 @@ set -eu
 umask 077
 
 usage() {
-	echo "usage: g2-custody-check.sh SPEC CLIENT GRANTEE OUTDIR" >&2
+	echo "usage: g2-custody-check.sh SPEC CLIENT GRANTEE SOCKET_GID OPERATOR_GID OUTDIR" >&2
 	exit 64
 }
-[ "$#" -eq 4 ] || usage
+[ "$#" -eq 6 ] || usage
 spec=$1
 client=$2
 grantee=$3
-out=$4
+socket_gid=$4
+operator_gid=$5
+out=$6
 case $grantee in
 '' | *[!0-9a-f]*) usage ;;
 esac
 [ "${#grantee}" -eq 64 ] || usage
+for gid in "$socket_gid" "$operator_gid"; do
+	case $gid in
+	'' | *[!0-9]* | 0*) usage ;;
+	esac
+done
+[ "$socket_gid" != "$operator_gid" ] || usage
 [ -f "$spec" ] && [ -f "$client" ] || usage
 deploy_kit=${DEPLOY_KIT:-deploy-kit}
 agent_wallet=${AGENT_WALLET:-agent-wallet}
 
 # A new directory only: earlier evidence is never overwritten.
 mkdir "$out" || usage
+
+# Readback of the credentials this run holds. `id -G` prints the effective
+# GID first, then every other group of the process. Exactly SOCKET_GID
+# therefore means: primary GID agent_socket_gid and no supplementary group;
+# and because SOCKET_GID != OPERATOR_GID (refused above), the operator group
+# is never among them.
+groups=$(id -G)
+printf 'uid=%s gid=%s groups=%s\n' "$(id -u)" "$(id -g)" "$groups" >"$out/credentials.txt"
+if [ "$groups" != "$socket_gid" ]; then
+	printf 'credentials=refused\n' >"$out/exits.txt"
+	echo T18_FAIL
+	exit 1
+fi
 
 set +e
 "$deploy_kit" g2-custody-probe -spec "$spec" >"$out/custody-report.json" 2>"$out/custody-probe.err"

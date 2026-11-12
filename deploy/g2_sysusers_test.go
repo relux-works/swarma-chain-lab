@@ -2,8 +2,8 @@ package deploy
 
 // Owner S5 (PX1): the rendered sysusers.conf against its real consumer,
 // systemd-sysusers. Every run is "--dry-run --root=<new fixture root>" under
-// the test temp directory, with one pre-provisioned fixture agent account; the
-// helper below is the only caller and checks that the fixture is unchanged.
+// the test temp directory, with fixture passwd and group files; the helper
+// below is the only caller and checks that the fixture is unchanged.
 // The consumer layer skips, saying so, only when systemd-sysusers is absent
 // or refuses the --dry-run option itself (older releases, which then exit
 // before reading anything); it never runs without --dry-run.
@@ -20,15 +20,21 @@ import (
 	"testing"
 )
 
+// Fixture account databases of the isolated root. "cedar" is g2Params' agent
+// user at its agent_uid 1201; "someone" owns that UID in the collision state.
 const (
-	g2FixtureAgent  = "fixtureagent"
-	g2FixturePasswd = "fixtureagent:x:1201:1201:Fixture agent:/nonexistent:/usr/sbin/nologin\n"
-	g2FixtureGroup  = "fixtureagent:x:1201:\n"
+	g2FixtureOther  = "fixtureother:x:1500:1500:Fixture other:/nonexistent:/usr/sbin/nologin\n"
+	g2FixtureOtherG = "fixtureother:x:1500:\n"
+	g2FixtureCedar  = "cedar:x:1201:1201:Fixture agent:/nonexistent:/usr/sbin/nologin\n"
+	g2FixtureCedarG = "cedar:x:1201:\n"
+	g2FixtureTaken  = "someone:x:1201:1201:Fixture collision:/nonexistent:/usr/sbin/nologin\n"
+	g2FixtureTakenG = "someone:x:1201:\n"
 )
 
 // g2SysusersDryRun gives conf to systemd-sysusers only as --dry-run against a
-// new isolated root and fails the test if that root's etc changed in any way.
-func g2SysusersDryRun(t *testing.T, conf []byte) (int, string) {
+// new isolated root holding the given passwd and group files, and fails the
+// test if that root's etc changed in any way.
+func g2SysusersDryRun(t *testing.T, conf []byte, passwdFixture, groupFixture string) (int, string) {
 	t.Helper()
 	binary, e := exec.LookPath("systemd-sysusers")
 	if e != nil {
@@ -39,7 +45,7 @@ func g2SysusersDryRun(t *testing.T, conf []byte) (int, string) {
 		t.Fatal("[setup failed] fixture root is not an isolated temp directory")
 	}
 	etc, config := filepath.Join(root, "etc"), filepath.Join(root, "g2-sysusers.conf")
-	if os.Mkdir(etc, 0700) != nil || os.WriteFile(filepath.Join(etc, "passwd"), []byte(g2FixturePasswd), 0600) != nil || os.WriteFile(filepath.Join(etc, "group"), []byte(g2FixtureGroup), 0600) != nil || os.WriteFile(config, conf, 0600) != nil {
+	if os.Mkdir(etc, 0700) != nil || os.WriteFile(filepath.Join(etc, "passwd"), []byte(passwdFixture), 0600) != nil || os.WriteFile(filepath.Join(etc, "group"), []byte(groupFixture), 0600) != nil || os.WriteFile(config, conf, 0600) != nil {
 		t.Fatal("[setup failed] fixture root")
 	}
 	cmd := exec.Command(binary, "--dry-run", "--root="+root, config)
@@ -54,7 +60,7 @@ func g2SysusersDryRun(t *testing.T, conf []byte) (int, string) {
 	for _, entry := range entries {
 		names = append(names, entry.Name())
 	}
-	if e1 != nil || e2 != nil || e3 != nil || string(passwd) != g2FixturePasswd || string(group) != g2FixtureGroup || !reflect.DeepEqual(names, []string{"group", "passwd"}) {
+	if e1 != nil || e2 != nil || e3 != nil || string(passwd) != passwdFixture || string(group) != groupFixture || !reflect.DeepEqual(names, []string{"group", "passwd"}) {
 		t.Fatalf("G2_SYSUSERS_DRY_RUN changed the fixture root: %v", names)
 	}
 	exit := cmd.ProcessState.ExitCode()
@@ -70,37 +76,81 @@ func g2CreatesGroup(out, name string, gid uint32) bool {
 	return regexp.MustCompile(`(?im)^creating group '?` + regexp.QuoteMeta(name) + `'? with gid ` + strconv.FormatUint(uint64(gid), 10) + `\.$`).MatchString(out)
 }
 
-// g2ResolveAgentUser is the documented operator step: the one agent-user
-// token becomes the existing account name.
-func g2ResolveAgentUser(t *testing.T, conf []byte) []byte {
-	t.Helper()
-	if bytes.Count(conf, []byte(G2AgentUserPlaceholder)) != 1 || !bytes.HasSuffix(conf, []byte("\nm "+G2AgentUserPlaceholder+" swarma-wallet-peer\n")) {
-		t.Fatal("agent-user token is not exactly once, on the last line", string(conf))
+// g2CreatedUID returns the UID the consumer's dry-run plan would give name,
+// or false when it plans no such user.
+func g2CreatedUID(out, name string) (uint32, bool) {
+	m := regexp.MustCompile(`(?im)^creating user '?` + regexp.QuoteMeta(name) + `'? \(.*\) with uid ([0-9]+) `).FindStringSubmatch(out)
+	if m == nil {
+		return 0, false
 	}
-	return bytes.ReplaceAll(conf, []byte(G2AgentUserPlaceholder), []byte(g2FixtureAgent))
+	id, e := strconv.ParseUint(m[1], 10, 32)
+	return uint32(id), e == nil
 }
 
-// Claim: the real systemd-sysusers (dry-run, isolated root) refuses the unresolved rendered sysusers.conf and writes nothing, and accepts its resolved neighbour.
-func TestPX1S5SysusersUnresolvedRefused(t *testing.T) {
-	files, e := RenderG2PayTemplates(g2Params())
+// Claim: the real systemd-sysusers (dry-run, isolated root) applies the
+// resolved rendered sysusers.conf as intended: on a first install it would
+// create the agent at exactly agent_uid and the service at exactly
+// service_uid, with both groups at their pinned GIDs; with the agent already
+// at agent_uid it creates no agent. On a UID collision it still exits 0 but
+// would create the agent at another UID: the target-host flow's preflight
+// refuses that state before the apply, and its post-apply check refuses the
+// substituted result before activation (both over a fixture database holding
+// exactly the consumer's planned result). Exit 0 alone never authorizes
+// activation. Limit: dry-run plans, not a host apply.
+func TestPX1S5SysusersResolvedConsumer(t *testing.T) {
+	p := g2Params()
+	files, e := RenderG2PayTemplates(p)
 	if e != nil {
 		t.Fatal(e)
 	}
 	conf := files[G2FileSysusers]
-	exit, out := g2SysusersDryRun(t, g2ResolveAgentUser(t, conf))
-	t.Logf("resolved neighbour: consumer_exit=%d\n%s", exit, out)
-	if exit != 0 || strings.Contains(strings.ToLower(out), "creating user '"+g2FixtureAgent+"'") || strings.Contains(strings.ToLower(out), "creating user "+g2FixtureAgent+" ") || !g2CreatesGroup(out, "swarma-wallet-peer", 1301) || !g2CreatesGroup(out, "swarma-wallet-status", 1401) {
-		t.Fatal("G2_SYSUSERS_RESOLVED: the resolved neighbour was refused or misapplied")
-	}
-	exit, out = g2SysusersDryRun(t, conf)
-	t.Logf("unresolved: consumer_exit=%d\n%s", exit, out)
-	if exit == 0 || !strings.Contains(out, G2AgentUserPlaceholder) || strings.Contains(out, "Would write") || strings.Contains(strings.ToLower(out), "creating") {
-		t.Fatal("G2_SYSUSERS_UNRESOLVED: the real consumer accepts the unresolved agent user")
-	}
+
+	t.Run("first-install", func(t *testing.T) {
+		exit, out := g2SysusersDryRun(t, conf, g2FixtureOther, g2FixtureOtherG)
+		t.Logf("consumer_exit=%d\n%s", exit, out)
+		agent, agentOK := g2CreatedUID(out, p.AgentUser)
+		service, serviceOK := g2CreatedUID(out, "swarma-wallet")
+		if exit != 0 || !agentOK || agent != p.AgentUID || !serviceOK || service != p.ServiceUID || !g2CreatesGroup(out, G2AgentSocketGroup, p.AgentSocketGID) || !g2CreatesGroup(out, G2OperatorGroup, p.OperatorGID) {
+			t.Fatalf("G2_SYSUSERS_AGENT_UID the consumer would not create the agent at %d and the service at %d: agent=%d/%v service=%d/%v", p.AgentUID, p.ServiceUID, agent, agentOK, service, serviceOK)
+		}
+	})
+	t.Run("existing-agent", func(t *testing.T) {
+		exit, out := g2SysusersDryRun(t, conf, g2FixtureCedar, g2FixtureCedarG)
+		t.Logf("consumer_exit=%d\n%s", exit, out)
+		if _, again := g2CreatedUID(out, p.AgentUser); exit != 0 || again || !g2CreatesGroup(out, G2AgentSocketGroup, p.AgentSocketGID) {
+			t.Fatal("G2_SYSUSERS_EXISTING the consumer refused or recreated the existing agent")
+		}
+	})
+	t.Run("uid-collision", func(t *testing.T) {
+		exit, out := g2SysusersDryRun(t, conf, g2FixtureTaken, g2FixtureTakenG)
+		t.Logf("consumer_exit=%d\n%s", exit, out)
+		uid, ok := g2CreatedUID(out, p.AgentUser)
+		if exit != 0 || !ok || uid == p.AgentUID {
+			t.Fatalf("G2_SYSUSERS_COLLISION expected exit 0 with a substituted UID, got exit=%d uid=%d/%v", exit, uid, ok)
+		}
+		var log []string
+		before := newG2FixtureDB(&log)
+		before.add("someone", p.AgentUID)
+		if e := ValidateG2PayIdentity(p, before); e != ErrPolicy {
+			t.Fatal("G2_SYSUSERS_COLLISION the preflight admitted the collision state", e)
+		}
+		after := newG2FixtureDB(&log)
+		after.add("someone", p.AgentUID)
+		after.add(p.AgentUser, uid, p.AgentSocketGID)
+		if e := VerifyG2AgentAccount(p, after); e != ErrPolicy {
+			t.Fatal("G2_SYSUSERS_COLLISION the post-apply check admitted the substituted UID", e)
+		}
+		clean := newG2FixtureDB(&log)
+		clean.add(p.AgentUser, p.AgentUID, p.AgentSocketGID)
+		if e := VerifyG2AgentAccount(p, clean); e != nil {
+			t.Fatal("exact-UID neighbour refused", e)
+		}
+	})
 }
 
-// Claim: GID 65535 for either rendered group is refused with ErrPolicy before rendering, while 65533 and 65536 render and the real consumer applies them.
-// The consumer refusing a hand-edited 65535 line grounds the guard in the consumer's own ID domain, not in this module's rule.
+// Claim: GID 65535 for either rendered group is refused with ErrPolicy before rendering (the frozen identity domain, which
+// ValidateG2PayParameters runs first), while 65533 and 65536 render and the real consumer applies them. The consumer
+// refusing a hand-edited 65535 line grounds the guard in the consumer's own ID domain, not in this module's rule.
 func TestPX1S5SysusersGIDDomain(t *testing.T) {
 	rows := []struct {
 		name             string
@@ -130,7 +180,7 @@ func TestPX1S5SysusersGIDDomain(t *testing.T) {
 			p := g2Params()
 			p.AgentSocketGID, p.OperatorGID = c.socket, c.operator
 			files, _ := RenderG2PayTemplates(p)
-			exit, out := g2SysusersDryRun(t, g2ResolveAgentUser(t, files[G2FileSysusers]))
+			exit, out := g2SysusersDryRun(t, files[G2FileSysusers], g2FixtureOther, g2FixtureOtherG)
 			t.Logf("consumer_exit=%d\n%s", exit, out)
 			if exit != 0 || !g2CreatesGroup(out, "swarma-wallet-peer", c.socket) || !g2CreatesGroup(out, "swarma-wallet-status", c.operator) {
 				t.Fatal("G2_SYSUSERS_GID_NEIGHBOUR refused by the real consumer", c.name)
@@ -138,14 +188,14 @@ func TestPX1S5SysusersGIDDomain(t *testing.T) {
 		})
 	}
 	files, _ := RenderG2PayTemplates(g2Params())
-	resolved := g2ResolveAgentUser(t, files[G2FileSysusers])
+	resolved := files[G2FileSysusers]
 	for _, line := range []string{"g swarma-wallet-peer 1301\n", "g swarma-wallet-status 1401\n"} {
 		t.Run("consumer-refuses-"+strings.Fields(line)[1]+"-65535", func(t *testing.T) {
 			bad := bytes.Replace(resolved, []byte(line), []byte(line[:len(line)-5]+"65535\n"), 1)
 			if bytes.Equal(bad, resolved) {
 				t.Fatal("[setup failed] fixture edit did not apply")
 			}
-			exit, out := g2SysusersDryRun(t, bad)
+			exit, out := g2SysusersDryRun(t, bad, g2FixtureOther, g2FixtureOtherG)
 			t.Logf("consumer_exit=%d\n%s", exit, out)
 			if exit == 0 || !strings.Contains(out, "65535") || strings.Contains(out, "Would write") {
 				t.Fatal("consumer did not refuse the GID 65535 line; the deploy guard is not grounded", line)

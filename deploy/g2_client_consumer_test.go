@@ -8,15 +8,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
-// g2SetClientMember sets one client.json member to a resolved JSON value the
-// way an operator fills in that placeholder. It locates the member by its key,
-// not by the renderer's placeholder constant, so a changed placeholder text is
-// still exercised. It fails unless the member occurs exactly once.
+// g2SetClientMember sets one client.json member to the given raw JSON value,
+// located by its key. It fails unless the member occurs exactly once.
 func g2SetClientMember(t *testing.T, raw []byte, member, value string) []byte {
 	t.Helper()
 	re := regexp.MustCompile(`"` + regexp.QuoteMeta(member) + `":("[^"\\]*"|[0-9]+)`)
@@ -36,20 +35,33 @@ func g2ClientMemberValue(t *testing.T, raw []byte, member string) string {
 	return string(m[1])
 }
 
-// Claim: the actual consumer of the rendered client.json, the agent-wallet CLI
-// built from this checkout (its first step is LoadActionClientConfig), refuses
-// with exactly CLIENT_CONFIG when service_uid is unresolved, when key_file is
-// unresolved, and when both are; the valid neighbour with both members set is
-// accepted, which the CLI shows by moving on to the request file and refusing
-// that (absent) file with PUBLIC_FILE. Nothing reaches a signing key, socket or
-// network: the request file is absent and the resolved key path does not exist.
+// Claim: the rendered client.json is resolved: it carries the parameters
+// service UID as a JSON number and the agent key file verbatim, with no
+// placeholder; and its actual consumer, the agent-wallet CLI built from this
+// checkout (its first step is LoadActionClientConfig), accepts it, which the
+// CLI shows by moving on to the request file and refusing that (absent) file
+// with PUBLIC_FILE. The refusing neighbours prove the loader discriminates:
+// the same file with service_uid quoted, with a relative key_file, or with
+// key_file still a placeholder each print exactly CLIENT_CONFIG. Nothing
+// reaches a signing key, socket or network: the request file is absent.
 // Limit: one rendering (the main fixture parameters) and this checkout's
-// agent-wallet source, built as a subprocess; deploy does not import it. It
-// skips only where GOPROXY=off and the agent-wallet dependency modules are not
-// in the module cache (a job that downloads only deploy's own dependencies);
-// the deploy workflow downloads them for agent-wallet, a release module. A
-// skip is never a plant kill, and any other build failure fails.
-func TestPX1S5ClientConsumerPlaceholders(t *testing.T) {
+// agent-wallet source, built as a subprocess; deploy does not import it. The
+// rendered-bytes checks run before the build. The consumer part skips only
+// where GOPROXY=off and the agent-wallet dependency modules are not in the
+// module cache (a job that downloads only deploy's own dependencies); the
+// deploy workflow downloads them. A skip is never a plant kill, and any other
+// build failure fails.
+func TestPX1S5ClientConsumerResolved(t *testing.T) {
+	p := g2Params()
+	files, e := RenderG2PayTemplates(p)
+	if e != nil {
+		t.Fatal("G2_CLIENT_CONSUMER_SETUP render", e)
+	}
+	emitted := files[G2FileClientConfig]
+	if bytes.Contains(bytes.ToUpper(emitted), []byte("PLACEHOLDER")) || g2ClientMemberValue(t, emitted, "service_uid") != strconv.FormatUint(uint64(p.ServiceUID), 10) || g2ClientMemberValue(t, emitted, "key_file") != strconv.Quote(p.AgentKeyFile) {
+		t.Fatalf("G2_CLIENT_UNRESOLVED the rendered client.json is not resolved from the parameters: %s", emitted)
+	}
+
 	goBin, e := exec.LookPath("go")
 	if e != nil {
 		t.Fatal("G2_CLIENT_CONSUMER_SETUP go toolchain not on PATH", e)
@@ -80,23 +92,7 @@ func TestPX1S5ClientConsumerPlaceholders(t *testing.T) {
 		t.Fatalf("G2_CLIENT_CONSUMER_SETUP build agent-wallet: %v\n%s", e, out)
 	}
 
-	files, e := RenderG2PayTemplates(g2Params())
-	if e != nil {
-		t.Fatal("G2_CLIENT_CONSUMER_SETUP render", e)
-	}
-	emitted := files[G2FileClientConfig]
-	// The emitted members must be placeholders; otherwise the refusal rows
-	// below would not test unresolved fields.
-	for _, member := range []string{"service_uid", "key_file"} {
-		if v := g2ClientMemberValue(t, emitted, member); !strings.Contains(v, "PLACEHOLDER") {
-			t.Fatalf("G2_CLIENT_CONSUMER_SETUP %s is not a placeholder: %s", member, v)
-		}
-	}
-	absentKey := filepath.Join(work, "absent-action.key")
 	absentRequest := filepath.Join(work, "absent-request.json")
-	setUID := func(b []byte) []byte { return g2SetClientMember(t, b, "service_uid", g2SvcUID) }
-	setKey := func(b []byte) []byte { return g2SetClientMember(t, b, "key_file", `"`+absentKey+`"`) }
-
 	const refused = "{\"error\":\"CLIENT_CONFIG\"}\n"
 	const accepted = "{\"error\":\"PUBLIC_FILE\"}\n" // config loaded; the absent request file is refused next
 	cases := []struct {
@@ -104,10 +100,10 @@ func TestPX1S5ClientConsumerPlaceholders(t *testing.T) {
 		config []byte
 		want   string
 	}{
-		{"both-unresolved", emitted, refused},
-		{"uid-unresolved", setKey(emitted), refused},
-		{"key-unresolved", setUID(emitted), refused},
-		{"resolved", setKey(setUID(emitted)), accepted},
+		{"rendered", emitted, accepted},
+		{"uid-quoted", g2SetClientMember(t, emitted, "service_uid", strconv.Quote(strconv.FormatUint(uint64(p.ServiceUID), 10))), refused},
+		{"key-relative", g2SetClientMember(t, emitted, "key_file", strconv.Quote(strings.TrimPrefix(p.AgentKeyFile, "/"))), refused},
+		{"key-placeholder", g2SetClientMember(t, emitted, "key_file", `"PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH"`), refused},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -129,16 +125,14 @@ func TestPX1S5ClientConsumerPlaceholders(t *testing.T) {
 			e := cmd.Run()
 			var exit *exec.ExitError
 			if c.want == refused && stdout.String() == accepted {
-				t.Fatalf("G2_CLIENT_PLACEHOLDER_ACCEPTED %s: the consumer loaded an unresolved client.json\nconfig=%s", c.name, c.config)
+				t.Fatalf("G2_CLIENT_CONSUMER_ACCEPTED %s: the consumer loaded an invalid client.json\nconfig=%s", c.name, c.config)
 			}
 			if !errors.As(e, &exit) || exit.ExitCode() != 2 || stdout.String() != c.want || stderr.Len() != 0 {
 				t.Fatalf("G2_CLIENT_CONSUMER %s: run=%v stdout=%q stderr=%q, want exit 2 and %q\nconfig=%s", c.name, e, stdout.String(), stderr.String(), c.want, c.config)
 			}
 		})
 	}
-	for _, p := range []string{absentKey, absentRequest} {
-		if _, e := os.Lstat(p); !os.IsNotExist(e) {
-			t.Fatal("G2_CLIENT_CONSUMER_SETUP a path that must stay absent exists", p, e)
-		}
+	if _, e := os.Lstat(absentRequest); !os.IsNotExist(e) {
+		t.Fatal("G2_CLIENT_CONSUMER_SETUP the request path that must stay absent exists", e)
 	}
 }

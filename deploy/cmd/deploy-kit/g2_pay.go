@@ -1,6 +1,7 @@
 package main
 
-// PX1 S5 subcommands: g2-render, g2-custody-probe, g2-custody-verify.
+// PX1 S5 subcommands: g2-render, g2-host-flow, g2-custody-probe,
+// g2-custody-verify.
 
 import (
 	"bytes"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"time"
@@ -141,5 +143,56 @@ func g2CustodyVerify(args []string, out io.Writer) error {
 		return e
 	}
 	_, e = fmt.Fprintln(out, "T18_CUSTODY_VERIFIED "+report.SpecSHA256)
+	return e
+}
+
+// g2HostFlow runs the freeze-amendment-1 provisioning order on THIS host, the
+// target host, as root: deploy.RunG2HostFlow over this host's account
+// database (deploy.G2HostAccounts) with two host actions. Apply gives the
+// sysusers.conf rendered from the same parameters to systemd-sysusers on
+// standard input ("-"); its exit status authorizes nothing. Activate runs the
+// command after "--" (for example systemctl start of agent-walletd) only after
+// the post-apply account check passed. Any refusal stops before the next step.
+//
+//	deploy-kit g2-host-flow -params PARAMS [-sysusers PATH] -- ACTIVATION...
+func g2HostFlow(args []string, out io.Writer) error {
+	f := flag.NewFlagSet("g2-host-flow", flag.ContinueOnError)
+	f.SetOutput(io.Discard)
+	params := f.String("params", "", "canonical G2PayParameters JSON")
+	sysusers := f.String("sysusers", "systemd-sysusers", "systemd-sysusers binary")
+	if f.Parse(args) != nil || f.NArg() == 0 || *sysusers == "" {
+		return deploy.ErrInput
+	}
+	activation := f.Args()
+	raw, e := readBounded(*params, 1<<16)
+	if e != nil {
+		return e
+	}
+	p, e := deploy.ParseG2PayParameters(bytes.TrimSuffix(raw, []byte("\n")))
+	if e != nil {
+		return e
+	}
+	e = deploy.RunG2HostFlow(p, deploy.G2HostAccounts{}, deploy.G2HostSteps{
+		Apply: func(conf []byte) error {
+			cmd := exec.Command(*sysusers, "-")
+			cmd.Stdin, cmd.Stdout, cmd.Stderr = bytes.NewReader(conf), os.Stderr, os.Stderr
+			if cmd.Run() != nil {
+				return deploy.ErrPolicy
+			}
+			return nil
+		},
+		Activate: func() error {
+			cmd := exec.Command(activation[0], activation[1:]...)
+			cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+			if cmd.Run() != nil {
+				return deploy.ErrPolicy
+			}
+			return nil
+		},
+	})
+	if e != nil {
+		return e
+	}
+	_, e = fmt.Fprintln(out, "G2_HOST_FLOW_ACTIVATED")
 	return e
 }

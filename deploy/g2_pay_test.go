@@ -38,31 +38,26 @@ const (
 	g2Key2G    = "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
 	g2KeyOff   = "0000000000000000000000000000000000000000000000000000000000000005"
 	g2Datadir  = "/var/lib/namecoind-main"
-	g2SvcUID   = "1101"
+	g2SvcUID   = 1101
+	g2Agent    = "cedar"
 	g2KeyFile  = "/srv/agent/action.key"
 	g2HotName  = "swarma-g2-hot"
 	g2MainPort = 8336
 )
 
 func g2Params() G2PayParameters {
-	return G2PayParameters{Network: "main", Genesis: mainGenesis, AgentUID: 1201, AgentSocketGID: 1301, OperatorGID: 1401, Grantee: g2KeyG, ReceiptPubkey: g2Key2G, FeeRateSatVB: 110, HotWalletName: g2HotName, NodeRPCPort: g2MainPort, G2: px1OperatorParameters()}
+	return G2PayParameters{Network: "main", Genesis: mainGenesis, AgentUID: 1201, AgentSocketGID: 1301, OperatorGID: 1401, ServiceUID: g2SvcUID, AgentUser: g2Agent, AgentKeyFile: g2KeyFile, NodeDataDir: g2Datadir, Grantee: g2KeyG, ReceiptPubkey: g2Key2G, FeeRateSatVB: 110, HotWalletName: g2HotName, NodeRPCPort: g2MainPort, G2: px1OperatorParameters()}
 }
 
 func g2MainWalletPolicy() Policy {
 	return Policy{Version: 1, Network: "main", Genesis: mainGenesis, Service: "wallet", ReleaseVersion: "fixture-main", Commit: strings.Repeat("a", 40), BinarySHA256: strings.Repeat("b", 64), StateDir: "/var/lib/swarma-wallet", Config: "/etc/swarma/wallet/service.json"}
 }
 
-// g2Resolve performs the documented operator resolution of the placeholders
-// that G2PayParameters cannot fill.
-func g2Resolve(b []byte) []byte {
-	s := strings.ReplaceAll(string(b), strconv.Quote(G2ServiceUIDPlaceholder), g2SvcUID)
-	s = strings.ReplaceAll(s, G2AgentKeyFilePlaceholder, g2KeyFile)
-	return []byte(strings.ReplaceAll(s, G2NodeDataDirPlaceholder, g2Datadir))
-}
-
-// Claim: the launch fixture validates, and every pin, UID, key, fee-rate,
-// wallet-name, port and operator-ceiling violation is refused with the frozen
-// sentinel (ErrNetwork for chain pins, ErrPolicy otherwise). Each refusal row
+// Claim: the launch fixture validates, and every pin, UID, account-name, path,
+// key, fee-rate, wallet-name, port, node-datadir and operator-ceiling
+// violation is refused with the frozen sentinel (ErrNetwork for chain pins,
+// ErrPolicy otherwise); the identity domain's ErrPolicy wins over a pin error
+// (amendment 1: ValidateG2PayIdentityDomain first). Each refusal row
 // re-checks its valid neighbour, and boundary values are accepted.
 func TestPX1S5ParametersRefusalTable(t *testing.T) {
 	if e := ValidateG2PayParameters(g2Params()); e != nil {
@@ -80,6 +75,14 @@ func TestPX1S5ParametersRefusalTable(t *testing.T) {
 		"socket-gid-65536": func(p *G2PayParameters) { p.AgentSocketGID = 65536 },
 		"operator-65533":   func(p *G2PayParameters) { p.OperatorGID = 65533 },
 		"operator-65536":   func(p *G2PayParameters) { p.OperatorGID = 65536 },
+		"service-65533":    func(p *G2PayParameters) { p.ServiceUID = 65533 },
+		"service-65536":    func(p *G2PayParameters) { p.ServiceUID = 65536 },
+		"agent-65536":      func(p *G2PayParameters) { p.AgentUID = 65536 },
+		"user-31-bytes":    func(p *G2PayParameters) { p.AgentUser = "a" + strings.Repeat("b", 30) },
+		"user-underscore":  func(p *G2PayParameters) { p.AgentUser = "_cedar-2" },
+		"user-swarma":      func(p *G2PayParameters) { p.AgentUser = "swarma-agent" },
+		"datadir-srv":      func(p *G2PayParameters) { p.NodeDataDir = "/srv/namecoind" },
+		"datadir-var-lib":  func(p *G2PayParameters) { p.NodeDataDir = "/var/lib/swarma-walletx" },
 	}
 	for name, mut := range accept {
 		p := g2Params()
@@ -100,6 +103,32 @@ func TestPX1S5ParametersRefusalTable(t *testing.T) {
 		{"agent-root", ErrPolicy, func(p *G2PayParameters) { p.AgentUID = 0 }},
 		{"agent-nobody", ErrPolicy, func(p *G2PayParameters) { p.AgentUID = 65534 }},
 		{"agent-minus-one", ErrPolicy, func(p *G2PayParameters) { p.AgentUID = math.MaxUint32 }},
+		{"agent-65535", ErrPolicy, func(p *G2PayParameters) { p.AgentUID = 65535 }},
+		{"service-root", ErrPolicy, func(p *G2PayParameters) { p.ServiceUID = 0 }},
+		{"service-nobody", ErrPolicy, func(p *G2PayParameters) { p.ServiceUID = 65534 }},
+		{"service-65535", ErrPolicy, func(p *G2PayParameters) { p.ServiceUID = 65535 }},
+		{"service-minus-one", ErrPolicy, func(p *G2PayParameters) { p.ServiceUID = math.MaxUint32 }},
+		{"service-is-agent", ErrPolicy, func(p *G2PayParameters) { p.ServiceUID = p.AgentUID }},
+		{"domain-before-pin", ErrPolicy, func(p *G2PayParameters) { p.Network, p.ServiceUID = "test", p.AgentUID }},
+		{"user-empty", ErrPolicy, func(p *G2PayParameters) { p.AgentUser = "" }},
+		{"user-root", ErrPolicy, func(p *G2PayParameters) { p.AgentUser = "root" }},
+		{"user-nobody", ErrPolicy, func(p *G2PayParameters) { p.AgentUser = "nobody" }},
+		{"user-service", ErrPolicy, func(p *G2PayParameters) { p.AgentUser = "swarma-wallet" }},
+		{"user-peer-group", ErrPolicy, func(p *G2PayParameters) { p.AgentUser = "swarma-wallet-peer" }},
+		{"user-digit-first", ErrPolicy, func(p *G2PayParameters) { p.AgentUser = "1cedar" }},
+		{"user-32-bytes", ErrPolicy, func(p *G2PayParameters) { p.AgentUser = "a" + strings.Repeat("b", 31) }},
+		{"user-dot", ErrPolicy, func(p *G2PayParameters) { p.AgentUser = "ce.dar" }},
+		{"key-relative", ErrPolicy, func(p *G2PayParameters) { p.AgentKeyFile = "srv/agent/action.key" }},
+		{"key-unclean", ErrPolicy, func(p *G2PayParameters) { p.AgentKeyFile = "/srv/agent/../action.key" }},
+		{"key-root", ErrPolicy, func(p *G2PayParameters) { p.AgentKeyFile = "/" }},
+		{"datadir-relative", ErrPolicy, func(p *G2PayParameters) { p.NodeDataDir = "var/lib/namecoind" }},
+		{"datadir-trailing-slash", ErrPolicy, func(p *G2PayParameters) { p.NodeDataDir = g2Datadir + "/" }},
+		{"datadir-is-key", ErrPolicy, func(p *G2PayParameters) { p.NodeDataDir = p.AgentKeyFile }},
+		{"datadir-in-state", ErrPolicy, func(p *G2PayParameters) { p.NodeDataDir = "/var/lib/swarma-wallet/node" }},
+		{"datadir-state-root", ErrPolicy, func(p *G2PayParameters) { p.NodeDataDir = "/var/lib/swarma-wallet" }},
+		{"datadir-etc-swarma", ErrPolicy, func(p *G2PayParameters) { p.NodeDataDir = "/etc/swarma/node" }},
+		{"datadir-run", ErrPolicy, func(p *G2PayParameters) { p.NodeDataDir = "/run/namecoind" }},
+		{"datadir-long", ErrPolicy, func(p *G2PayParameters) { p.NodeDataDir = "/" + strings.Repeat("d", 1024) }},
 		{"socket-gid-root", ErrPolicy, func(p *G2PayParameters) { p.AgentSocketGID = 0 }},
 		{"operator-gid-root", ErrPolicy, func(p *G2PayParameters) { p.OperatorGID = 0 }},
 		{"socket-gid-65535", ErrPolicy, func(p *G2PayParameters) { p.AgentSocketGID = 65535 }},
@@ -183,8 +212,9 @@ func TestPX1S5ParametersFile(t *testing.T) {
 
 // Claim: the render is exactly the frozen G2File* set, deterministic, and its
 // service.json passes the main wallet deploy validator with the operator block
-// byte-equal to the frozen golden; client.json and custody-spec.json refuse
-// ErrPlaceholder until resolved, then decode to the pinned values.
+// byte-equal to the frozen golden; client.json and custody-spec.json carry no
+// placeholder and decode to the parameter values (service UID, key file, node
+// datadir) with the status directory denied.
 func TestPX1S5RenderFileSet(t *testing.T) {
 	p := g2Params()
 	files, e := RenderG2PayTemplates(p)
@@ -217,11 +247,8 @@ func TestPX1S5RenderFileSet(t *testing.T) {
 		t.Fatal("service pins", string(service))
 	}
 	for _, name := range []string{G2FileClientConfig, G2FileCustodySpec} {
-		if e := ValidatePublicJSON(files[name]); e != ErrPlaceholder {
-			t.Fatal("unresolved file accepted", name, e)
-		}
-		if e := ValidatePublicJSON(g2Resolve(files[name])); e != nil {
-			t.Fatal("resolved file refused", name, e)
+		if e := ValidatePublicJSON(files[name]); e != nil {
+			t.Fatal("G2_RENDER_UNRESOLVED rendered file refused", name, e)
 		}
 	}
 	var client struct {
@@ -234,18 +261,15 @@ func TestPX1S5RenderFileSet(t *testing.T) {
 		ReceiptKey string `json:"receipt_key"`
 		KeyFile    string `json:"key_file"`
 	}
-	d := json.NewDecoder(bytes.NewReader(g2Resolve(files[G2FileClientConfig])))
+	d := json.NewDecoder(bytes.NewReader(files[G2FileClientConfig]))
 	d.DisallowUnknownFields()
 	if d.Decode(&client) != nil || client.ServiceUID != 1101 || client.Socket != "/run/swarma-wallet/wallet.sock" || client.Network != "main" || client.Genesis != mainGenesis || client.Version != 1 || client.Service != "wallet.nmc" || client.ReceiptKey != p.ReceiptPubkey || client.KeyFile != g2KeyFile {
 		t.Fatal("client pins", string(files[G2FileClientConfig]))
 	}
-	if !bytes.Contains(files[G2FileClientConfig], []byte(`"receipt_key":"`+p.ReceiptPubkey+`","key_file":"`+G2AgentKeyFilePlaceholder+`"`)) {
+	if !bytes.Contains(files[G2FileClientConfig], []byte(`"service_uid":1101,"receipt_key":"`+p.ReceiptPubkey+`","key_file":"`+g2KeyFile+`"}`)) {
 		t.Fatal("client receipt key", string(files[G2FileClientConfig]))
 	}
-	if _, e := ParseCustodySpec(files[G2FileCustodySpec]); e != ErrPlaceholder {
-		t.Fatal("unresolved spec accepted", e)
-	}
-	spec, e := ParseCustodySpec(bytes.TrimSuffix(g2Resolve(files[G2FileCustodySpec]), []byte("\n")))
+	spec, e := ParseCustodySpec(bytes.TrimSuffix(files[G2FileCustodySpec], []byte("\n")))
 	if e != nil {
 		t.Fatal("resolved spec refused", e)
 	}
@@ -253,13 +277,15 @@ func TestPX1S5RenderFileSet(t *testing.T) {
 		t.Fatal("G2_LAUNCH_SPEC", e)
 	}
 	cookie, wallet := G2NodeCustodyPaths("main", g2Datadir, g2HotName)
-	if spec.AgentUID != p.AgentUID || spec.ServiceUID != 1101 || spec.AllowedSocket != "/run/swarma-wallet/wallet.sock" || !reflect.DeepEqual(spec.DeniedRPC, []string{"127.0.0.1:8336"}) || spec.DeniedReads[6] != cookie || spec.DeniedReads[7] != wallet || cookie != "/var/lib/namecoind-main/.cookie" || wallet != "/var/lib/namecoind-main/wallets/swarma-g2-hot/wallet.dat" {
+	if spec.AgentUID != p.AgentUID || spec.ServiceUID != 1101 || spec.AllowedSocket != "/run/swarma-wallet/wallet.sock" || !reflect.DeepEqual(spec.DeniedRPC, []string{"127.0.0.1:8336"}) || spec.DeniedReads[6] != "/run/swarma-wallet-status" || spec.DeniedReads[7] != cookie || spec.DeniedReads[8] != wallet || cookie != "/var/lib/namecoind-main/.cookie" || wallet != "/var/lib/namecoind-main/wallets/swarma-g2-hot/wallet.dat" {
 		t.Fatalf("spec content %+v", spec)
 	}
 }
 
 // Claim: no rendered file carries a credential directive, a host-home path or
-// a private-key member, and the agent placeholder never joins swarma-wallet.
+// a private-key member; the agent user joins only swarma-wallet-peer (never
+// swarma-wallet or swarma-wallet-status); tmpfiles has exactly the seven
+// private directories, the status directory included.
 // Limit: a pattern scan, not a proof that no secret could be encoded.
 func TestPX1S5RenderNoSecrets(t *testing.T) {
 	for _, network := range []string{"main", "regtest"} {
@@ -279,19 +305,19 @@ func TestPX1S5RenderNoSecrets(t *testing.T) {
 			}
 		}
 		sys := string(files[G2FileSysusers])
-		if strings.Contains(sys, "m "+G2AgentUserPlaceholder+" swarma-wallet\n") || strings.Contains(sys, "m "+G2AgentUserPlaceholder+" swarma-wallet-status") || !strings.Contains(sys, "m "+G2AgentUserPlaceholder+" swarma-wallet-peer\n") {
+		if strings.Contains(sys, "m "+g2Agent+" swarma-wallet\n") || strings.Contains(sys, "m "+g2Agent+" swarma-wallet-status") || !strings.Contains(sys, "m "+g2Agent+" swarma-wallet-peer\n") {
 			t.Fatal("G2_AGENT_GROUP", sys)
 		}
 		if !strings.Contains(sys, "g swarma-wallet-peer 1301\n") || !strings.Contains(sys, "g swarma-wallet-status 1401\n") {
 			t.Fatal("G2_GROUP_PINS", sys)
 		}
 		tmp := string(files[G2FileTmpfiles])
-		for _, line := range []string{"d /etc/swarma/wallet 0750 root swarma-wallet -\n", "d /var/lib/swarma-wallet 0700 swarma-wallet swarma-wallet -\n", "d /var/lib/swarma-wallet/service 0700 swarma-wallet swarma-wallet -\n", "d /var/lib/swarma-wallet/wallet 0700 swarma-wallet swarma-wallet -\n", "d /var/lib/swarma-wallet/kernel 0700 swarma-wallet swarma-wallet -\n", "d /var/lib/swarma-wallet/objects 0700 swarma-wallet swarma-wallet -\n"} {
+		for _, line := range []string{"d /etc/swarma/wallet 0750 root swarma-wallet -\n", "d /var/lib/swarma-wallet 0700 swarma-wallet swarma-wallet -\n", "d /var/lib/swarma-wallet/service 0700 swarma-wallet swarma-wallet -\n", "d /var/lib/swarma-wallet/wallet 0700 swarma-wallet swarma-wallet -\n", "d /var/lib/swarma-wallet/kernel 0700 swarma-wallet swarma-wallet -\n", "d /var/lib/swarma-wallet/objects 0700 swarma-wallet swarma-wallet -\n", "d /run/swarma-wallet-status 0750 swarma-wallet swarma-wallet-status -\n"} {
 			if !strings.Contains(tmp, line) {
 				t.Fatal("G2_TMPFILES", line)
 			}
 		}
-		if strings.Count(tmp, "\nd ") != 6 {
+		if strings.Count(tmp, "\nd ") != 7 {
 			t.Fatal("unexpected tmpfiles entry", tmp)
 		}
 	}
@@ -667,23 +693,25 @@ func TestPX1T18VerifyRefusals(t *testing.T) {
 }
 
 // Claim: the launch-spec check accepts only the rendered layout; a spec
-// trimmed of a private path, of the node files or redirected to another
-// socket is refused (the resolved render is the positive control).
+// trimmed of a private path, of the status directory, of the node files or
+// redirected to another socket is refused (the render is the positive control).
 func TestPX1S5LaunchSpec(t *testing.T) {
 	files, _ := RenderG2PayTemplates(g2Params())
-	spec, e := ParseCustodySpec(bytes.TrimSuffix(g2Resolve(files[G2FileCustodySpec]), []byte("\n")))
+	spec, e := ParseCustodySpec(bytes.TrimSuffix(files[G2FileCustodySpec], []byte("\n")))
 	if e != nil || ValidateG2CustodyLaunchSpec(spec) != nil {
 		t.Fatal("rendered spec", e)
 	}
 	for name, mut := range map[string]func(*CustodySpecV1){
 		"no-receipt-key":       func(s *CustodySpecV1) { s.DeniedReads = append(s.DeniedReads[:1:1], s.DeniedReads[2:]...) },
-		"no-wallet-dat":        func(s *CustodySpecV1) { s.DeniedReads = s.DeniedReads[:7] },
+		"no-wallet-dat":        func(s *CustodySpecV1) { s.DeniedReads = s.DeniedReads[:8] },
+		"no-status-dir":        func(s *CustodySpecV1) { s.DeniedReads = append(s.DeniedReads[:6:6], s.DeniedReads[7:]...) },
+		"status-dir-replaced":  func(s *CustodySpecV1) { s.DeniedReads[6] = "/run/swarma-wallet" },
 		"wallet-json-replaced": func(s *CustodySpecV1) { s.DeniedReads[0] = "/etc/swarma/wallet/service.json" },
-		"cookie-swapped":       func(s *CustodySpecV1) { s.DeniedReads[6], s.DeniedReads[7] = s.DeniedReads[7], s.DeniedReads[6] },
+		"cookie-swapped":       func(s *CustodySpecV1) { s.DeniedReads[7], s.DeniedReads[8] = s.DeniedReads[8], s.DeniedReads[7] },
 		"node-in-state": func(s *CustodySpecV1) {
-			s.DeniedReads[6], s.DeniedReads[7] = "/var/lib/swarma-wallet/.cookie", "/var/lib/swarma-wallet/wallets/hot/wallet.dat"
+			s.DeniedReads[7], s.DeniedReads[8] = "/var/lib/swarma-wallet/.cookie", "/var/lib/swarma-wallet/wallets/hot/wallet.dat"
 		},
-		"split-datadir": func(s *CustodySpecV1) { s.DeniedReads[6] = "/srv/other/.cookie" },
+		"split-datadir": func(s *CustodySpecV1) { s.DeniedReads[7] = "/srv/other/.cookie" },
 		"other-socket":  func(s *CustodySpecV1) { s.AllowedSocket = "/run/swarma-wallet/status.sock" },
 		"two-rpc":       func(s *CustodySpecV1) { s.DeniedRPC = append(s.DeniedRPC, "127.0.0.1:8337") },
 	} {
@@ -990,6 +1018,10 @@ func g2ResolveTemplate(raw []byte) []byte {
 		`"PLACEHOLDER_AGENT_UID"`:              "1201",
 		`"PLACEHOLDER_PER_AGENT_GROUP_GID"`:    "1301",
 		`"PLACEHOLDER_OPERATOR_GROUP_GID"`:     "1401",
+		`"PLACEHOLDER_SERVICE_UID"`:            "1101",
+		`PLACEHOLDER_AGENT_USER`:               g2Agent,
+		`PLACEHOLDER_AGENT_KEY_FILE`:           g2KeyFile,
+		`PLACEHOLDER_NODE_DATADIR`:             g2Datadir,
 		`"PLACEHOLDER_NODE_RPC_PORT"`:          "8336",
 		`"PLACEHOLDER_CANARY_VOUT"`:            "0",
 		`PLACEHOLDER_GRANTEE_XONLY_PUBLIC_KEY`: g2KeyG,
@@ -1003,7 +1035,8 @@ func g2ResolveTemplate(raw []byte) []byte {
 
 // Claim: the shipped parameters template refuses ErrPlaceholder as is; once
 // resolved it is canonical, equals the launch fixture (fee rate 110, never
-// 200) and carries the frozen operator golden bytes.
+// 200; the four amendment-1 members service_uid, agent_user, agent_key_file
+// and node_datadir in frozen order) and carries the frozen operator golden.
 func TestPX1S5ParametersTemplate(t *testing.T) {
 	raw, e := os.ReadFile("templates/g2-pay/parameters.json")
 	if e != nil {
@@ -1022,42 +1055,53 @@ func TestPX1S5ParametersTemplate(t *testing.T) {
 	}
 }
 
-// g2ScriptFakes writes stand-ins for deploy-kit and agent-wallet whose exits
-// and receipt verdict the test controls; the fake wallet keeps a copy of the
-// request it was given.
-func g2ScriptFakes(t *testing.T) (string, string) {
+// g2ScriptFakes writes stand-ins for deploy-kit, agent-wallet and id whose
+// exits, receipt verdict and group readback the test controls; the fake
+// wallet keeps a copy of the request it was given. The fake id answers -G
+// with FAKE_ID_G, -g with its first GID and -u with 1201.
+func g2ScriptFakes(t *testing.T) (string, string, string) {
 	t.Helper()
 	dir := t.TempDir()
 	kit := filepath.Join(dir, "deploy-kit")
 	wallet := filepath.Join(dir, "agent-wallet")
 	os.WriteFile(kit, []byte("#!/bin/sh\ncase $1 in\ng2-custody-probe) echo '{\"pass\":true}'; exit \"${FAKE_PROBE_EXIT:-0}\" ;;\ng2-custody-verify) exit \"${FAKE_VERIFY_EXIT:-0}\" ;;\nesac\nexit 9\n"), 0700)
 	os.WriteFile(wallet, []byte("#!/bin/sh\ncp \"$4\" \"$FAKE_CAPTURE\"\nprintf '{\"receipt\":{\"verdict\":\"%s\"}}\\n' \"${FAKE_VERDICT:-executed}\"\nexit \"${FAKE_WALLET_EXIT:-0}\"\n"), 0700)
-	return kit, wallet
+	bin := filepath.Join(dir, "bin")
+	os.Mkdir(bin, 0700)
+	os.WriteFile(filepath.Join(bin, "id"), []byte("#!/bin/sh\ncase $1 in\n-G) echo \"$FAKE_ID_G\" ;;\n-g) echo \"${FAKE_ID_G%% *}\" ;;\n-u) echo 1201 ;;\n*) exit 9 ;;\nesac\n"), 0700)
+	return kit, wallet, bin
 }
 
-// Claim: g2-custody-check.sh prints T18_PASS and exits 0 only when the probe,
-// the own-agent request (exit 0 and verdict "executed") and the verify step
-// all succeed; any single failure, a non-executed verdict, an existing
-// evidence directory or a malformed grantee fails. The positive request is a
-// canonical "balance" read with a fresh nonce. Limit: the two binaries are
-// fakes here; the real probe and verify are covered by the T18 Go tests.
+// Claim: g2-custody-check.sh prints T18_PASS and exits 0 only when the
+// readback `id -G` is exactly the socket GID (primary agent_socket_gid, no
+// supplementary group, never the operator GID), the probe, the own-agent
+// request (exit 0 and verdict "executed") and the verify step all succeed;
+// any single failure, a non-executed verdict, an extra, other or operator
+// group, an existing evidence directory, a malformed grantee or GID, or a
+// socket GID equal to the operator GID fails. A refused readback runs neither
+// the probe nor the request. The positive request is a canonical "balance"
+// read with a fresh nonce. Limit: the binaries and id are fakes here; the real
+// probe and verify are covered by the T18 Go tests.
 func TestPX1T18CustodyScript(t *testing.T) {
-	kit, wallet := g2ScriptFakes(t)
+	kit, wallet, bin := g2ScriptFakes(t)
 	work := t.TempDir()
 	spec, client := filepath.Join(work, "spec.json"), filepath.Join(work, "client.json")
 	os.WriteFile(spec, []byte("{}"), 0600)
 	os.WriteFile(client, []byte("{}"), 0600)
-	run := func(name, grantee string, env ...string) (int, string, string) {
+	run := func(name, grantee, socketGID, operatorGID string, env ...string) (int, string, string) {
 		out := filepath.Join(work, name)
 		capture := filepath.Join(work, name+".request")
-		cmd := exec.Command("/bin/sh", "g2-custody-check.sh", spec, client, grantee, out)
-		cmd.Env = append(os.Environ(), append([]string{"DEPLOY_KIT=" + kit, "AGENT_WALLET=" + wallet, "FAKE_CAPTURE=" + capture}, env...)...)
+		cmd := exec.Command("/bin/sh", "g2-custody-check.sh", spec, client, grantee, socketGID, operatorGID, out)
+		cmd.Env = append(os.Environ(), append([]string{"PATH=" + bin + ":" + os.Getenv("PATH"), "DEPLOY_KIT=" + kit, "AGENT_WALLET=" + wallet, "FAKE_CAPTURE=" + capture, "FAKE_ID_G=1301"}, env...)...)
 		stdout, _ := cmd.Output()
 		return cmd.ProcessState.ExitCode(), strings.TrimSpace(string(stdout)), capture
 	}
-	code, got, capture := run("pass", g2KeyG)
+	code, got, capture := run("pass", g2KeyG, "1301", "1401")
 	if code != 0 || got != "T18_PASS" {
 		t.Fatal("T18_SCRIPT positive", code, got)
+	}
+	if creds, _ := os.ReadFile(filepath.Join(work, "pass", "credentials.txt")); string(creds) != "uid=1201 gid=1301 groups=1301\n" {
+		t.Fatalf("T18_SCRIPT credentials evidence %q", creds)
 	}
 	raw, _ := os.ReadFile(capture)
 	var req struct {
@@ -1079,21 +1123,36 @@ func TestPX1T18CustodyScript(t *testing.T) {
 		t.Fatal("T18_SCRIPT request not canonical", string(raw))
 	}
 	for _, c := range []struct {
-		name, grantee string
-		code          int
-		env           []string
+		name, grantee, socket, operator string
+		code                            int
+		env                             []string
 	}{
-		{"probe-fails", g2KeyG, 1, []string{"FAKE_PROBE_EXIT=1"}},
-		{"verify-fails", g2KeyG, 1, []string{"FAKE_VERIFY_EXIT=1"}},
-		{"wallet-fails", g2KeyG, 1, []string{"FAKE_WALLET_EXIT=2", "FAKE_VERDICT=refused"}},
-		{"refused-exit-zero", g2KeyG, 1, []string{"FAKE_VERDICT=refused"}},
-		{"grantee-upper", strings.ToUpper(g2KeyG), 64, nil},
-		{"grantee-short", g2KeyG[:62], 64, nil},
-		{"pass", g2KeyG, 64, nil}, // evidence directory exists: never overwritten
+		{"probe-fails", g2KeyG, "1301", "1401", 1, []string{"FAKE_PROBE_EXIT=1"}},
+		{"verify-fails", g2KeyG, "1301", "1401", 1, []string{"FAKE_VERIFY_EXIT=1"}},
+		{"wallet-fails", g2KeyG, "1301", "1401", 1, []string{"FAKE_WALLET_EXIT=2", "FAKE_VERDICT=refused"}},
+		{"refused-exit-zero", g2KeyG, "1301", "1401", 1, []string{"FAKE_VERDICT=refused"}},
+		{"supplementary-group", g2KeyG, "1301", "1401", 1, []string{"FAKE_ID_G=1301 1201"}},
+		{"primary-not-socket", g2KeyG, "1301", "1401", 1, []string{"FAKE_ID_G=1201 1301"}},
+		{"operator-primary", g2KeyG, "1301", "1401", 1, []string{"FAKE_ID_G=1401"}},
+		{"operator-supplementary", g2KeyG, "1301", "1401", 1, []string{"FAKE_ID_G=1301 1401"}},
+		{"socket-is-operator", g2KeyG, "1401", "1401", 64, []string{"FAKE_ID_G=1401"}},
+		{"gid-zero", g2KeyG, "0", "1401", 64, []string{"FAKE_ID_G=0"}},
+		{"gid-leading-zero", g2KeyG, "01301", "1401", 64, []string{"FAKE_ID_G=01301"}},
+		{"gid-empty", g2KeyG, "1301", "", 64, nil},
+		{"grantee-upper", strings.ToUpper(g2KeyG), "1301", "1401", 64, nil},
+		{"grantee-short", g2KeyG[:62], "1301", "1401", 64, nil},
+		{"pass", g2KeyG, "1301", "1401", 64, nil}, // evidence directory exists: never overwritten
 	} {
-		code, got, _ := run(c.name, c.grantee, c.env...)
+		code, got, capture := run(c.name, c.grantee, c.socket, c.operator, c.env...)
 		if code != c.code || c.code == 1 && got != "T18_FAIL" {
 			t.Fatal("T18_SCRIPT guard", c.name, code, got)
+		}
+		if strings.HasPrefix(c.name, "operator-") || c.name == "supplementary-group" || c.name == "primary-not-socket" {
+			_, probeRan := os.Stat(filepath.Join(work, c.name, "custody-report.json"))
+			_, requestRan := os.Stat(capture)
+			if probeRan == nil || requestRan == nil {
+				t.Fatal("T18_SCRIPT guard ran the probe or the request with refused credentials", c.name)
+			}
 		}
 	}
 }

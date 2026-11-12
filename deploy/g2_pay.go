@@ -4,19 +4,21 @@ package deploy
 // templates/g2-pay render, and the T18 different-UID custody probe. The frozen
 // signatures and types live in g2_pay_api.go.
 //
-// Scope: validation and rendering are pure; nothing here opens credentials,
-// provisions users, funds, starts or spends. RunCustodyProbe is the only entry
-// point that touches the host, and only as the agent UID: it opens each denied
-// path read-only, sends one credential-less JSON-RPC call to each loopback node
-// port, and connects (without sending a frame) to the agent's wallet socket.
+// Scope: validation and rendering are pure (no account lookup); nothing here
+// opens credentials, funds or spends. Two entry points touch a host:
+// RunCustodyProbe, only as the agent UID (it opens each denied path read-only,
+// sends one credential-less JSON-RPC call to each loopback node port, and
+// connects, without sending a frame, to the agent's wallet socket); and
+// RunG2HostFlow, the target-host provisioning order, whose host actions are
+// supplied by the caller (deploy-kit g2-host-flow on the target host).
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"net"
 	"net/http"
@@ -35,24 +37,12 @@ var ErrCustody = errors.New("deploy: G2 custody check refused")
 // Fixed G2 host layout. The paths repeat the W2 wallet layout (wallet_config.go,
 // templates/wallet/*).
 const (
-	g2WalletSocket = "/run/swarma-wallet/wallet.sock"
+	g2WalletSocket = G2WalletSocketPath
 	g2WalletConfig = "/etc/swarma/wallet/wallet.json"
 	g2ReceiptKey   = "/etc/swarma/wallet/receipt.key"
 	g2StateRoot    = "/var/lib/swarma-wallet"
 	g2StateDir     = "/var/lib/swarma-wallet/service"
-
-	// Values G2PayParameters does not carry (see the S5 freeze-amendment
-	// proposal). The operator resolves them after provisioning. Until then
-	// each consumer refuses its file: deploy-kit refuses custody-spec.json
-	// (ErrPlaceholder), the agent-wallet client loader refuses client.json (the
-	// UID is a JSON string, the key file is not absolute), and systemd-sysusers
-	// refuses sysusers.conf, because the agent-user token is not a valid user
-	// name ('<', '>' and ':' are outside every sysusers name rule). A valid
-	// name here would be applied: sysusers creates a missing "m" line user.
-	G2ServiceUIDPlaceholder   = "PLACEHOLDER_WALLET_UID_INTEGER"
-	G2AgentKeyFilePlaceholder = "PLACEHOLDER_AGENT_SIGNING_KEY_ABSOLUTE_PATH"
-	G2NodeDataDirPlaceholder  = "PLACEHOLDER_NODE_DATADIR"
-	G2AgentUserPlaceholder    = "<PLACEHOLDER:AGENT_USER>"
+	g2ServiceUser  = "swarma-wallet"
 )
 
 // Route method sets of the own node (experiments/agent-wallet/README.md, "Use
@@ -64,10 +54,12 @@ var g2RPCWhitelist = [][2]string{
 }
 
 // g2DeniedFixed is the launch prefix of CustodySpecV1.DeniedReads: the private
-// wallet config, the receipt scalar and every service-owned state directory.
-// The node cookie and wallet.dat follow (they depend on the node datadir).
-// A directory target passes only when the agent can neither list nor search
-// it (probeRead), so no journal or state file below it is reachable by name.
+// wallet config, the receipt scalar, every service-owned state directory and
+// the operator status socket directory (amendment 1, A8: the agent is not in
+// the operator group, so it must get EACCES there). The node cookie and
+// wallet.dat follow (they depend on the node datadir). A directory target
+// passes only when the agent can neither list nor search it (probeRead), so no
+// journal, state file or socket below it is reachable by name.
 var g2DeniedFixed = []string{
 	g2WalletConfig,
 	g2ReceiptKey,
@@ -75,15 +67,8 @@ var g2DeniedFixed = []string{
 	"/var/lib/swarma-wallet/wallet",
 	"/var/lib/swarma-wallet/kernel",
 	"/var/lib/swarma-wallet/objects",
+	G2StatusSocketDir,
 }
-
-// reservedID refuses root, the overflow id (uid_t)-1 and nobody/nogroup.
-func reservedID(id uint32) bool { return id == 0 || id == 65534 || id == math.MaxUint32 }
-
-// sysusersGID refuses the group ID that the provisioning consumer cannot
-// represent beyond reservedID: systemd-sysusers rejects 65535, the 16-bit
-// (gid_t)-1, in a "g" line ("Failed to parse GID"). 65533 and 65536 are valid.
-func sysusersGID(id uint32) bool { return id != 65535 }
 
 // secp256k1 field prime p = 2^256 - 2^32 - 977.
 var secpP, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
@@ -146,21 +131,25 @@ func validateG2Operator(c G2OperatorParameters) error {
 	return nil
 }
 
-// ValidateG2PayParameters validates operator inputs. A chain pin error is
-// ErrNetwork; every UID, GID, key, fee-rate, wallet-name, port or ceiling
-// error is ErrPolicy.
+// ValidateG2PayParameters validates operator inputs. It returns the error of
+// the frozen ValidateG2PayIdentityDomain(p) first (every UID and GID outside
+// G2ReservedID, ServiceUID != AgentUID, the strict agent user name, the two
+// absolute paths), then its own checks: a chain pin error is ErrNetwork; every
+// group, key, fee-rate, wallet-name, port, node-datadir or ceiling error is
+// ErrPolicy. It is pure: it reads no account database. The account binding is
+// checked on the target host by RunG2HostFlow.
 func ValidateG2PayParameters(p G2PayParameters) error {
+	if e := ValidateG2PayIdentityDomain(p); e != nil {
+		return e
+	}
 	if !g2Pins(p.Network, p.Genesis) {
 		return ErrNetwork
 	}
 	switch {
-	case reservedID(p.AgentUID), reservedID(p.AgentSocketGID), reservedID(p.OperatorGID):
-		return ErrPolicy
-	case !sysusersGID(p.AgentSocketGID), !sysusersGID(p.OperatorGID):
-		// Both group IDs are rendered into sysusers.conf "g" lines.
-		return ErrPolicy
 	case p.AgentSocketGID == p.OperatorGID:
 		// The agent's socket group never opens the operator status socket.
+		return ErrPolicy
+	case !g2NodeDatadir(p.NodeDataDir):
 		return ErrPolicy
 	case !xOnlyKey(p.Grantee), !xOnlyKey(p.ReceiptPubkey), p.Grantee == p.ReceiptPubkey:
 		// The executor's receipt key is never the agent's action key.
@@ -171,6 +160,16 @@ func ValidateG2PayParameters(p G2PayParameters) error {
 		return ErrPolicy
 	}
 	return validateG2Operator(p.G2)
+}
+
+// g2NodeDatadir keeps the own node's datadir out of the service-owned roots
+// and the runtime tree, the same rule ValidateG2CustodyLaunchSpec applies to
+// the cookie and wallet.dat, and short enough that both derived paths stay
+// valid custody targets. ValidateG2PayIdentityDomain already requires an
+// absolute, clean path.
+func g2NodeDatadir(d string) bool {
+	under := func(root string) bool { return d == root || strings.HasPrefix(d, root+"/") }
+	return len(d) <= 1024 && !under(g2StateRoot) && !under("/etc/swarma") && !under("/run")
 }
 
 // g2WalletName: a Core wallet directory name that cannot leave the wallets
@@ -198,56 +197,57 @@ func G2NodeCustodyPaths(network, datadir, wallet string) (cookie, walletDat stri
 	return base + ".cookie", base + "wallets/" + wallet + "/wallet.dat"
 }
 
-// Same member order as agent-wallet ActionClientConfig; service_uid is a raw
-// value so the unresolved placeholder stays a JSON string.
+// Same member order as agent-wallet ActionClientConfig.
 type g2ClientFile struct {
-	Network    string          `json:"network"`
-	Genesis    string          `json:"genesis"`
-	Version    int             `json:"version"`
-	Service    string          `json:"service"`
-	Socket     string          `json:"socket"`
-	ServiceUID json.RawMessage `json:"service_uid"`
-	ReceiptKey string          `json:"receipt_key"`
-	KeyFile    string          `json:"key_file"`
+	Network    string `json:"network"`
+	Genesis    string `json:"genesis"`
+	Version    int    `json:"version"`
+	Service    string `json:"service"`
+	Socket     string `json:"socket"`
+	ServiceUID uint32 `json:"service_uid"`
+	ReceiptKey string `json:"receipt_key"`
+	KeyFile    string `json:"key_file"`
 }
 
-// Same member order as CustodySpecV1, so the resolved bytes are canonical.
-type g2CustodyFile struct {
-	Version       int             `json:"v"`
-	AgentUID      uint32          `json:"agent_uid"`
-	ServiceUID    json.RawMessage `json:"service_uid"`
-	DeniedReads   []string        `json:"denied_reads"`
-	DeniedRPC     []string        `json:"denied_rpc"`
-	AllowedSocket string          `json:"allowed_socket"`
+// g2CustodySpec is the T18 spec of validated parameters: the fixed private
+// set (with the status socket directory), then the node cookie and wallet.dat
+// under the own node's datadir, the node RPC port and the agent's socket.
+func g2CustodySpec(p G2PayParameters) CustodySpecV1 {
+	cookie, walletDat := G2NodeCustodyPaths(p.Network, p.NodeDataDir, p.HotWalletName)
+	denied := append(append([]string{}, g2DeniedFixed...), cookie, walletDat)
+	return CustodySpecV1{Version: 1, AgentUID: p.AgentUID, ServiceUID: p.ServiceUID, DeniedReads: denied, DeniedRPC: []string{g2RPCTarget(p.NodeRPCPort)}, AllowedSocket: g2WalletSocket}
 }
 
 // RenderG2PayTemplates renders exactly the G2File* set from validated
-// parameters. The output is deterministic and never contains a credential:
-// RPC users are named by route, and rpcauth lines are added by the operator.
+// parameters. The output is deterministic, has no placeholder and never
+// contains a credential: RPC users are named by route, and rpcauth lines are
+// added by the operator. It is pure; the rendered sysusers.conf is applied
+// only through RunG2HostFlow on the target host.
 func RenderG2PayTemplates(p G2PayParameters) (map[string][]byte, error) {
 	if e := ValidateG2PayParameters(p); e != nil {
 		return nil, e
 	}
-	uidPlaceholder := json.RawMessage(strconv.Quote(G2ServiceUIDPlaceholder))
+	agent, e := G2AgentSysusers(p)
+	if e != nil {
+		return nil, e
+	}
 	operator := p.G2
 	service, e := json.Marshal(walletServiceConfig{Network: p.Network, Genesis: p.Genesis, Version: 1, Service: "wallet.nmc", Socket: g2WalletSocket, SocketGID: p.AgentSocketGID, PeerUID: p.AgentUID, Grantee: p.Grantee, SkewSeconds: 60, TimeoutSeconds: 30, StateDir: g2StateDir, WalletConfig: g2WalletConfig, ReceiptKeyFile: g2ReceiptKey, G2: &operator})
 	if e != nil {
 		return nil, ErrPolicy
 	}
-	client, e := json.Marshal(g2ClientFile{Network: p.Network, Genesis: p.Genesis, Version: 1, Service: "wallet.nmc", Socket: g2WalletSocket, ServiceUID: uidPlaceholder, ReceiptKey: p.ReceiptPubkey, KeyFile: G2AgentKeyFilePlaceholder})
+	client, e := json.Marshal(g2ClientFile{Network: p.Network, Genesis: p.Genesis, Version: 1, Service: "wallet.nmc", Socket: g2WalletSocket, ServiceUID: p.ServiceUID, ReceiptKey: p.ReceiptPubkey, KeyFile: p.AgentKeyFile})
 	if e != nil {
 		return nil, ErrPolicy
 	}
-	cookie, walletDat := G2NodeCustodyPaths(p.Network, G2NodeDataDirPlaceholder, p.HotWalletName)
-	denied := append(append([]string{}, g2DeniedFixed...), cookie, walletDat)
-	spec, e := json.Marshal(g2CustodyFile{Version: 1, AgentUID: p.AgentUID, ServiceUID: uidPlaceholder, DeniedReads: denied, DeniedRPC: []string{g2RPCTarget(p.NodeRPCPort)}, AllowedSocket: g2WalletSocket})
+	spec, e := json.Marshal(g2CustodySpec(p))
 	if e != nil {
 		return nil, ErrPolicy
 	}
 	return map[string][]byte{
 		G2FileServiceConfig: append(service, '\n'),
 		G2FileClientConfig:  append(client, '\n'),
-		G2FileSysusers:      g2Sysusers(p),
+		G2FileSysusers:      g2Sysusers(p, agent),
 		G2FileTmpfiles:      g2Tmpfiles(),
 		G2FileRPCWhitelist:  g2NodeConf(p),
 		G2FileCustodySpec:   append(spec, '\n'),
@@ -275,29 +275,37 @@ func ParseG2PayParameters(raw []byte) (G2PayParameters, error) {
 
 func g2RPCTarget(port uint16) string { return "127.0.0.1:" + strconv.Itoa(int(port)) }
 
-func g2Sysusers(p G2PayParameters) []byte {
+// g2Sysusers renders the provisioning input. The service account carries its
+// numeric UID; it is in the agent socket group (it owns wallet.sock) and in the
+// operator group (it gives status.sock that group, amendment 1, A8). The agent
+// lines are G2AgentSysusers(p) verbatim. No operator account is rendered: the
+// operator's only G2 group is swarma-wallet-status, added by the owner, and
+// it is never a member of swarma-wallet-peer.
+func g2Sysusers(p G2PayParameters, agent string) []byte {
 	var b strings.Builder
-	b.WriteString("# G2 pay provisioning input (rendered). Root applies it after the owner has provisioned the users on the executor host.\n")
-	b.WriteString("# The agent user (UID " + strconv.FormatUint(uint64(p.AgentUID), 10) + ") joins only swarma-wallet-peer, never swarma-wallet.\n")
-	b.WriteString("# Until the operator puts that user's existing name on the last line, systemd-sysusers refuses this file and writes nothing.\n")
-	b.WriteString("u swarma-wallet - \"Swarma G2 pay executor\" /var/lib/swarma-wallet /usr/sbin/nologin\n")
-	b.WriteString("g swarma-wallet-peer " + strconv.FormatUint(uint64(p.AgentSocketGID), 10) + "\n")
-	b.WriteString("g swarma-wallet-status " + strconv.FormatUint(uint64(p.OperatorGID), 10) + "\n")
-	b.WriteString("m swarma-wallet swarma-wallet-peer\n")
-	b.WriteString("m swarma-wallet swarma-wallet-status\n")
-	b.WriteString("m " + G2AgentUserPlaceholder + " swarma-wallet-peer\n")
+	b.WriteString("# G2 pay provisioning input (rendered). Apply it only through deploy-kit g2-host-flow on the target host:\n")
+	b.WriteString("# preflight, then systemd-sysusers, then the required post-apply account check, and only then activation.\n")
+	b.WriteString("# The agent user joins only " + G2AgentSocketGroup + ". The operator is never in " + G2AgentSocketGroup + "; its only G2 group is " + G2OperatorGroup + ".\n")
+	b.WriteString("u " + g2ServiceUser + " " + strconv.FormatUint(uint64(p.ServiceUID), 10) + " \"Swarma G2 pay executor\" /var/lib/swarma-wallet /usr/sbin/nologin\n")
+	b.WriteString("g " + G2AgentSocketGroup + " " + strconv.FormatUint(uint64(p.AgentSocketGID), 10) + "\n")
+	b.WriteString("g " + G2OperatorGroup + " " + strconv.FormatUint(uint64(p.OperatorGID), 10) + "\n")
+	b.WriteString("m " + g2ServiceUser + " " + G2AgentSocketGroup + "\n")
+	b.WriteString("m " + g2ServiceUser + " " + G2OperatorGroup + "\n")
+	b.WriteString(agent)
 	return []byte(b.String())
 }
 
 func g2Tmpfiles() []byte {
 	return []byte(`# G2 pay private roots (rendered). Run only during separately authorized host provisioning.
-# /run/swarma-wallet is created by the unit (RuntimeDirectoryMode=0750, group swarma-wallet-peer).
+# /run/swarma-wallet is created by the unit (RuntimeDirectoryMode=0750, group swarma-wallet-peer); it holds only wallet.sock.
+# /run/swarma-wallet-status holds only the operator status socket and is never bound into a slot.
 d /etc/swarma/wallet 0750 root swarma-wallet -
 d /var/lib/swarma-wallet 0700 swarma-wallet swarma-wallet -
 d /var/lib/swarma-wallet/service 0700 swarma-wallet swarma-wallet -
 d /var/lib/swarma-wallet/wallet 0700 swarma-wallet swarma-wallet -
 d /var/lib/swarma-wallet/kernel 0700 swarma-wallet swarma-wallet -
 d /var/lib/swarma-wallet/objects 0700 swarma-wallet swarma-wallet -
+d ` + G2StatusSocketDir + ` 0750 swarma-wallet ` + G2OperatorGroup + ` -
 `)
 }
 
@@ -358,7 +366,7 @@ func loopbackTarget(s string) bool {
 // validCustodySpec checks the spec shape. It does not require the launch
 // path set; ValidateG2CustodyLaunchSpec adds that for the launch packet.
 func validCustodySpec(s CustodySpecV1) error {
-	if s.Version != 1 || reservedID(s.AgentUID) || reservedID(s.ServiceUID) || s.AgentUID == s.ServiceUID {
+	if s.Version != 1 || G2ReservedID(s.AgentUID) || G2ReservedID(s.ServiceUID) || s.AgentUID == s.ServiceUID {
 		return ErrPolicy
 	}
 	if len(s.DeniedReads) < 1 || len(s.DeniedReads) > 32 || len(s.DeniedRPC) < 1 || len(s.DeniedRPC) > 8 || !custodyPath(s.AllowedSocket) {
@@ -655,6 +663,53 @@ func VerifyCustodyReport(spec CustodySpecV1, report CustodyReportV1) error {
 		if pass := custodyPass(p.Kind, p.Observed); !pass || p.Pass != pass {
 			return ErrCustody
 		}
+	}
+	return nil
+}
+
+// G2HostSteps are the two host actions of the target-host provisioning flow.
+// The caller supplies them; RunG2HostFlow alone decides whether they run.
+type G2HostSteps struct {
+	// Apply gives the rendered sysusers.conf to systemd-sysusers. Its success
+	// is no evidence about the result: sysusers substitutes a free UID on a
+	// collision and keeps an existing name at its UID, both with exit 0.
+	Apply func(sysusers []byte) error
+	// Activate starts the G2 services (agent-walletd, then the slot). T18
+	// runs after it.
+	Activate func() error
+}
+
+// RunG2HostFlow is the target-host provisioning order of freeze amendment 1
+// (A3), run on the TARGET host with that host's account database:
+//
+//  1. render (pure: ValidateG2PayParameters, no account lookup);
+//  2. the preflight ValidateG2PayIdentity(p, db);
+//  3. steps.Apply with the sysusers.conf rendered from the same p;
+//  4. the REQUIRED VerifyG2AgentAccount(p, db);
+//  5. only then steps.Activate.
+//
+// A failed step stops the flow before the next one; in particular nothing is
+// activated unless the post-apply check passed. Missing steps refuse ErrInput
+// before anything runs. The error names the step and wraps its cause.
+func RunG2HostFlow(p G2PayParameters, db G2AccountDB, steps G2HostSteps) error {
+	if steps.Apply == nil || steps.Activate == nil {
+		return ErrInput
+	}
+	files, e := RenderG2PayTemplates(p)
+	if e != nil {
+		return fmt.Errorf("g2 host flow: render: %w", e)
+	}
+	if e := ValidateG2PayIdentity(p, db); e != nil {
+		return fmt.Errorf("g2 host flow: preflight: %w", e)
+	}
+	if e := steps.Apply(files[G2FileSysusers]); e != nil {
+		return fmt.Errorf("g2 host flow: sysusers apply: %w", e)
+	}
+	if e := VerifyG2AgentAccount(p, db); e != nil {
+		return fmt.Errorf("g2 host flow: post-apply account check: %w", e)
+	}
+	if e := steps.Activate(); e != nil {
+		return fmt.Errorf("g2 host flow: activation: %w", e)
 	}
 	return nil
 }
