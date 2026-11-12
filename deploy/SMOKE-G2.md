@@ -206,8 +206,11 @@ receipt, the verify output, and `exits.txt`. Keep it with the launch packet.
   `--dry-run` and a new fixture root, and check that the fixture `passwd` and
   `group` are unchanged afterwards. The unresolved file is refused. The
   resolved file is accepted with GIDs 1301/1401, 65533 and 65536, and a
-  hand-edited GID 65535 line is refused by the consumer itself. They skip,
-  and say so, where `systemd-sysusers` is not installed.
+  hand-edited GID 65535 line is refused by the consumer itself. The consumer
+  part skips, and says so, where `systemd-sysusers` is not installed or has no
+  `--dry-run` option. systemd 249 on the hosted ubuntu-22.04 runner refuses the
+  option and does nothing, so there it skips. It never runs without
+  `--dry-run`.
 - The Core test (`W1_REGTEST=1`) starts Namecoin Core 28 on regtest from the
   rendered `namecoin-rpc.conf`. A credential-less call gets HTTP 401. Each route
   can call only its README method set, and HTTP 403 refuses everything else,

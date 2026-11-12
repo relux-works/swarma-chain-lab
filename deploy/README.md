@@ -139,8 +139,9 @@ placeholders and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
   regtest node that the test starts and stops by PID.
 - `go test -count=1 -run '^TestPX1S5Sysusers' .` gives the rendered
   `sysusers.conf` to the real `systemd-sysusers`, only with `--dry-run` and a
-  new fixture root under the test temp directory. It skips where
-  `systemd-sysusers` is not installed.
+  new fixture root under the test temp directory. The consumer part skips where
+  `systemd-sysusers` is not installed or has no `--dry-run` option (systemd 249,
+  for example).
 - `W1_MUTATIONS=1 W1_MUTATION_ROOT=/abs/new-dir W1_CORE_DAEMON=/abs/namecoind go
   test -count=1 -timeout 30m -run '^TestPX1S5GuardPlants$' .` runs the S5
   narrowing plants in `testdata/px1-mutations-s5.json`. Each plant must fail its

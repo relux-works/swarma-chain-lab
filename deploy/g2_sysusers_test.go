@@ -4,7 +4,9 @@ package deploy
 // systemd-sysusers. Every run is "--dry-run --root=<new fixture root>" under
 // the test temp directory, with one pre-provisioned fixture agent account; the
 // helper below is the only caller and checks that the fixture is unchanged.
-// The consumer layer skips, saying so, only when systemd-sysusers is absent.
+// The consumer layer skips, saying so, only when systemd-sysusers is absent
+// or refuses the --dry-run option itself (older releases, which then exit
+// before reading anything); it never runs without --dry-run.
 
 import (
 	"bytes"
@@ -12,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -54,7 +57,17 @@ func g2SysusersDryRun(t *testing.T, conf []byte) (int, string) {
 	if e1 != nil || e2 != nil || e3 != nil || string(passwd) != g2FixturePasswd || string(group) != g2FixtureGroup || !reflect.DeepEqual(names, []string{"group", "passwd"}) {
 		t.Fatalf("G2_SYSUSERS_DRY_RUN changed the fixture root: %v", names)
 	}
-	return cmd.ProcessState.ExitCode(), string(out)
+	exit := cmd.ProcessState.ExitCode()
+	if exit != 0 && strings.Contains(string(out), "unrecognized option '--dry-run'") {
+		t.Skip("this systemd-sysusers has no --dry-run (it refused the option and did nothing): the real-consumer layer did not run")
+	}
+	return exit, string(out)
+}
+
+// g2CreatesGroup matches the consumer's dry-run plan line for one group and
+// GID, in the wording of older and newer systemd releases.
+func g2CreatesGroup(out, name string, gid uint32) bool {
+	return regexp.MustCompile(`(?im)^creating group '?` + regexp.QuoteMeta(name) + `'? with gid ` + strconv.FormatUint(uint64(gid), 10) + `\.$`).MatchString(out)
 }
 
 // g2ResolveAgentUser is the documented operator step: the one agent-user
@@ -76,12 +89,12 @@ func TestPX1S5SysusersUnresolvedRefused(t *testing.T) {
 	conf := files[G2FileSysusers]
 	exit, out := g2SysusersDryRun(t, g2ResolveAgentUser(t, conf))
 	t.Logf("resolved neighbour: consumer_exit=%d\n%s", exit, out)
-	if exit != 0 || strings.Contains(out, "Creating user '"+g2FixtureAgent+"'") || !strings.Contains(out, "'swarma-wallet-peer' with GID 1301") || !strings.Contains(out, "'swarma-wallet-status' with GID 1401") {
+	if exit != 0 || strings.Contains(strings.ToLower(out), "creating user '"+g2FixtureAgent+"'") || strings.Contains(strings.ToLower(out), "creating user "+g2FixtureAgent+" ") || !g2CreatesGroup(out, "swarma-wallet-peer", 1301) || !g2CreatesGroup(out, "swarma-wallet-status", 1401) {
 		t.Fatal("G2_SYSUSERS_RESOLVED: the resolved neighbour was refused or misapplied")
 	}
 	exit, out = g2SysusersDryRun(t, conf)
 	t.Logf("unresolved: consumer_exit=%d\n%s", exit, out)
-	if exit == 0 || !strings.Contains(out, G2AgentUserPlaceholder) || strings.Contains(out, "Would write") || strings.Contains(out, "Creating") {
+	if exit == 0 || !strings.Contains(out, G2AgentUserPlaceholder) || strings.Contains(out, "Would write") || strings.Contains(strings.ToLower(out), "creating") {
 		t.Fatal("G2_SYSUSERS_UNRESOLVED: the real consumer accepts the unresolved agent user")
 	}
 }
@@ -119,8 +132,7 @@ func TestPX1S5SysusersGIDDomain(t *testing.T) {
 			files, _ := RenderG2PayTemplates(p)
 			exit, out := g2SysusersDryRun(t, g2ResolveAgentUser(t, files[G2FileSysusers]))
 			t.Logf("consumer_exit=%d\n%s", exit, out)
-			want := []string{"'swarma-wallet-peer' with GID " + strconv.Itoa(int(c.socket)), "'swarma-wallet-status' with GID " + strconv.Itoa(int(c.operator))}
-			if exit != 0 || !strings.Contains(out, want[0]) || !strings.Contains(out, want[1]) {
+			if exit != 0 || !g2CreatesGroup(out, "swarma-wallet-peer", c.socket) || !g2CreatesGroup(out, "swarma-wallet-status", c.operator) {
 				t.Fatal("G2_SYSUSERS_GID_NEIGHBOUR refused by the real consumer", c.name)
 			}
 		})
@@ -136,7 +148,7 @@ func TestPX1S5SysusersGIDDomain(t *testing.T) {
 			exit, out := g2SysusersDryRun(t, bad)
 			t.Logf("consumer_exit=%d\n%s", exit, out)
 			if exit == 0 || !strings.Contains(out, "65535") || strings.Contains(out, "Would write") {
-				t.Fatal("consumer accepted GID 65535; the deploy guard is not grounded", line)
+				t.Fatal("consumer did not refuse the GID 65535 line; the deploy guard is not grounded", line)
 			}
 		})
 	}
