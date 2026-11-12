@@ -480,7 +480,7 @@
   "Name": "px1-s3-track-backlog-silent",
   "File": "px1_runtime.go",
   "Old": "\t\tr.raise(code, now, px1oTrackBacklog)\n",
-  "New": "",
+  "New": "\t\t_ = code\n",
   "Selector": "TestPX1oTrackBacklogBackpressure",
   "Marker": "TRACK_BACKLOG_ALERT",
   "Core": false
@@ -498,7 +498,7 @@
   "Name": "px1-s3-track-backlog-cause-ignored",
   "File": "px1_runtime.go",
   "Old": "\t\tif stalled != nil && stalled.Error() == CodeClockRollback {\n",
-  "New": "\t\tif false {\n",
+  "New": "\t\tif _ = stalled; false {\n",
   "Selector": "TestPX1oTrackBacklogBackpressure",
   "Marker": "TRACK_BACKLOG_ALERT",
   "Core": false
