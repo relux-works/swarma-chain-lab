@@ -222,12 +222,15 @@ second layer.
 
 ## G2 service flow (steps 5-23 at the service layer)
 
-1. Ask the S3 runtime for a halt (`px1oHalt`, an optional method of
-   `*px1Runtime`). The answer `FLOAT_CANARY_SPENT` or
-   `STATE_RECONCILE_REQUIRED` is the refusal code (T14); any other non-empty
-   answer refuses `SERVICE_STATE_UNAVAILABLE`. Then refuse
-   `SERVICE_STATE_UNAVAILABLE` if the service or its journal is poisoned.
-2. Send reads to the limiter path.
+1. Refuse `SERVICE_STATE_UNAVAILABLE` if the service or its journal is
+   poisoned.
+2. Send reads to the limiter path. For a spend, ask S3's admission halt
+   seam (`px1oHalted` on `*ActionService`, probed as an optional method so
+   that any landing order compiles). A non-empty answer refuses before
+   admission, with nothing journaled. `FLOAT_CANARY_SPENT` (T14),
+   `STATE_RECONCILE_REQUIRED`, `SERVICE_STATE_UNAVAILABLE` and
+   `PX1_NOT_IMPLEMENTED` pass through; any other answer refuses
+   `SERVICE_STATE_UNAVAILABLE`. Without S3 nothing halts here.
 3. Look up the nonce in the service journal:
    - other bytes: `NONCE_CONFLICT`;
    - `terminal`: return the stored receipt bytes;

@@ -376,17 +376,20 @@ func (s *ActionService) px1jHandle(ctx context.Context, v VerifiedAction, peer P
 	reject := func(code string) []byte {
 		return canonical(s.reply(v.Hash, peer, 0, 0, "refused", code, struct{}{}))
 	}
-	// Step 5: an S3 halt (spent canary: FLOAT_CANARY_SPENT, T14), then a
-	// poisoned service or journal.
-	if code := px1jHaltCode(&s.px1); code != "" {
-		return reject(code)
-	}
+	// Step 5: poisoned service or journal.
 	if s.poisoned || x.journal.Poisoned() {
 		return reject("SERVICE_STATE_UNAVAILABLE")
 	}
 	switch r.Action {
 	case "balance", "history", "budget":
 		return s.px1jRead(ctx, v, peer)
+	}
+	// Step 5 for a spend: S3's admission halt (spent canary:
+	// FLOAT_CANARY_SPENT, T14) refuses before admission, nothing journaled.
+	if r.Action == "spend" {
+		if code := px1jHaltCode(x.halt(s)); code != "" {
+			return reject(code)
+		}
 	}
 	// Step 6: nonce lookup.
 	entry := x.entries[r.Nonce]
@@ -524,26 +527,29 @@ func (s *ActionService) px1jHandle(ctx context.Context, v VerifiedAction, peer P
 	}{result.TxID, result.Reserved, result.Phase})
 }
 
-// px1jHalter is the observation-state interface S2 reads at step 5. S3's
-// runtime (px1_runtime.go) implements it on *px1Runtime; the caller holds
-// ActionService.mu, so the method must not take it (PX1Status does, and
-// would deadlock here). It returns "" while spends may proceed. S2 never
-// reads the runtime's fields.
-type px1jHalter interface{ px1oHalt() string }
+// px1jHalter is S3's admission halt seam (px1_runtime.go, px1oHalted on
+// *ActionService). The caller holds ActionService.mu, so the seam takes no
+// lock (PX1Status does, and would deadlock here); it calls no node and
+// writes nothing. S2 never reads S3's runtime fields.
+type px1jHalter interface{ px1oHalted() string }
 
-// px1jHaltCode maps the runtime's halt to a bounded refusal code. A runtime
-// without the method (the frozen base) never halts here; the poisoned flag
-// still refuses SERVICE_STATE_UNAVAILABLE. An unknown code from the runtime
-// is never put on the wire verbatim.
-func px1jHaltCode(runtime any) string {
-	h, ok := runtime.(px1jHalter)
+// px1jProbeHalt asks the seam when it is compiled in. Without it (S3 not
+// landed) nothing halts here; the poisoned flag still refuses, and a G2
+// spend refuses PX1_NOT_IMPLEMENTED until S1 attaches the wallet layer.
+func px1jProbeHalt(v any) string {
+	h, ok := v.(px1jHalter)
 	if !ok {
 		return ""
 	}
-	switch code := h.px1oHalt(); code {
-	case "":
-		return ""
-	case CodeFloatCanarySpent, CodeStateReconcileRequired:
+	return h.px1oHalted()
+}
+
+// px1jHaltCode bounds the halt answer on the wire: the codes the seam
+// documents pass through, anything else refuses SERVICE_STATE_UNAVAILABLE
+// and is never echoed.
+func px1jHaltCode(code string) string {
+	switch code {
+	case "", CodeFloatCanarySpent, CodeStateReconcileRequired, "SERVICE_STATE_UNAVAILABLE", ErrNotImplemented.Error():
 		return code
 	default:
 		return "SERVICE_STATE_UNAVAILABLE"

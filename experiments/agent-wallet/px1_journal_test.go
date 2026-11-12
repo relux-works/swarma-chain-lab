@@ -524,6 +524,9 @@ func px1jServiceFixture(t *testing.T, stateDir string, clock *int64, capacity in
 		store.Close()
 		t.Fatal(e)
 	}
+	// S3's runtime is not this fixture's to drive: no halt unless a test
+	// sets one (TestPX1jServiceHalt), in any landing order.
+	s.g2.halt = func(*ActionService) string { return "" }
 	t.Cleanup(func() { px1jCloseFixture(s) })
 	return s
 }

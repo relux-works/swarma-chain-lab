@@ -22,6 +22,9 @@ type px1jService struct {
 	reads    *px1jReadLimiter
 	limits   JournalLimitsV2
 	entries  map[string]*px1jServiceEntry // by action nonce (one grantee)
+	// halt is S3's admission halt for spends (px1jProbeHalt in product);
+	// unit fixtures substitute it, because S3's runtime is not theirs to set.
+	halt func(*ActionService) string
 }
 
 // px1jServiceEntry is the folded service-layer state of one admitted request.
@@ -78,7 +81,7 @@ func (s *ActionService) px1jOpenService(op G2OperatorConfig, binding string, dep
 	if e != nil {
 		return e
 	}
-	x := &px1jService{operator: op, journal: j, limits: limits, entries: map[string]*px1jServiceEntry{}}
+	x := &px1jService{operator: op, journal: j, limits: limits, entries: map[string]*px1jServiceEntry{}, halt: func(s *ActionService) string { return px1jProbeHalt(s) }}
 	if j == nil || j.Header() != header {
 		if j != nil {
 			j.Close()

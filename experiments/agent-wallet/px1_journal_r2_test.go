@@ -430,26 +430,59 @@ func TestPX1jPrivateStateRoot(t *testing.T) {
 
 type px1jFakeHalter struct{ code string }
 
-func (h *px1jFakeHalter) px1oHalt() string { return h.code }
+func (h *px1jFakeHalter) px1oHalted() string { return h.code }
 
-// Claim (S3-R2, T14 unit): step 5 maps the runtime's halt to a bounded code:
-// FLOAT_CANARY_SPENT and STATE_RECONCILE_REQUIRED pass through, any other
-// non-empty value becomes SERVICE_STATE_UNAVAILABLE (never echoed), and ""
-// or a runtime without the method never halts. Limit: S3 implements the
-// method on its runtime; the wire-level T14 refusal runs once it lands.
+// Claim (S3-R2): the halt answer is bounded on the wire: "" admits; the
+// codes S3's seam documents (FLOAT_CANARY_SPENT, STATE_RECONCILE_REQUIRED,
+// SERVICE_STATE_UNAVAILABLE, PX1_NOT_IMPLEMENTED) pass through; any other
+// value refuses SERVICE_STATE_UNAVAILABLE and is never echoed. The probe
+// asks a value that has the seam method and never halts one that lacks it.
 func TestPX1jHaltCode(t *testing.T) {
 	for in, want := range map[string]string{
-		"":                         "",
-		CodeFloatCanarySpent:       CodeFloatCanarySpent,
-		CodeStateReconcileRequired: CodeStateReconcileRequired,
-		"secret detail":            "SERVICE_STATE_UNAVAILABLE",
+		"":                          "",
+		CodeFloatCanarySpent:        CodeFloatCanarySpent,
+		CodeStateReconcileRequired:  CodeStateReconcileRequired,
+		"SERVICE_STATE_UNAVAILABLE": "SERVICE_STATE_UNAVAILABLE",
+		"PX1_NOT_IMPLEMENTED":       "PX1_NOT_IMPLEMENTED",
+		"secret detail":             "SERVICE_STATE_UNAVAILABLE",
 	} {
-		if got := px1jHaltCode(&px1jFakeHalter{in}); got != want {
+		if got := px1jHaltCode(in); got != want {
 			t.Fatalf("HALT_CODE %q: got %q want %q", in, got, want)
 		}
 	}
-	if got := px1jHaltCode(&struct{}{}); got != "" {
-		t.Fatal("a runtime without the method halted", got)
+	if got := px1jProbeHalt(&px1jFakeHalter{CodeFloatCanarySpent}); got != CodeFloatCanarySpent {
+		t.Fatal("HALT_PROBE_IGNORED", got)
+	}
+	if got := px1jProbeHalt(&struct{}{}); got != "" {
+		t.Fatal("a value without the seam halted", got)
+	}
+}
+
+// Claim (S3-R2, T14 at the service layer): with the halt reporting a spent
+// canary, a G2 spend refuses FLOAT_CANARY_SPENT before admission
+// (journal_seq 0, nothing journaled), an unknown halt answer refuses
+// SERVICE_STATE_UNAVAILABLE, and a read is not halted; with no halt the same
+// spend is admitted. Limit: the halt here is a substitute for S3's seam; the
+// end-to-end T14 with a real spent canary is S3's Core layer.
+func TestPX1jServiceHalt(t *testing.T) {
+	clock := int64(500)
+	s := px1jServiceFixture(t, px1jStateDir(t), &clock, 4)
+	ctx := context.Background()
+	halt := CodeFloatCanarySpent
+	s.g2.halt = func(*ActionService) string { return halt }
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 1, nil), px1jPeer)); r.Reason != CodeFloatCanarySpent || r.Sequence != 0 || s.g2.journal.Usage().LastSeq != 0 {
+		t.Fatal("CANARY_HALT_IGNORED", r.Reason, r.Sequence)
+	}
+	halt = "detail"
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 1, nil), px1jPeer)); r.Reason != "SERVICE_STATE_UNAVAILABLE" || r.Sequence != 0 {
+		t.Fatal("unknown halt answer", r.Reason)
+	}
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "balance", 2, nil), px1jPeer)); r.Reason == CodeFloatCanarySpent || r.Reason == "SERVICE_STATE_UNAVAILABLE" {
+		t.Fatal("read halted", r.Reason)
+	}
+	halt = ""
+	if r := px1jReceipt(t, s.handle(ctx, px1jActionRaw(t, "spend", 1, nil), px1jPeer)); r.Sequence != 1 {
+		t.Fatal("no-halt neighbour", r.Reason, r.Sequence)
 	}
 }
 
