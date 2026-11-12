@@ -5,7 +5,9 @@ package wallet
 // contract: helpers carry the px1j prefix, journal roots are private 0700
 // children (px1jPrivateDir), and the partial-release reproduction signs its
 // reconcile record with the fixture receipt key, because a shape-only
-// signature is now refused RECONCILE_AUTHORIZATION.
+// signature is now refused RECONCILE_AUTHORIZATION. Freeze amendment 1: the
+// signed preimage is the v2 one (binding, grant_id, nonce, seq, payload)
+// and the key is the journal header's ReceiptKey.
 
 import (
 	"crypto/sha256"
@@ -26,7 +28,14 @@ func TestPX1jReviewReconcileAuthorization(t *testing.T) {
 		reserve := px1jMust(t, journal, px1jReserve(1, 1, now, 50000, 1))
 		rec := px1jFollowRec(reserve, RecordReconcile, "released", now)
 		auth := ReconcileRecordV2{TargetSeq: reserve.Seq, Evidence: "absent", Height: 100, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}
-		digest := sha256.Sum256(append([]byte("swarma-wallet-reconcile-v1"), canonical(auth)...))
+		preimage := struct {
+			Binding   string            `json:"binding"`
+			GrantID   string            `json:"grant_id"`
+			Nonce     string            `json:"nonce"`
+			Seq       uint64            `json:"seq"`
+			Reconcile ReconcileRecordV2 `json:"reconcile"`
+		}{journal.Header().Binding, rec.GrantID, rec.Nonce, reserve.Seq + 1, auth}
+		digest := sha256.Sum256(append([]byte("swarma-wallet-reconcile-v2"), canonical(preimage)...))
 		key, _ := testKey(9)
 		signature, err := schnorr.Sign(key, digest[:])
 		if err != nil {
@@ -66,8 +75,8 @@ func TestPX1jReviewPartialRelease(t *testing.T) {
 			reserve := px1jMust(t, journal, px1jReserve(1, 1, now, 50000, 1))
 			px1jMust(t, journal, px1jFollowRec(reserve, RecordUncertain, "uncertain", now))
 			rec := px1jFollowRec(reserve, RecordReconcile, "released", now)
-			rec.Reconcile = px1jSignReconcile(t, ReconcileRecordV2{TargetSeq: reserve.Seq, Evidence: "absent", Height: 100, BlockHash: px1jHex(9), ReleasedSat: release, NoteSHA256: px1jHex(5)}, px1jReceiptKeyN)
-			px1jMust(t, journal, rec)
+			rec.Reconcile = &ReconcileRecordV2{TargetSeq: reserve.Seq, Evidence: "absent", Height: 100, BlockHash: px1jHex(9), ReleasedSat: release, NoteSHA256: px1jHex(5)}
+			px1jMust(t, journal, px1jSignNext(t, journal, rec, px1jReceiptKeyN))
 			ledger, err := FoldLedgerV2(journal)
 			if err != nil {
 				t.Fatal(err)
