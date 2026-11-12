@@ -1055,16 +1055,33 @@ func TestPX1S5ParametersTemplate(t *testing.T) {
 	}
 }
 
-// g2ScriptFakes writes stand-ins for deploy-kit, agent-wallet and id whose
-// exits, receipt verdict and group readback the test controls; the fake
-// wallet keeps a copy of the request it was given. The fake id answers -G
-// with FAKE_ID_G, -g with its first GID and -u with 1201.
-func g2ScriptFakes(t *testing.T) (string, string, string) {
+// g2BuildDeployKit builds this module's deploy-kit into the test temp
+// directory, so the script test drives the real T18 readback command.
+func g2BuildDeployKit(t *testing.T) string {
+	t.Helper()
+	goBin, e := exec.LookPath("go")
+	if e != nil {
+		t.Fatal("T18_SCRIPT_SETUP go toolchain not on PATH", e)
+	}
+	kit := filepath.Join(t.TempDir(), "deploy-kit-real")
+	build := exec.Command(goBin, "build", "-mod=readonly", "-buildvcs=false", "-o", kit, "./cmd/deploy-kit")
+	if out, e := build.CombinedOutput(); e != nil {
+		t.Fatalf("T18_SCRIPT_SETUP build deploy-kit: %v\n%s", e, out)
+	}
+	return kit
+}
+
+// g2ScriptFakes writes stand-ins for agent-wallet, id and the probe and verify
+// steps of deploy-kit, whose exits, receipt verdict and group readback the
+// test controls; the fake wallet keeps a copy of the request it was given.
+// The g2-agent-groups readback is the REAL deploy-kit (realKit). The fake id
+// answers -G with FAKE_ID_G, -g with its first GID and -u with 1201.
+func g2ScriptFakes(t *testing.T, realKit string) (string, string, string) {
 	t.Helper()
 	dir := t.TempDir()
 	kit := filepath.Join(dir, "deploy-kit")
 	wallet := filepath.Join(dir, "agent-wallet")
-	os.WriteFile(kit, []byte("#!/bin/sh\ncase $1 in\ng2-custody-probe) echo '{\"pass\":true}'; exit \"${FAKE_PROBE_EXIT:-0}\" ;;\ng2-custody-verify) exit \"${FAKE_VERIFY_EXIT:-0}\" ;;\nesac\nexit 9\n"), 0700)
+	os.WriteFile(kit, []byte("#!/bin/sh\ncase $1 in\ng2-agent-groups) exec '"+realKit+"' \"$@\" ;;\ng2-custody-probe) echo '{\"pass\":true}'; exit \"${FAKE_PROBE_EXIT:-0}\" ;;\ng2-custody-verify) exit \"${FAKE_VERIFY_EXIT:-0}\" ;;\nesac\nexit 9\n"), 0700)
 	os.WriteFile(wallet, []byte("#!/bin/sh\ncp \"$4\" \"$FAKE_CAPTURE\"\nprintf '{\"receipt\":{\"verdict\":\"%s\"}}\\n' \"${FAKE_VERDICT:-executed}\"\nexit \"${FAKE_WALLET_EXIT:-0}\"\n"), 0700)
 	bin := filepath.Join(dir, "bin")
 	os.Mkdir(bin, 0700)
@@ -1072,36 +1089,59 @@ func g2ScriptFakes(t *testing.T) (string, string, string) {
 	return kit, wallet, bin
 }
 
-// Claim: g2-custody-check.sh prints T18_PASS and exits 0 only when the
-// readback `id -G` is exactly the socket GID (primary agent_socket_gid, no
-// supplementary group, never the operator GID), the probe, the own-agent
-// request (exit 0 and verdict "executed") and the verify step all succeed;
-// any single failure, a non-executed verdict, an extra, other or operator
-// group, an existing evidence directory, a malformed grantee or GID, or a
-// socket GID equal to the operator GID fails. A refused readback runs neither
-// the probe nor the request. The positive request is a canonical "balance"
-// read with a fresh nonce. Limit: the binaries and id are fakes here; the real
-// probe and verify are covered by the T18 Go tests.
+// Claim: g2-custody-check.sh prints T18_PASS and exits 0 only when the real
+// deploy-kit g2-agent-groups accepts the readback `id -G` as exactly
+// {own primary GID 1201 (derived from the agent's sysusers declaration),
+// agent_socket_gid 1301} in any order (a repeated GID is no extra group), and
+// the probe, the own-agent request (exit 0 and verdict "executed") and the
+// verify step all succeed. A third group, the operator GID (supplementary or
+// primary), a missing socket GID, a missing primary GID (the old
+// socket-GID-only set), an empty readback and parameters with equal socket and
+// operator GIDs are each refused with T18_FAIL before the probe or the request
+// runs; any failing later step, a non-executed verdict, an existing evidence
+// directory, a malformed grantee, a missing PARAMS file and the old six-argument
+// form fail too. The positive request is a canonical "balance" read with a
+// fresh nonce. Limit: agent-wallet, id, probe and verify are fakes here; the
+// real probe and verify are covered by the T18 Go tests.
 func TestPX1T18CustodyScript(t *testing.T) {
-	kit, wallet, bin := g2ScriptFakes(t)
+	kit, wallet, bin := g2ScriptFakes(t, g2BuildDeployKit(t))
 	work := t.TempDir()
 	spec, client := filepath.Join(work, "spec.json"), filepath.Join(work, "client.json")
 	os.WriteFile(spec, []byte("{}"), 0600)
 	os.WriteFile(client, []byte("{}"), 0600)
-	run := func(name, grantee, socketGID, operatorGID string, env ...string) (int, string, string) {
+	writeParams := func(name string, p G2PayParameters) string {
+		raw, e := json.Marshal(p)
+		if e != nil {
+			t.Fatal(e)
+		}
+		path := filepath.Join(work, name)
+		os.WriteFile(path, append(raw, '\n'), 0600)
+		return path
+	}
+	params := writeParams("parameters.json", g2Params())
+	same := g2Params()
+	same.OperatorGID = same.AgentSocketGID
+	sameParams := writeParams("parameters-socket-is-operator.json", same)
+	run := func(name string, args []string, env ...string) (int, string, string) {
 		out := filepath.Join(work, name)
 		capture := filepath.Join(work, name+".request")
-		cmd := exec.Command("/bin/sh", "g2-custody-check.sh", spec, client, grantee, socketGID, operatorGID, out)
-		cmd.Env = append(os.Environ(), append([]string{"PATH=" + bin + ":" + os.Getenv("PATH"), "DEPLOY_KIT=" + kit, "AGENT_WALLET=" + wallet, "FAKE_CAPTURE=" + capture, "FAKE_ID_G=1301"}, env...)...)
+		if args == nil {
+			args = []string{spec, client, g2KeyG, params, out}
+		}
+		cmd := exec.Command("/bin/sh", append([]string{"g2-custody-check.sh"}, args...)...)
+		cmd.Env = append(os.Environ(), append([]string{"PATH=" + bin + ":" + os.Getenv("PATH"), "DEPLOY_KIT=" + kit, "AGENT_WALLET=" + wallet, "FAKE_CAPTURE=" + capture, "FAKE_ID_G=1201 1301"}, env...)...)
 		stdout, _ := cmd.Output()
 		return cmd.ProcessState.ExitCode(), strings.TrimSpace(string(stdout)), capture
 	}
-	code, got, capture := run("pass", g2KeyG, "1301", "1401")
+	code, got, capture := run("pass", nil)
 	if code != 0 || got != "T18_PASS" {
 		t.Fatal("T18_SCRIPT positive", code, got)
 	}
-	if creds, _ := os.ReadFile(filepath.Join(work, "pass", "credentials.txt")); string(creds) != "uid=1201 gid=1301 groups=1301\n" {
+	if creds, _ := os.ReadFile(filepath.Join(work, "pass", "credentials.txt")); string(creds) != "uid=1201 gid=1201 groups=1201 1301\n" {
 		t.Fatalf("T18_SCRIPT credentials evidence %q", creds)
+	}
+	if check, _ := os.ReadFile(filepath.Join(work, "pass", "credentials-check.txt")); string(check) != "G2_AGENT_GROUPS_OK primary=1201 socket=1301\n" {
+		t.Fatalf("T18_SCRIPT readback evidence %q", check)
 	}
 	raw, _ := os.ReadFile(capture)
 	var req struct {
@@ -1122,36 +1162,184 @@ func TestPX1T18CustodyScript(t *testing.T) {
 	if again, _ := json.Marshal(req); !bytes.Equal(again, raw) {
 		t.Fatal("T18_SCRIPT request not canonical", string(raw))
 	}
+	// Valid neighbours of the readback refusals below: the same two-group set
+	// in the other order, and with a repeated GID.
+	for _, groups := range []string{"1301 1201", "1201 1301 1201"} {
+		name := "pass-" + strings.ReplaceAll(groups, " ", "-")
+		if code, got, _ := run(name, []string{spec, client, g2KeyG, params, filepath.Join(work, name)}, "FAKE_ID_G="+groups); code != 0 || got != "T18_PASS" {
+			t.Fatal("T18_SCRIPT readback neighbour refused", groups, code, got)
+		}
+	}
 	for _, c := range []struct {
-		name, grantee, socket, operator string
-		code                            int
-		env                             []string
+		name     string
+		args     func(out string) []string
+		code     int
+		env      []string
+		readback bool // refused at the readback: neither the probe nor the request may run
 	}{
-		{"probe-fails", g2KeyG, "1301", "1401", 1, []string{"FAKE_PROBE_EXIT=1"}},
-		{"verify-fails", g2KeyG, "1301", "1401", 1, []string{"FAKE_VERIFY_EXIT=1"}},
-		{"wallet-fails", g2KeyG, "1301", "1401", 1, []string{"FAKE_WALLET_EXIT=2", "FAKE_VERDICT=refused"}},
-		{"refused-exit-zero", g2KeyG, "1301", "1401", 1, []string{"FAKE_VERDICT=refused"}},
-		{"supplementary-group", g2KeyG, "1301", "1401", 1, []string{"FAKE_ID_G=1301 1201"}},
-		{"primary-not-socket", g2KeyG, "1301", "1401", 1, []string{"FAKE_ID_G=1201 1301"}},
-		{"operator-primary", g2KeyG, "1301", "1401", 1, []string{"FAKE_ID_G=1401"}},
-		{"operator-supplementary", g2KeyG, "1301", "1401", 1, []string{"FAKE_ID_G=1301 1401"}},
-		{"socket-is-operator", g2KeyG, "1401", "1401", 64, []string{"FAKE_ID_G=1401"}},
-		{"gid-zero", g2KeyG, "0", "1401", 64, []string{"FAKE_ID_G=0"}},
-		{"gid-leading-zero", g2KeyG, "01301", "1401", 64, []string{"FAKE_ID_G=01301"}},
-		{"gid-empty", g2KeyG, "1301", "", 64, nil},
-		{"grantee-upper", strings.ToUpper(g2KeyG), "1301", "1401", 64, nil},
-		{"grantee-short", g2KeyG[:62], "1301", "1401", 64, nil},
-		{"pass", g2KeyG, "1301", "1401", 64, nil}, // evidence directory exists: never overwritten
+		{"probe-fails", nil, 1, []string{"FAKE_PROBE_EXIT=1"}, false},
+		{"verify-fails", nil, 1, []string{"FAKE_VERIFY_EXIT=1"}, false},
+		{"wallet-fails", nil, 1, []string{"FAKE_WALLET_EXIT=2", "FAKE_VERDICT=refused"}, false},
+		{"refused-exit-zero", nil, 1, []string{"FAKE_VERDICT=refused"}, false},
+		{"third-group", nil, 1, []string{"FAKE_ID_G=1201 1301 4242"}, true},
+		{"operator-supplementary", nil, 1, []string{"FAKE_ID_G=1201 1301 1401"}, true},
+		{"operator-primary", nil, 1, []string{"FAKE_ID_G=1401 1301"}, true},
+		{"socket-missing", nil, 1, []string{"FAKE_ID_G=1201"}, true},
+		{"primary-missing-old-rule", nil, 1, []string{"FAKE_ID_G=1301"}, true},
+		{"empty-readback", nil, 1, []string{"FAKE_ID_G="}, true},
+		{"params-socket-is-operator", func(out string) []string { return []string{spec, client, g2KeyG, sameParams, out} }, 1, []string{"FAKE_ID_G=1201 1301"}, true},
+		{"params-missing", func(out string) []string {
+			return []string{spec, client, g2KeyG, filepath.Join(work, "absent.json"), out}
+		}, 64, nil, false},
+		{"old-six-arguments", func(out string) []string { return []string{spec, client, g2KeyG, "1301", "1401", out} }, 64, nil, false},
+		{"grantee-upper", func(out string) []string { return []string{spec, client, strings.ToUpper(g2KeyG), params, out} }, 64, nil, false},
+		{"grantee-short", func(out string) []string { return []string{spec, client, g2KeyG[:62], params, out} }, 64, nil, false},
+		{"pass", nil, 64, nil, false}, // evidence directory exists: never overwritten
 	} {
-		code, got, capture := run(c.name, c.grantee, c.socket, c.operator, c.env...)
+		var args []string
+		if c.args != nil {
+			args = c.args(filepath.Join(work, c.name))
+		}
+		code, got, capture := run(c.name, args, c.env...)
 		if code != c.code || c.code == 1 && got != "T18_FAIL" {
 			t.Fatal("T18_SCRIPT guard", c.name, code, got)
 		}
-		if strings.HasPrefix(c.name, "operator-") || c.name == "supplementary-group" || c.name == "primary-not-socket" {
+		if c.readback {
 			_, probeRan := os.Stat(filepath.Join(work, c.name, "custody-report.json"))
 			_, requestRan := os.Stat(capture)
-			if probeRan == nil || requestRan == nil {
+			exits, _ := os.ReadFile(filepath.Join(work, c.name, "exits.txt"))
+			if probeRan == nil || requestRan == nil || string(exits) != "credentials=refused\n" {
 				t.Fatal("T18_SCRIPT guard ran the probe or the request with refused credentials", c.name)
+			}
+		}
+	}
+}
+
+// Claim: G2AgentSlotGIDs derives the agent's primary GID from its own sysusers
+// declaration (G2AgentSysusers), not from a fixed number: the template agent
+// gets (1201, 1301), and other agent UIDs move the primary GID with them. It
+// refuses a derived primary GID equal to the operator GID or the socket GID
+// (sysusers would place the agent's own group elsewhere) and invalid
+// parameters. The declaration parser takes the GID part of a "UID:GID" field,
+// and refuses a group name, a UID that is not agent_uid, a non-canonical
+// number, a missing or repeated "u" line and an empty GID part.
+func TestPX1S5AgentSlotGIDs(t *testing.T) {
+	p := g2Params()
+	primary, socket, e := G2AgentSlotGIDs(p)
+	decl, _ := G2AgentSysusers(p)
+	if e != nil || primary != 1201 || socket != 1301 || !strings.HasPrefix(decl, "u cedar 1201\n") {
+		t.Fatalf("G2_SLOT_GIDS template agent: %d %d %v", primary, socket, e)
+	}
+	for _, uid := range []uint32{2201, 65533, 70000} {
+		q := p
+		q.AgentUID = uid
+		if primary, socket, e := G2AgentSlotGIDs(q); e != nil || primary != uid || socket != q.AgentSocketGID {
+			t.Errorf("G2_SLOT_GIDS agent_uid %d: primary %d socket %d err %v", uid, primary, socket, e)
+		}
+	}
+	for _, c := range []struct {
+		name   string
+		mutate func(*G2PayParameters)
+	}{
+		{"primary-is-operator", func(q *G2PayParameters) { q.AgentUID = q.OperatorGID }},
+		{"primary-is-socket", func(q *G2PayParameters) { q.AgentUID = q.AgentSocketGID }},
+		{"socket-is-operator", func(q *G2PayParameters) { q.OperatorGID = q.AgentSocketGID }},
+		{"service-is-agent", func(q *G2PayParameters) { q.ServiceUID = q.AgentUID }},
+	} {
+		q := p
+		c.mutate(&q)
+		if _, _, e := G2AgentSlotGIDs(q); !errors.Is(e, ErrPolicy) {
+			t.Errorf("G2_SLOT_GIDS_PARAMS %s admitted: %v", c.name, e)
+		}
+		// The readback can never pass for such parameters, not even with the
+		// two GIDs the declaration names.
+		if e := CheckG2AgentGroups(q, []uint32{q.AgentUID, q.AgentSocketGID}); e == nil {
+			t.Errorf("G2_SLOT_GIDS_PARAMS %s readback passed", c.name)
+		}
+	}
+	if gid, e := g2DeclaredPrimaryGID("u cedar 1201:1777\nm cedar swarma-wallet-peer\n", "cedar", 1201); e != nil || gid != 1777 {
+		t.Errorf("G2_SLOT_GIDS_FIELD uid:gid field read as %d %v", gid, e)
+	}
+	for _, decl := range []string{
+		"u cedar 1201:cedar\n", "u cedar 1202\n", "u cedar 01201\n", "u cedar 1201:01777\n", "u cedar 1201:\n",
+		"u cedar -\n", "", "m cedar swarma-wallet-peer\n", "u other 1201\n", "u cedar 1201\nu cedar 1201\n",
+	} {
+		if _, e := g2DeclaredPrimaryGID(decl, "cedar", 1201); e != ErrPolicy {
+			t.Errorf("G2_SLOT_GIDS_FIELD declaration %q admitted: %v", decl, e)
+		}
+	}
+}
+
+// Claim: CheckG2AgentGroups accepts exactly the set {own primary GID,
+// agent_socket_gid} in any order, a repeated GID included, and refuses a
+// third group (whatever it is), the operator GID (supplementary or as
+// primary), a missing socket GID, a missing primary GID (the old
+// socket-GID-only set) and an empty readback. Each refusal is a one-member
+// change of an accepted set. Limit: this is the rule; the script and
+// deploy-kit tests show the readback of `id -G` reaches it.
+func TestPX1S5AgentGroupsReadback(t *testing.T) {
+	p := g2Params() // primary 1201, socket 1301, operator 1401
+	for _, ok := range [][]uint32{{1201, 1301}, {1301, 1201}, {1201, 1301, 1201}, {1301, 1301, 1201}} {
+		if e := CheckG2AgentGroups(p, ok); e != nil {
+			t.Errorf("G2_READBACK_NEIGHBOUR exact set %v refused: %v", ok, e)
+		}
+	}
+	for _, c := range []struct {
+		marker string
+		gids   []uint32
+	}{
+		{"G2_READBACK_EXTRA", []uint32{1201, 1301, 4242}},
+		{"G2_READBACK_EXTRA", []uint32{1201, 1301, g2SvcUID}},
+		{"G2_READBACK_EXTRA", []uint32{0, 1201, 1301}},
+		{"G2_READBACK_OPERATOR", []uint32{1201, 1301, 1401}},
+		{"G2_READBACK_OPERATOR", []uint32{1401, 1301}},
+		{"G2_READBACK_SOCKET", []uint32{1201}},
+		{"G2_READBACK_SOCKET", []uint32{1201, 1201}},
+		{"G2_READBACK_PRIMARY", []uint32{1301}},
+		{"G2_READBACK_PRIMARY", []uint32{1301, 1301}},
+		{"G2_READBACK_EMPTY", nil},
+	} {
+		if e := CheckG2AgentGroups(p, c.gids); e != ErrPolicy {
+			t.Errorf("%s readback %v admitted: %v", c.marker, c.gids, e)
+		}
+	}
+}
+
+// Claim: SMOKE-G2.md launches T18 with the slot's real credentials, once:
+// setpriv with --reuid and --regid naming the agent account and its own group
+// (as the slot's User= and Group= do) and --init-groups (the initgroups the
+// slot applies), handing parameters.json to the script; and no S5 T18 text
+// keeps the reduced form (--clear-groups, --groups, --keep-groups, or the
+// socket GID as the primary GID). The launch paragraph states that equality.
+// Limit: a text check of the documented command; setpriv is never run here.
+func TestPX1S5T18LaunchCredentials(t *testing.T) {
+	smoke, e := os.ReadFile("SMOKE-G2.md")
+	if e != nil {
+		t.Fatal(e)
+	}
+	var launches []string
+	for _, line := range strings.Split(string(smoke), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "setpriv ") {
+			launches = append(launches, strings.TrimSpace(line))
+		}
+	}
+	if len(launches) != 1 || launches[0] != `setpriv --reuid="$AGENT_USER" --regid="$AGENT_USER" --init-groups -- \` {
+		t.Fatalf("T18_LAUNCH SMOKE-G2.md launch is not the slot credential form: %q", launches)
+	}
+	if !strings.Contains(string(smoke), `deploy/g2-custody-check.sh custody-spec.json client.json "$GRANTEE_XONLY" \`+"\n    parameters.json \"$NEW_EVIDENCE_DIR\"") {
+		t.Fatal("T18_LAUNCH SMOKE-G2.md does not hand parameters.json to the script")
+	}
+	if !strings.Contains(string(smoke), "`User=`") || !strings.Contains(string(smoke), "`Group=`") || !strings.Contains(string(smoke), "initgroups") {
+		t.Fatal("T18_LAUNCH SMOKE-G2.md does not state that the launch equals the slot's credentials")
+	}
+	for _, name := range []string{"SMOKE-G2.md", "g2-custody-check.sh", "README.md"} {
+		b, e := os.ReadFile(name)
+		if e != nil {
+			t.Fatal(e)
+		}
+		for _, reduced := range []string{"--clear-groups", "--keep-groups", "--groups=", `--regid="$AGENT_SOCKET_GID"`, "SOCKET_GID OPERATOR_GID"} {
+			if bytes.Contains(b, []byte(reduced)) {
+				t.Errorf("T18_LAUNCH %s keeps the reduced credential form %q", name, reduced)
 			}
 		}
 	}

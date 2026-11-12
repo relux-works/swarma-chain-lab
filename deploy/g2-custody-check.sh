@@ -1,29 +1,31 @@
 #!/bin/sh
 # T18: different-UID custody check for the G2 pay executor (PX1 stream S5).
 #
-# Run with the agent's slot credentials on the executor host (UID agent_uid,
-# primary GID agent_socket_gid, no supplementary groups), after
+# Run with the agent's slot credentials on the executor host, after
 # deploy-kit g2-host-flow provisioned and verified the accounts and activated
-# agent-walletd (see deploy/SMOKE-G2.md). This script never needs root, never
-# reads a credential and never spends: the positive request is a "balance"
-# read.
+# agent-walletd (see deploy/SMOKE-G2.md). Those are the credentials the slot
+# applies (User= and Group= the agent account, supplementary groups through
+# initgroups): UID agent_uid, the account's own primary group and
+# swarma-wallet-peer. This script never needs root, never reads a credential
+# and never spends: the positive request is a "balance" read.
 #
-#   g2-custody-check.sh SPEC CLIENT GRANTEE SOCKET_GID OPERATOR_GID OUTDIR
+#   g2-custody-check.sh SPEC CLIENT GRANTEE PARAMS OUTDIR
 #
-#   SPEC          rendered custody-spec.json (launch layout)
-#   CLIENT        the agent's rendered client.json
-#   GRANTEE       the agent's x-only action public key (64 lowercase hex)
-#   SOCKET_GID    agent_socket_gid of the parameters (swarma-wallet-peer)
-#   OPERATOR_GID  operator_gid of the parameters (swarma-wallet-status)
-#   OUTDIR        new evidence directory (must not exist)
+#   SPEC     rendered custody-spec.json (launch layout)
+#   CLIENT   the agent's rendered client.json
+#   GRANTEE  the agent's x-only action public key (64 lowercase hex)
+#   PARAMS   the parameters.json the files were rendered from (no secret)
+#   OUTDIR   new evidence directory (must not exist)
 #
 # DEPLOY_KIT and AGENT_WALLET name the binaries built from the reviewed head
 # (defaults: deploy-kit and agent-wallet on PATH).
 #
 # Prints T18_PASS and exits 0 only when all four hold:
-#   0. the readback `id -G` is exactly SOCKET_GID: the primary GID is
-#      agent_socket_gid, there is no supplementary group, and OPERATOR_GID is
-#      never among the groups (otherwise nothing else runs);
+#   0. deploy-kit g2-agent-groups accepts the readback `id -G`: exactly the
+#      set {the agent's own primary GID, agent_socket_gid}, both derived from
+#      PARAMS (the primary GID from the agent's sysusers declaration), in any
+#      order, nothing else and never operator_gid (otherwise nothing else
+#      runs);
 #   1. deploy-kit g2-custody-probe: every denied read is EACCES/EPERM, every
 #      credential-less node RPC call is refused, the wallet socket connects;
 #   2. agent-wallet returns an "executed" receipt for the own-agent request;
@@ -33,27 +35,20 @@ set -eu
 umask 077
 
 usage() {
-	echo "usage: g2-custody-check.sh SPEC CLIENT GRANTEE SOCKET_GID OPERATOR_GID OUTDIR" >&2
+	echo "usage: g2-custody-check.sh SPEC CLIENT GRANTEE PARAMS OUTDIR" >&2
 	exit 64
 }
-[ "$#" -eq 6 ] || usage
+[ "$#" -eq 5 ] || usage
 spec=$1
 client=$2
 grantee=$3
-socket_gid=$4
-operator_gid=$5
-out=$6
+params=$4
+out=$5
 case $grantee in
 '' | *[!0-9a-f]*) usage ;;
 esac
 [ "${#grantee}" -eq 64 ] || usage
-for gid in "$socket_gid" "$operator_gid"; do
-	case $gid in
-	'' | *[!0-9]* | 0*) usage ;;
-	esac
-done
-[ "$socket_gid" != "$operator_gid" ] || usage
-[ -f "$spec" ] && [ -f "$client" ] || usage
+[ -f "$spec" ] && [ -f "$client" ] && [ -f "$params" ] || usage
 deploy_kit=${DEPLOY_KIT:-deploy-kit}
 agent_wallet=${AGENT_WALLET:-agent-wallet}
 
@@ -61,13 +56,15 @@ agent_wallet=${AGENT_WALLET:-agent-wallet}
 mkdir "$out" || usage
 
 # Readback of the credentials this run holds. `id -G` prints the effective
-# GID first, then every other group of the process. Exactly SOCKET_GID
-# therefore means: primary GID agent_socket_gid and no supplementary group;
-# and because SOCKET_GID != OPERATOR_GID (refused above), the operator group
-# is never among them.
-groups=$(id -G)
+# GID and every other group of the process; deploy-kit g2-agent-groups gets
+# one argument per GID and accepts exactly {own primary GID,
+# agent_socket_gid} as derived from PARAMS. A failed `id` reads back nothing,
+# which is refused.
+groups=$(id -G) || groups=
 printf 'uid=%s gid=%s groups=%s\n' "$(id -u)" "$(id -g)" "$groups" >"$out/credentials.txt"
-if [ "$groups" != "$socket_gid" ]; then
+set -f
+# shellcheck disable=SC2086 # one argument per GID of the readback
+if ! "$deploy_kit" g2-agent-groups -params "$params" -- $groups >"$out/credentials-check.txt" 2>&1; then
 	printf 'credentials=refused\n' >"$out/exits.txt"
 	echo T18_FAIL
 	exit 1

@@ -255,3 +255,63 @@ func TestG2HostFlowCommand(t *testing.T) {
 		t.Fatalf("G2_CLI_HOST_FLOW ran without an activation command: err=%v", e)
 	}
 }
+
+// Claim: g2-agent-groups accepts the readback only when its GIDs are exactly
+// {own primary GID 1201, agent_socket_gid 1301} derived from the parameters
+// (any order, a repeated GID allowed) and then prints the two GIDs; a third
+// group, the operator GID, a missing primary or socket GID, no GID, a
+// non-canonical GID and invalid parameters are refused and print nothing.
+// The neighbour with another agent_uid shows the primary GID follows the
+// parameters.
+func TestG2AgentGroupsCommand(t *testing.T) {
+	root := t.TempDir()
+	write := func(name string, p deploy.G2PayParameters) string {
+		raw, _ := json.Marshal(p)
+		path := filepath.Join(root, name)
+		os.WriteFile(path, append(raw, '\n'), 0600)
+		return path
+	}
+	params := write("params.json", cliParams())
+	moved := cliParams()
+	moved.AgentUID = 2201
+	movedParams := write("params-2201.json", moved)
+	bad := cliParams()
+	bad.OperatorGID = bad.AgentSocketGID
+	badParams := write("params-bad.json", bad)
+	for _, c := range []struct {
+		params string
+		gids   []string
+		want   string
+	}{
+		{params, []string{"1201", "1301"}, "G2_AGENT_GROUPS_OK primary=1201 socket=1301\n"},
+		{params, []string{"1301", "1201", "1301"}, "G2_AGENT_GROUPS_OK primary=1201 socket=1301\n"},
+		{movedParams, []string{"2201", "1301"}, "G2_AGENT_GROUPS_OK primary=2201 socket=1301\n"},
+	} {
+		var stdout bytes.Buffer
+		if e := g2AgentGroups(append([]string{"-params", c.params, "--"}, c.gids...), &stdout); e != nil || stdout.String() != c.want {
+			t.Fatalf("G2_CLI_AGENT_GROUPS positive %v: %v %q", c.gids, e, stdout.String())
+		}
+	}
+	for _, c := range []struct {
+		name   string
+		params string
+		gids   []string
+		want   error
+	}{
+		{"third-group", params, []string{"1201", "1301", "4242"}, deploy.ErrPolicy},
+		{"operator", params, []string{"1201", "1301", "1401"}, deploy.ErrPolicy},
+		{"primary-missing", params, []string{"1301"}, deploy.ErrPolicy},
+		{"socket-missing", params, []string{"1201"}, deploy.ErrPolicy},
+		{"no-gid", params, nil, deploy.ErrPolicy},
+		{"other-agent-primary", movedParams, []string{"1201", "1301"}, deploy.ErrPolicy},
+		{"leading-zero", params, []string{"01201", "1301"}, deploy.ErrInput},
+		{"not-a-number", params, []string{"1201", "peer"}, deploy.ErrInput},
+		{"invalid-params", badParams, []string{"1201", "1301"}, deploy.ErrPolicy},
+		{"absent-params", filepath.Join(root, "absent.json"), []string{"1201", "1301"}, deploy.ErrPolicy},
+	} {
+		var stdout bytes.Buffer
+		if e := g2AgentGroups(append([]string{"-params", c.params, "--"}, c.gids...), &stdout); !errors.Is(e, c.want) || stdout.Len() != 0 {
+			t.Fatalf("G2_CLI_AGENT_GROUPS %s admitted: %v %q", c.name, e, stdout.String())
+		}
+	}
+}

@@ -76,6 +76,12 @@ func g2CreatesGroup(out, name string, gid uint32) bool {
 	return regexp.MustCompile(`(?im)^creating group '?` + regexp.QuoteMeta(name) + `'? with gid ` + strconv.FormatUint(uint64(gid), 10) + `\.$`).MatchString(out)
 }
 
+// g2CreatesUserGID matches the consumer's dry-run plan line that creates the
+// user name with primary GID gid, in older and newer wording.
+func g2CreatesUserGID(out, name string, gid uint32) bool {
+	return regexp.MustCompile(`(?im)^creating user '?` + regexp.QuoteMeta(name) + `'? \(.*\) with uid [0-9]+ and gid ` + strconv.FormatUint(uint64(gid), 10) + `\.$`).MatchString(out)
+}
+
 // g2CreatedUID returns the UID the consumer's dry-run plan would give name,
 // or false when it plans no such user.
 func g2CreatedUID(out, name string) (uint32, bool) {
@@ -90,7 +96,9 @@ func g2CreatedUID(out, name string) (uint32, bool) {
 // Claim: the real systemd-sysusers (dry-run, isolated root) applies the
 // resolved rendered sysusers.conf as intended: on a first install it would
 // create the agent at exactly agent_uid and the service at exactly
-// service_uid, with both groups at their pinned GIDs; with the agent already
+// service_uid, with both groups at their pinned GIDs, and would give the agent
+// its own group at exactly the primary GID G2AgentSlotGIDs derives (the GID
+// the T18 readback requires); with the agent already
 // at agent_uid it creates no agent. On a UID collision it still exits 0 but
 // would create the agent at another UID: the target-host flow's preflight
 // refuses that state before the apply, and its post-apply check refuses the
@@ -112,6 +120,9 @@ func TestPX1S5SysusersResolvedConsumer(t *testing.T) {
 		service, serviceOK := g2CreatedUID(out, "swarma-wallet")
 		if exit != 0 || !agentOK || agent != p.AgentUID || !serviceOK || service != p.ServiceUID || !g2CreatesGroup(out, G2AgentSocketGroup, p.AgentSocketGID) || !g2CreatesGroup(out, G2OperatorGroup, p.OperatorGID) {
 			t.Fatalf("G2_SYSUSERS_AGENT_UID the consumer would not create the agent at %d and the service at %d: agent=%d/%v service=%d/%v", p.AgentUID, p.ServiceUID, agent, agentOK, service, serviceOK)
+		}
+		if primary, _, e := G2AgentSlotGIDs(p); e != nil || !g2CreatesGroup(out, p.AgentUser, primary) || !g2CreatesUserGID(out, p.AgentUser, primary) {
+			t.Fatalf("G2_SYSUSERS_PRIMARY_GID the consumer would not give the agent its own group at the derived primary GID %d (%v)", primary, e)
 		}
 	})
 	t.Run("existing-agent", func(t *testing.T) {

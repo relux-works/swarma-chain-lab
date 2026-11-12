@@ -127,9 +127,15 @@ func g2Members(conf, group string) []string {
 // membership, an operator-group membership, an account the apply did not
 // create, a failed apply); (c) reaches activation exactly once, last, on the
 // clean first-install and existing-account paths, with the post-apply check
-// between apply and activation. Every refusal row has the clean path as its
-// valid neighbour. Limit: the apply is a fake; the real consumer's behaviour
-// on the same rendered bytes is grounded in g2_sysusers_test.go.
+// between apply and activation; and (g) the T18 readback (R9 as adopted) of
+// the activated account: the clean account's group list, its own primary
+// group plus swarma-wallet-peer, passes CheckG2AgentGroups, while an existing
+// account with an extra group of its own passes the frozen post-apply check,
+// is activated, and is still refused by the readback, as is the old
+// socket-GID-only set. Every refusal row has the clean path as its valid
+// neighbour. Limit: the apply is a fake; the real consumer's behaviour on the
+// same rendered bytes, including the primary GID, is grounded in
+// g2_sysusers_test.go.
 func TestPX1S5HostFlowTripwire(t *testing.T) {
 	p := g2Params()
 	created := func(gids ...uint32) func(*g2FixtureDB) {
@@ -213,6 +219,40 @@ func TestPX1S5HostFlowTripwire(t *testing.T) {
 			if c.applyErr == nil && (!errors.Is(e, ErrPolicy) || !strings.Contains(fmt.Sprint(e), "post-apply")) {
 				t.Fatalf("G2_FLOW_POST_APPLY %s: wrong refusal %v", c.name, e)
 			}
+		}
+	})
+
+	// (g) the T18 readback of the activated account's group list.
+	t.Run("t18-readback", func(t *testing.T) {
+		primary, socket, e := G2AgentSlotGIDs(p)
+		if e != nil {
+			t.Fatal("G2_FLOW_T18_READBACK derivation", e)
+		}
+		for _, c := range []struct {
+			name     string
+			state    func(*g2FixtureDB)
+			readback bool
+		}{
+			{"first-install", clean, true},
+			{"existing-with-own-groups", created(p.AgentSocketGID, 4242), false},
+		} {
+			log, _, e := g2FlowRun(p, nil, c.state, nil)
+			if e != nil || !g2Has(log, "activate") {
+				t.Fatalf("G2_FLOW_T18_READBACK %s: the flow did not activate: err=%v log=%v", c.name, e, log)
+			}
+			var l []string
+			db := newG2FixtureDB(&l)
+			c.state(db)
+			gids, _ := db.UserGroups(p.AgentUser)
+			if c.readback && !reflect.DeepEqual(gids, []uint32{primary, socket}) {
+				t.Fatalf("G2_FLOW_T18_READBACK %s: the clean account is not {primary %d, socket %d}: %v", c.name, primary, socket, gids)
+			}
+			if (CheckG2AgentGroups(p, gids) == nil) != c.readback {
+				t.Fatalf("G2_FLOW_T18_READBACK %s: readback of %v passed=%v, want %v", c.name, gids, !c.readback, c.readback)
+			}
+		}
+		if CheckG2AgentGroups(p, []uint32{p.AgentSocketGID}) == nil {
+			t.Fatal("G2_FLOW_T18_READBACK the old socket-GID-only credential set passed")
 		}
 	})
 

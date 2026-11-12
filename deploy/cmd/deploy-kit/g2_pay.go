@@ -1,7 +1,7 @@
 package main
 
-// PX1 S5 subcommands: g2-render, g2-host-flow, g2-custody-probe,
-// g2-custody-verify.
+// PX1 S5 subcommands: g2-render, g2-host-flow, g2-agent-groups,
+// g2-custody-probe, g2-custody-verify.
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/relux-works/swarma-chain-lab/deploy"
@@ -194,5 +195,47 @@ func g2HostFlow(args []string, out io.Writer) error {
 		return e
 	}
 	_, e = fmt.Fprintln(out, "G2_HOST_FLOW_ACTIVATED")
+	return e
+}
+
+// g2AgentGroups is the T18 credential readback: the GIDs after "--" are the
+// running agent's `id -G` output, one argument each, and must be exactly the
+// set {own primary GID, agent_socket_gid} that deploy.CheckG2AgentGroups
+// derives from the parameters (the primary GID from G2AgentSysusers). A GID
+// that is not a canonical decimal refuses ErrInput. It prints
+// G2_AGENT_GROUPS_OK with the two GIDs only when the readback passes.
+//
+//	deploy-kit g2-agent-groups -params PARAMS -- GID...
+func g2AgentGroups(args []string, out io.Writer) error {
+	f := flag.NewFlagSet("g2-agent-groups", flag.ContinueOnError)
+	f.SetOutput(io.Discard)
+	params := f.String("params", "", "canonical G2PayParameters JSON")
+	if f.Parse(args) != nil {
+		return deploy.ErrInput
+	}
+	readback := make([]uint32, 0, f.NArg())
+	for _, s := range f.Args() {
+		v, e := strconv.ParseUint(s, 10, 32)
+		if e != nil || strconv.FormatUint(v, 10) != s {
+			return deploy.ErrInput
+		}
+		readback = append(readback, uint32(v))
+	}
+	raw, e := readBounded(*params, 1<<16)
+	if e != nil {
+		return e
+	}
+	p, e := deploy.ParseG2PayParameters(bytes.TrimSuffix(raw, []byte("\n")))
+	if e != nil {
+		return e
+	}
+	if e := deploy.CheckG2AgentGroups(p, readback); e != nil {
+		return e
+	}
+	primary, socket, e := deploy.G2AgentSlotGIDs(p)
+	if e != nil {
+		return e
+	}
+	_, e = fmt.Fprintf(out, "G2_AGENT_GROUPS_OK primary=%d socket=%d\n", primary, socket)
 	return e
 }

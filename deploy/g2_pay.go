@@ -713,3 +713,97 @@ func RunG2HostFlow(p G2PayParameters, db G2AccountDB, steps G2HostSteps) error {
 	}
 	return nil
 }
+
+// g2DeclaredPrimaryGID reads the agent's own primary GID from its sysusers
+// declaration decl (the output of G2AgentSysusers), with systemd-sysusers'
+// rule for the ID field of a "u" line: "UID" creates the account's own group
+// at the same number, "UID:GID" names that number. It refuses ErrPolicy unless
+// decl has exactly one "u <user> ..." line, its UID is uid and its GID part is
+// a canonical decimal (a group name cannot be resolved without the target
+// host's database, so it is never assumed).
+func g2DeclaredPrimaryGID(decl, user string, uid uint32) (uint32, error) {
+	var id string
+	n := 0
+	for _, line := range strings.Split(decl, "\n") {
+		if f := strings.Fields(line); len(f) >= 3 && f[0] == "u" && f[1] == user {
+			id, n = f[2], n+1
+		}
+	}
+	if n != 1 {
+		return 0, ErrPolicy
+	}
+	uidText, gidText, named := strings.Cut(id, ":")
+	if !named {
+		gidText = uidText
+	}
+	parse := func(s string) (uint32, bool) {
+		v, e := strconv.ParseUint(s, 10, 32)
+		return uint32(v), e == nil && strconv.FormatUint(v, 10) == s
+	}
+	if v, ok := parse(uidText); !ok || v != uid {
+		return 0, ErrPolicy
+	}
+	gid, ok := parse(gidText)
+	if !ok {
+		return 0, ErrPolicy
+	}
+	return gid, nil
+}
+
+// G2AgentSlotGIDs derives the two GIDs the agent's slot credentials carry
+// (R9, as adopted). The slot runs the payload with User= and Group= set to
+// the agent account, and systemd applies the account's group list through
+// initgroups, so the agent runs with exactly its own primary group and
+// swarma-wallet-peer (AgentSocketGID). The primary GID is derived from the
+// agent's own declaration, G2AgentSysusers(p), never from a fixed number.
+//
+// It refuses with ValidateG2PayParameters' error, and with ErrPolicy when the
+// derived primary GID is a G2ReservedID or equals AgentSocketGID, OperatorGID
+// or the service group's GID (ServiceUID): sysusers would then give the
+// account's own group another number, so no readback could be bound to the
+// declaration.
+func G2AgentSlotGIDs(p G2PayParameters) (primary, socket uint32, err error) {
+	if e := ValidateG2PayParameters(p); e != nil {
+		return 0, 0, e
+	}
+	decl, e := G2AgentSysusers(p)
+	if e != nil {
+		return 0, 0, e
+	}
+	primary, e = g2DeclaredPrimaryGID(decl, p.AgentUser, p.AgentUID)
+	if e != nil {
+		return 0, 0, e
+	}
+	if G2ReservedID(primary) || primary == p.AgentSocketGID || primary == p.OperatorGID || primary == p.ServiceUID {
+		return 0, 0, ErrPolicy
+	}
+	return primary, p.AgentSocketGID, nil
+}
+
+// CheckG2AgentGroups is the T18 credential readback rule. readback is the
+// GID list `id -G` prints for the running agent; it must be exactly the set
+// {primary, socket} of G2AgentSlotGIDs(p): both present and nothing else, so
+// OperatorGID (never one of the two) is refused like any other extra group.
+// Order does not matter, and a repeated GID is not an extra group. It
+// refuses with G2AgentSlotGIDs' error, otherwise ErrPolicy.
+func CheckG2AgentGroups(p G2PayParameters, readback []uint32) error {
+	primary, socket, e := G2AgentSlotGIDs(p)
+	if e != nil {
+		return e
+	}
+	hasPrimary, hasSocket := false, false
+	for _, g := range readback {
+		switch g {
+		case primary:
+			hasPrimary = true
+		case socket:
+			hasSocket = true
+		default:
+			return ErrPolicy // a third group, the operator group included
+		}
+	}
+	if !hasPrimary || !hasSocket {
+		return ErrPolicy
+	}
+	return nil
+}

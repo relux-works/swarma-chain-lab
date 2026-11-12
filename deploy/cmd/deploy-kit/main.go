@@ -22,7 +22,7 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: deploy-kit build|validate|check-coins|check-model-terms|render-install-anchor|g2-render|g2-host-flow|g2-custody-probe|g2-custody-verify [flags]")
+		return errors.New("usage: deploy-kit build|validate|check-coins|check-model-terms|render-install-anchor|g2-render|g2-host-flow|g2-agent-groups|g2-custody-probe|g2-custody-verify [flags]")
 	}
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	switch args[0] {
@@ -30,6 +30,8 @@ func run(args []string) error {
 		return g2Render(args[1:], os.Stdout)
 	case "g2-host-flow":
 		return g2HostFlow(args[1:], os.Stdout)
+	case "g2-agent-groups":
+		return g2AgentGroups(args[1:], os.Stdout)
 	case "g2-custody-probe":
 		return g2CustodyProbe(args[1:], os.Stdout)
 	case "g2-custody-verify":
