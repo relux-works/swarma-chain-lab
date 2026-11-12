@@ -170,12 +170,14 @@ func TestPX1oStatusLedgerPhases(t *testing.T) {
 	}
 }
 
-// Claim: over authenticated S2 wallet journals (S2's keyed seam, every
-// release signed by the receipt key over the frozen preimage), the status
-// grant numbers equal S2's FoldLedgerV2 (SpendUsed, DayUsage, UncertainSat)
-// and the independently written expectations, on day D and D+1, for all 12
-// phase cases including the five full/partial release cases. The unsigned
-// release records of the same cases are refused by
+// Claim: over authenticated S2 wallet journals (the public OpenJournalV2
+// under a header whose ReceiptKey is the executor key; every release signed
+// by that key over the A6 digest, which binds the journal Binding, grant_id,
+// nonce and the Seq Append assigns), the status grant numbers equal S2's
+// FoldLedgerV2 (SpendUsed, DayUsage, UncertainSat) and the independently
+// written expectations, on day D and D+1, for all 12 phase cases including
+// the five full/partial release cases. The unsigned and unbound release
+// records of the same cases are refused by
 // TestPX1oLedgerRefusesUnsignedRelease, the refusal neighbour.
 func TestPX1oStatusMatchesLedgerPhases(t *testing.T) {
 	for _, c := range px1oLedgerCases() {

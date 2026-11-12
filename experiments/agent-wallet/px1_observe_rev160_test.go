@@ -130,16 +130,19 @@ func TestRev160RealTrackerPendingBoundary(t *testing.T) {
 // Control: actual S2 keyed durable journals and S3 projections agree for
 // every phase case and both days. Signing fixture records does not change
 // either implementation or the independently specified expected balances.
+// Freeze amendment 1: the journal is the public OpenJournalV2 under a header
+// whose ReceiptKey is the executor key, and each release is signed over the
+// A6 digest for the Seq Append assigns (S2's v1 signing helper is gone).
 func TestRev160SignedStatusLedgerEquivalence(t *testing.T) {
 	for _, scenario := range px1oLedgerCases() {
 		t.Run(scenario.name, func(t *testing.T) {
 			fake := px1oJournal(JournalLayerWallet)
 			scenario.build(fake)
-			journal := px1jOpenWallet(t, px1jPrivateDir(t), JournalLimitsV2{SpendCapacity: 8})
+			journal := px1oOpenLedgerJournal(t, px1oLedgerKeyedHeader(t))
 			defer journal.Close()
 			for _, record := range fake.records {
 				if record.Reconcile != nil {
-					record.Reconcile = px1jSignReconcile(t, *record.Reconcile, px1jReceiptKeyN)
+					record = px1oSignNext(t, journal, record, px1oLedgerReceiptKeyN)
 				}
 				if _, err := journal.Append(record); err != nil {
 					t.Fatal("authenticated journal fixture", err)

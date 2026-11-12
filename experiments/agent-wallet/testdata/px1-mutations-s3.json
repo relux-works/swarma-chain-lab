@@ -515,8 +515,8 @@
  {
   "Name": "px1-s3-ledger-accepts-unsigned-release",
   "File": "px1_journal.go",
-  "Old": "\t\tif !px1jReconcileSigned(*c, s.receiptKey) {\n",
-  "New": "\t\tif false && !px1jReconcileSigned(*c, s.receiptKey) {\n",
+  "Old": "\tif e := px1jAuthorize(j.header, rec); e != nil {\n",
+  "New": "\tif e := px1jAuthorize(j.header, rec); false && e != nil {\n",
   "Selector": "TestPX1oLedgerRefusesUnsignedRelease",
   "Marker": "UNAUTHENTICATED_RELEASE_ACCEPTED",
   "Core": false
@@ -654,6 +654,78 @@
   "New": "`/run/swarma-wallet/status.sock` (freeze amendment 1, A8)",
   "Selector": "TestPX1oServiceDocDropIn",
   "Marker": "SERVICE_DOC_A8 OLD_STATUS_PATH",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-fixture-v1-preimage",
+  "File": "px1_observe_r3_test.go",
+  "Old": "\tdigest := sha256.Sum256(append([]byte(\"swarma-wallet-reconcile-v2\"), canonical(preimage)...))\n",
+  "New": "\t_ = preimage\n\tdigest := sha256.Sum256(append([]byte(\"swarma-wallet-reconcile-v1\"), canonical(c)...))\n",
+  "Selector": "TestPX1oStatusMatchesLedgerPhases",
+  "Marker": "RECONCILE_PREIMAGE",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-fixture-v1-preimage-unchecked",
+  "File": "px1_observe_r3_test.go",
+  "Old": "\tdigest := sha256.Sum256(append([]byte(\"swarma-wallet-reconcile-v2\"), canonical(preimage)...))\n\tif frozen, e := ReconcileDigestV2(h, rec); e != nil || !bytes.Equal(frozen, digest[:]) {\n",
+  "New": "\t_ = preimage\n\tdigest := sha256.Sum256(append([]byte(\"swarma-wallet-reconcile-v1\"), canonical(c)...))\n\tif frozen, e := ReconcileDigestV2(h, rec); false && (e != nil || !bytes.Equal(frozen, digest[:])) {\n",
+  "Selector": "TestPX1oStatusMatchesLedgerPhases",
+  "Marker": "FIXTURE_RELEASE_UNVERIFIED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-fixture-header-keyless",
+  "File": "px1_observe_r3_test.go",
+  "Old": "\th := px1oLedgerKeyedHeader(t)\n\tfake := px1oJournal(JournalLayerWallet)\n\tbuild(fake)\n",
+  "New": "\th := px1oLedgerHeader(\"\")\n\tfake := px1oJournal(JournalLayerWallet)\n\tbuild(fake)\n",
+  "Selector": "TestPX1oStatusMatchesLedgerPhases",
+  "Marker": "FIXTURE_RELEASE_UNVERIFIED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-unbound-digest-binding",
+  "File": "px1_journal_api.go",
+  "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "New": "\tp := ReconcilePreimageV2{GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "Selector": "TestPX1oLedgerRefusesUnsignedRelease/cross-binding",
+  "Marker": "UNBOUND_RELEASE_ACCEPTED cross-binding/",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-unbound-digest-grant",
+  "File": "px1_journal_api.go",
+  "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "New": "\tp := ReconcilePreimageV2{Binding: h.Binding, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "Selector": "TestPX1oLedgerRefusesUnsignedRelease/cross-grant",
+  "Marker": "UNBOUND_RELEASE_ACCEPTED cross-grant/",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-unbound-digest-nonce",
+  "File": "px1_journal_api.go",
+  "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "New": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "Selector": "TestPX1oLedgerRefusesUnsignedRelease/cross-nonce",
+  "Marker": "UNBOUND_RELEASE_ACCEPTED cross-nonce/",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-unbound-digest-seq",
+  "File": "px1_journal_api.go",
+  "Old": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Seq: rec.Seq, Reconcile: *rec.Reconcile}",
+  "New": "\tp := ReconcilePreimageV2{Binding: h.Binding, GrantID: rec.GrantID, Nonce: rec.Nonce, Reconcile: *rec.Reconcile}",
+  "Selector": "TestPX1oLedgerRefusesUnsignedRelease/cross-seq",
+  "Marker": "UNBOUND_RELEASE_ACCEPTED cross-seq/",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-foreign-keyless-fold",
+  "File": "px1_journal.go",
+  "Old": "\t\tif e := px1jAuthorize(h, r); e != nil {\n\t\t\treturn e\n",
+  "New": "\t\tif e := px1jAuthorize(h, r); e != nil && h.ReceiptKey != \"\" {\n\t\t\treturn e\n",
+  "Selector": "TestPX1oLedgerFoldsOnlySignedForeignRelease",
+  "Marker": "a keyless foreign journal folded a release",
   "Core": false
  }
 ]

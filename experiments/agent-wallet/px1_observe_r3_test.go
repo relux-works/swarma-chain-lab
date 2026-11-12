@@ -3,19 +3,22 @@ package wallet
 // Owner S3. Revision 3 regression tests: tracker observations are never
 // discarded while the wallet journal refuses their track records (retry
 // first, then backpressure instead of compaction), and the status-versus-
-// ledger equivalence runs over authenticated S2 journals while unsigned
-// releases stay refused.
+// ledger equivalence runs over authenticated S2 journals (the public
+// OpenJournalV2 under a keyed header, freeze amendment 1) while unsigned and
+// unbound releases stay refused.
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
@@ -236,58 +239,64 @@ func TestPX1oTrackBacklogBoundary(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Status equals the ledger over authenticated S2 journals.
+// Status equals the ledger over authenticated S2 journals (freeze amendment 1,
+// A5 and A6).
 //
-// The fixture uses S2's pre-amendment keyed seam: px1jOpenJournal with a
-// receipt key, and the v1 signing preimage
-// SHA256("swarma-wallet-reconcile-v1" || canonical(reconcile with
-// signature "")), computed here and checked equal to px1jReconcileDigest, and
-// each signature checked with px1jReconcileSigned before it is appended.
+// The fixture opens S2's wallet journal through the public OpenJournalV2 under
+// a header whose ReceiptKey is the frozen executor key px1ExecutorKey, and
+// signs each release just before its append, for the Seq that Append assigns
+// (Usage().LastSeq+1), over the A6 preimage assembled here independently of
+// the product:
 //
-// Migration when freeze amendment 1 lands (ReceiptKey in the header, the
-// v2 preimage):
-//  1. open the wallet journal with the public OpenJournalV2 and a header
-//     whose ReceiptKey is the fixture key (px1ExecutorKey), not with
-//     px1jOpenJournal and a separate key argument;
-//  2. sign ReconcileDigestV2(header, rec), that is SHA256(
-//     "swarma-wallet-reconcile-v2" || canonical(ReconcilePreimageV2{Binding,
-//     GrantID, Nonce, Seq, Reconcile with signature ""})), where Seq is the
-//     Seq Append will assign (Usage().LastSeq+1), and check it with
-//     VerifyReconcileV2 instead of px1jReconcileSigned;
-//  3. keep the expected values and the refusal control unchanged, and add
-//     refusals for a release signed under another Binding, another grant or
-//     nonce, and another Seq (all RECONCILE_AUTHORIZATION).
+//	SHA256("swarma-wallet-reconcile-v2" || canonical({binding, grant_id,
+//	nonce, seq, reconcile with signature ""}))
+//
+// The digest is checked equal to the frozen ReconcileDigestV2, and the signed
+// record is checked with the frozen VerifyReconcileV2 before it is appended.
+// No S2 private name is used.
 
 // px1oLedgerReceiptKeyN is the fixture receipt key: testKey(9), whose x-only
 // public key is the frozen executor key px1ExecutorKey.
 const px1oLedgerReceiptKeyN = 9
 
-func px1oLedgerReceiptKey(t *testing.T) *btcec.PublicKey {
-	t.Helper()
-	priv, xonly := testKey(px1oLedgerReceiptKeyN)
-	if xonly != px1ExecutorKey {
-		t.Fatal("fixture receipt key is not the executor key")
-	}
-	key, e := schnorr.ParsePubKey(schnorr.SerializePubKey(priv.PubKey()))
-	if e != nil {
-		t.Fatal(e)
-	}
-	return key
+// px1oLedgerBinding is the Binding of the fixture wallet journal.
+var px1oLedgerBinding = strings.Repeat("7", 64)
+
+// px1oLedgerHeader is the fixture wallet-layer header naming receiptKey as
+// the reconcile signer ("" names none, so every release refuses).
+func px1oLedgerHeader(receiptKey string) JournalHeaderV2 {
+	return JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: px1oLedgerBinding, ReceiptKey: receiptKey}
 }
 
-// px1oOpenLedgerJournal opens a fresh S2 wallet-layer journal. A nil key is
-// the frozen public OpenJournalV2, which has no receipt key.
-func px1oOpenLedgerJournal(t *testing.T, key *btcec.PublicKey) JournalV2 {
+// px1oLedgerKeyedHeader is the fixture header under the executor key. It
+// fails the test unless testKey(9) is that key.
+func px1oLedgerKeyedHeader(t *testing.T) JournalHeaderV2 {
 	t.Helper()
-	h := JournalHeaderV2{Version: 2, Layer: JournalLayerWallet, Binding: strings.Repeat("7", 64)}
-	l := JournalLimitsV2{SpendCapacity: 8}
-	var j JournalV2
-	var e error
-	if key == nil {
-		j, e = OpenJournalV2(px1jPrivateDir(t), "journal-v2.lock", h, l)
-	} else {
-		j, e = px1jOpenJournal(px1jPrivateDir(t), "journal-v2.lock", h, l, key)
+	if _, xonly := testKey(px1oLedgerReceiptKeyN); xonly != px1ExecutorKey {
+		t.Fatal("fixture receipt key is not the executor key")
 	}
+	return px1oLedgerHeader(px1ExecutorKey)
+}
+
+// px1oPrivateDir is a fresh 0700 state root: durable.Open requires 0700, and
+// t.TempDir follows the process umask.
+func px1oPrivateDir(t *testing.T) string {
+	t.Helper()
+	d := filepath.Join(t.TempDir(), "state")
+	if e := os.Mkdir(d, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.Chmod(d, 0700); e != nil {
+		t.Fatal(e)
+	}
+	return d
+}
+
+// px1oOpenLedgerJournal opens a fresh S2 wallet journal through the public
+// OpenJournalV2 under h.
+func px1oOpenLedgerJournal(t *testing.T, h JournalHeaderV2) JournalV2 {
+	t.Helper()
+	j, e := OpenJournalV2(px1oPrivateDir(t), "journal-v2.lock", h, JournalLimitsV2{SpendCapacity: 8})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -295,134 +304,255 @@ func px1oOpenLedgerJournal(t *testing.T, key *btcec.PublicKey) JournalV2 {
 	return j
 }
 
-// px1oSignRelease signs a reconcile payload with testKey(n) over the frozen
-// v1 preimage, computed here independently of S2's digest function.
-func px1oSignRelease(t *testing.T, c ReconcileRecordV2, n byte) *ReconcileRecordV2 {
+// px1oSignDigest signs digest with testKey(n) and returns the hex signature.
+func px1oSignDigest(t *testing.T, digest []byte, n byte) string {
 	t.Helper()
-	c.Signature = ""
-	digest := sha256.Sum256(append([]byte("swarma-wallet-reconcile-v1"), canonical(c)...))
-	if digest != px1jReconcileDigest(c) {
-		t.Fatal("RECONCILE_PREIMAGE: S2's digest is not the frozen preimage")
-	}
 	key, _ := testKey(n)
-	sig, e := schnorr.Sign(key, digest[:])
+	sig, e := schnorr.Sign(key, digest)
 	if e != nil {
 		t.Fatal(e)
 	}
-	c.Signature = hex.EncodeToString(sig.Serialize())
-	return &c
+	return hex.EncodeToString(sig.Serialize())
 }
 
-// px1oSignedLedgerJournal builds a phase case into an S2 keyed wallet journal:
-// every record of the case in order, each release signed by the receipt key.
+// px1oSignAt returns rec at position seq with its release signed by testKey(n)
+// for the journal headed by h, over the A6 preimage assembled here. It fails
+// the test (RECONCILE_PREIMAGE) unless that digest equals the frozen
+// ReconcileDigestV2.
+func px1oSignAt(t *testing.T, h JournalHeaderV2, rec JournalRecordV2, seq uint64, n byte) JournalRecordV2 {
+	t.Helper()
+	c := *rec.Reconcile
+	c.Signature = ""
+	rec.Seq, rec.Reconcile = seq, &c
+	preimage := struct {
+		Binding   string            `json:"binding"`
+		GrantID   string            `json:"grant_id"`
+		Nonce     string            `json:"nonce"`
+		Seq       uint64            `json:"seq"`
+		Reconcile ReconcileRecordV2 `json:"reconcile"`
+	}{h.Binding, rec.GrantID, rec.Nonce, seq, c}
+	digest := sha256.Sum256(append([]byte("swarma-wallet-reconcile-v2"), canonical(preimage)...))
+	if frozen, e := ReconcileDigestV2(h, rec); e != nil || !bytes.Equal(frozen, digest[:]) {
+		t.Fatalf("RECONCILE_PREIMAGE: the A6 preimage assembled in the test differs from ReconcileDigestV2 (%v)", e)
+	}
+	c.Signature = px1oSignDigest(t, digest[:], n)
+	return rec
+}
+
+// px1oSignNext signs rec for the Seq that j's next Append assigns, under j's
+// own header, as the operator tool does while it holds the journal lock.
+func px1oSignNext(t *testing.T, j JournalV2, rec JournalRecordV2, n byte) JournalRecordV2 {
+	t.Helper()
+	return px1oSignAt(t, j.Header(), rec, j.Usage().LastSeq+1, n)
+}
+
+// px1oGenuineSignature is a genuine receipt-key signature for the context
+// (h, rec at seq): testKey(n) over the frozen ReconcileDigestV2, the message
+// the operator tool signs. The refusal control moves it to another context.
+func px1oGenuineSignature(t *testing.T, h JournalHeaderV2, rec JournalRecordV2, seq uint64, n byte) string {
+	t.Helper()
+	rec.Seq = seq
+	digest, e := ReconcileDigestV2(h, rec)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return px1oSignDigest(t, digest, n)
+}
+
+// px1oWithSignature returns rec with a copy of its release carrying sig.
+func px1oWithSignature(rec JournalRecordV2, sig string) JournalRecordV2 {
+	c := *rec.Reconcile
+	c.Signature = sig
+	rec.Reconcile = &c
+	return rec
+}
+
+// px1oFirstRelease is the index of the first reconcile record, or -1.
+func px1oFirstRelease(j *px1oFakeJournal) int {
+	for i, rec := range j.records {
+		if rec.Kind == RecordReconcile {
+			return i
+		}
+	}
+	return -1
+}
+
+// px1oSignedLedgerJournal builds a phase case into an S2 wallet journal opened
+// through the public OpenJournalV2 under the keyed header: every record of
+// the case in order, each release signed for the Seq Append assigns and
+// verified with VerifyReconcileV2 before it is appended.
 func px1oSignedLedgerJournal(t *testing.T, build func(*px1oFakeJournal)) JournalV2 {
 	t.Helper()
-	key := px1oLedgerReceiptKey(t)
+	h := px1oLedgerKeyedHeader(t)
 	fake := px1oJournal(JournalLayerWallet)
 	build(fake)
-	j := px1oOpenLedgerJournal(t, key)
+	j := px1oOpenLedgerJournal(t, h)
 	for _, rec := range fake.records {
+		want := rec.Seq
 		if rec.Reconcile != nil {
-			rec.Reconcile = px1oSignRelease(t, *rec.Reconcile, px1oLedgerReceiptKeyN)
-			if !px1jReconcileSigned(*rec.Reconcile, key) {
-				t.Fatal("fixture release does not verify under the receipt key")
+			rec = px1oSignNext(t, j, rec, px1oLedgerReceiptKeyN)
+			if e := VerifyReconcileV2(j.Header(), rec); e != nil {
+				t.Fatalf("FIXTURE_RELEASE_UNVERIFIED seq %d: the fixture release does not verify under the header key: %v", rec.Seq, e)
 			}
 		}
 		out, e := j.Append(rec)
 		if e != nil {
-			t.Fatalf("authenticated fixture record %d (%s) refused: %v", rec.Seq, rec.Kind, e)
+			t.Fatalf("authenticated fixture record %d (%s) refused: %v", want, rec.Kind, e)
 		}
-		if out.Seq != rec.Seq {
-			t.Fatalf("fixture Seq %d stored as %d", rec.Seq, out.Seq)
+		if out.Seq != want {
+			t.Fatalf("fixture Seq %d stored as %d", want, out.Seq)
 		}
 	}
 	return j
 }
 
-// Claim: an unauthenticated release releases nothing. For each of the five
-// release cases: S2's ledger refuses the foreign fake journal carrying the
-// placeholder-signature release (JOURNAL_RECORD); a keyed S2 journal refuses
-// the placeholder signature, a signature by another key and a payload altered
-// after signing (RECONCILE_AUTHORIZATION), with no record written and the
-// ledger and status still at the full reservation; and the keyless public
-// journal refuses even a correctly signed release. Valid neighbours: the
-// foreign journals of the seven cases without a release fold, the keyless
-// journal accepts the records before the release, and the keyed journal then
-// accepts the correctly signed release and lowers the ledger by its amount.
-func TestPX1oLedgerRefusesUnsignedRelease(t *testing.T) {
-	key := px1oLedgerReceiptKey(t)
+// Claim: S2's ledger folds a foreign JournalV2 release only when it verifies
+// under that journal's own header key. For each of the five release cases: a
+// foreign fake under the keyed header refuses the placeholder signature
+// (RECONCILE_AUTHORIZATION), and a fake under ReceiptKey "" refuses even the
+// genuine signatures. Valid neighbours: the seven cases without a release
+// fold, and the keyed fake with genuine signatures folds to the case's
+// independently written expectation.
+func TestPX1oLedgerFoldsOnlySignedForeignRelease(t *testing.T) {
+	h := px1oLedgerKeyedHeader(t)
 	releases := 0
 	for _, c := range px1oLedgerCases() {
 		fake := px1oJournal(JournalLayerWallet)
+		fake.header = h
 		c.build(fake)
-		first := -1
-		for i, rec := range fake.records {
-			if rec.Kind == RecordReconcile && first < 0 {
-				first = i
-			}
-		}
 		_, foldErr := FoldLedgerV2(fake)
-		if first < 0 {
+		if px1oFirstRelease(fake) < 0 {
 			if foldErr != nil {
 				t.Errorf("%s: a foreign journal without a release was refused: %v", c.name, foldErr)
 			}
 			continue
 		}
 		releases++
-		if foldErr == nil || foldErr.Error() != "JOURNAL_RECORD" {
+		if foldErr == nil || foldErr.Error() != CodeReconcileAuthorization {
 			t.Errorf("UNAUTHENTICATED_RELEASE_ACCEPTED %s: foreign placeholder release folded (%v)", c.name, foldErr)
 		}
-		release := fake.records[first]
-		for _, v := range []struct {
-			name  string
-			keyed bool
-			sign  func(ReconcileRecordV2) *ReconcileRecordV2
-		}{
-			{"placeholder signature", true, func(r ReconcileRecordV2) *ReconcileRecordV2 { return &r }},
-			{"another key", true, func(r ReconcileRecordV2) *ReconcileRecordV2 { return px1oSignRelease(t, r, 8) }},
-			{"note altered after signing", true, func(r ReconcileRecordV2) *ReconcileRecordV2 {
-				s := px1oSignRelease(t, r, px1oLedgerReceiptKeyN)
-				s.NoteSHA256 = strings.Repeat("c", 64)
-				return s
-			}},
-			{"no receipt key", false, func(r ReconcileRecordV2) *ReconcileRecordV2 { return px1oSignRelease(t, r, px1oLedgerReceiptKeyN) }},
-		} {
-			var jkey *btcec.PublicKey
-			if v.keyed {
-				jkey = key
+		for i, rec := range fake.records {
+			if rec.Reconcile != nil {
+				fake.records[i] = px1oSignAt(t, h, rec, rec.Seq, px1oLedgerReceiptKeyN)
 			}
-			j := px1oOpenLedgerJournal(t, jkey)
-			for _, rec := range fake.records[:first] {
-				if _, e := j.Append(rec); e != nil {
-					t.Fatalf("%s/%s: record before the release refused: %v", c.name, v.name, e)
-				}
-			}
-			before := j.Usage().LastSeq
-			rec := release
-			rec.Reconcile = v.sign(*release.Reconcile)
-			if _, e := j.Append(rec); e == nil || e.Error() != "RECONCILE_AUTHORIZATION" {
-				t.Errorf("UNAUTHENTICATED_RELEASE_ACCEPTED %s/%s: append returned %v", c.name, v.name, e)
-			}
-			ledger, e := FoldLedgerV2(j)
-			if e != nil {
-				t.Fatalf("%s/%s: ledger after the refusal: %v", c.name, v.name, e)
-			}
-			if j.Usage().LastSeq != before || ledger.SpendUsed(px1oG) != release.Reserved || px1oLedgerStatus(t, j, px1oLedgerT0).ReservedSat != release.Reserved {
-				t.Errorf("UNAUTHENTICATED_RELEASE_ACCEPTED %s/%s: seq %d->%d, ledger %d, want the full %d retained", c.name, v.name, before, j.Usage().LastSeq, ledger.SpendUsed(px1oG), release.Reserved)
-			}
-			if !v.keyed {
-				continue
-			}
-			rec.Reconcile = px1oSignRelease(t, *release.Reconcile, px1oLedgerReceiptKeyN)
-			if _, e := j.Append(rec); e != nil {
-				t.Fatalf("%s/%s: the correctly signed release was refused: %v", c.name, v.name, e)
-			}
-			if ledger, e = FoldLedgerV2(j); e != nil || ledger.SpendUsed(px1oG) != release.Reserved-release.Reconcile.ReleasedSat {
-				t.Fatalf("%s/%s: the signed release did not lower the ledger: %v", c.name, v.name, e)
-			}
+		}
+		fake.header = px1oLedgerHeader("")
+		if _, e := FoldLedgerV2(fake); e == nil || e.Error() != CodeReconcileAuthorization {
+			t.Errorf("UNAUTHENTICATED_RELEASE_ACCEPTED %s: a keyless foreign journal folded a release (%v)", c.name, e)
+		}
+		fake.header = h
+		ledger, e := FoldLedgerV2(fake)
+		if e != nil {
+			t.Fatalf("%s: the keyed foreign journal with genuine releases was refused: %v", c.name, e)
+		}
+		used, count := ledger.DayUsage(px1oG, px1oStatusDay(px1oLedgerT0))
+		if got := (px1oLedgerWant{ledger.SpendUsed(px1oG), ledger.UncertainSat(px1oG), used, count}); got != c.want[0] {
+			t.Errorf("%s: the signed foreign journal folds to %+v, want %+v", c.name, got, c.want[0])
 		}
 	}
 	if releases != 5 {
 		t.Fatalf("expected five release cases, have %d", releases)
+	}
+}
+
+// Claim: an unauthenticated or unbound release releases nothing. For each of
+// the five release cases, S2's wallet journal (public OpenJournalV2) refuses
+// RECONCILE_AUTHORIZATION, with LastSeq unchanged and the ledger and status
+// still at the full reservation, for: the placeholder signature; a signature
+// by another key; a payload altered after signing; a header with ReceiptKey
+// "" (even for a genuine signature); and a genuine receipt-key signature over
+// ReconcileDigestV2 made for another Binding, another grant_id, another
+// nonce or another Seq. Valid neighbours: the records before the release
+// append under every header, and on the keyed journal the release signed for
+// this Binding, grant, nonce and the assigned Seq applies and lowers the
+// ledger by its amount. Each row is a subtest, so a plant can select one.
+func TestPX1oLedgerRefusesUnsignedRelease(t *testing.T) {
+	h := px1oLedgerKeyedHeader(t)
+	next := func(j JournalV2) uint64 { return j.Usage().LastSeq + 1 }
+	genuine := func(j JournalV2, rec JournalRecordV2) JournalRecordV2 {
+		return px1oWithSignature(rec, px1oGenuineSignature(t, j.Header(), rec, next(j), px1oLedgerReceiptKeyN))
+	}
+	otherBinding := h
+	otherBinding.Binding = strings.Repeat("8", 64)
+	rows := []struct {
+		name   string
+		marker string
+		header JournalHeaderV2
+		sign   func(j JournalV2, rec JournalRecordV2) JournalRecordV2
+	}{
+		{"placeholder-signature", "UNAUTHENTICATED_RELEASE_ACCEPTED", h, func(_ JournalV2, rec JournalRecordV2) JournalRecordV2 { return rec }},
+		{"another-key", "UNAUTHENTICATED_RELEASE_ACCEPTED", h, func(j JournalV2, rec JournalRecordV2) JournalRecordV2 {
+			return px1oWithSignature(rec, px1oGenuineSignature(t, j.Header(), rec, next(j), 8))
+		}},
+		{"note-altered-after-signing", "UNAUTHENTICATED_RELEASE_ACCEPTED", h, func(j JournalV2, rec JournalRecordV2) JournalRecordV2 {
+			s := genuine(j, rec)
+			s.Reconcile.NoteSHA256 = strings.Repeat("c", 64)
+			return s
+		}},
+		{"empty-receipt-key", "UNAUTHENTICATED_RELEASE_ACCEPTED", px1oLedgerHeader(""), genuine},
+		{"cross-binding", "UNBOUND_RELEASE_ACCEPTED", h, func(j JournalV2, rec JournalRecordV2) JournalRecordV2 {
+			return px1oWithSignature(rec, px1oGenuineSignature(t, otherBinding, rec, next(j), px1oLedgerReceiptKeyN))
+		}},
+		{"cross-grant", "UNBOUND_RELEASE_ACCEPTED", h, func(j JournalV2, rec JournalRecordV2) JournalRecordV2 {
+			moved := rec
+			moved.GrantID = strings.Repeat("f", 64)
+			return px1oWithSignature(rec, px1oGenuineSignature(t, j.Header(), moved, next(j), px1oLedgerReceiptKeyN))
+		}},
+		{"cross-nonce", "UNBOUND_RELEASE_ACCEPTED", h, func(j JournalV2, rec JournalRecordV2) JournalRecordV2 {
+			moved := rec
+			moved.Nonce = strings.Repeat("f", 64)
+			return px1oWithSignature(rec, px1oGenuineSignature(t, j.Header(), moved, next(j), px1oLedgerReceiptKeyN))
+		}},
+		{"cross-seq", "UNBOUND_RELEASE_ACCEPTED", h, func(j JournalV2, rec JournalRecordV2) JournalRecordV2 {
+			return px1oWithSignature(rec, px1oGenuineSignature(t, j.Header(), rec, next(j)+1, px1oLedgerReceiptKeyN))
+		}},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			releases := 0
+			for _, c := range px1oLedgerCases() {
+				fake := px1oJournal(JournalLayerWallet)
+				c.build(fake)
+				first := px1oFirstRelease(fake)
+				if first < 0 {
+					continue
+				}
+				releases++
+				j := px1oOpenLedgerJournal(t, row.header)
+				for _, rec := range fake.records[:first] {
+					if _, e := j.Append(rec); e != nil {
+						t.Fatalf("%s: record before the release refused: %v", c.name, e)
+					}
+				}
+				before := j.Usage().LastSeq
+				release := fake.records[first]
+				if _, e := j.Append(row.sign(j, release)); e == nil || e.Error() != CodeReconcileAuthorization {
+					t.Errorf("%s %s/%s: append returned %v, want %s", row.marker, row.name, c.name, e, CodeReconcileAuthorization)
+					if e == nil {
+						continue
+					}
+				}
+				ledger, e := FoldLedgerV2(j)
+				if e != nil {
+					t.Fatalf("%s: ledger after the refusal: %v", c.name, e)
+				}
+				if j.Usage().LastSeq != before || ledger.SpendUsed(px1oG) != release.Reserved || px1oLedgerStatus(t, j, px1oLedgerT0).ReservedSat != release.Reserved {
+					t.Errorf("%s %s/%s: seq %d->%d, ledger %d, want the full %d retained", row.marker, row.name, c.name, before, j.Usage().LastSeq, ledger.SpendUsed(px1oG), release.Reserved)
+				}
+				if row.header.ReceiptKey == "" {
+					continue
+				}
+				out, e := j.Append(px1oSignNext(t, j, release, px1oLedgerReceiptKeyN))
+				if e != nil || out.Seq != before+1 {
+					t.Fatalf("%s: the correctly bound release was refused or misplaced: %v (seq %d)", c.name, e, out.Seq)
+				}
+				if ledger, e = FoldLedgerV2(j); e != nil || ledger.SpendUsed(px1oG) != release.Reserved-release.Reconcile.ReleasedSat {
+					t.Fatalf("%s: the signed release did not lower the ledger: %v", c.name, e)
+				}
+			}
+			if releases != 5 {
+				t.Fatalf("expected five release cases, have %d", releases)
+			}
+		})
 	}
 }
