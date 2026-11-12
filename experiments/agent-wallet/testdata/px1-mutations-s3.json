@@ -808,5 +808,14 @@
   "Selector": "TestPX1TrackerMalformedTxID",
   "Marker": "malformed txid not refused",
   "Core": false
+ },
+ {
+  "Name": "px1-s3-uncertain-alert-not-at-verdict-core",
+  "File": "px1_runtime.go",
+  "Old": "\t_ = r.scanUncertain(env)\n",
+  "New": "\t_ = env\n",
+  "Selector": "TestPX1CoreS2Crash/broadcast-rejected-live",
+  "Marker": "T10_UNCERTAIN_ALERT broadcast-rejected-live: at the verdict",
+  "Core": true
  }
 ]
