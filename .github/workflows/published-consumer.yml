@@ -7,6 +7,12 @@ on:
       - '**/go.sum'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
+      - 'experiments/MODULE-GRAPH.md'
+      - 'experiments/module-graph-snapshot.json'
+      - 'deploy/**'
+      - 'experiments/station-lifecycle/**'
+      - '.scripts/check-module-graph.py'
+      - '.scripts/test_check_module_graph.py'
       - '.scripts/check-published-consumer.py'
       - '.github/workflows/published-consumer.yml'
   push:
@@ -17,6 +23,31 @@ permissions:
   contents: read
 
 jobs:
+  module-graph-inventory:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Every internal require edge is at or above the published snapshot
+        env:
+          GOTOOLCHAIN: local
+          GOWORK: 'off'
+          GOPROXY: 'off'
+        run: python3 -B .scripts/check-module-graph.py
+      - name: Standalone-require regression and mutant controls
+        env:
+          GOTOOLCHAIN: local
+          GOWORK: 'off'
+          GOPROXY: 'off'
+        run: python3 -B -m unittest discover -s .scripts -p 'test_check_module_graph.py' -v
+
   published-consumer:
     runs-on: ubuntu-22.04
     timeout-minutes: 15
@@ -43,9 +74,9 @@ jobs:
           path: |
             ${{ runner.temp }}/published-consumer-*/*.log
             ${{ runner.temp }}/published-consumer-*/*.json
-            ${{ runner.temp }}/published-consumer-*/baseline/go.mod
-            ${{ runner.temp }}/published-consumer-*/baseline/go.sum
-            ${{ runner.temp }}/published-consumer-*/baseline/main.go
-            ${{ runner.temp }}/published-consumer-*/candidate/go.mod
-            ${{ runner.temp }}/published-consumer-*/candidate/go.sum
-            ${{ runner.temp }}/published-consumer-*/candidate/main.go
+            ${{ runner.temp }}/published-consumer-*/*-baseline/go.mod
+            ${{ runner.temp }}/published-consumer-*/*-baseline/go.sum
+            ${{ runner.temp }}/published-consumer-*/*-baseline/main.go
+            ${{ runner.temp }}/published-consumer-*/*-candidate/go.mod
+            ${{ runner.temp }}/published-consumer-*/*-candidate/go.sum
+            ${{ runner.temp }}/published-consumer-*/*-candidate/main.go

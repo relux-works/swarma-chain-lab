@@ -347,13 +347,29 @@ Published, immutable dependency checksums may be recorded in module sums; this
 does not permit recording speculative same-commit mirror checksums described above.
 See [the module graph audit](experiments/MODULE-GRAPH.md) for scope and limits.
 
-The `Published consumer graph` CI job runs
+The `Published consumer graph` workflow has two jobs. `module-graph-inventory`
+runs `python3 .scripts/check-module-graph.py`: it parses every `go.mod` with
+`go mod edit -json`, so standalone, block and indirect requires count alike, and
+exits 1 when any internal require edge is older than its floor in
+`experiments/module-graph-snapshot.json`, or when the generated inventory in
+`experiments/MODULE-GRAPH.md` drifts (refresh it with `--write-doc`). Its tests,
+`python3 -m unittest discover -s .scripts -p 'test_check_module_graph.py' -v`,
+hold the standalone-require regression and the narrowing mutant controls; both
+need only `go` on `PATH` and write nothing outside a temporary directory.
+
+`published-consumer` runs
 `python3 .scripts/check-published-consumer.py --candidate FULL_COMMIT_SHA --scratch-parent ABSOLUTE_EXTERNAL_SCRATCH`
 against actual proxy-published module versions. The parent must exist outside this
-checkout. It creates private HOME/cache/temp and two external consumer modules
-without replacements, populates verified dependencies online, then runs offline
-`go vet` and `go build`. The fixed historical `288d63e` consumer must fail with
-the missing `sealwatch.ValidateJSON` witness; the candidate must pass. Logs,
+checkout. It creates private HOME/cache/temp and, for each entry point (the
+`single-use` configguard/payloadbootstrap/modelprofile APIs, the `deploy`
+package and the `station-lifecycle/cmd/station-manager` command), a separate
+external consumer module without replacements. It downloads the declared graph
+online with checksum verification, then resolves imports, vets and builds offline,
+so a missing package cannot be papered over by an online `@latest` lookup. The
+fixed historical consumers must fail with their specific witness: `288d63e` with
+the missing `sealwatch.ValidateJSON`, and `b516cc2` (standalone `single-use v0.1.0`
+requires) with `cannot find module providing package .../single-use/configguard`
+for both `deploy` and `station-manager`. The candidate must pass every case. Logs,
 commands/PIDs/exits, manifests and consumer inputs stay in the printed scratch
 directory; CI uploads those small files without caches. This proves public graph
 compilation, not slotd runtime behavior or production installation.
