@@ -235,11 +235,13 @@ Tick failures are logged as `PX1_TICK <bounded code>`.
   genuine Namecoin Core 28 regtest node and covers T11 (confirmation at k=2,
   `invalidateblock`, a conflicting spend mined from the admin route), T13 and
   T14 at the observer level. The journals are fakes there.
-- **Pending S1/S2:**
-  - the service-level spend refusal `FLOAT_CANARY_SPENT`: S3 provides the
-    admission seam `px1oHalted` (tested in `TestPX1oHalted`), which S2 calls;
-  - `agent-walletd` startup refusing `STATE_RECONCILE_REQUIRED` with real
-    journals.
+- **Service level, integrated:** the runtime is bound to the service's `px1`
+  field and S2 asks `px1oHalted` before admission. On genuine Core,
+  `TestPX1CoreServiceG2FailClosed` shows a spend refused
+  `SERVICE_STATE_UNAVAILABLE` before the first pass and `FLOAT_CANARY_SPENT`
+  after an out-of-band canary spend, at journal_seq 0 (T14 on the wire).
+- **Pending:** `agent-walletd` startup refusing `STATE_RECONCILE_REQUIRED`
+  with real journals.
 
 Run the Core layer:
 

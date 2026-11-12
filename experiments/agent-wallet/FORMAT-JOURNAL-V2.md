@@ -233,15 +233,18 @@ second layer.
 
 ## G2 service flow (steps 5-23 at the service layer)
 
-1. Refuse `SERVICE_STATE_UNAVAILABLE` if the service or its journal is
-   poisoned.
-2. Send reads to the limiter path. For a spend, ask S3's admission halt
-   seam (`px1oHalted` on `*ActionService`, probed as an optional method so
-   that any landing order compiles). A non-empty answer refuses before
-   admission, with nothing journaled. `FLOAT_CANARY_SPENT` (T14),
-   `STATE_RECONCILE_REQUIRED`, `SERVICE_STATE_UNAVAILABLE` and
+1. For a spend, ask S3's admission halt seam first (`px1oHalted` on
+   `*ActionService`, probed as an optional method so that any landing order
+   compiles; bound to the service's own `px1` runtime). A non-empty answer
+   refuses before admission, with nothing journaled. `FLOAT_CANARY_SPENT`
+   (T14), `STATE_RECONCILE_REQUIRED`, `SERVICE_STATE_UNAVAILABLE` (before the
+   first successful observation pass, or while the canary reads unknown) and
    `PX1_NOT_IMPLEMENTED` pass through; any other answer refuses
-   `SERVICE_STATE_UNAVAILABLE`. Without S3 nothing halts here.
+   `SERVICE_STATE_UNAVAILABLE`. The halt comes before the poison flag because
+   S3's pass also poisons the service on a spent canary; asked second, the
+   wire would say `SERVICE_STATE_UNAVAILABLE` instead of the cause.
+2. Refuse `SERVICE_STATE_UNAVAILABLE` if the service or its journal is
+   poisoned. Then send reads to the limiter path (reads are never halted).
 3. Look up the nonce in the service journal:
    - other bytes: `NONCE_CONFLICT`;
    - `terminal`: return the stored receipt bytes;
@@ -284,5 +287,6 @@ It also re-checks the PX1 decisions it depends on: terms v2 only,
 `allow_single_use` false, a positive read rate and capacity
 (`SERVICE_CONFIG`).
 
-The profile is not selected from `ServiceConfig` yet. The `g2` member belongs
-to S1, so `px1jProfileOf` returns nil until integration step 3.
+The profile is selected from `ServiceConfig` (integration step 3):
+`px1jProfileOf` returns S1's `g2` member, after S1's `px1OpenServiceWallet`
+attached the wallet layer. Without `g2` the service stays W2.
