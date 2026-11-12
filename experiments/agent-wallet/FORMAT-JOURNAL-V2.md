@@ -23,7 +23,12 @@ record.
 A segment is the compact canonical JSON of `JournalSegmentV2`:
 `{header, index, prev_sha256, first_seq, records}`.
 
-- `header` must equal the opener's header (`version` 2, `layer`, `binding`).
+- `header` must equal the opener's header in every member (`version` 2,
+  `layer`, `binding`, `receipt_key`), so the reconcile signer is pinned on
+  disk. The opener's `receipt_key` must be `""` or a valid x-only key (64
+  lowercase hex digits that parse as a BIP-340 public key); anything else
+  refuses `JOURNAL_SEGMENT` before the directory is touched. The wallet
+  layer names the executor receipt key; the service layer names `""`.
 - `index` is 1-based and contiguous.
 - `prev_sha256` is the SHA-256 of the exact bytes of the previous (sealed)
   segment, or 64 zeros for index 1.
@@ -36,21 +41,25 @@ A segment is the compact canonical JSON of `JournalSegmentV2`:
   and nothing is written.
 
 Open re-verifies the whole chain and replays every record through the same
-checks as `Append`. Any failure (strict JSON, non-canonical bytes, header,
-index, chain, `first_seq`, `seq` contiguity, the record table, a missing or
-stray `journal-v2-*` file) refuses `JOURNAL_SEGMENT`.
+checks as `Append`, including `VerifyReconcileV2` for every stored
+`reconcile`. Any failure (strict JSON, non-canonical bytes, header, index,
+chain, `first_seq`, `seq` contiguity, a reconcile signature, the record table,
+a missing or stray `journal-v2-*` file) refuses `JOURNAL_SEGMENT`.
 
 ## Records
 
-`Append` assigns `seq` (previous + 1, from 1) and rejects, in this order:
+`Append` assigns `seq` (previous + 1, from 1; the caller's `seq` is ignored)
+and rejects, in this order:
 
 1. a closed journal (`STATE_UNAVAILABLE`) or a poisoned one (`JOURNAL_WRITE_UNCERTAIN`);
-2. `last_time` below the previous record's `last_time` (`CLOCK_ROLLBACK`);
-3. any violation of the table below (`JOURNAL_RECORD`), and for a
-   `reconcile`: its evidence rules (`RECONCILE_EVIDENCE`), its signature
-   (`RECONCILE_AUTHORIZATION`), then the interval (`RECONCILE_RATE_LIMITED`);
-4. an `admit` when `admitted == SpendCapacity` (`SERVICE_JOURNAL_LIMIT`);
-5. a record too large for an empty segment (`JOURNAL_RECORD_SIZE`).
+2. for a `reconcile`: `VerifyReconcileV2(header, record)` with the assigned
+   `seq` (`RECONCILE_AUTHORIZATION`); see "Release authorization";
+3. `last_time` below the previous record's `last_time` (`CLOCK_ROLLBACK`);
+4. any violation of the table below (`JOURNAL_RECORD`), and for a
+   `reconcile`: its evidence rules (`RECONCILE_EVIDENCE`), then the interval
+   (`RECONCILE_RATE_LIMITED`);
+5. an `admit` when `admitted == SpendCapacity` (`SERVICE_JOURNAL_LIMIT`);
+6. a record too large for an empty segment (`JOURNAL_RECORD_SIZE`).
 
 A failed durable write poisons the journal. That append and every later one
 refuse `JOURNAL_WRITE_UNCERTAIN`, and `FoldLedgerV2` refuses a poisoned
@@ -115,50 +124,51 @@ The request key is the action nonce (32 hex) in the service layer, and
   - `target_seq` is the `seq` of the request's `reserve` record.
   - `released_sat` is between 1 and the debit still retained; several
     partial releases may follow each other.
-  - `note_sha256` is 64 hex and `signature` is 128 hex (`JOURNAL_RECORD`).
+  - `note_sha256` is 64 hex (`JOURNAL_RECORD`). The `signature` is checked
+    by `VerifyReconcileV2` before this table (`RECONCILE_AUTHORIZATION`).
   - Evidence (`RECONCILE_EVIDENCE`): `evidence` is `absent` (empty
     `conflict_txid`) or `conflict` (a 64-hex `conflict_txid` that is not the
     payment's own `txid`).
   - Authorization (`RECONCILE_AUTHORIZATION`): see below.
-  - An authorization whose signed digest was already applied in this journal
-    refuses `JOURNAL_RECORD` (no replay).
+  - No replay: the signed preimage contains the record's `seq`, so the bytes
+    of an applied authorization verify at no other position, and appending
+    them again refuses `RECONCILE_AUTHORIZATION`.
   - `last_time` is at least `ReconcileMinIntervalSeconds` after the previous
     reconcile record (`RECONCILE_RATE_LIMITED`).
 
-### Release authorization (Q8)
+### Release authorization (Q8, freeze amendment 1)
 
-S2 verifies every `reconcile` record. The check is a BIP-340 signature by
-the receipt key over
-`SHA256("swarma-wallet-reconcile-v1" || canonical(reconcile with signature ""))`.
-It runs at `Append`, again at open (every stored record is re-checked while
-loading, so a replaced signature refuses `JOURNAL_SEGMENT`), and again in
-`FoldLedgerV2`. A shape-valid signature is not authentication.
+The signer is the receipt key named in the journal header
+(`JournalHeaderV2.ReceiptKey`, A5). A `reconcile` record is accepted only when
+the frozen `VerifyReconcileV2(header, record)` passes: a BIP-340 signature by
+that key over `ReconcileDigestV2`, which is
+`SHA256("swarma-wallet-reconcile-v2" || canonical({binding, grant_id, nonce, seq, reconcile with signature ""}))`
+(A6). The signature therefore binds the journal binding, the request
+(`grant_id`, `nonce`), the position (`seq`) and the whole payload. A
+signature over the superseded v1 preimage, by another key, for another
+journal, grant, nonce or `seq`, or under a header whose `receipt_key` is `""`
+refuses.
 
-The verifying key lives in the journal engine. The frozen `OpenJournalV2`
-signature cannot carry it, so a journal opened through `OpenJournalV2` has
-no receipt key. Such a journal:
+Verification runs at three sites, each with its own call:
 
-- refuses every `reconcile` append (`RECONCILE_AUTHORIZATION`);
-- refuses to open when a `reconcile` is stored (`JOURNAL_SEGMENT`).
+- `Append`, after `seq` is assigned and before the record is written. The
+  operator CLI signs for `Usage().LastSeq+1` while it holds the journal lock;
+  if another record took that `seq` first, the release refuses and must be
+  re-signed.
+- Open (replay): every stored `reconcile` is verified under the opener's
+  header while loading. A replaced or lifted signature refuses
+  `JOURNAL_SEGMENT`.
+- `FoldLedgerV2`, under `j.Header().ReceiptKey`, for any `JournalV2`
+  implementation. A release that does not verify refuses
+  `RECONCILE_AUTHORIZATION` and nothing is folded; after it, the journal's
+  own table still applies (`JOURNAL_RECORD`).
 
-`FoldLedgerV2` folds a release only from this package's journal under its
-key. A release served by any other `JournalV2` implementation refuses
-`JOURNAL_RECORD`.
+A shape-valid signature is not authentication, and a verified signature is
+not sufficient: the amount, target and evidence rules above still apply.
 
-The unexported opener `px1jOpenJournal` takes the key, and the tests use it.
-The product wiring waits for a freeze amendment that adds the receipt key to
-`JournalHeaderV2` (S2 request, PR #78 r2). Until it lands, no debit can be
-released (fail closed).
-
-Two checks stay outside the journal:
-
-- Whether the cited chain evidence is true (the tip `height`/`block_hash`,
-  absence, the conflicting spender) needs a node. That is the operator tool's
-  job.
-- The frozen preimage binds `target_seq` but not the journal binding or the
-  request. A release signed for one journal therefore verifies at the same
-  `target_seq` of another journal under the same receipt key. The amendment
-  proposes binding them.
+One check stays outside the journal: whether the cited chain evidence is
+true (the tip `height`/`block_hash`, absence, the conflicting spender) needs
+a node. That is the operator tool's job.
 
 ## Capacity
 
@@ -178,8 +188,9 @@ Two checks stay outside the journal:
 
 ## Ledger fold and day buckets (Q4, signer-service rule)
 
-`FoldLedgerV2` re-checks the table while folding, so a foreign `JournalV2`
-cannot inject an unbacked release. For every `reserve` record of a grant:
+`FoldLedgerV2` verifies every release under `j.Header().ReceiptKey` and
+re-checks the table while folding, so a foreign `JournalV2` cannot inject an
+unbacked release. For every `reserve` record of a grant:
 
 - **Retained debit** = `reserved_sat` minus the sum of reconcile
   `released_sat`. `SpendUsed` sums it over all records, released or not.
