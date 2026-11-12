@@ -344,8 +344,8 @@
  {
   "Name": "px1-s3-track-queue-dropped",
   "File": "px1_runtime.go",
-  "Old": "\t\tr.tracks = px1oQueueTracks(r.tracks, transitions)\n",
-  "New": "\t\tr.tracks = px1oQueueTracks(nil, transitions)\n",
+  "Old": "\tif len(r.tracks) > 0 {\n\t\twrite()\n\t}\n",
+  "New": "\tr.tracks = nil\n",
   "Selector": "TestPX1oTrackAppendPartialRetry",
   "Marker": "TRACK_RETRY_LOST",
   "Core": false
@@ -353,9 +353,9 @@
  {
   "Name": "px1-s3-track-queue-unbounded",
   "File": "px1_runtime.go",
-  "Old": "\tif len(out) <= px1oMaxTracked {\n",
-  "New": "\tif true || len(out) <= px1oMaxTracked {\n",
-  "Selector": "TestPX1oQueueTracksBound",
+  "Old": "\tif len(r.tracks) == 0 {\n\t\tr.backlog = false\n",
+  "New": "\tif true {\n\t\tr.backlog = false\n",
+  "Selector": "TestPX1oTrackBacklogBoundary",
   "Marker": "TRACK_QUEUE_UNBOUNDED",
   "Core": false
  },
@@ -447,6 +447,78 @@
   "New": "\t\tif false && released[reserve.Seq] >= reserve.Reserved {\n",
   "Selector": "TestPX1oTrackSkipsReleased",
   "Marker": "TRACK_AFTER_RELEASE",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-compact-at-bound",
+  "File": "px1_runtime.go",
+  "Old": "\tif len(r.tracks) == 0 {\n\t\tr.backlog = false\n\t\ttransitions, e := r.tracker.Tick(ctx)\n\t\tkeep(e)\n\t\tif e == nil && len(transitions) > 0 {\n\t\t\tfor _, t := range transitions {\n\t\t\t\tif t.Record.State == TrackConflicted {\n\t\t\t\t\tr.raise(AlertPaymentConflicted, now, t.Payment.TxID)\n\t\t\t\t}\n\t\t\t}\n\t\t\tr.tracks = append(r.tracks, transitions...)\n",
+  "New": "\tif true {\n\t\tr.backlog = false\n\t\ttransitions, e := r.tracker.Tick(ctx)\n\t\tkeep(e)\n\t\tif e == nil && len(transitions) > 0 {\n\t\t\tfor _, t := range transitions {\n\t\t\t\tif t.Record.State == TrackConflicted {\n\t\t\t\t\tr.raise(AlertPaymentConflicted, now, t.Payment.TxID)\n\t\t\t\t}\n\t\t\t}\n\t\t\tr.tracks = append(r.tracks, transitions...)\n\t\t\tif len(r.tracks) > px1oMaxTracked {\n\t\t\t\tlast := map[uint64]int{}\n\t\t\t\tfor i, t := range r.tracks {\n\t\t\t\t\tlast[t.Payment.ReserveSeq] = i\n\t\t\t\t}\n\t\t\t\tkept := []TrackTransition{}\n\t\t\t\tfor i, t := range r.tracks {\n\t\t\t\t\tif last[t.Payment.ReserveSeq] == i {\n\t\t\t\t\t\tkept = append(kept, t)\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tr.tracks = kept\n\t\t\t}\n",
+  "Selector": "TestPX1oTrackBacklogBoundary",
+  "Marker": "TRACK_OBSERVATION_DROPPED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-poll-while-backlogged",
+  "File": "px1_runtime.go",
+  "Old": "\tif len(r.tracks) == 0 {\n\t\tr.backlog = false\n",
+  "New": "\tif true {\n\t\tr.backlog = false\n",
+  "Selector": "TestPX1oTrackBacklogBackpressure",
+  "Marker": "TRACK_POLLED_WHILE_BACKLOGGED",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-refusal-drops-head",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif _, e := env.wallet.Append(rec); e != nil {\n\t\t\treturn e\n",
+  "New": "\t\tif _, e := env.wallet.Append(rec); e != nil {\n\t\t\tif len(r.tracks) > 1 {\n\t\t\t\tr.tracks = r.tracks[1:]\n\t\t\t}\n\t\t\treturn e\n",
+  "Selector": "TestRev160RetryHeadAtomic",
+  "Marker": "REFUSAL_LOST_QUEUED_HEAD",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-backlog-silent",
+  "File": "px1_runtime.go",
+  "Old": "\t\tr.raise(code, now, px1oTrackBacklog)\n",
+  "New": "",
+  "Selector": "TestPX1oTrackBacklogBackpressure",
+  "Marker": "TRACK_BACKLOG_ALERT",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-backlog-alert-every-pass",
+  "File": "px1_runtime.go",
+  "Old": "\tif len(r.tracks) > 0 && !r.backlog {\n",
+  "New": "\tif len(r.tracks) > 0 {\n",
+  "Selector": "TestPX1oTrackBacklogBackpressure",
+  "Marker": "TRACK_BACKLOG_ALERT",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-track-backlog-cause-ignored",
+  "File": "px1_runtime.go",
+  "Old": "\t\tif stalled != nil && stalled.Error() == CodeClockRollback {\n",
+  "New": "\t\tif false {\n",
+  "Selector": "TestPX1oTrackBacklogBackpressure",
+  "Marker": "TRACK_BACKLOG_ALERT",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-status-ignores-release",
+  "File": "px1_observe.go",
+  "Old": "\t\t\tq.released += r.Reconcile.ReleasedSat\n",
+  "New": "",
+  "Selector": "TestPX1oStatusMatchesLedgerPhases",
+  "Marker": "STATUS_NOT_LEDGER complete+full-release",
+  "Core": false
+ },
+ {
+  "Name": "px1-s3-ledger-accepts-unsigned-release",
+  "File": "px1_journal.go",
+  "Old": "\t\tif !px1jReconcileSigned(*c, s.receiptKey) {\n",
+  "New": "\t\tif false && !px1jReconcileSigned(*c, s.receiptKey) {\n",
+  "Selector": "TestPX1oLedgerRefusesUnsignedRelease",
+  "Marker": "UNAUTHENTICATED_RELEASE_ACCEPTED",
   "Core": false
  }
 ]

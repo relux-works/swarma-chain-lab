@@ -32,17 +32,26 @@ and then one pass every `-tick-seconds` (default 30). A pass takes
 5. **Tracker.** Each state change becomes a wallet-layer `track` record. A
    change to `conflicted` also raises `ALERT_PAYMENT_CONFLICTED`, once, when
    it is observed. The tracker has moved on when it reports a change, so the
-   runtime keeps each change in a queue until its `track` record is durable.
-   An `Append` refusal (for example `CLOCK_ROLLBACK`) fails the pass and keeps
-   that change and every later one queued. The next pass writes them first, in
-   order, each exactly once. After a restart the tracker reloads from the
-   durable journal, so an unwritten change is observed again and written then.
-   The queue holds at most 65536 changes; past that it keeps only the newest
-   change of each payment. A change whose `reserve` record is missing can never
-   be written: it is dropped and the pass fails `JOURNAL_SEGMENT`. A change of
-   a request whose whole debit was released is dropped without a record: the
-   request is closed, and the journal table accepts no `track` after a full
-   release. Its conflict alert is still raised.
+   runtime keeps each change in a queue until its `track` record is durable,
+   and never discards one. Each pass first writes the queued changes, in
+   order, each exactly once; only when all of them are durable does it poll
+   the tracker and write the new changes. An `Append` refusal (for example
+   `CLOCK_ROLLBACK`) fails the pass and keeps that change and every later one
+   queued, and the tracker is not polled again until the queue drains
+   (backpressure). The queue therefore never holds more than one poll's
+   changes, at most one per tracked payment (65536). While it cannot drain,
+   one alert per episode names the cause, with detail `TRACK_BACKLOG`:
+   `ALERT_CLOCK_ROLLBACK` for a clock refusal, `ALERT_JOURNAL_HIGH_WATER` for
+   any other refusal (the wallet journal takes no records). During the
+   episode no payment is observed, so no conflict alert can be raised; the
+   tracker compares with its last returned state when polling resumes. After
+   a restart the tracker reloads from the durable journal, so an unwritten
+   change is observed again and written then. A change whose `reserve` record
+   is missing can never be written: it is dropped and the pass fails
+   `JOURNAL_SEGMENT`. A change of a request whose whole debit was released is
+   dropped without a record: the request is closed, and the journal table
+   accepts no `track` after a full release. Its conflict alert is still
+   raised.
 6. **Uncertain records.** Each new wallet-layer `uncertain` record (detail: its
    txid) and each new service-layer `terminal` record whose receipt verdict is
    `uncertain` (detail: the receipt's reason code) raises

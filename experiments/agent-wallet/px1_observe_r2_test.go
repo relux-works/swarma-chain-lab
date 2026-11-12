@@ -132,7 +132,7 @@ func px1oLedgerCases() []struct {
 	}
 }
 
-func px1oLedgerStatus(t *testing.T, w *px1oFakeJournal, now int64) StatusGrant {
+func px1oLedgerStatus(t *testing.T, w JournalV2, now int64) StatusGrant {
 	t.Helper()
 	s := px1oJournal(JournalLayerService)
 	s.usage = JournalUsageV2{SpendCapacity: 2048, Segments: 1}
@@ -171,29 +171,32 @@ func TestPX1oStatusLedgerPhases(t *testing.T) {
 	}
 }
 
-// Claim: over the same journals, the status grant numbers equal S2's
-// FoldLedgerV2 (SpendUsed, DayUsage, UncertainSat) on day D and D+1 for every
-// phase case. Pending S2: skipped while FoldLedgerV2 is the stub; it runs in
-// a composition with S2's journal.
+// Claim: over authenticated S2 wallet journals (S2's keyed seam, every
+// release signed by the receipt key over the frozen preimage), the status
+// grant numbers equal S2's FoldLedgerV2 (SpendUsed, DayUsage, UncertainSat)
+// and the independently written expectations, on day D and D+1, for all 12
+// phase cases including the five full/partial release cases. The unsigned
+// release records of the same cases are refused by
+// TestPX1oLedgerRefusesUnsignedRelease, the refusal neighbour.
 func TestPX1oStatusMatchesLedgerPhases(t *testing.T) {
-	if _, e := FoldLedgerV2(px1oJournal(JournalLayerWallet)); errors.Is(e, ErrNotImplemented) {
-		t.Skip("pending S2: FoldLedgerV2 is a stub")
-	}
 	for _, c := range px1oLedgerCases() {
-		w := px1oJournal(JournalLayerWallet)
-		c.build(w)
-		ledger, e := FoldLedgerV2(w)
-		if e != nil {
-			t.Errorf("%s: ledger refused the journal: %v", c.name, e)
-			continue
-		}
-		for i, now := range []int64{px1oLedgerT0, px1oLedgerT0 + 86400} {
-			g := px1oLedgerStatus(t, w, now)
-			used, count := ledger.DayUsage(px1oG, g.Day)
-			if ledger.SpendUsed(px1oG) != g.ReservedSat || used != g.DayUsedSat || count != g.DayCount || ledger.UncertainSat(px1oG) != g.UncertainSat {
-				t.Errorf("STATUS_NOT_LEDGER %s day+%d: status %d/%d/%d/%d ledger %d/%d/%d/%d", c.name, i, g.ReservedSat, g.UncertainSat, g.DayUsedSat, g.DayCount, ledger.SpendUsed(px1oG), ledger.UncertainSat(px1oG), used, count)
+		t.Run(c.name, func(t *testing.T) {
+			w := px1oSignedLedgerJournal(t, c.build)
+			ledger, e := FoldLedgerV2(w)
+			if e != nil {
+				t.Fatalf("STATUS_NOT_LEDGER %s: ledger refused the authenticated journal: %v", c.name, e)
 			}
-		}
+			for i, now := range []int64{px1oLedgerT0, px1oLedgerT0 + 86400} {
+				g := px1oLedgerStatus(t, w, now)
+				used, count := ledger.DayUsage(px1oG, g.Day)
+				if got := (px1oLedgerWant{g.ReservedSat, g.UncertainSat, g.DayUsedSat, g.DayCount}); got != c.want[i] {
+					t.Errorf("STATUS_LEDGER_PHASE %s day+%d: authenticated status %+v want %+v", c.name, i, got, c.want[i])
+				}
+				if ledger.SpendUsed(px1oG) != g.ReservedSat || used != g.DayUsedSat || count != g.DayCount || ledger.UncertainSat(px1oG) != g.UncertainSat {
+					t.Errorf("STATUS_NOT_LEDGER %s day+%d: status %d/%d/%d/%d ledger %d/%d/%d/%d", c.name, i, g.ReservedSat, g.UncertainSat, g.DayUsedSat, g.DayCount, ledger.SpendUsed(px1oG), ledger.UncertainSat(px1oG), used, count)
+				}
+			}
+		})
 	}
 }
 
@@ -216,8 +219,9 @@ func px1oRefuseNth(j *px1oFakeJournal, n int, code string) {
 // CLOCK_ROLLBACK, the first record is written once, the refused one is
 // retried on the next pass (although the tracker reports nothing new) and
 // written exactly once, in order; the conflict alert is raised once, on
-// observation, not again on the retry. Valid neighbour: TestPX1RuntimeTrackRecords
-// (no refusal: every record written in its own pass).
+// observation, not again on the retry, and the refusal raises one backlog
+// alert (ALERT_CLOCK_ROLLBACK, detail TRACK_BACKLOG). Valid neighbour:
+// TestPX1RuntimeTrackRecords (no refusal: every record written in its own pass).
 func TestPX1oTrackAppendPartialRetry(t *testing.T) {
 	l := px1oNewRuntimeLab(t)
 	w := l.env.wallet.(*px1oFakeJournal)
@@ -249,8 +253,8 @@ func TestPX1oTrackAppendPartialRetry(t *testing.T) {
 	if len(w.records) != 6 || w.records[5].Kind != RecordTrack || w.records[5].TxID != px1oTx2 || w.records[5].Track.State != TrackConflicted || len(l.r.tracks) != 0 {
 		t.Fatalf("TRACK_RETRY_LOST: want the refused record written exactly once on retry, have %d records", len(w.records))
 	}
-	if strings.Join(l.codes(), ",") != AlertPaymentConflicted {
-		t.Fatalf("conflict alert not exactly once: %v", l.codes())
+	if strings.Join(l.codes(), ",") != AlertPaymentConflicted+","+AlertClockRollback || l.r.alerts[1].Detail != px1oTrackBacklog {
+		t.Fatalf("conflict alert not exactly once, or backlog alert not exactly once: %v", l.codes())
 	}
 }
 
@@ -312,29 +316,6 @@ func TestPX1oTrackSkipsReleased(t *testing.T) {
 		if len(w.records) != c.records || len(l.r.tracks) != 0 {
 			t.Fatalf("TRACK_AFTER_RELEASE: release %d left %d records (want %d), %d queued", c.release, len(w.records), c.records, len(l.r.tracks))
 		}
-	}
-}
-
-// Claim: the queue of unwritten transitions keeps every transition in order
-// up to px1oMaxTracked entries; past the bound it keeps only the newest
-// transition of each payment, so it never holds more than one entry per
-// tracked payment and still ends at each payment's latest state.
-func TestPX1oQueueTracksBound(t *testing.T) {
-	queue := make([]TrackTransition, 0, px1oMaxTracked)
-	for i := 1; i <= px1oMaxTracked; i++ {
-		queue = append(queue, TrackTransition{Payment: TrackedPayment{ReserveSeq: uint64(i)}, Record: TrackRecordV2{State: TrackConfirmed}})
-	}
-	if got := px1oQueueTracks(queue[:px1oMaxTracked-1], queue[px1oMaxTracked-1:]); len(got) != px1oMaxTracked {
-		t.Fatalf("queue at the bound changed: %d", len(got))
-	}
-	next := []TrackTransition{{Payment: TrackedPayment{ReserveSeq: 1}, Record: TrackRecordV2{State: TrackConflicted}}, {Payment: TrackedPayment{ReserveSeq: 1}, Record: TrackRecordV2{State: TrackConfirmed, Height: 9}}}
-	got := px1oQueueTracks(queue, next)
-	if len(got) != px1oMaxTracked {
-		t.Fatalf("TRACK_QUEUE_UNBOUNDED: %d entries for %d payments", len(got), px1oMaxTracked)
-	}
-	last := got[len(got)-1]
-	if last.Payment.ReserveSeq != 1 || last.Record.Height != 9 || got[0].Payment.ReserveSeq != 2 {
-		t.Fatalf("coalesced queue lost the newest state: first %d last %+v", got[0].Payment.ReserveSeq, last)
 	}
 }
 

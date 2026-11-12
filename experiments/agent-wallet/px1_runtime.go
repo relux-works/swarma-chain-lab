@@ -15,6 +15,10 @@ import (
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
+// px1oTrackBacklog is the alert detail of a track backlog episode: tracker
+// observations are queued but not durable, and the tracker is not polled.
+const px1oTrackBacklog = "TRACK_BACKLOG"
+
 // px1oRuntimeDeps are the S3 constructors the runtime uses. Production values
 // are the frozen entry points; tests replace them with fakes of the same
 // frozen interfaces.
@@ -71,8 +75,12 @@ type px1Runtime struct {
 	lastSvcSeq uint64 // service-layer Seq already scanned for uncertain verdicts
 	// tracks holds tracker transitions that are observed but not yet durable,
 	// oldest first. A refused append leaves them queued; the next pass retries
-	// exactly these before any newer one (the tracker has already moved on).
+	// exactly these before it polls the tracker again (the tracker has already
+	// moved on), so the queue never holds more than one Tick's transitions.
 	tracks []TrackTransition
+	// backlog is set while tracks could not drain (backpressure: the tracker
+	// is not polled); the backlog alert is raised once per such episode.
+	backlog bool
 }
 
 func (r *px1Runtime) constructors() px1oRuntimeDeps {
@@ -186,8 +194,9 @@ func px1oGrantIDs(env px1oEnv) ([]string, error) {
 }
 
 // tick is one observation pass. Order: startup (once), clock, tip, canary,
-// tracker (track records + conflict alerts), uncertain records, journal
-// high-water, float, seals. Every step runs even if an earlier one failed.
+// tracker (queued track records first, then a poll only if they were all
+// written: new track records + conflict alerts; a backlog alert while they
+// cannot be written), uncertain records, journal high-water, float, seals. Every step runs even if an earlier one failed.
 // The first failure of a safety step (tip, canary, tracker, journals) is
 // returned; a float or grant read failure shows only in the projection
 // (float "unknown", seal "unknown", grant omitted) and never fails the pass,
@@ -246,21 +255,52 @@ func (r *px1Runtime) tick(ctx context.Context, env px1oEnv) error {
 	r.canaryLast.At = now
 	// Tracker: each transition becomes a wallet-layer track record. The
 	// tracker commits its state when it returns a transition, so the runtime
-	// owns the transition until the record is durable: it is queued, the
-	// conflict alert is raised once on observation, and a refused append
-	// (for example CLOCK_ROLLBACK) leaves it queued for the next pass.
-	transitions, e := r.tracker.Tick(ctx)
-	keep(e)
-	if e == nil {
-		for _, t := range transitions {
-			if t.Record.State == TrackConflicted {
-				r.raise(AlertPaymentConflicted, now, t.Payment.TxID)
-			}
+	// owns every returned transition until its record is durable, and never
+	// discards one (except for a fully released or unbound request, see
+	// appendTracks). Order: the queued, undurable transitions are retried
+	// first; only when they have all been written is the tracker polled, its
+	// transitions queued (the conflict alert is raised once, on observation)
+	// and written. A refused append (for example CLOCK_ROLLBACK) keeps the
+	// refused transition and every later one queued, and the tracker is not
+	// polled again until the queue drains (backpressure). The queue therefore
+	// never holds more than one Tick's transitions: the tracker returns at
+	// most one per tracked payment, and it tracks at most px1oMaxTracked.
+	var stalled error
+	write := func() {
+		e := r.appendTracks(env)
+		keep(e)
+		if len(r.tracks) > 0 {
+			stalled = e
 		}
-		r.tracks = px1oQueueTracks(r.tracks, transitions)
 	}
 	if len(r.tracks) > 0 {
-		keep(r.appendTracks(env))
+		write()
+	}
+	if len(r.tracks) == 0 {
+		r.backlog = false
+		transitions, e := r.tracker.Tick(ctx)
+		keep(e)
+		if e == nil && len(transitions) > 0 {
+			for _, t := range transitions {
+				if t.Record.State == TrackConflicted {
+					r.raise(AlertPaymentConflicted, now, t.Payment.TxID)
+				}
+			}
+			r.tracks = append(r.tracks, transitions...)
+			write()
+		}
+	}
+	// Backlog: once per episode in which observations could not be made
+	// durable, an alert from the closed set names the cause: a clock refusal
+	// raises ALERT_CLOCK_ROLLBACK, any other refusal ALERT_JOURNAL_HIGH_WATER
+	// (the wallet journal takes no records); the detail is TRACK_BACKLOG.
+	if len(r.tracks) > 0 && !r.backlog {
+		r.backlog = true
+		code := AlertJournalHighWater
+		if stalled != nil && stalled.Error() == CodeClockRollback {
+			code = AlertClockRollback
+		}
+		r.raise(code, now, px1oTrackBacklog)
 	}
 	// Uncertain verdicts: one alert per new uncertain record of either layer.
 	keep(r.scanUncertain(env))
@@ -288,28 +328,6 @@ func (r *px1Runtime) tick(ctx context.Context, env px1oEnv) error {
 	// Seals and effective limits of every grant the journals name.
 	keep(r.observeGrants(ctx, env, now))
 	return first
-}
-
-// px1oQueueTracks puts new transitions behind the ones not yet written. The
-// queue is bounded by px1oMaxTracked: past it, only the newest transition of
-// each payment is kept (a track record may follow a track record, so the
-// journal still ends at the tracker's latest state).
-func px1oQueueTracks(queue, next []TrackTransition) []TrackTransition {
-	out := append(append([]TrackTransition{}, queue...), next...)
-	if len(out) <= px1oMaxTracked {
-		return out
-	}
-	last := map[uint64]int{}
-	for i, t := range out {
-		last[t.Payment.ReserveSeq] = i
-	}
-	kept := make([]TrackTransition, 0, len(last))
-	for i, t := range out {
-		if last[t.Payment.ReserveSeq] == i {
-			kept = append(kept, t)
-		}
-	}
-	return kept
 }
 
 // appendTracks writes the queued transitions in order, one track record
