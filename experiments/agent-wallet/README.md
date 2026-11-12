@@ -254,7 +254,9 @@ that against the table. `.scripts/check-px1-core-gate.py` fails the job on:
 
 - an open T-id;
 - a required layer with no test;
-- any skip or failure, including a failure in any `-count` repetition;
+- any skip or failure anywhere in the input files, in any `-count`
+  repetition, before or after a pass of the same test (the checker keeps
+  every terminal action of every test, not the last one);
 - a missing required test;
 - a Core test that passed fewer times than its `core_runs` count (T9 runs
   with `-race -count=50`);
@@ -263,7 +265,9 @@ that against the table. `.scripts/check-px1-core-gate.py` fails the job on:
 It prints `PX1_GATE PASS` only when every required layer of T1-T17 passed.
 The S2 Core layers (T3, T5, T8, T9, T10) are in `px1_s2_core_test.go`. Its
 known-bad controls run first: `.scripts/test_check_px1_core_gate.py`, and a
-real `go test` skip without `W1_REGTEST` that must fail the gate. Locally,
+real `go test` skip without `W1_REGTEST` that must fail the gate. After the
+gate, that real skip stream is checked again in front of the passing streams,
+and must still fail. Locally,
 from the repository root:
 
 ```sh

@@ -242,8 +242,8 @@ class Gate(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("REQUIRED_MISSING T16 TestPX1T16ClockRollback", out)
 
-    # Claim: the last terminal action of a test counts: a required test that
-    # is reported pass and then skip fails the gate.
+    # Claim: a required test reported pass and then skip (in the same stream)
+    # fails the gate: a later skip is never hidden by an earlier pass.
     def test_last_action_counts(self):
         m = load(MANIFEST)
         pkg = m["package"]
@@ -251,6 +251,46 @@ class Gate(unittest.TestCase):
         code, out = self.run_checker(stream(m, extra=extra))
         self.assertEqual(code, 1, out)
         self.assertIn("REQUIRED_SKIPPED T3 TestPX1T3DayBuckets", out)
+
+    # Claim (known-bad controls, review finding core-gate-forgets-earlier-skip):
+    # a required test's skip or fail ANYWHERE in the input files fails the
+    # gate (exit 1) even when another file later reports it passing, and the
+    # report names it: skip-then-pass, pass-then-skip and fail-then-pass across
+    # separate files, and a fail-then-skip test reported both FAILED and
+    # SKIPPED (independent history, not last-action or worst-action only). The
+    # valid neighbour, the same complete passing set split over the same
+    # number of files with no skip or fail, exits 0.
+    def test_history_across_files(self):
+        m = load(MANIFEST)
+        pkg = m["package"]
+        complete = stream(m)
+        name = "TestPX1CoreS1"
+
+        def one(action, test=name):
+            return "\n".join(json.dumps(x) for x in [
+                {"Action": "run", "Package": pkg, "Test": test},
+                {"Action": action, "Package": pkg, "Test": test, "Elapsed": 0.01},
+                {"Action": "pass" if action != "fail" else "fail", "Package": pkg, "Elapsed": 0.02}]) + "\n"
+
+        code, out = self.run_checker(one("pass"), complete)
+        self.assertEqual(code, 0, out)
+        self.assertIn("PX1_GATE PASS labels=17", out)
+        for first, second, want in ((one("skip"), complete, ("SKIPPED " + name,)),
+                                    (complete, one("skip"), ("SKIPPED " + name,)),
+                                    (one("fail"), complete, ("FAILED " + name,))):
+            code, out = self.run_checker(first, second)
+            self.assertEqual(code, 1, out)
+            self.assertIn("PX1_GATE FAIL", out)
+            for w in want:
+                self.assertIn(w, out)
+        sub = "TestPX1CoreS1/T1-at-transfer-cap"
+        code, out = self.run_checker(one("skip", sub), complete)
+        self.assertEqual(code, 1, out)
+        self.assertIn("REQUIRED_SKIPPED T1 " + sub, out)
+        code, out = self.run_checker(one("fail", sub), one("skip", sub), complete)
+        self.assertEqual(code, 1, out)
+        for w in ("FAILED " + sub, "SKIPPED " + sub, "REQUIRED_FAILED T1 " + sub, "REQUIRED_SKIPPED T1 " + sub):
+            self.assertIn(w, out)
 
     # Claim: streams split over several files (one per Core test, one for the
     # unit tests, as the workflow writes them) are read together; the same

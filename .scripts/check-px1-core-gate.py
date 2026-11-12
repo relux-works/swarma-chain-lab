@@ -6,9 +6,11 @@ Input: a gate manifest (.scripts/px1-core-gate.json for T1-T17,
 `go test -json` event files of that manifest's package.
 
 Each label (T-id) declares its REQUIRED layers ("layers": unit and/or core,
-as the PX1 test table says) and lists the tests of each layer. A test passes
-only when every terminal action it reported is "pass" (a fail or skip in any
-`-count` repetition is sticky). The gate fails on:
+as the PX1 test table says) and lists the tests of each layer. The checker
+keeps, per test, the set of EVERY terminal action it reported across all input
+files and all `-count` repetitions (never only the last one). A test passes
+only when that set is exactly {pass}: a skip or a fail anywhere, before or
+after a pass, in the same file or another, fails it. The gate fails on:
 - a label that is OPEN (it carries an "open" reason): a missing test is never
   a pass;
 - a required layer with no test listed (MISSING_LAYER);
@@ -39,8 +41,6 @@ import sys
 TEST_NAME = re.compile(r"^Test[A-Za-z0-9_]+(/[A-Za-z0-9_.+-]+)*$")
 TERMINAL = ("pass", "fail", "skip")
 LAYERS = ("unit", "core")
-# A fail or skip in any repetition outranks a pass, whatever comes last.
-RANK = {"pass": 0, "skip": 1, "fail": 2}
 
 
 class InputError(Exception):
@@ -93,7 +93,9 @@ def load_manifest(path):
 
 
 def read_events(paths, package):
-    status, passes, problems, events = {}, {}, [], 0
+    """history[test] is the set of every terminal action the test reported in
+    any of paths; passes[test] counts its passes."""
+    history, passes, problems, events = {}, {}, [], 0
     for path in paths:
         try:
             with open(path, encoding="utf-8") as f:
@@ -127,24 +129,23 @@ def read_events(paths, package):
                 if action == "fail":
                     problems.append(f"PACKAGE_FAILED {path}")
                 continue
-            if RANK[action] >= RANK.get(status.get(test), -1):
-                status[test] = action
+            history.setdefault(test, set()).add(action)
             if action == "pass":
                 passes[test] = passes.get(test, 0) + 1
     if events == 0:
         problems.append("EMPTY_STREAM")
-    return status, passes, problems
+    return history, passes, problems
 
 
 def check(manifest, paths):
-    status, passes, problems = read_events(paths, manifest["package"])
+    history, passes, problems = read_events(paths, manifest["package"])
     lines, failed = [], bool(problems)
     lines.extend(problems)
-    for test, action in sorted(status.items()):
-        if action == "skip":
+    for test, actions in sorted(history.items()):
+        if "skip" in actions:
             failed = True
             lines.append(f"SKIPPED {test}")
-        elif action == "fail":
+        if "fail" in actions:
             failed = True
             lines.append(f"FAILED {test}")
     for n, r in sorted(manifest.get("core_runs", {}).items()):
@@ -162,15 +163,16 @@ def check(manifest, paths):
                 lines.append(f"MISSING_LAYER {label} {layer}")
                 row.append(f"{layer}: missing")
             for n in names:
-                got = status.get(n)
-                if got == "pass":
+                got = history.get(n, set())
+                if got == {"pass"}:
                     passed += 1
                     row.append(f"{layer}: pass {n}")
                     continue
                 ok = False
-                code = {"skip": "REQUIRED_SKIPPED", "fail": "REQUIRED_FAILED"}.get(got, "REQUIRED_MISSING")
-                lines.append(f"{code} {label} {n}")
-                row.append(f"{layer}: {got or 'missing'} {n}")
+                codes = [c for a, c in (("skip", "REQUIRED_SKIPPED"), ("fail", "REQUIRED_FAILED")) if a in got] or ["REQUIRED_MISSING"]
+                for code in codes:
+                    lines.append(f"{code} {label} {n}")
+                row.append(f"{layer}: {'+'.join(sorted(got)) or 'missing'} {n}")
         state = "PASS" if ok else "FAIL"
         if "open" in entry:
             # OPEN is never a pass, whatever else the label lists.

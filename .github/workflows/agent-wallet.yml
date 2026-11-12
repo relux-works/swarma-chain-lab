@@ -172,3 +172,12 @@ jobs:
           echo "gate exit $gate"
           test "$gate" = 0 || status=1
           exit "$status"
+      - name: Gate control on a real skip before the passing streams (a skip anywhere must fail the gate)
+        run: |
+          set +e
+          python3 -B ../../.scripts/check-px1-core-gate.py check --manifest ../../.scripts/px1-core-gate.json "$RUNNER_TEMP/px1-gate-control.json" "$RUNNER_TEMP"/px1-gate/*.json > "$RUNNER_TEMP/px1-gate-control-2.txt"
+          gate_exit=$?
+          grep -x 'SKIPPED TestPX1CoreS1' "$RUNNER_TEMP/px1-gate-control-2.txt"
+          skip_seen=$?
+          echo "control: real skip first, then the passing streams: gate exit $gate_exit (want 1), skip reported $skip_seen (want 0)"
+          test "$gate_exit" = 1 && test "$skip_seen" = 0
