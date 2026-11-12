@@ -401,7 +401,7 @@
     "Old": "if e := w.px1Attach(*c.G2, hex.EncodeToString(schnorr.SerializePubKey(key.PubKey()))); e != nil {",
     "New": "if e, _ := error(nil), hex.EncodeToString(schnorr.SerializePubKey(key.PubKey())); e != nil {",
     "Selector": "TestPX1ServiceOpenG2FailClosed",
-    "Marker": "integrated attach refusal: want JOURNAL_SEGMENT got SERVICE_PROFILE",
+    "Marker": "G2_STARTUP_REFUSED: a valid g2 block must start cleanly: SERVICE_PROFILE",
     "Core": false
   },
   {
