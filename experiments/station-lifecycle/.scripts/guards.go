@@ -41,7 +41,7 @@ var plants = []plant{
 	{"manager_leaf_pin", "core", "transport.go", " || hash(r.TLS.PeerCertificates[0].Raw) != peerSHA256", "", ".", "TestPollAuthentication/wrong-client", "unauthenticated poll accepted"},
 	{"gateway_leaf_pin", "core", "transport.go", " || hash(s.PeerCertificates[0].Raw) != pin", "", ".", "TestPollAuthentication/wrong-server", "unauthenticated poll accepted"},
 	{"helper_payload", "core", "slotd/host.go", "(!checkPayload || r.PayloadSHA256 == s.PayloadSHA256)", "(!checkPayload || r.PayloadSHA256 == s.PayloadSHA256 || true)", "./slotd", "TestHostBindings/payload", "wrong payload started"},
-	{"helper_bootstrap", "core", "slotd/host.go", " && r.BootstrapSHA256 == sum(s.Bootstrap)", "", "./slotd", "TestHostBindings/bootstrap", "foreign/failed slot automatically destroyed"},
+	{"helper_bootstrap", "core", "slotd/host.go", " && r.BootstrapSHA256 == sum(s.Bootstrap.Reveal())", "", "./slotd", "TestHostBindings/bootstrap", "foreign/failed slot automatically destroyed"},
 	{"helper_deadline", "core", "slotd/host.go", " && r.NotAfter == time.Unix(s.NotAfter, 0).UTC().Format(time.RFC3339)", "", "./slotd", "TestHostBindings/deadline", "foreign/failed slot automatically destroyed"},
 	{"helper_allowlist", "core", "slotd/wire.go", "if !ValidRequest(r) {", "if !ValidRequest(r) && false {", "./slotd", "TestRequestRefusals", "unknown helper authority sent"},
 	{"helper_canonical", "core", "slotd/wire.go", " || !bytes.Equal(raw, canonical(r))", " || (!bytes.Equal(raw, canonical(r)) && false)", "./slotd", "TestResponseRefusals", "unverifiable response accepted"},

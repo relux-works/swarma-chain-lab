@@ -21,7 +21,7 @@ func (b *Broker) Handler(peerSHA256 string) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		reject := func(code int, reason string) {
 			w.WriteHeader(code)
-			_, _ = w.Write(canonical(struct {
+			_, _ = w.Write(privateCanonical(struct {
 				Error string `json:"error"`
 			}{reason}))
 		}
@@ -48,7 +48,7 @@ func (b *Broker) Handler(peerSHA256 string) http.Handler {
 			reject(http.StatusConflict, "POLL_REFUSED")
 			return
 		}
-		raw = canonical(out)
+		raw = privateCanonical(out)
 		if len(raw) > MaxBody {
 			reject(http.StatusInternalServerError, "POLL_CAPACITY")
 			return
@@ -101,7 +101,7 @@ func (c *PollClient) Poll(ctx context.Context, results []Status) (PollResponse, 
 	if len(results) > MaxRetained {
 		return out, fail("POLL_REQUEST")
 	}
-	raw := canonical(PollRequest{Version: 1, Results: results})
+	raw := privateCanonical(PollRequest{Version: 1, Results: results})
 	if len(raw) > MaxBody {
 		return out, fail("POLL_REQUEST")
 	}

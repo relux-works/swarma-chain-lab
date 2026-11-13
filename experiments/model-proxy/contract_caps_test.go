@@ -12,7 +12,7 @@ import (
 // forwarding or charging. Legacy zero remains omitted from canonical bytes.
 func TestSignedDefaultBindingWithoutInjection(t *testing.T) {
 	legacy := Caps{1000, 1000, 10, 10, 10000, 0}
-	if bytes.Contains(canonical(legacy), []byte("default_max_output_tokens")) {
+	if bytes.Contains(privateCanonical(legacy), []byte("default_max_output_tokens")) {
 		t.Fatal("legacy bytes changed")
 	}
 	h := responsesFixture(t, 5)
@@ -51,7 +51,7 @@ func TestSignedDefaultBindingWithoutInjection(t *testing.T) {
 		} else {
 			request["max_output_tokens"] = limit
 		}
-		w := h.send(string(canonical(request)))
+		w := h.send(string(privateCanonical(request)))
 		wantStatus, wantCode := 400, "REQUEST"
 		if limit != 0 {
 			wantStatus, wantCode = 403, "CAP"

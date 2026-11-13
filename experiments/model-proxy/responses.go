@@ -220,7 +220,7 @@ func (Responses) Parse(raw []byte) (Prepared, error) {
 	m["store"] = json.RawMessage("false")
 	m["background"] = json.RawMessage("false")
 	m["service_tier"] = json.RawMessage(`"default"`)
-	p.Body = canonical(m)
+	p.Body = privateCanonical(m)
 	if len(p.Body) > MaxResponsesBody {
 		return Prepared{}, fail("BODY")
 	}
@@ -398,7 +398,7 @@ func sameValue(a, b []byte) bool {
 	da, db := json.NewDecoder(bytes.NewReader(a)), json.NewDecoder(bytes.NewReader(b))
 	da.UseNumber()
 	db.UseNumber()
-	return da.Decode(&x) == nil && db.Decode(&y) == nil && bytes.Equal(canonical(x), canonical(y))
+	return da.Decode(&x) == nil && db.Decode(&y) == nil && bytes.Equal(privateCanonical(x), privateCanonical(y))
 }
 
 var _ Dialect = Responses{}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
 )
 
 type reservation struct {
@@ -18,12 +19,12 @@ type reservation struct {
 	Cost  uint64 `json:"cost"`
 }
 type record struct {
-	Binding  Binding      `json:"binding"`
-	Bearer   Secret       `json:"bearer"`
-	Phase    string       `json:"phase"`
-	Exposure Counts       `json:"exposure"`
-	Observed Usage        `json:"observed"`
-	Pending  *reservation `json:"pending"`
+	Binding  Binding              `json:"binding"`
+	Bearer   codec.Secret[Secret] `json:"bearer"`
+	Phase    string               `json:"phase"`
+	Exposure Counts               `json:"exposure"`
+	Observed Usage                `json:"observed"`
+	Pending  *reservation         `json:"pending"`
 }
 type ledger struct {
 	Version int               `json:"version"`
@@ -87,7 +88,7 @@ func New(c Config) (*Service, error) {
 	if e != nil {
 		return nil, fail("STATE_OPEN")
 	}
-	s := &Service{cfg: c, disk: d, cancel: map[string]context.CancelFunc{}, state: ledger{Version: 1, Config: sum(canonical(fingerprint)), Records: map[string]record{}}}
+	s := &Service{cfg: c, disk: d, cancel: map[string]context.CancelFunc{}, state: ledger{Version: 1, Config: sum(privateCanonical(fingerprint)), Records: map[string]record{}}}
 	raw, e := d.Read("registry.json", MaxBody)
 	if e != nil {
 		d.Close()
@@ -95,18 +96,18 @@ func New(c Config) (*Service, error) {
 	}
 	if raw != nil {
 		var v ledger
-		if unique(raw) != nil || json.Unmarshal(raw, &v) != nil || string(canonical(v)) != string(raw) || v.Version != 1 || v.Config != s.state.Config || v.High < 0 || len(v.Records) > MaxRecords || v.Records == nil {
+		if unique(raw) != nil || json.Unmarshal(raw, &v) != nil || string(privateCanonical(v)) != string(raw) || v.Version != 1 || v.Config != s.state.Config || v.High < 0 || len(v.Records) > MaxRecords || v.Records == nil {
 			d.Close()
 			return nil, fail("STATE")
 		}
 		seen := map[Secret]bool{}
 		for id, r := range v.Records {
-			b, e := base64.RawURLEncoding.DecodeString(string(r.Bearer))
-			if !r.Binding.Valid() || id != r.Binding.SlotID || e != nil || len(b) != 32 || base64.RawURLEncoding.EncodeToString(b) != string(r.Bearer) || seen[r.Bearer] || !validRecord(r, c.Models) {
+			b, e := base64.RawURLEncoding.DecodeString(string(r.Bearer.Reveal()))
+			if !r.Binding.Valid() || id != r.Binding.SlotID || e != nil || len(b) != 32 || base64.RawURLEncoding.EncodeToString(b) != string(r.Bearer.Reveal()) || seen[r.Bearer.Reveal()] || !validRecord(r, c.Models) {
 				d.Close()
 				return nil, fail("STATE")
 			}
-			seen[r.Bearer] = true
+			seen[r.Bearer.Reveal()] = true
 			// An interrupted attempt remains charged at its entire worst-case exposure.
 			r.Pending = nil
 			v.Records[id] = r
@@ -140,7 +141,7 @@ func (s *Service) save() error {
 	if s.closed || s.poisoned {
 		return fail("STATE_WRITE")
 	}
-	raw := canonical(s.state)
+	raw := privateCanonical(s.state)
 	if len(raw) > MaxBody || s.disk.Write("registry.json", raw) != nil {
 		s.poisoned = true
 		return fail("STATE_WRITE")
@@ -198,7 +199,7 @@ func (s *Service) Prepare(b Binding) (Credential, error) {
 	if _, e = rand.Read(bfr); e != nil {
 		return Credential{}, fail("RANDOM")
 	}
-	r := record{Binding: b, Bearer: Secret(base64.RawURLEncoding.EncodeToString(bfr)), Phase: "prepared"}
+	r := record{Binding: b, Bearer: NewBearer(Secret(base64.RawURLEncoding.EncodeToString(bfr))), Phase: "prepared"}
 	s.state.Records[b.SlotID] = r
 	if e = s.save(); e != nil {
 		return Credential{}, e
@@ -275,7 +276,7 @@ func (s *Service) authorize(id string, bearer Secret) (record, error) {
 		return record{}, e
 	}
 	r, ok := s.state.Records[id]
-	if !ok || subtle.ConstantTimeCompare([]byte(r.Bearer), []byte(bearer)) != 1 || r.Phase != "active" || now < r.Binding.NotBefore || now >= r.Binding.NotAfter {
+	if !ok || subtle.ConstantTimeCompare([]byte(r.Bearer.Reveal()), []byte(bearer)) != 1 || r.Phase != "active" || now < r.Binding.NotBefore || now >= r.Binding.NotAfter {
 		return record{}, fail("AUTH")
 	}
 	return r, nil

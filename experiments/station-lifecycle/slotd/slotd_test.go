@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 	"net"
 	"os"
-	lifecycle "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle"
 	"strconv"
 	"strings"
 	"sync"
@@ -129,7 +129,7 @@ func fixture(t *testing.T) (*Host, *fakeHelper, lifecycle.Slot) {
 	host := &Host{Client: fakeClient(t, h), Now: func() time.Time { return time.Unix(h.now, 0) }, BootClock: func() (lifecycle.CreateFence, error) {
 		return lifecycle.CreateFence{BootID: h.bootID, IssuedBoottimeNS: strconv.FormatUint(h.bootNS, 10)}, nil
 	}}
-	s := lifecycle.Slot{Version: 1, ID: "17", GrantID: strings.Repeat("b", 64), NotBefore: 90, NotAfter: 300, PayloadID: "relay", PayloadSHA256: h.payload, Bootstrap: lifecycle.Secret(strings.Repeat("c", 32))}
+	s := lifecycle.Slot{Version: 1, ID: "17", GrantID: strings.Repeat("b", 64), NotBefore: 90, NotAfter: 300, PayloadID: "relay", PayloadSHA256: h.payload, Bootstrap: lifecycle.NewPrivateBytes(lifecycle.Secret(strings.Repeat("c", 32)))}
 	return host, h, s
 }
 

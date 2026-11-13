@@ -40,7 +40,7 @@ func (s *Service) adminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, e := io.ReadAll(io.LimitReader(r.Body, 4097))
 	var q adminRequest
-	if e != nil || len(raw) > 4096 || unique(raw) != nil || json.Unmarshal(raw, &q) != nil || !bytes.Equal(raw, canonical(q)) || q.V != 1 || !q.Binding.Valid() {
+	if e != nil || len(raw) > 4096 || unique(raw) != nil || json.Unmarshal(raw, &q) != nil || !bytes.Equal(raw, privateCanonical(q)) || q.V != 1 || !q.Binding.Valid() {
 		refusal(w, 400, "ADMIN")
 		return
 	}
@@ -67,7 +67,7 @@ func (s *Service) adminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write(canonical(out))
+	_, _ = w.Write(privateCanonical(out))
 }
 
 // ServeAdmin owns only the newly created socket. Parent ownership/mode and caller
@@ -184,7 +184,7 @@ func (c Client) call(ctx context.Context, q adminRequest) (adminResponse, error)
 	defer transport.CloseIdleConnections()
 	call, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	req, e := http.NewRequestWithContext(call, "POST", "http://local/v1/registry", bytes.NewReader(canonical(q)))
+	req, e := http.NewRequestWithContext(call, "POST", "http://local/v1/registry", bytes.NewReader(privateCanonical(q)))
 	if e != nil {
 		return out, fail("ADMIN")
 	}
@@ -195,7 +195,7 @@ func (c Client) call(ctx context.Context, q adminRequest) (adminResponse, error)
 	}
 	defer resp.Body.Close()
 	raw, e := io.ReadAll(io.LimitReader(resp.Body, 4097))
-	if e != nil || len(raw) > 4096 || resp.StatusCode != 200 || unique(raw) != nil || json.Unmarshal(raw, &out) != nil || !bytes.Equal(raw, canonical(out)) || out.V != 1 || out.Binding != q.Binding {
+	if e != nil || len(raw) > 4096 || resp.StatusCode != 200 || unique(raw) != nil || json.Unmarshal(raw, &out) != nil || !bytes.Equal(raw, privateCanonical(out)) || out.V != 1 || out.Binding != q.Binding {
 		return adminResponse{}, fail("ADMIN_RESPONSE")
 	}
 	if !out.OK || out.Error != "" {
@@ -211,7 +211,7 @@ func (c Client) call(ctx context.Context, q adminRequest) (adminResponse, error)
 	return out, nil
 }
 func (c Credential) Valid() bool {
-	return codec.ValidCredential(string(c.Bearer), c.Endpoint.URL, c.Endpoint.CertSHA256)
+	return codec.ValidCredential(string(c.Bearer.Reveal()), c.Endpoint.URL, c.Endpoint.CertSHA256)
 }
 func (c Client) Prepare(ctx context.Context, b Binding) (Credential, error) {
 	r, e := c.call(ctx, adminRequest{1, "prepare", b})

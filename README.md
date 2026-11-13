@@ -431,4 +431,18 @@ public pins and refusal clearing. Run
 `go -C experiments/station-payload test -count=1 -run TestClientCredentialFormattingAllVerbs .`
 for the containing client. Redirect validation output to a task-owned `.temp/`
 directory. [The bootstrap API notes](experiments/single-use/payloadbootstrap/README.md)
-describe the constructor/accessor migration and deliberate private JSON boundary.
+describe the constructor/accessor migration and explicit private wire boundary.
+
+Generic JSON/text encodings now redact protected credentials, including nested
+`slog.Any`/`slog.Group` values. Private bootstrap encoding uses `codec.Encode`;
+journal persistence uses `journal.EncodePrivateSlot`, and the proxy/lifecycle
+private codecs preserve their existing registrar, registry, poll and disk bytes.
+Run `go -C experiments/single-use test -count=1 -run TestReview ./payloadbootstrap/codec`
+and `go -C experiments/station-lifecycle/gatewaybind test -count=1 -run TestReview .`
+for the independent fmt/slog/carrier and wire-differential regressions. Run
+`go -C experiments/model-proxy test -count=1 -run 'TestCredentialValueEquality|TestModelPrivateWireCompatibility' .`,
+`go -C experiments/station-lifecycle test -count=1 -run 'TestReviewBrokerCredentialOutput|TestLifecyclePrivateWireCompatibility' .`,
+and `go -C experiments/rental-gateway test -count=1 -run TestJournalPrivateWireCompatibility ./journal`
+for private persistence compatibility and value comparison. Capture output in
+task-owned `.temp/`. Track B tokens and upstream proxy API keys remain a separate
+output-safety audit; these checks make no formatting guarantee for those values.

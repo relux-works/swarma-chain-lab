@@ -195,7 +195,7 @@ func (l *lab) hostRunner(scenario string, cfg booking.ConfigV2, relayURL, bookin
 				}
 			}
 			slot := l.slot(q.Contract.BookingID)
-			if slot.ChannelSecretHex != "" || int64(len(slot.SeenRumorIDs)) != seen || syscall.Kill(payloadPID, 0) != syscall.ESRCH {
+			if slot.ChannelSecretHex.Reveal() != "" || int64(len(slot.SeenRumorIDs)) != seen || syscall.Kill(payloadPID, 0) != syscall.ESRCH {
 				t.Fatal("runner closure retained state")
 			}
 			if scenario == "expiry" && (slot.EndReason != "not_after" || time.Now().Unix() < q.Contract.NotAfter) {

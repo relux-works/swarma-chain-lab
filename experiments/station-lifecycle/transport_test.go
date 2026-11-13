@@ -85,7 +85,7 @@ func TestPollAuthentication(t *testing.T) {
 	if e != nil || len(p.Commands) != 1 || p.Commands[0].Op != "start" {
 		t.Fatal("authenticated neighbor", p, e)
 	}
-	before := string(canonical(b.state.Records))
+	before := string(privateCanonical(b.state.Records))
 	for _, tc := range []struct {
 		name string
 		cert tls.Certificate
@@ -100,7 +100,7 @@ func TestPollAuthentication(t *testing.T) {
 			if _, e = c.Poll(context.Background(), []Status{}); e == nil {
 				t.Fatal("unauthenticated poll accepted")
 			}
-			if string(canonical(b.state.Records)) != before {
+			if string(privateCanonical(b.state.Records)) != before {
 				t.Fatal("foreign TLS changed authority")
 			}
 		})

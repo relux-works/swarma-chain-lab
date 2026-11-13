@@ -80,7 +80,7 @@ func responsesFixture(t *testing.T, defaultLimit ...uint64) *responsesHarness {
 	return h
 }
 func (h *responsesHarness) send(body string) *httptest.ResponseRecorder {
-	return h.sendAs(body, h.b.SlotID, h.cred.Bearer, "responses")
+	return h.sendAs(body, h.b.SlotID, h.cred.Bearer.Reveal(), "responses")
 }
 func (h *responsesHarness) sendAs(body, id string, bearer Secret, route string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest("POST", "https://proxy.example/slots/"+id+"/v1/"+route, strings.NewReader(body))
@@ -105,7 +105,7 @@ func responsesRequest(stream bool, tools bool) string {
 	if tools {
 		m["tools"] = []any{map[string]any{"type": "function", "name": "lookup", "description": "Synthetic fixture", "strict": true, "parameters": map[string]any{"type": "object", "properties": map[string]any{"x": map[string]any{"type": "integer"}}, "required": []string{"x"}, "additionalProperties": false}}}
 	}
-	return string(canonical(m))
+	return string(privateCanonical(m))
 }
 func responseOutput(tool bool, start bool) map[string]any {
 	status := "completed"
@@ -164,7 +164,7 @@ func encodeEvents(events []map[string]any, named bool) string {
 		if named {
 			fmt.Fprintf(&b, "event: %s\n", e["type"])
 		}
-		fmt.Fprintf(&b, "data: %s\n\n", canonical(e))
+		fmt.Fprintf(&b, "data: %s\n\n", privateCanonical(e))
 	}
 	return b.String()
 }
@@ -185,12 +185,12 @@ func TestResponsesToolRoundTrip(t *testing.T) {
 		t.Fatal("Responses valid tool neighbor refused")
 	}
 	m, _ := object([]byte(body))
-	m["input"] = canonical([]any{map[string]any{"role": "user", "content": "lookup"}, responseOutput(true, false), map[string]any{"type": "function_call_output", "call_id": "call_fixture", "output": "synthetic result"}})
+	m["input"] = privateCanonical([]any{map[string]any{"role": "user", "content": "lookup"}, responseOutput(true, false), map[string]any{"type": "function_call_output", "call_id": "call_fixture", "output": "synthetic result"}})
 	h.reply = func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		io.WriteString(w, encodeEvents(responseEvents(false, 7, 3), false))
 	}
-	if w := h.send(string(canonical(m))); !strings.Contains(w.Body.String(), "response.completed") || strings.Contains(w.Body.String(), "proxy_stream") {
+	if w := h.send(string(privateCanonical(m))); !strings.Contains(w.Body.String(), "response.completed") || strings.Contains(w.Body.String(), "proxy_stream") {
 		t.Fatal("Responses tool output neighbor refused")
 	}
 	v := h.status(t)
@@ -242,13 +242,13 @@ func TestResponsesRequestRefusals(t *testing.T) {
 			case "tool-schema":
 				m["tools"] = json.RawMessage(`[{"type":"function","name":"lookup","parameters":[],"unknown":true}]`)
 			}
-			body = string(canonical(m))
+			body = string(privateCanonical(m))
 			if kind == "duplicate" {
 				body = strings.Replace(body, `"model":`, `"model":"other","model":`, 1)
 			}
 			if kind == "large" {
-				m["input"] = canonical(strings.Repeat("x", MaxResponsesBody))
-				body = string(canonical(m))
+				m["input"] = privateCanonical(strings.Repeat("x", MaxResponsesBody))
+				body = string(privateCanonical(m))
 			}
 			w := h.send(body)
 			if w.Code != 400 && w.Code != 413 {
@@ -352,7 +352,7 @@ func TestResponsesUsageFreeze(t *testing.T) {
 					w.(http.Flusher).Flush()
 					<-r.Context().Done()
 				} else {
-					io.WriteString(w, string(canonical(responseJSON(false, false, 101, 3))))
+					io.WriteString(w, string(privateCanonical(responseJSON(false, false, 101, 3))))
 				}
 			}
 			w := h.send(responsesRequest(stream, false))
@@ -379,7 +379,7 @@ func TestResponsesAuthAndCaps(t *testing.T) {
 			if w := h.send(responsesRequest(true, false)); strings.Contains(w.Body.String(), "proxy_stream") {
 				t.Fatal("Responses auth positive neighbor")
 			}
-			id, bearer, route := h.b.SlotID, h.cred.Bearer, "responses"
+			id, bearer, route := h.b.SlotID, h.cred.Bearer.Reveal(), "responses"
 			switch kind {
 			case "expired":
 				h.now.Store(h.b.NotAfter)
@@ -443,11 +443,11 @@ func TestResponsesProfileConfiguration(t *testing.T) {
 	})
 	t.Run("legacy", func(t *testing.T) {
 		h := fixture(t)
-		old := sum(canonical([]any{h.c.Endpoint, h.c.Upstream, h.c.Models, (Messages{}).Profile()}))
+		old := sum(privateCanonical([]any{h.c.Endpoint, h.c.Upstream, h.c.Models, (Messages{}).Profile()}))
 		if h.s.state.Config != old {
 			t.Fatal("legacy fingerprint changed")
 		}
-		if strings.Contains(string(canonical(FileConfig{})), "model_profiles") {
+		if strings.Contains(string(privateCanonical(FileConfig{})), "model_profiles") {
 			t.Fatal("legacy config bytes changed")
 		}
 		if h.s.cfg.ModelProfiles[modelID].Profile != "" {
@@ -459,7 +459,7 @@ func TestResponsesProfileConfiguration(t *testing.T) {
 		}
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/slots/"+h.b.SlotID+"/v1/responses", strings.NewReader(responsesRequest(true, false)))
-		r.Header.Set("Authorization", "Bearer "+string(h.cred.Bearer))
+		r.Header.Set("Authorization", "Bearer "+string(h.cred.Bearer.Reveal()))
 		h.s.ServeHTTP(w, r)
 		if w.Code != 400 || h.calls.Load() != 1 {
 			t.Fatal("Messages model used through Responses")
@@ -507,11 +507,11 @@ func TestResponsesCompleteAndLongInput(t *testing.T) {
 	for _, tool := range []bool{false, true} {
 		h := responsesFixture(t)
 		h.reply = func(w http.ResponseWriter, r *http.Request) {
-			io.WriteString(w, string(canonical(responseJSON(tool, false, 7, 3))))
+			io.WriteString(w, string(privateCanonical(responseJSON(tool, false, 7, 3))))
 		}
 		m, _ := object([]byte(responsesRequest(false, tool)))
-		m["input"] = canonical(strings.Repeat("x", MaxBody+1))
-		if w := h.send(string(canonical(m))); w.Code != 200 {
+		m["input"] = privateCanonical(strings.Repeat("x", MaxBody+1))
+		if w := h.send(string(privateCanonical(m))); w.Code != 200 {
 			t.Fatal("Responses long input refused")
 		}
 		if h.status(t).Exposure != (Counts{7, 3, 1, 23}) {

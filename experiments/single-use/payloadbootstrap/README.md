@@ -16,8 +16,10 @@ protects invalid fmt verbs: bad-verb diagnostics bypass `String`/`GoString`, and
 can dereference a nested pointer to a slice, but print a scalar pointer's address.
 `codec.NewSecret(value)` copies input bytes; `Reveal()` returns the original
 credential type with a fresh slice for channel consumers. Retain the wrapper in
-struct fields and reveal only for an explicit credential operation. JSON encoding
-is deliberately private and preserves the original v1/v2 bytes and field order.
+struct fields and reveal only for an explicit credential operation. Generic
+JSON and text encoding return fixed redactions, including when a logger encodes
+nested values. Only `codec.Encode` reveals into a private wire DTO; it preserves
+the original v1/v2 bytes and field order. Generic JSON output is not private wire.
 The codec does not import lifecycle or proxy.
 Gatewaybind aliases that schema and delegates encoding/decoding. Proxy credential
 validation delegates to the same credential predicate. The public wrapper parses
@@ -28,6 +30,11 @@ Compatibility callers construct fields with `gatewaybind.NewChannelSecret` and
 `gatewaybind.NewModelBearer`, and read them through `Reveal()`. The downstream
 `station.Station.ChannelSecret` handle likewise uses opaque storage constructed
 by `station.NewChannelSecret`. The six-field public projection is unchanged.
+Model credentials/registry records, journal channel fields, lifecycle broker
+credentials and retained `Slot.Bootstrap` bytes also use these opaque holders.
+Their private persistence/transport codecs explicitly build the original wire
+schemas. Credential replay comparisons use `Credential.Equal` to compare values
+across independently decoded holders.
 
 Run `go test -race ./payloadbootstrap/...` from the single-use module inside
 owned scratch. Shared literal golden vectors in `testdata/golden.json` include

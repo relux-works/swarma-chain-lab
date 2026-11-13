@@ -35,8 +35,8 @@ type Manager struct {
 }
 
 func publicBinding(s Slot, secretHash string) string {
-	s.Bootstrap = nil
-	return hash(canonical([]any{s, secretHash}))
+	s.Bootstrap = NewPrivateBytes(nil)
+	return hash(privateCanonical([]any{slotPrivateValue(s), secretHash}))
 }
 func recordStatus(r record) Status {
 	s := Status{SlotID: r.ID, Binding: r.Binding, Phase: r.Phase, Reason: r.Reason}
@@ -62,7 +62,7 @@ func New(c Config) (*Manager, error) {
 	if e != nil {
 		return nil, fail("STATE_OPEN")
 	}
-	m := &Manager{cfg: c, disk: d, state: state{Version: 1, Policy: hash(canonical([]any{c.Range, c.Payload})), Records: map[string]record{}}}
+	m := &Manager{cfg: c, disk: d, state: state{Version: 1, Policy: hash(privateCanonical([]any{c.Range, c.Payload})), Records: map[string]record{}}}
 	raw, e := d.Read("state.json", MaxBody)
 	if e != nil {
 		d.Close()
@@ -105,12 +105,12 @@ func New(c Config) (*Manager, error) {
 			} else {
 				v := *r.Slot
 				if r.Phase == "stopped" {
-					if len(v.Bootstrap) != 0 {
+					if len(v.Bootstrap.Reveal()) != 0 {
 						d.Close()
 						return nil, fail("STATE_RECORD")
 					}
-					v.Bootstrap = make(Secret, 32)
-				} else if hash(v.Bootstrap) != r.BootstrapHash {
+					v.Bootstrap = NewPrivateBytes(make(Secret, 32))
+				} else if hash(v.Bootstrap.Reveal()) != r.BootstrapHash {
 					d.Close()
 					return nil, fail("STATE_RECORD")
 				}
@@ -125,7 +125,7 @@ func New(c Config) (*Manager, error) {
 	return m, nil
 }
 func (m *Manager) save() error {
-	raw := canonical(m.state)
+	raw := privateCanonical(m.state)
 	if len(raw) > MaxBody {
 		m.poisoned = true
 		return fail("STATE_CAPACITY")
@@ -174,7 +174,7 @@ func (m *Manager) Start(ctx context.Context, s Slot) (Status, error) {
 	if s.PayloadID != m.cfg.Payload.ID || s.PayloadSHA256 != m.cfg.Payload.SHA256 {
 		return Status{}, fail("HOST_POLICY")
 	}
-	incoming := publicBinding(s, hash(s.Bootstrap))
+	incoming := publicBinding(s, hash(s.Bootstrap.Reveal()))
 	if old, ok := m.state.Records[s.ID]; ok {
 		if old.Binding != incoming {
 			return recordStatus(old), fail("SLOT_CONFLICT")
@@ -205,14 +205,13 @@ func (m *Manager) Start(ctx context.Context, s Slot) (Status, error) {
 	if live >= MaxLive {
 		return Status{}, fail("CAPACITY")
 	}
-	// Copy caller-owned slices before persisting; callers cannot change authority.
-	var copied Slot
-	_ = strict(canonical(s), &copied)
-	r := record{ID: s.ID, StartAttempted: true, Slot: &copied, BootstrapHash: hash(s.Bootstrap), Binding: incoming, Phase: "starting"}
+	// Opaque immutable holders make a value copy independent of caller buffers.
+	copied := s
+	r := record{ID: s.ID, StartAttempted: true, Slot: &copied, BootstrapHash: hash(s.Bootstrap.Reveal()), Binding: incoming, Phase: "starting"}
 	// Capacity is checked before any map write or host operation.
-	before := canonical(m.state)
+	before := privateCanonical(m.state)
 	m.state.Records[s.ID] = r
-	if len(canonical(m.state)) > MaxBody {
+	if len(privateCanonical(m.state)) > MaxBody {
 		_ = strict(before, &m.state)
 		return Status{}, fail("CAPACITY")
 	}
@@ -279,7 +278,7 @@ func (m *Manager) stop(ctx context.Context, id, reason string) (Status, error) {
 		return recordStatus(r), saved
 	}
 	r.Phase = "stopped"
-	r.Slot.Bootstrap = nil
+	r.Slot.Bootstrap = NewPrivateBytes(nil)
 	m.state.Records[id] = r
 	if e := m.save(); e != nil {
 		return recordStatus(r), e
@@ -392,7 +391,7 @@ func (m *Manager) Close() error {
 // arrives before Start still asks the helper to prove absence/cleanup, rather
 // than assuming an empty adapter journal means no OS state exists.
 func (m *Manager) Apply(ctx context.Context, c Command) (Status, error) {
-	if m.cfg.Range.validateSlot(c.Slot) != nil || c.Binding != publicBinding(c.Slot, hash(c.Slot.Bootstrap)) {
+	if m.cfg.Range.validateSlot(c.Slot) != nil || c.Binding != publicBinding(c.Slot, hash(c.Slot.Bootstrap.Reveal())) {
 		return Status{}, fail("COMMAND_BINDING")
 	}
 	if c.Slot.PayloadID != m.cfg.Payload.ID || c.Slot.PayloadSHA256 != m.cfg.Payload.SHA256 {
@@ -416,7 +415,7 @@ func (m *Manager) Apply(ctx context.Context, c Command) (Status, error) {
 				return Status{}, fail("CAPACITY")
 			}
 			s := copySlot(c.Slot)
-			r = record{ID: s.ID, Slot: &s, BootstrapHash: hash(s.Bootstrap), Binding: c.Binding, Phase: "stopping", Reason: "STOPPED"}
+			r = record{ID: s.ID, Slot: &s, BootstrapHash: hash(s.Bootstrap.Reveal()), Binding: c.Binding, Phase: "stopping", Reason: "STOPPED"}
 			m.state.Records[s.ID] = r
 			if e := m.save(); e != nil {
 				return recordStatus(r), e

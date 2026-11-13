@@ -102,7 +102,7 @@ func TestServeStartupRecovery(t *testing.T) {
 				t.Fatal(err)
 			}
 			s, _ := j.Get(st.SlotID)
-			if !s.Ended || s.Started || s.ChannelSecretHex != "" || s.Starting != fail || s.Destroyed == fail {
+			if !s.Ended || s.Started || s.ChannelSecretHex.Reveal() != "" || s.Starting != fail || s.Destroyed == fail {
 				t.Fatal("serve skipped interrupted launch recovery")
 			}
 			if !fail {

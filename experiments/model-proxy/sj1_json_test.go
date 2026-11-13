@@ -29,7 +29,7 @@ func TestSJ1AdminKeys(t *testing.T) {
 	h := fixture(t)
 	b := h.b
 	b.SlotID = strings.Repeat("d", 64)
-	raw := string(canonical(adminRequest{1, "prepare", b}))
+	raw := string(privateCanonical(adminRequest{1, "prepare", b}))
 	send := func(body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("POST", "http://local/v1/registry", strings.NewReader(body))
 		r = r.WithContext(context.WithValue(r.Context(), peerKey{}, true))

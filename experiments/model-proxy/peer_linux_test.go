@@ -76,19 +76,19 @@ func TestUnixPeerRoundTrip(t *testing.T) {
 				t.Fatal("Unix prepare refused", e)
 			}
 			again, e := client.Prepare(call, b)
-			if e != nil || again != cred {
+			if e != nil || !again.Equal(cred) {
 				t.Fatal("Unix retry reminted credential")
 			}
 			if e = client.Activate(call, b); e != nil {
 				t.Fatal(e)
 			}
-			if h.sendAs(request(false), b.SlotID, cred.Bearer).Code != 200 {
+			if h.sendAs(request(false), b.SlotID, cred.Bearer.Reveal()).Code != 200 {
 				t.Fatal("Unix activation not usable")
 			}
 			if e = client.Revoke(call, b); e != nil {
 				t.Fatal(e)
 			}
-			if h.sendAs(request(false), b.SlotID, cred.Bearer).Code != 401 {
+			if h.sendAs(request(false), b.SlotID, cred.Bearer.Reveal()).Code != 401 {
 				t.Fatal("Unix revoke not effective")
 			}
 		})

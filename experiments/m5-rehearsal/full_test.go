@@ -380,7 +380,7 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	}
 	ended := l.slot(contract.BookingID)
 	idle := time.Since(idleStart)
-	if ended.ChannelSecretHex != "" {
+	if ended.ChannelSecretHex.Reveal() != "" {
 		t.Fatal("ended slot retained channel credential")
 	}
 	if scenario == "expiry" && (ended.EndReason != "not_after" || idle <= 90*time.Second || time.Now().Unix() < contract.NotAfter) {

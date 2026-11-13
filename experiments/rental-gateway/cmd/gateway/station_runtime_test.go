@@ -168,7 +168,7 @@ func TestRemoteStationTransport(t *testing.T) {
 		case <-time.After(5 * time.Millisecond):
 		}
 	}
-	b, e := gatewaybind.DecodeBootstrap(command.Slot.Bootstrap)
+	b, e := gatewaybind.DecodeBootstrap(command.Slot.Bootstrap.Reveal())
 	if e != nil || b.BookingID != id {
 		t.Fatal("invalid private bootstrap")
 	}

@@ -111,7 +111,7 @@ func TestStartupOrdering(t *testing.T) {
 	var conn net.Conn
 	f.d.start = func() error {
 		s, _ := f.store.Get("startup")
-		if s.Started || s.ChannelSecretHex == "" {
+		if s.Started || s.ChannelSecretHex.Reveal() == "" {
 			t.Fatal("ordering precondition")
 		}
 		reopened, err := journal.Open(f.dir)
@@ -209,7 +209,7 @@ func TestStartupFailure(t *testing.T) {
 			if s.Started || f.d.destroyed != 1 || f.pub.count() != 0 || len(s.SeenRumorIDs) != 0 {
 				t.Fatal("failed start escaped cleanup/effect boundary")
 			}
-			if mode != "all_writes" && (!s.Ended || s.ChannelSecretHex != "") {
+			if mode != "all_writes" && (!s.Ended || s.ChannelSecretHex.Reveal() != "") {
 				t.Fatal("failed start retained admission")
 			}
 			if mode != "all_writes" && mode != "destroy_pending" && (!s.Destroyed || s.Starting) {
@@ -333,7 +333,7 @@ func TestStartupRecovery(t *testing.T) {
 		t.Fatalf("recovery uncertainty: %v", err)
 	}
 	s, _ := reopened.Get("startup")
-	if !s.Starting || !s.Ended || s.Destroyed || s.ChannelSecretHex != "" {
+	if !s.Starting || !s.Ended || s.Destroyed || s.ChannelSecretHex.Reveal() != "" {
 		t.Fatal("uncertain recovery lost intent/admission denial")
 	}
 	f.d.destroy = nil

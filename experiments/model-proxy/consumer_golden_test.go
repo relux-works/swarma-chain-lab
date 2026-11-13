@@ -40,7 +40,7 @@ func TestConsumerConfigGolden(t *testing.T) {
 			if code != want {
 				t.Fatalf("consumer config verdict %q want %q", code, want)
 			}
-			if e == nil && !bytes.Equal(canonical(got), bytes.TrimSpace([]byte(c.Raw))) {
+			if e == nil && !bytes.Equal(privateCanonical(got), bytes.TrimSpace([]byte(c.Raw))) {
 				t.Fatal("consumer config bytes changed")
 			}
 			after, e := os.ReadFile(p)

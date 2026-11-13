@@ -240,10 +240,10 @@ func (h *harness) handle(wrap *nostr.Event) gateway.Result {
 func (h *harness) slotSecret(slotID string) []byte {
 	h.t.Helper()
 	slot, ok := h.store.Get(slotID)
-	if !ok || slot.ChannelSecretHex == "" {
+	if !ok || slot.ChannelSecretHex.Reveal() == "" {
 		h.t.Fatalf("no channel secret for %s", slotID)
 	}
-	b, err := hex.DecodeString(slot.ChannelSecretHex)
+	b, err := hex.DecodeString(slot.ChannelSecretHex.Reveal())
 	if err != nil {
 		h.t.Fatal(err)
 	}

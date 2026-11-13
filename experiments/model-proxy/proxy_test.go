@@ -81,7 +81,7 @@ func request(stream bool) string {
 	return fmt.Sprintf(`{"model":"test-model-1","messages":[{"role":"user","content":"private-prompt-marker"}],"max_tokens":10,"stream":%t}`, stream)
 }
 func (h *harness) send(body string) *httptest.ResponseRecorder {
-	return h.sendAs(body, h.b.SlotID, h.cred.Bearer)
+	return h.sendAs(body, h.b.SlotID, h.cred.Bearer.Reveal())
 }
 func (h *harness) sendAs(body, id string, bearer Secret) *httptest.ResponseRecorder {
 	r := httptest.NewRequest("POST", "https://proxy.example/slots/"+id+"/v1/messages", strings.NewReader(body))
@@ -116,7 +116,7 @@ func (h *harness) reopen(t *testing.T) {
 func TestRegistryAndUsage(t *testing.T) {
 	h := fixture(t)
 	again, e := h.s.Prepare(h.b)
-	if e != nil || again != h.cred {
+	if e != nil || !again.Equal(h.cred) {
 		t.Fatal("prepare replay changed credential")
 	}
 	other := h.b
@@ -134,7 +134,7 @@ func TestRegistryAndUsage(t *testing.T) {
 	}
 	h.reopen(t)
 	again, e = h.s.Prepare(h.b)
-	if e != nil || again != h.cred || h.status(t).Exposure != v.Exposure {
+	if e != nil || !again.Equal(h.cred) || h.status(t).Exposure != v.Exposure {
 		t.Fatal("restart lost binding/counters")
 	}
 	if e = h.s.Revoke(h.b); e != nil {
@@ -158,7 +158,7 @@ func TestBearerRefusals(t *testing.T) {
 			if h.send(request(false)).Code != 200 {
 				t.Fatal("valid neighbor")
 			}
-			id, token := h.b.SlotID, h.cred.Bearer
+			id, token := h.b.SlotID, h.cred.Bearer.Reveal()
 			switch kind {
 			case "unknown":
 				token = "wrong"
@@ -296,9 +296,9 @@ func TestStreamAccounting(t *testing.T) {
 				}
 			}
 			h.mu.Lock()
-			logs := string(canonical(h.audits))
+			logs := string(privateCanonical(h.audits))
 			h.mu.Unlock()
-			for _, secret := range []string{keyMarker, string(h.cred.Bearer), "private-prompt-marker", "private-completion-marker"} {
+			for _, secret := range []string{keyMarker, string(h.cred.Bearer.Reveal()), "private-prompt-marker", "private-completion-marker"} {
 				if strings.Contains(logs, secret) {
 					t.Fatal("private content logged")
 				}
@@ -321,7 +321,7 @@ func TestUncertainReservation(t *testing.T) {
 				if e != nil {
 					t.Fatal(e)
 				}
-				_, cancel, e := h.s.reserve(context.Background(), h.b.SlotID, h.cred.Bearer, parsed)
+				_, cancel, e := h.s.reserve(context.Background(), h.b.SlotID, h.cred.Bearer.Reveal(), parsed)
 				if e != nil {
 					t.Fatal(e)
 				}

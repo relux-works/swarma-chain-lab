@@ -32,13 +32,13 @@ var plants = []plant{
 	{"failed_destroy", "gateway", "gateway/gateway.go", "_, destroyErr := g.cfg.Driver.Destroy(cleanup, st)", "_ = cleanup; var destroyErr error", "./gateway", "TestStartupFailure/driver", "failed start escaped cleanup/effect boundary"},
 	{"failed_live_attempt", "gateway", "gateway/gateway.go", "delete(g.starting, id)", "// omitted attempt revocation", "./gateway", "TestStartupFailure/all_writes", "failed launch readmitted"},
 	{"ended_promotion", "gateway", "journal/journal.go", "if !s.Starting || s.Started || s.Ended || s.Destroyed {", "if !s.Starting || s.Started || s.Destroyed {", "./journal", "TestStartupJournalTransitions", "ended slot promoted"},
-	{"starting_credential", "gateway", "journal/journal.go", " || s.ChannelSecretHex == \"\" {", " {", "./journal", "TestStartupJournalTransitions", "intent without credential accepted"},
+	{"starting_credential", "gateway", "journal/journal.go", " || s.ChannelSecretHex.IsZero() {", " {", "./journal", "TestStartupJournalTransitions", "intent without credential accepted"},
 	{"durable_intent", "gateway", "journal/journal.go", "s.Starting = true", "s.Starting = false", "./journal", "TestStartupJournalTransitions", "durable starting lost"},
 	{"destroy_clears_intent", "gateway", "journal/journal.go", "s.Starting = false\n", "// omitted intent removal\n", "./journal", "TestStartupJournalTransitions", "destroyed intent retained"},
 	{"serve_recovery", "gateway", "cmd/gateway/serve.go", "e = gw.RecoverStarting(recoveryCtx)", "_ = recoveryCtx; e = nil", "./cmd/gateway", "TestServeStartupRecovery/destroy", "serve skipped interrupted launch recovery"},
 	{"serve_recovery_failure", "gateway", "cmd/gateway/serve.go", "if e != nil {\n\t\treturn errors.New(\"GATEWAY_START_RECOVERY\")", "if e != nil && false {\n\t\treturn errors.New(\"GATEWAY_START_RECOVERY\")", "./cmd/gateway", "TestServeStartupRecovery/cleanup_failure", "serve ignored failed start recovery"},
 	{"station_name", "gateway", "gateway/inbound.go", "if frame.StationName != slot.StationName {", "if frame.StationName != slot.StationName && false {", "./gateway", "TestStartupAdmissionGuards/wrong_name", "startup admission guard"},
-	{"channel_credential", "gateway", "gateway/inbound.go", "if slot.ChannelSecretHex == \"\" {", "if slot.ChannelSecretHex == \"\" && false {", "./gateway", "TestStartupAdmissionGuards/no_credential", "startup admission guard"},
+	{"channel_credential", "gateway", "gateway/inbound.go", "if slot.ChannelSecretHex.Reveal() == \"\" {", "if slot.ChannelSecretHex.Reveal() == \"\" && false {", "./gateway", "TestStartupAdmissionGuards/no_credential", "startup admission guard"},
 	{"file_fsync", "gateway", "journal/journal.go", "sr1FileSync(tmp)", "error(nil)", "./journal", "TestStartupSyncProbe", "startup sync sequence"},
 	{"directory_fsync", "gateway", "journal/journal.go", "return sr1DirectorySync(d)", "return nil", "./journal", "TestStartupSyncProbe", "startup sync sequence"},
 	{"single_binding", "gateway", "gateway/inbound.go", "if _, taken := g.bound[slot.ID]; taken {", "if _, taken := g.bound[slot.ID]; taken && false {", "./gateway", "TestStartupPendingBindings", "second pending binding admitted"},
@@ -250,7 +250,7 @@ import ("testing";"strings")
 // This observes call ordering; it is not a power-loss or storage-hardware test.
 func TestStartupSyncProbe(t *testing.T) {
     s,err:=Open(t.TempDir());if err!=nil{t.Fatal(err)}
-    if err=s.Put(&Slot{ID:"probe",RenterPubKey:"fixture",ChannelSecretHex:"credential"});err!=nil{t.Fatal(err)}
+    if err=s.Put(&Slot{ID:"probe",RenterPubKey:"fixture",ChannelSecretHex:NewChannelSecretHex("credential")});err!=nil{t.Fatal(err)}
     for _, mark:=range []func(string)error{s.MarkStarting,s.MarkStarted} {
         var trace []string
         sr1Observe=func(kind string){trace=append(trace,kind)}

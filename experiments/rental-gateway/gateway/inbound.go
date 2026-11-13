@@ -449,7 +449,7 @@ func (g *Gateway) stationHello(state *connState, frame *stationlink.Frame,
 	if frame.StationName != slot.StationName {
 		return deny("station name mismatch")
 	}
-	if slot.ChannelSecretHex == "" {
+	if slot.ChannelSecretHex.Reveal() == "" {
 		return deny("no channel credential registered")
 	}
 	_, alreadyBound := g.bound[slot.ID]
@@ -484,13 +484,13 @@ func (g *Gateway) stationAuth(state *connState, frame *stationlink.Frame,
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	slot, ok := g.cfg.Journal.Get(pendingSlot)
-	if !ok || slot.Destroyed || slot.Ended || slot.ChannelSecretHex == "" || frame.StationName != slot.StationName {
+	if !ok || slot.Destroyed || slot.Ended || slot.ChannelSecretHex.Reveal() == "" || frame.StationName != slot.StationName {
 		return deny("authentication failed")
 	}
 	if !slot.Started && !(slot.Starting && g.starting[slot.ID] != nil) {
 		return deny("authentication failed")
 	}
-	secret, err := hex.DecodeString(slot.ChannelSecretHex)
+	secret, err := hex.DecodeString(slot.ChannelSecretHex.Reveal())
 	if err != nil || !stationlink.VerifyResponse(secret, nonceHex, pendingSlot, pendingStation, frame.Response) {
 		return deny("authentication failed")
 	}

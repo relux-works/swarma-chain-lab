@@ -30,7 +30,7 @@ func TestAdminBoundary(t *testing.T) {
 		h.s.adminHandler(w, r)
 		return w
 	}
-	raw := canonical(adminRequest{1, "prepare", b})
+	raw := privateCanonical(adminRequest{1, "prepare", b})
 	if w := send(raw, false); w.Code != 403 {
 		t.Fatal("unverified peer accepted")
 	}
@@ -47,19 +47,19 @@ func TestAdminBoundary(t *testing.T) {
 	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil || !out.OK || out.Credential == nil || !out.Credential.Valid() {
 		t.Fatal("admin valid neighbor refused")
 	}
-	if h.sendAs(request(false), b.SlotID, out.Credential.Bearer).Code != 401 {
+	if h.sendAs(request(false), b.SlotID, out.Credential.Bearer.Reveal()).Code != 401 {
 		t.Fatal("prepare activated bearer")
 	}
-	if w = send(canonical(adminRequest{1, "activate", b}), true); !strings.Contains(w.Body.String(), `"ok":true`) {
+	if w = send(privateCanonical(adminRequest{1, "activate", b}), true); !strings.Contains(w.Body.String(), `"ok":true`) {
 		t.Fatal("activation refused")
 	}
-	if h.sendAs(request(false), b.SlotID, out.Credential.Bearer).Code != 200 {
+	if h.sendAs(request(false), b.SlotID, out.Credential.Bearer.Reveal()).Code != 200 {
 		t.Fatal("activated neighbor refused")
 	}
-	if w = send(canonical(adminRequest{1, "revoke", b}), true); !strings.Contains(w.Body.String(), `"ok":true`) {
+	if w = send(privateCanonical(adminRequest{1, "revoke", b}), true); !strings.Contains(w.Body.String(), `"ok":true`) {
 		t.Fatal("revocation refused")
 	}
-	if h.sendAs(request(false), b.SlotID, out.Credential.Bearer).Code != 401 {
+	if h.sendAs(request(false), b.SlotID, out.Credential.Bearer.Reveal()).Code != 401 {
 		t.Fatal("revoked admin bearer forwarded")
 	}
 	if !supportsPeers() {
@@ -166,7 +166,7 @@ func TestClientDisconnect(t *testing.T) {
 		io.WriteString(w, sse(7, 3))
 	}
 	r := httptest.NewRequest("POST", "https://proxy.example/slots/"+h.b.SlotID+"/v1/messages", strings.NewReader(request(true)))
-	r.Header.Set("Authorization", "Bearer "+string(h.cred.Bearer))
+	r.Header.Set("Authorization", "Bearer "+string(h.cred.Bearer.Reveal()))
 	h.s.ServeHTTP(&failingWriter{make(http.Header)}, r)
 	if v := h.status(t); v.Exposure != (Counts{100, 10, 1, 230}) || v.InFlight {
 		t.Fatal("disconnect refunded exposure")
@@ -228,7 +228,7 @@ func TestProxyCrashChild(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	_, _, e = s.reserve(context.Background(), id, r.Bearer, p)
+	_, _, e = s.reserve(context.Background(), id, r.Bearer.Reveal(), p)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -244,7 +244,7 @@ func TestProxyCrashChild(t *testing.T) {
 // Private carriers redact all fmt verbs, including invalid-verb diagnostics;
 // malformed origin delimiters cannot become a different request target.
 func TestSecretAndOrigin(t *testing.T) {
-	c := Credential{Bearer: Secret(keyMarker), Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}}
+	c := Credential{Bearer: NewBearer(Secret(keyMarker)), Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}}
 	for _, format := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%d"} {
 		for _, value := range []any{Secret(keyMarker), c} {
 			if strings.Contains(fmt.Sprintf(format, value), keyMarker) {

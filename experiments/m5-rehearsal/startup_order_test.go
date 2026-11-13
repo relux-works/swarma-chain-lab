@@ -94,7 +94,7 @@ func TestStartupOrderingWitness(t *testing.T) {
 	}
 	driver.start = func() error {
 		s, ok := store.Get(id)
-		if !ok || s.Started || !s.Starting || s.ChannelSecretHex == "" {
+		if !ok || s.Started || !s.Starting || s.ChannelSecretHex.Reveal() == "" {
 			t.Fatal("ordering precondition")
 		}
 		if frame := hello(secret); frame.Type != stationlink.TypeSystem {

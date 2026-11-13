@@ -13,7 +13,7 @@ func refusal(w http.ResponseWriter, status int, code string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	_, _ = w.Write(canonical(struct {
+	_, _ = w.Write(privateCanonical(struct {
 		Error string `json:"error"`
 	}{code}))
 }

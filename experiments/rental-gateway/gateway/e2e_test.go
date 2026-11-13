@@ -161,7 +161,7 @@ func TestRelayEndToEnd(t *testing.T) {
 		_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 		c := stationlink.NewClient(conn)
 		slotRec, _ := store.Get("slot-1")
-		secret, _ := hex.DecodeString(slotRec.ChannelSecretHex)
+		secret, _ := hex.DecodeString(slotRec.ChannelSecretHex.Reveal())
 		if _, err := c.Hello("slot-1", "id/swarma-station-1", secret); err != nil {
 			stationDone <- err
 			return

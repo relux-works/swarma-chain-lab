@@ -62,7 +62,7 @@ func newResponsesFixture(t *testing.T) (*fixture, proxy.FileConfig) {
 	if e = f.s.Activate(f.b); e != nil {
 		t.Fatal(e)
 	}
-	f.doc = gatewaybind.PayloadBootstrap{V: 2, BookingID: f.b.SlotID, StationName: "id/responses-fixture", ChannelSecret: gatewaybind.NewChannelSecret(lifecycle.Secret(strings.Repeat("x", 32))), ModelBearer: gatewaybind.NewModelBearer(cred.Bearer), ModelEndpoint: cred.Endpoint.URL, ModelCertSHA256: cred.Endpoint.CertSHA256}
+	f.doc = gatewaybind.PayloadBootstrap{V: 2, BookingID: f.b.SlotID, StationName: "id/responses-fixture", ChannelSecret: gatewaybind.NewChannelSecret(lifecycle.Secret(strings.Repeat("x", 32))), ModelBearer: gatewaybind.NewModelBearer(cred.Bearer.Reveal()), ModelEndpoint: cred.Endpoint.URL, ModelCertSHA256: cred.Endpoint.CertSHA256}
 	return f, cfg
 }
 

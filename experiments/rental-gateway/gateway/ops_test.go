@@ -44,8 +44,8 @@ func TestEndSlotIdempotent(t *testing.T) {
 		t.Fatal("lookup found a nonexistent operation")
 	}
 	slot, _ := h.store.Get("slot-1")
-	if !slot.Ended || slot.ChannelSecretHex != "" {
-		t.Fatalf("slot after EndSlot: ended=%v secret=%q", slot.Ended, slot.ChannelSecretHex)
+	if !slot.Ended || slot.ChannelSecretHex.Reveal() != "" {
+		t.Fatalf("slot after EndSlot: ended=%v secret=%q", slot.Ended, slot.ChannelSecretHex.Reveal())
 	}
 }
 

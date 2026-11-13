@@ -190,7 +190,7 @@ func TestStationStaleSecretAfterEnd(t *testing.T) {
 		t.Fatalf("stale secret after end accepted: %+v", f)
 	}
 	slot, _ := h.store.Get("slot-1")
-	if slot.ChannelSecretHex != "" {
+	if slot.ChannelSecretHex.Reveal() != "" {
 		t.Fatal("channel secret not cleared at slot end")
 	}
 }

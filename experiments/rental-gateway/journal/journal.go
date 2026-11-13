@@ -15,7 +15,9 @@ import (
 	"strings"
 	"sync"
 
+	"encoding/hex"
 	sw "github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
 )
 
 // Slot is the durable record for one rental slot.
@@ -39,7 +41,7 @@ type Slot struct {
 	// ChannelSecretHex is the per-slot stationlink credential key
 	// (64 lower hex = 32 bytes). Journal files are 0600 in a 0700
 	// dir on the gateway host only. Cleared durably at slot end.
-	ChannelSecretHex string `json:"channel_secret_hex,omitempty"`
+	ChannelSecretHex codec.Secret[string] `json:"channel_secret_hex,omitempty,omitzero"`
 	// TokenSHA256 is the hash of the per-slot Track B token (the
 	// token itself lives only in the station home).
 	TokenSHA256 string `json:"token_sha256,omitempty"`
@@ -203,7 +205,7 @@ func (st *Store) persistLocked(slot *Slot) error {
 	if st.poisoned {
 		return ErrDelivery
 	}
-	raw, err := json.Marshal(slot)
+	raw, err := EncodePrivateSlot(slot)
 	if err != nil {
 		return err
 	}
@@ -350,7 +352,7 @@ func (st *Store) AddRefusal(id string) (int, error) {
 // race ahead of the gateway-side credential.
 func (st *Store) SetChannelSecret(id, secretHex, tokenSHA256 string) error {
 	return st.update(id, func(s *Slot) {
-		s.ChannelSecretHex = secretHex
+		s.ChannelSecretHex = NewChannelSecretHex(secretHex)
 		s.TokenSHA256 = tokenSHA256
 	})
 }
@@ -358,7 +360,7 @@ func (st *Store) SetChannelSecret(id, secretHex, tokenSHA256 string) error {
 // MarkStarting durably records launch intent before the driver can run a payload.
 func (st *Store) MarkStarting(id string) error {
 	return st.updateChecked(id, func(s *Slot) error {
-		if s.Starting || s.Started || s.Ended || s.Destroyed || s.ChannelSecretHex == "" {
+		if s.Starting || s.Started || s.Ended || s.Destroyed || s.ChannelSecretHex.IsZero() {
 			return fmt.Errorf("journal: slot cannot start")
 		}
 		s.Starting = true
@@ -385,7 +387,7 @@ func (st *Store) MarkEnded(id, reason string) error {
 			s.Ended = true
 			s.EndReason = reason
 		}
-		s.ChannelSecretHex = "" // channel secret dies at slot end
+		s.ChannelSecretHex = NewChannelSecretHex("") // channel secret dies at slot end
 	})
 }
 
@@ -395,7 +397,7 @@ func (st *Store) MarkDestroyed(id string) error {
 		s.Ended = true
 		s.Destroyed = true
 		s.Starting = false
-		s.ChannelSecretHex = ""
+		s.ChannelSecretHex = NewChannelSecretHex("")
 		if s.EndReason == "" {
 			s.EndReason = "destroyed"
 		}
@@ -588,4 +590,13 @@ func (st *Store) SetStationHandle(id, home, user string) error {
 	return st.update(id, func(s *Slot) {
 		s.StationHome, s.StationUser = home, user
 	})
+}
+
+// NewChannelSecretHex protects an existing private journal credential encoding.
+func NewChannelSecretHex(value string) codec.Secret[string] { return codec.NewSecret(value) }
+
+// SetChannelCredential is the private persistence boundary for a driver handle.
+// It converts the credential without exporting a raw field to the gateway.
+func (st *Store) SetChannelCredential(id string, credential codec.Secret[[]byte], tokenSHA256 string) error {
+	return st.SetChannelSecret(id, hex.EncodeToString(credential.Reveal()), tokenSHA256)
 }

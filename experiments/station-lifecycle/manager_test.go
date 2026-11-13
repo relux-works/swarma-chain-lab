@@ -66,7 +66,7 @@ func managerFixture(t *testing.T) (*Manager, Config, *fakeHost, *int64, Slot) {
 		t.Fatal(e)
 	}
 	t.Cleanup(func() { m.Close() })
-	s := Slot{Version: 1, ID: "1", GrantID: strings.Repeat("b", 64), NotBefore: 90, NotAfter: 200, PayloadID: "relay", PayloadSHA256: strings.Repeat("a", 64), Bootstrap: Secret(strings.Repeat("c", 32))}
+	s := Slot{Version: 1, ID: "1", GrantID: strings.Repeat("b", 64), NotBefore: 90, NotAfter: 200, PayloadID: "relay", PayloadSHA256: strings.Repeat("a", 64), Bootstrap: NewPrivateBytes(Secret(strings.Repeat("c", 32)))}
 	return m, c, h, &now, s
 }
 func mustCode(t *testing.T, e error, code string) {
@@ -101,7 +101,7 @@ func TestManagerLifecycle(t *testing.T) {
 		t.Fatal("start repeated", r, e)
 	}
 	bad := s
-	bad.Bootstrap = Secret(strings.Repeat("d", 32))
+	bad.Bootstrap = NewPrivateBytes(Secret(strings.Repeat("d", 32)))
 	_, e = m.Start(ctx, bad)
 	mustCode(t, e, "SLOT_CONFLICT")
 	m.Close()
@@ -118,7 +118,7 @@ func TestManagerLifecycle(t *testing.T) {
 	if e != nil || r.Phase != "stopped" || h.active[s.ID] {
 		t.Fatal("stop incomplete", r, e)
 	}
-	if len(m.state.Records[s.ID].Slot.Bootstrap) != 0 {
+	if len(m.state.Records[s.ID].Slot.Bootstrap.Reveal()) != 0 {
 		t.Fatal("bootstrap retained after stop")
 	}
 	_, e = m.Start(ctx, s)
@@ -159,7 +159,7 @@ func TestManagerRefusals(t *testing.T) {
 			case "hash":
 				bad.PayloadSHA256 = strings.Repeat("d", 64)
 			case "bootstrap":
-				bad.Bootstrap = nil
+				bad.Bootstrap = NewPrivateBytes(nil)
 			case "window":
 				bad.NotAfter = bad.NotBefore
 			}
@@ -178,7 +178,7 @@ func TestManagerRefusals(t *testing.T) {
 	}
 	t.Run("late-start", func(t *testing.T) {
 		m, _, h, _, s := managerFixture(t)
-		if _, e := m.Apply(context.Background(), Command{Op: "stop", Slot: s, Binding: publicBinding(s, hash(s.Bootstrap))}); e != nil {
+		if _, e := m.Apply(context.Background(), Command{Op: "stop", Slot: s, Binding: publicBinding(s, hash(s.Bootstrap.Reveal()))}); e != nil {
 			t.Fatal(e)
 		}
 		_, e := m.Start(context.Background(), s)
@@ -280,14 +280,14 @@ func TestManagerBounds(t *testing.T) {
 // binding refuses a changed local policy instead of silently taking ownership.
 func TestManagerPrivacyAndBinding(t *testing.T) {
 	m, c, _, _, s := managerFixture(t)
-	if strings.Contains(fmt.Sprintf("%+v %#v %+v", s, s, s.Bootstrap), string(s.Bootstrap)) {
+	if strings.Contains(fmt.Sprintf("%+v %#v %+v", s, s, s.Bootstrap.Reveal()), string(s.Bootstrap.Reveal())) {
 		t.Fatal("private bootstrap formatted")
 	}
 	r, e := m.Start(context.Background(), s)
 	if e != nil {
 		t.Fatal(e)
 	}
-	if strings.Contains(string(canonical(r)), string(s.Bootstrap)) {
+	if strings.Contains(string(privateCanonical(r)), string(s.Bootstrap.Reveal())) {
 		t.Fatal("bootstrap in public status")
 	}
 	m.Close()

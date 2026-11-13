@@ -542,10 +542,10 @@ func TestGatewayV3CoreE2E(t *testing.T) {
 	}
 	secretOf := func(slotID string) string {
 		s, ok := store.Get(slotID)
-		if !ok || s.ChannelSecretHex == "" {
+		if !ok || s.ChannelSecretHex.Reveal() == "" {
 			t.Fatalf("no channel secret for %s (started?)", slotID)
 		}
-		return s.ChannelSecretHex
+		return s.ChannelSecretHex.Reveal()
 	}
 
 	// Untagged first: presentation required, nothing starts.

@@ -70,7 +70,7 @@ func TestServeExpiryDuringRelayOutage(t *testing.T) {
 			now := time.Now().Unix()
 			renter, _ := nostr.GeneratePrivKey()
 			future, _ := nostr.GeneratePrivKey()
-			for _, slot := range []*journal.Slot{{ID: "expiry", StationName: "fixture", RenterPubKey: renter.PubKeyHex(), Started: true, NotBefore: now - 10, NotAfter: now + 2, ChannelSecretHex: strings.Repeat("a", 64)}, {ID: "future", StationName: "fixture", RenterPubKey: future.PubKeyHex(), Started: true, NotBefore: now - 10, NotAfter: now + 100, ChannelSecretHex: strings.Repeat("b", 64)}} {
+			for _, slot := range []*journal.Slot{{ID: "expiry", StationName: "fixture", RenterPubKey: renter.PubKeyHex(), Started: true, NotBefore: now - 10, NotAfter: now + 2, ChannelSecretHex: journal.NewChannelSecretHex(strings.Repeat("a", 64))}, {ID: "future", StationName: "fixture", RenterPubKey: future.PubKeyHex(), Started: true, NotBefore: now - 10, NotAfter: now + 100, ChannelSecretHex: journal.NewChannelSecretHex(strings.Repeat("b", 64))}} {
 				if e = store.Put(slot); e != nil {
 					t.Fatal(e)
 				}
@@ -104,7 +104,7 @@ func TestServeExpiryDuringRelayOutage(t *testing.T) {
 				s, _ := fresh.Get("expiry")
 				neighbor, _ := fresh.Get("future")
 				if s.Ended {
-					if s.EndReason != "not_after" || s.ChannelSecretHex != "" || neighbor.Ended || neighbor.ChannelSecretHex == "" || calls.Load() < 2 {
+					if s.EndReason != "not_after" || s.ChannelSecretHex.Reveal() != "" || neighbor.Ended || neighbor.ChannelSecretHex.Reveal() == "" || calls.Load() < 2 {
 						t.Fatal("expiry or neighboring slot invariant")
 					}
 					break

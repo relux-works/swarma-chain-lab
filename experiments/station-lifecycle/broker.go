@@ -3,13 +3,13 @@ package lifecycle
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
 )
 
 type BrokerConfig struct {
@@ -25,13 +25,13 @@ type BrokerConfig struct {
 	EncodeBootstrap  func(key string, credential Secret) (Secret, error)
 }
 type brokerRecord struct {
-	Key           string `json:"key"`
-	Credential    Secret `json:"credential"`
-	Slot          Slot   `json:"slot"`
-	BootstrapHash string `json:"bootstrap_hash"`
-	Binding       string `json:"binding"`
-	Desired       string `json:"desired"`
-	Result        Status `json:"result"`
+	Key           string               `json:"key"`
+	Credential    codec.Secret[Secret] `json:"credential"`
+	Slot          Slot                 `json:"slot"`
+	BootstrapHash string               `json:"bootstrap_hash"`
+	Binding       string               `json:"binding"`
+	Desired       string               `json:"desired"`
+	Result        Status               `json:"result"`
 }
 type brokerState struct {
 	Version int                     `json:"version"`
@@ -83,7 +83,7 @@ func NewBroker(c BrokerConfig) (*Broker, error) {
 	if e != nil {
 		return nil, fail("BROKER_OPEN")
 	}
-	b := &Broker{cfg: c, disk: disk, notify: make(chan struct{}), fresh: map[string]bool{}, state: brokerState{Version: 1, Config: hash(canonical([]any{c.Range, c.Payload, c.BootstrapProfile})), Records: map[string]brokerRecord{}}}
+	b := &Broker{cfg: c, disk: disk, notify: make(chan struct{}), fresh: map[string]bool{}, state: brokerState{Version: 1, Config: hash(privateCanonical([]any{c.Range, c.Payload, c.BootstrapProfile})), Records: map[string]brokerRecord{}}}
 	raw, e := disk.Read("broker.json", MaxBody)
 	if e != nil {
 		disk.Close()
@@ -99,12 +99,12 @@ func NewBroker(c BrokerConfig) (*Broker, error) {
 		for key, r := range s.Records {
 			v := r.Slot
 			if r.Desired == "stopped" {
-				if len(v.Bootstrap) != 0 || len(r.Credential) != 0 {
+				if len(v.Bootstrap.Reveal()) != 0 || len(r.Credential.Reveal()) != 0 {
 					disk.Close()
 					return nil, fail("BROKER_STATE")
 				}
-				v.Bootstrap = make(Secret, 32)
-			} else if hash(v.Bootstrap) != r.BootstrapHash || len(r.Credential) != 32 {
+				v.Bootstrap = NewPrivateBytes(make(Secret, 32))
+			} else if hash(v.Bootstrap.Reveal()) != r.BootstrapHash || len(r.Credential.Reveal()) != 32 {
 				disk.Close()
 				return nil, fail("BROKER_STATE")
 			}
@@ -142,7 +142,7 @@ func validStatus(s Status) bool {
 	return true
 }
 func (b *Broker) save() error {
-	raw := canonical(b.state)
+	raw := privateCanonical(b.state)
 	if len(raw) > MaxBody {
 		b.poisoned = true
 		return fail("BROKER_CAPACITY")
@@ -174,7 +174,7 @@ func (b *Broker) clock() (int64, error) {
 	}
 	return now, nil
 }
-func copySlot(s Slot) Slot { var out Slot; _ = json.Unmarshal(canonical(s), &out); return out }
+func copySlot(s Slot) Slot { return s }
 func (b *Broker) Allocate(key, grant string, before, after int64) (Slot, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -235,8 +235,8 @@ func (b *Broker) Allocate(key, grant string, before, after int64) (Slot, error) 
 		}
 		bootstrap = append(Secret(nil), bootstrap...)
 	}
-	s := Slot{Version: 1, ID: id, GrantID: grant, NotBefore: before, NotAfter: after, PayloadID: b.cfg.Payload.ID, PayloadSHA256: b.cfg.Payload.SHA256, Bootstrap: bootstrap}
-	r := brokerRecord{Key: key, Credential: secret, Slot: s, BootstrapHash: hash(bootstrap), Binding: publicBinding(s, hash(bootstrap)), Desired: "allocated"}
+	s := Slot{Version: 1, ID: id, GrantID: grant, NotBefore: before, NotAfter: after, PayloadID: b.cfg.Payload.ID, PayloadSHA256: b.cfg.Payload.SHA256, Bootstrap: NewPrivateBytes(bootstrap)}
+	r := brokerRecord{Key: key, Credential: NewPrivateBytes(secret), Slot: s, BootstrapHash: hash(bootstrap), Binding: publicBinding(s, hash(bootstrap)), Desired: "allocated"}
 	b.state.Records[key] = r
 	if e := b.save(); e != nil {
 		return Slot{}, e
@@ -270,10 +270,10 @@ func (b *Broker) Credential(key string) (Secret, error) {
 		return nil, fail("BROKER_UNAVAILABLE")
 	}
 	r, ok := b.state.Records[key]
-	if !ok || len(r.Credential) != 32 {
+	if !ok || len(r.Credential.Reveal()) != 32 {
 		return nil, fail("NOT_FOUND")
 	}
-	return append(Secret(nil), r.Credential...), nil
+	return append(Secret(nil), r.Credential.Reveal()...), nil
 }
 
 func (b *Broker) SetStart(key string) error {
@@ -395,8 +395,8 @@ func (b *Broker) Poll(p PollRequest) (PollResponse, error) {
 		}
 		if s.Phase == "stopped" {
 			r.Desired = "stopped"
-			r.Slot.Bootstrap = nil
-			r.Credential = nil
+			r.Slot.Bootstrap = NewPrivateBytes(nil)
+			r.Credential = NewPrivateBytes(nil)
 		}
 		b.fresh[key] = s.Phase == "running"
 		r.Result = s

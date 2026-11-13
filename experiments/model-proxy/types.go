@@ -4,6 +4,7 @@ package modelproxy
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/modelprofile"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
 )
 
 const MaxBody = 65536
@@ -34,7 +36,7 @@ func digest(s string) bool {
 	return e == nil && len(b) == 32 && hex.EncodeToString(b) == s
 }
 func sum(b []byte) string            { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
-func canonical(v any) []byte         { b, _ := json.Marshal(v); return b }
+func privateCanonical(v any) []byte  { b, _ := json.Marshal(privateValue(v)); return b }
 func add(a, b uint64) (uint64, bool) { c := a + b; return c, c >= a }
 func mul(a, b uint64) (uint64, bool) {
 	if b != 0 && a > ^uint64(0)/b {
@@ -75,8 +77,8 @@ func (b Binding) Valid() bool {
 
 type Endpoint = modelprofile.Endpoint
 type Credential struct {
-	Bearer   Secret   `json:"bearer"`
-	Endpoint Endpoint `json:"endpoint"`
+	Bearer   codec.Secret[Secret] `json:"bearer"`
+	Endpoint Endpoint             `json:"endpoint"`
 }
 
 func (Credential) Format(s fmt.State, _ rune) { _, _ = io.WriteString(s, "[private model credential]") }
@@ -136,4 +138,13 @@ func price(m Model, u Usage) (uint64, bool) {
 func validOrigin(raw string) bool {
 	u, e := url.Parse(raw)
 	return e == nil && validURL(raw) && u.Path == ""
+}
+
+// NewBearer protects a model bearer; Secret remains the upstream API-key type.
+func NewBearer(value Secret) codec.Secret[Secret] { return codec.NewSecret(value) }
+
+// Equal compares credential values, including independently decoded holders.
+// Pointer identity is deliberately not part of the credential contract.
+func (c Credential) Equal(other Credential) bool {
+	return c.Endpoint == other.Endpoint && subtle.ConstantTimeCompare([]byte(c.Bearer.Reveal()), []byte(other.Bearer.Reveal())) == 1
 }

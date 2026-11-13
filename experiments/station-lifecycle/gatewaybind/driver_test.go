@@ -194,7 +194,7 @@ func TestGatewayLifecycleRecovery(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			decoded, e := DecodeBootstrap(v.Bootstrap)
+			decoded, e := DecodeBootstrap(v.Bootstrap.Reveal())
 			if e != nil || decoded.BookingID != f.id || decoded.StationName != "id/fixture" {
 				t.Fatal("payload routing bootstrap", e)
 			}
@@ -203,7 +203,7 @@ func TestGatewayLifecycleRecovery(t *testing.T) {
 				t.Fatal("payload channel credential", e)
 			}
 			f.host.mu.Lock()
-			same := bytes.Equal(v.Bootstrap, f.host.slot.Bootstrap)
+			same := bytes.Equal(v.Bootstrap.Reveal(), f.host.slot.Bootstrap.Reveal())
 			f.host.mu.Unlock()
 			if !same {
 				t.Fatal("channel credential differs from helper bootstrap")

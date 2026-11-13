@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
 	"strconv"
 	"time"
 )
@@ -29,14 +30,14 @@ func (Secret) String() string   { return "[private bootstrap]" }
 func (Secret) GoString() string { return "[private bootstrap]" }
 
 type Slot struct {
-	Version       int    `json:"version"`
-	ID            string `json:"slot"`
-	GrantID       string `json:"grant_id"`
-	NotBefore     int64  `json:"not_before"`
-	NotAfter      int64  `json:"not_after"`
-	PayloadID     string `json:"payload_id"`
-	PayloadSHA256 string `json:"payload_sha256"`
-	Bootstrap     Secret `json:"bootstrap"`
+	Version       int                  `json:"version"`
+	ID            string               `json:"slot"`
+	GrantID       string               `json:"grant_id"`
+	NotBefore     int64                `json:"not_before"`
+	NotAfter      int64                `json:"not_after"`
+	PayloadID     string               `json:"payload_id"`
+	PayloadSHA256 string               `json:"payload_sha256"`
+	Bootstrap     codec.Secret[Secret] `json:"bootstrap"`
 }
 
 func (s Slot) String() string   { return "slot:" + s.ID }
@@ -97,15 +98,15 @@ func label(s string) bool {
 	}
 	return true
 }
-func canonical(v any) []byte { b, _ := json.Marshal(v); return b }
-func hash(b []byte) string   { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
+func privateCanonical(v any) []byte { b, _ := json.Marshal(privateValue(v)); return b }
+func hash(b []byte) string          { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
 func strict(raw []byte, v any) error {
 	if len(raw) == 0 || len(raw) > MaxBody {
 		return fail("ENCODING")
 	}
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
-	if d.Decode(v) != nil || !bytes.Equal(raw, canonical(v)) {
+	if d.Decode(v) != nil || !bytes.Equal(raw, privateCanonical(v)) {
 		return fail("ENCODING")
 	}
 	return nil
@@ -116,8 +117,11 @@ func (r Range) contains(id string) bool {
 	return e == nil && strconv.Itoa(n) == id && n >= int(r.First) && n <= int(r.Last)
 }
 func (r Range) validateSlot(s Slot) error {
-	if s.Version != 1 || !r.contains(s.ID) || !digest(s.GrantID) || s.NotBefore < 1 || s.NotAfter <= s.NotBefore || s.NotAfter-s.NotBefore > 3600 || (len(s.Bootstrap) < 1 || len(s.Bootstrap) > 4096) || !label(s.PayloadID) || !digest(s.PayloadSHA256) {
+	if s.Version != 1 || !r.contains(s.ID) || !digest(s.GrantID) || s.NotBefore < 1 || s.NotAfter <= s.NotBefore || s.NotAfter-s.NotBefore > 3600 || (len(s.Bootstrap.Reveal()) < 1 || len(s.Bootstrap.Reveal()) > 4096) || !label(s.PayloadID) || !digest(s.PayloadSHA256) {
 		return fail("SLOT_POLICY")
 	}
 	return nil
 }
+
+// NewPrivateBytes protects retained channel credentials and private bootstrap bytes.
+func NewPrivateBytes(value Secret) codec.Secret[Secret] { return codec.NewSecret(value) }

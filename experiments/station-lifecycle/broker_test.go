@@ -44,7 +44,7 @@ func TestBrokerLifecycle(t *testing.T) {
 	}
 	defer b.Close()
 	again, e := b.Allocate(key, grant, 90, 200)
-	if e != nil || string(canonical(s)) != string(canonical(again)) {
+	if e != nil || string(privateCanonical(s)) != string(privateCanonical(again)) {
 		t.Fatal("allocation replay changed")
 	}
 	if e = b.SetStart(key); e != nil {
@@ -128,9 +128,9 @@ func TestBrokerRefusals(t *testing.T) {
 	if e = b.SetStart(key); e != nil {
 		t.Fatal(e)
 	}
-	original := canonical(b.state.Records)
+	original := privateCanonical(b.state.Records)
 	for _, bad := range []Status{{SlotID: "9999", Phase: "running"}, {SlotID: s.ID, Phase: "running", Binding: strings.Repeat("f", 64), NotAfter: 200}, {SlotID: s.ID, Phase: "private backend error"}} {
-		if _, e = b.Poll(PollRequest{Version: 1, Results: []Status{bad}}); e == nil || string(original) != string(canonical(b.state.Records)) {
+		if _, e = b.Poll(PollRequest{Version: 1, Results: []Status{bad}}); e == nil || string(original) != string(privateCanonical(b.state.Records)) {
 			t.Fatal("foreign status changed authority")
 		}
 	}
@@ -157,7 +157,7 @@ func TestBrokerFreshReadiness(t *testing.T) {
 	if e = b.SetStart(key); e != nil {
 		t.Fatal(e)
 	}
-	ack := Status{SlotID: s.ID, Binding: publicBinding(s, hash(s.Bootstrap)), Phase: "running", NotAfter: s.NotAfter}
+	ack := Status{SlotID: s.ID, Binding: publicBinding(s, hash(s.Bootstrap.Reveal())), Phase: "running", NotAfter: s.NotAfter}
 	if _, e = b.Poll(PollRequest{Version: 1, Results: []Status{ack}}); e != nil {
 		t.Fatal(e)
 	}

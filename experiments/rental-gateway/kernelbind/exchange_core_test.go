@@ -378,7 +378,7 @@ func runExchangeCore(t *testing.T, revoked bool) {
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	client := stationlink.NewClient(conn)
 	slot, _ = store.Get(contract.BookingID)
-	secret, err := hex.DecodeString(slot.ChannelSecretHex)
+	secret, err := hex.DecodeString(slot.ChannelSecretHex.Reveal())
 	if err != nil {
 		t.Fatal(err)
 	}

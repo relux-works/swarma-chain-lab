@@ -183,7 +183,7 @@ func (Messages) Parse(raw []byte) (Prepared, error) {
 	// The priced profile never inherits workspace priority or regional defaults.
 	m["service_tier"] = json.RawMessage(`"standard_only"`)
 	m["inference_geo"] = json.RawMessage(`"global"`)
-	p.Body = canonical(m)
+	p.Body = privateCanonical(m)
 	if len(p.Body) > MaxBody {
 		return Prepared{}, fail("BODY")
 	}

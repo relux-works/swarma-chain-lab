@@ -31,7 +31,7 @@ func TestSecretCopies(t *testing.T) {
 func TestSecretJSON(t *testing.T) {
 	channel := NewSecret([]byte("synthetic-channel"))
 	bearer := NewSecret("synthetic-bearer")
-	for _, value := range []any{channel, bearer} {
+	for _, value := range []any{channel.Reveal(), bearer.Reveal()} {
 		raw, err := json.Marshal(value)
 		if err != nil || !strings.Contains(string(raw), "synthetic") && !strings.Contains(string(raw), "c3ludGhldGljLWNoYW5uZWw=") {
 			t.Fatal("private wire credential unavailable")
@@ -46,7 +46,7 @@ func TestSecretJSON(t *testing.T) {
 	for _, tc := range []struct {
 		value any
 		want  string
-	}{{Secret[[]byte]{}, "null"}, {Secret[string]{}, `""`}, {NewSecret([]byte{}), "null"}, {NewSecret(""), `""`}} {
+	}{{Secret[[]byte]{}.Reveal(), "null"}, {Secret[string]{}.Reveal(), `""`}, {NewSecret([]byte{}).Reveal(), "null"}, {NewSecret("").Reveal(), `""`}} {
 		raw, err := json.Marshal(tc.value)
 		if err != nil || string(raw) != tc.want {
 			t.Fatal("zero credential JSON changed")

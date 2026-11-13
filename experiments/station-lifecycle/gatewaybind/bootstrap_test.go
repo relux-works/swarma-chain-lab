@@ -54,16 +54,16 @@ func TestBootstrapDurableReplay(t *testing.T) {
 		t.Fatal(e)
 	}
 	secret := append([]byte(nil), st.ChannelSecret.Reveal()...)
-	raw := append([]byte(nil), v.Bootstrap...)
+	raw := append([]byte(nil), v.Bootstrap.Reveal()...)
 	st.ChannelSecret.Reveal()[0] ^= 1
-	v.Bootstrap[0] ^= 1
+	v.Bootstrap.Reveal()[0] ^= 1
 	f.restart(t)
 	st, e = f.d.Create(context.Background(), spec)
 	if e != nil {
 		t.Fatal(e)
 	}
 	v, e = f.d.broker.Lookup(f.id)
-	if e != nil || !bytes.Equal(secret, st.ChannelSecret.Reveal()) || !bytes.Equal(raw, v.Bootstrap) {
+	if e != nil || !bytes.Equal(secret, st.ChannelSecret.Reveal()) || !bytes.Equal(raw, v.Bootstrap.Reveal()) {
 		t.Fatal("restart changed bootstrap or credential", e)
 	}
 }

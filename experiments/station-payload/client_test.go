@@ -139,7 +139,7 @@ func newFixture(t *testing.T, modelReplies ...string) *fixture {
 	if err = f.s.Activate(f.b); err != nil {
 		t.Fatal(err)
 	}
-	f.doc = gatewaybind.PayloadBootstrap{V: 2, BookingID: f.b.SlotID, StationName: "id/payload-fixture", ChannelSecret: gatewaybind.NewChannelSecret(lifecycle.Secret(strings.Repeat("x", 32))), ModelBearer: gatewaybind.NewModelBearer(cred.Bearer), ModelEndpoint: cred.Endpoint.URL, ModelCertSHA256: cred.Endpoint.CertSHA256}
+	f.doc = gatewaybind.PayloadBootstrap{V: 2, BookingID: f.b.SlotID, StationName: "id/payload-fixture", ChannelSecret: gatewaybind.NewChannelSecret(lifecycle.Secret(strings.Repeat("x", 32))), ModelBearer: gatewaybind.NewModelBearer(cred.Bearer.Reveal()), ModelEndpoint: cred.Endpoint.URL, ModelCertSHA256: cred.Endpoint.CertSHA256}
 	return f
 }
 func (f *fixture) client(t *testing.T) *Client {

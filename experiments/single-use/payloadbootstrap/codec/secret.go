@@ -4,9 +4,8 @@ import "encoding/json"
 
 // Secret keeps credential bytes behind an unexported scalar pointer. Even fmt's
 // method-bypassing bad-verb diagnostics can see only that pointer's address
-// when walking a containing value. JSON encoding deliberately reveals the
-// credential for the private bootstrap wire format; use the public projection
-// for output that must not contain credentials.
+// when walking a containing value. Generic JSON/text encoding always redacts;
+// private wire encoders must explicitly reveal into their private DTOs.
 type Secret[T ~[]byte | ~string] struct {
 	// A pointer to a slice is insufficient: a bad-verb diagnostic may restart
 	// formatting at depth zero and dereference a slice/struct/map/array pointer.
@@ -42,7 +41,11 @@ func (Secret[T]) GoString() string { return "[private bootstrap credential]" }
 func (s Secret[T]) IsZero() bool { return s.value == nil }
 
 func (s Secret[T]) MarshalJSON() ([]byte, error) {
-	return json.Marshal(s.Reveal())
+	return json.Marshal("[private bootstrap credential]")
+}
+
+func (Secret[T]) MarshalText() ([]byte, error) {
+	return []byte("[private bootstrap credential]"), nil
 }
 
 func (s *Secret[T]) UnmarshalJSON(raw []byte) error {

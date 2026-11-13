@@ -25,6 +25,22 @@ type Bootstrap[C ~[]byte, B ~string] struct {
 	ModelCertSHA256 string    `json:"model_cert_sha256,omitempty"`
 }
 
+// bootstrapWire exists only inside the explicit private encoder. Its field
+// order and optional fields preserve the original canonical v1/v2 wire bytes.
+type bootstrapWire[C ~[]byte, B ~string] struct {
+	V               int    `json:"v"`
+	BookingID       string `json:"booking_id"`
+	StationName     string `json:"station_name"`
+	ChannelSecret   C      `json:"channel_secret"`
+	ModelBearer     B      `json:"model_bearer,omitempty"`
+	ModelEndpoint   string `json:"model_endpoint,omitempty"`
+	ModelCertSHA256 string `json:"model_cert_sha256,omitempty"`
+}
+
+func privateWire[C ~[]byte, B ~string](b Bootstrap[C, B]) bootstrapWire[C, B] {
+	return bootstrapWire[C, B]{b.V, b.BookingID, b.StationName, b.ChannelSecret.Reveal(), b.ModelBearer.Reveal(), b.ModelEndpoint, b.ModelCertSHA256}
+}
+
 func (Bootstrap[C, B]) String() string   { return "[private station bootstrap]" }
 func (Bootstrap[C, B]) GoString() string { return "[private station bootstrap]" }
 func Valid[C ~[]byte, B ~string](b Bootstrap[C, B]) bool {
@@ -46,7 +62,7 @@ func Encode[C ~[]byte, B ~string](b Bootstrap[C, B]) (C, error) {
 	if !Valid(b) {
 		return nil, errors.New("PAYLOAD_BOOTSTRAP")
 	}
-	raw, e := json.Marshal(b)
+	raw, e := json.Marshal(privateWire(b))
 	if e != nil || len(raw) > 4096 {
 		return nil, errors.New("PAYLOAD_BOOTSTRAP")
 	}
@@ -62,7 +78,7 @@ func Decode[C ~[]byte, B ~string](raw []byte) (Bootstrap[C, B], error) {
 	if d.Decode(&b) != nil || !Valid(b) {
 		return Bootstrap[C, B]{}, errors.New("PAYLOAD_BOOTSTRAP")
 	}
-	encoded, e := json.Marshal(b)
+	encoded, e := json.Marshal(privateWire(b))
 	if e != nil || !bytes.Equal(raw, encoded) {
 		return Bootstrap[C, B]{}, errors.New("PAYLOAD_BOOTSTRAP")
 	}

@@ -29,7 +29,7 @@ func (h *Host) call(ctx context.Context, r Request) (Response, error) {
 	return out, nil
 }
 func bound(r Response, s lifecycle.Slot, checkPayload bool) bool {
-	return r.Slot == s.ID && r.NotAfter == time.Unix(s.NotAfter, 0).UTC().Format(time.RFC3339) && r.BootstrapSHA256 == sum(s.Bootstrap) && (!checkPayload || r.PayloadSHA256 == s.PayloadSHA256)
+	return r.Slot == s.ID && r.NotAfter == time.Unix(s.NotAfter, 0).UTC().Format(time.RFC3339) && r.BootstrapSHA256 == sum(s.Bootstrap.Reveal()) && (!checkPayload || r.PayloadSHA256 == s.PayloadSHA256)
 }
 func (h *Host) Start(ctx context.Context, s lifecycle.Slot, record func(lifecycle.CreateFence) error) error {
 	if h.Now == nil || s.NotAfter-h.Now().Unix() <= 60 {
@@ -52,7 +52,7 @@ func (h *Host) Start(ctx context.Context, s lifecycle.Slot, record func(lifecycl
 			return failure("SLOTD_FENCE_WRITE")
 		}
 		until := time.Unix(s.NotAfter, 0).UTC().Format(time.RFC3339)
-		bootstrap := base64.StdEncoding.EncodeToString(s.Bootstrap)
+		bootstrap := base64.StdEncoding.EncodeToString(s.Bootstrap.Reveal())
 		r, e = h.call(ctx, Request{V: 1, Op: "create", Slot: s.ID, BootID: &fence.BootID, IssuedBoottimeNS: &fence.IssuedBoottimeNS, NotAfter: &until, Bootstrap: &bootstrap})
 		if e != nil {
 			return e

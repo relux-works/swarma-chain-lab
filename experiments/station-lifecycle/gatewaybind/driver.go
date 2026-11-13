@@ -81,7 +81,7 @@ func New(c Config) (*Driver, error) {
 				return nil, errors.New("MODEL_PREPARE")
 			}
 			doc.V = 2
-			doc.ModelBearer = NewModelBearer(credential.Bearer)
+			doc.ModelBearer = NewModelBearer(credential.Bearer.Reveal())
 			doc.ModelEndpoint = credential.Endpoint.URL
 			doc.ModelCertSHA256 = credential.Endpoint.CertSHA256
 		}
@@ -146,7 +146,7 @@ func (d *Driver) Create(ctx context.Context, spec station.SlotSpec) (*station.St
 	if e != nil {
 		return nil, e
 	}
-	bootstrap, e := DecodeBootstrap(v.Bootstrap)
+	bootstrap, e := DecodeBootstrap(v.Bootstrap.Reveal())
 	if e != nil || bootstrap.BookingID != s.BookingID || bootstrap.StationName != s.StationName {
 		return nil, errors.New("LIFECYCLE_BOOTSTRAP")
 	}
@@ -174,7 +174,7 @@ func (d *Driver) StartSession(ctx context.Context, st *station.Station, info sta
 	if e != nil {
 		return e
 	}
-	bootstrap, decodeErr := DecodeBootstrap(v.Bootstrap)
+	bootstrap, decodeErr := DecodeBootstrap(v.Bootstrap.Reveal())
 	if decodeErr != nil || bootstrap.BookingID != s.BookingID || bootstrap.StationName != s.StationName {
 		return errors.New("LIFECYCLE_BOOTSTRAP")
 	}

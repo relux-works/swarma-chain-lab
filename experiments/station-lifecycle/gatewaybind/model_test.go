@@ -155,7 +155,7 @@ func TestModelLifecycle(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	doc, e := DecodeBootstrap(v.Bootstrap)
+	doc, e := DecodeBootstrap(v.Bootstrap.Reveal())
 	if e != nil || doc.V != 2 || modelPhase(t, r, f.id) != "prepared" {
 		t.Fatal("model prepared wrong state")
 	}
@@ -166,13 +166,13 @@ func TestModelLifecycle(t *testing.T) {
 	if w.Code != 401 {
 		t.Fatal("prepared bearer already usable")
 	}
-	saved := append([]byte(nil), v.Bootstrap...)
+	saved := append([]byte(nil), v.Bootstrap.Reveal()...)
 	f.restart(t)
 	if _, e = f.d.Create(context.Background(), spec); e != nil {
 		t.Fatal(e)
 	}
 	v, e = f.d.broker.Lookup(f.id)
-	if e != nil || !bytes.Equal(v.Bootstrap, saved) || r.prepare != 1 {
+	if e != nil || !bytes.Equal(v.Bootstrap.Reveal(), saved) || r.prepare != 1 {
 		t.Fatal("restart reminted bootstrap")
 	}
 	stop := f.pump(t)
@@ -230,7 +230,7 @@ func TestModelLifecycleFailures(t *testing.T) {
 				t.Fatal("proxy outage suppressed host stop")
 			}
 			j, _ := f.c.Journal.Get(f.id)
-			if !j.Ended || j.ChannelSecretHex != "" {
+			if !j.Ended || j.ChannelSecretHex.Reveal() != "" {
 				t.Fatal("pending cleanup retained gateway channel")
 			}
 			persisted, ok := f.g.LookupOperation(f.id, "fixture")
