@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -55,12 +57,52 @@ var t18rhCovered = [][5]string{
 
 func t18rhSha(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
 
+// t18rhKitDir holds the real deploy-kit, built once from this tree for the
+// report and check modes (r6: their canonical spec hash comes only from
+// `deploy-kit g2-custody-hash`); TestMain removes it.
+var (
+	t18rhKitOnce sync.Once
+	t18rhKitDir  string
+	t18rhKitErr  error
+)
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if t18rhKitDir != "" {
+		os.RemoveAll(t18rhKitDir)
+	}
+	os.Exit(code)
+}
+
+// t18rhKit returns the path of the real deploy-kit built from this tree.
+func t18rhKit(t *testing.T) string {
+	t.Helper()
+	t18rhKitOnce.Do(func() {
+		if t18rhKitDir, t18rhKitErr = os.MkdirTemp("", "t18rh-kit"); t18rhKitErr != nil {
+			return
+		}
+		out, e := exec.Command("go", "build", "-mod=readonly", "-buildvcs=false", "-o", filepath.Join(t18rhKitDir, "deploy-kit"), "./cmd/deploy-kit").CombinedOutput()
+		if e != nil {
+			t18rhKitErr = errors.New(e.Error() + "\n" + string(out))
+		}
+	})
+	if t18rhKitErr != nil {
+		t.Fatal("T18RH_SETUP build deploy-kit", t18rhKitErr)
+	}
+	return filepath.Join(t18rhKitDir, "deploy-kit")
+}
+
 // t18rhRun runs the script with /bin/sh in this directory and returns its
-// exit status and combined output.
+// exit status and combined output. The report and check modes get the real
+// deploy-kit as DEPLOY_KIT unless env names another.
 func t18rhRun(t *testing.T, env []string, args ...string) (int, string) {
 	t.Helper()
 	cmd := exec.Command("/bin/sh", append([]string{t18rhScript}, args...)...)
-	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = os.Environ()
+	if len(args) > 0 && (args[0] == "report" || args[0] == "check") {
+		cmd.Env = append(cmd.Env, "DEPLOY_KIT="+t18rhKit(t))
+	}
+	cmd.Env = append(cmd.Env, env...)
 	out, e := cmd.CombinedOutput()
 	if e != nil {
 		if _, ok := e.(*exec.ExitError); !ok {
@@ -602,8 +644,10 @@ func TestT18RealHostCheckControls(t *testing.T) {
 	}
 }
 
-// Claim: the dry run needs no root, no station and no deploy-kit: self-test
-// composes its synthetic evidence through the real report path and prints
+// Claim: the dry run needs no root and no station: self-test builds the real
+// deploy-kit from this checkout (a caller's DEPLOY_KIT, here a missing path,
+// is not used), composes its synthetic evidence through the real report path
+// and prints
 // SELF_TEST PASS with exit 0 only when the valid samples pass (the real run
 // with its no-op apply line, the stand-in run with its placeholders STAND_IN
 // and its OVERALL line valid only as a stand-in run) and its known-bad samples
@@ -616,10 +660,15 @@ func TestT18RealHostCheckControls(t *testing.T) {
 // denied row each fail check with their named reason. The r5 samples: the
 // custody_spec_sha256 line, the header's spec_sha256 and the render line's
 // custody_spec_file_sha256, each changed alone, fail check with their named
-// reason.
+// reason. The r6 samples: with no deploy-kit, or one that prints nothing,
+// garbage or exits non-zero, check refuses canonical-hash-unavailable; one
+// that prints another well-formed hash gives header-spec-sha256:differs; and
+// the valid report with its spec behind a leading space (file hashes moved
+// along) passes with the real product.
 func TestT18RealHostSelfTest(t *testing.T) {
 	code, out := t18rhRun(t, []string{"DEPLOY_KIT=/nonexistent/deploy-kit"}, "self-test")
-	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 20 {
+	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 27 ||
+		!strings.HasPrefix(out, "self-test build-deploy-kit ok exit=0\n") || !strings.Contains(out, "\nself-test whitespace-spec-agrees ok exit=0\n") {
 		t.Fatalf("T18RH_SELF_TEST %d\n%s", code, out)
 	}
 }
@@ -1230,10 +1279,11 @@ const t18rhR5 = "testdata/t18-real-host-r5"
 // which equals the header in a valid report. Neighbours: the header and
 // verified= changed together are refused by the header comparison alone, and
 // the given spec with one more trailing newline (same canonical hash, another
-// file) is refused by the two file hashes and not by the header. Limit: check
-// computes the canonical hash as the SHA-256 of the spec file without its
-// trailing newline, which equals CustodySpecSHA256 for a rendered spec (the
-// file step 6 copies), not for a re-serialized one.
+// file, which the product's spec reader accepts) is refused by the two file
+// hashes and not by the header. r6: check takes
+// the canonical hash only from `deploy-kit g2-custody-hash` (the real one,
+// built from this tree); TestT18RealHostCanonicalHashFromProduct holds the
+// controls around that source.
 func TestT18RealHostAllSpecHashesBound(t *testing.T) {
 	spec, other := filepath.Join(t18rhR4, "custody-spec.json"), filepath.Join(t18rhR4, "other-custody-spec.json")
 	read := func(path string) string {
@@ -1303,5 +1353,130 @@ func TestT18RealHostAllSpecHashesBound(t *testing.T) {
 	if code, out := t18rhCheckFile(t, "spec-extra-newline", valid, nl); code != 1 ||
 		!strings.Contains(out, "\n# reasons: render-custody-spec-file-sha256:differs custody-spec-sha256:differs stated-overall-disagrees\n") {
 		t.Fatalf("T18RH_HASHES the spec with one more newline: exit %d\n%s", code, out)
+	}
+}
+
+// Claim (r6): check and report take the canonical spec hash only from
+// `$DEPLOY_KIT g2-custody-hash -spec SPEC` and read its output strictly.
+// Positive controls: the stored r4 valid report passes check with the real
+// deploy-kit, and with a stand-in that prints exactly the product's line only
+// for the exact arguments `g2-custody-hash -spec SPEC`. check refuses with
+// exactly canonical-hash-unavailable (exit 1; the header is not compared)
+// when DEPLOY_KIT names no file, when it is empty and no deploy-kit is on
+// PATH, and when the stand-in prints nothing, garbage, the right line twice,
+// in upper case, with a trailing space or without its newline, or the right
+// line with exit 1; a stand-in printing another well-formed hash gives
+// exactly header-spec-sha256:differs. The two whitespace variants of the r4
+// spec (a leading space; a trailing space before the newline), whose shell
+// hash (bytes without the trailing newline) differs from the canonical hash,
+// agree with the product: the valid report with their file hashes moved
+// along passes. report refuses to compose without the product (REFUSED
+// canonical-hash-unavailable, exit 1, no header), and composes a passing
+// report on the fixture with a leading-space spec, whose header carries the
+// canonical hash. Limit: the stand-ins are shell scripts; the product's
+// standard error is not read.
+func TestT18RealHostCanonicalHashFromProduct(t *testing.T) {
+	spec := filepath.Join(t18rhR4, "custody-spec.json")
+	raw, e := os.ReadFile(spec)
+	if e != nil {
+		t.Fatal(e)
+	}
+	b, e := os.ReadFile(filepath.Join(t18rhR4, "valid-real.txt"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	valid := string(b)
+	last := valid[strings.LastIndex(strings.TrimSuffix(valid, "\n"), "\n")+1:]
+	sp, e := ParseCustodySpec(raw[:len(raw)-1])
+	if e != nil {
+		t.Fatal(e)
+	}
+	canon := CustodySpecSHA256(sp)
+	if !strings.HasPrefix(valid, "T18-REAL-HOST v1 wallet=real commit="+t18rhCommit+" spec_sha256="+canon+" ") {
+		t.Fatal("T18RH_CANON setup: the valid report's header does not carry the canonical hash")
+	}
+	check := func(name, text, specPath string, env ...string) (int, string) {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), name)
+		os.WriteFile(path, []byte(text), 0600)
+		return t18rhRun(t, env, "check", path, specPath)
+	}
+	if code, out := check("real-kit", valid, spec); code != 0 || out != last {
+		t.Fatalf("T18RH_CANON the valid report with the real deploy-kit: %d\n%s", code, out)
+	}
+	dir := t.TempDir()
+	fake := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if e := os.WriteFile(p, []byte("#!/bin/sh\n"+body+"\n"), 0700); e != nil {
+			t.Fatal(e)
+		}
+		return p
+	}
+	line := "T18_CUSTODY_SPEC_SHA256 " + canon
+	args := `[ "$#" = 3 ] && [ "$1" = g2-custody-hash ] && [ "$2" = -spec ] && [ "$3" = '` + spec + `' ] && `
+	exact := fake("exact", args+`printf '%s\n' '`+line+`' || echo wrong-arguments`)
+	if code, out := check("exact-stand-in", valid, spec, "DEPLOY_KIT="+exact); code != 0 || out != last {
+		t.Fatalf("T18RH_CANON a stand-in printing exactly the product's line: %d\n%s", code, out)
+	}
+	unavailable := "\n# reasons: canonical-hash-unavailable stated-overall-disagrees\n"
+	for _, c := range []struct{ name, kit, reasons string }{
+		{"kit-missing", filepath.Join(dir, "absent", "deploy-kit"), unavailable},
+		{"kit-wrong-hash", fake("wrong", "echo T18_CUSTODY_SPEC_SHA256 "+strings.Repeat("0", 64)), "\n# reasons: header-spec-sha256:differs stated-overall-disagrees\n"},
+		{"kit-garbage", fake("garbage", "echo T18_CUSTODY_SPEC_SHA256 not-a-hash"), unavailable},
+		{"kit-empty", fake("empty", "exit 0"), unavailable},
+		{"kit-nonzero-exit", fake("exit1", "echo "+line+"; exit 1"), unavailable},
+		{"kit-two-lines", fake("two", "echo "+line+"; echo "+line), unavailable},
+		{"kit-upper-case", fake("upper", "echo "+strings.ToUpper(line)), unavailable},
+		{"kit-trailing-space", fake("space", "echo '"+line+" '"), unavailable},
+		{"kit-no-newline", fake("nonl", "printf '%s' '"+line+"'"), unavailable},
+		{"kit-wrong-arguments", fake("args", args+"exit 0; echo "+line), unavailable},
+	} {
+		if code, out := check(c.name, valid, spec, "DEPLOY_KIT="+c.kit); code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.Contains(out, c.reasons) {
+			t.Fatalf("T18RH_CANON %s: exit %d, want 1 with exactly %q\n%s", c.name, code, c.reasons, out)
+		}
+	}
+	// DEPLOY_KIT empty: the default name, deploy-kit, is looked up on PATH.
+	if p, e := exec.LookPath("deploy-kit"); e == nil && (filepath.Dir(p) == "/usr/bin" || filepath.Dir(p) == "/bin") {
+		t.Log("T18RH_CANON a system deploy-kit exists; the PATH case did not run")
+	} else if code, out := check("kit-not-on-path", valid, spec, "DEPLOY_KIT=", "PATH=/usr/bin:/bin"); code != 1 || !strings.Contains(out, unavailable) {
+		t.Fatalf("T18RH_CANON no deploy-kit on PATH: exit %d\n%s", code, out)
+	}
+	// The whitespace variants are the same spec to the product.
+	for name, variant := range map[string][]byte{
+		"lead-space":  append([]byte(" "), raw...),
+		"trail-space": append(append(append([]byte{}, raw[:len(raw)-1]...), ' '), '\n'),
+	} {
+		path := filepath.Join(dir, name+".json")
+		os.WriteFile(path, variant, 0600)
+		if shell := t18rhSha(variant[:len(variant)-1]); shell == canon {
+			t.Fatalf("T18RH_CANON setup: %s shell hash equals the canonical hash", name)
+		}
+		file := t18rhSha(variant)
+		moved := strings.Replace(strings.Replace(valid, "\ncustody_spec_sha256 "+t18rhSha(raw)+"\n", "\ncustody_spec_sha256 "+file+"\n", 1),
+			"\nrender PASS files=6 custody_spec_file_sha256="+t18rhSha(raw)+"\n", "\nrender PASS files=6 custody_spec_file_sha256="+file+"\n", 1)
+		if strings.Count(moved, file) != 2 {
+			t.Fatalf("T18RH_CANON setup: %s file hashes not moved", name)
+		}
+		if code, out := check(name, moved, path); code != 0 || out != last {
+			t.Fatalf("T18RH_CANON the %s spec disagrees with the product: %d\n%s", name, code, out)
+		}
+	}
+
+	// report: no product, no report; with the product, a leading-space spec
+	// composes the header from the canonical hash.
+	f := t18rhFixture(t)
+	if code, out := t18rhRun(t, []string{"DEPLOY_KIT=" + filepath.Join(dir, "absent", "deploy-kit")}, "report", f.op, f.ag, f.rendered, f.params, "real"); code != 1 ||
+		!strings.HasPrefix(out, "REFUSED canonical-hash-unavailable: ") || strings.Contains(out, "T18-REAL-HOST") || strings.Contains(out, "OVERALL") {
+		t.Fatalf("T18RH_CANON report without the product: %d\n%s", code, out)
+	}
+	rendered, _ := os.ReadFile(f.renderedSpec)
+	lead := append([]byte(" "), rendered...)
+	os.WriteFile(f.renderedSpec, lead, 0600)
+	inputs, _ := os.ReadFile(filepath.Join(f.ag, "inputs.sha256"))
+	f.write(t, "inputs.sha256", strings.Replace(string(inputs), t18rhSha(rendered), t18rhSha(lead), 1))
+	code, out := f.report(t, "real")
+	if code != 0 || !strings.HasPrefix(out, "T18-REAL-HOST v1 wallet=real commit="+t18rhCommit+" spec_sha256="+f.specSHA+" ") ||
+		!strings.Contains(out, "\ncustody_spec_sha256 "+t18rhSha(lead)+"\n") || !strings.Contains(out, "\nOVERALL PASS ") {
+		t.Fatalf("T18RH_CANON report on a leading-space spec: %d\n%s", code, out)
 	}
 }

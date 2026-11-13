@@ -140,6 +140,11 @@ The real-host T18 and setpriv qualification report is in [T18-REAL-HOST.md](T18-
   searchable but unlistable directory fails.
 - `deploy-kit g2-custody-verify -spec custody-spec.json -report REPORT` checks a
   stored report against the launch spec and prints `T18_CUSTODY_VERIFIED <spec sha256>`.
+- `deploy-kit g2-custody-hash -spec custody-spec.json` prints
+  `T18_CUSTODY_SPEC_SHA256 <spec sha256>`, the hash a probe report carries and
+  verify checks, for a spec read exactly as probe and verify read it. It is
+  read-only (no probe, no network, no write) and refuses a spec file their
+  reader refuses, with the same error.
 - `deploy-kit g2-agent-groups -params "$PARAMS" -gid GID -- GID...` is the
   T18 credential readback. `-gid` (the agent's observed `id -g`) must equal
   the agent's own primary GID, derived from its sysusers declaration, and the

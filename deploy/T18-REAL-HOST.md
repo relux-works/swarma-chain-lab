@@ -245,7 +245,7 @@ the exact spec file it was composed from, and that file is copied next to the
 report so `check` can be given it.
 
 ```sh
-sh "$T18/t18-real-host-report.sh" report "$RUN/operator" "$RUN/agent/evidence" "$RENDERED" "$PARAMS" "$WALLET_MODE" > "$RUN/T18-REPORT.txt"
+DEPLOY_KIT="$KIT" sh "$T18/t18-real-host-report.sh" report "$RUN/operator" "$RUN/agent/evidence" "$RENDERED" "$PARAMS" "$WALLET_MODE" > "$RUN/T18-REPORT.txt"
 echo "report exit $?"
 cp "$RENDERED/custody-spec.json" "$RUN/custody-spec.json"
 ```
@@ -255,7 +255,7 @@ report. The second argument, the custody spec the run used, is required:
 without it `check` does not run (usage error, exit 64).
 
 ```sh
-sh "$T18/t18-real-host-report.sh" check "$RUN/T18-REPORT.txt" "$RUN/custody-spec.json"
+DEPLOY_KIT="$KIT" sh "$T18/t18-real-host-report.sh" check "$RUN/T18-REPORT.txt" "$RUN/custody-spec.json"
 echo "check exit $?"
 ```
 
@@ -268,9 +268,16 @@ without the line, with it twice, or checked against another spec is refused
 (`custody-spec-sha256:missing`, `:duplicate`, `:differs`). No spec hash in
 the report is a free field: the `render` line's `custody_spec_file_sha256`
 must be the SHA-256 of that file too (`render-custody-spec-file-sha256:differs`),
-and the header's `spec_sha256` must be the canonical SHA-256 of that file, its
-bytes without the trailing newline, which is the hash `g2-custody-verify`
-reports (`header-spec-sha256:differs`). Every
+and the header's `spec_sha256` must be the canonical hash of that file
+(`header-spec-sha256:differs`). The runner never computes that hash itself:
+`report` and `check` take it only from the product, `$DEPLOY_KIT
+g2-custody-hash -spec SPEC`, which reads the spec with the reader of
+`g2-custody-probe` and `g2-custody-verify` and prints exactly one line
+`T18_CUSTODY_SPEC_SHA256 <64 lowercase hex>` (the `CustodySpecSHA256` a probe
+report carries and verify checks). If that command cannot be run, exits
+non-zero, refuses the spec or prints anything else, `check` refuses with
+`canonical-hash-unavailable`, and `report` composes nothing and exits 1
+(`REFUSED canonical-hash-unavailable`). There is no fallback. Every
 `denied_reads` and `denied_rpc` entry of the spec must have exactly one
 `denied-read:<path>` or `denied-rpc:<target>` row, whatever its verdict: a
 deleted row is `missing:denied-read:<path>` even when the OVERALL counts were
@@ -294,14 +301,15 @@ line must be the recomputed line byte for byte. The no-request receipt is read
 the same way in the report step: it must be exactly the marker line, and any
 client error output fails `positive-request` in both covered branches.
 
-**Dry run.** Anywhere, with no root and no station:
+**Dry run.** Anywhere, with no root and no station, with `go` on `PATH`:
 
 ```sh
 sh deploy/t18-real-host-report.sh self-test
 ```
 
-It composes synthetic evidence through the same report code and prints
-`SELF_TEST PASS`. Its valid samples are a real run (with the no-op apply line)
+It builds the real `deploy-kit` from this checkout (a `DEPLOY_KIT` in the
+environment is not used), composes synthetic evidence through the same report
+code and prints `SELF_TEST PASS`. Its valid samples are a real run (with the no-op apply line)
 and a stand-in run (placeholders `STAND_IN`, OVERALL valid only as a stand-in
 run). Its known-bad samples (a placeholder reported `PASS` on a stand-in run, a
 refused real-account group set, an ENOENT, a stand-in declared real, a sent
@@ -312,7 +320,12 @@ deleted required row with the OVERALL count edited to match, another spec, a
 missing and a duplicated `custody_spec_sha256` line, each of the three spec
 hashes (the `custody_spec_sha256` line, the header's `spec_sha256`, the
 `render` line's `custody_spec_file_sha256`) changed alone, and an extra denied
-row.
+row. The canonical hash comes only from the product: with no `deploy-kit`, or
+one that prints nothing, garbage or exits non-zero, `check` refuses with
+`canonical-hash-unavailable`; one that prints another well-formed hash gives
+`header-spec-sha256:differs`; and the valid report checked against its spec
+with a leading space (file hashes moved along) passes, because the product
+reads it as the same spec.
 
 ## 4. The report
 

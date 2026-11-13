@@ -42,19 +42,31 @@
 #       rendered custody-spec.json the run used. The report's one
 #       `custody_spec_sha256 <hex>` line must be the SHA-256 of that file, and
 #       so must the render line's custody_spec_file_sha256; the header's
-#       spec_sha256 must be the canonical SHA-256 of that file (its bytes
-#       without the trailing newline, the hash g2-custody-verify reports).
-#       Every denied_reads and denied_rpc entry of SPEC must have exactly one
-#       row, with no row for anything else
+#       spec_sha256 must be the canonical hash of that file as the product
+#       computes it (see "Canonical spec hash" below). Every denied_reads and
+#       denied_rpc entry of SPEC must have exactly one row, with no row for
+#       anything else
 #   t18-real-host-report.sh peer SOCKET
 #       connects, reads SO_PEERCRED, sends nothing
 #   t18-real-host-report.sh items
 #       prints the COVERED_BY_HOSTED pin table
 #   t18-real-host-report.sh self-test
-#       dry run on synthetic evidence: no root, no station, no deploy-kit
+#       dry run on synthetic evidence: no root, no station. It builds the real
+#       deploy-kit from this checkout (go on PATH) and uses that binary, never
+#       DEPLOY_KIT
 #
 # DEPLOY_KIT names the deploy-kit binary built from the reviewed head
 # (default: deploy-kit on PATH).
+#
+# Canonical spec hash (r6): report and check take the canonical hash of a
+# custody spec ONLY from the product, `$DEPLOY_KIT g2-custody-hash -spec
+# SPEC`, which reads the spec with the reader of g2-custody-probe and
+# g2-custody-verify and prints CustodySpecSHA256 of it. Its output must be
+# exactly one line `T18_CUSTODY_SPEC_SHA256 <64 lowercase hex>` with exit 0.
+# When the product cannot be run, exits non-zero, refuses the spec or prints
+# anything else, check refuses with the reason canonical-hash-unavailable and
+# report refuses to compose (REFUSED canonical-hash-unavailable, exit 1).
+# There is no fallback: this script computes no canonical hash itself.
 #
 # The wallet is never asked for anything. The agent phase runs
 # g2-custody-check.sh unchanged, but with AGENT_WALLET set to this script in
@@ -149,10 +161,24 @@ json_array() {
 }
 
 sha_of() { sha256sum "$1" | cut -d ' ' -f 1; }
-# canon_sha_of SPEC: the canonical spec hash, the SHA-256 of the rendered
-# file's bytes without its trailing newline (json.Marshal of the spec, which is
-# what CustodySpecSHA256 and so g2-custody-verify report).
-canon_sha_of() { printf '%s' "$(cat "$1")" | sha256sum | cut -d ' ' -f 1; }
+nl='
+'
+# product_spec_sha SPEC: the canonical spec hash, from the product only. It
+# prints the hex and returns 0 only when `$deploy_kit g2-custody-hash -spec
+# SPEC` exits 0 and its standard output is exactly one line
+# `T18_CUSTODY_SPEC_SHA256 <64 lowercase hex>` (the "." after the output keeps
+# trailing newlines, so a second or empty line is seen). Otherwise it prints
+# nothing and returns 1.
+product_spec_sha() {
+	out=$("$deploy_kit" g2-custody-hash -spec "$1" 2>/dev/null && echo .) || return 1
+	sha=${out#"T18_CUSTODY_SPEC_SHA256 "}
+	sha=${sha%"$nl."}
+	case $sha in
+	'' | *[!0-9a-f]*) return 1 ;;
+	esac
+	[ "${#sha}" -eq 64 ] && [ "$out" = "T18_CUSTODY_SPEC_SHA256 $sha$nl." ] || return 1
+	echo "$sha"
+}
 
 # no-request mode: the AGENT_WALLET of the custody script. It sends nothing.
 if [ "$#" -eq 4 ] && [ "$1" = --config ] && [ "$3" = --request ]; then
@@ -287,7 +313,7 @@ report_items() {
 	gid=$(awk -v u="$user" '$1 == "u" && $2 == u { n = split($3, id, ":"); print id[n] }' "$sys")
 	sgid=$(awk '$1 == "g" && $2 == "swarma-wallet-peer" { print $3 }' "$sys")
 	suid=$(awk '$1 == "u" && $2 == "swarma-wallet" { print $3 }' "$sys")
-	spec_sha=$(canon_sha_of "$spec")
+	spec_sha=$spec_canon
 	echo "T18-REAL-HOST v1 wallet=$wallet commit=$pinned_commit spec_sha256=$spec_sha agent_uid=$uid primary_gid=$gid socket_gid=$sgid service_uid=$suid"
 	# The exact spec file this report was composed from. check needs that file
 	# and refuses unless its SHA-256 is this value.
@@ -478,8 +504,10 @@ report_items() {
 # is invalid. The report is bound to SPEC, the custody-spec.json file the run
 # used: the custody_spec_sha256 line stands exactly once and equals the
 # SHA-256 of SPEC, the render line's custody_spec_file_sha256 equals it too,
-# the header's spec_sha256 equals the canonical SHA-256 of SPEC (r5: no spec
-# hash in the report is a free field), and each denied_reads and denied_rpc
+# the header's spec_sha256 equals the product's canonical hash of SPEC (r5:
+# no spec hash in the report is a free field; r6: that hash comes only from
+# `$DEPLOY_KIT g2-custody-hash`, and without it check refuses with
+# canonical-hash-unavailable), and each denied_reads and denied_rpc
 # entry of SPEC has
 # exactly one row (any verdict), while a denied row for anything else is
 # refused. An item line is
@@ -497,7 +525,7 @@ check_report() {
 	spec_reads=$(json_array "$3" denied_reads) || spec_reads=
 	spec_rpcs=$(json_array "$3" denied_rpc) || spec_rpcs=
 	spec_file_sha=$(sha_of "$3")
-	spec_canon_sha=$(canon_sha_of "$3")
+	spec_canon_sha=$(product_spec_sha "$3") || spec_canon_sha=
 	awk -v pins="$(covered_table; echo "$positive_row")" -v apply_line="$apply_noop_line" -v note="$positive_note" \
 		-v pinned_commit="$pinned_commit" -v status_dir="$status_dir" -v unterminated="$unterminated" -v stored="$2" \
 		-v spec_reads="$spec_reads" -v spec_rpcs="$spec_rpcs" -v spec_file_sha="$spec_file_sha" -v spec_canon_sha="$spec_canon_sha" '
@@ -506,6 +534,8 @@ check_report() {
 	function hex64(s) { return length(s) == 64 && s !~ /[^0-9a-f]/ }
 	function pair(a, b) { return (a + 0 < b + 0) ? a "," b : b "," a }
 	BEGIN {
+		# r6: the canonical hash comes from the product or not at all.
+		if (spec_canon_sha == "") bad("canonical-hash-unavailable")
 		npin = split(pins, rows, "\n")
 		for (i = 1; i <= npin; i++) {
 			if (split(rows[i], f, " ") != 5) continue
@@ -556,8 +586,9 @@ check_report() {
 		if (!num(hdr["agent_uid"]) || !num(hdr["primary_gid"]) || !num(hdr["socket_gid"]) || !num(hdr["service_uid"])) hok = 0
 		if (hdr["socket_gid"] == hdr["primary_gid"]) hok = 0
 		if (!hok || $0 !~ /^[^ \t\r]+( [^ \t\r]+)*$/) { bad("header"); next }
-		# The header names the canonical hash of the given spec (r5).
-		if (hdr["spec_sha256"] != spec_canon_sha) bad("header-spec-sha256:differs")
+		# The header names the canonical hash of the given spec (r5), as the
+		# product computes it (r6); unavailable is refused in BEGIN.
+		if (spec_canon_sha != "" && hdr["spec_sha256"] != spec_canon_sha) bad("header-spec-sha256:differs")
 		wallet = hdr["wallet"]
 		next
 	}
@@ -713,6 +744,21 @@ self_test() {
 	trap 'rm -rf "$w"' EXIT
 	r=$w/rendered op=$w/op ag=$w/ag
 	mkdir "$r" "$op" "$op/render" "$ag" "$ag/custody"
+	failures=0
+	# r6: the real deploy-kit, built from this checkout, is the only source of
+	# the canonical spec hash; DEPLOY_KIT from the caller is not used.
+	src=$(cd "$(dirname "$(self_path)")" && pwd)
+	if (cd "$src" && go build -mod=readonly -buildvcs=false -o "$w/deploy-kit" ./cmd/deploy-kit) >"$w/build.log" 2>&1; then
+		echo "self-test build-deploy-kit ok exit=0"
+	else
+		echo "self-test build-deploy-kit WRONG: go build ./cmd/deploy-kit in $src"
+		sed 's/^/  | /' "$w/build.log"
+		echo "SELF_TEST FAIL failures=1"
+		return 1
+	fi
+	deploy_kit=$w/deploy-kit
+	DEPLOY_KIT=$deploy_kit
+	export DEPLOY_KIT
 	printf '{"agent_user":"g2-agent","agent_uid":210001}\n' >"$w/params.json"
 	printf 'u swarma-wallet 210201\ng swarma-wallet-peer 210101\ng swarma-wallet-status 210301\nu g2-agent 210001\nm g2-agent swarma-wallet-peer\n' >"$r/sysusers.conf"
 	printf '{"v":1,"agent_uid":210001,"service_uid":210201,"denied_reads":["/etc/swarma/wallet/wallet.json","%s"],"denied_rpc":["127.0.0.1:8336"],"allowed_socket":"/run/swarma-wallet/wallet.sock"}\n' "$status_dir" >"$r/custody-spec.json"
@@ -727,7 +773,11 @@ self_test() {
 	sha256sum "$r/custody-spec.json" "$r/client.json" "$w/params.json" | cut -d ' ' -f 1 >"$ag/inputs.sha256"
 	printf 'Uid:\t210001\t210001\t210001\t210001\nGid:\t210001\t210001\t210001\t210001\nGroups:\t210001 210101 \nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapAmb:\t0000000000000000\n' >"$ag/launch.txt"
 	echo 'G2_AGENT_GROUPS_OK observed_gid=210001 declared_primary_gid=210001 socket_gid=210101' >"$ag/custody/credentials-check.txt"
-	spec_sha=$(printf '%s' "$(cat "$r/custody-spec.json")" | sha256sum | cut -d ' ' -f 1)
+	if ! spec_sha=$(product_spec_sha "$r/custody-spec.json"); then
+		echo "self-test product-spec-hash WRONG: the built deploy-kit refused the synthetic spec"
+		echo "SELF_TEST FAIL failures=1"
+		return 1
+	fi
 	probes() {
 		printf '{"v":1,"spec_sha256":"%s","uid":210001,"gid":210001,"probes":[{"kind":"read","target":"/etc/swarma/wallet/wallet.json","expect":"denied","observed":"%s","pass":true},{"kind":"read","target":"%s","expect":"denied","observed":"EACCES","pass":true},{"kind":"rpc","target":"127.0.0.1:8336","expect":"denied","observed":"HTTP_401","pass":true},{"kind":"socket","target":"/run/swarma-wallet/wallet.sock","expect":"allowed","observed":"CONNECTED","pass":true}],"pass":true}\n' "$spec_sha" "$1" "$status_dir" >"$ag/custody/custody-report.json"
 	}
@@ -740,7 +790,6 @@ self_test() {
 	echo 'socket|210201|210101|660' >"$ag/socket-stat.txt"
 	echo 'This is perl 5, version 34, subversion 0 (v5.34.0) built for x86_64-linux-gnu-thread-multi' >"$ag/perl-version.txt"
 
-	failures=0
 	expect() { # NAME WANT-EXIT REPORT-MODE WANT-LINE (extended regex)
 		sh "$(self_path)" report "$op" "$ag" "$r" "$w/params.json" "$3" >"$w/$1.txt" 2>&1 && got=0 || got=$?
 		if [ "$got" = "$2" ] && grep -Eq "$4" "$w/$1.txt"; then
@@ -777,11 +826,12 @@ self_test() {
 	# check is bound to the spec file the run used (r4). The valid real report
 	# passes with its spec; check refuses to run without one; and each planted
 	# report fails with its named reason.
-	checked() { # NAME WANT-EXIT REPORT SPEC|- WANT (fixed string in the output)
+	checked() { # NAME WANT-EXIT REPORT SPEC|- WANT (fixed string in the output) [DEPLOY_KIT]
+		kit=${6:-$deploy_kit}
 		if [ "$4" = - ]; then
-			sh "$(self_path)" check "$3" >"$w/$1.check" 2>&1 && got=0 || got=$?
+			DEPLOY_KIT=$kit sh "$(self_path)" check "$3" >"$w/$1.check" 2>&1 && got=0 || got=$?
 		else
-			sh "$(self_path)" check "$3" "$4" >"$w/$1.check" 2>&1 && got=0 || got=$?
+			DEPLOY_KIT=$kit sh "$(self_path)" check "$3" "$4" >"$w/$1.check" 2>&1 && got=0 || got=$?
 		fi
 		if [ "$got" = "$2" ] && grep -Fq -- "$5" "$w/$1.check"; then
 			echo "self-test $1 ok exit=$got"
@@ -815,6 +865,30 @@ self_test() {
 	checked render-hash-differs 1 "$w/render-hash.txt" "$spec" 'render-custody-spec-file-sha256:differs'
 	awk '/^denied-rpc:/ { print "denied-read:/etc/swarma/wallet/extra.json PASS observed=EACCES" } { sub(/^OVERALL PASS pass=13 /, "OVERALL PASS pass=14 "); print }' "$valid" >"$w/extra-row.txt"
 	checked extra-row 1 "$w/extra-row.txt" "$spec" 'extra-row:denied-read:/etc/swarma/wallet/extra.json'
+	# r6: the canonical hash comes only from the product. Beside the valid
+	# report, which passed above with the real deploy-kit: no deploy-kit, a
+	# product that prints nothing, garbage or exits non-zero is refused as
+	# canonical-hash-unavailable; one that prints another well-formed hash is
+	# header-spec-sha256:differs.
+	checked kit-missing 1 "$valid" "$spec" '# reasons: canonical-hash-unavailable ' "$w/absent/deploy-kit"
+	fake() { # NAME BODY: a deploy-kit stand-in
+		printf '#!/bin/sh\n%s\n' "$2" >"$w/$1" && chmod 700 "$w/$1"
+	}
+	fake kit-wrong "echo T18_CUSTODY_SPEC_SHA256 $zero"
+	checked kit-wrong-hash 1 "$valid" "$spec" '# reasons: header-spec-sha256:differs ' "$w/kit-wrong"
+	fake kit-garbage 'echo T18_CUSTODY_SPEC_SHA256 not-a-hash'
+	checked kit-garbage 1 "$valid" "$spec" '# reasons: canonical-hash-unavailable ' "$w/kit-garbage"
+	fake kit-empty 'exit 0'
+	checked kit-empty 1 "$valid" "$spec" '# reasons: canonical-hash-unavailable ' "$w/kit-empty"
+	fake kit-exit "echo T18_CUSTODY_SPEC_SHA256 $spec_sha; exit 1"
+	checked kit-nonzero-exit 1 "$valid" "$spec" '# reasons: canonical-hash-unavailable ' "$w/kit-exit"
+	# A spec with a leading space is the same spec to the product (and to
+	# probe and verify): with its file hashes in the two file fields, the
+	# valid report passes against it, header unchanged.
+	printf ' ' >"$w/ws-spec.json" && cat "$spec" >>"$w/ws-spec.json"
+	ws=$(sha_of "$w/ws-spec.json")
+	sed -e "s/^custody_spec_sha256 [0-9a-f]*\$/custody_spec_sha256 $ws/" -e "s/^\(render PASS files=6 custody_spec_file_sha256=\)[0-9a-f]*\$/\1$ws/" "$valid" >"$w/ws-report.txt"
+	checked whitespace-spec-agrees 0 "$w/ws-report.txt" "$w/ws-spec.json" 'OVERALL PASS pass=13 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real'
 	if [ "$failures" = 0 ]; then
 		echo "SELF_TEST PASS"
 		return 0
@@ -836,6 +910,12 @@ report)
 	case $5 in real | stand-in) ;; *) usage ;; esac
 	[ -d "$1" ] && [ -d "$2" ] && [ -d "$3" ] && [ -f "$4" ] || usage
 	[ -f "$3/custody-spec.json" ] && [ -f "$3/sysusers.conf" ] || usage
+	# r6: the header's canonical hash comes from the product or the report is
+	# not composed.
+	if ! spec_canon=$(product_spec_sha "$3/custody-spec.json"); then
+		echo "REFUSED canonical-hash-unavailable: $deploy_kit g2-custody-hash -spec $3/custody-spec.json" >&2
+		exit 1
+	fi
 	report_tmp=$(mktemp)
 	trap 'rm -f "$report_tmp"' EXIT
 	report_items "$@" >"$report_tmp"
