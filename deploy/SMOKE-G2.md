@@ -283,8 +283,10 @@ To validate these tools from `deploy/`, run `go vet ./...` and
 `go test -race ./...`; the latter builds the real wallet consumers and runs
 the temporary product probes. Go owns their temporary artifacts under
 `TMPDIR` and removes them after the tests. Tests need the agent-wallet
-module's dependencies pre-downloaded as in the Deploy kit workflow. These
-checks do not start a service or prove target-host custody.
+module's dependencies pre-downloaded as in the Deploy kit workflow. Partial
+offline jobs without that closure skip product probes through the existing
+wallet-consumer availability preflight; a skip supplies no product-validation
+evidence. These checks do not start a service or prove target-host custody.
 
 Final owner and mode, set by the operator in §3:
 

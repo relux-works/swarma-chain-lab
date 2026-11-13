@@ -279,6 +279,10 @@ func g2ProductProbe(t *testing.T, module, source string, fixtures any) {
 
 // Claim: the command's policy/address fixtures match real private product validators; main wallet.json also passes the real loader and startup network check.
 func TestG2RPCAuthProductValidators(t *testing.T) {
+	// Reuse the existing consumers' availability contract: partial-closure
+	// offline jobs skip only when wallet dependencies are unavailable. Deploy
+	// kit provisions that closure and exercises both real product probes.
+	g2TestBuildWalletCLI(t, "agent-wallet-legacy")
 	cases := g2PayPublicCases(t)
 	t.Run("rental", func(t *testing.T) { g2ProductProbe(t, "rental", g2RentalProbe, cases) })
 	t.Run("wallet", func(t *testing.T) {
