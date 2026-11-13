@@ -123,6 +123,19 @@ continues to use its existing durable home/user facts.
 
 ## Tools and commands
 
+Retained credentials and bootstrap data use `PrivateBytes`: nonempty data stays
+inside the opaque scalar-pointer holder, while a nonsecret flag preserves the
+legacy nil-versus-empty byte distinction. Private recovery accepts both canonical
+erased forms (`null` and `""`); generic JSON/text output remains redacted. Authority
+refusal tests retain opaque snapshots of explicit private record DTOs and compare
+their exact bytes, including credentials and bootstrap data.
+
+Run `go test -count=1 -run 'TestReviewAuthority|TestReviewLegacy|TestPrivateBytes|TestActiveRecovery|TestAuthoritySnapshot' .`
+from this module for snapshot/recovery regressions and acceptance bounds. The
+independent `TestReviewLifecycleAllOutput` matrix checks fmt, generic JSON and
+JSON/text slog for real retained records. Store captured output in task-owned
+`.temp/`; these fixtures do not qualify a live installation or deployment.
+
 Use Go 1.26.8 with `GOWORK=off`. From this directory:
 
 ```sh

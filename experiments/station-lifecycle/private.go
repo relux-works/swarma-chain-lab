@@ -168,6 +168,13 @@ func privateCommands(in []Command) []commandPrivate {
 // privateValue maps only the private protocol/state types to wire DTOs.
 func privateValue(v any) any {
 	switch s := v.(type) {
+	case map[string]brokerRecord:
+		return privateBrokerRecords(s)
+	case *map[string]brokerRecord:
+		if s == nil {
+			return nil
+		}
+		return privateBrokerRecords(*s)
 	case Slot:
 		return slotPrivateValue(s)
 	case *Slot:

@@ -128,9 +128,9 @@ func TestBrokerRefusals(t *testing.T) {
 	if e = b.SetStart(key); e != nil {
 		t.Fatal(e)
 	}
-	original := privateCanonical(b.state.Records)
+	original := authoritySnapshot(b.state.Records)
 	for _, bad := range []Status{{SlotID: "9999", Phase: "running"}, {SlotID: s.ID, Phase: "running", Binding: strings.Repeat("f", 64), NotAfter: 200}, {SlotID: s.ID, Phase: "private backend error"}} {
-		if _, e = b.Poll(PollRequest{Version: 1, Results: []Status{bad}}); e == nil || string(original) != string(privateCanonical(b.state.Records)) {
+		if _, e = b.Poll(PollRequest{Version: 1, Results: []Status{bad}}); e == nil || !sameAuthority(original, authoritySnapshot(b.state.Records)) {
 			t.Fatal("foreign status changed authority")
 		}
 	}

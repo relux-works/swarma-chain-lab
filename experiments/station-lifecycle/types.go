@@ -9,7 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
+
 	"strconv"
 	"time"
 )
@@ -30,14 +30,14 @@ func (Secret) String() string   { return "[private bootstrap]" }
 func (Secret) GoString() string { return "[private bootstrap]" }
 
 type Slot struct {
-	Version       int                  `json:"version"`
-	ID            string               `json:"slot"`
-	GrantID       string               `json:"grant_id"`
-	NotBefore     int64                `json:"not_before"`
-	NotAfter      int64                `json:"not_after"`
-	PayloadID     string               `json:"payload_id"`
-	PayloadSHA256 string               `json:"payload_sha256"`
-	Bootstrap     codec.Secret[Secret] `json:"bootstrap"`
+	Version       int          `json:"version"`
+	ID            string       `json:"slot"`
+	GrantID       string       `json:"grant_id"`
+	NotBefore     int64        `json:"not_before"`
+	NotAfter      int64        `json:"not_after"`
+	PayloadID     string       `json:"payload_id"`
+	PayloadSHA256 string       `json:"payload_sha256"`
+	Bootstrap     PrivateBytes `json:"bootstrap"`
 }
 
 func (s Slot) String() string   { return "slot:" + s.ID }
@@ -122,6 +122,3 @@ func (r Range) validateSlot(s Slot) error {
 	}
 	return nil
 }
-
-// NewPrivateBytes protects retained channel credentials and private bootstrap bytes.
-func NewPrivateBytes(value Secret) codec.Secret[Secret] { return codec.NewSecret(value) }

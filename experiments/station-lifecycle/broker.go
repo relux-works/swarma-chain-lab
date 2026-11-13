@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
-	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
 )
 
 type BrokerConfig struct {
@@ -25,13 +24,13 @@ type BrokerConfig struct {
 	EncodeBootstrap  func(key string, credential Secret) (Secret, error)
 }
 type brokerRecord struct {
-	Key           string               `json:"key"`
-	Credential    codec.Secret[Secret] `json:"credential"`
-	Slot          Slot                 `json:"slot"`
-	BootstrapHash string               `json:"bootstrap_hash"`
-	Binding       string               `json:"binding"`
-	Desired       string               `json:"desired"`
-	Result        Status               `json:"result"`
+	Key           string       `json:"key"`
+	Credential    PrivateBytes `json:"credential"`
+	Slot          Slot         `json:"slot"`
+	BootstrapHash string       `json:"bootstrap_hash"`
+	Binding       string       `json:"binding"`
+	Desired       string       `json:"desired"`
+	Result        Status       `json:"result"`
 }
 type brokerState struct {
 	Version int                     `json:"version"`
