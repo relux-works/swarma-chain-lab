@@ -19,11 +19,24 @@ type n1bError struct{ Value any }
 
 func (v n1bError) Error() string { return fmt.Sprintf("credential context: %v", v.Value) }
 func n1bLeaks(text, secret string) bool {
-	for _, needle := range []string{secret, hex.EncodeToString([]byte(secret)), strings.ToUpper(hex.EncodeToString([]byte(secret))), base64.StdEncoding.EncodeToString([]byte(secret))} {
-		for start := 0; start+8 <= len(needle); start++ {
-			if strings.Contains(text, needle[start:start+8]) {
+	// Eight original bytes remain the bound after encoding: sixteen hex digits
+	// or twelve base64 characters (nine original bytes), not eight hex digits.
+	for start := 0; start+8 <= len(secret); start++ {
+		if strings.Contains(text, secret[start:start+8]) {
+			return true
+		}
+	}
+	for _, encoded := range []string{hex.EncodeToString([]byte(secret)), strings.ToUpper(hex.EncodeToString([]byte(secret)))} {
+		for start := 0; start+16 <= len(encoded); start += 2 {
+			if strings.Contains(text, encoded[start:start+16]) {
 				return true
 			}
+		}
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(secret))
+	for start := 0; start+12 <= len(encoded); start += 4 {
+		if strings.Contains(text, encoded[start:start+12]) {
+			return true
 		}
 	}
 	return false

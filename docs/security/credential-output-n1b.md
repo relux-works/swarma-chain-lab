@@ -71,8 +71,9 @@ value or supplies an exfiltrating transport/driver implementation.
 `TestN1bMintedTokenOutput` adapt the rev232/rev234 probes: every standard fmt
 verb, bad verbs, flag/width/precision variants, fmt/log/error sinks, direct and
 nested JSON/text slog, and generic JSON. Their detectors check every eight-byte
-substring of the synthetic credential and encoded forms, with positive and
-negative controls. Live service/driver state, request/reply carriers and recorded
+substring of the synthetic credential, with the same original-byte bound
+after hex/base64 encoding, plus positive and negative controls. Typed map keys
+and direct JSON/text encoding interfaces are checked separately. Live service/driver state, request/reply carriers and recorded
 stdin are included. Generic JSON may safely refuse function-bearing configs;
 that refusal is distinguished from a successful redaction.
 
