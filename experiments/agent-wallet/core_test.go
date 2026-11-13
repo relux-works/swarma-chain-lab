@@ -129,6 +129,12 @@ func coreBinariesPinned(daemon, cli string) bool {
 	return e1 == nil && e2 == nil && px1CorePins[[2]string{Hash(d), Hash(c)}]
 }
 
+// newCore starts a fresh private regtest node for the W1/W2 Core layer. Its
+// coins are witness-ready exactly as in newPX1Core (mining and wallet change
+// are native P2WPKH), so the seal and issuance transactions that grant builds
+// satisfy the rental W construction profile the K1 kernel requires. One-off
+// (W3) seals stay legacy: oneoff funds them from the separate oneoff wallet,
+// which holds only P2PKH coins.
 func newCore(t *testing.T) *coreLab {
 	t.Helper()
 	if os.Getenv("W1_REGTEST") != "1" {
@@ -156,7 +162,7 @@ func newCore(t *testing.T) *coreLab {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 	ln.Close()
-	conf := "server=1\ndeprecatedrpc=create_bdb\nlisten=0\ndnsseed=0\ndiscover=0\nnetworkactive=0\ntxindex=1\npersistmempool=0\nfallbackfee=0.002\nacceptnonstdtxn=1\nnameencoding=ascii\nvalueencoding=ascii\nrpcwhitelistdefault=0\n"
+	conf := "server=1\ndeprecatedrpc=create_bdb\nlisten=0\ndnsseed=0\ndiscover=0\nnetworkactive=0\ntxindex=1\npersistmempool=0\nfallbackfee=0.002\nacceptnonstdtxn=1\nnameencoding=ascii\nvalueencoding=ascii\nrpcwhitelistdefault=0\naddresstype=bech32\nchangetype=bech32\n"
 	sets := map[string]string{"w3-observer": "getblockchaininfo,getblockhash,getblockheader,getrawtransaction,gettxout,name_show,getrawmempool,getblock", "w1-wallet": "getbalances,getnewaddress,listtransactions,fundrawtransaction,signrawtransactionwithwallet", "w1-broadcast": "sendrawtransaction"}
 	for user, methods := range sets {
 		b := make([]byte, 32)
@@ -179,8 +185,11 @@ func newCore(t *testing.T) *coreLab {
 	l.start()
 	l.rpc("", "createwallet", "issuer", false, false, "", false, false)
 	l.rpc("", "createwallet", "agent", false, false, "", false, false)
-	l.address = text(t, l.rpc("issuer", "getnewaddress", "", "legacy"))
+	l.rpc("", "createwallet", "oneoff", false, false, "", false, false)
+	l.address = text(t, l.rpc("issuer", "getnewaddress", "", "bech32"))
 	l.mine(101)
+	// Legacy coins for one-off seals (oneoff), confirmed by the blocks below.
+	l.rpc("issuer", "sendtoaddress", text(t, l.rpc("oneoff", "getnewaddress", "", "legacy")), su.Coins(1000000000))
 	_, issuer := testKey(1)
 	_, nostr := testKey(3)
 	value, e := rental.AgentBindingValue(rental.AgentBinding{Landlord: "id/wallet-landlord-test", Nostr: nostr})
@@ -209,6 +218,24 @@ func newCore(t *testing.T) *coreLab {
 	wif, _ := btcutil.NewWIF(k, &chaincfg.RegressionNetParams, true)
 	l.rpc("issuer", "importprivkey", wif.String(), "", false)
 	return l
+}
+
+// payoutScript is the scriptPubKey of the lab's mining address. Raw fixture
+// transactions (revoke, use) pay here; Core reports the script because the
+// address is a native witness address.
+func (l *coreLab) payoutScript() []byte {
+	l.t.Helper()
+	var info struct {
+		ScriptPubKey string `json:"scriptPubKey"`
+	}
+	if json.Unmarshal(l.rpc("issuer", "getaddressinfo", l.address), &info) != nil {
+		l.t.Fatal("payout address info")
+	}
+	script, e := hex.DecodeString(info.ScriptPubKey)
+	if e != nil || !su.NativeP2WPKH(script) {
+		l.t.Fatal("payout script")
+	}
+	return script
 }
 func (l *coreLab) grant(t Terms, scope []string, budget int64) ([]byte, Config) {
 	l.t.Helper()
@@ -262,7 +289,7 @@ func (l *coreLab) grant(t Terms, scope []string, budget int64) ([]byte, Config) 
 	change := text(l.t, l.rpc("agent", "getnewaddress", "", "legacy"))
 	l.rpc("issuer", "sendtoaddress", change, su.Coins(100000000))
 	l.mine(1)
-	config := Config{Version: 1, Network: "regtest", Genesis: su.RegtestGenesis, Policy: rental.Policy{Network: "regtest", Genesis: su.RegtestGenesis, AgentName: l.agent, LandlordName: "id/wallet-landlord-test", SealScript: script, StateDir: kernel}, Observer: l.routes["w3-observer"], Wallet: WalletRoute{Route: l.routes["w1-wallet"], Wallet: "agent"}, Broadcast: l.routes["w1-broadcast"], StateDir: root, ObjectsDir: objects, ChangeAddress: change, FeeRate: 200, WalletDir: filepath.Join(l.private, "regtest/wallets/agent"), MemoryZone: filepath.Join(l.root, "memory")}
+	config := Config{Version: 1, Network: "regtest", Genesis: su.RegtestGenesis, Policy: rental.Policy{ConstructionProfile: su.WitnessProfile, Network: "regtest", Genesis: su.RegtestGenesis, AgentName: l.agent, LandlordName: "id/wallet-landlord-test", SealScript: script, StateDir: kernel}, Observer: l.routes["w3-observer"], Wallet: WalletRoute{Route: l.routes["w1-wallet"], Wallet: "agent"}, Broadcast: l.routes["w1-broadcast"], StateDir: root, ObjectsDir: objects, ChangeAddress: change, FeeRate: 200, WalletDir: filepath.Join(l.private, "regtest/wallets/agent"), MemoryZone: filepath.Join(l.root, "memory")}
 	return raw, config
 }
 

@@ -30,7 +30,24 @@ func (l *coreLab) oneoff() (OneoffEnvelope, []byte) {
 	if e != nil {
 		l.t.Fatal(e)
 	}
-	id := text(l.t, l.rpc("issuer", "sendtoaddress", a.EncodeAddress(), su.Coins(1000000)))
+	// The one-off seal is a legacy W3 construction: its funding transaction must
+	// carry no witness. It is funded from the legacy-only oneoff wallet with
+	// legacy change, never from the witness-ready issuer coins (newCore).
+	unfunded := text(l.t, l.rpc("", "createrawtransaction", []any{}, []map[string]any{{a.EncodeAddress(): su.Coins(1000000)}}))
+	var funded struct {
+		Hex string `json:"hex"`
+	}
+	if json.Unmarshal(l.rpc("oneoff", "fundrawtransaction", unfunded, map[string]any{"fee_rate": 200, "change_type": "legacy"}), &funded) != nil {
+		l.t.Fatal("oneoff fund")
+	}
+	var signed struct {
+		Hex      string `json:"hex"`
+		Complete bool   `json:"complete"`
+	}
+	if json.Unmarshal(l.rpc("oneoff", "signrawtransactionwithwallet", funded.Hex), &signed) != nil || !signed.Complete {
+		l.t.Fatal("oneoff sign")
+	}
+	id := text(l.t, l.rpc("", "sendrawtransaction", signed.Hex))
 	l.mine(1)
 	var tx su.TransactionView
 	if json.Unmarshal(l.rpc("", "getrawtransaction", id, true), &tx) != nil {
@@ -64,7 +81,7 @@ func (l *coreLab) use(env OneoffEnvelope, request []byte, signer byte) string {
 	tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(h, g.Seal.Vout), nil, nil))
 	commit, _ := hex.DecodeString(Hash(request))
 	data, _ := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).AddData(commit).Script()
-	payment, _ := addressScript(l.address)
+	payment := l.payoutScript()
 	tx.AddTxOut(wire.NewTxOut(0, data))
 	tx.AddTxOut(wire.NewTxOut(970000, payment))
 	k, _ := testKey(signer)

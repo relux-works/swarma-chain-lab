@@ -26,7 +26,7 @@ func (l *coreLab) revoke(raw []byte) {
 	}
 	tx := wire.NewMsgTx(2)
 	tx.AddTxIn(wire.NewTxIn(wire.NewOutPoint(h, g.Seal.Vout), nil, nil))
-	payment, _ := addressScript(l.address)
+	payment := l.payoutScript()
 	tx.AddTxOut(wire.NewTxOut(970000, payment))
 	scriptHex, e := rental.GrantSealScript(g.IssuerKey)
 	if e != nil {
