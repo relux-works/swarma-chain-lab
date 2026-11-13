@@ -2,7 +2,7 @@
 
 Go release tooling and public templates for regtest preparation. It builds
 gateway, rental-booking, grant-store, swarma-relay, swarma-signer, model-proxy,
-station-manager, station-payload and agent-walletd from an exact clean HEAD twice, refuses
+station-manager, station-payload and agent-walletd, plus the deploy-kit tool itself, from an exact clean HEAD twice, refuses
 any byte difference, then emits an unsigned bundle with SHA256SUMS and a manifest.
 No source product changes, key creation, signing, installation or host deployment
 occur inside the tool. [SMOKE.md](SMOKE.md) is the separate Infra handoff plan.
@@ -39,7 +39,8 @@ Two `git archive` extractions and separate build caches prevent a working-tree
 file or previous compiled output from standing in for the second build.
 Archive traversal/link entries refuse. Source cleanliness/HEAD are checked again
 before publication; existing output is preserved. The complete candidate is
-renamed into a new output directory only after all nine binary pairs match.
+renamed into a new output directory only after all ten binary pairs (nine
+services and deploy-kit) match.
 Temporary source/build trees are removed, including on refusal.
 
 Outputs: `bin/`, `templates/`, `README.md`, `SMOKE.md`, `SMOKE-DK2.md`, `INSTALL-CONFIG.md`, `manifest.json`,
@@ -48,6 +49,17 @@ the release signer signs that file separately with namespace `swarma-release`.
 The manifest records commit, Go version, target, flags, module/package, binary
 hash and readiness status. No timestamp, home path or build-directory path is
 embedded in the manifest. A successful build is not a deployment acceptance.
+
+`artifacts` holds the nine service rows (`service`, `status`, optional `reason`
+and `screening`). `tools` holds operator commands shipped in the same signed
+inventory; today one row, `{"tool":"deploy-kit","module":"deploy","package":"./cmd/deploy-kit","binary":"bin/deploy-kit","sha256":...}`.
+A tool row has no service, status or unit member: no unit, service policy or
+readiness status exists for it and nothing in the release activates it. A host
+runs `bin/deploy-kit` from the verified release instead of a source checkout.
+`pending` keeps the a2ad row. `ValidateManifest` (package `deploy`) strictly
+decodes a manifest and accepts only this kit's target, flags and exact
+inventory with lowercase SHA-256 hashes; unknown, duplicate or missing members
+refuse. The builder runs it on its own manifest before staging it.
 
 ## Public configuration validation
 
@@ -100,8 +112,8 @@ AUTH and the exact URL binding below before restricted gift-wrap reads are enabl
   command as one command.
 - `DK1_RELEASE_TEST=1 DK1_RELEASE_REPO="$CLEAN_SOURCE_ROOT"
   DK1_RELEASE_OUT="$NEW_EVIDENCE_PARENT" go test -count=1 -timeout 20m
-  -run '^TestReleaseIntegration$' -v .` runs actual double Linux builds and a
-  second-tree source nondeterminism plant. Set all variables in one command.
+  -run '^TestReleaseIntegration$' -v .` runs actual double Linux builds and
+  second-tree source nondeterminism plants in a service and in deploy-kit. Set all variables in one command.
   The evidence parent must already exist and be empty. It retains the successful
   release and release-control.json; the refused release must remain absent.
 - `gofmt -l *.go cmd/deploy-kit/*.go` checks Go formatting.

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 )
@@ -28,6 +29,7 @@ var (
 	ErrBuild     = errors.New("deploy: build failed")
 	ErrDifferent = errors.New("deploy: builds differ")
 	ErrOutput    = errors.New("deploy: output unavailable")
+	ErrManifest  = errors.New("deploy: invalid release manifest")
 )
 
 type Artifact struct {
@@ -40,6 +42,17 @@ type Artifact struct {
 	Reason    string `json:"reason,omitempty"`
 	Screening string `json:"screening,omitempty"`
 }
+
+// Tool is an operator command shipped in the release. It is not a service: it
+// has no unit, no service policy and no readiness status, and nothing in the
+// release activates it. Its binary is built twice and compared like a service.
+type Tool struct {
+	Tool    string `json:"tool"`
+	Module  string `json:"module"`
+	Package string `json:"package"`
+	Binary  string `json:"binary"`
+	SHA256  string `json:"sha256"`
+}
 type Manifest struct {
 	Version    int        `json:"version"`
 	Commit     string     `json:"commit"`
@@ -49,6 +62,7 @@ type Manifest struct {
 	CGOEnabled string     `json:"cgo_enabled"`
 	BuildFlags []string   `json:"build_flags"`
 	Artifacts  []Artifact `json:"artifacts"`
+	Tools      []Tool     `json:"tools"`
 	Pending    []Artifact `json:"pending"`
 }
 
@@ -67,6 +81,17 @@ var releaseArtifacts = []Artifact{
 	{Service: "payload", Module: "experiments/station-payload", Package: "./cmd/station-payload", Binary: "bin/station-payload", Status: "configuration-preparation", Reason: "scripted consumer only; per-slot launch belongs to the root helper policy, no standalone unit"},
 	{Service: "wallet", Module: "experiments/agent-wallet", Package: "./cmd/agent-walletd", Binary: "bin/agent-walletd", Status: "configuration-preparation", Reason: "separate service UID, per-agent socket group, receipt key and private wallet RPC configuration required; host custody smoke remains separate"},
 }
+
+// releaseTools are operator commands a host runs from the signed release
+// rather than from a source checkout.
+var releaseTools = []Tool{
+	{Tool: "deploy-kit", Module: "deploy", Package: "./cmd/deploy-kit", Binary: "bin/deploy-kit"},
+}
+
+var (
+	releasePending    = []Artifact{{Service: "a2ad", Status: "pending", Reason: "a2a daemon deployment integration not included in this kit"}}
+	releaseBuildFlags = []string{"-trimpath", "-buildvcs=false", "-mod=readonly"}
+)
 
 type buildFunc func(context.Context, string, string, string, Artifact) ([]byte, error)
 
@@ -161,46 +186,9 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 			return empty, ErrSource
 		}
 	}
-	m := Manifest{Version: 1, Commit: in.Commit, GoVersion: GoVersion, GOOS: "linux", GOARCH: "amd64", CGOEnabled: "0", BuildFlags: []string{"-trimpath", "-buildvcs=false", "-mod=readonly"}, Artifacts: append([]Artifact(nil), releaseArtifacts...), Pending: []Artifact{
-		{Service: "a2ad", Status: "pending", Reason: "a2a daemon deployment integration not included in this kit"},
-	}}
-	stage := filepath.Join(work, "bundle")
-	if e = os.MkdirAll(filepath.Join(stage, "bin"), 0700); e != nil {
-		return empty, ErrOutput
-	}
-	for i, a := range m.Artifacts {
-		one, e := buildPair(ctx, work, first, second, a, build)
-		if e != nil {
-			return empty, e
-		}
-		m.Artifacts[i].SHA256 = digest(one)
-		if e = os.WriteFile(filepath.Join(stage, a.Binary), one, 0755); e != nil {
-			return empty, ErrOutput
-		}
-	}
-	// Deploy templates are exact committed public source, never an operator's
-	// substituted configuration or credential files from the working checkout.
-	if e = copyTemplates(filepath.Join(first, "deploy", "templates"), filepath.Join(stage, "templates")); e != nil {
-		return empty, ErrSource
-	}
-	for _, name := range []string{"SMOKE.md", "SMOKE-DK2.md", "README.md", "INSTALL-CONFIG.md"} {
-		b, e := os.ReadFile(filepath.Join(first, "deploy", name))
-		if e != nil {
-			return empty, ErrSource
-		}
-		if e = os.WriteFile(filepath.Join(stage, name), b, 0644); e != nil {
-			return empty, ErrOutput
-		}
-	}
-	b, e := json.MarshalIndent(m, "", "  ")
+	m, stage, e := assemble(ctx, work, first, second, in.Commit, build)
 	if e != nil {
-		return empty, ErrOutput
-	}
-	if e = os.WriteFile(filepath.Join(stage, "manifest.json"), append(b, '\n'), 0644); e != nil {
-		return empty, ErrOutput
-	}
-	if e = writeSums(stage); e != nil {
-		return empty, ErrOutput
+		return empty, e
 	}
 	if e = clean(ctx, in.Repo); e != nil {
 		return empty, e
@@ -215,6 +203,111 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 	}
 	if e = os.Rename(stage, in.Out); e != nil {
 		return empty, ErrOutput
+	}
+	return m, nil
+}
+
+// assemble builds every service and tool binary as a compared pair, then writes
+// the bundle, its manifest and SHA256SUMS under work. It publishes nothing.
+func assemble(ctx context.Context, work, first, second, commit string, build buildFunc) (Manifest, string, error) {
+	m := Manifest{Version: 1, Commit: commit, GoVersion: GoVersion, GOOS: "linux", GOARCH: "amd64", CGOEnabled: "0", BuildFlags: append([]string(nil), releaseBuildFlags...), Artifacts: append([]Artifact(nil), releaseArtifacts...), Tools: append([]Tool(nil), releaseTools...), Pending: append([]Artifact(nil), releasePending...)}
+	stage := filepath.Join(work, "bundle")
+	if e := os.MkdirAll(filepath.Join(stage, "bin"), 0700); e != nil {
+		return Manifest{}, "", ErrOutput
+	}
+	stageBinary := func(a Artifact) (string, error) {
+		one, e := buildPair(ctx, work, first, second, a, build)
+		if e != nil {
+			return "", e
+		}
+		if e = os.WriteFile(filepath.Join(stage, a.Binary), one, 0755); e != nil {
+			return "", ErrOutput
+		}
+		return digest(one), nil
+	}
+	for i, a := range m.Artifacts {
+		h, e := stageBinary(a)
+		if e != nil {
+			return Manifest{}, "", e
+		}
+		m.Artifacts[i].SHA256 = h
+	}
+	// A tool takes the same twice-built comparison; only its module, package
+	// and binary path reach the builder.
+	for i, t := range m.Tools {
+		h, e := stageBinary(Artifact{Module: t.Module, Package: t.Package, Binary: t.Binary})
+		if e != nil {
+			return Manifest{}, "", e
+		}
+		m.Tools[i].SHA256 = h
+	}
+	// Deploy templates are exact committed public source, never an operator's
+	// substituted configuration or credential files from the working checkout.
+	if e := copyTemplates(filepath.Join(first, "deploy", "templates"), filepath.Join(stage, "templates")); e != nil {
+		return Manifest{}, "", ErrSource
+	}
+	for _, name := range []string{"SMOKE.md", "SMOKE-DK2.md", "README.md", "INSTALL-CONFIG.md"} {
+		b, e := os.ReadFile(filepath.Join(first, "deploy", name))
+		if e != nil {
+			return Manifest{}, "", ErrSource
+		}
+		if e = os.WriteFile(filepath.Join(stage, name), b, 0644); e != nil {
+			return Manifest{}, "", ErrOutput
+		}
+	}
+	b, e := json.MarshalIndent(m, "", "  ")
+	if e != nil {
+		return Manifest{}, "", ErrOutput
+	}
+	b = append(b, '\n')
+	// The builder publishes only a manifest its own validator accepts.
+	if _, e = ValidateManifest(b); e != nil {
+		return Manifest{}, "", ErrManifest
+	}
+	if e = os.WriteFile(filepath.Join(stage, "manifest.json"), b, 0644); e != nil {
+		return Manifest{}, "", ErrOutput
+	}
+	if e = writeSums(stage); e != nil {
+		return Manifest{}, "", ErrOutput
+	}
+	return m, stage, nil
+}
+
+// ValidateManifest strictly decodes a public release manifest and accepts it
+// only with this kit's target, flags and exact inventory: every service row,
+// every tool row and the pending row, each built hash as lowercase SHA-256.
+// Unknown, duplicate or missing members refuse, so a tool row cannot carry a
+// service, status or unit member and cannot move into the service rows.
+func ValidateManifest(raw []byte) (Manifest, error) {
+	var m Manifest
+	if len(raw) == 0 || len(raw) > 1<<20 || uniqueJSON(raw) != nil {
+		return Manifest{}, ErrManifest
+	}
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.DisallowUnknownFields()
+	if d.Decode(&m) != nil {
+		return Manifest{}, ErrManifest
+	}
+	var extra any
+	if d.Decode(&extra) != io.EOF {
+		return Manifest{}, ErrManifest
+	}
+	if m.Version != 1 || !exactHex(m.Commit, 20) || m.GoVersion != GoVersion || m.GOOS != "linux" || m.GOARCH != "amd64" || m.CGOEnabled != "0" || !reflect.DeepEqual(m.BuildFlags, releaseBuildFlags) || !reflect.DeepEqual(m.Pending, releasePending) || len(m.Artifacts) != len(releaseArtifacts) || len(m.Tools) != len(releaseTools) {
+		return Manifest{}, ErrManifest
+	}
+	for i, a := range m.Artifacts {
+		want := releaseArtifacts[i]
+		want.SHA256 = a.SHA256
+		if a != want || !exactHex(a.SHA256, 32) {
+			return Manifest{}, ErrManifest
+		}
+	}
+	for i, t := range m.Tools {
+		want := releaseTools[i]
+		want.SHA256 = t.SHA256
+		if t != want || !exactHex(t.SHA256, 32) {
+			return Manifest{}, ErrManifest
+		}
 	}
 	return m, nil
 }

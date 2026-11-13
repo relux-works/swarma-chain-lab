@@ -23,11 +23,13 @@ directory outside the source repository. From `deploy/`:
 go run ./cmd/deploy-kit build -repo "$SOURCE_ROOT" -commit "$REVIEWED_COMMIT" -out "$RELEASE_DIR"
 ```
 
-The program builds all three requested Linux binaries twice with separate source
+The program builds every service binary and the `deploy-kit` tool twice with separate source
 trees and build caches. It emits bin/, native public config/unit templates,
 README, this plan, manifest.json and SHA256SUMS, but never signs. Gateway's
 regtest-preparation row explicitly records screening off. The manifest's Go version, commit,
-target and every binary hash must match the approved handoff.
+target and every binary hash, including the `tools` row for `bin/deploy-kit`,
+must match the approved handoff. `bin/deploy-kit` is an operator tool: it has
+no unit and is never started as a service.
 
 The release signer uses the approved signing environment/key and namespace;
 replace `SIGNING_KEY` with that configured public signing-key reference:
