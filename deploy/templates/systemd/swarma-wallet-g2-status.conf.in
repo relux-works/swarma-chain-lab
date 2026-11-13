@@ -1,0 +1,5 @@
+[Service]
+SupplementaryGroups=swarma-wallet swarma-wallet-status
+ReadWritePaths=/run/swarma-wallet-status
+ExecStart=
+ExecStart=/opt/swarma/wallet/@VERSION@/bin/agent-walletd --config /etc/swarma/wallet/service.json -status-socket /run/swarma-wallet-status/status.sock -status-gid @OPERATOR_GID@

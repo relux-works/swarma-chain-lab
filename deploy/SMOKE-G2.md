@@ -26,6 +26,22 @@ pass fails, so tracking stalls instead of reading a mined payment as absent.
 Start the service only after the node runs with `txindex=1` and
 `getindexinfo` reports `txindex` with `synced: true`.
 
+## 0. Verified release tool
+
+On the station, use `bin/deploy-kit` from the accepted signed release. First
+verify the release signature and every checksum as in [SMOKE.md](SMOKE.md):
+
+```sh
+ssh-keygen -Y verify -f "$ALLOWED_SIGNERS" -I "$SIGNER_ID" -n swarma-release -s "$RELEASE_DIR/SHA256SUMS.sig" < "$RELEASE_DIR/SHA256SUMS" || exit 1
+(cd "$RELEASE_DIR" && sha256sum -c SHA256SUMS) || exit 1
+DEPLOY_KIT="$RELEASE_DIR/bin/deploy-kit"
+```
+
+`RELEASE_DIR` is an absolute path to the accepted release. Stop on any failed
+signature or checksum; the verified inventory must include `bin/deploy-kit`.
+Use that exact binary for rendering, validation, host flow and T18. A locally
+built tool has no provenance from the release's signed `SHA256SUMS`.
+
 ## 1. Parameters
 
 Copy `templates/g2-pay/parameters.json` and replace every `PLACEHOLDER` with an
@@ -73,10 +89,10 @@ validator stays authoritative.
 
 ## 2. Render
 
-From `deploy/`:
+With the verified release tool from §0:
 
 ```sh
-go run ./cmd/deploy-kit g2-render -params "$PARAMS" -out "$NEW_ABSOLUTE_DIR"
+"$DEPLOY_KIT" g2-render -params "$PARAMS" -out "$NEW_ABSOLUTE_DIR"
 ```
 
 This writes exactly the six frozen files (mode 0600) into a new directory and
@@ -111,7 +127,7 @@ sit under `<node_datadir>/regtest/`. A Core-initialized datadir has a
 ### Validate
 
 ```sh
-go run ./cmd/deploy-kit validate -config "$PUBLIC_DIR/wallet/deploy.json" -public "$RENDERED/service.json"
+"$DEPLOY_KIT" validate -config "$PUBLIC_DIR/wallet/deploy.json" -public "$RENDERED/service.json"
 ```
 
 The wallet validator accepts the `g2` member only with an explicit chain pin and
@@ -143,10 +159,10 @@ fixed (freeze amendment 1, A3) and implemented once, in `RunG2HostFlow`:
 5. **Activation**, and T18 after it (§4), only after step 4 passed.
 
 A failed step stops the flow before the next one. Run it with the
-`deploy-kit` binary built from the reviewed head:
+release's signed `bin/deploy-kit`, verified by `SHA256SUMS` in §0:
 
 ```sh
-deploy-kit g2-host-flow -params "$PARAMS" -- systemctl start swarma-wallet.service
+"$DEPLOY_KIT" g2-host-flow -params "$PARAMS" -- systemctl start swarma-wallet.service
 ```
 
 The command after `--` is the activation; it runs only after the post-apply
@@ -190,14 +206,15 @@ initgroups) for an account whose own group is its primary group, which is what
 `systemd-sysusers` creates from the declaration. Both numbers come from the
 agent's `u` line of the rendered `sysusers.conf` (`u <agent_user> <agent_uid>`;
 the GID is the same number, or the part after the colon of a `UID:GID` field).
-Run the script with binaries built from the reviewed head, and give it the
+Run the script with the verified release tool from §0 and the agent-wallet
+client from the reviewed head, and give it the
 `parameters.json` the files were rendered from (it holds no secret):
 
 ```sh
 AGENT_UID=$(awk -v u="$AGENT_USER" '$1 == "u" && $2 == u { split($3, id, ":"); print id[1] }' sysusers.conf)
 AGENT_GID=$(awk -v u="$AGENT_USER" '$1 == "u" && $2 == u { n = split($3, id, ":"); print id[n] }' sysusers.conf)
 setpriv --reuid="$AGENT_UID" --regid="$AGENT_GID" --init-groups -- \
-  env DEPLOY_KIT=/path/to/deploy-kit AGENT_WALLET=/path/to/agent-wallet \
+  env DEPLOY_KIT="$DEPLOY_KIT" AGENT_WALLET=/path/to/agent-wallet \
   deploy/g2-custody-check.sh custody-spec.json client.json "$GRANTEE_XONLY" \
     parameters.json "$NEW_EVIDENCE_DIR"
 ```

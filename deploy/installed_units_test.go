@@ -1,8 +1,10 @@
 package deploy
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -30,6 +32,93 @@ func installedUnitValid(raw []byte, service string) bool {
 		return len(fields["Group"]) == 1 && fields["Group"][0] == group+"-peer" && len(fields["SupplementaryGroups"]) == 1 && fields["SupplementaryGroups"][0] == group
 	}
 	return len(fields["Group"]) == 1 && fields["Group"][0] == group
+}
+
+const g2StatusTemplate = "templates/systemd/swarma-wallet-g2-status.conf.in"
+
+func resolvedG2StatusValid(raw, version, gid string) bool {
+	if strings.Contains(raw, "@") {
+		return false
+	}
+	n, err := strconv.ParseUint(gid, 10, 32)
+	if err != nil || n == 0 || strconv.FormatUint(n, 10) != gid {
+		return false
+	}
+	want := "[Service]\n" +
+		"SupplementaryGroups=swarma-wallet swarma-wallet-status\n" +
+		"ReadWritePaths=/run/swarma-wallet-status\n" +
+		"ExecStart=\n" +
+		"ExecStart=/opt/swarma/wallet/" + version + "/bin/agent-walletd --config /etc/swarma/wallet/service.json -status-socket /run/swarma-wallet-status/status.sock -status-gid " + gid + "\n"
+	return raw == want
+}
+
+// Claim: substitution yields exactly the documented status command after its reset; bounded defects refuse without starting systemd.
+func TestInstalledG2StatusDropIn(t *testing.T) {
+	raw, err := os.ReadFile(g2StatusTemplate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, gid := "release-test-0123456789ab", "230301"
+	if strings.Count(string(raw), "@VERSION@") != 1 || strings.Count(string(raw), "@OPERATOR_GID@") != 1 {
+		t.Fatal("drop-in must carry both release placeholders exactly once")
+	}
+	resolved := strings.NewReplacer("@VERSION@", version, "@OPERATOR_GID@", gid).Replace(string(raw))
+	if !resolvedG2StatusValid(resolved, version, gid) {
+		t.Fatal("unresolved or invalid G2 status drop-in command/reset")
+	}
+	main, err := os.ReadFile("templates/systemd/swarma-wallet.service.in")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mainResolved := strings.ReplaceAll(string(main), "@VERSION@", version)
+	if strings.Contains(mainResolved, "@") || !strings.Contains(mainResolved, "ExecStart=/opt/swarma/wallet/"+version+"/bin/agent-walletd --config /etc/swarma/wallet/service.json\n") {
+		t.Fatal("main unit and drop-in version convention differ")
+	}
+	for name, bad := range map[string]string{
+		"unresolved-version": strings.ReplaceAll(resolved, version, "@VERSION@"),
+		"unresolved-gid":     strings.ReplaceAll(resolved, gid, "@OPERATOR_GID@"),
+		"missing-reset":      strings.Replace(resolved, "ExecStart=\n", "", 1),
+		"reset-after-start":  strings.Replace(resolved, "ExecStart=\n", "", 1) + "ExecStart=\n",
+		"wrong-version":      strings.ReplaceAll(resolved, version, "other-release"),
+		"wrong-binary":       strings.ReplaceAll(resolved, "/bin/agent-walletd", "/bin/other"),
+		"missing-status":     strings.ReplaceAll(resolved, " -status-socket /run/swarma-wallet-status/status.sock", ""),
+		"extra-flag":         strings.ReplaceAll(resolved, " --config", " --unexpected --config"),
+		"nonnumeric-gid":     strings.ReplaceAll(resolved, gid, "operator"),
+		"zero-gid":           strings.ReplaceAll(resolved, gid, "0"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if resolvedG2StatusValid(bad, version, gid) {
+				t.Fatal("checker accepted planted drop-in defect")
+			}
+		})
+	}
+	if resolvedG2StatusValid(strings.ReplaceAll(resolved, gid, "operator"), version, "operator") || resolvedG2StatusValid(strings.ReplaceAll(resolved, gid, "0"), version, "0") {
+		t.Fatal("checker accepted nonnumeric or root operator GID")
+	}
+}
+
+// Claim: the SERVICE.md status example and source-of-truth link match the committed release template byte for byte.
+func TestG2StatusDocumentationMatchesTemplate(t *testing.T) {
+	raw, err := os.ReadFile(g2StatusTemplate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := os.ReadFile("../experiments/agent-wallet/SERVICE.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, section, ok := strings.Cut(string(doc), "### Status socket access (G2)\n")
+	if !ok {
+		t.Fatal("missing status socket documentation")
+	}
+	_, example, ok := strings.Cut(section, "```ini\n")
+	if !ok {
+		t.Fatal("missing status drop-in example")
+	}
+	example, _, ok = strings.Cut(example, "```")
+	if !ok || !bytes.Equal([]byte(example), raw) || !strings.Contains(section, "../../deploy/"+g2StatusTemplate) {
+		t.Fatal("SERVICE.md differs from released G2 status template or lacks its source link")
+	}
 }
 
 // Every shipped daemon unit uses its own executable's preflight and exclusive

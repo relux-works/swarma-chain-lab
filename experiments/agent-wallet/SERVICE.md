@@ -215,8 +215,15 @@ puts the agent into `swarma-wallet-status`.
 
 The daemon keeps the operator group as a supplementary group, so that it can
 give `status.sock` that group, and needs write access to the status
-directory, because the W2 unit runs with `ProtectSystem=strict`. Install this
-drop-in next to the W2 unit, as `swarma-wallet.service.d/g2-status.conf`:
+directory, because the W2 unit runs with `ProtectSystem=strict`. The source of
+truth is the committed [G2 status drop-in template](../../deploy/templates/systemd/swarma-wallet-g2-status.conf.in),
+shipped verbatim as `templates/systemd/swarma-wallet-g2-status.conf.in` in the
+release and covered by its signed `SHA256SUMS`. After verifying the release,
+substitute `@VERSION@` with the installed release version (the same value as
+in `swarma-wallet.service.in`) and `@OPERATOR_GID@` with the numeric operator
+GID. Refuse any remaining `@` placeholder. Install the resolved drop-in next
+to the W2 unit as `swarma-wallet.service.d/g2-status.conf`; keep the empty
+`ExecStart=` reset before the replacement command. The template bytes are:
 
 ```ini
 [Service]

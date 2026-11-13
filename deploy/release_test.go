@@ -183,6 +183,7 @@ func TestSums(t *testing.T) {
 	}
 }
 
+// Claim: the real release includes the exact G2 status template and checksum alongside reproducible binaries and refusal controls.
 // Opt-in actual release: real Linux ELF builds twice from a clean signed HEAD,
 // nine services and the deploy-kit tool. The controls plant unequal source in
 // the isolated second tree, once in the first service and once in deploy-kit;
@@ -224,6 +225,7 @@ func TestReleaseIntegration(t *testing.T) {
 	if e != nil || !strings.Contains(string(sums), m.Tools[0].SHA256+"  bin/deploy-kit\n") {
 		t.Fatal("SHA256SUMS does not list bin/deploy-kit")
 	}
+	assertReleasedG2StatusTemplate(t, repo, in.Out)
 	binaries := append([]Artifact(nil), m.Artifacts...)
 	binaries = append(binaries, Artifact{Binary: m.Tools[0].Binary, SHA256: m.Tools[0].SHA256})
 	for _, a := range binaries {
@@ -322,6 +324,13 @@ func assembleFixture(t *testing.T) (work, first, second string) {
 		if e := os.WriteFile(filepath.Join(root, "deploy", "templates", "systemd", "unit.service.in"), []byte("[Unit]\n"), 0600); e != nil {
 			t.Fatal(e)
 		}
+		raw, e := os.ReadFile(g2StatusTemplate)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = os.WriteFile(filepath.Join(root, "deploy", g2StatusTemplate), raw, 0600); e != nil {
+			t.Fatal(e)
+		}
 		for _, name := range []string{"SMOKE.md", "SMOKE-DK2.md", "README.md", "INSTALL-CONFIG.md"} {
 			if e := os.WriteFile(filepath.Join(root, "deploy", name), []byte(name), 0600); e != nil {
 				t.Fatal(e)
@@ -335,6 +344,45 @@ const fixtureCommit = "0123456789abcdef0123456789abcdef01234567"
 
 // fixtureBinary is the deterministic stand-in a fixture build returns for a package.
 func fixtureBinary(pkg string) []byte { return []byte("fixture-binary " + pkg) }
+
+func assertReleasedG2StatusTemplate(t *testing.T, repo, release string) {
+	t.Helper()
+	want, err := os.ReadFile(filepath.Join(repo, "deploy", g2StatusTemplate))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(release, g2StatusTemplate))
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatal("release lacks exact committed G2 status template", err)
+	}
+	sums, err := os.ReadFile(filepath.Join(release, "SHA256SUMS"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantLine := digest(want) + "  " + g2StatusTemplate
+	count := 0
+	for _, line := range strings.Split(string(sums), "\n") {
+		if line == wantLine {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatal("SHA256SUMS must cover the exact G2 status template once")
+	}
+}
+
+// Claim: fixture assembly copies the committed G2 status template verbatim and includes its exact hash in SHA256SUMS; compiler behavior is covered by integration.
+func TestAssembleShipsG2StatusTemplate(t *testing.T) {
+	work, first, second := assembleFixture(t)
+	build := func(_ context.Context, _, _, _ string, a Artifact) ([]byte, error) {
+		return fixtureBinary(a.Package), nil
+	}
+	_, stage, err := assemble(context.Background(), work, first, second, fixtureCommit, build)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertReleasedG2StatusTemplate(t, first, stage)
+}
 
 // Claim: a fixture build lists bin/deploy-kit as a tool, not a service, in the
 // returned manifest, manifest.json and SHA256SUMS, with the hash of the bytes

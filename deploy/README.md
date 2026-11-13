@@ -24,6 +24,20 @@ endpoints refuse. With all models explicitly profiled, the required top-level
 unchanged. See the [Responses profile](../experiments/model-proxy/RESPONSES-PROFILE.md)
 for the wire subset and separate harness/TLS qualification requirements.
 
+The optional G2 status drop-in is
+[`templates/systemd/swarma-wallet-g2-status.conf.in`](templates/systemd/swarma-wallet-g2-status.conf.in).
+Its `.conf.in` suffix follows the existing systemd drop-in template convention
+(`10-install.conf.in`); it is installed as `swarma-wallet.service.d/g2-status.conf`,
+not as a standalone service. The release copies it verbatim into `templates/`
+and covers its bytes with `SHA256SUMS`. After verifying the signed release,
+substitute `@VERSION@` as for `swarma-wallet.service.in` and `@OPERATOR_GID@`
+with the numeric status group GID; refuse any remaining `@`. Keep the empty
+`ExecStart=` line before its replacement command. The synchronized example is
+in [SERVICE.md](../experiments/agent-wallet/SERVICE.md#status-socket-access-g2).
+`go test -run 'TestInstalledG2StatusDropIn|TestG2StatusDocumentationMatchesTemplate|TestAssembleShipsG2StatusTemplate' .`
+checks substitution, documentation and release checksum coverage using temporary
+fixtures; `TestReleaseIntegration` checks the real bundle in the opt-in release run.
+
 ## Build contract
 
 Use Go1.26.8 and pre-download the landed modules' dependencies into the local
