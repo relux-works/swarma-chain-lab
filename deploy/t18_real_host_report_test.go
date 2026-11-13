@@ -166,6 +166,8 @@ func (f *t18rhFix) probes(t *testing.T, obs map[string]string) {
 	f.write(t, "custody/custody-report.json", string(b)+"\n")
 }
 
+func t18rhID(id uint32) string { return strconv.FormatUint(uint64(id), 10) }
+
 func t18rhLaunch(uid, gid uint32, groups string) string {
 	u, g := strconv.FormatUint(uint64(uid), 10), strconv.FormatUint(uint64(gid), 10)
 	return "Uid:\t" + u + "\t" + u + "\t" + u + "\t" + u + "\nGid:\t" + g + "\t" + g + "\t" + g + "\t" + g + "\nGroups:\t" + groups + " \nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapAmb:\t0000000000000000\n"
@@ -173,7 +175,15 @@ func t18rhLaunch(uid, gid uint32, groups string) string {
 
 func t18rhFixture(t *testing.T) *t18rhFix {
 	t.Helper()
-	f := &t18rhFix{p: g2Params()}
+	return t18rhFixtureFor(t, g2Params())
+}
+
+// t18rhFixtureFor is t18rhFixture for parameters p: every identity in the
+// evidence (account, launch, credentials, custody exits, peer and socket
+// owner) is p's, so another valid p gives another consistent all-pass run.
+func t18rhFixtureFor(t *testing.T, p G2PayParameters) *t18rhFix {
+	t.Helper()
+	f := &t18rhFix{p: p}
 	var e error
 	if f.primary, f.socket, e = G2AgentSlotGIDs(f.p); e != nil {
 		t.Fatal(e)
@@ -217,23 +227,24 @@ func t18rhFixture(t *testing.T) *t18rhFix {
 	f.write(t, "op/exits.txt", "render_exit=0\nhost_flow_exit=0\naccount_groups_exit=0\n")
 	f.write(t, "op/host-flow.out", "G2_HOST_FLOW_ACTIVATED\n")
 	f.write(t, "op/host-flow-mode.txt", "apply=noop activation=noop sysusers=true\n")
-	f.write(t, "op/account-real.txt", "uid=1201 gid=1201 groups=1201,1301\n")
-	f.write(t, "op/account-groups.txt", "G2_AGENT_GROUPS_OK observed_gid=1201 declared_primary_gid=1201 socket_gid=1301\n")
+	u, g, sg, su := t18rhID(f.p.AgentUID), t18rhID(f.primary), t18rhID(f.socket), t18rhID(f.p.ServiceUID)
+	f.write(t, "op/account-real.txt", "uid="+u+" gid="+g+" groups="+g+","+sg+"\n")
+	f.write(t, "op/account-groups.txt", "G2_AGENT_GROUPS_OK observed_gid="+g+" declared_primary_gid="+g+" socket_gid="+sg+"\n")
 	f.write(t, "op/txindex.json", `{"txindex":{"synced":true,"best_block_height":812345}}`)
 	f.write(t, "inputs.sha256", t18rhSha(files[G2FileCustodySpec])+"\n"+t18rhSha(files[G2FileClientConfig])+"\n"+t18rhSha(append(raw, '\n'))+"\n")
 	f.write(t, "launch.txt", t18rhLaunch(f.p.AgentUID, f.primary, strconv.FormatUint(uint64(f.primary), 10)+" "+strconv.FormatUint(uint64(f.socket), 10)))
-	f.write(t, "custody/credentials.txt", "uid=1201 gid=1201 groups=1201 1301\n")
-	f.write(t, "custody/credentials-check.txt", "G2_AGENT_GROUPS_OK observed_gid=1201 declared_primary_gid=1201 socket_gid=1301\n")
+	f.write(t, "custody/credentials.txt", "uid="+u+" gid="+g+" groups="+g+" "+sg+"\n")
+	f.write(t, "custody/credentials-check.txt", "G2_AGENT_GROUPS_OK observed_gid="+g+" declared_primary_gid="+g+" socket_gid="+sg+"\n")
 	f.probes(t, nil)
-	f.write(t, "custody/exits.txt", "uid=1201 probe_exit=0 positive_exit=3 verify_exit=0\n")
+	f.write(t, "custody/exits.txt", "uid="+u+" probe_exit=0 positive_exit=3 verify_exit=0\n")
 	f.write(t, "custody/custody-verify.txt", "T18_CUSTODY_VERIFIED "+f.specSHA+"\n")
 	f.write(t, "agent-exits.txt", t18rhAgentExitsOK)
 	f.write(t, "launch-layout-on.txt", "T18_CUSTODY_VERIFIED "+f.specSHA+"\n")
 	f.write(t, "launch-layout-off.txt", "T18_CUSTODY_VERIFIED "+f.specSHA+"\n")
 	f.write(t, "custody/positive-request.json", `{"v":1}`)
 	f.write(t, "custody/positive-receipt.json", t18rhMarker+"\n")
-	f.write(t, "peer.txt", "PEER connect=ok uid=1101 gid=1101\n")
-	f.write(t, "socket-stat.txt", "socket|1101|1301|660\n")
+	f.write(t, "peer.txt", "PEER connect=ok uid="+su+" gid="+su+"\n")
+	f.write(t, "socket-stat.txt", "socket|"+su+"|"+sg+"|660\n")
 	f.write(t, "perl-version.txt", t18rhPerl+"\n")
 	return f
 }
@@ -1244,7 +1255,7 @@ func TestT18RealHostSpecBoundCheck(t *testing.T) {
 		}
 	}
 	if code, out := t18rhCheckFile(t, "other-spec", valid, other); code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") ||
-		!strings.Contains(out, "\n# reasons: header-spec-sha256:differs render-custody-spec-file-sha256:differs custody-spec-sha256:differs stated-overall-disagrees\n") {
+		!strings.Contains(out, "\n# reasons: header-spec-sha256:differs header-agent-uid-not-spec header-primary-gid-not-spec render-custody-spec-file-sha256:differs custody-spec-sha256:differs stated-overall-disagrees\n") {
 		t.Fatalf("T18RH_SPEC the valid report against another spec: exit %d\n%s", code, out)
 	}
 
@@ -1646,5 +1657,311 @@ func TestT18RealHostHashStepErrexitOff(t *testing.T) {
 	if code, out := run(failing, "report", f.op, f.ag, f.rendered, f.params, "real"); code != 1 ||
 		!strings.HasPrefix(out, "REFUSED canonical-hash-unavailable: ") || strings.Contains(out, "T18-REAL-HOST") || strings.Contains(out, "OVERALL") {
 		t.Fatalf("T18RH_ERREXIT errexit-off report with a product that exits 1: %d\n%s", code, out)
+	}
+}
+
+// t18rhLastLine is the last line of a report, its OVERALL line.
+func t18rhLastLine(text string) string {
+	return text[strings.LastIndex(strings.TrimSuffix(text, "\n"), "\n")+1:]
+}
+
+// Claim (r8, check-unvalidated-pass-evidence): check binds every displayed
+// identity to the supplied spec the product accepted. With the r4 spec and
+// all three spec hashes unchanged, the stored r4 valid report is refused
+// (exit 1, OVERALL FAIL, exactly the named reasons) when its displayed agent
+// identity (header, account, launch UIDs and GIDs, credentials,
+// custody-verify) is root 0 (reserved and not the spec's agent_uid) or the
+// nonreserved 2201 (only header-agent-uid-not-spec and
+// header-primary-gid-not-spec: the spec comparison, not the reserved-ID rule,
+// refuses it), and when the service UID, peer UID and socket owner are root 0
+// or the nonreserved 2101. Positive control, not hardcoded r4 identities: an
+// alternate spec rendered by the product for agent 2201, socket GID 2301 and
+// service 2101 composes a consistent report that is OVERALL PASS and passes
+// check against that spec; crossed over, that report against the r4 spec and
+// the r4 report against the alternate spec are refused as identity
+// contradictions. Limit: the spec carries no socket GID, so socket_gid is
+// bound to the items, not to the spec; and a report whose every identity
+// agrees with its spec is self-consistent: check does not authenticate it.
+func TestT18RealHostHeaderIdentityMatchesSpec(t *testing.T) {
+	spec := filepath.Join(t18rhR4, "custody-spec.json")
+	b, e := os.ReadFile(filepath.Join(t18rhR4, "valid-real.txt"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	valid := string(b)
+	if code, out := t18rhCheckFile(t, "valid", valid, spec); code != 0 || out != t18rhLastLine(valid) {
+		t.Fatalf("T18RH_IDENTITY control: the stored r4 report: %d\n%s", code, out)
+	}
+	hashLines := regexp.MustCompile(`(?m)^(T18-REAL-HOST v1 wallet=real commit=\S+ spec_sha256=[0-9a-f]{64} |custody_spec_sha256 [0-9a-f]{64}$|render PASS files=6 custody_spec_file_sha256=[0-9a-f]{64}$)`)
+	for _, c := range []struct{ name, from, to, reasons string }{
+		{"agent-root", "1201", "0", "header-reserved-id:agent_uid header-reserved-id:primary_gid header-agent-uid-not-spec header-primary-gid-not-spec"},
+		{"agent-other-nonreserved", "1201", "2201", "header-agent-uid-not-spec header-primary-gid-not-spec"},
+		{"service-owners-root", "1101", "0", "header-reserved-id:service_uid header-service-uid-not-spec"},
+		{"service-owners-other-nonreserved", "1101", "2101", "header-service-uid-not-spec"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			text := strings.ReplaceAll(valid, c.from, c.to)
+			if text == valid || strings.Join(hashLines.FindAllString(text, -1), "") != strings.Join(hashLines.FindAllString(valid, -1), "") ||
+				len(hashLines.FindAllString(text, -1)) != 3 {
+				t.Fatalf("T18RH_IDENTITY setup %s: the spec hashes must stay unchanged", c.name)
+			}
+			code, out := t18rhCheckFile(t, c.name, text, spec)
+			if code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.Contains(out, "\n# reasons: "+c.reasons+" stated-overall-disagrees\n") {
+				t.Fatalf("T18RH_IDENTITY %s: exit %d, want 1 with exactly %q\n%s", c.name, code, c.reasons, out)
+			}
+		})
+	}
+	t.Run("alternate-spec-control", func(t *testing.T) {
+		p := g2Params()
+		p.AgentUID, p.AgentSocketGID, p.ServiceUID = 2201, 2301, 2101
+		f := t18rhFixtureFor(t, p)
+		if f.primary != 2201 || f.socket != 2301 || f.spec.AgentUID != 2201 || f.spec.ServiceUID != 2101 {
+			t.Fatalf("T18RH_IDENTITY setup: alternate identities %d %d %+v", f.primary, f.socket, f.spec)
+		}
+		code, out := f.report(t, "real")
+		if code != 0 || !strings.HasPrefix(out, "T18-REAL-HOST v1 wallet=real commit="+t18rhCommit+" spec_sha256="+f.specSHA+" agent_uid=2201 primary_gid=2201 socket_gid=2301 service_uid=2101\n") ||
+			!strings.HasSuffix(out, "\nOVERALL PASS pass=21 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real\n") {
+			t.Fatalf("T18RH_IDENTITY the alternate spec's consistent run: %d\n%s", code, out)
+		}
+		if code, got := t18rhCheckFile(t, "alternate", out, f.renderedSpec); code != 0 || got != t18rhLastLine(out) {
+			t.Fatalf("T18RH_IDENTITY check of the alternate report against its spec: %d\n%s", code, got)
+		}
+		want := "header-agent-uid-not-spec header-primary-gid-not-spec header-service-uid-not-spec"
+		for name, pair := range map[string][2]string{"alternate-report-r4-spec": {out, spec}, "r4-report-alternate-spec": {valid, f.renderedSpec}} {
+			code, got := t18rhCheckFile(t, name, pair[0], pair[1])
+			if code != 1 || !strings.Contains(got, " "+want+" ") {
+				t.Fatalf("T18RH_IDENTITY %s: exit %d, want 1 with %q\n%s", name, code, want, got)
+			}
+		}
+	})
+}
+
+// t18rhRunScript runs the runner at script (a copy) with DEPLOY_KIT=kit.
+func t18rhRunScript(t *testing.T, script, kit string, args ...string) (int, string) {
+	t.Helper()
+	cmd := exec.Command("/bin/sh", append([]string{script}, args...)...)
+	cmd.Env = append(os.Environ(), "DEPLOY_KIT="+kit)
+	out, e := cmd.CombinedOutput()
+	if _, ok := e.(*exec.ExitError); e != nil && !ok {
+		t.Fatal("T18RH_SETUP", e)
+	}
+	return cmd.ProcessState.ExitCode(), string(out)
+}
+
+// Claim (r8, evidence-bytes-lost-in-command-substitution): the product's
+// canonical-hash output and the verifier outputs are judged on their raw
+// bytes, before any shell normalization. A product stand-in that exits 0 and
+// prints the exact canonical line with a NUL before or after the newline or
+// inside the line, with CR before the newline, with an extra trailing
+// newline, without the newline, or binary garbage is refused by name: check
+// gives exactly canonical-hash-unavailable and report composes nothing
+// (REFUSED canonical-hash-unavailable, no header), with errexit on and with
+// the runner's one `set -eu` changed to `set -u`. The stand-in printing
+// exactly the line and one newline passes check and composes OVERALL PASS in
+// both modes. The same byte variants of the launch=true verifier output
+// turn launch-layout FAIL, and of the custody verifier output turn
+// custody-verify FAIL, each the only failure (OVERALL FAIL, exit 1), beside
+// the exact output's PASS. Limit: the stand-ins replay fixed bytes; readSpec
+// itself is the product's and is not changed or exercised here beyond the
+// real deploy-kit controls of the other tests.
+func TestT18RealHostRawProductBytes(t *testing.T) {
+	src, e := os.ReadFile(t18rhScript)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if strings.Count(string(src), "\nset -eu\n") != 1 {
+		t.Fatal("T18RH_RAW setup: the runner has not exactly one `set -eu` line")
+	}
+	dir := t.TempDir()
+	errexitOff := filepath.Join(dir, "errexit-off.sh")
+	if e := os.WriteFile(errexitOff, []byte(strings.Replace(string(src), "\nset -eu\n", "\nset -u\n", 1)), 0700); e != nil {
+		t.Fatal(e)
+	}
+	spec := filepath.Join(t18rhR4, "custody-spec.json")
+	validPath := filepath.Join(t18rhR4, "valid-real.txt")
+	b, e := os.ReadFile(validPath)
+	if e != nil {
+		t.Fatal(e)
+	}
+	valid := string(b)
+	raw, e := os.ReadFile(spec)
+	if e != nil {
+		t.Fatal(e)
+	}
+	sp, e := ParseCustodySpec(raw[:len(raw)-1])
+	if e != nil {
+		t.Fatal(e)
+	}
+	line := "T18_CUSTODY_SPEC_SHA256 " + CustodySpecSHA256(sp)
+	// stand-in replays fixed stdout bytes and exits 0.
+	stand := func(name string, out []byte) string {
+		payload := filepath.Join(dir, name+".out")
+		if e := os.WriteFile(payload, out, 0600); e != nil {
+			t.Fatal(e)
+		}
+		kit := filepath.Join(dir, name)
+		if e := os.WriteFile(kit, []byte("#!/bin/sh\ncat '"+payload+"'\n"), 0700); e != nil {
+			t.Fatal(e)
+		}
+		return kit
+	}
+	bad := map[string][]byte{
+		"nul-before-newline": []byte(line + "\x00\n"),
+		"nul-after-newline":  []byte(line + "\n\x00"),
+		"nul-inside-line":    []byte(line[:30] + "\x00" + line[30:] + "\n"),
+		"cr-before-newline":  []byte(line + "\r\n"),
+		"extra-newline":      []byte(line + "\n\n"),
+		"no-newline":         []byte(line),
+		"binary-garbage":     {0xff, 0xfe, 0x00, 'T', '1', '8', 0x80, 0x1b, '\n'},
+	}
+	for _, mode := range []struct{ name, script string }{{"errexit-on", t18rhScript}, {"errexit-off", errexitOff}} {
+		t.Run(mode.name+"/exact-control", func(t *testing.T) {
+			kit := stand("exact", []byte(line+"\n"))
+			if code, out := t18rhRunScript(t, mode.script, kit, "check", validPath, spec); code != 0 || out != t18rhLastLine(valid) {
+				t.Fatalf("T18RH_RAW the exact product line: %d\n%s", code, out)
+			}
+			f := t18rhFixture(t)
+			if code, out := t18rhRunScript(t, mode.script, kit, "report", f.op, f.ag, f.rendered, f.params, "real"); code != 0 || !strings.Contains(out, "\nOVERALL PASS ") {
+				t.Fatalf("T18RH_RAW report with the exact product line: %d\n%s", code, out)
+			}
+		})
+		for name, out := range bad {
+			t.Run(mode.name+"/hash-"+name, func(t *testing.T) {
+				kit := stand(name, out)
+				code, got := t18rhRunScript(t, mode.script, kit, "check", validPath, spec)
+				if code != 1 || !strings.HasPrefix(got, "OVERALL FAIL ") || !strings.Contains(got, "\n# reasons: canonical-hash-unavailable stated-overall-disagrees\n") {
+					t.Fatalf("T18RH_RAW check with product output %q: exit %d\n%s", out, code, got)
+				}
+				f := t18rhFixture(t)
+				code, got = t18rhRunScript(t, mode.script, kit, "report", f.op, f.ag, f.rendered, f.params, "real")
+				if code != 1 || !strings.HasPrefix(got, "REFUSED canonical-hash-unavailable: ") || strings.Contains(got, "T18-REAL-HOST") || strings.Contains(got, "OVERALL") {
+					t.Fatalf("T18RH_RAW report with product output %q: exit %d\n%s", out, code, got)
+				}
+			})
+		}
+	}
+	// The verifier outputs, byte for byte.
+	for _, item := range []struct{ file, want string }{
+		{"launch-layout-on.txt", `(?m)^launch-layout FAIL launch=true verify_exit=0 `},
+		{"custody/custody-verify.txt", `(?m)^custody-verify FAIL `},
+	} {
+		t.Run(item.file+"/exact-control", func(t *testing.T) {
+			f := t18rhFixture(t)
+			f.write(t, item.file, "T18_CUSTODY_VERIFIED "+f.specSHA+"\n")
+			if code, out := f.report(t, "real"); code != 0 || !strings.Contains(out, "\nOVERALL PASS ") {
+				t.Fatalf("T18RH_RAW the exact verifier output in %s: %d\n%s", item.file, code, out)
+			}
+		})
+		for _, v := range []struct{ name, suffix string }{
+			{"nul-before-newline", "\x00\n"}, {"nul-after-newline", "\n\x00"}, {"cr-before-newline", "\r\n"},
+			{"extra-newline", "\n\n"}, {"no-newline", ""}, {"binary-garbage", "\n\xff\xfe\x00\x80"},
+		} {
+			t.Run(item.file+"/"+v.name, func(t *testing.T) {
+				f := t18rhFixture(t)
+				f.write(t, item.file, "T18_CUSTODY_VERIFIED "+f.specSHA+v.suffix)
+				code, out := f.report(t, "real")
+				if code != 1 || !regexp.MustCompile(item.want).MatchString(out) || strings.Contains(out, "\nOVERALL PASS ") || !strings.Contains(out, " fail=1 invalid=0 ") {
+					t.Fatalf("T18RH_RAW %s with %q: exit %d, want 1 with %s alone\n%s", item.file, v.suffix, code, item.want, out)
+				}
+			})
+		}
+	}
+}
+
+// Claim (r8, account-group-order-regression): the real account's group
+// list, as `id -G` printed it, is the exact set {primary GID, socket GID} of
+// CheckG2AgentGroups, in either order, with the primary GID below the socket
+// GID (r4 parameters: 1201 < 1301) and above it (2201 > 1301). Both orders
+// compose account PASS and OVERALL PASS, and the composed report passes
+// check. A third group, a missing group, a repeated GID (beside both, or in
+// place of the other) and an empty list are refused by the composer (account
+// FAIL, the only failure) and, written into the account PASS line of the
+// valid report, by check (account-pass-without-real-account). The launch-form
+// and credentials group lists of a stored report follow the same set rule:
+// the reversed pair passes check; a repeated GID or a third group is refused.
+// Limit: the composer's list comes from the account-real.txt evidence file;
+// the real `id -G` is exercised by TestT18RealHostAgentPhase.
+func TestT18RealHostAccountGroupSet(t *testing.T) {
+	below := g2Params()
+	above := g2Params()
+	above.AgentUID = 2201
+	for _, side := range []struct {
+		name string
+		p    G2PayParameters
+	}{{"primary-below-socket", below}, {"primary-above-socket", above}} {
+		f := t18rhFixtureFor(t, side.p)
+		g, s := t18rhID(f.primary), t18rhID(f.socket)
+		if (side.name == "primary-below-socket") != (f.primary < f.socket) {
+			t.Fatalf("T18RH_GROUPS setup %s: primary %d socket %d", side.name, f.primary, f.socket)
+		}
+		var composed string
+		for _, order := range []string{g + "," + s, s + "," + g} {
+			t.Run(side.name+"/accept-"+order, func(t *testing.T) {
+				f.write(t, "op/account-real.txt", "uid="+g+" gid="+g+" groups="+order+"\n")
+				code, out := f.report(t, "real")
+				if code != 0 || !strings.Contains(out, " real_account=uid="+g+"_gid="+g+"_groups="+order+" group_set=G2_AGENT_GROUPS_OK\n") || !strings.Contains(out, "\nOVERALL PASS ") {
+					t.Fatalf("T18RH_GROUPS %s groups=%s: %d\n%s", side.name, order, code, out)
+				}
+				if code, got := t18rhCheckFile(t, "accept", out, f.renderedSpec); code != 0 || got != t18rhLastLine(out) {
+					t.Fatalf("T18RH_GROUPS check %s groups=%s: %d\n%s", side.name, order, code, got)
+				}
+				if composed == "" {
+					composed = out
+				}
+			})
+		}
+		f.write(t, "op/account-real.txt", "uid="+g+" gid="+g+" groups="+g+","+s+"\n")
+		for name, groups := range map[string]string{
+			"third-group":       g + "," + s + ",1401",
+			"missing-socket":    g,
+			"missing-primary":   s,
+			"duplicate-primary": g + "," + g + "," + s,
+			"duplicate-socket":  s + "," + g + "," + s,
+			"primary-twice":     g + "," + g,
+			"empty":             "",
+		} {
+			t.Run(side.name+"/refuse-"+name, func(t *testing.T) {
+				f.write(t, "op/account-real.txt", "uid="+g+" gid="+g+" groups="+groups+"\n")
+				defer f.write(t, "op/account-real.txt", "uid="+g+" gid="+g+" groups="+g+","+s+"\n")
+				code, out := f.report(t, "real")
+				if code != 1 || !strings.Contains(out, "\naccount FAIL ") || strings.Contains(out, "\nOVERALL PASS ") || !strings.Contains(out, " fail=1 invalid=0 ") {
+					t.Fatalf("T18RH_GROUPS composer %s groups=%q: %d\n%s", side.name, groups, code, out)
+				}
+				old := " real_account=uid=" + g + "_gid=" + g + "_groups=" + g + "," + s + " "
+				if strings.Count(composed, old) != 1 {
+					t.Fatalf("T18RH_GROUPS setup: the valid report's account line\n%s", composed)
+				}
+				stored := strings.Replace(composed, old, " real_account=uid="+g+"_gid="+g+"_groups="+groups+" ", 1)
+				code, got := t18rhCheckFile(t, name, stored, f.renderedSpec)
+				if code != 1 || !strings.Contains(got, "\n# reasons: account-pass-without-real-account stated-overall-disagrees\n") {
+					t.Fatalf("T18RH_GROUPS check %s groups=%q: %d\n%s", side.name, groups, code, got)
+				}
+			})
+		}
+		t.Run(side.name+"/stored-launch-and-credentials-sets", func(t *testing.T) {
+			// The composer prints these two lists in numeric order.
+			lo, hi := g, s
+			if f.primary > f.socket {
+				lo, hi = s, g
+			}
+			for _, c := range []struct{ name, old, new, reason string }{
+				{"launch-reversed", " groups=" + lo + "," + hi + " caps=0\n", " groups=" + hi + "," + lo + " caps=0\n", ""},
+				{"credentials-reversed", " groups=" + lo + "," + hi + " check=", " groups=" + hi + "," + lo + " check=", ""},
+				{"launch-repeated", " groups=" + lo + "," + hi + " caps=0\n", " groups=" + g + "," + g + "," + s + " caps=0\n", "launch-pass-other-groups"},
+				{"launch-third", " groups=" + lo + "," + hi + " caps=0\n", " groups=" + g + "," + s + ",1401 caps=0\n", "launch-pass-other-groups"},
+				{"credentials-repeated", " groups=" + lo + "," + hi + " check=", " groups=" + s + "," + s + "," + g + " check=", "credentials-pass-contradicts-evidence"},
+			} {
+				if strings.Count(composed, c.old) != 1 {
+					t.Fatalf("T18RH_GROUPS setup %s", c.name)
+				}
+				code, got := t18rhCheckFile(t, c.name, strings.Replace(composed, c.old, c.new, 1), f.renderedSpec)
+				if c.reason == "" && (code != 0 || got != t18rhLastLine(composed)) {
+					t.Fatalf("T18RH_GROUPS check %s %s: %d\n%s", side.name, c.name, code, got)
+				}
+				if c.reason != "" && (code != 1 || !strings.Contains(got, "\n# reasons: "+c.reason+" stated-overall-disagrees\n")) {
+					t.Fatalf("T18RH_GROUPS check %s %s: %d, want %s\n%s", side.name, c.name, code, c.reason, got)
+				}
+			}
+		})
 	}
 }

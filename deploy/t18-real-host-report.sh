@@ -45,7 +45,8 @@
 #       spec_sha256 must be the canonical hash of that file as the product
 #       computes it (see "Canonical spec hash" below). Every denied_reads and
 #       denied_rpc entry of SPEC must have exactly one row, with no row for
-#       anything else
+#       anything else. r8: the header's agent_uid, primary_gid and
+#       service_uid must be those of SPEC, and no header ID may be reserved
 #   t18-real-host-report.sh peer SOCKET
 #       connects, reads SO_PEERCRED, sends nothing
 #   t18-real-host-report.sh items
@@ -67,6 +68,8 @@
 # anything else, check refuses with the reason canonical-hash-unavailable and
 # report refuses to compose (REFUSED canonical-hash-unavailable, exit 1).
 # There is no fallback: this script computes no canonical hash itself.
+# r8: that output, and the verifier outputs the report reads, are judged on
+# their raw bytes (exact_line), never after a command substitution.
 #
 # The wallet is never asked for anything. The agent phase runs
 # g2-custody-check.sh unchanged, but with AGENT_WALLET set to this script in
@@ -161,23 +164,56 @@ json_array() {
 }
 
 sha_of() { sha256sum "$1" | cut -d ' ' -f 1; }
-nl='
-'
+
+# exact_line TEXT FILE: 0 only when FILE is, byte for byte, TEXT and one
+# newline. The raw bytes are compared (r8): a command substitution would drop
+# NUL bytes and trailing newlines before any comparison could see them.
+exact_line() {
+	[ -f "$2" ] || return 1
+	printf '%s\n' "$1" | cmp -s - "$2"
+}
+
 # product_spec_sha SPEC: the canonical spec hash, from the product only. It
 # prints the hex and returns 0 only when `$deploy_kit g2-custody-hash -spec
-# SPEC` exits 0 and its standard output is exactly one line
-# `T18_CUSTODY_SPEC_SHA256 <64 lowercase hex>` (the "." after the output keeps
-# trailing newlines, so a second or empty line is seen). Otherwise it prints
-# nothing and returns 1.
+# SPEC` exits 0 and its standard output is, byte for byte, the one line
+# `T18_CUSTODY_SPEC_SHA256 <64 lowercase hex>` and one newline (89 bytes).
+# r8: the output goes to a file and the raw bytes are compared with that line
+# rebuilt from the 64 hex characters, so a NUL byte, a CR, a second or empty
+# line, binary garbage or a missing newline is refused; nothing is judged
+# after a command substitution has normalized it. The exit status is checked
+# on its own, with or without errexit. Otherwise it prints nothing and
+# returns 1.
 product_spec_sha() {
-	out=$("$deploy_kit" g2-custody-hash -spec "$1" 2>/dev/null && echo .) || return 1
-	sha=${out#"T18_CUSTODY_SPEC_SHA256 "}
-	sha=${sha%"$nl."}
-	case $sha in
-	'' | *[!0-9a-f]*) return 1 ;;
-	esac
-	[ "${#sha}" -eq 64 ] && [ "$out" = "T18_CUSTODY_SPEC_SHA256 $sha$nl." ] || return 1
+	pt=$(mktemp) || return 1
+	"$deploy_kit" g2-custody-hash -spec "$1" >"$pt" 2>/dev/null && st=0 || st=$?
+	ok=0
+	if [ "$st" = 0 ]; then
+		sha=$(head -c 88 "$pt" 2>/dev/null | tr -d '\000')
+		sha=${sha#"T18_CUSTODY_SPEC_SHA256 "}
+		case $sha in
+		'' | *[!0-9a-f]*) ;;
+		*) if [ "${#sha}" -eq 64 ] && exact_line "T18_CUSTODY_SPEC_SHA256 $sha" "$pt"; then ok=1; fi ;;
+		esac
+	fi
+	rm -f "$pt"
+	[ "$ok" = 1 ] || return 1
 	echo "$sha"
+}
+
+# spec_ids SPEC: "<agent_uid> <service_uid>" of SPEC, read only after the
+# product accepted SPEC (product_spec_sha). The product's reader accepts
+# exactly the canonical encoding of CustodySpecV1 with surrounding white
+# space, which starts with these members in this order; a quote inside a
+# string member is escaped there, so this prefix stands only at the start.
+spec_ids() {
+	tr -d '\n' <"$1" | sed -n 's/^[[:space:]]*{"v":1,"agent_uid":\([1-9][0-9]*\),"service_uid":\([1-9][0-9]*\),"denied_reads":\[.*$/\1 \2/p'
+}
+
+# exact_pair LIST A B: 0 only when the comma list LIST is the exact set {A, B}
+# of two distinct GIDs, in either order (CheckG2AgentGroups: order does not
+# matter). A third, missing or repeated entry is refused.
+exact_pair() {
+	[ "$2" != "$3" ] && { [ "$1" = "$2,$3" ] || [ "$1" = "$3,$2" ]; }
 }
 
 # no-request mode: the AGENT_WALLET of the custody script. It sends nothing.
@@ -312,6 +348,16 @@ probe_observed() {
 # file_line FILE: the first line of FILE, or nothing.
 file_line() { [ -f "$1" ] && head -n 1 "$1" || true; }
 
+# shown FILE: the bytes of FILE as one FAIL evidence token: a space is a
+# comma, a newline a semicolon (the last one dropped), and every other byte
+# outside printable ASCII (NUL, CR, binary) a comma. Nothing when FILE is
+# missing. Display only: no verdict is taken from it.
+shown() {
+	[ -f "$1" ] || return 0
+	v=$(tr ' \n' ',;' <"$1" | tr -c '\041-\176' ',')
+	printf '%s\n' "${v%;}"
+}
+
 # agent_exit KEY FILE: the value of the one KEY=<digits> line of FILE, or
 # nothing when KEY stands there other than exactly once.
 agent_exit() {
@@ -365,9 +411,12 @@ report_items() {
 	real=$(file_line "$op/account-real.txt" | tr ' ' '_')
 	want_real="uid=${uid}_gid=${gid}_groups="
 	ag_ok="G2_AGENT_GROUPS_OK observed_gid=$gid declared_primary_gid=$gid socket_gid=$sgid"
+	# r8: the real account's group list, as `id -G` printed it, is the exact
+	# set {primary, socket} in either order (CheckG2AgentGroups).
+	case $real in "$want_real"*) real_groups=${real#"$want_real"} ;; *) real_groups= ;; esac
 	if [ "$noop" = 1 ] && grep -qx host_flow_exit=0 "$op/exits.txt" 2>/dev/null && [ "$(cat "$op/host-flow.out" 2>/dev/null)" = G2_HOST_FLOW_ACTIVATED ] &&
 		grep -qx account_groups_exit=0 "$op/exits.txt" 2>/dev/null && [ "$(cat "$op/account-groups.txt" 2>/dev/null)" = "$ag_ok" ] &&
-		[ -n "$uid" ] && [ "$gid" = "$uid" ] && case $real in "$want_real"*) true ;; *) false ;; esac; then
+		[ -n "$uid" ] && [ "$gid" = "$uid" ] && exact_pair "$real_groups" "$gid" "$sgid"; then
 		echo "account PASS steps=preflight,VerifyG2AgentAccount,group-set apply=noop activation=noop user=$user real_account=$real group_set=G2_AGENT_GROUPS_OK"
 	else
 		echo "account FAIL host_flow=$(file_line "$op/host-flow.out" | tr ' ' '_') apply_noop=$noop real_account=${real:-none} group_set=$(file_line "$op/account-groups.txt" | tr ' ' '_')"
@@ -470,32 +519,34 @@ report_items() {
 		echo "allowed-socket FAIL $ev"
 	fi
 
-	vf=$(file_line "$ag/custody/custody-verify.txt")
+	vf=$(shown "$ag/custody/custody-verify.txt")
 	case $ex in
 	"uid=$uid probe_exit=0 positive_exit="*" verify_exit=0") ok=1 ;;
 	*) ok=0 ;;
 	esac
-	if [ "$ok" = 1 ] && [ "$vf" = "T18_CUSTODY_VERIFIED $spec_sha" ]; then
+	# r8: the verifier's output file is compared byte for byte.
+	if [ "$ok" = 1 ] && exact_line "T18_CUSTODY_VERIFIED $spec_sha" "$ag/custody/custody-verify.txt"; then
 		echo "custody-verify PASS $(echo "$ex" | tr ' ' ',') verified=$spec_sha"
 	else
-		echo "custody-verify FAIL exits=$(echo "${ex:-none}" | tr ' ' ',') verify=$(echo "${vf:-none}" | tr ' ' ',')"
+		echo "custody-verify FAIL exits=$(echo "${ex:-none}" | tr ' ' ',') verify=${vf:-none}"
 	fi
 
 	# Launch layout (r7): verify's -launch=true result on this run, as its own
-	# item. PASS only when that run exited 0 (one exit line) and printed
-	# exactly `T18_CUSTODY_VERIFIED <header spec_sha256>`; FAIL otherwise.
-	# layout=refused when the same report passed verify with -launch=false
-	# (the launch layout check alone refused), layout=unknown otherwise.
+	# item. PASS only when that run exited 0 (one exit line) and its output
+	# file is, byte for byte (r8), `T18_CUSTODY_VERIFIED <header spec_sha256>`
+	# and one newline; FAIL otherwise. layout=refused when the same report
+	# passed verify with -launch=false, its output exact too (the launch
+	# layout check alone refused), layout=unknown otherwise. The FAIL evidence
+	# shows the output with every byte outside printable ASCII as a comma.
 	lt=$(agent_exit launch_true_exit "$ag/agent-exits.txt")
 	lf=$(agent_exit launch_false_exit "$ag/agent-exits.txt")
-	lon=$(cat "$ag/launch-layout-on.txt" 2>/dev/null || true)
-	loff=$(cat "$ag/launch-layout-off.txt" 2>/dev/null || true)
-	if [ "$lt" = 0 ] && [ "$lon" = "T18_CUSTODY_VERIFIED $spec_sha" ]; then
+	if [ "$lt" = 0 ] && exact_line "T18_CUSTODY_VERIFIED $spec_sha" "$ag/launch-layout-on.txt"; then
 		echo "launch-layout PASS verify=g2-custody-verify launch=true verify_exit=0 verified=$spec_sha"
 	else
 		cause=unknown
-		[ "$lf" = 0 ] && [ "$loff" = "T18_CUSTODY_VERIFIED $spec_sha" ] && cause=refused
-		echo "launch-layout FAIL launch=true verify_exit=${lt:-none} verify=$(printf '%s' "${lon:-none}" | tr ' \n' ',;') launch_false_exit=${lf:-none} layout=$cause"
+		if [ "$lf" = 0 ] && exact_line "T18_CUSTODY_VERIFIED $spec_sha" "$ag/launch-layout-off.txt"; then cause=refused; fi
+		lon=$(shown "$ag/launch-layout-on.txt")
+		echo "launch-layout FAIL launch=true verify_exit=${lt:-none} verify=${lon:-none} launch_false_exit=${lf:-none} layout=$cause"
 	fi
 
 	# The positive own-agent request is never sent here; the hosted test is
@@ -561,16 +612,26 @@ check_report() {
 	spec_rpcs=$(json_array "$3" denied_rpc) || spec_rpcs=
 	spec_file_sha=$(sha_of "$3")
 	spec_canon_sha=$(product_spec_sha "$3") || spec_canon_sha=
+	# r8: the identities of the spec the product accepted; the header's must
+	# equal them. Read only when the product accepted the spec.
+	spec_ids=
+	[ -z "$spec_canon_sha" ] || spec_ids=$(spec_ids "$3")
 	awk -v pins="$(covered_table; echo "$positive_row")" -v apply_line="$apply_noop_line" -v note="$positive_note" \
 		-v pinned_commit="$pinned_commit" -v status_dir="$status_dir" -v unterminated="$unterminated" -v stored="$2" \
-		-v spec_reads="$spec_reads" -v spec_rpcs="$spec_rpcs" -v spec_file_sha="$spec_file_sha" -v spec_canon_sha="$spec_canon_sha" '
+		-v spec_reads="$spec_reads" -v spec_rpcs="$spec_rpcs" -v spec_file_sha="$spec_file_sha" -v spec_canon_sha="$spec_canon_sha" -v spec_ids="$spec_ids" '
 	function bad(why) { invalid++; reasons = reasons " " why }
-	function num(s) { return s ~ /^[0-9]+$/ }
+	function num(s) { return s ~ /^(0|[1-9][0-9]*)$/ }
 	function hex64(s) { return length(s) == 64 && s !~ /[^0-9a-f]/ }
-	function pair(a, b) { return (a + 0 < b + 0) ? a "," b : b "," a }
+	# r8: a group list is the exact set {a, b} of two distinct GIDs, in either
+	# order (CheckG2AgentGroups); a third, missing or repeated GID is refused.
+	function gset(l, a, b) { return a != b && (l == a "," b || l == b "," a) }
+	function reserved(s) { return s == "0" || s == "65534" || s == "65535" || s == "4294967295" }
 	BEGIN {
 		# r6: the canonical hash comes from the product or not at all.
 		if (spec_canon_sha == "") bad("canonical-hash-unavailable")
+		# r8: agent_uid and service_uid of the product-accepted spec.
+		if (spec_canon_sha != "" && (split(spec_ids, sid, " ") != 2 || sid[1] !~ /^[1-9][0-9]*$/ || sid[2] !~ /^[1-9][0-9]*$/)) bad("spec-identity-unavailable")
+		spec_agent = sid[1]; spec_service = sid[2]
 		npin = split(pins, rows, "\n")
 		for (i = 1; i <= npin; i++) {
 			if (split(rows[i], f, " ") != 5) continue
@@ -625,6 +686,18 @@ check_report() {
 		# The header names the canonical hash of the given spec (r5), as the
 		# product computes it (r6); unavailable is refused in BEGIN.
 		if (spec_canon_sha != "" && hdr["spec_sha256"] != spec_canon_sha) bad("header-spec-sha256:differs")
+		# r8: no displayed identity is a reserved ID (root, nobody, -1), and the
+		# header identities are those of the given spec: agent_uid and its own
+		# primary GID (condition 9) are the agent_uid of the spec, service_uid
+		# is its service_uid. Every item below is compared with these header
+		# values, so the account, launch, credential, custody-verify, peer and
+		# socket-owner identities are bound to the spec through them. The spec
+		# carries no socket GID: socket_gid is bound to the items and must not
+		# be reserved or the primary GID.
+		for (i = 4; i <= nhk; i++) if (reserved(hdr[hkey[i]])) bad("header-reserved-id:" hkey[i])
+		if (spec_agent != "" && hdr["agent_uid"] != spec_agent) bad("header-agent-uid-not-spec")
+		if (spec_agent != "" && hdr["primary_gid"] != spec_agent) bad("header-primary-gid-not-spec")
+		if (spec_service != "" && hdr["service_uid"] != spec_service) bad("header-service-uid-not-spec")
 		wallet = hdr["wallet"]
 		next
 	}
@@ -711,15 +784,16 @@ check_report() {
 			if (fv["user"] !~ /^[a-z_][a-z0-9_-]*$/) bad("account-pass-without-user")
 			if (fv["group_set"] != "G2_AGENT_GROUPS_OK") bad("account-pass-without-real-group-set")
 			if (G != A) bad("account-own-gid-not-uid")
-			if (fv["real_account"] != "uid=" A "_gid=" G "_groups=" pair(G, S)) bad("account-pass-without-real-account")
+			ra = fv["real_account"]; rp = "uid=" A "_gid=" G "_groups="
+			if (substr(ra, 1, length(rp)) != rp || !gset(substr(ra, length(rp) + 1), G, S)) bad("account-pass-without-real-account")
 		}
 		if (id == "launch-form") {
 			if (fv["uid"] != A "," A "," A "," A) bad("launch-pass-other-uid")
 			if (fv["gid"] != G "," G "," G "," G) bad("launch-pass-other-gid")
-			if (fv["groups"] != pair(G, S)) bad("launch-pass-other-groups")
+			if (!gset(fv["groups"], G, S)) bad("launch-pass-other-groups")
 			if (fv["caps"] != "0") bad("launch-pass-with-capabilities")
 		}
-		if (id == "credentials" && (fv["observed_gid"] != G || fv["groups"] != pair(G, S) || fv["check"] != "G2_AGENT_GROUPS_OK")) bad("credentials-pass-contradicts-evidence")
+		if (id == "credentials" && (fv["observed_gid"] != G || !gset(fv["groups"], G, S) || fv["check"] != "G2_AGENT_GROUPS_OK")) bad("credentials-pass-contradicts-evidence")
 		if (id == "custody-verify") {
 			cv = fv["uid"]
 			if (cv !~ /^[0-9]+,probe_exit=0,positive_exit=[0-9]+,verify_exit=0$/ || substr(cv, 1, index(cv, ",") - 1) != A) bad("custody-verify-pass-contradicts-exits")

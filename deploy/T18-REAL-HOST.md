@@ -305,6 +305,32 @@ line must be the recomputed line byte for byte. The no-request receipt is read
 the same way in the report step: it must be exactly the marker line, and any
 client error output fails `positive-request` in both covered branches.
 
+**r8: identities, raw bytes, group order.** The header's identities are bound
+to the supplied spec the product accepted: `agent_uid` and `primary_gid` must
+equal the spec's `agent_uid` (`header-agent-uid-not-spec`,
+`header-primary-gid-not-spec`), `service_uid` the spec's `service_uid`
+(`header-service-uid-not-spec`), and none of the four header IDs may be a
+reserved ID (0, 65534, 65535, 4294967295: `header-reserved-id:<key>`). The
+values come from the spec file, read only after `g2-custody-hash` accepted
+it; a spec whose identities cannot be read is `spec-identity-unavailable`.
+Every item is compared with the header, so the account, launch UIDs and GIDs,
+credentials, custody-verify UID, peer UID and socket owner are bound to the
+spec through it. The spec carries no socket GID: `socket_gid` is bound to the
+items only, and must not be reserved or the primary GID. The product's
+`g2-custody-hash` output and the verifier outputs (`launch-layout-on.txt`,
+`launch-layout-off.txt`, `custody/custody-verify.txt`) are judged on their
+raw bytes: the file must be exactly the one expected line and one newline
+(compared with `cmp`), so a NUL byte, a CR, an extra or missing newline or
+binary garbage is refused (`canonical-hash-unavailable` for the hash;
+`launch-layout FAIL` or `custody-verify FAIL` for the verifier outputs);
+nothing is compared after a command substitution normalized it. The exit
+status is checked on its own, with or without errexit. A group list (the
+real account's `id -G` list in `account`, and the `launch-form` and
+`credentials` lists) is the exact set {primary GID, `agent_socket_gid`} in
+either order, as `CheckG2AgentGroups` defines it; a third, missing or
+repeated GID is refused. This is deliberately stricter than
+`CheckG2AgentGroups` for a repeated GID, which `id -G` does not print.
+
 **Dry run.** Anywhere, with no root and no station, with `go` on `PATH`:
 
 ```sh
@@ -392,7 +418,7 @@ valid only as a stand-in run.
 | --- | --- | --- |
 | `node-txindex` | step 3 | `getindexinfo txindex` reads exactly `{"txindex":{"synced":true,"best_block_height":N}}` |
 | `render` | step 3 | `g2-render` exits 0 and its six files are byte-identical to `$RENDERED` |
-| `account` | step 3 | the no-op mode is recorded (the report prints `apply no-op: account pre-created by Infra`); `g2-host-flow` prints `G2_HOST_FLOW_ACTIVATED`: the preflight, `VerifyG2AgentAccount` and the exact set {own GID == UID, `agent_socket_gid`} passed on this host's account database; and the REAL account read back has UID `agent_uid`, primary GID == UID, and a group list `g2-agent-groups` accepts (`G2_AGENT_GROUPS_OK`). The apply and activation were no-ops. |
+| `account` | step 3 | the no-op mode is recorded (the report prints `apply no-op: account pre-created by Infra`); `g2-host-flow` prints `G2_HOST_FLOW_ACTIVATED`: the preflight, `VerifyG2AgentAccount` and the exact set {own GID == UID, `agent_socket_gid`} passed on this host's account database; and the REAL account read back has UID `agent_uid`, primary GID == UID, a group list `g2-agent-groups` accepts (`G2_AGENT_GROUPS_OK`), and that list, as `id -G` printed it, is exactly {primary, `agent_socket_gid`} in either order (r8). The apply and activation were no-ops. |
 | `agent-inputs` | steps 4, 5 | the agent's spec, client and parameters have the SHA-256 of `$RENDERED/custody-spec.json`, `$RENDERED/client.json` and `$PARAMS` |
 | `launch-form` | step 5 | `/proc` shows the setpriv launch form: real, effective, saved and filesystem UID all `agent_uid`; all four GIDs the declared primary GID; `Groups` exactly {primary, `agent_socket_gid`}; `CapPrm`, `CapEff` and `CapAmb` each present exactly once and all zero |
 | `credentials` | step 5 | `g2-agent-groups` accepted the readback: observed `id -g` == declared primary GID, `id -G` == exactly {primary, socket} (`G2_AGENT_GROUPS_OK`) |
