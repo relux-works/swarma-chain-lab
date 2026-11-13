@@ -34,7 +34,7 @@ func TestPinnedCLI(t *testing.T) {
 			s := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }))
 			defer s.Close()
 			cfg := proxy.FileConfig{Endpoint: proxy.Endpoint{URL: s.URL, CertSHA256: strings.Repeat("a", 64)}, APIKeyFile: "/never-open-credential", TLSKey: "/never-open-key", Models: map[string]proxy.Model{"fixture": {ContextTokens: 100}}, ModelProfiles: map[string]proxy.ModelProfile{"fixture": {Profile: proxy.OpenAIResponsesProfile, Upstream: "https://upstream.invalid/v1/responses"}}}
-			b := gatewaybind.PayloadBootstrap{V: 2, BookingID: strings.Repeat("b", 64), StationName: "id/pinned-cli", ChannelSecret: []byte(strings.Repeat("s", 32)), ModelBearer: proxy.Secret(base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("m", 32)))), ModelEndpoint: s.URL, ModelCertSHA256: cfg.Endpoint.CertSHA256}
+			b := gatewaybind.PayloadBootstrap{V: 2, BookingID: strings.Repeat("b", 64), StationName: "id/pinned-cli", ChannelSecret: gatewaybind.NewChannelSecret([]byte(strings.Repeat("s", 32))), ModelBearer: gatewaybind.NewModelBearer(proxy.Secret(base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("m", 32))))), ModelEndpoint: s.URL, ModelCertSHA256: cfg.Endpoint.CertSHA256}
 			raw, e := gatewaybind.EncodeBootstrap(b)
 			if e != nil {
 				t.Fatal(e)

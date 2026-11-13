@@ -24,7 +24,7 @@ type result struct {
 
 var plants = []plant{
 	{"bootstrap_version", "experiments/single-use", "payloadbootstrap/codec/codec.go", "(b.V != 1 && b.V != 2)", "false", "^TestGolden$", "bootstrap verdict", "./payloadbootstrap"},
-	{"bootstrap_channel", "experiments/single-use", "payloadbootstrap/codec/codec.go", "len(b.ChannelSecret) != 32", "false", "^TestGolden$", "bootstrap verdict", "./payloadbootstrap"},
+	{"bootstrap_channel", "experiments/single-use", "payloadbootstrap/codec/codec.go", "len(b.ChannelSecret.Reveal()) != 32", "false", "^TestGolden$", "bootstrap verdict", "./payloadbootstrap"},
 	{"bootstrap_station", "experiments/single-use", "payloadbootstrap/codec/codec.go", "len(b.StationName) > 255", "false", "^TestGolden$", "bootstrap verdict", "./payloadbootstrap"},
 	{"bootstrap_bearer", "experiments/single-use", "payloadbootstrap/codec/codec.go", "len(b) == 32", "true", "^TestGolden$", "bootstrap verdict", "./payloadbootstrap"},
 	{"bootstrap_origin", "experiments/single-use", "payloadbootstrap/codec/codec.go", "u.Path == \"\"", "true", "^TestGolden$", "bootstrap verdict", "./payloadbootstrap"},

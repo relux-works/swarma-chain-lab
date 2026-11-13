@@ -35,7 +35,7 @@ func TestConsumerBootstrapGolden(t *testing.T) {
 				if e != nil || !bytes.Equal(again, b) {
 					t.Fatal("consumer canonical bytes changed")
 				}
-			} else if got.BookingID != "" || len(got.ChannelSecret) != 0 || got.ModelBearer != "" {
+			} else if got.BookingID != "" || len(got.ChannelSecret.Reveal()) != 0 || got.ModelBearer.Reveal() != "" {
 				t.Fatal("partial credential on refusal")
 			}
 			if !bytes.Equal(b, before) {

@@ -117,10 +117,10 @@ func (l *lab) hostRunner(scenario string, cfg booking.ConfigV2, relayURL, bookin
 			if !ok {
 				t.Fatal("runner bootstrap")
 			}
-			l.secret([]byte(boot.ModelBearer))
-			l.secret([]byte(boot.ChannelSecret))
+			l.secret([]byte(boot.ModelBearer.Reveal()))
+			l.secret([]byte(boot.ChannelSecret.Reveal()))
 			bad := boot
-			bad.ModelBearer = proxy.Secret(strings.Repeat("0", len(boot.ModelBearer)))
+			bad.ModelBearer = gatewaybind.NewModelBearer(proxy.Secret(strings.Repeat("0", len(boot.ModelBearer.Reveal()))))
 			l.checkProxyRefusal(p, bad, "wrong-credential")
 			l.checkProxyRefusal(p, boot, "wrong-pin")
 			if calls.Load() != 1 {

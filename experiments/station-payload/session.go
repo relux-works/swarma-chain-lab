@@ -27,7 +27,7 @@ func (c *Client) Run(ctx context.Context, address, pin string, roots *x509.CertP
 	defer stop()
 	cl := stationlink.NewClient(conn)
 	b := c.bootstrap
-	f, err := cl.Hello(b.BookingID, b.StationName, b.ChannelSecret)
+	f, err := cl.Hello(b.BookingID, b.StationName, b.ChannelSecret.Reveal())
 	if err != nil || f.Type != stationlink.TypeSystem || f.SlotID != b.BookingID || !nostr.ValidDeliveryEventLimit(f.RelayMaxEventBytes) {
 		return ErrChannel
 	}

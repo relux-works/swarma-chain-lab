@@ -332,12 +332,12 @@ func TestModelConfiguredLifecycle(t *testing.T) {
 				t.Fatal("bootstrap decode")
 			}
 			if mode == "v1" {
-				expected := `{"v":1,"booking_id":"` + spec.BookingID + `","station_name":"` + spec.StationName + `","channel_secret":"` + base64.StdEncoding.EncodeToString(doc.ChannelSecret) + `"}`
+				expected := `{"v":1,"booking_id":"` + spec.BookingID + `","station_name":"` + spec.StationName + `","channel_secret":"` + base64.StdEncoding.EncodeToString(doc.ChannelSecret.Reveal()) + `"}`
 				if doc.V != 1 || !bytes.Equal(cmd.Slot.Bootstrap, []byte(expected)) {
 					t.Fatal("v1 bytes changed")
 				}
 			} else {
-				if doc.V != 2 || doc.ModelBearer != registrar.credential.Bearer || doc.ModelEndpoint != c.ModelProxy.Origin || doc.ModelCertSHA256 != c.ModelProxy.CertSHA256 {
+				if doc.V != 2 || doc.ModelBearer.Reveal() != registrar.credential.Bearer || doc.ModelEndpoint != c.ModelProxy.Origin || doc.ModelCertSHA256 != c.ModelProxy.CertSHA256 {
 					t.Fatal("configured v2 bootstrap missing")
 				}
 			}

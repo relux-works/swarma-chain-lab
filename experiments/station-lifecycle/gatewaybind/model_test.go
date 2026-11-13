@@ -22,17 +22,17 @@ import (
 // V1 stays byte-identical; v2 is closed and requires the exact private credential,
 // canonical HTTPS origin and leaf pin. Unknown versions and authority fields refuse.
 func TestBootstrapV2Schema(t *testing.T) {
-	b := PayloadBootstrap{V: 2, BookingID: strings.Repeat("a", 64), StationName: "id/fixture", ChannelSecret: lifecycle.Secret(strings.Repeat("x", 32)), ModelBearer: proxy.Secret(base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("y", 32)))), ModelEndpoint: "https://proxy.example", ModelCertSHA256: strings.Repeat("b", 64)}
+	b := PayloadBootstrap{V: 2, BookingID: strings.Repeat("a", 64), StationName: "id/fixture", ChannelSecret: NewChannelSecret(lifecycle.Secret(strings.Repeat("x", 32))), ModelBearer: NewModelBearer(proxy.Secret(base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("y", 32))))), ModelEndpoint: "https://proxy.example", ModelCertSHA256: strings.Repeat("b", 64)}
 	raw, e := EncodeBootstrap(b)
 	if e != nil {
 		t.Fatal(e)
 	}
-	expected := `{"v":2,"booking_id":"` + b.BookingID + `","station_name":"id/fixture","channel_secret":"` + base64.StdEncoding.EncodeToString(b.ChannelSecret) + `","model_bearer":"` + string(b.ModelBearer) + `","model_endpoint":"https://proxy.example","model_cert_sha256":"` + b.ModelCertSHA256 + `"}`
+	expected := `{"v":2,"booking_id":"` + b.BookingID + `","station_name":"id/fixture","channel_secret":"` + base64.StdEncoding.EncodeToString(b.ChannelSecret.Reveal()) + `","model_bearer":"` + string(b.ModelBearer.Reveal()) + `","model_endpoint":"https://proxy.example","model_cert_sha256":"` + b.ModelCertSHA256 + `"}`
 	if string(raw) != expected {
 		t.Fatal("v2 canonical field order")
 	}
 	decoded, e := DecodeBootstrap(raw)
-	if e != nil || decoded.ModelBearer != b.ModelBearer || decoded.ModelEndpoint != b.ModelEndpoint {
+	if e != nil || decoded.ModelBearer.Reveal() != b.ModelBearer.Reveal() || decoded.ModelEndpoint != b.ModelEndpoint {
 		t.Fatal("valid v2 neighbor")
 	}
 	for _, bad := range [][]byte{
@@ -42,7 +42,7 @@ func TestBootstrapV2Schema(t *testing.T) {
 		bytes.Replace(raw, []byte(`"v":2`), []byte(`"v":2,"upstream_key":"forbidden"`), 1),
 		bytes.Replace(raw, []byte(`https://proxy.example`), []byte(`https://proxy.example/slots/x`), 1),
 		bytes.Replace(raw, []byte(`https://proxy.example`), []byte(`http://proxy.example`), 1),
-		bytes.Replace(raw, []byte(b.ModelBearer), []byte("short"), 1),
+		bytes.Replace(raw, []byte(b.ModelBearer.Reveal()), []byte("short"), 1),
 		bytes.Replace(raw, []byte(b.ModelCertSHA256), []byte("short"), 1),
 	} {
 		if _, e = DecodeBootstrap(bad); e == nil || e.Error() != "PAYLOAD_BOOTSTRAP" {
@@ -50,7 +50,7 @@ func TestBootstrapV2Schema(t *testing.T) {
 		}
 	}
 	b.V = 1
-	b.ModelBearer = ""
+	b.ModelBearer = NewModelBearer("")
 	b.ModelEndpoint = ""
 	b.ModelCertSHA256 = ""
 	raw, e = EncodeBootstrap(b)
@@ -160,7 +160,7 @@ func TestModelLifecycle(t *testing.T) {
 		t.Fatal("model prepared wrong state")
 	}
 	req := httptest.NewRequest("POST", doc.ModelEndpoint+"/slots/"+f.id+"/v1/messages", strings.NewReader(`{}`))
-	req.Header.Set("Authorization", "Bearer "+string(doc.ModelBearer))
+	req.Header.Set("Authorization", "Bearer "+string(doc.ModelBearer.Reveal()))
 	w := httptest.NewRecorder()
 	r.service.ServeHTTP(w, req)
 	if w.Code != 401 {

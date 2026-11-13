@@ -14,13 +14,13 @@ import (
 // Payload decoders reject version/field/schema aliases before HMAC use; the
 // canonical neighbor retains its booking identity and exact channel secret.
 func TestBootstrapClosedSchema(t *testing.T) {
-	b := PayloadBootstrap{V: 1, BookingID: strings.Repeat("a", 64), StationName: "id/fixture", ChannelSecret: lifecycle.Secret(strings.Repeat("x", 32))}
+	b := PayloadBootstrap{V: 1, BookingID: strings.Repeat("a", 64), StationName: "id/fixture", ChannelSecret: NewChannelSecret(lifecycle.Secret(strings.Repeat("x", 32)))}
 	raw, e := EncodeBootstrap(b)
 	if e != nil {
 		t.Fatal(e)
 	}
 	got, e := DecodeBootstrap(raw)
-	if e != nil || got.BookingID != b.BookingID || !bytes.Equal(got.ChannelSecret, b.ChannelSecret) {
+	if e != nil || got.BookingID != b.BookingID || !bytes.Equal(got.ChannelSecret.Reveal(), b.ChannelSecret.Reveal()) {
 		t.Fatal("valid bootstrap", e)
 	}
 	for _, bad := range [][]byte{
@@ -53,9 +53,9 @@ func TestBootstrapDurableReplay(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	secret := append([]byte(nil), st.ChannelSecret...)
+	secret := append([]byte(nil), st.ChannelSecret.Reveal()...)
 	raw := append([]byte(nil), v.Bootstrap...)
-	st.ChannelSecret[0] ^= 1
+	st.ChannelSecret.Reveal()[0] ^= 1
 	v.Bootstrap[0] ^= 1
 	f.restart(t)
 	st, e = f.d.Create(context.Background(), spec)
@@ -63,7 +63,7 @@ func TestBootstrapDurableReplay(t *testing.T) {
 		t.Fatal(e)
 	}
 	v, e = f.d.broker.Lookup(f.id)
-	if e != nil || !bytes.Equal(secret, st.ChannelSecret) || !bytes.Equal(raw, v.Bootstrap) {
+	if e != nil || !bytes.Equal(secret, st.ChannelSecret.Reveal()) || !bytes.Equal(raw, v.Bootstrap) {
 		t.Fatal("restart changed bootstrap or credential", e)
 	}
 }

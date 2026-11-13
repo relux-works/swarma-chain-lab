@@ -195,7 +195,7 @@ func TestRemoteStationTransport(t *testing.T) {
 	if f := connect(make([]byte, 32)); f.Type != stationlink.TypeError {
 		t.Fatal("payload wrong credential accepted")
 	}
-	if f := connect(b.ChannelSecret); f.Type != stationlink.TypeSystem || f.SlotID != id {
+	if f := connect(b.ChannelSecret.Reveal()); f.Type != stationlink.TypeSystem || f.SlotID != id {
 		t.Fatal("real payload TLS/HMAC refused")
 	}
 	// Keep a raw connection idle to exercise shutdown of an incomplete TLS peer.

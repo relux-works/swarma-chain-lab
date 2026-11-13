@@ -103,7 +103,7 @@ func turnSessionRecovery(t *testing.T, modelAnswer, expectedAnswer string) {
 						if e != nil {
 							return e
 						}
-						if !stationlink.VerifyResponse(f.doc.ChannelSecret, nonce, f.doc.BookingID, f.doc.StationName, auth.Response) {
+						if !stationlink.VerifyResponse(f.doc.ChannelSecret.Reveal(), nonce, f.doc.BookingID, f.doc.StationName, auth.Response) {
 							return fmt.Errorf("auth")
 						}
 						if e = send(&stationlink.Frame{Type: stationlink.TypeSystem, RelayMaxEventBytes: 65536, SlotID: f.doc.BookingID}); e != nil {

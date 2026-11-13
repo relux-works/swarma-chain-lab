@@ -9,6 +9,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
 )
 
 // SlotSpec identifies the slot a station is created for.
@@ -71,7 +73,7 @@ type Station struct {
 	// ChannelSecret is the per-slot stationlink credential minted at
 	// Create (32 random bytes). A copy lives 0600 in the station
 	// home; the gateway registers this value before StartSession.
-	ChannelSecret []byte
+	ChannelSecret codec.Secret[[]byte]
 	// TrackBToken is the per-slot token (hex) minted at Create. The
 	// gateway records only its SHA-256; the token itself lives only
 	// in the station home and dies with Destroy.
@@ -79,6 +81,9 @@ type Station struct {
 
 	bookingID string // Track B admin slot key, set at Create
 }
+
+// NewChannelSecret protects the channel credential retained by a driver handle.
+func NewChannelSecret(value []byte) codec.Secret[[]byte] { return codec.NewSecret(value) }
 
 // ChannelSecretFile / token file names inside the station home.
 const (

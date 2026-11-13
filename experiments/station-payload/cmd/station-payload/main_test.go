@@ -54,7 +54,7 @@ func TestCLI(t *testing.T) {
 	os.Chmod(static, 0750)
 	ca := filepath.Join(static, "ca.pem")
 	writeInstalled(t, ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}))
-	doc := gatewaybind.PayloadBootstrap{V: 1, BookingID: strings.Repeat("b", 64), StationName: "id/cli", ChannelSecret: []byte(strings.Repeat("s", 32))}
+	doc := gatewaybind.PayloadBootstrap{V: 1, BookingID: strings.Repeat("b", 64), StationName: "id/cli", ChannelSecret: gatewaybind.NewChannelSecret([]byte(strings.Repeat("s", 32)))}
 	raw, e := gatewaybind.EncodeBootstrap(doc)
 	if e != nil {
 		t.Fatal(e)
@@ -86,7 +86,7 @@ func TestCLI(t *testing.T) {
 		nonce := strings.Repeat("a", 64)
 		stationlink.WriteFrame(c, &stationlink.Frame{Type: stationlink.TypeChallenge, Nonce: nonce})
 		auth, e := stationlink.ReadFrame(c)
-		if e != nil || !stationlink.VerifyResponse(doc.ChannelSecret, nonce, doc.BookingID, doc.StationName, auth.Response) {
+		if e != nil || !stationlink.VerifyResponse(doc.ChannelSecret.Reveal(), nonce, doc.BookingID, doc.StationName, auth.Response) {
 			done <- false
 			return
 		}

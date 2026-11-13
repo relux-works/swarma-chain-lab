@@ -199,7 +199,7 @@ func TestGatewayLifecycleRecovery(t *testing.T) {
 				t.Fatal("payload routing bootstrap", e)
 			}
 			credential, e := f.d.broker.Credential(f.id)
-			if e != nil || !bytes.Equal(decoded.ChannelSecret, credential) {
+			if e != nil || !bytes.Equal(decoded.ChannelSecret.Reveal(), credential) {
 				t.Fatal("payload channel credential", e)
 			}
 			f.host.mu.Lock()

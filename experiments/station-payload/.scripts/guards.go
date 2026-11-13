@@ -58,7 +58,7 @@ var plants = []plant{
 	{"output", "station-payload", "client.go", "out.Len()+len(b.Text) > MaxText", "false && out.Len()+len(b.Text) > MaxText", "TestResponseBounds", "invalid model response escaped"},
 	{"response", "station-payload", "client.go", "err != nil {\n\t\treturn \"\", ErrResponse\n\t}\n\tvar response", "false && err != nil {\n\t\treturn \"\", ErrResponse\n\t}\n\tvar response", "TestResponseBounds", "invalid model response escaped"},
 	{"route", "station-payload", "client.go", "c.bootstrap.BookingID + \"/v1/messages\"", "c.bootstrap.BookingID + \"/v1/wrong\"", "TestModelAccountingAndCap", "valid model neighbor refused"},
-	{"bearer", "station-payload", "client.go", "req.Header.Set(\"Authorization\", \"Bearer \"+string(c.bootstrap.ModelBearer))", "req.Header.Set(\"Authorization\", \"Bearer wrong\")", "TestModelAccountingAndCap", "valid model neighbor refused"},
+	{"bearer", "station-payload", "client.go", "req.Header.Set(\"Authorization\", \"Bearer \"+string(c.bootstrap.ModelBearer.Reveal()))", "req.Header.Set(\"Authorization\", \"Bearer wrong\")", "TestModelAccountingAndCap", "valid model neighbor refused"},
 	{"redirect", "station-payload", "client.go", "CheckRedirect: func(*http.Request, []*http.Request) error { return ErrTransport }", "CheckRedirect: func(*http.Request, []*http.Request) error { return nil }", "TestHTTPFailures", "HTTP failure not fixed/terminal"},
 	{"refusal", "station-payload", "client.go", "return Code(\"MODEL_\" + code)", "return Code(string(raw))", "TestHTTPFailures", "HTTP failure not fixed/terminal"},
 	{"private_file", "station-payload", "cmd/station-payload/main.go", "proxy.ReadPrivateFile(*bootstrap, 0600, 4096)", "os.ReadFile(*bootstrap)", "TestCLI", "CLI refusal leaked or changed code"},

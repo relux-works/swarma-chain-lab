@@ -25,7 +25,7 @@ type orderingDriver struct {
 }
 
 func (d *orderingDriver) Create(_ context.Context, s station.SlotSpec) (*station.Station, error) {
-	return &station.Station{SlotID: s.SlotID, StationName: s.StationName, ChannelSecret: append([]byte(nil), d.secret...)}, nil
+	return &station.Station{SlotID: s.SlotID, StationName: s.StationName, ChannelSecret: station.NewChannelSecret(append([]byte(nil), d.secret...))}, nil
 }
 func (d *orderingDriver) StartSession(context.Context, *station.Station, station.SessionInfo) error {
 	return d.start()

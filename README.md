@@ -421,3 +421,14 @@ and `go run .scripts/dk5b-api-guards.go -out /absolute/task-scratch/new-controls
 The latter writes paired baseline/mutant logs, source hashes and results to the
 specified new directory. These checks prove byte/selection contracts, not daemon
 custody, provisioning, proxy startup or runtime admission.
+
+Bootstrap credentials and downstream station channel handles use opaque scalar
+pointer storage, including for fmt's method-bypassing bad-verb diagnostics.
+Run `go -C experiments/single-use test -count=1 ./payloadbootstrap/...` and
+`go -C experiments/station-lifecycle/gatewaybind test -count=1 -run 'TestBootstrap|TestStationHandleCredentialFormatting' .`
+for the synthetic formatting matrix, unchanged wire vectors, usable credentials,
+public pins and refusal clearing. Run
+`go -C experiments/station-payload test -count=1 -run TestClientCredentialFormattingAllVerbs .`
+for the containing client. Redirect validation output to a task-owned `.temp/`
+directory. [The bootstrap API notes](experiments/single-use/payloadbootstrap/README.md)
+describe the constructor/accessor migration and deliberate private JSON boundary.

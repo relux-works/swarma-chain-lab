@@ -76,7 +76,7 @@ func (d *LocalTestDriver) Create(ctx context.Context, spec SlotSpec) (*Station, 
 	if _, err := rand.Read(secret); err != nil {
 		return fail(err)
 	}
-	st.ChannelSecret = secret
+	st.ChannelSecret = NewChannelSecret(secret)
 	token, err := MintToken(ctx, d.Tokens, spec.BookingID)
 	if err != nil {
 		return fail(fmt.Errorf("token mint: %w", err))

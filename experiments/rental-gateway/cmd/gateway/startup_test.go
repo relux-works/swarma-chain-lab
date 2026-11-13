@@ -72,7 +72,7 @@ func TestServeStartupRecovery(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err = j.SetChannelSecret(st.SlotID, hex.EncodeToString(st.ChannelSecret), ""); err != nil {
+			if err = j.SetChannelSecret(st.SlotID, hex.EncodeToString(st.ChannelSecret.Reveal()), ""); err != nil {
 				t.Fatal(err)
 			}
 			if err = j.SetStationHandle(st.SlotID, st.Home, st.User); err != nil {

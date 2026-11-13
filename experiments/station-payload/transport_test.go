@@ -20,6 +20,7 @@ import (
 
 	proxy "github.com/relux-works/swarma-chain-lab/experiments/model-proxy"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/stationlink"
+	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind"
 )
 
 // The station uses real TLS and the actual stationlink HMAC protocol; the
@@ -32,7 +33,7 @@ func TestScriptedSession(t *testing.T) {
 			b := f.doc
 			if version == 1 {
 				b.V = 1
-				b.ModelBearer = ""
+				b.ModelBearer = gatewaybind.NewModelBearer("")
 				b.ModelEndpoint = ""
 				b.ModelCertSHA256 = ""
 			}
@@ -64,7 +65,7 @@ func TestScriptedSession(t *testing.T) {
 				nonce := strings.Repeat("a", 64)
 				stationlink.WriteFrame(conn, &stationlink.Frame{Type: stationlink.TypeChallenge, Nonce: nonce})
 				auth, e := stationlink.ReadFrame(conn)
-				if e != nil || auth.Type != stationlink.TypeAuth || !stationlink.VerifyResponse(b.ChannelSecret, nonce, b.BookingID, b.StationName, auth.Response) {
+				if e != nil || auth.Type != stationlink.TypeAuth || !stationlink.VerifyResponse(b.ChannelSecret.Reveal(), nonce, b.BookingID, b.StationName, auth.Response) {
 					fail()
 					return
 				}
@@ -315,7 +316,7 @@ func TestChannelBounds(t *testing.T) {
 			f := newFixture(t)
 			b := f.doc
 			b.V = 1
-			b.ModelBearer = ""
+			b.ModelBearer = gatewaybind.NewModelBearer("")
 			b.ModelEndpoint = ""
 			b.ModelCertSHA256 = ""
 			c, e := New(encoded(t, b), Options{JournalDir: root(t)})
@@ -445,7 +446,7 @@ func TestSessionRelayCap(t *testing.T) {
 					return
 				}
 				auth, e := stationlink.ReadFrame(conn)
-				if e != nil || auth.Type != stationlink.TypeAuth || !stationlink.VerifyResponse(f.doc.ChannelSecret, nonce, f.doc.BookingID, f.doc.StationName, auth.Response) {
+				if e != nil || auth.Type != stationlink.TypeAuth || !stationlink.VerifyResponse(f.doc.ChannelSecret.Reveal(), nonce, f.doc.BookingID, f.doc.StationName, auth.Response) {
 					done <- ErrChannel
 					return
 				}

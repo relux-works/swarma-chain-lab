@@ -16,20 +16,20 @@ import (
 // policy. Credential consumers must use Decode before any stationlink handshake.
 // The gateway address and TLS leaf pin are separate operator-pinned inputs.
 type Bootstrap[C ~[]byte, B ~string] struct {
-	V               int    `json:"v"`
-	BookingID       string `json:"booking_id"`
-	StationName     string `json:"station_name"`
-	ChannelSecret   C      `json:"channel_secret"`
-	ModelBearer     B      `json:"model_bearer,omitempty"`
-	ModelEndpoint   string `json:"model_endpoint,omitempty"`
-	ModelCertSHA256 string `json:"model_cert_sha256,omitempty"`
+	V               int       `json:"v"`
+	BookingID       string    `json:"booking_id"`
+	StationName     string    `json:"station_name"`
+	ChannelSecret   Secret[C] `json:"channel_secret"`
+	ModelBearer     Secret[B] `json:"model_bearer,omitempty,omitzero"`
+	ModelEndpoint   string    `json:"model_endpoint,omitempty"`
+	ModelCertSHA256 string    `json:"model_cert_sha256,omitempty"`
 }
 
 func (Bootstrap[C, B]) String() string   { return "[private station bootstrap]" }
 func (Bootstrap[C, B]) GoString() string { return "[private station bootstrap]" }
 func Valid[C ~[]byte, B ~string](b Bootstrap[C, B]) bool {
 	id, e := hex.DecodeString(b.BookingID)
-	if e != nil || len(id) != 32 || hex.EncodeToString(id) != b.BookingID || (b.V != 1 && b.V != 2) || len(b.ChannelSecret) != 32 || !strings.HasPrefix(b.StationName, "id/") || len(b.StationName) > 255 || len(b.StationName) < 4 {
+	if e != nil || len(id) != 32 || hex.EncodeToString(id) != b.BookingID || (b.V != 1 && b.V != 2) || len(b.ChannelSecret.Reveal()) != 32 || !strings.HasPrefix(b.StationName, "id/") || len(b.StationName) > 255 || len(b.StationName) < 4 {
 		return false
 	}
 	for _, c := range b.StationName[3:] {
@@ -38,9 +38,9 @@ func Valid[C ~[]byte, B ~string](b Bootstrap[C, B]) bool {
 		}
 	}
 	if b.V == 1 {
-		return b.ModelBearer == "" && b.ModelEndpoint == "" && b.ModelCertSHA256 == ""
+		return b.ModelBearer.Reveal() == "" && b.ModelEndpoint == "" && b.ModelCertSHA256 == ""
 	}
-	return ValidCredential(string(b.ModelBearer), b.ModelEndpoint, b.ModelCertSHA256)
+	return ValidCredential(string(b.ModelBearer.Reveal()), b.ModelEndpoint, b.ModelCertSHA256)
 }
 func Encode[C ~[]byte, B ~string](b Bootstrap[C, B]) (C, error) {
 	if !Valid(b) {

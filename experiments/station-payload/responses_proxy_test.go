@@ -37,7 +37,7 @@ func newResponsesFixture(t *testing.T) (*fixture, proxy.FileConfig) {
 	t.Cleanup(up.Close)
 	f.front = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.requests.Add(1)
-		if r.Header.Get("Authorization") != "Bearer "+string(f.doc.ModelBearer) {
+		if r.Header.Get("Authorization") != "Bearer "+string(f.doc.ModelBearer.Reveal()) {
 			t.Error("Responses bootstrap bearer changed")
 		}
 		f.s.ServeHTTP(w, r)
@@ -62,7 +62,7 @@ func newResponsesFixture(t *testing.T) (*fixture, proxy.FileConfig) {
 	if e = f.s.Activate(f.b); e != nil {
 		t.Fatal(e)
 	}
-	f.doc = gatewaybind.PayloadBootstrap{V: 2, BookingID: f.b.SlotID, StationName: "id/responses-fixture", ChannelSecret: lifecycle.Secret(strings.Repeat("x", 32)), ModelBearer: cred.Bearer, ModelEndpoint: cred.Endpoint.URL, ModelCertSHA256: cred.Endpoint.CertSHA256}
+	f.doc = gatewaybind.PayloadBootstrap{V: 2, BookingID: f.b.SlotID, StationName: "id/responses-fixture", ChannelSecret: gatewaybind.NewChannelSecret(lifecycle.Secret(strings.Repeat("x", 32))), ModelBearer: gatewaybind.NewModelBearer(cred.Bearer), ModelEndpoint: cred.Endpoint.URL, ModelCertSHA256: cred.Endpoint.CertSHA256}
 	return f, cfg
 }
 

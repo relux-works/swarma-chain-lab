@@ -17,7 +17,7 @@ type remoteRecoveryDriver struct {
 
 func (d *remoteRecoveryDriver) Create(_ context.Context, s station.SlotSpec) (*station.Station, error) {
 	d.known = true
-	return &station.Station{SlotID: s.SlotID, StationName: s.StationName, ChannelSecret: make([]byte, 32)}, nil
+	return &station.Station{SlotID: s.SlotID, StationName: s.StationName, ChannelSecret: station.NewChannelSecret(make([]byte, 32))}, nil
 }
 func (*remoteRecoveryDriver) StartSession(context.Context, *station.Station, station.SessionInfo) error {
 	return nil

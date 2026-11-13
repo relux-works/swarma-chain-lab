@@ -46,8 +46,8 @@ func TestLocalTestCreateDestroy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(st.ChannelSecret) != 32 || st.TrackBToken != tokens.token {
-		t.Fatalf("handle secrets: secret %d bytes token %q", len(st.ChannelSecret), st.TrackBToken)
+	if len(st.ChannelSecret.Reveal()) != 32 || st.TrackBToken != tokens.token {
+		t.Fatalf("handle secrets: secret %d bytes token %q", len(st.ChannelSecret.Reveal()), st.TrackBToken)
 	}
 	if len(tokens.minted) != 1 || tokens.minted[0] != booking {
 		t.Fatalf("mint calls: %v", tokens.minted)
@@ -63,7 +63,7 @@ func TestLocalTestCreateDestroy(t *testing.T) {
 		}
 	}
 	secretRaw, _ := os.ReadFile(filepath.Join(st.Home, station.ChannelSecretFile))
-	if strings.TrimSpace(string(secretRaw)) != hex.EncodeToString(st.ChannelSecret) {
+	if strings.TrimSpace(string(secretRaw)) != hex.EncodeToString(st.ChannelSecret.Reveal()) {
 		t.Fatal("channel secret file does not match handle")
 	}
 	// Exclusive: a second Create for the same slot must fail.
@@ -196,7 +196,7 @@ func TestLinuxUserCommands(t *testing.T) {
 	if !strings.Contains(inputs, tokens.token) {
 		t.Fatal("minted token never written to station home")
 	}
-	if !strings.Contains(inputs, hex.EncodeToString(st.ChannelSecret)) {
+	if !strings.Contains(inputs, hex.EncodeToString(st.ChannelSecret.Reveal())) {
 		t.Fatal("channel secret never written to station home")
 	}
 	for _, forbidden := range []string{"agent.key", "agent_key", "privkey"} {

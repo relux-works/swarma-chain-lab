@@ -252,7 +252,7 @@ func (d *LinuxUserDriver) Create(ctx context.Context, spec SlotSpec) (*Station, 
 	if _, err := rand.Read(secret); err != nil {
 		return nil, err
 	}
-	st.ChannelSecret = secret
+	st.ChannelSecret = NewChannelSecret(secret)
 	token, err := MintToken(ctx, d.Tokens, spec.BookingID)
 	if err != nil {
 		return nil, fmt.Errorf("linux-user: token mint: %w", err)

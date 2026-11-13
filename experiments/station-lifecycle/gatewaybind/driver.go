@@ -68,7 +68,7 @@ func New(c Config) (*Driver, error) {
 		if !ok || s.BookingID != key {
 			return nil, errors.New("LIFECYCLE_MAPPING")
 		}
-		doc := PayloadBootstrap{V: 1, BookingID: key, StationName: s.StationName, ChannelSecret: secret}
+		doc := PayloadBootstrap{V: 1, BookingID: key, StationName: s.StationName, ChannelSecret: NewChannelSecret(secret)}
 		if c.ModelRegistrar != nil {
 			binding, e := modelBinding(s, c.ModelCaps)
 			if e != nil {
@@ -81,7 +81,7 @@ func New(c Config) (*Driver, error) {
 				return nil, errors.New("MODEL_PREPARE")
 			}
 			doc.V = 2
-			doc.ModelBearer = credential.Bearer
+			doc.ModelBearer = NewModelBearer(credential.Bearer)
 			doc.ModelEndpoint = credential.Endpoint.URL
 			doc.ModelCertSHA256 = credential.Endpoint.CertSHA256
 		}
@@ -151,10 +151,10 @@ func (d *Driver) Create(ctx context.Context, spec station.SlotSpec) (*station.St
 		return nil, errors.New("LIFECYCLE_BOOTSTRAP")
 	}
 	credential, e := d.broker.Credential(s.BookingID)
-	if e != nil || subtle.ConstantTimeCompare(credential, bootstrap.ChannelSecret) != 1 {
+	if e != nil || subtle.ConstantTimeCompare(credential, bootstrap.ChannelSecret.Reveal()) != 1 {
 		return nil, errors.New("LIFECYCLE_BOOTSTRAP")
 	}
-	return &station.Station{SlotID: s.ID, StationName: s.StationName, ChannelSecret: append([]byte(nil), credential...)}, nil
+	return &station.Station{SlotID: s.ID, StationName: s.StationName, ChannelSecret: station.NewChannelSecret(append([]byte(nil), credential...))}, nil
 }
 func (d *Driver) Reattach(_ context.Context, spec station.SlotSpec) (*station.Station, error) {
 	s, _, e := d.lookup(spec)
@@ -178,7 +178,7 @@ func (d *Driver) StartSession(ctx context.Context, st *station.Station, info sta
 	if decodeErr != nil || bootstrap.BookingID != s.BookingID || bootstrap.StationName != s.StationName {
 		return errors.New("LIFECYCLE_BOOTSTRAP")
 	}
-	if s.Ended || s.Destroyed || info.NotAfter != s.NotAfter || info.RenterPubKey != s.RenterPubKey || info.ContractSHA256 != s.ContractSHA256 || subtle.ConstantTimeCompare(st.ChannelSecret, bootstrap.ChannelSecret) != 1 {
+	if s.Ended || s.Destroyed || info.NotAfter != s.NotAfter || info.RenterPubKey != s.RenterPubKey || info.ContractSHA256 != s.ContractSHA256 || subtle.ConstantTimeCompare(st.ChannelSecret.Reveal(), bootstrap.ChannelSecret.Reveal()) != 1 {
 		return errors.New("LIFECYCLE_SESSION")
 	}
 	if d.cfg.ModelRegistrar != nil {

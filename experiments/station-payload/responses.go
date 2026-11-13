@@ -32,7 +32,7 @@ func (c *Client) generateResponses(ctx context.Context, text string) (string, er
 		return "", ErrRequest
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+string(c.bootstrap.ModelBearer))
+	req.Header.Set("Authorization", "Bearer "+string(c.bootstrap.ModelBearer.Reveal()))
 	res, err := c.http.Do(req)
 	if err != nil {
 		return "", ErrTransport

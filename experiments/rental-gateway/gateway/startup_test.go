@@ -30,7 +30,7 @@ type startupDriver struct {
 }
 
 func (d *startupDriver) Create(_ context.Context, s station.SlotSpec) (*station.Station, error) {
-	return &station.Station{SlotID: s.SlotID, StationName: s.StationName, ChannelSecret: d.secret}, nil
+	return &station.Station{SlotID: s.SlotID, StationName: s.StationName, ChannelSecret: station.NewChannelSecret(d.secret)}, nil
 }
 func (d *startupDriver) StartSession(context.Context, *station.Station, station.SessionInfo) error {
 	return d.start()

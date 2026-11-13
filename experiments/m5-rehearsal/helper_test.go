@@ -223,8 +223,8 @@ func (f *fakeHelper) close() {
 			f.l.pids = append(f.l.pids, r.process.cmd.Process.Pid)
 		}
 		if b, e := gatewaybind.DecodeBootstrap(r.bootstrap); e == nil {
-			f.l.secret([]byte(b.ModelBearer))
-			f.l.secret([]byte(b.ChannelSecret))
+			f.l.secret([]byte(b.ModelBearer.Reveal()))
+			f.l.secret([]byte(b.ChannelSecret.Reveal()))
 		}
 	}
 }

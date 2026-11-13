@@ -309,8 +309,8 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 		if !ok {
 			t.Fatal("partial bootstrap receipt missing")
 		}
-		l.secret([]byte(boot.ModelBearer))
-		l.secret([]byte(boot.ChannelSecret))
+		l.secret([]byte(boot.ModelBearer.Reveal()))
+		l.secret([]byte(boot.ChannelSecret.Reveal()))
 		l.checkProxyRefusal(p, boot, "revoked-or-expired")
 		slot := l.slot(contract.BookingID)
 		if !slot.Ended || slot.EndReason != "not_after" || upstreamCalls.Load() != 0 {
@@ -335,7 +335,7 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 		if !ok {
 			t.Fatal("model auth probe missing bootstrap")
 		}
-		probe.ModelBearer = proxy.Secret(strings.Repeat("A", 43))
+		probe.ModelBearer = gatewaybind.NewModelBearer(proxy.Secret(strings.Repeat("A", 43)))
 		l.checkProxyRefusal(p, probe, "wrong-credential")
 		if upstreamCalls.Load() != 1 {
 			t.Fatal("wrong model credential reached upstream")
@@ -356,8 +356,8 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 	if !ok {
 		t.Fatal("native helper bootstrap missing")
 	}
-	l.secret([]byte(boot.ModelBearer))
-	l.secret([]byte(boot.ChannelSecret))
+	l.secret([]byte(boot.ModelBearer.Reveal()))
+	l.secret([]byte(boot.ChannelSecret.Reveal()))
 	l.checkProxyRefusal(p, boot, "wrong-pin")
 	before := len(l.slot(contract.BookingID).SeenRumorIDs)
 	idleStart := time.Now()
@@ -450,7 +450,7 @@ func (l *lab) checkProxyRefusal(p tlsPaths, b gatewaybind.PayloadBootstrap, kind
 
 	req, e := http.NewRequest("POST", b.ModelEndpoint+"/slots/"+b.BookingID+"/v1/messages", strings.NewReader(`{"model":"fixture","max_tokens":16,"messages":[{"role":"user","content":"rejected probe"}]}`))
 	checked(l.t, e, "proxy refusal request")
-	req.Header.Set("Authorization", "Bearer "+string(b.ModelBearer))
+	req.Header.Set("Authorization", "Bearer "+string(b.ModelBearer.Reveal()))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("anthropic-version", "2023-06-01")
 	res, e := (&http.Client{Transport: tr, Timeout: 3 * time.Second}).Do(req)

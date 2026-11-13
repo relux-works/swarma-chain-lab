@@ -10,12 +10,24 @@ wire format; bind them separately through checked payloadlaunch manifest/receipt
 inputs. A matching digest alone proves no trusted file custody or authority.
 
 `codec` is the explicitly credential-bearing compatibility package, not the root
-consumer result. Its single generic wire schema preserves the existing secret
-types and redacting bootstrap formatting without importing lifecycle or proxy.
+consumer result. Its single generic wire schema holds credentials in
+`codec.Secret[T]`, with an unexported pointer to scalar string storage. This also
+protects invalid fmt verbs: bad-verb diagnostics bypass `String`/`GoString`, and
+can dereference a nested pointer to a slice, but print a scalar pointer's address.
+`codec.NewSecret(value)` copies input bytes; `Reveal()` returns the original
+credential type with a fresh slice for channel consumers. Retain the wrapper in
+struct fields and reveal only for an explicit credential operation. JSON encoding
+is deliberately private and preserves the original v1/v2 bytes and field order.
+The codec does not import lifecycle or proxy.
 Gatewaybind aliases that schema and delegates encoding/decoding. Proxy credential
 validation delegates to the same credential predicate. The public wrapper parses
 through this codec, discards credentials and computes the digest. Neither package
 reads files, environment or time, nor opens a network connection.
+
+Compatibility callers construct fields with `gatewaybind.NewChannelSecret` and
+`gatewaybind.NewModelBearer`, and read them through `Reveal()`. The downstream
+`station.Station.ChannelSecret` handle likewise uses opaque storage constructed
+by `station.NewChannelSecret`. The six-field public projection is unchanged.
 
 Run `go test -race ./payloadbootstrap/...` from the single-use module inside
 owned scratch. Shared literal golden vectors in `testdata/golden.json` include

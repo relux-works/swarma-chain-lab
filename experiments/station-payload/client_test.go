@@ -115,7 +115,7 @@ func newFixture(t *testing.T, modelReplies ...string) *fixture {
 	t.Cleanup(up.Close)
 	f.front = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.requests.Add(1)
-		if r.URL.Path != "/slots/"+f.b.SlotID+"/v1/messages" || r.Header.Get("Authorization") != "Bearer "+string(f.doc.ModelBearer) || r.Header.Get("x-api-key") != "" {
+		if r.URL.Path != "/slots/"+f.b.SlotID+"/v1/messages" || r.Header.Get("Authorization") != "Bearer "+string(f.doc.ModelBearer.Reveal()) || r.Header.Get("x-api-key") != "" {
 			t.Error("payload credential/route boundary")
 		}
 		f.s.ServeHTTP(w, r)
@@ -139,7 +139,7 @@ func newFixture(t *testing.T, modelReplies ...string) *fixture {
 	if err = f.s.Activate(f.b); err != nil {
 		t.Fatal(err)
 	}
-	f.doc = gatewaybind.PayloadBootstrap{V: 2, BookingID: f.b.SlotID, StationName: "id/payload-fixture", ChannelSecret: lifecycle.Secret(strings.Repeat("x", 32)), ModelBearer: cred.Bearer, ModelEndpoint: cred.Endpoint.URL, ModelCertSHA256: cred.Endpoint.CertSHA256}
+	f.doc = gatewaybind.PayloadBootstrap{V: 2, BookingID: f.b.SlotID, StationName: "id/payload-fixture", ChannelSecret: gatewaybind.NewChannelSecret(lifecycle.Secret(strings.Repeat("x", 32))), ModelBearer: gatewaybind.NewModelBearer(cred.Bearer), ModelEndpoint: cred.Endpoint.URL, ModelCertSHA256: cred.Endpoint.CertSHA256}
 	return f
 }
 func (f *fixture) client(t *testing.T) *Client {
@@ -182,7 +182,7 @@ func TestModelAccountingAndCap(t *testing.T) {
 	audit, _ := json.Marshal(f.audit)
 	f.mu.Unlock()
 	public := fmt.Sprintf("%v %+v %#v %s", c, c, c, audit)
-	for _, secret := range []string{string(f.doc.ModelBearer), string(f.doc.ChannelSecret), apiKey, prompt, answer} {
+	for _, secret := range []string{string(f.doc.ModelBearer.Reveal()), string(f.doc.ChannelSecret.Reveal()), apiKey, prompt, answer} {
 		if strings.Contains(public, secret) {
 			t.Fatal("private value escaped public formatting/audit")
 		}
@@ -269,7 +269,7 @@ func TestBootstrapAndV1(t *testing.T) {
 	}
 	b := f.doc
 	b.V = 1
-	b.ModelBearer = ""
+	b.ModelBearer = gatewaybind.NewModelBearer("")
 	b.ModelEndpoint = ""
 	b.ModelCertSHA256 = ""
 	c, e := New(encoded(t, b), Options{})
