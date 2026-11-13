@@ -6,6 +6,8 @@ github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.202611111
 github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261111181054-288d63e191fe/go.mod h1:GrPtS+vb6S9DdlyfX9ExD2T/JdsDwAcDCE1D4jLwocA=
 github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261111181054-288d63e191fe h1:aEVAZm3o48OFZVRWLj0JHc+gZonP3EFH8e5/FwkSJgo=
 github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261111181054-288d63e191fe/go.mod h1:nRjToLyfmU3pR0d5RLVGD3TrzkBEl/ttTI6oUPRLuzI=
+github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261113084500-b55fa5151e75 h1:mQ+23XN8SAXiHpeiUEOFN3ACqVtcdajRkOKn0MqfDSo=
+github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261113084500-b55fa5151e75/go.mod h1:aUvh47LMVau3NG1alSgPCQVclgI6lAKIpYanLB4t2JM=
 golang.org/x/crypto v0.55.0 h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=
 golang.org/x/crypto v0.55.0/go.mod h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
 golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=

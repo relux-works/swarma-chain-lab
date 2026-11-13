@@ -92,7 +92,7 @@ func TestDeliveryDefaultRelaySize(t *testing.T) {
 	}()
 	a.SetDeadline(time.Now().Add(10 * time.Second))
 	client := stationlink.NewClient(a)
-	secret, e := hexenc.DecodeString(slot.ChannelSecretHex)
+	secret, e := hexenc.DecodeString(slot.ChannelSecretHex.Reveal())
 	if e != nil {
 		t.Fatal(e)
 	}

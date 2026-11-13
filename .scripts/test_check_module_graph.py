@@ -50,7 +50,11 @@ class Fixture:
 
     def stale_standalone(self, relative):
         # The F1 shape: a single-line `require path version`, not a block entry.
-        self.substitute(relative, f"\nrequire {SINGLE_USE} {SNAPSHOT_SINGLE_USE}\n",
+        text = (self.dir / relative).read_text()
+        current = re.search(r"(?m)^require " + re.escape(SINGLE_USE) + r" (v[^\s]+)$", text)
+        if current is None:
+            raise AssertionError(f"{relative}: standalone single-use requirement missing")
+        self.substitute(relative, f"\nrequire {SINGLE_USE} {current.group(1)}\n",
                         f"\nrequire {SINGLE_USE} v0.1.0\n")
 
     def run(self):
