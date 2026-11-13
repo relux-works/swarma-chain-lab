@@ -51,7 +51,13 @@
   `conflicted` without a restart; the debit stays retained until an operator
   release.
 - **F6 (matrix row 20 negative test):** not routed to the integration
-  follow-up; open.
+  follow-up; open. At base `32dd1d18`, there is no operator reconcile CLI:
+  only the signed journal primitives and startup integrity check exist.
+  [The blocked runbook draft](RECONCILE-RUNBOOK.md) records the current
+  behavior. QA must decide the operator command and chain-evidence policy
+  before implementation; then the private-regtest rehearsal and row-20
+  negative must run. Human assignment and monitored-channel delivery also
+  remain unconfirmed. No frozen PX1 interface change is proposed here.
 - **Replay after a release.** `px1Prior` skips `track` records only. After a
   `reconcile` record, a wallet-layer replay reports that record's phase
   (`released`), also for a partial release, whose accounting phase is

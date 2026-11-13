@@ -34,6 +34,9 @@ socket); without it the service stays W2. The documents:
   cap checker, the request fee limit and the wallet-layer spend path.
 - [FORMAT-JOURNAL-V2.md](FORMAT-JOURNAL-V2.md): journal v2, day buckets,
   track and reconcile records and the receipt-key release authorization.
+- [RECONCILE-RUNBOOK.md](RECONCILE-RUNBOOK.md): F6 operator runbook draft;
+  blocked because the operator reconcile command is not implemented. The
+  private-regtest reconciliation rehearsal remains outstanding.
 - [STATUS.md](STATUS.md): the tracker, canary, float monitor, alerts and the
   operator status projection.
 - [SERVICE.md](SERVICE.md): the service, its G2 operations section, the
@@ -181,6 +184,13 @@ maintenance RPC. Operator setup and the isolated test harness use their own
 administrative route; that route is not a product capability.
 
 ## Tools and reproducible checks
+
+For F6 investigation, `journalctl --unit=swarma-wallet.service --no-pager`
+reads the supplied unit's captured alerts. The blocked
+[reconciliation runbook](RECONCILE-RUNBOOK.md) lists explicit `namecoin-cli`
+regtest evidence commands; they do not release a debit. Keep command outputs,
+exit codes and evidence hashes in private operator records, with local scratch
+logs under `.temp/`. No operator reconcile executable is shipped yet.
 
 Go 1.26.8 builds, races, vets and runs controls. Unit checks skip Core/plant
 suites unless explicitly enabled. No external library update is implicit.
