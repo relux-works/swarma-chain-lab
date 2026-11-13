@@ -15,6 +15,7 @@ on:
       - '.scripts/w2-core-gate.json'
       - '.scripts/w2-newcore-users.go'
       - '.scripts/px1-s5-consumer-gate.json'
+      - 'deploy/**'
   push:
     branches: [main]
     paths:
@@ -31,6 +32,7 @@ on:
       - '.scripts/w2-core-gate.json'
       - '.scripts/w2-newcore-users.go'
       - '.scripts/px1-s5-consumer-gate.json'
+      - 'deploy/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -145,6 +147,58 @@ jobs:
           skip_seen=$?
           echo "control: go test exit $test_exit (want 0), gate exit $gate_exit (want 1), skip reported $skip_seen (want 0)"
           test "$test_exit" = 0 && test "$gate_exit" = 1 && test "$skip_seen" = 0
+      # T18 node policy: TestPX1T18CoreNodePolicy lives in the deploy module and
+      # needs W1_REGTEST=1 with the Core 28 binaries verified above. It runs
+      # here, on those binaries, with `go test -json`; the step fails unless the
+      # stream shows that exact test ran and passed, with no skip and no
+      # failure. Control first: without W1_REGTEST the test skips, go test
+      # exits 0, and the same check must fail on the skip.
+      - name: Fetch and verify the deploy module dependencies (TestPX1T18CoreNodePolicy)
+        working-directory: deploy
+        run: |
+          go mod download
+          go mod verify
+      - name: PX1 T18 Core node policy on Namecoin Core 28 regtest (deploy module, must run and pass, no skip allowed)
+        working-directory: deploy
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          set +e
+          name=TestPX1T18CoreNodePolicy
+          ran_and_passed() {
+            python3 -I -B -c '
+          import json, sys
+          path, name = sys.argv[1], sys.argv[2]
+          actions = []
+          with open(path, encoding="utf-8") as f:
+              for line in f:
+                  line = line.strip()
+                  if not line.startswith("{"):
+                      continue
+                  e = json.loads(line)
+                  if e.get("Test") != name:
+                      continue
+                  if e.get("Action") == "output":
+                      print("  | " + e.get("Output", "").rstrip("\n"))
+                  else:
+                      actions.append(e.get("Action"))
+          ok = actions.count("run") == 1 and actions.count("pass") == 1 and "skip" not in actions and "fail" not in actions
+          print(("T18_NODE_POLICY RAN_AND_PASSED " if ok else "T18_NODE_POLICY NOT_PASSED ") + name + " actions=" + ",".join(actions))
+          sys.exit(0 if ok else 1)
+          ' "$1" "$name"
+          }
+          env -u W1_REGTEST go test -count=1 -json -run "^${name}\$" . > "$RUNNER_TEMP/t18-node-control.json" < /dev/null
+          control_test=$?
+          ran_and_passed "$RUNNER_TEMP/t18-node-control.json"
+          control_gate=$?
+          W1_REGTEST=1 W1_RUN_ROOT="$RUNNER_TEMP/t18-core-node" go test -count=1 -timeout 20m -json -run "^${name}\$" . > "$RUNNER_TEMP/t18-node.json" < /dev/null
+          code=$?
+          ran_and_passed "$RUNNER_TEMP/t18-node.json"
+          gate=$?
+          echo "control (no W1_REGTEST): go test exit $control_test (want 0), check exit $control_gate (want 1); W1_REGTEST=1: go test exit $code (want 0), check exit $gate (want 0)"
+          test "$control_test" = 0 && test "$control_gate" = 1 && test "$code" = 0 && test "$gate" = 0
       - name: PX1 T1-T17 on Namecoin Core 28 regtest (go test -json, no skip allowed)
         env:
           GOPROXY: 'off'
