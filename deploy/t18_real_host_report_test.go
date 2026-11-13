@@ -195,12 +195,12 @@ func (f *t18rhFix) report(t *testing.T, wallet string) (int, string) {
 	return t18rhRun(t, nil, "report", f.op, f.ag, f.rendered, f.params, wallet)
 }
 
-// t18rhIDs returns the item ids of a report (no header, OVERALL, comment or
-// the literal no-op apply line).
+// t18rhIDs returns the item ids of a report (no header, custody_spec_sha256
+// line, OVERALL, comment or the literal no-op apply line).
 func t18rhIDs(out string) []string {
 	var ids []string
 	for i, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		if i == 0 || strings.HasPrefix(line, "OVERALL ") || strings.HasPrefix(line, "#") || line == t18rhApplyNoop {
+		if i == 0 || strings.HasPrefix(line, "custody_spec_sha256 ") || strings.HasPrefix(line, "OVERALL ") || strings.HasPrefix(line, "#") || line == t18rhApplyNoop {
 			continue
 		}
 		ids = append(ids, strings.Fields(line)[0])
@@ -219,7 +219,9 @@ func t18rhIDs(out string) []string {
 // line "apply no-op: account pre-created by Infra" stands once, right before
 // the account item, and the positive-path statement (the owner-authorized
 // mainnet smoke gate proves the real-wallet positive path, not T18) once,
-// right before positive-request. Every pin names a test function present in
+// right before positive-request. The line "custody_spec_sha256 <hex>" stands
+// once, right after the header, with the SHA-256 of the exact rendered
+// custody-spec.json file the report was composed from (r4). Every pin names a test function present in
 // this tree; the commit is ca5edc68 and the run the hosted push run of the
 // module that holds the test, except TestPX1T18CoreNodePolicy, pinned to the
 // px1-core-gate run at dcad699d that ran it with W1_REGTEST=1.
@@ -256,6 +258,13 @@ func TestT18RealHostItemContract(t *testing.T) {
 	header := "T18-REAL-HOST v1 wallet=real commit=" + t18rhCommit + " spec_sha256=" + f.specSHA + " agent_uid=1201 primary_gid=1201 socket_gid=1301 service_uid=1101\n"
 	if !strings.HasPrefix(out, header) {
 		t.Fatalf("T18RH_CONTRACT header %q", strings.SplitN(out, "\n", 2)[0])
+	}
+	specFile, e := os.ReadFile(f.renderedSpec)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if hash := "custody_spec_sha256 " + t18rhSha(specFile) + "\n"; !strings.HasPrefix(out, header+hash) || strings.Count(out, "custody_spec_sha256") != 1 {
+		t.Fatal("T18RH_CONTRACT the custody_spec_sha256 line is not printed once, right after the header\n", out)
 	}
 	if strings.Count(out, "\n"+t18rhApplyNoop+"\naccount PASS ") != 1 || strings.Count(out, t18rhApplyNoop) != 1 {
 		t.Fatal("T18RH_CONTRACT the no-op apply line is not printed once, before the account item\n", out)
@@ -317,7 +326,8 @@ func TestT18RealHostItemContract(t *testing.T) {
 		}
 	}
 	for _, id := range append(want, t18rhRunDK, t18rhRunAW, t18rhCommit, t18rhRunNode, t18rhNodeCommit, "TestPX1T18CoreNodePolicy", t18rhApplyNoop,
-		"proven by the separate owner-authorized, bounded mainnet smoke gate, not by T18", "valid-only-as-a-stand-in-run", "perl -v") {
+		"proven by the separate owner-authorized, bounded mainnet smoke gate, not by T18", "valid-only-as-a-stand-in-run", "perl -v",
+		`check "$RUN/T18-REPORT.txt" "$RUN/custody-spec.json"`, "custody_spec_sha256") {
 		if strings.HasPrefix(id, "denied-read:") || strings.HasPrefix(id, "denied-rpc:") {
 			continue
 		}
@@ -514,7 +524,7 @@ func TestT18RealHostCheckControls(t *testing.T) {
 	check := func(name, text string) (int, string) {
 		path := filepath.Join(dir, name)
 		os.WriteFile(path, []byte(text), 0600)
-		return t18rhRun(t, nil, "check", path)
+		return t18rhRun(t, nil, "check", path, f.renderedSpec)
 	}
 	for name, text := range map[string]string{"valid-real": real, "valid-stand-in": standIn} {
 		if code, out := check(name, text); code != 0 || !strings.HasPrefix(out, "OVERALL PASS ") {
@@ -598,10 +608,14 @@ func TestT18RealHostCheckControls(t *testing.T) {
 // and its OVERALL line valid only as a stand-in run) and its known-bad samples
 // (a placeholder reported PASS on a stand-in run, a refused real-account
 // group set, ENOENT, a stand-in declared real, a sent request, STAND_IN on a
-// real wallet) fail with their named lines.
+// real wallet) fail with their named lines. The r4 samples: the valid real
+// report passes check with its spec, check without a spec is a usage error
+// (64), and a deleted required row with the OVERALL count edited to match,
+// another spec, a missing or duplicated custody_spec_sha256 line and an extra
+// denied row each fail check with their named reason.
 func TestT18RealHostSelfTest(t *testing.T) {
 	code, out := t18rhRun(t, []string{"DEPLOY_KIT=/nonexistent/deploy-kit"}, "self-test")
-	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 10 {
+	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 17 {
 		t.Fatalf("T18RH_SELF_TEST %d\n%s", code, out)
 	}
 }
@@ -620,7 +634,7 @@ func TestT18RealHostNoRequestMode(t *testing.T) {
 	if code != 64 || strings.Contains(out, t18rhMarker) {
 		t.Fatalf("T18RH_NO_REQUEST without the variable %d %q", code, out)
 	}
-	for _, args := range [][]string{{}, {"nonsense"}, {"report"}, {"check"}, {"agent", "x"}, {"operator", "x"}, {"--config", "c", "--request"}} {
+	for _, args := range [][]string{{}, {"nonsense"}, {"report"}, {"check"}, {"check", t18rhScript}, {"agent", "x"}, {"operator", "x"}, {"--config", "c", "--request"}} {
 		if code, _ := t18rhRun(t, nil, args...); code != 64 {
 			t.Fatalf("T18RH_USAGE %q exit %d", args, code)
 		}
@@ -870,14 +884,22 @@ func TestT18RealHostAgentPhase(t *testing.T) {
 // were planted in.
 const t18rhR3 = "testdata/t18-real-host-r3"
 
-// t18rhCheckFile runs check on a stored report given as text.
-func t18rhCheckFile(t *testing.T, name, text string) (int, string) {
+// t18rhCheckFile runs check on a stored report given as text, against the
+// custody spec file at spec.
+func t18rhCheckFile(t *testing.T, name, text, spec string) (int, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
 	if e := os.WriteFile(path, []byte(text), 0600); e != nil {
 		t.Fatal(e)
 	}
-	return t18rhRun(t, nil, "check", path)
+	return t18rhRun(t, nil, "check", path, spec)
+}
+
+// t18rhWithHash inserts the r4 line "custody_spec_sha256 <sha>" right after
+// the header of an r3 report, which predates that line.
+func t18rhWithHash(text, sha string) string {
+	i := strings.Index(text, "\n") + 1
+	return text[:i] + "custody_spec_sha256 " + sha + "\n" + text[i:]
 }
 
 func t18rhRead(t *testing.T, name string) string {
@@ -902,17 +924,25 @@ func t18rhRead(t *testing.T, name string) string {
 // skipped, R6) keep the valid OVERALL line, and each relabelled PASS
 // (unsynced txindex, saved UID 0, verify_exit=1, socket mode 0666) is checked
 // under the OVERALL line the valid report states, so its refusal cannot come
-// from a count. A duplicate is refused even when both copies agree. Limit:
-// check sees only the stored report; whether every denied_reads target of
-// the rendered spec has a row is the composer's (report mode), not proven here.
+// from a count. A duplicate is refused even when both copies agree. The r3
+// reports predate the r4 custody_spec_sha256 line: each is checked with that
+// line inserted after its header (the stored bytes are unchanged), against
+// the fixture's rendered spec, so the planted r3 defect stays the only one.
+// The row binding to the spec is TestT18RealHostSpecBoundCheck's.
 func TestT18RealHostStrictCheck(t *testing.T) {
-	real, standIn := t18rhRead(t, "valid-real.txt"), t18rhRead(t, "valid-stand-in.txt")
 	f := t18rhFixture(t)
+	specFile, e := os.ReadFile(f.renderedSpec)
+	if e != nil {
+		t.Fatal(e)
+	}
+	specHash := t18rhSha(specFile)
+	r3 := func(name string) string { return t18rhWithHash(t18rhRead(t, name), specHash) }
+	real, standIn := r3("valid-real.txt"), r3("valid-stand-in.txt")
 	if code, out := f.report(t, "real"); code != 0 || out != real {
 		t.Fatalf("T18RH_STRICT the stored valid report is not the composer's output (%d)\n%s", code, out)
 	}
 	for name, text := range map[string]string{"valid-real": real, "valid-stand-in": standIn} {
-		code, out := t18rhCheckFile(t, name, text)
+		code, out := t18rhCheckFile(t, name, text, f.renderedSpec)
 		last := text[strings.LastIndex(strings.TrimSuffix(text, "\n"), "\n")+1:]
 		if code != 0 || out != last {
 			t.Fatalf("T18RH_STRICT %s refused or recomputed differently: %d\n%s", name, code, out)
@@ -929,17 +959,17 @@ func TestT18RealHostStrictCheck(t *testing.T) {
 	}
 	cases := []struct{ name, text, reason string }{
 		// The reviewer's witnesses, byte for byte (R2, R3, R6).
-		{"r2-duplicate-sent-wallet", t18rhRead(t, "duplicate-sent-wallet.txt"), "duplicate-field:positive-request:host"},
-		{"r2-conflicting-host-fields", t18rhRead(t, "wallet-conflicting-host-fields.txt"), "duplicate-field:positive-request:host"},
-		{"r3-duplicate-third-account-group", t18rhRead(t, "duplicate-third-account-group.txt"), "duplicate-field:account:real_account"},
-		{"r3-contradictory-duplicate-groups", t18rhRead(t, "account-contradictory-duplicate-groups.txt"), "duplicate-field:account:real_account"},
-		{"r6-duplicate-skipped-node-run", t18rhRead(t, "duplicate-skipped-node-run.txt"), "duplicate-field:cov-core-node-policy:run"},
-		{"r6-conflicting-skipped-pin", t18rhRead(t, "hosted-node-conflicting-skipped-pin.txt"), "duplicate-field:cov-core-node-policy:run"},
+		{"r2-duplicate-sent-wallet", r3("duplicate-sent-wallet.txt"), "duplicate-field:positive-request:host"},
+		{"r2-conflicting-host-fields", r3("wallet-conflicting-host-fields.txt"), "duplicate-field:positive-request:host"},
+		{"r3-duplicate-third-account-group", r3("duplicate-third-account-group.txt"), "duplicate-field:account:real_account"},
+		{"r3-contradictory-duplicate-groups", r3("account-contradictory-duplicate-groups.txt"), "duplicate-field:account:real_account"},
+		{"r6-duplicate-skipped-node-run", r3("duplicate-skipped-node-run.txt"), "duplicate-field:cov-core-node-policy:run"},
+		{"r6-conflicting-skipped-pin", r3("hosted-node-conflicting-skipped-pin.txt"), "duplicate-field:cov-core-node-policy:run"},
 		// The relabelled PASS witnesses under the valid OVERALL line.
-		{"relabel-unsynced-txindex", overallRe.ReplaceAllString(t18rhRead(t, "unsynced-node-relabeled.txt"), validOverall), "txindex-pass-without-synced-index"},
-		{"relabel-saved-root", overallRe.ReplaceAllString(t18rhRead(t, "saved-root-relabeled.txt"), validOverall), "launch-pass-other-uid"},
-		{"relabel-failed-verifier", overallRe.ReplaceAllString(t18rhRead(t, "failed-custody-verifier-relabeled.txt"), validOverall), "custody-verify-pass-contradicts-exits"},
-		{"relabel-world-writable-socket", overallRe.ReplaceAllString(t18rhRead(t, "world-writable-socket-relabeled.txt"), validOverall), "wallet-pass-socket-metadata"},
+		{"relabel-unsynced-txindex", overallRe.ReplaceAllString(r3("unsynced-node-relabeled.txt"), validOverall), "txindex-pass-without-synced-index"},
+		{"relabel-saved-root", overallRe.ReplaceAllString(r3("saved-root-relabeled.txt"), validOverall), "launch-pass-other-uid"},
+		{"relabel-failed-verifier", overallRe.ReplaceAllString(r3("failed-custody-verifier-relabeled.txt"), validOverall), "custody-verify-pass-contradicts-exits"},
+		{"relabel-world-writable-socket", overallRe.ReplaceAllString(r3("world-writable-socket-relabeled.txt"), validOverall), "wallet-pass-socket-metadata"},
 		// Duplicates, agreeing or not, on items, pins and the header.
 		{"agreeing-duplicate-run", sub(real, `^(cov-core-node-policy .* job=px1-core-gate)$`, "$1 run="+t18rhRunNode), "duplicate-field:cov-core-node-policy:run"},
 		{"agreeing-duplicate-host", sub(real, `^(positive-request .*)$`, "$1 host=not-sent"), "duplicate-field:positive-request:host"},
@@ -969,7 +999,7 @@ func TestT18RealHostStrictCheck(t *testing.T) {
 		{"carriage-return", sub(real, `^(render PASS .*)$`, "$1\r"), "malformed-line:"},
 	}
 	for _, c := range cases {
-		code, out := t18rhCheckFile(t, c.name, c.text)
+		code, out := t18rhCheckFile(t, c.name, c.text, f.renderedSpec)
 		if code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.Contains(out, c.reason) {
 			t.Fatalf("T18RH_STRICT %s: exit %d, want 1 with %q\n%s", c.name, code, c.reason, out)
 		}
@@ -1052,5 +1082,128 @@ func TestT18RealHostLaunchLinesOnce(t *testing.T) {
 		if !ok {
 			t.Fatalf("T18RH_LAUNCH %s: exit %d\n%s", name, code, out)
 		}
+	}
+}
+
+// t18rhR4 holds the r4 stored reports: the valid real report, the rendered
+// custody spec it was composed from, another spec, and the planted reports.
+const t18rhR4 = "testdata/t18-real-host-r4"
+
+// Claim (r4): check is bound to the spec file the run used. It refuses to run
+// without that file (usage, exit 64, no OVERALL line). The valid real report,
+// which is exactly the composer's output for the standard evidence set, passes
+// with its spec (exit 0), and so does the stand-in report composed from the
+// same spec. Each stored plant is the valid report with exactly its stated
+// edit, and is refused with exit 1 and exactly its named reason (beside the
+// stated OVERALL line, which keeps the valid counts and so disagrees): a
+// required denied-read row deleted with the OVERALL count edited to match (the
+// F3/R8 repro, which r3 accepted), the valid report against another spec (same
+// rows, another file: the hash), the custody_spec_sha256 line missing or
+// twice, and a denied row that is not in the spec. Neighbours: an extra or
+// missing denied-rpc row, a duplicated denied row, a malformed hash line and a
+// spec without denied_rpc are refused; a denied row whose verdict is FAIL is
+// still its row (OVERALL FAIL from that item alone, nothing missing). Limit:
+// the spec file's own content is not validated here beyond its two lists; its
+// identity is the hash the report recorded.
+func TestT18RealHostSpecBoundCheck(t *testing.T) {
+	spec, other := filepath.Join(t18rhR4, "custody-spec.json"), filepath.Join(t18rhR4, "other-custody-spec.json")
+	read := func(name string) string {
+		b, e := os.ReadFile(filepath.Join(t18rhR4, name))
+		if e != nil {
+			t.Fatal(e)
+		}
+		return string(b)
+	}
+	// The stored spec is the fixture's rendered spec, and the stored valid
+	// report is the composer's output for it.
+	f := t18rhFixture(t)
+	rendered, _ := os.ReadFile(f.renderedSpec)
+	if read("custody-spec.json") != string(rendered) {
+		t.Fatal("T18RH_SPEC the stored spec is not the rendered launch spec")
+	}
+	valid := read("valid-real.txt")
+	if code, out := f.report(t, "real"); code != 0 || out != valid {
+		t.Fatalf("T18RH_SPEC the stored valid report is not the composer's output (%d)\n%s", code, out)
+	}
+	f.write(t, "peer.txt", "PEER connect=ok uid=0 gid=0\n")
+	_, standIn := f.report(t, "stand-in")
+	overall := valid[strings.LastIndex(strings.TrimSuffix(valid, "\n"), "\n")+1:]
+	for name, text := range map[string]string{"valid-real": valid, "valid-stand-in": standIn} {
+		last := text[strings.LastIndex(strings.TrimSuffix(text, "\n"), "\n")+1:]
+		if code, out := t18rhCheckFile(t, name, text, spec); code != 0 || out != last {
+			t.Fatalf("T18RH_SPEC %s refused with its spec: %d\n%s", name, code, out)
+		}
+	}
+
+	// No spec, a missing spec file or an extra argument: check does not run.
+	reportPath := filepath.Join(t18rhR4, "valid-real.txt")
+	for _, args := range [][]string{{"check", reportPath}, {"check", reportPath, filepath.Join(t18rhR4, "absent.json")}, {"check", reportPath, spec, spec}} {
+		if code, out := t18rhRun(t, nil, args...); code != 64 || strings.Contains(out, "OVERALL") {
+			t.Fatalf("T18RH_SPEC check %q ran: exit %d\n%s", args[1:], code, out)
+		}
+	}
+
+	// The other spec has the same rows; only the file differs.
+	osp, e1 := ParseCustodySpec([]byte(strings.TrimSuffix(read("other-custody-spec.json"), "\n")))
+	vsp, e2 := ParseCustodySpec([]byte(strings.TrimSuffix(read("custody-spec.json"), "\n")))
+	if e1 != nil || e2 != nil || strings.Join(osp.DeniedReads, " ") != strings.Join(vsp.DeniedReads, " ") ||
+		strings.Join(osp.DeniedRPC, " ") != strings.Join(vsp.DeniedRPC, " ") || read("other-custody-spec.json") == read("custody-spec.json") {
+		t.Fatal("T18RH_SPEC the other spec must differ from the valid spec only outside its rows", e1, e2)
+	}
+
+	edit := func(text, re, repl string) string {
+		out := regexp.MustCompile(`(?m)`+re).ReplaceAllString(text, repl)
+		if out == text {
+			t.Fatalf("T18RH_SPEC edit %q matched nothing", re)
+		}
+		return out
+	}
+	const wallet = "denied-read:/etc/swarma/wallet/wallet.json"
+	const extra = "denied-read:/etc/swarma/wallet/extra.json PASS observed=EACCES"
+	hashLine := `^custody_spec_sha256 [0-9a-f]{64}\n`
+	stored := []struct{ file, made, reason string }{
+		{"row-deleted-overall-edited.txt", edit(edit(valid, `^`+regexp.QuoteMeta(wallet)+` .*\n`, ""), `^OVERALL PASS pass=20 `, "OVERALL PASS pass=19 "), "missing:denied-read:/etc/swarma/wallet/wallet.json"},
+		{"missing-hash.txt", edit(valid, hashLine, ""), "custody-spec-sha256:missing"},
+		{"duplicate-hash.txt", edit(valid, `^(custody_spec_sha256 [0-9a-f]{64}\n)`, "$1$1"), "custody-spec-sha256:duplicate"},
+		{"extra-denied-row.txt", edit(edit(valid, `^(denied-rpc:)`, extra+"\n$1"), `^OVERALL PASS pass=20 `, "OVERALL PASS pass=21 "), "extra-row:denied-read:/etc/swarma/wallet/extra.json"},
+	}
+	for _, c := range stored {
+		text := read(c.file)
+		if text != c.made {
+			t.Fatalf("T18RH_SPEC %s is not the valid report with exactly its stated edit", c.file)
+		}
+		code, out := t18rhCheckFile(t, c.file, text, spec)
+		if code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.Contains(out, "\n# reasons: "+c.reason+" stated-overall-disagrees\n") {
+			t.Fatalf("T18RH_SPEC %s: exit %d, want 1 with exactly %q\n%s", c.file, code, c.reason, out)
+		}
+	}
+	if code, out := t18rhCheckFile(t, "other-spec", valid, other); code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") ||
+		!strings.Contains(out, "\n# reasons: custody-spec-sha256:differs stated-overall-disagrees\n") {
+		t.Fatalf("T18RH_SPEC the valid report against another spec: exit %d\n%s", code, out)
+	}
+
+	noRPC := filepath.Join(t.TempDir(), "no-rpc.json")
+	os.WriteFile(noRPC, []byte(edit(read("custody-spec.json"), `"denied_rpc":\[[^]]*\],`, "")), 0600)
+	neighbours := []struct{ name, text, spec, reason string }{
+		{"extra-rpc-row", edit(edit(valid, `^(peer-precondition )`, "denied-rpc:127.0.0.1:8337 PASS observed=HTTP_401\n$1"), `^OVERALL PASS pass=20 `, "OVERALL PASS pass=21 "), spec, "extra-row:denied-rpc:127.0.0.1:8337"},
+		{"missing-rpc-row", edit(edit(valid, `^denied-rpc:.*\n`, ""), `^OVERALL PASS pass=20 `, "OVERALL PASS pass=19 "), spec, "missing:denied-rpc:127.0.0.1:8336"},
+		{"duplicate-denied-row", edit(edit(valid, `^(`+regexp.QuoteMeta(wallet)+` .*\n)`, "$1$1"), `^OVERALL PASS pass=20 `, "OVERALL PASS pass=21 "), spec, "duplicate:" + wallet},
+		{"hash-uppercase", edit(valid, `^custody_spec_sha256 8d1820c3`, "custody_spec_sha256 8D1820C3"), spec, "custody-spec-sha256:malformed:line2"},
+		{"hash-short", edit(valid, `^(custody_spec_sha256 [0-9a-f]{63})[0-9a-f]$`, "$1"), spec, "custody-spec-sha256:malformed:line2"},
+		{"spec-without-rpc", valid, noRPC, "custody-spec-unreadable"},
+	}
+	for _, c := range neighbours {
+		code, out := t18rhCheckFile(t, c.name, c.text, c.spec)
+		if code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.Contains(out, c.reason) {
+			t.Fatalf("T18RH_SPEC %s: exit %d, want 1 with %q\n%s", c.name, code, c.reason, out)
+		}
+	}
+	// A FAIL row is still the spec entry's row: the report fails on that item
+	// alone, with nothing missing and nothing invalid.
+	failRow := edit(edit(valid, `^(`+regexp.QuoteMeta(wallet)+`) PASS observed=EACCES$`, "$1 FAIL observed=ENOENT"),
+		`^OVERALL PASS pass=20 stand_in=0 covered=11 fail=0 `, "OVERALL FAIL pass=19 stand_in=0 covered=11 fail=1 ")
+	want := strings.Replace(overall, "OVERALL PASS pass=20 stand_in=0 covered=11 fail=0 ", "OVERALL FAIL pass=19 stand_in=0 covered=11 fail=1 ", 1)
+	if code, out := t18rhCheckFile(t, "fail-row", failRow, spec); code != 1 || out != want {
+		t.Fatalf("T18RH_SPEC a FAIL row: exit %d, want exactly %q\n%s", code, want, out)
 	}
 }

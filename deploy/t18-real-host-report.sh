@@ -33,12 +33,16 @@
 #       socket is a planted listener; every placeholder-backed item (each
 #       denied-read, status-dir, allowed-socket) is then STAND_IN, never PASS,
 #       and the OVERALL line says the run is valid only as a stand-in run
-#   t18-real-host-report.sh check REPORT
+#   t18-real-host-report.sh check REPORT SPEC
 #       recomputes the OVERALL line of a stored report with one strict
 #       parser: a duplicate field, a field that contradicts its verdict, the
 #       header or another item, and a trailing, unterminated or unparsable
 #       line are each refused with a named reason, and the report must end
-#       with exactly the recomputed OVERALL line
+#       with exactly the recomputed OVERALL line. SPEC is required: it is the
+#       rendered custody-spec.json the run used. The report's one
+#       `custody_spec_sha256 <hex>` line must be the SHA-256 of that file, and
+#       every denied_reads and denied_rpc entry of SPEC must have exactly one
+#       row, with no row for anything else
 #   t18-real-host-report.sh peer SOCKET
 #       connects, reads SO_PEERCRED, sends nothing
 #   t18-real-host-report.sh items
@@ -278,6 +282,9 @@ report_items() {
 	suid=$(awk '$1 == "u" && $2 == "swarma-wallet" { print $3 }' "$sys")
 	spec_sha=$(printf '%s' "$(cat "$spec")" | sha256sum | cut -d ' ' -f 1)
 	echo "T18-REAL-HOST v1 wallet=$wallet commit=$pinned_commit spec_sha256=$spec_sha agent_uid=$uid primary_gid=$gid socket_gid=$sgid service_uid=$suid"
+	# The exact spec file this report was composed from. check needs that file
+	# and refuses unless its SHA-256 is this value.
+	echo "custody_spec_sha256 $(sha_of "$spec")"
 
 	# Precondition: txindex=1 and the index synced.
 	tx=$(cat "$op/txindex.json" 2>/dev/null || true)
@@ -453,14 +460,19 @@ report_items() {
 }
 
 # ---------------------------------------------------------------- check
-# check_report FILE stored|composed: parse every line once, strictly, and
-# print the recomputed OVERALL line. Exit 0 only when it is PASS and, for a
-# stored report, the report ends with exactly that OVERALL line.
+# check_report FILE stored|composed SPEC: parse every line once, strictly,
+# and print the recomputed OVERALL line. Exit 0 only when it is PASS and, for
+# a stored report, the report ends with exactly that OVERALL line.
 #
-# The parser refuses instead of choosing: a line is the header, the literal
-# no-op apply line, the literal positive-path statement, an item line or (in
-# a stored report) the one last OVERALL line, single-space separated and
-# newline-terminated; anything else is invalid. An item line is
+# The parser refuses instead of choosing: a line is the header, the one
+# custody_spec_sha256 line, the literal no-op apply line, the literal
+# positive-path statement, an item line or (in a stored report) the one last
+# OVERALL line, single-space separated and newline-terminated; anything else
+# is invalid. The report is bound to SPEC, the custody-spec.json file the run
+# used: the custody_spec_sha256 line stands exactly once and equals the
+# SHA-256 of SPEC, and each denied_reads and denied_rpc entry of SPEC has
+# exactly one row (any verdict), while a denied row for anything else is
+# refused. An item line is
 # `<id> <verdict> <field>...`, where a field is key=value (or a bare word)
 # and each key stands once per line: a second occurrence is refused whether
 # or not it agrees. A PASS, STAND_IN or COVERED_BY_HOSTED line carries exactly
@@ -472,8 +484,12 @@ check_report() {
 	if [ -s "$1" ] && [ "$(tail -c 1 "$1" | wc -l)" -eq 0 ]; then
 		unterminated=1
 	fi
+	spec_reads=$(json_array "$3" denied_reads) || spec_reads=
+	spec_rpcs=$(json_array "$3" denied_rpc) || spec_rpcs=
+	spec_file_sha=$(sha_of "$3")
 	awk -v pins="$(covered_table; echo "$positive_row")" -v apply_line="$apply_noop_line" -v note="$positive_note" \
-		-v pinned_commit="$pinned_commit" -v status_dir="$status_dir" -v unterminated="$unterminated" -v stored="$2" '
+		-v pinned_commit="$pinned_commit" -v status_dir="$status_dir" -v unterminated="$unterminated" -v stored="$2" \
+		-v spec_reads="$spec_reads" -v spec_rpcs="$spec_rpcs" -v spec_file_sha="$spec_file_sha" '
 	function bad(why) { invalid++; reasons = reasons " " why }
 	function num(s) { return s ~ /^[0-9]+$/ }
 	function hex64(s) { return length(s) == 64 && s !~ /[^0-9a-f]/ }
@@ -503,6 +519,18 @@ check_report() {
 		schema["positive-request"] = "pin commit run job host positive_path"
 		schema["covered"] = "pin commit run job"
 		schema["custody-spec"] = ""
+		# The rows the given spec requires, in spec order.
+		nsread = split(spec_reads, sread, "\n")
+		for (i = 1; i <= nsread; i++) {
+			if (sread[i] in spec_read) bad("custody-spec-duplicate-entry:denied-read:" sread[i])
+			spec_read[sread[i]] = 1
+		}
+		nsrpc = split(spec_rpcs, srpc, "\n")
+		for (i = 1; i <= nsrpc; i++) {
+			if (srpc[i] in spec_rpc) bad("custody-spec-duplicate-entry:denied-rpc:" srpc[i])
+			spec_rpc[srpc[i]] = 1
+		}
+		if (nsread < 1 || nsrpc < 1) bad("custody-spec-unreadable")
 	}
 	NR == 1 {
 		hok = ($1 == "T18-REAL-HOST" && $2 == "v1" && NF == nhk + 2)
@@ -521,6 +549,12 @@ check_report() {
 		next
 	}
 	overall_seen { bad("trailing-after-overall:line" NR); next }
+	$1 == "custody_spec_sha256" {
+		nhash++
+		if ($0 !~ /^custody_spec_sha256 [0-9a-f]+$/ || !hex64($2)) bad("custody-spec-sha256:malformed:line" NR)
+		else stated_hash = $2
+		next
+	}
 	$0 == apply_line { napply++; next }
 	$0 == note { nnote++; next }
 	/^OVERALL / && stored == "stored" { stated = $2; stated_line = $0; overall_seen = 1; next }
@@ -542,6 +576,9 @@ check_report() {
 		if (id ~ /^denied-read:./) kind = "denied-read"
 		else if (id ~ /^denied-rpc:./) kind = "denied-rpc"
 		else if ((id in pin_test) && id != "positive-request") kind = "covered"
+		# Every denied row, whatever its verdict, is a row of the given spec.
+		if (kind == "denied-read") { row_read[substr(id, 13)]++; if (!(substr(id, 13) in spec_read)) bad("extra-row:" id) }
+		if (kind == "denied-rpc") { row_rpc[substr(id, 12)]++; if (!(substr(id, 12) in spec_rpc)) bad("extra-row:" id) }
 		vv[id] = v
 		count[v]++
 		if (v == "FAIL") fail++
@@ -621,6 +658,13 @@ check_report() {
 		for (i = 1; i <= nreq; i++) if (req[i] != "" && !(req[i] in seen)) { missing++; reasons = reasons " missing:" req[i] }
 		if (nread < 1) { missing++; reasons = reasons " missing:denied-read" }
 		if (nrpc < 1) { missing++; reasons = reasons " missing:denied-rpc" }
+		# Each entry of the given spec has its row.
+		for (i = 1; i <= nsread; i++) if (!(sread[i] in row_read)) { missing++; reasons = reasons " missing:denied-read:" sread[i] }
+		for (i = 1; i <= nsrpc; i++) if (!(srpc[i] in row_rpc)) { missing++; reasons = reasons " missing:denied-rpc:" srpc[i] }
+		# The report names the exact spec file once.
+		if (nhash == 0) bad("custody-spec-sha256:missing")
+		else if (nhash > 1) bad("custody-spec-sha256:duplicate")
+		else if (stated_hash != "" && stated_hash != spec_file_sha) bad("custody-spec-sha256:differs")
 		if (wallet == "") { invalid++; reasons = reasons " header" }
 		if (napply > 1 || (account_pass && napply != 1)) bad("apply-noop-line")
 		if (nnote != 1) bad("positive-path-statement")
@@ -697,7 +741,7 @@ self_test() {
 	expect stand-in-wallet 0 stand-in '^allowed-socket STAND_IN wallet=stand-in probe=CONNECTED '
 	expect stand-in-placeholders 0 stand-in '^OVERALL PASS pass=9 stand_in=4 covered=11 fail=0 invalid=0 missing=0 run=stand-in valid-only-as-a-stand-in-run$'
 	sed 's/^\(denied-read:[^ ]*\) STAND_IN /\1 PASS /' "$w/stand-in-placeholders.txt" >"$w/edited.txt"
-	check_report "$w/edited.txt" stored >/dev/null && got=0 || got=$?
+	check_report "$w/edited.txt" stored "$r/custody-spec.json" >/dev/null && got=0 || got=$?
 	if [ "$got" = 1 ]; then echo "self-test stand-in-placeholder-pass ok exit=1"; else echo "self-test stand-in-placeholder-pass WRONG exit=$got" && failures=$((failures + 1)); fi
 	echo 'deploy: invalid policy' >"$op/account-groups.txt"
 	expect account-real-group-set-refused 1 real '^account FAIL .* group_set=deploy:_invalid_policy$'
@@ -712,8 +756,42 @@ self_test() {
 	expect request-sent 1 real '^positive-request FAIL host=request-sent-or-unknown$'
 	echo "$stub_marker" >"$ag/custody/positive-receipt.json"
 	sed 's/^allowed-socket PASS /allowed-socket STAND_IN /' "$w/real-wallet-all-pass.txt" >"$w/edited.txt"
-	check_report "$w/edited.txt" stored >/dev/null && got=0 || got=$?
+	check_report "$w/edited.txt" stored "$r/custody-spec.json" >/dev/null && got=0 || got=$?
 	if [ "$got" = 1 ]; then echo "self-test stand-in-on-real-wallet ok exit=1"; else echo "self-test stand-in-on-real-wallet WRONG exit=$got" && failures=$((failures + 1)); fi
+
+	# check is bound to the spec file the run used (r4). The valid real report
+	# passes with its spec; check refuses to run without one; and each planted
+	# report fails with its named reason.
+	checked() { # NAME WANT-EXIT REPORT SPEC|- WANT (fixed string in the output)
+		if [ "$4" = - ]; then
+			sh "$(self_path)" check "$3" >"$w/$1.check" 2>&1 && got=0 || got=$?
+		else
+			sh "$(self_path)" check "$3" "$4" >"$w/$1.check" 2>&1 && got=0 || got=$?
+		fi
+		if [ "$got" = "$2" ] && grep -Fq -- "$5" "$w/$1.check"; then
+			echo "self-test $1 ok exit=$got"
+		else
+			echo "self-test $1 WRONG exit=$got want=$2"
+			sed 's/^/  | /' "$w/$1.check"
+			failures=$((failures + 1))
+		fi
+	}
+	valid=$w/real-wallet-all-pass.txt
+	spec=$r/custody-spec.json
+	checked spec-bound-valid 0 "$valid" "$spec" 'OVERALL PASS pass=13 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real'
+	checked spec-not-given 64 "$valid" - 'usage:'
+	# The repro: a required row deleted and the OVERALL count edited to match.
+	grep -v '^denied-read:/etc/swarma/wallet/wallet.json ' "$valid" | sed 's/^OVERALL PASS pass=13 /OVERALL PASS pass=12 /' >"$w/row-deleted.txt"
+	checked row-deleted-overall-edited 1 "$w/row-deleted.txt" "$spec" 'missing:denied-read:/etc/swarma/wallet/wallet.json'
+	# The same valid report against another spec: the rows agree, the file not.
+	sed 's/"agent_uid":210001/"agent_uid":210002/' "$spec" >"$w/other-spec.json"
+	checked other-spec 1 "$valid" "$w/other-spec.json" 'custody-spec-sha256:differs'
+	grep -v '^custody_spec_sha256 ' "$valid" >"$w/no-hash.txt"
+	checked missing-hash 1 "$w/no-hash.txt" "$spec" 'custody-spec-sha256:missing'
+	awk '{ print } /^custody_spec_sha256 / { print }' "$valid" >"$w/two-hashes.txt"
+	checked duplicate-hash 1 "$w/two-hashes.txt" "$spec" 'custody-spec-sha256:duplicate'
+	awk '/^denied-rpc:/ { print "denied-read:/etc/swarma/wallet/extra.json PASS observed=EACCES" } { sub(/^OVERALL PASS pass=13 /, "OVERALL PASS pass=14 "); print }' "$valid" >"$w/extra-row.txt"
+	checked extra-row 1 "$w/extra-row.txt" "$spec" 'extra-row:denied-read:/etc/swarma/wallet/extra.json'
 	if [ "$failures" = 0 ]; then
 		echo "SELF_TEST PASS"
 		return 0
@@ -739,11 +817,12 @@ report)
 	trap 'rm -f "$report_tmp"' EXIT
 	report_items "$@" >"$report_tmp"
 	cat "$report_tmp"
-	check_report "$report_tmp" composed
+	check_report "$report_tmp" composed "$3/custody-spec.json"
 	;;
 check)
-	[ "$#" -eq 1 ] && [ -f "$1" ] || usage
-	check_report "$1" stored
+	# The spec is required: without it the rows cannot be bound to the run.
+	[ "$#" -eq 2 ] && [ -f "$1" ] && [ -f "$2" ] || usage
+	check_report "$1" stored "$2"
 	;;
 self-test) self_test "$@" ;;
 *) usage ;;

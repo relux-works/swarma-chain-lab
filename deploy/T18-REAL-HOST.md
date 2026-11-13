@@ -240,30 +240,45 @@ As the agent, the agent phase does four things:
 
 **Step 6. Report** (root, because the agent's evidence is mode 0600; this step
 only reads files). The last argument is the stand-in flag: `real` or
-`stand-in`.
+`stand-in`. The report records the SHA-256 of `$RENDERED/custody-spec.json`,
+the exact spec file it was composed from, and that file is copied next to the
+report so `check` can be given it.
 
 ```sh
 sh "$T18/t18-real-host-report.sh" report "$RUN/operator" "$RUN/agent/evidence" "$RENDERED" "$PARAMS" "$WALLET_MODE" > "$RUN/T18-REPORT.txt"
 echo "report exit $?"
+cp "$RENDERED/custody-spec.json" "$RUN/custody-spec.json"
 ```
 
 **Step 7. Check** (anyone). This recomputes the OVERALL line from the stored
-report:
+report. The second argument, the custody spec the run used, is required:
+without it `check` does not run (usage error, exit 64).
 
 ```sh
-sh "$T18/t18-real-host-report.sh" check "$RUN/T18-REPORT.txt"
+sh "$T18/t18-real-host-report.sh" check "$RUN/T18-REPORT.txt" "$RUN/custody-spec.json"
 echo "check exit $?"
 ```
 
 Exit 0 means OVERALL PASS. Exit 1 means OVERALL FAIL, followed by a
 `# reasons:` line.
 
+`check` binds the report to the spec it is given. The report's one
+`custody_spec_sha256 <hex>` line must be the SHA-256 of that file: a report
+without the line, with it twice, or checked against another spec is refused
+(`custody-spec-sha256:missing`, `:duplicate`, `:differs`). Every
+`denied_reads` and `denied_rpc` entry of the spec must have exactly one
+`denied-read:<path>` or `denied-rpc:<target>` row, whatever its verdict: a
+deleted row is `missing:denied-read:<path>` even when the OVERALL counts were
+edited to match, a repeated row is `duplicate:<row>`, and a denied row for
+anything the spec does not list is `extra-row:<row>`. The report does not
+copy the spec's path list; the hash identifies the file.
+
 `check` parses the stored report once and refuses instead of choosing. Every
-line is the header, the literal no-op apply line, the literal positive-path
-statement, an item line or the final OVERALL line, single-space separated and
-newline-terminated. In an item line each field key stands once: a second
-`host=`, `run=` or `real_account=` is refused (`duplicate-field:<item>:<key>`)
-even when both copies agree. A `PASS`, `STAND_IN` or `COVERED_BY_HOSTED` line
+line is the header, the `custody_spec_sha256` line, the literal no-op apply
+line, the literal positive-path statement, an item line or the final OVERALL
+line, single-space separated and newline-terminated. In an item line each
+field key stands once: a second `host=`, `run=` or `real_account=` is refused
+(`duplicate-field:<item>:<key>`) even when both copies agree. A `PASS`, `STAND_IN` or `COVERED_BY_HOSTED` line
 carries exactly the fields of its item, in order, each with the one value its
 verdict needs (from the header or the pin table), so a field that contradicts
 its verdict, the header or another item is refused (for example a launch form
@@ -285,13 +300,20 @@ It composes synthetic evidence through the same report code and prints
 and a stand-in run (placeholders `STAND_IN`, OVERALL valid only as a stand-in
 run). Its known-bad samples (a placeholder reported `PASS` on a stand-in run, a
 refused real-account group set, an ENOENT, a stand-in declared real, a sent
-request, `STAND_IN` on a real wallet) must FAIL with their named lines.
+request, `STAND_IN` on a real wallet) must FAIL with their named lines. The
+valid real report must pass `check` with its spec, `check` without a spec must
+be a usage error, and five plants must fail `check` with their named reason: a
+deleted required row with the OVERALL count edited to match, another spec, a
+missing and a duplicated `custody_spec_sha256` line, and an extra denied row.
 
 ## 4. The report
 
 The first line is the header: `T18-REAL-HOST v1 wallet=<mode> commit=<pinned
 commit> spec_sha256=<canonical spec> agent_uid=... primary_gid=...
-socket_gid=... service_uid=...`. Then comes one line per item, in this form:
+socket_gid=... service_uid=...`. The second line is `custody_spec_sha256
+<hex>`, the SHA-256 of the exact `custody-spec.json` file the report was
+composed from (step 7 checks the report against that file). Then comes one
+line per item, in this form:
 
 ```
 <item-id> PASS|FAIL|STAND_IN|COVERED_BY_HOSTED <evidence>
@@ -416,16 +438,18 @@ A covered item is never pinned to a run in which its test skipped.
 ## 6. Collect the report
 
 ```sh
-tar -C "$RUN" -czf "$RUN.tar.gz" operator agent/evidence T18-REPORT.txt
+tar -C "$RUN" -czf "$RUN.tar.gz" operator agent/evidence T18-REPORT.txt custody-spec.json
 sha256sum "$RUN.tar.gz"
 ```
 
-Hand over three things: `T18-REPORT.txt`, the tarball and its SHA-256, and
-the `deploy-kit` commit the run was built from.
+Hand over four things: `T18-REPORT.txt`, the `custody-spec.json` the run
+used (`check` needs it; it is also in the tarball), the tarball and its
+SHA-256, and the `deploy-kit` commit the run was built from.
 
 The evidence holds no credential:
 
-- the public parameters' renders and their comparison;
+- the public parameters' renders and their comparison, and the custody spec
+  the run used (public paths and IDs);
 - the `g2-host-flow` output and `id g2-agent`;
 - the `getindexinfo` answer;
 - the `/proc` credential lines;
