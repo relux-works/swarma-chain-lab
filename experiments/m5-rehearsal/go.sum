@@ -76,6 +76,8 @@ github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.2026111
 github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261111181054-288d63e191fe/go.mod h1:y/ipJFg/GGAPhls2v56zhAu2MPFNfaTtvG68ZtNmCLU=
 github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113084500-b55fa5151e75 h1:vvpWqcptiZdbgU1n04g/EpMyF9NDSV6uZwXvx6ZdRlY=
 github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113084500-b55fa5151e75/go.mod h1:SUxhVqZC1oneAkj+bhzhp0S04cFCWkd+6kMFypNrf9I=
+github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113121921-ca6af92d7337 h1:3tjAO6J621Z5Tqb/f4nJT7pL8FWzQDqbshWENtknLDY=
+github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113121921-ca6af92d7337/go.mod h1:zyZYWNpVpehvggTd05VOoWyAeWRU7+Kn+MJ/+zJfgKI=
 github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261111181054-288d63e191fe h1:io482B6ia4yxUYmxwRH44gZ57/wnzexjQBHTwhQJxSw=
 github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261111181054-288d63e191fe/go.mod h1:W92/atFej2jhIPtMr8Yd7ccPEJOJQLx2PK7X6t2phZQ=
 github.com/relux-works/swarma-chain-lab/experiments/rental v0.5.1-0.20261111181054-288d63e191fe h1:+1syWOT2HuOuawutDoZn04I/lMT9s/rFOqg22BumiO0=
@@ -86,6 +88,8 @@ github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.2026
 github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261111181054-288d63e191fe/go.mod h1:Cas7YJJaH5l55O/wzE3GkQVdNw34KBhPKawPVBS3kXA=
 github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261113084500-b55fa5151e75 h1:Gl4x5rsqicM+I9SwRN86FYLPXYc4fgTqmKeJQ/dFhFM=
 github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261113084500-b55fa5151e75/go.mod h1:sCTekAffg+t/WkBsW/vMObJdFcWjnrw7JaP1yRhHTN0=
+github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261113121921-ca6af92d7337 h1:TgLOr8uI9sx1+3enL2qhhSwy2hca3ApSgnexblN/Rfc=
+github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261113121921-ca6af92d7337/go.mod h1:bnJz4dpbSVMeQW2ef+DOWzcttUnC4nm1DBP6WFR6K68=
 github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261111181054-288d63e191fe h1:aKlpyJ1o5Ppi+djOQ7w+VAhRLvXzJy8wRPy3u2oDSpY=
 github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261111181054-288d63e191fe/go.mod h1:GrPtS+vb6S9DdlyfX9ExD2T/JdsDwAcDCE1D4jLwocA=
 github.com/relux-works/swarma-chain-lab/experiments/signer-service v0.3.1-0.20261111181054-288d63e191fe h1:Ez+PE80dERsZd3UPDaQq1/OR1FuUDJ+90M5/vtwdJFk=

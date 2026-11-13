@@ -41,8 +41,8 @@ replace github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/ga
 replace github.com/relux-works/swarma-chain-lab/experiments/model-proxy => ../model-proxy
 
 require (
-	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113084500-b55fa5151e75
-	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261113084500-b55fa5151e75
+	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113121921-ca6af92d7337
+	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261113121921-ca6af92d7337
 	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261113084500-b55fa5151e75
 )
 

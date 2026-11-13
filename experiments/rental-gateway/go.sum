@@ -74,6 +74,8 @@ github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.2026111
 github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261111181054-288d63e191fe/go.mod h1:y/ipJFg/GGAPhls2v56zhAu2MPFNfaTtvG68ZtNmCLU=
 github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113084500-b55fa5151e75 h1:vvpWqcptiZdbgU1n04g/EpMyF9NDSV6uZwXvx6ZdRlY=
 github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113084500-b55fa5151e75/go.mod h1:SUxhVqZC1oneAkj+bhzhp0S04cFCWkd+6kMFypNrf9I=
+github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113121921-ca6af92d7337 h1:3tjAO6J621Z5Tqb/f4nJT7pL8FWzQDqbshWENtknLDY=
+github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113121921-ca6af92d7337/go.mod h1:zyZYWNpVpehvggTd05VOoWyAeWRU7+Kn+MJ/+zJfgKI=
 github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261111181054-288d63e191fe h1:io482B6ia4yxUYmxwRH44gZ57/wnzexjQBHTwhQJxSw=
 github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261111181054-288d63e191fe/go.mod h1:W92/atFej2jhIPtMr8Yd7ccPEJOJQLx2PK7X6t2phZQ=
 github.com/relux-works/swarma-chain-lab/experiments/rental v0.5.1-0.20261111181054-288d63e191fe h1:+1syWOT2HuOuawutDoZn04I/lMT9s/rFOqg22BumiO0=

@@ -17,7 +17,7 @@ require (
 )
 
 require (
-	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113084500-b55fa5151e75
+	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113121921-ca6af92d7337
 	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261111181054-288d63e191fe
 	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261111181054-288d63e191fe // indirect
 )

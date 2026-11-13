@@ -22,7 +22,7 @@ require (
 	github.com/relux-works/swarma-chain-lab/experiments/grant-store v0.1.1-0.20261111181054-288d63e191fe
 	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261111181054-288d63e191fe
 	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.4.1-0.20261111181054-288d63e191fe
-	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261111181054-288d63e191fe
+	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261113121921-ca6af92d7337
 	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261111181054-288d63e191fe // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 )

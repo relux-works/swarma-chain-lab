@@ -38,7 +38,7 @@ replace github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/ga
 require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.4.1-0.20261111181054-288d63e191fe
-	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261113084500-b55fa5151e75
+	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261113121921-ca6af92d7337
 )
 
 replace github.com/relux-works/swarma-chain-lab/experiments/rental-gateway => ../rental-gateway
