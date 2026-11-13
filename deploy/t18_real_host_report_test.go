@@ -327,7 +327,8 @@ func TestT18RealHostItemContract(t *testing.T) {
 	}
 	for _, id := range append(want, t18rhRunDK, t18rhRunAW, t18rhCommit, t18rhRunNode, t18rhNodeCommit, "TestPX1T18CoreNodePolicy", t18rhApplyNoop,
 		"proven by the separate owner-authorized, bounded mainnet smoke gate, not by T18", "valid-only-as-a-stand-in-run", "perl -v",
-		`check "$RUN/T18-REPORT.txt" "$RUN/custody-spec.json"`, "custody_spec_sha256") {
+		`check "$RUN/T18-REPORT.txt" "$RUN/custody-spec.json"`, "custody_spec_sha256",
+		`sha256sum "$RUN.tar.gz" "$RUN/custody-spec.json"`, "header-spec-sha256:differs", "render-custody-spec-file-sha256:differs") {
 		if strings.HasPrefix(id, "denied-read:") || strings.HasPrefix(id, "denied-rpc:") {
 			continue
 		}
@@ -612,10 +613,13 @@ func TestT18RealHostCheckControls(t *testing.T) {
 // report passes check with its spec, check without a spec is a usage error
 // (64), and a deleted required row with the OVERALL count edited to match,
 // another spec, a missing or duplicated custody_spec_sha256 line and an extra
-// denied row each fail check with their named reason.
+// denied row each fail check with their named reason. The r5 samples: the
+// custody_spec_sha256 line, the header's spec_sha256 and the render line's
+// custody_spec_file_sha256, each changed alone, fail check with their named
+// reason.
 func TestT18RealHostSelfTest(t *testing.T) {
 	code, out := t18rhRun(t, []string{"DEPLOY_KIT=/nonexistent/deploy-kit"}, "self-test")
-	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 17 {
+	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 20 {
 		t.Fatalf("T18RH_SELF_TEST %d\n%s", code, out)
 	}
 }
@@ -1098,7 +1102,8 @@ const t18rhR4 = "testdata/t18-real-host-r4"
 // stated OVERALL line, which keeps the valid counts and so disagrees): a
 // required denied-read row deleted with the OVERALL count edited to match (the
 // F3/R8 repro, which r3 accepted), the valid report against another spec (same
-// rows, another file: the hash), the custody_spec_sha256 line missing or
+// rows, another file: since r5 all three spec hashes differ, each by name),
+// the custody_spec_sha256 line missing or
 // twice, and a denied row that is not in the spec. Neighbours: an extra or
 // missing denied-rpc row, a duplicated denied row, a malformed hash line and a
 // spec without denied_rpc are refused; a denied row whose verdict is FAIL is
@@ -1178,7 +1183,7 @@ func TestT18RealHostSpecBoundCheck(t *testing.T) {
 		}
 	}
 	if code, out := t18rhCheckFile(t, "other-spec", valid, other); code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") ||
-		!strings.Contains(out, "\n# reasons: custody-spec-sha256:differs stated-overall-disagrees\n") {
+		!strings.Contains(out, "\n# reasons: header-spec-sha256:differs render-custody-spec-file-sha256:differs custody-spec-sha256:differs stated-overall-disagrees\n") {
 		t.Fatalf("T18RH_SPEC the valid report against another spec: exit %d\n%s", code, out)
 	}
 
@@ -1205,5 +1210,98 @@ func TestT18RealHostSpecBoundCheck(t *testing.T) {
 	want := strings.Replace(overall, "OVERALL PASS pass=20 stand_in=0 covered=11 fail=0 ", "OVERALL FAIL pass=19 stand_in=0 covered=11 fail=1 ", 1)
 	if code, out := t18rhCheckFile(t, "fail-row", failRow, spec); code != 1 || out != want {
 		t.Fatalf("T18RH_SPEC a FAIL row: exit %d, want exactly %q\n%s", code, want, out)
+	}
+}
+
+// t18rhR5 holds the r5 plants: the r4 valid real report with exactly one of
+// its three spec hashes changed to the other spec's value.
+const t18rhR5 = "testdata/t18-real-host-r5"
+
+// Claim (r5): no spec hash in a report is a free field. check refuses unless
+// all three equal the given spec's: the custody_spec_sha256 line and the
+// render line's custody_spec_file_sha256 the SHA-256 of the spec file, and the
+// header's spec_sha256 the spec's canonical hash. The expected values are
+// computed here from the spec bytes and the product's CustodySpecSHA256 (the
+// hash g2-custody-verify reports), not taken from the runner. The valid report
+// names its spec in all three and passes (exit 0). Each stored plant is that
+// report with one of the three changed alone to the other spec's value, and
+// is refused with exit 1 and exactly its named reason beside the stated
+// OVERALL line; the header plant also contradicts custody-verify's verified=,
+// which equals the header in a valid report. Neighbours: the header and
+// verified= changed together are refused by the header comparison alone, and
+// the given spec with one more trailing newline (same canonical hash, another
+// file) is refused by the two file hashes and not by the header. Limit: check
+// computes the canonical hash as the SHA-256 of the spec file without its
+// trailing newline, which equals CustodySpecSHA256 for a rendered spec (the
+// file step 6 copies), not for a re-serialized one.
+func TestT18RealHostAllSpecHashesBound(t *testing.T) {
+	spec, other := filepath.Join(t18rhR4, "custody-spec.json"), filepath.Join(t18rhR4, "other-custody-spec.json")
+	read := func(path string) string {
+		b, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return string(b)
+	}
+	canon := func(path string) string {
+		sp, e := ParseCustodySpec([]byte(strings.TrimSuffix(read(path), "\n")))
+		if e != nil {
+			t.Fatal(e)
+		}
+		return CustodySpecSHA256(sp)
+	}
+	fileSHA, canonSHA := t18rhSha([]byte(read(spec))), canon(spec)
+	otherFile, otherCanon := t18rhSha([]byte(read(other))), canon(other)
+	if fileSHA == canonSHA || otherFile == fileSHA || otherCanon == canonSHA {
+		t.Fatal("T18RH_HASHES the file and canonical hashes of the two specs must all differ")
+	}
+	valid := read(filepath.Join(t18rhR4, "valid-real.txt"))
+	header := valid[:strings.Index(valid, "\n")]
+	if !strings.Contains(header, " spec_sha256="+canonSHA+" ") || strings.Count(valid, canonSHA) != 2 ||
+		strings.Count(valid, "\ncustody_spec_sha256 "+fileSHA+"\n") != 1 ||
+		strings.Count(valid, "\nrender PASS files=6 custody_spec_file_sha256="+fileSHA+"\n") != 1 || strings.Count(valid, fileSHA) != 2 {
+		t.Fatal("T18RH_HASHES the valid report does not name its spec in all three fields\n", valid)
+	}
+	last := valid[strings.LastIndex(strings.TrimSuffix(valid, "\n"), "\n")+1:]
+	if code, out := t18rhCheckFile(t, "valid-real", valid, spec); code != 0 || out != last {
+		t.Fatalf("T18RH_HASHES the valid report refused with its spec: %d\n%s", code, out)
+	}
+	edit := func(text, re, repl string) string {
+		out := regexp.MustCompile(`(?m)`+re).ReplaceAllString(text, repl)
+		if out == text {
+			t.Fatalf("T18RH_HASHES edit %q matched nothing", re)
+		}
+		return out
+	}
+	headerRe, headerTo := `^(T18-REAL-HOST v1 .* spec_sha256=)`+canonSHA+` `, "${1}"+otherCanon+" "
+	plants := []struct{ file, made, reasons string }{
+		{"custody-hash-differs.txt", edit(valid, `^custody_spec_sha256 `+fileSHA+`$`, "custody_spec_sha256 "+otherFile), "custody-spec-sha256:differs"},
+		{"header-hash-differs.txt", edit(valid, headerRe, headerTo), "header-spec-sha256:differs custody-verify-pass-other-spec"},
+		{"render-hash-differs.txt", edit(valid, `^(render PASS files=6 custody_spec_file_sha256=)`+fileSHA+`$`, "${1}"+otherFile), "render-custody-spec-file-sha256:differs"},
+	}
+	for _, c := range plants {
+		text := read(filepath.Join(t18rhR5, c.file))
+		if text != c.made {
+			t.Fatalf("T18RH_HASHES %s is not the valid report with exactly its stated edit", c.file)
+		}
+		code, out := t18rhCheckFile(t, c.file, text, spec)
+		if code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.Contains(out, "\n# reasons: "+c.reasons+" stated-overall-disagrees\n") {
+			t.Fatalf("T18RH_HASHES %s: exit %d, want 1 with exactly %q\n%s", c.file, code, c.reasons, out)
+		}
+	}
+	// The header and verified= moved together: only the header comparison
+	// sees it.
+	both := edit(edit(valid, headerRe, headerTo), `^(custody-verify PASS .* verified=)`+canonSHA+`$`, "${1}"+otherCanon)
+	if code, out := t18rhCheckFile(t, "header-and-verified", both, spec); code != 1 || !strings.Contains(out, "\n# reasons: header-spec-sha256:differs stated-overall-disagrees\n") {
+		t.Fatalf("T18RH_HASHES header and verified= moved together: exit %d\n%s", code, out)
+	}
+	// One more trailing newline: the canonical hash agrees, the file does not.
+	nl := filepath.Join(t.TempDir(), "custody-spec.json")
+	if e := os.WriteFile(nl, []byte(read(spec)+"\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if code, out := t18rhCheckFile(t, "spec-extra-newline", valid, nl); code != 1 ||
+		!strings.Contains(out, "\n# reasons: render-custody-spec-file-sha256:differs custody-spec-sha256:differs stated-overall-disagrees\n") {
+		t.Fatalf("T18RH_HASHES the spec with one more newline: exit %d\n%s", code, out)
 	}
 }

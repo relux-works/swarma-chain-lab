@@ -265,7 +265,12 @@ Exit 0 means OVERALL PASS. Exit 1 means OVERALL FAIL, followed by a
 `check` binds the report to the spec it is given. The report's one
 `custody_spec_sha256 <hex>` line must be the SHA-256 of that file: a report
 without the line, with it twice, or checked against another spec is refused
-(`custody-spec-sha256:missing`, `:duplicate`, `:differs`). Every
+(`custody-spec-sha256:missing`, `:duplicate`, `:differs`). No spec hash in
+the report is a free field: the `render` line's `custody_spec_file_sha256`
+must be the SHA-256 of that file too (`render-custody-spec-file-sha256:differs`),
+and the header's `spec_sha256` must be the canonical SHA-256 of that file, its
+bytes without the trailing newline, which is the hash `g2-custody-verify`
+reports (`header-spec-sha256:differs`). Every
 `denied_reads` and `denied_rpc` entry of the spec must have exactly one
 `denied-read:<path>` or `denied-rpc:<target>` row, whatever its verdict: a
 deleted row is `missing:denied-read:<path>` even when the OVERALL counts were
@@ -302,9 +307,12 @@ run). Its known-bad samples (a placeholder reported `PASS` on a stand-in run, a
 refused real-account group set, an ENOENT, a stand-in declared real, a sent
 request, `STAND_IN` on a real wallet) must FAIL with their named lines. The
 valid real report must pass `check` with its spec, `check` without a spec must
-be a usage error, and five plants must fail `check` with their named reason: a
+be a usage error, and eight plants must fail `check` with their named reason: a
 deleted required row with the OVERALL count edited to match, another spec, a
-missing and a duplicated `custody_spec_sha256` line, and an extra denied row.
+missing and a duplicated `custody_spec_sha256` line, each of the three spec
+hashes (the `custody_spec_sha256` line, the header's `spec_sha256`, the
+`render` line's `custody_spec_file_sha256`) changed alone, and an extra denied
+row.
 
 ## 4. The report
 
@@ -312,7 +320,9 @@ The first line is the header: `T18-REAL-HOST v1 wallet=<mode> commit=<pinned
 commit> spec_sha256=<canonical spec> agent_uid=... primary_gid=...
 socket_gid=... service_uid=...`. The second line is `custody_spec_sha256
 <hex>`, the SHA-256 of the exact `custody-spec.json` file the report was
-composed from (step 7 checks the report against that file). Then comes one
+composed from (step 7 checks the report against that file, and checks the
+header's canonical `spec_sha256` and the `render` line's
+`custody_spec_file_sha256` against it too). Then comes one
 line per item, in this form:
 
 ```
@@ -439,12 +449,18 @@ A covered item is never pinned to a run in which its test skipped.
 
 ```sh
 tar -C "$RUN" -czf "$RUN.tar.gz" operator agent/evidence T18-REPORT.txt custody-spec.json
-sha256sum "$RUN.tar.gz"
+sha256sum "$RUN.tar.gz" "$RUN/custody-spec.json"
 ```
 
-Hand over four things: `T18-REPORT.txt`, the `custody-spec.json` the run
-used (`check` needs it; it is also in the tarball), the tarball and its
-SHA-256, and the `deploy-kit` commit the run was built from.
+Hand over: `T18-REPORT.txt`, the `custody-spec.json` the run used and its
+SHA-256 (`check` needs the file; it is also in the tarball), the tarball and
+its SHA-256, and the `deploy-kit` commit the run was built from. The receiver
+checks the spec's SHA-256 before running `check` (step 7), with the hash
+handed over in place of `<spec sha256>`:
+
+```sh
+echo "<spec sha256>  custody-spec.json" | sha256sum -c -
+```
 
 The evidence holds no credential:
 

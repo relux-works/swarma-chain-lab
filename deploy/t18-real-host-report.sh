@@ -41,7 +41,10 @@
 #       with exactly the recomputed OVERALL line. SPEC is required: it is the
 #       rendered custody-spec.json the run used. The report's one
 #       `custody_spec_sha256 <hex>` line must be the SHA-256 of that file, and
-#       every denied_reads and denied_rpc entry of SPEC must have exactly one
+#       so must the render line's custody_spec_file_sha256; the header's
+#       spec_sha256 must be the canonical SHA-256 of that file (its bytes
+#       without the trailing newline, the hash g2-custody-verify reports).
+#       Every denied_reads and denied_rpc entry of SPEC must have exactly one
 #       row, with no row for anything else
 #   t18-real-host-report.sh peer SOCKET
 #       connects, reads SO_PEERCRED, sends nothing
@@ -146,6 +149,10 @@ json_array() {
 }
 
 sha_of() { sha256sum "$1" | cut -d ' ' -f 1; }
+# canon_sha_of SPEC: the canonical spec hash, the SHA-256 of the rendered
+# file's bytes without its trailing newline (json.Marshal of the spec, which is
+# what CustodySpecSHA256 and so g2-custody-verify report).
+canon_sha_of() { printf '%s' "$(cat "$1")" | sha256sum | cut -d ' ' -f 1; }
 
 # no-request mode: the AGENT_WALLET of the custody script. It sends nothing.
 if [ "$#" -eq 4 ] && [ "$1" = --config ] && [ "$3" = --request ]; then
@@ -280,7 +287,7 @@ report_items() {
 	gid=$(awk -v u="$user" '$1 == "u" && $2 == u { n = split($3, id, ":"); print id[n] }' "$sys")
 	sgid=$(awk '$1 == "g" && $2 == "swarma-wallet-peer" { print $3 }' "$sys")
 	suid=$(awk '$1 == "u" && $2 == "swarma-wallet" { print $3 }' "$sys")
-	spec_sha=$(printf '%s' "$(cat "$spec")" | sha256sum | cut -d ' ' -f 1)
+	spec_sha=$(canon_sha_of "$spec")
 	echo "T18-REAL-HOST v1 wallet=$wallet commit=$pinned_commit spec_sha256=$spec_sha agent_uid=$uid primary_gid=$gid socket_gid=$sgid service_uid=$suid"
 	# The exact spec file this report was composed from. check needs that file
 	# and refuses unless its SHA-256 is this value.
@@ -470,7 +477,10 @@ report_items() {
 # OVERALL line, single-space separated and newline-terminated; anything else
 # is invalid. The report is bound to SPEC, the custody-spec.json file the run
 # used: the custody_spec_sha256 line stands exactly once and equals the
-# SHA-256 of SPEC, and each denied_reads and denied_rpc entry of SPEC has
+# SHA-256 of SPEC, the render line's custody_spec_file_sha256 equals it too,
+# the header's spec_sha256 equals the canonical SHA-256 of SPEC (r5: no spec
+# hash in the report is a free field), and each denied_reads and denied_rpc
+# entry of SPEC has
 # exactly one row (any verdict), while a denied row for anything else is
 # refused. An item line is
 # `<id> <verdict> <field>...`, where a field is key=value (or a bare word)
@@ -487,9 +497,10 @@ check_report() {
 	spec_reads=$(json_array "$3" denied_reads) || spec_reads=
 	spec_rpcs=$(json_array "$3" denied_rpc) || spec_rpcs=
 	spec_file_sha=$(sha_of "$3")
+	spec_canon_sha=$(canon_sha_of "$3")
 	awk -v pins="$(covered_table; echo "$positive_row")" -v apply_line="$apply_noop_line" -v note="$positive_note" \
 		-v pinned_commit="$pinned_commit" -v status_dir="$status_dir" -v unterminated="$unterminated" -v stored="$2" \
-		-v spec_reads="$spec_reads" -v spec_rpcs="$spec_rpcs" -v spec_file_sha="$spec_file_sha" '
+		-v spec_reads="$spec_reads" -v spec_rpcs="$spec_rpcs" -v spec_file_sha="$spec_file_sha" -v spec_canon_sha="$spec_canon_sha" '
 	function bad(why) { invalid++; reasons = reasons " " why }
 	function num(s) { return s ~ /^[0-9]+$/ }
 	function hex64(s) { return length(s) == 64 && s !~ /[^0-9a-f]/ }
@@ -545,6 +556,8 @@ check_report() {
 		if (!num(hdr["agent_uid"]) || !num(hdr["primary_gid"]) || !num(hdr["socket_gid"]) || !num(hdr["service_uid"])) hok = 0
 		if (hdr["socket_gid"] == hdr["primary_gid"]) hok = 0
 		if (!hok || $0 !~ /^[^ \t\r]+( [^ \t\r]+)*$/) { bad("header"); next }
+		# The header names the canonical hash of the given spec (r5).
+		if (hdr["spec_sha256"] != spec_canon_sha) bad("header-spec-sha256:differs")
 		wallet = hdr["wallet"]
 		next
 	}
@@ -620,6 +633,8 @@ check_report() {
 		}
 		if (id == "node-txindex" && fv["getindexinfo"] !~ /^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$/) bad("txindex-pass-without-synced-index")
 		if (id == "render" && (fv["files"] != "6" || !hex64(fv["custody_spec_file_sha256"]))) bad("render-pass-without-six-files")
+		# The render line names the SHA-256 of the given spec file (r5).
+		if (id == "render" && fv["custody_spec_file_sha256"] != spec_file_sha) bad("render-custody-spec-file-sha256:differs")
 		if (id == "agent-inputs" && fv["spec,client,params"] != "rendered") bad("agent-inputs-pass-without-match")
 		if (id == "peer-precondition" && fv["perl_v"] !~ /^This_is_perl_5,_version_[0-9]+,_subversion_[0-9]+/) bad("peer-precondition-without-perl-version")
 		if (id == "account") {
@@ -790,6 +805,14 @@ self_test() {
 	checked missing-hash 1 "$w/no-hash.txt" "$spec" 'custody-spec-sha256:missing'
 	awk '{ print } /^custody_spec_sha256 / { print }' "$valid" >"$w/two-hashes.txt"
 	checked duplicate-hash 1 "$w/two-hashes.txt" "$spec" 'custody-spec-sha256:duplicate'
+	# r5: each of the three spec hashes, changed alone, is refused by name.
+	zero=0000000000000000000000000000000000000000000000000000000000000000
+	sed "s/^custody_spec_sha256 [0-9a-f]*\$/custody_spec_sha256 $zero/" "$valid" >"$w/custody-hash.txt"
+	checked custody-hash-differs 1 "$w/custody-hash.txt" "$spec" 'custody-spec-sha256:differs'
+	sed "1s/ spec_sha256=[0-9a-f]* / spec_sha256=$zero /" "$valid" >"$w/header-hash.txt"
+	checked header-hash-differs 1 "$w/header-hash.txt" "$spec" 'header-spec-sha256:differs'
+	sed "s/^\(render PASS files=6 custody_spec_file_sha256=\)[0-9a-f]*\$/\1$zero/" "$valid" >"$w/render-hash.txt"
+	checked render-hash-differs 1 "$w/render-hash.txt" "$spec" 'render-custody-spec-file-sha256:differs'
 	awk '/^denied-rpc:/ { print "denied-read:/etc/swarma/wallet/extra.json PASS observed=EACCES" } { sub(/^OVERALL PASS pass=13 /, "OVERALL PASS pass=14 "); print }' "$valid" >"$w/extra-row.txt"
 	checked extra-row 1 "$w/extra-row.txt" "$spec" 'extra-row:denied-read:/etc/swarma/wallet/extra.json'
 	if [ "$failures" = 0 ]; then
