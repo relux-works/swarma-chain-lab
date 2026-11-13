@@ -1,7 +1,7 @@
 package main
 
 // PX1 S5 subcommands: g2-render, g2-host-flow, g2-agent-groups,
-// g2-custody-probe, g2-custody-verify.
+// g2-custody-probe, g2-custody-verify, g2-custody-hash.
 
 import (
 	"bytes"
@@ -108,6 +108,29 @@ func g2CustodyProbe(args []string, out io.Writer) error {
 		return deploy.ErrCustody
 	}
 	return nil
+}
+
+// g2CustodyHash prints one line, T18_CUSTODY_SPEC_SHA256 and the
+// CustodySpecSHA256 of a spec file read by readSpec, the reader of
+// g2-custody-probe and g2-custody-verify: the hash a probe report carries and
+// verify checks. A spec file readSpec refuses is refused with readSpec's
+// error and nothing is printed. It is read-only: no probe, no UID gate, no
+// network, no write. It does not apply verify's -launch layout check.
+//
+//	deploy-kit g2-custody-hash -spec custody-spec.json
+func g2CustodyHash(args []string, out io.Writer) error {
+	f := flag.NewFlagSet("g2-custody-hash", flag.ContinueOnError)
+	f.SetOutput(io.Discard)
+	path := f.String("spec", "", "resolved custody-spec.json")
+	if f.Parse(args) != nil || f.NArg() != 0 {
+		return deploy.ErrInput
+	}
+	spec, e := readSpec(*path)
+	if e != nil {
+		return e
+	}
+	_, e = fmt.Fprintln(out, "T18_CUSTODY_SPEC_SHA256 "+deploy.CustodySpecSHA256(spec))
+	return e
 }
 
 // g2CustodyVerify checks a stored report against the launch spec.
