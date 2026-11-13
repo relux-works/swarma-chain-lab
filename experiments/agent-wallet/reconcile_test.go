@@ -32,6 +32,13 @@ func f6Transaction(r JournalRecordV2) *su.Transaction {
 	}
 	return &su.Transaction{Version: 1, Inputs: inputs, Outputs: []su.Output{{Value: 1, Script: []byte{0x51}}}}
 }
+func (n *f6Node) transaction() *su.Transaction {
+	tx := f6Transaction(n.reserve)
+	if n.change == "input" {
+		tx.Inputs[0].TxID = px1jHex(42)
+	}
+	return tx
+}
 func (n *f6Node) Call(_ context.Context, m string, args ...any) (json.RawMessage, error) {
 	if n.change == "rpc" {
 		return nil, fail("RPC_UNAVAILABLE")
@@ -65,19 +72,16 @@ func (n *f6Node) Call(_ context.Context, m string, args ...any) (json.RawMessage
 			}
 			return canonical(g), nil
 		}
-		if h == 100 {
-			return canonical(px1jHex(100)), nil
+		if h == 99 || h == 100 {
+			return canonical(px1jHex(int(h))), nil
 		}
 		if n.change == "inactive" {
 			return canonical(px1jHex(94)), nil
 		}
 		return canonical(px1jHex(95)), nil
 	case "getrawtransaction":
-		tx := f6Transaction(n.reserve)
+		tx := n.transaction()
 		id := tx.ID()
-		if n.change == "input" {
-			tx.Inputs[0].TxID = px1jHex(42)
-		}
 		if n.change == "txid" {
 			id = px1jHex(87)
 		}
@@ -102,7 +106,7 @@ func (n *f6Node) Call(_ context.Context, m string, args ...any) (json.RawMessage
 		}
 		return canonical(map[string]any{"hash": hash, "height": h, "confirmations": k}), nil
 	case "getblock":
-		ids := []string{f6Transaction(n.reserve).ID()}
+		ids := []string{n.transaction().ID()}
 		if n.change == "membership" {
 			ids = []string{px1jHex(86)}
 		}
@@ -116,11 +120,35 @@ func (n *f6Node) Call(_ context.Context, m string, args ...any) (json.RawMessage
 }
 func f6Journal(t *testing.T) (JournalV2, JournalRecordV2, string) {
 	t.Helper()
+	return f6JournalWithPlan(t, false)
+}
+func f6JournalWithPlan(t *testing.T, ownPlan bool) (JournalV2, JournalRecordV2, string) {
+	t.Helper()
 	dir := px1jPrivateDir(t)
 	j := px1jOpenWallet(t, dir, JournalLimitsV2{SpendCapacity: 4})
-	r := px1jMust(t, j, px1jReserve(1, 1, time.Now().Unix()-10, 50000, 1))
+	r := px1jReserve(1, 1, time.Now().Unix()-10, 50000, 1)
+	if ownPlan {
+		r.TxID = f6Transaction(r).ID()
+	}
+	r = px1jMust(t, j, r)
 	px1jMust(t, j, px1jFollowRec(r, RecordUncertain, "uncertain", r.LastTime))
 	return j, r, dir
+}
+func f6JournalFingerprint(t *testing.T, dir string) string {
+	t.Helper()
+	paths, e := filepath.Glob(filepath.Join(dir, "journal-v2-*.json"))
+	if e != nil || len(paths) == 0 {
+		t.Fatal("fixture journal files", e)
+	}
+	files := map[string]string{}
+	for _, path := range paths {
+		b, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		files[filepath.Base(path)] = Hash(b)
+	}
+	return Hash(canonical(files))
 }
 func f6Request(r JournalRecordV2) ReconcileRequest {
 	return ReconcileRequest{TargetSeq: r.Seq, ReleasedSat: r.Reserved, Evidence: "conflict", ConflictTxID: f6Transaction(r).ID()}
@@ -129,10 +157,12 @@ func f6Request(r JournalRecordV2) ReconcileRequest {
 // Claim: the operator core accepts a six-confirmation input conflict and refuses
 // neighboring unsafe evidence/amount/key/clock cases without a release or debit
 // change. These are simulated own-node observations, not Core qualification.
+// Regression (conflict-input-fixture-masking): input and own-plan have coherent
+// raw bytes/txids/active membership, so only the intended exclusion can refuse.
 func TestF6ReconcileRefusals(t *testing.T) {
 	for _, name := range []string{"valid", "k5", "chain", "genesis", "tip", "inactive", "input", "txid", "height", "membership", "rpc", "absent", "own-plan", "zero", "over", "target", "key", "clock"} {
 		t.Run(name, func(t *testing.T) {
-			j, r, _ := f6Journal(t)
+			j, r, dir := f6JournalWithPlan(t, name == "own-plan")
 			defer j.Close()
 			q := f6Request(r)
 			node := &f6Node{reserve: r, change: name}
@@ -146,6 +176,8 @@ func TestF6ReconcileRefusals(t *testing.T) {
 				want = CodeReconcileEvidence
 			case "absent":
 				q.Evidence = "absent"
+			case "input":
+				q.ConflictTxID = node.transaction().ID()
 			case "own-plan":
 				q.ConflictTxID = r.TxID
 			case "zero":
@@ -164,7 +196,27 @@ func TestF6ReconcileRefusals(t *testing.T) {
 				now = r.LastTime - 1
 				want = CodeClockRollback
 			}
+			if name == "valid" || name == "input" || name == "own-plan" {
+				// Establish fixture coherence independently of release refusal.
+				o := su.NewReadObservation(context.Background(), node)
+				defer o.Close()
+				if e := o.Start("regtest", su.RegtestGenesis); e != nil {
+					t.Fatal("F6_FIXTURE_CHAIN", e)
+				}
+				view, tx, e := o.PaymentTransaction(q.ConflictTxID)
+				if e != nil || tx == nil || tx.ID() != q.ConflictTxID {
+					t.Fatal("F6_FIXTURE_RAW_BINDING", e)
+				}
+				if _, e := o.Confirmed(view); e != nil || o.Stable() != nil {
+					t.Fatal("F6_FIXTURE_MEMBERSHIP", e)
+				}
+				spends := tx.Inputs[0].Point == r.Inputs[0]
+				if spends != (name != "input") || (q.ConflictTxID == r.TxID) != (name == "own-plan") {
+					t.Fatal("F6_FIXTURE_EXCLUSION")
+				}
+			}
 			seq := j.Usage().LastSeq
+			before := f6JournalFingerprint(t, dir)
 			result, e := reconcileLocked(context.Background(), j, node, key, q, px1jHex(3), "regtest", su.RegtestGenesis, func() int64 { return now })
 			if want == "" {
 				if e != nil || !result.Verified || result.Record == nil || VerifyReconcileV2(j.Header(), *result.Record) != nil {
@@ -174,6 +226,9 @@ func TestF6ReconcileRefusals(t *testing.T) {
 			}
 			if e == nil || e.Error() != want || result.MayHaveWritten || j.Usage().LastSeq != seq {
 				t.Fatalf("F6_UNSAFE_RELEASE %s: %+v %v", name, result, e)
+			}
+			if f6JournalFingerprint(t, dir) != before {
+				t.Fatal("F6_REFUSAL_CHANGED_JOURNAL")
 			}
 			l, e := FoldLedgerV2(j)
 			if e != nil || l.SpendUsed(r.GrantID) != r.Reserved || !l.InputReserved(r.Inputs[0]) {

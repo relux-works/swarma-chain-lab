@@ -18,6 +18,8 @@ func cliArgs() []string {
 // The positive syntax neighbor forwards exact fields. These adapter fixtures
 // never inspect installed host files; actual DK5 refusal is a separate binary
 // rehearsal observation, and package tests cover real journal behavior.
+// Regression (cli-prohibited-option-fixture-masking): prohibited options are
+// added to a complete valid invocation, independently of missing-field checks.
 func TestReconcileCLIArguments(t *testing.T) {
 	original, preflight := reconcile, checkInstalled
 	t.Cleanup(func() { reconcile = original; checkInstalled = preflight })
@@ -30,11 +32,38 @@ func TestReconcileCLIArguments(t *testing.T) {
 		return wallet.ReconcileResult{}, errors.New("DK5_SERVICE_GROUP")
 	}
 	checkInstalled = func() error { return errors.New("DK5_SERVICE_GROUP") }
-	for _, args := range [][]string{{}, {"--now", "123"}, {"--rpc", "localhost"}, {"--key", "private"}, {"--listen", "socket"}, {"reconcile"}} {
+	reject := func(t *testing.T, args []string) {
+		t.Helper()
+		before := calls
 		var b bytes.Buffer
-		if code := run(args, &b); code != 2 || !strings.Contains(b.String(), "CLI_ARGUMENTS") || strings.Contains(b.String(), `"record"`) {
+		code := run(args, &b)
+		if calls != before {
+			t.Fatal("CLI_PROHIBITED_REACHED_CUSTODY", args)
+		}
+		if code != 2 || !strings.Contains(b.String(), `"reason":"CLI_ARGUMENTS"`) || strings.Contains(b.String(), `"record"`) {
 			t.Fatal("CLI_OVERRIDE", code, b.String())
 		}
+	}
+	for _, flag := range []string{"now", "rpc", "node", "key", "listen", "state-root"} {
+		t.Run("prohibited-"+flag, func(t *testing.T) {
+			args := append(cliArgs(), "--"+flag, "123")
+			reject(t, args)
+		})
+	}
+	for _, args := range [][]string{{}, {"reconcile"}} {
+		reject(t, args)
+	}
+	for _, flag := range []string{"--config", "--target-seq", "--released-sat", "--note"} {
+		t.Run("missing-"+flag, func(t *testing.T) {
+			args := cliArgs()
+			for i := 0; i < len(args); i += 2 {
+				if args[i] == flag {
+					args = append(args[:i], args[i+2:]...)
+					break
+				}
+			}
+			reject(t, args)
+		})
 	}
 	if calls != 0 {
 		t.Fatal("CLI_ARGUMENTS_CALLED_CUSTODY")

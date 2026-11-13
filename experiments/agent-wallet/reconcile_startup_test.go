@@ -174,6 +174,8 @@ func TestF6StartupRollback(t *testing.T) {
 // Claim (-): signature tampering and a broken segment chain are rejected at
 // OpenJournalV2; authentically signed false tip/depth fails startup evidence
 // validation. Neither recognizes X. Restoring exact bytes passes.
+// Regression (startup-signed-depth-fixture-masking): the five-confirmation
+// historical tip has its actual active hash, while the current tip has six.
 func TestF6StartupTamperedOrUnchained(t *testing.T) {
 	for _, kind := range []string{"signature", "chain", "signed-tip", "signed-depth"} {
 		t.Run(kind, func(t *testing.T) {
@@ -206,6 +208,10 @@ func TestF6StartupTamperedOrUnchained(t *testing.T) {
 					seg.Records[0].Reconcile.BlockHash = px1jHex(989)
 				} else {
 					seg.Records[0].Reconcile.Height = 99 // only five at the signed tip
+					raw, e := n.Call(context.Background(), "getblockhash", int64(99))
+					if e != nil || json.Unmarshal(raw, &seg.Records[0].Reconcile.BlockHash) != nil {
+						t.Fatal("F6_SIGNED_DEPTH_FIXTURE_HASH", e)
+					}
 				}
 				key, _ := testKey(9)
 				digest, e := ReconcileDigestV2(h, seg.Records[0])
@@ -217,6 +223,9 @@ func TestF6StartupTamperedOrUnchained(t *testing.T) {
 					t.Fatal(e)
 				}
 				seg.Records[0].Reconcile.Signature = hex.EncodeToString(sig.Serialize())
+				if e := VerifyReconcileV2(h, seg.Records[0]); e != nil {
+					t.Fatal("F6_SIGNED_EVIDENCE_FIXTURE_SIGNATURE", e)
+				}
 			}
 			if e = os.WriteFile(path, canonical(seg), 0600); e != nil {
 				t.Fatal(e)
