@@ -14,6 +14,22 @@ import (
 // Production startup accepts properly provisioned local files with a distinct
 // peer UID pin, and rejects key reuse, writable object roots and broad private
 // file modes. No different-UID client or OS account is created by this fixture.
+//
+// The wallet configuration and the receipt key are DK5 installed inputs:
+// OpenActionService reads both through the installed-input admission, which
+// requires a 0750 parent and 0640 files (writeInstalled; the synthetic root
+// ownership is the labelled seam in dk5_fixture_test.go). They live in their
+// own directory, because l.private is the Core datadir.
+//
+// Control (claim: the earlier fixture setup, not the product, made the
+// positive start fail): from the same two paths, the old plain os.WriteFile
+// setup (0600 files in a 0700 directory) is refused with DK5_DIRECTORY_MODE,
+// a 0750 directory with 0600 files with DK5_FILE_MODE, and the configuration
+// alone written through writeInstalled with DK5_FILE_MODE at the receipt key;
+// the positive start follows once both files go through writeInstalled.
+// The RPC configuration custody guard now expects DK5_FILE_MODE for a broad
+// mode: 0640 is the admitted installed mode, so the old CONFIG_PRIVATE_FILE
+// case (0640 refused) no longer describes this loader.
 func TestCoreActionStartup(t *testing.T) {
 	l := newCore(t)
 	_, c := l.grant(Terms{Version: 1, Recipients: []string{testAddress(3)}, SpendCap: 1000000}, []string{"pay"}, 1000000)
@@ -32,9 +48,38 @@ func TestCoreActionStartup(t *testing.T) {
 	os.Chown(run, os.Getuid(), os.Getgid())
 	sc.Socket = filepath.Join(run, "w.sock")
 	sc.PeerUID++
+	installed := filepath.Join(l.root, "installed")
+	if e := os.Mkdir(installed, 0700); e != nil {
+		t.Fatal(e)
+	}
+	sc.WalletConfig = filepath.Join(installed, "wallet.json")
+	sc.ReceiptKeyFile = filepath.Join(installed, "receipt.key")
 	key, _ := testKey(7)
-	os.WriteFile(sc.ReceiptKeyFile, []byte(hex.EncodeToString(key.Serialize())), 0600)
-	os.WriteFile(sc.WalletConfig, canonical(c), 0600)
+	keyHex := []byte(hex.EncodeToString(key.Serialize()))
+	refused := func(guard, want string) {
+		t.Helper()
+		if s, e := OpenActionService(sc); e == nil {
+			s.Close()
+			t.Fatal(guard)
+		} else if e.Error() != want {
+			t.Fatal(guard, e)
+		}
+	}
+	// Control: the old setup, then each half of writeInstalled alone.
+	if e := os.WriteFile(sc.ReceiptKeyFile, keyHex, 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(sc.WalletConfig, canonical(c), 0600); e != nil {
+		t.Fatal(e)
+	}
+	refused("old plain-WriteFile setup (0600 files, 0700 directory)", "DK5_DIRECTORY_MODE")
+	if e := os.Chmod(installed, 0750); e != nil {
+		t.Fatal(e)
+	}
+	refused("0600 installed files in a 0750 directory", "DK5_FILE_MODE")
+	writeInstalled(t, sc.WalletConfig, canonical(c))
+	refused("0600 receipt key beside an installed configuration", "DK5_FILE_MODE")
+	writeInstalled(t, sc.ReceiptKeyFile, keyHex)
 	open := func() {
 		t.Helper()
 		s, e := OpenActionService(sc)
@@ -45,30 +90,21 @@ func TestCoreActionStartup(t *testing.T) {
 	}
 	open()
 	granteeKey, _ := testKey(2)
-	os.WriteFile(sc.ReceiptKeyFile, []byte(hex.EncodeToString(granteeKey.Serialize())), 0600)
-	if s, e := OpenActionService(sc); e == nil {
-		s.Close()
-		t.Fatal("receipt/grantee key separation guard")
-	} else if e.Error() != "SERVICE_KEY_SEPARATION" {
-		t.Fatal(e)
-	}
-	os.WriteFile(sc.ReceiptKeyFile, []byte(hex.EncodeToString(key.Serialize())), 0600)
+	writeInstalled(t, sc.ReceiptKeyFile, []byte(hex.EncodeToString(granteeKey.Serialize())))
+	refused("receipt/grantee key separation guard", "SERVICE_KEY_SEPARATION")
+	writeInstalled(t, sc.ReceiptKeyFile, keyHex)
 	os.Chmod(c.ObjectsDir, 0770)
-	if s, e := OpenActionService(sc); e == nil {
-		s.Close()
-		t.Fatal("object directory custody guard")
-	} else if e.Error() != "SERVICE_OBJECTS" {
-		t.Fatal(e)
-	}
+	refused("object directory custody guard", "SERVICE_OBJECTS")
 	os.Chmod(c.ObjectsDir, 0700)
-	os.Chmod(sc.WalletConfig, 0640)
-	if s, e := OpenActionService(sc); e == nil {
-		s.Close()
-		t.Fatal("RPC configuration custody guard")
-	} else if e.Error() != "CONFIG_PRIVATE_FILE" {
+	for _, mode := range []os.FileMode{0644, 0660, 0666} {
+		if e := os.Chmod(sc.WalletConfig, mode); e != nil {
+			t.Fatal(e)
+		}
+		refused(fmt.Sprintf("RPC configuration custody guard %04o", mode), "DK5_FILE_MODE")
+	}
+	if e := os.Chmod(sc.WalletConfig, 0640); e != nil {
 		t.Fatal(e)
 	}
-	os.Chmod(sc.WalletConfig, 0600)
 	open()
 }
 
