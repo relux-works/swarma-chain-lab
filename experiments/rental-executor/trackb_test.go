@@ -35,8 +35,8 @@ func TestTrackBControls(t *testing.T) {
 	if key, e := b.Claim(a, tok); e != nil || key != prizes()[a] {
 		t.Fatal("valid claim failed")
 	}
-	for _, v := range [][2]string{{other, tok}, {a, strings.Repeat("0", 64)}, {a, ""}, {strings.Repeat("4", 64), tok}} {
-		if key, e := b.Claim(v[0], v[1]); e == nil || e.Error() != "TOKEN_REFUSED" || key != "" {
+	for _, v := range [][2]string{{other, tok.Reveal()}, {a, strings.Repeat("0", 64)}, {a, ""}, {strings.Repeat("4", 64), tok.Reveal()}} {
+		if key, e := b.Claim(v[0], NewTrackBToken(v[1])); e == nil || e.Error() != "TOKEN_REFUSED" || key != "" {
 			t.Fatal("invalid token released key")
 		}
 	}
@@ -73,7 +73,7 @@ func TestTrackBControls(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	for _, secret := range []string{tok, tok2, prizes()[a], prizes()[other]} {
+	for _, secret := range []string{tok.Reveal(), tok2.Reveal(), prizes()[a], prizes()[other]} {
 		if bytes.Contains(raw, []byte(secret)) {
 			t.Fatal("secret persisted in audit")
 		}
@@ -165,7 +165,7 @@ func TestTrackBSpamIsolation(t *testing.T) {
 		t.Fatal(e)
 	}
 	for i := 0; i < 10020; i++ {
-		_, e = b.Claim(a, strings.Repeat("0", 64))
+		_, e = b.Claim(a, NewTrackBToken(strings.Repeat("0", 64)))
 		want := "TOKEN_REFUSED"
 		if i >= InvalidClaimsPerWindow {
 			want = "RATE_LIMITED"

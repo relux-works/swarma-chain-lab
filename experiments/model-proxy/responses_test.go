@@ -50,7 +50,7 @@ func responsesFixture(t *testing.T, defaultLimit ...uint64) *responsesHarness {
 	if e := os.Chmod(root, 0700); e != nil {
 		t.Fatal(e)
 	}
-	h.c = Config{StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: up.URL + "/v1/responses", APIKey: keyMarker,
+	h.c = Config{StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: up.URL + "/v1/responses", APIKey: NewAPIKey(keyMarker),
 		Models:        map[string]Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic fixture prices"}},
 		ModelProfiles: map[string]ModelProfile{modelID: {Profile: OpenAIResponsesProfile, Upstream: up.URL + "/v1/responses"}},
 		Now:           func() time.Time { return time.Unix(h.now.Load(), 0) }, Timeout: time.Second, Transport: up.Client().Transport,

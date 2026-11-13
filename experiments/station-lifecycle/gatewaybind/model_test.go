@@ -114,7 +114,7 @@ func modelFixture(t *testing.T) (*fixture, *registrar) {
 	t.Helper()
 	f := setup(t, fixtureModelCaps())
 	f.d.Close()
-	s, e := proxy.New(proxy.Config{StateDir: privateDir(t), Endpoint: proxy.Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("d", 64)}, Upstream: "https://upstream.example/v1/messages", APIKey: "synthetic-test-key", Models: map[string]proxy.Model{"test-model": {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic fixture"}}, Now: f.c.Now})
+	s, e := proxy.New(proxy.Config{StateDir: privateDir(t), Endpoint: proxy.Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("d", 64)}, Upstream: "https://upstream.example/v1/messages", APIKey: proxy.NewAPIKey("synthetic-test-key"), Models: map[string]proxy.Model{"test-model": {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic fixture"}}, Now: f.c.Now})
 	if e != nil {
 		t.Fatal(e)
 	}

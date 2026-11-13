@@ -24,9 +24,9 @@ type fakeTokens struct {
 	token   string
 }
 
-func (f *fakeTokens) Mint(ctx context.Context, bookingID string) (string, error) {
+func (f *fakeTokens) Mint(ctx context.Context, bookingID string) (station.TrackBToken, error) {
 	f.minted = append(f.minted, bookingID)
-	return f.token, nil
+	return station.NewTrackBToken(f.token), nil
 }
 func (f *fakeTokens) Revoke(ctx context.Context, bookingID string) error {
 	f.revoked = append(f.revoked, bookingID)
@@ -46,7 +46,7 @@ func TestLocalTestCreateDestroy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(st.ChannelSecret.Reveal()) != 32 || st.TrackBToken != tokens.token {
+	if len(st.ChannelSecret.Reveal()) != 32 || st.TrackBToken.Reveal() != tokens.token {
 		t.Fatalf("handle secrets: secret %d bytes token %q", len(st.ChannelSecret.Reveal()), st.TrackBToken)
 	}
 	if len(tokens.minted) != 1 || tokens.minted[0] != booking {
@@ -191,7 +191,7 @@ func TestLinuxUserCommands(t *testing.T) {
 	// Token and secret contents arrived via exclusive-write stdin.
 	inputs := ""
 	for _, in := range fake.Inputs {
-		inputs += string(in)
+		inputs += string(in.Reveal())
 	}
 	if !strings.Contains(inputs, tokens.token) {
 		t.Fatal("minted token never written to station home")

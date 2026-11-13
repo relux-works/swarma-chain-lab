@@ -42,10 +42,10 @@ type Service struct {
 }
 
 func New(c Config) (*Service, error) {
-	if c.Now == nil || !validOrigin(c.Endpoint.URL) || !digest(c.Endpoint.CertSHA256) || !validURL(c.Upstream) || len(c.APIKey) < 1 || len(c.APIKey) > 4096 || len(c.Models) < 1 || len(c.Models) > 16 {
+	if c.Now == nil || !validOrigin(c.Endpoint.URL) || !digest(c.Endpoint.CertSHA256) || !validURL(c.Upstream) || len(c.APIKey.Reveal()) < 1 || len(c.APIKey.Reveal()) > 4096 || len(c.Models) < 1 || len(c.Models) > 16 {
 		return nil, fail("CONFIG")
 	}
-	for _, v := range []byte(c.APIKey) {
+	for _, v := range []byte(c.APIKey.Reveal()) {
 		if v < 33 || v > 126 {
 			return nil, fail("CONFIG")
 		}

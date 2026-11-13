@@ -15,6 +15,7 @@ on:
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/model-proxy.yml'
+      - '.scripts/check-credential-output-boundaries.go'
   push:
     branches: [main]
     paths:
@@ -27,6 +28,7 @@ on:
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/model-proxy.yml'
+      - '.scripts/check-credential-output-boundaries.go'
   workflow_dispatch:
 
 permissions:
@@ -56,6 +58,7 @@ jobs:
           GOSUMDB: 'off'
           GOTOOLCHAIN: local
         run: |
+          go run .scripts/check-credential-output-boundaries.go
           for module in model-proxy station-lifecycle/gatewaybind; do
             (cd experiments/"$module" && go vet ./... && go test -race -count=1 ./... && go build ./...)
           done

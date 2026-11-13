@@ -42,7 +42,7 @@ func TestTrackBAdminWire(t *testing.T) {
 	ctx := context.Background()
 	booking := strings.Repeat("ef", 32)
 	tok, err := c.Mint(ctx, booking)
-	if err != nil || tok != strings.Repeat("ab", 32) {
+	if err != nil || tok.Reveal() != strings.Repeat("ab", 32) {
 		t.Fatalf("Mint = %q, %v", tok, err)
 	}
 	if err := c.Revoke(ctx, booking); err != nil {
@@ -71,10 +71,10 @@ func TestSJ1MintKeys(t *testing.T) {
 		token, e := c.Mint(context.Background(), strings.Repeat("b", 64))
 		server.Close()
 		if field == `"status":"ok"` {
-			if e != nil || token != strings.Repeat("a", 64) {
+			if e != nil || token.Reveal() != strings.Repeat("a", 64) {
 				t.Fatal("valid neighbor refused", e)
 			}
-		} else if e == nil || token != "" {
+		} else if e == nil || token.Reveal() != "" {
 			t.Fatal("SJ1 ambiguous mint admitted")
 		}
 	}

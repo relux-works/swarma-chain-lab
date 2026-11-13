@@ -444,5 +444,17 @@ for the independent fmt/slog/carrier and wire-differential regressions. Run
 `go -C experiments/station-lifecycle test -count=1 -run 'TestReviewBrokerCredentialOutput|TestLifecyclePrivateWireCompatibility' .`,
 and `go -C experiments/rental-gateway test -count=1 -run TestJournalPrivateWireCompatibility ./journal`
 for private persistence compatibility and value comparison. Capture output in
-task-owned `.temp/`. Track B tokens and upstream proxy API keys remain a separate
-output-safety audit; these checks make no formatting guarantee for those values.
+task-owned `.temp/`. The N1b checks below extend this storage and output defense
+to Track B tokens and upstream proxy API keys.
+
+### Credential output boundary checks
+
+Track B tokens and upstream model keys use opaque credential holders. Their
+[carrier and explicit-reveal inventory](docs/security/credential-output-n1b.md)
+records private wire/authentication boundaries and output regression coverage.
+Run `go run .scripts/check-credential-output-boundaries.go` from the repository
+root to check storage types, reveal sites and detector controls; capture its
+bounded JSON inventory under `.temp/`. Run `go -C experiments/model-proxy test
+./...`, `go -C experiments/rental-executor test ./...` and `go -C
+experiments/rental-gateway test ./...` for the fmt, slog, generic JSON and private
+wire regressions; use the same module paths with `vet ./...` for static checks.

@@ -9,7 +9,14 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
 )
+
+// TrackBToken is opaque even when a containing value bypasses fmt methods.
+// The executor persists only its one-way commitment, never the token itself.
+type TrackBToken = codec.Secret[string]
+
+func NewTrackBToken(value string) TrackBToken { return codec.NewSecret(value) }
 
 type TokenRecord struct {
 	Slot      string `json:"slot"`
@@ -176,11 +183,11 @@ func (b *TrackB) index(slot string) int {
 	}
 	return -1
 }
-func (b *TrackB) Mint(slot string) (string, error) {
+func (b *TrackB) Mint(slot string) (TrackBToken, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if e := b.available(); e != nil {
-		return "", e
+		return TrackBToken{}, e
 	}
 	reason := "MINTED"
 	if _, ok := b.keys[slot]; !ok {
@@ -190,30 +197,30 @@ func (b *TrackB) Mint(slot string) (string, error) {
 	}
 	if reason != "MINTED" {
 		if e := b.audit("mint", slot, "", reason); e != nil {
-			return "", e
+			return TrackBToken{}, e
 		}
-		return "", fail(reason)
+		return TrackBToken{}, fail(reason)
 	}
 	var raw [32]byte
 	if _, e := rand.Read(raw[:]); e != nil {
 		if ae := b.audit("mint", slot, "", "RANDOM_FAILED"); ae != nil {
-			return "", ae
+			return TrackBToken{}, ae
 		}
-		return "", fail("RANDOM_FAILED")
+		return TrackBToken{}, fail("RANDOM_FAILED")
 	}
-	token := hex.EncodeToString(raw[:])
-	hash := Hash([]byte(token))
+	token := NewTrackBToken(hex.EncodeToString(raw[:]))
+	hash := Hash([]byte(token.Reveal()))
 	for _, r := range b.state.Tokens {
 		if r.TokenHash == hash {
 			if e := b.audit("mint", slot, hash, "TOKEN_COLLISION"); e != nil {
-				return "", e
+				return TrackBToken{}, e
 			}
-			return "", fail("TOKEN_COLLISION")
+			return TrackBToken{}, fail("TOKEN_COLLISION")
 		}
 	}
 	b.state.Tokens = append(b.state.Tokens, TokenRecord{Slot: slot, TokenHash: hash})
 	if e := b.audit("mint", slot, hash, reason); e != nil {
-		return "", e
+		return TrackBToken{}, e
 	}
 	return token, nil
 }
@@ -243,15 +250,15 @@ func (b *TrackB) List() ([]TokenRecord, error) {
 	sort.Slice(v, func(i, j int) bool { return v[i].Slot < v[j].Slot })
 	return v, nil
 }
-func (b *TrackB) Claim(slot, token string) (string, error) {
+func (b *TrackB) Claim(slot string, token TrackBToken) (string, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if e := b.available(); e != nil {
 		return "", e
 	}
 	hash := ""
-	if hexN(token, 32) {
-		hash = Hash([]byte(token))
+	if hexN(token.Reveal(), 32) {
+		hash = Hash([]byte(token.Reveal()))
 	}
 	i := b.index(slot)
 	reason := "TOKEN_REFUSED"

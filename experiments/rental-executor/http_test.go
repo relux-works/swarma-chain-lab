@@ -121,7 +121,7 @@ func TestTrackBHTTPRefusalStatus(t *testing.T) {
 		}
 		call(strings.Repeat("0", 64), want)
 	}
-	call(token, 200)
+	call(token.Reveal(), 200)
 	b.store.poison = true
-	call(token, 503)
+	call(token.Reveal(), 503)
 }

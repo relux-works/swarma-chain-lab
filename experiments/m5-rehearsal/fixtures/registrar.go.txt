@@ -23,13 +23,13 @@ func (r rehearsalDirect) Prepare(_ context.Context,b proxy.Binding)(proxy.Creden
 func (r rehearsalDirect) Activate(_ context.Context,b proxy.Binding)error{return r.service.Activate(b)}
 func (r rehearsalDirect) Revoke(_ context.Context,b proxy.Binding)error{return r.service.Revoke(b)}
 func rehearsalRegistrar(p *modelProxyConfig) rehearsalDirect {
- var c struct{StateDir,Upstream,APIKey,CA,Cert,Key string;Models map[string]proxy.Model;ModelProfiles map[string]proxy.ModelProfile}
+ var c struct{StateDir,Upstream,CA,Cert,Key string;APIKey proxy.UpstreamKey;Models map[string]proxy.Model;ModelProfiles map[string]proxy.ModelProfile}
  fail:=func(){panic("REHEARSAL_REGISTRAR_SETUP")}
  raw,e:=proxy.ReadPrivateFile(p.AdminSocket+".rehearsal.json",0600,65536);if e!=nil || json.Unmarshal(raw,&c)!=nil{fail()}
  roots:=x509.NewCertPool();ca,e:=proxy.ReadPrivateFile(c.CA,0600,65536);if e!=nil || !roots.AppendCertsFromPEM(ca){fail()}
  cert,e:=tls.LoadX509KeyPair(c.Cert,c.Key);if e!=nil{fail()}
  transport:=&http.Transport{Proxy:nil,TLSClientConfig:&tls.Config{RootCAs:roots,MinVersion:tls.VersionTLS13},DisableKeepAlives:true}
- s,e:=proxy.New(proxy.Config{StateDir:c.StateDir,Endpoint:proxy.Endpoint{URL:p.Origin,CertSHA256:p.CertSHA256},Upstream:c.Upstream,APIKey:proxy.Secret(c.APIKey),Models:c.Models,ModelProfiles:c.ModelProfiles,Now:time.Now,Transport:transport});if e!=nil{fail()}
+ s,e:=proxy.New(proxy.Config{StateDir:c.StateDir,Endpoint:proxy.Endpoint{URL:p.Origin,CertSHA256:p.CertSHA256},Upstream:c.Upstream,APIKey:c.APIKey,Models:c.Models,ModelProfiles:c.ModelProfiles,Now:time.Now,Transport:transport});if e!=nil{fail()}
  origin,e:=url.Parse(p.Origin);if e!=nil{fail()}
  ln,e:=net.Listen("tcp",origin.Host);if e!=nil{s.Close();fail()}
  server:=&http.Server{Handler:s,ReadHeaderTimeout:2*time.Second,ReadTimeout:5*time.Second,WriteTimeout:65*time.Second,IdleTimeout:5*time.Second,MaxHeaderBytes:8192,ErrorLog:log.New(io.Discard,"",0)}

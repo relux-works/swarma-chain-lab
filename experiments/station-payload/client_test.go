@@ -126,7 +126,7 @@ func newFixture(t *testing.T, modelReplies ...string) *fixture {
 	f.roots = x509.NewCertPool()
 	f.roots.AddCert(f.front.Certificate())
 	var err error
-	f.s, err = proxy.New(proxy.Config{StateDir: root(t), Endpoint: proxy.Endpoint{URL: f.front.URL, CertSHA256: pin(f.front.Certificate())}, Upstream: up.URL + "/v1/messages", APIKey: apiKey, Models: map[string]proxy.Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic test pricing"}}, Now: func() time.Time { return time.Unix(f.now.Load(), 0) }, Transport: up.Client().Transport, Timeout: 2 * time.Second, Audit: func(a proxy.Audit) { f.mu.Lock(); defer f.mu.Unlock(); f.audit = append(f.audit, a) }})
+	f.s, err = proxy.New(proxy.Config{StateDir: root(t), Endpoint: proxy.Endpoint{URL: f.front.URL, CertSHA256: pin(f.front.Certificate())}, Upstream: up.URL + "/v1/messages", APIKey: proxy.NewAPIKey(apiKey), Models: map[string]proxy.Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic test pricing"}}, Now: func() time.Time { return time.Unix(f.now.Load(), 0) }, Transport: up.Client().Transport, Timeout: 2 * time.Second, Audit: func(a proxy.Audit) { f.mu.Lock(); defer f.mu.Unlock(); f.audit = append(f.audit, a) }})
 	if err != nil {
 		t.Fatal("real proxy setup", err)
 	}

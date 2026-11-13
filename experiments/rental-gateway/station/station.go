@@ -27,7 +27,7 @@ type SlotSpec struct {
 // Revoke is idempotent and terminal. Implemented by
 // TrackBAdminClient; faked in tests.
 type TokenAdmin interface {
-	Mint(ctx context.Context, bookingID string) (string, error)
+	Mint(ctx context.Context, bookingID string) (TrackBToken, error)
 	Revoke(ctx context.Context, bookingID string) error
 }
 
@@ -35,18 +35,18 @@ type TokenAdmin interface {
 // endpoint when configured (production path; booking id required),
 // otherwise a local random token (tests/local demos only, never
 // acceptable against a real Track B endpoint).
-func MintToken(ctx context.Context, admin TokenAdmin, bookingID string) (string, error) {
+func MintToken(ctx context.Context, admin TokenAdmin, bookingID string) (TrackBToken, error) {
 	if admin != nil {
 		if len(bookingID) != 64 {
-			return "", errBookingID
+			return TrackBToken{}, errBookingID
 		}
 		return admin.Mint(ctx, bookingID)
 	}
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		return "", err
+		return TrackBToken{}, err
 	}
-	return hex.EncodeToString(b), nil
+	return NewTrackBToken(hex.EncodeToString(b)), nil
 }
 
 var errBookingID = errors.New("station: Track B admin requires a 64-hex booking id")
@@ -77,10 +77,16 @@ type Station struct {
 	// TrackBToken is the per-slot token (hex) minted at Create. The
 	// gateway records only its SHA-256; the token itself lives only
 	// in the station home and dies with Destroy.
-	TrackBToken string
+	TrackBToken TrackBToken
 
 	bookingID string // Track B admin slot key, set at Create
 }
+
+// TrackBToken remains opaque through minting and station retention. Reveal only
+// for private token-file writes or the gateway's one-way token commitment.
+type TrackBToken = codec.Secret[string]
+
+func NewTrackBToken(value string) TrackBToken { return codec.NewSecret(value) }
 
 // NewChannelSecret protects the channel credential retained by a driver handle.
 func NewChannelSecret(value []byte) codec.Secret[[]byte] { return codec.NewSecret(value) }

@@ -57,7 +57,7 @@ func fixture(t *testing.T) *harness {
 	if e := os.Chmod(root, 0700); e != nil {
 		t.Fatal(e)
 	}
-	h.c = Config{StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: upstream.URL + "/v1/messages", APIKey: keyMarker, Models: map[string]Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "fixture model bound, not production pricing"}}, Now: func() time.Time { return time.Unix(h.now.Load(), 0) }, Transport: upstream.Client().Transport, Timeout: time.Second, Audit: func(a Audit) { h.mu.Lock(); defer h.mu.Unlock(); h.audits = append(h.audits, a) }}
+	h.c = Config{StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: upstream.URL + "/v1/messages", APIKey: NewAPIKey(keyMarker), Models: map[string]Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "fixture model bound, not production pricing"}}, Now: func() time.Time { return time.Unix(h.now.Load(), 0) }, Transport: upstream.Client().Transport, Timeout: time.Second, Audit: func(a Audit) { h.mu.Lock(); defer h.mu.Unlock(); h.audits = append(h.audits, a) }}
 	var e error
 	h.s, e = New(h.c)
 	if e != nil {

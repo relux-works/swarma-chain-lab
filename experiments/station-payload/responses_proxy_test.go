@@ -49,7 +49,7 @@ func newResponsesFixture(t *testing.T) (*fixture, proxy.FileConfig) {
 	f.roots.AddCert(f.front.Certificate())
 	cfg := proxy.FileConfig{Endpoint: proxy.Endpoint{URL: f.front.URL, CertSHA256: pin(f.front.Certificate())}, Upstream: up.URL + "/v1/responses", Models: map[string]proxy.Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic fixture prices"}}, ModelProfiles: map[string]proxy.ModelProfile{modelID: {Profile: proxy.OpenAIResponsesProfile, Upstream: up.URL + "/v1/responses"}}}
 	var e error
-	f.s, e = proxy.New(proxy.Config{StateDir: root(t), Endpoint: cfg.Endpoint, Upstream: cfg.Upstream, Models: cfg.Models, ModelProfiles: cfg.ModelProfiles, APIKey: apiKey, Now: func() time.Time { return time.Unix(f.now.Load(), 0) }, Transport: up.Client().Transport, Timeout: 2 * time.Second})
+	f.s, e = proxy.New(proxy.Config{StateDir: root(t), Endpoint: cfg.Endpoint, Upstream: cfg.Upstream, Models: cfg.Models, ModelProfiles: cfg.ModelProfiles, APIKey: proxy.NewAPIKey(apiKey), Now: func() time.Time { return time.Unix(f.now.Load(), 0) }, Transport: up.Client().Transport, Timeout: 2 * time.Second})
 	if e != nil {
 		t.Fatal(e)
 	}

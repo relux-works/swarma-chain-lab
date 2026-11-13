@@ -21,16 +21,16 @@ type StreamDecoder interface {
 type Dialect interface {
 	Profile() string
 	Parse([]byte) (Prepared, error)
-	Headers(http.Header, Secret)
+	Headers(http.Header, UpstreamKey)
 	Complete([]byte, Prepared) (Usage, error)
 	Stream(Prepared) StreamDecoder
 }
 type Messages struct{}
 
 func (Messages) Profile() string { return "anthropic-messages-text-global-standard-2026-10-21" }
-func (Messages) Headers(h http.Header, key Secret) {
+func (Messages) Headers(h http.Header, key UpstreamKey) {
 	h.Set("Content-Type", "application/json")
-	h.Set("x-api-key", string(key))
+	h.Set("x-api-key", string(key.Reveal()))
 	h.Set("anthropic-version", "2026-10-21")
 }
 

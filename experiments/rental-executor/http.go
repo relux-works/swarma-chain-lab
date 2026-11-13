@@ -18,14 +18,25 @@ func respond(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 func readBody(r *http.Request, out any) error {
-	if r.Method != "POST" || r.URL.RawQuery != "" || r.Header.Get("Content-Type") != "application/json" {
-		return fail("HTTP_REQUEST")
+	raw, e := readPrivateBody(r)
+	if e != nil {
+		return e
 	}
-	raw, e := io.ReadAll(io.LimitReader(r.Body, 2<<20+1))
-	if e != nil || len(raw) > 2<<20 || Strict(raw, out) != nil {
+	if Strict(raw, out) != nil {
 		return fail("HTTP_SCHEMA")
 	}
 	return nil
+}
+
+func readPrivateBody(r *http.Request) ([]byte, error) {
+	if r.Method != "POST" || r.URL.RawQuery != "" || r.Header.Get("Content-Type") != "application/json" {
+		return nil, fail("HTTP_REQUEST")
+	}
+	raw, e := io.ReadAll(io.LimitReader(r.Body, 2<<20+1))
+	if e != nil || len(raw) > 2<<20 {
+		return nil, fail("HTTP_SCHEMA")
+	}
+	return raw, nil
 }
 
 // TrackBHandler separates administrative operations from unauthenticated claims.
@@ -40,11 +51,9 @@ func TrackBHandler(b *TrackB, admin bool) http.Handler {
 			respond(w, 400, map[string]string{"status": "refused", "reason": "HTTP_SCHEMA"})
 		}
 		if !admin && r.URL.Path == "/claim" {
-			var q struct {
-				Slot  string `json:"slot"`
-				Token string `json:"token"`
-			}
-			if readBody(r, &q) != nil {
+			var q trackBClaimRequest
+			raw, e := readPrivateBody(r)
+			if e != nil || decodeTrackBClaim(raw, &q) != nil {
 				malformed()
 				return
 			}
@@ -70,7 +79,7 @@ func TrackBHandler(b *TrackB, admin bool) http.Handler {
 					respond(w, trackBHTTPStatus(e), map[string]string{"status": "refused", "reason": e.Error()})
 					return
 				}
-				respond(w, 200, map[string]string{"status": "ok", "token": token})
+				writeTrackBMintReply(w, token)
 				return
 			}
 			if e := b.Revoke(q.Slot); e != nil {
@@ -99,6 +108,31 @@ func TrackBHandler(b *TrackB, admin bool) http.Handler {
 		}
 		malformed()
 	})
+}
+
+type trackBClaimRequest struct {
+	Slot  string      `json:"slot"`
+	Token TrackBToken `json:"token"`
+}
+
+// Validate the unchanged private schema before introducing opaque storage.
+func decodeTrackBClaim(raw []byte, out *trackBClaimRequest) error {
+	*out = trackBClaimRequest{}
+	var wire struct {
+		Slot  string `json:"slot"`
+		Token string `json:"token"`
+	}
+	if err := Strict(raw, &wire); err != nil {
+		return err
+	}
+	*out = trackBClaimRequest{Slot: wire.Slot, Token: NewTrackBToken(wire.Token)}
+	return nil
+}
+
+// This explicit private wire boundary preserves the original admin JSON bytes.
+// The revealed value never leaves this encoder in a retained printable carrier.
+func writeTrackBMintReply(w http.ResponseWriter, token TrackBToken) {
+	respond(w, http.StatusOK, map[string]string{"status": "ok", "token": token.Reveal()})
 }
 
 // ListenUnix never removes an existing socket or file. The parent is private,

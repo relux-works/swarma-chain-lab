@@ -33,7 +33,7 @@ func (c *TrackBAdminClient) httpClient() *http.Client {
 	}
 }
 
-func (c *TrackBAdminClient) post(ctx context.Context, path, bookingID string, out any) error {
+func (c *TrackBAdminClient) post(ctx context.Context, path, bookingID string, out *trackBMintReply) error {
 	body, _ := json.Marshal(map[string]string{"slot": bookingID})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		"http://trackb"+path, bytes.NewReader(body))
@@ -51,7 +51,7 @@ func (c *TrackBAdminClient) post(ctx context.Context, path, bookingID string, ou
 	}
 	if out != nil {
 		raw, err := io.ReadAll(io.LimitReader(resp.Body, 4097))
-		if err != nil || len(raw) > 4096 || su.StrictInput(raw, out) != nil {
+		if err != nil || len(raw) > 4096 || decodeTrackBMintReply(raw, out) != nil {
 			return fmt.Errorf("trackb admin: invalid reply")
 		}
 		return nil
@@ -60,18 +60,37 @@ func (c *TrackBAdminClient) post(ctx context.Context, path, bookingID string, ou
 }
 
 // Mint implements TokenAdmin.
-func (c *TrackBAdminClient) Mint(ctx context.Context, bookingID string) (string, error) {
-	var out struct {
+func (c *TrackBAdminClient) Mint(ctx context.Context, bookingID string) (TrackBToken, error) {
+	var out trackBMintReply
+	if err := c.post(ctx, "/mint", bookingID, &out); err != nil {
+		return TrackBToken{}, err
+	}
+	if out.Status != "ok" || len(out.Token.Reveal()) != 64 {
+		return TrackBToken{}, fmt.Errorf("trackb admin mint: malformed reply")
+	}
+	return out.Token, nil
+}
+
+// Decode the private admin reply directly into opaque storage. Generic output
+// of this carrier is redacted; only the dedicated private server encoder emits it.
+type trackBMintReply struct {
+	Token  TrackBToken `json:"token"`
+	Status string      `json:"status"`
+}
+
+func decodeTrackBMintReply(raw []byte, out *trackBMintReply) error {
+	*out = trackBMintReply{}
+	// The existing strict schema is checked against its original private DTO;
+	// StrictInput deliberately does not trust arbitrary custom unmarshallers.
+	var wire struct {
 		Token  string `json:"token"`
 		Status string `json:"status"`
 	}
-	if err := c.post(ctx, "/mint", bookingID, &out); err != nil {
-		return "", err
+	if err := su.StrictInput(raw, &wire); err != nil {
+		return err
 	}
-	if out.Status != "ok" || len(out.Token) != 64 {
-		return "", fmt.Errorf("trackb admin mint: malformed reply")
-	}
-	return out.Token, nil
+	*out = trackBMintReply{Token: NewTrackBToken(wire.Token), Status: wire.Status}
+	return nil
 }
 
 // Revoke implements TokenAdmin (idempotent at the endpoint).

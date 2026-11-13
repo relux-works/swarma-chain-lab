@@ -10,6 +10,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/payloadbootstrap/codec"
 )
 
 // Executor runs one host command, optionally with stdin content.
@@ -26,7 +28,7 @@ type Executor interface {
 // maps argv[0] to stdout bytes (e.g. "1007\n" for id -u).
 type FakeExec struct {
 	Calls  [][]string
-	Inputs [][]byte
+	Inputs []codec.Secret[[]byte]
 	FailOn map[string]error
 	// FailOnPrefix maps a joined-argv prefix (e.g. "nft delete")
 	// to an error, checked before FailOn so argv0-shared commands
@@ -43,7 +45,7 @@ func (f *FakeExec) Run(ctx context.Context, name string, args ...string) ([]byte
 // RunInput implements Executor.
 func (f *FakeExec) RunInput(ctx context.Context, input []byte, name string, args ...string) ([]byte, error) {
 	f.Calls = append(f.Calls, append([]string{name}, args...))
-	f.Inputs = append(f.Inputs, append([]byte(nil), input...))
+	f.Inputs = append(f.Inputs, codec.NewSecret(input))
 	joined := name
 	if len(args) > 0 {
 		joined += " " + args[0]
@@ -300,7 +302,7 @@ func (d *LinuxUserDriver) Create(ctx context.Context, spec SlotSpec) (*Station, 
 	if err != nil || uid <= 0 {
 		return rollback(fmt.Errorf("linux-user create: bad uid %q", strings.TrimSpace(string(uidOut))))
 	}
-	if err := d.writeFileExcl(ctx, st, st.Home+"/"+TrackBTokenFile, []byte(token+"\n")); err != nil {
+	if err := d.writeFileExcl(ctx, st, st.Home+"/"+TrackBTokenFile, []byte(token.Reveal()+"\n")); err != nil {
 		return rollback(fmt.Errorf("linux-user create token: %w", err))
 	}
 	if err := d.writeFileExcl(ctx, st, st.Home+"/"+ChannelSecretFile,

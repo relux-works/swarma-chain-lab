@@ -232,7 +232,7 @@ func (g *Gateway) startStation(ctx context.Context, slot *journal.Slot) error {
 	if err != nil {
 		return fmt.Errorf("gateway: create station: %w", err)
 	}
-	tokenSum := sha256.Sum256([]byte(st.TrackBToken))
+	tokenSum := sha256.Sum256([]byte(st.TrackBToken.Reveal()))
 	if err := g.cfg.Journal.SetChannelCredential(slot.ID,
 		st.ChannelSecret, hex.EncodeToString(tokenSum[:])); err != nil {
 		_, _ = g.cfg.Driver.Destroy(ctx, st)

@@ -64,7 +64,7 @@ func (d *LocalTestDriver) Create(ctx context.Context, spec SlotSpec) (*Station, 
 		Home: home, bookingID: spec.BookingID}
 	fail := func(err error) (*Station, error) {
 		_ = os.RemoveAll(home)
-		if d.Tokens != nil && spec.BookingID != "" && st.TrackBToken != "" {
+		if d.Tokens != nil && spec.BookingID != "" && !st.TrackBToken.IsZero() {
 			_ = d.Tokens.Revoke(ctx, spec.BookingID)
 		}
 		return nil, err
@@ -82,7 +82,7 @@ func (d *LocalTestDriver) Create(ctx context.Context, spec SlotSpec) (*Station, 
 		return fail(fmt.Errorf("token mint: %w", err))
 	}
 	st.TrackBToken = token
-	if err := writeExcl0600(filepath.Join(home, TrackBTokenFile), token+"\n"); err != nil {
+	if err := writeExcl0600(filepath.Join(home, TrackBTokenFile), token.Reveal()+"\n"); err != nil {
 		return fail(err)
 	}
 	if err := writeExcl0600(filepath.Join(home, ChannelSecretFile),

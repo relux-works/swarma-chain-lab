@@ -44,9 +44,9 @@ func validateProfiles(c Config) (map[string]ModelProfile, error) {
 type Responses struct{}
 
 func (Responses) Profile() string { return OpenAIResponsesProfile }
-func (Responses) Headers(h http.Header, key Secret) {
+func (Responses) Headers(h http.Header, key UpstreamKey) {
 	h.Set("Content-Type", "application/json")
-	h.Set("Authorization", "Bearer "+string(key))
+	h.Set("Authorization", "Bearer "+string(key.Reveal()))
 }
 
 func word(s string) bool {

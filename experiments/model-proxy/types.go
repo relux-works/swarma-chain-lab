@@ -114,7 +114,7 @@ type Config struct {
 	StateDir      string
 	Endpoint      Endpoint
 	Upstream      string
-	APIKey        Secret
+	APIKey        UpstreamKey
 	Models        map[string]Model
 	ModelProfiles map[string]ModelProfile
 	Now           func() time.Time
@@ -140,7 +140,13 @@ func validOrigin(raw string) bool {
 	return e == nil && validURL(raw) && u.Path == ""
 }
 
-// NewBearer protects a model bearer; Secret remains the upstream API-key type.
+// UpstreamKey keeps the operator key opaque until the authentication boundary.
+// Generic encoders redact it; it is never part of the registry wire schema.
+type UpstreamKey = codec.Secret[Secret]
+
+func NewAPIKey(value Secret) UpstreamKey { return codec.NewSecret(value) }
+
+// NewBearer protects a model bearer.
 func NewBearer(value Secret) codec.Secret[Secret] { return codec.NewSecret(value) }
 
 // Equal compares credential values, including independently decoded holders.

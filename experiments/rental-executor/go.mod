@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.5
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261111181054-288d63e191fe
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261113084500-b55fa5151e75
 )
 
 require (
