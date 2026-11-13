@@ -12,6 +12,7 @@ on:
       - '.scripts/check-px1-core-gate.py'
       - '.scripts/test_check_px1_core_gate.py'
       - '.scripts/px1-core-gate.json'
+      - '.scripts/w2-core-gate.json'
   push:
     branches: [main]
     paths:
@@ -25,6 +26,7 @@ on:
       - '.scripts/check-px1-core-gate.py'
       - '.scripts/test_check_px1_core_gate.py'
       - '.scripts/px1-core-gate.json'
+      - '.scripts/w2-core-gate.json'
   workflow_dispatch:
 permissions:
   contents: read
@@ -181,3 +183,193 @@ jobs:
           skip_seen=$?
           echo "control: real skip first, then the passing streams: gate exit $gate_exit (want 1), skip reported $skip_seen (want 0)"
           test "$gate_exit" = 1 && test "$skip_seen" = 0
+
+  # W2 Core gate: the 23 legacy W2 Core tests (every test that builds its lab
+  # with newCore, the W2 grant fixture), as listed in
+  # .scripts/w2-core-gate.json, on the same genuine Namecoin Core 28.0 regtest
+  # node as px1-core-gate (the same archive, upstream SHA256SUMS and
+  # repository pins, fetched by an identical step), with `go test -json` and
+  # the same checker. A failure, a skip anywhere or a missing listed test
+  # fails the job. Controls: a real skip (no W1_REGTEST) fails the checker,
+  # alone and beside the passing streams; and one W2 plant of
+  # testdata/service-mutations.json, applied to a copy of the tree, must fail
+  # the checker beside the 22 real passing streams.
+  w2-core:
+    name: w2-core
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: experiments/agent-wallet
+    env:
+      NMC_ARCHIVE: namecoin-28.0-x86_64-linux-gnu.tar.gz
+      NMC_URL: https://www.namecoin.org/files/namecoin-core/namecoin-core-28.0/namecoin-28.0-x86_64-linux-gnu.tar.gz
+      # Upstream release SHA256SUMS: the Guix attestations of three builders
+      # in namecoin/guix.sigs, pinned to one commit.
+      NMC_SUMS_BASE: https://raw.githubusercontent.com/namecoin/guix.sigs/9a4df23a6ce1ab79b140e7d16f914881e5de406e/28.0
+      # Recorded in this repository (experiments/fullnode-trusts/README.md,
+      # px1CorePins in px1_fixture_test.go).
+      NMC_ARCHIVE_SHA256: 6f12031926f0999b8507e073648cc2b4488d452531301a2244a562a92f2f7860
+      NMC_DAEMON_SHA256: dc7430676e445af3992430e036f7c1a17bea44f757e9cf25b69205e39625f2f7
+      NMC_CLI_SHA256: 318b6c881c8071abbafd984550172369c3498b4c65c389797350f2d458f085b1
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Require integrated K1 dependency
+        run: test -f ../rental/landlord_resolver.go && test -f ../single-use/observation.go
+      - name: Verify pinned dependencies
+        run: |
+          go mod download
+          go mod verify
+      - name: Gate checker controls (known-bad W2 streams must fail the gate)
+        working-directory: .
+        run: python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v
+      - name: Fetch and verify Namecoin Core 28.0 (upstream SHA256SUMS and repository pin)
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          mkdir nmc-core && cd nmc-core
+          curl -fsSL --retry 3 --max-time 900 -o "$NMC_ARCHIVE" "$NMC_URL"
+          for signer in 'Robert%20Mindo' 'Rose%20Turing' 'mjgill89'; do
+            sums="sums-${signer%%\%*}.txt"
+            curl -fsSL --retry 3 --max-time 60 -o "$sums" "$NMC_SUMS_BASE/$signer/noncodesigned.SHA256SUMS"
+            # Each attestation names this archive once, with the repository pin.
+            test "$(grep -c "  $NMC_ARCHIVE\$" "$sums")" = 1
+            grep -qx "$NMC_ARCHIVE_SHA256  $NMC_ARCHIVE" "$sums"
+            grep -x "[0-9a-f]\{64\}  $NMC_ARCHIVE" "$sums" | sha256sum -c -
+          done
+          mkdir x && tar -C x -xzf "$NMC_ARCHIVE"
+          echo "$NMC_DAEMON_SHA256  x/namecoin-28.0/bin/namecoind" | sha256sum -c -
+          echo "$NMC_CLI_SHA256  x/namecoin-28.0/bin/namecoin-cli" | sha256sum -c -
+          echo "W1_CORE_DAEMON=$PWD/x/namecoin-28.0/bin/namecoind" >> "$GITHUB_ENV"
+          echo "W1_CORE_CLI=$PWD/x/namecoin-28.0/bin/namecoin-cli" >> "$GITHUB_ENV"
+      - name: Gate control on a real skip (without W1_REGTEST a W2 Core test skips and the gate must fail)
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          set +e
+          go test -count=1 -json -run '^TestCoreActionStanding$' . > "$RUNNER_TEMP/w2-gate-control.json"
+          test_exit=$?
+          python3 -B ../../.scripts/check-px1-core-gate.py check --manifest ../../.scripts/w2-core-gate.json "$RUNNER_TEMP/w2-gate-control.json" > "$RUNNER_TEMP/w2-gate-control.txt"
+          gate_exit=$?
+          grep -x 'SKIPPED TestCoreActionStanding' "$RUNNER_TEMP/w2-gate-control.txt"
+          skip_seen=$?
+          echo "control: go test exit $test_exit (want 0), gate exit $gate_exit (want 1), skip reported $skip_seen (want 0)"
+          test "$test_exit" = 0 && test "$gate_exit" = 1 && test "$skip_seen" = 0
+      - name: W2 Core tests on Namecoin Core 28 regtest (go test -json, no skip allowed)
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+          W1_REGTEST: '1'
+        run: |
+          set +e
+          manifest=../../.scripts/w2-core-gate.json
+          checker=../../.scripts/check-px1-core-gate.py
+          out="$RUNNER_TEMP/w2-gate"
+          mkdir "$out" || exit 1
+          status=0
+          python3 -B "$checker" list --manifest "$manifest" core > "$RUNNER_TEMP/w2-core-list.txt" || exit 1
+          test -s "$RUNNER_TEMP/w2-core-list.txt" || exit 1
+          # Each Core test starts its own node under a fresh W1_RUN_ROOT.
+          while read -r name flags; do
+            W1_RUN_ROOT="$RUNNER_TEMP/w2-core-$name" go test $flags -timeout 20m -json -run "^${name}\$" . > "$out/$name.json" < /dev/null
+            code=$?
+            echo "go test $name $flags exit $code"
+            test "$code" = 0 || status=1
+          done < "$RUNNER_TEMP/w2-core-list.txt"
+          python3 -B "$checker" check --manifest "$manifest" "$out"/*.json
+          gate=$?
+          echo "gate exit $gate"
+          test "$gate" = 0 || status=1
+          exit "$status"
+      - name: Gate control on a real skip beside the passing streams (a skip anywhere must fail the gate)
+        run: |
+          set +e
+          python3 -B ../../.scripts/check-px1-core-gate.py check --manifest ../../.scripts/w2-core-gate.json "$RUNNER_TEMP/w2-gate-control.json" "$RUNNER_TEMP"/w2-gate/*.json > "$RUNNER_TEMP/w2-gate-control-2.txt"
+          gate_exit=$?
+          grep -x 'SKIPPED TestCoreActionStanding' "$RUNNER_TEMP/w2-gate-control-2.txt"
+          skip_seen=$?
+          echo "control: real skip first, then the passing streams: gate exit $gate_exit (want 1), skip reported $skip_seen (want 0)"
+          test "$gate_exit" = 1 && test "$skip_seen" = 0
+      # Planted control: the action-final-authority row of
+      # testdata/service-mutations.json (the payment executes despite a
+      # post-reservation revocation) is applied to a copy of the tree exactly
+      # as TestGuardPlants applies it (its Old text occurs once in its File).
+      # Its selector, TestCoreActionFinalCheck, runs on a fresh regtest root in
+      # that copy, and its stream replaces the real one beside the other 22
+      # real passing streams: the checker must fail on that test alone
+      # (FAILED and REQUIRED_FAILED, no missing or skipped test), the stream
+      # must carry the plant's marker, and the unplanted neighbour (the real
+      # 23 streams) must pass.
+      - name: Planted W2 defect must fail the gate (action-final-authority on a copy of the tree)
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+          W1_REGTEST: '1'
+          W2_PLANT: action-final-authority
+        run: |
+          set +e
+          manifest=../../.scripts/w2-core-gate.json
+          checker=../../.scripts/check-px1-core-gate.py
+          tree="$RUNNER_TEMP/w2-plant"
+          mkdir "$tree" || exit 1
+          cp -a ../../experiments "$tree/experiments" || exit 1
+          python3 -I -B -c '
+          import json, sys
+          module, name = sys.argv[1], sys.argv[2]
+          with open(module + "/testdata/service-mutations.json", encoding="utf-8") as f:
+              rows = [r for r in json.load(f) if r["Name"] == name]
+          assert len(rows) == 1 and rows[0].get("Core") is True, "one Core plant row"
+          r = rows[0]
+          path = module + "/" + r["File"]
+          with open(path, encoding="utf-8") as f:
+              src = f.read()
+          assert src.count(r["Old"]) == 1, "plant guard not uniquely applied"
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(src.replace(r["Old"], r["New"], 1))
+          print(r["Selector"] + "\t" + r["Marker"])
+          ' "$tree/experiments/agent-wallet" "$W2_PLANT" > "$RUNNER_TEMP/w2-plant-row.txt" || exit 1
+          selector=$(cut -f1 "$RUNNER_TEMP/w2-plant-row.txt")
+          marker=$(cut -f2 "$RUNNER_TEMP/w2-plant-row.txt")
+          echo "plant $W2_PLANT: selector $selector, marker: $marker"
+          test "$selector" = TestCoreActionFinalCheck || exit 1
+          diff -r ../../experiments "$tree/experiments"
+          changed=$(diff -rq ../../experiments "$tree/experiments" | wc -l)
+          (cd "$tree/experiments/agent-wallet" && W1_RUN_ROOT="$RUNNER_TEMP/w2-plant-core" go test -count=1 -timeout 20m -json -run "^${selector}\$" . > "$RUNNER_TEMP/w2-plant.json" < /dev/null)
+          test_exit=$?
+          others=()
+          for f in "$RUNNER_TEMP"/w2-gate/*.json; do
+            test "$f" = "$RUNNER_TEMP/w2-gate/$selector.json" || others+=("$f")
+          done
+          python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/w2-plant.json" "${others[@]}" > "$RUNNER_TEMP/w2-plant-gate.txt"
+          gate_exit=$?
+          cat "$RUNNER_TEMP/w2-plant-gate.txt"
+          grep -qx "FAILED $selector" "$RUNNER_TEMP/w2-plant-gate.txt"
+          failed_seen=$?
+          grep -qx "REQUIRED_FAILED W2-${selector#Test} $selector" "$RUNNER_TEMP/w2-plant-gate.txt"
+          required_seen=$?
+          other=$(grep -c '^REQUIRED_\(MISSING\|SKIPPED\) ' "$RUNNER_TEMP/w2-plant-gate.txt")
+          python3 -I -B -c '
+          import json, sys
+          path, test, marker = sys.argv[1:]
+          with open(path, encoding="utf-8") as f:
+              events = [json.loads(line) for line in f.read().splitlines() if line.strip()]
+          out = "".join(e.get("Output", "") for e in events if (e.get("Test") or "").split("/")[0] == test)
+          sys.exit(0 if marker in out else 1)
+          ' "$RUNNER_TEMP/w2-plant.json" "$selector" "$marker"
+          marker_seen=$?
+          python3 -B "$checker" check --manifest "$manifest" "${others[@]}" "$RUNNER_TEMP/w2-gate/$selector.json" > "$RUNNER_TEMP/w2-plant-neighbour.txt"
+          neighbour_exit=$?
+          tail -1 "$RUNNER_TEMP/w2-plant-neighbour.txt"
+          echo "plant control: files changed $changed (want 1), others ${#others[@]} (want 22), go test exit $test_exit (want 1), gate exit $gate_exit (want 1), FAILED seen $failed_seen (want 0), REQUIRED_FAILED seen $required_seen (want 0), missing or skipped $other (want 0), marker seen $marker_seen (want 0), unplanted neighbour gate exit $neighbour_exit (want 0)"
+          test "$changed" = 1 && test "${#others[@]}" = 22 && test "$test_exit" = 1 && test "$gate_exit" = 1 && test "$failed_seen" = 0 && test "$required_seen" = 0 && test "$other" = 0 && test "$marker_seen" = 0 && test "$neighbour_exit" = 0

@@ -4,7 +4,9 @@
 Run: python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v
 Each case writes a synthetic `go test -json` stream built from the real gate
 manifest and runs the checker CLI exactly as CI does. PX1_GATE_CHECKER may
-point at a mutated copy of the checker for gate-mutation runs.
+point at a mutated copy of the checker for gate-mutation runs. W2Gate holds
+the controls of the w2-core job (.scripts/w2-core-gate.json, the legacy W2
+Core tests).
 """
 import json
 import os
@@ -20,7 +22,53 @@ REPO = Path(__file__).resolve().parents[1]
 CHECKER = Path(os.environ.get("PX1_GATE_CHECKER", REPO / ".scripts" / "check-px1-core-gate.py"))
 MANIFEST = REPO / ".scripts" / "px1-core-gate.json"
 CONSUMER = REPO / ".scripts" / "px1-s5-consumer-gate.json"
+W2 = REPO / ".scripts" / "w2-core-gate.json"
+WALLET = REPO / "experiments" / "agent-wallet"
+WORKFLOW = REPO / ".github" / "workflows" / "agent-wallet.yml"
 INTERFACES = REPO / "experiments" / "agent-wallet" / "PX1-INTERFACES.md"
+FUNC = re.compile(r"^func (?:\([^)]*\)\s*)?([A-Za-z0-9_]+)\(")
+
+
+def newcore_users(directory=WALLET):
+    """(tests, helpers): the top-level Test functions of the package's
+    *_test.go files whose body calls newCore (the W2 grant fixture), and any
+    other function that calls it (an indirect user the manifest could miss)."""
+    tests, helpers = set(), set()
+    for path in sorted(Path(directory).glob("*_test.go")):
+        name, body = None, []
+        for line in path.read_text(encoding="utf-8").splitlines() + ["func end("]:
+            m = FUNC.match(line)
+            if m:
+                if name and name != "newCore" and any("newCore(" in b for b in body):
+                    (tests if name.startswith("Test") else helpers).add(name)
+                name, body = m.group(1), []
+            body.append(line)
+    return sorted(tests), sorted(helpers)
+
+
+def job_block(text, job):
+    """The lines of one job of the workflow (up to the next job key)."""
+    lines, out, inside = text.splitlines(), [], False
+    for line in lines:
+        if re.match(r"^  [A-Za-z0-9_-]+:\s*$", line):
+            inside = line.strip() == job + ":"
+            continue
+        if inside:
+            out.append(line)
+    return out
+
+
+def core_fetch(text, job):
+    """The NMC_* pins and the Core fetch-and-verify step of one job."""
+    block = job_block(text, job)
+    pins = [x.strip() for x in block if re.match(r"^\s+NMC_[A-Z0-9_]+:", x)]
+    step, inside = [], False
+    for line in block:
+        if line.startswith("      - "):
+            inside = line.strip().startswith("- name: Fetch and verify Namecoin Core 28.0")
+        if inside:
+            step.append(line)
+    return pins, step
 
 
 def table_layers(path=INTERFACES):
@@ -361,6 +409,127 @@ class Gate(unittest.TestCase):
         skipped = [case[0], {"Action": "skip", "Package": pkg, "Test": "TestPX1S5ClientConsumerResolved/resolved"}]
         code, out = self.run_checker(stream(m, extra=skipped), manifest=CONSUMER)
         self.assertEqual(code, 1, out)
+
+
+class W2Gate(unittest.TestCase):
+    """Controls for the w2-core job: the same checker with the W2 manifest."""
+
+    run_checker = Gate.run_checker
+
+    # Claim: the valid neighbour passes: every W2 Core test of the manifest
+    # passing once gives exit 0, PX1_GATE PASS with 23 labels and 23 required
+    # passes, and every label PASS.
+    def test_w2_all_pass(self):
+        m = load(W2)
+        code, out = self.run_checker(stream(m), manifest=W2)
+        self.assertEqual(code, 0, out)
+        self.assertIn("PX1_GATE PASS labels=23 required_passed=23", out)
+        for label, n in zip(m["labels"], m["core_tests"]):
+            self.assertRegex(out, rf"(?m)^{label} PASS layers=core core: pass {n}$")
+
+    # Claim: the manifest requires exactly the tests that build their lab with
+    # newCore (the W2 grant fixture), each once under its own core-only label,
+    # and no other function calls newCore (no indirect user is missed).
+    # Controls: a source tree with an extra newCore test, and one with a
+    # helper that calls newCore, are both detected.
+    def test_w2_manifest_is_newcore_users(self):
+        m = load(W2)
+        tests, helpers = newcore_users()
+        self.assertEqual(len(tests), 23)
+        self.assertEqual(helpers, [])
+        self.assertEqual(sorted(m["core_tests"]), tests)
+        self.assertEqual(m["labels"], ["W2-" + n[len("Test"):] for n in m["core_tests"]])
+        for label, n in zip(m["labels"], m["core_tests"]):
+            self.assertEqual(m["tids"][label], {"layers": ["core"], "core": [n]})
+        self.assertNotIn("core_runs", m)
+        with tempfile.TemporaryDirectory() as d:
+            for path in WALLET.glob("*_test.go"):
+                (Path(d) / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+            (Path(d) / "extra_test.go").write_text(
+                "package wallet\n\nfunc TestCoreExtra(t *testing.T) {\n\tl := newCore(t)\n\t_ = l\n}\n\n"
+                "func (x *coreLab) relab(t *testing.T) *coreLab {\n\treturn newCore(t)\n}\n", encoding="utf-8")
+            tests, helpers = newcore_users(d)
+            self.assertEqual(sorted(set(tests) - set(m["core_tests"])), ["TestCoreExtra"])
+            self.assertEqual(helpers, ["relab"])
+
+    # Claim (known-bad controls): for EVERY W2 Core test, a skip, a failure or
+    # a missing stream fails the gate (exit 1) with REQUIRED_SKIPPED,
+    # REQUIRED_FAILED or REQUIRED_MISSING naming that test's label, and never
+    # reports PX1_GATE PASS.
+    def test_w2_each_test_skip_fail_missing(self):
+        m = load(W2)
+        for label, n in zip(m["labels"], m["core_tests"]):
+            for action, code_name in (("skip", "REQUIRED_SKIPPED"), ("fail", "REQUIRED_FAILED"), (None, "REQUIRED_MISSING")):
+                with self.subTest(test=n, action=action):
+                    code, out = self.run_checker(stream(m, {n: action}), manifest=W2)
+                    self.assertEqual(code, 1, out)
+                    self.assertIn(f"{code_name} {label} {n}", out)
+                    self.assertIn("PX1_GATE FAIL", out)
+                    self.assertNotIn("PX1_GATE PASS", out)
+
+    # Claim (recorded known-bad stream): the go test -json shape of the
+    # action-final-authority plant (TestCoreActionFinalCheck failing at
+    # "want refused/GRANT_SEAL_SPENT got executed/EXECUTED", then the package
+    # failing), beside the passing streams of the other 22 tests, fails the
+    # gate with FAILED, REQUIRED_FAILED and PACKAGE_FAILED and no missing or
+    # skipped test, so the plant alone causes the failure. The hosted job
+    # repeats this with a genuinely planted tree (agent-wallet.yml w2-core).
+    def test_w2_recorded_plant_stream(self):
+        m = load(W2)
+        pkg, name = m["package"], "TestCoreActionFinalCheck"
+        others = stream(m, {name: None}).splitlines()[:-1]
+        planted = [
+            {"Action": "start", "Package": pkg},
+            {"Action": "run", "Package": pkg, "Test": name},
+            {"Action": "output", "Package": pkg, "Test": name, "Output": "=== RUN   " + name + "\n"},
+            {"Action": "output", "Package": pkg, "Test": name, "Output": "    service_crash_test.go:222: want refused/GRANT_SEAL_SPENT got executed/EXECUTED\n"},
+            {"Action": "output", "Package": pkg, "Test": name, "Output": "--- FAIL: " + name + " (7.68s)\n"},
+            {"Action": "fail", "Package": pkg, "Test": name, "Elapsed": 7.68},
+            {"Action": "output", "Package": pkg, "Output": "FAIL\n"},
+            {"Action": "fail", "Package": pkg, "Elapsed": 7.7},
+        ]
+        code, out = self.run_checker("\n".join(others) + "\n", "\n".join(json.dumps(x) for x in planted) + "\n", manifest=W2)
+        self.assertEqual(code, 1, out)
+        for want in ("FAILED " + name, "REQUIRED_FAILED W2-CoreActionFinalCheck " + name, "PACKAGE_FAILED", "PX1_GATE FAIL"):
+            self.assertIn(want, out)
+        self.assertNotRegex(out, r"(?m)^REQUIRED_(MISSING|SKIPPED) ")
+        self.assertEqual(len(re.findall(r"(?m)^W2-\S+ PASS ", out)), 22)
+
+    # Claim: a run without W1_REGTEST (every newCore test skips) fails the
+    # gate with SKIPPED and REQUIRED_SKIPPED for each of the 23 tests.
+    def test_w2_no_node_skips_all(self):
+        m = load(W2)
+        code, out = self.run_checker(stream(m, {n: "skip" for n in m["core_tests"]}), manifest=W2)
+        self.assertEqual(code, 1, out)
+        for label, n in zip(m["labels"], m["core_tests"]):
+            self.assertIn(f"SKIPPED {n}", out)
+            self.assertIn(f"REQUIRED_SKIPPED {label} {n}", out)
+
+    # Claim: the w2-core job fetches the same Namecoin Core 28.0 archive with
+    # the same pins and the same fetch-and-verify step as px1-core-gate, and
+    # checks its streams with this checker and the W2 manifest under
+    # W1_REGTEST=1. Control: a w2-core job whose archive pin or verify step
+    # differs is detected.
+    def test_w2_job_shares_core_fetch(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        pins, step = core_fetch(text, "px1-core-gate")
+        self.assertEqual(len(pins), 6)
+        self.assertGreater(len(step), 10)
+        self.assertEqual(core_fetch(text, "w2-core"), (pins, step))
+        w2 = "\n".join(job_block(text, "w2-core"))
+        for want in ("check-px1-core-gate.py", "W1_REGTEST: '1'", "go test $flags -timeout 20m -json"):
+            self.assertIn(want, w2)
+        # Every checker call of the job uses the W2 manifest, never another.
+        self.assertNotIn("px1-core-gate.json", w2)
+        self.assertEqual(re.findall(r"manifest=(\S+)", w2), ["../../.scripts/w2-core-gate.json"] * 2)
+        uses = re.findall(r"--manifest (\S+)", w2)
+        self.assertGreaterEqual(len(uses), 6)
+        self.assertEqual(set(uses), {'"$manifest"', "../../.scripts/w2-core-gate.json"})
+        for old, new in (("NMC_ARCHIVE_SHA256: 6f12", "NMC_ARCHIVE_SHA256: 0f12"), ("sha256sum -c -", "true")):
+            parts = text.split("\n  w2-core:\n")
+            self.assertEqual(len(parts), 2)
+            bad = parts[0] + "\n  w2-core:\n" + parts[1].replace(old, new, 1)
+            self.assertNotEqual(core_fetch(bad, "w2-core"), core_fetch(bad, "px1-core-gate"), old)
 
 
 if __name__ == "__main__":
