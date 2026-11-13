@@ -1,0 +1,35 @@
+T18-REAL-HOST v1 wallet=real commit=ca5edc6809ae71f5365c142a0010ba95c43b27be spec_sha256=cd88fe1a0c42dcb137d77f456a674fc57fb0b325a2a01fddbe153ed225563077 agent_uid=1201 primary_gid=1201 socket_gid=1301 service_uid=1101
+node-txindex PASS getindexinfo={"txindex":{"synced":true,"best_block_height":812345}}
+render PASS files=6 custody_spec_file_sha256=8d1820c34afc27b86ed06d58d2dec3001e490641c514718a4ea7b64c0b855c19
+apply no-op: account pre-created by Infra
+account PASS steps=preflight,VerifyG2AgentAccount,group-set apply=noop activation=noop user=cedar real_account=uid=1201_gid=1201_groups=1201,1301 group_set=G2_AGENT_GROUPS_OK
+agent-inputs PASS spec,client,params=rendered
+launch-form PASS uid=1201,1201,0,1201 gid=1201,1201,1201,1201 groups=1201,1301 caps=0000000000000000 want_uid=1201 want_gid=1201 want_groups=1201,1301
+credentials PASS observed_gid=1201 groups=1201,1301 check=G2_AGENT_GROUPS_OK
+denied-read:/etc/swarma/wallet/wallet.json PASS observed=EACCES
+denied-read:/etc/swarma/wallet/receipt.key PASS observed=EACCES
+denied-read:/var/lib/swarma-wallet/service PASS observed=EACCES
+denied-read:/var/lib/swarma-wallet/wallet PASS observed=EACCES
+denied-read:/var/lib/swarma-wallet/kernel PASS observed=EACCES
+denied-read:/var/lib/swarma-wallet/objects PASS observed=EACCES
+denied-read:/run/swarma-wallet-status PASS observed=EACCES
+status-dir PASS path=/run/swarma-wallet-status observed=EACCES
+denied-read:/var/lib/namecoind-main/.cookie PASS observed=EACCES
+denied-read:/var/lib/namecoind-main/wallets/swarma-g2-hot/wallet.dat PASS observed=EACCES
+denied-rpc:127.0.0.1:8336 PASS observed=HTTP_401
+peer-precondition PASS perl_v=This_is_perl_5,_version_34,_subversion_0_(v5.34.0)_built_for_x86_64-linux-gnu-thread-multi
+allowed-socket PASS wallet=real probe=CONNECTED peer_uid=1101 service_uid=1101 socket=socket|1101|1301|660 socket_gid=1301
+custody-verify PASS uid=1201,probe_exit=0,positive_exit=3,verify_exit=0 verified=cd88fe1a0c42dcb137d77f456a674fc57fb0b325a2a01fddbe153ed225563077
+# positive-path: the real-wallet positive path (an authorized request that executes) is proven by the separate owner-authorized, bounded mainnet smoke gate, not by T18. On this host the wallet client sends nothing: positive-request is COVERED_BY_HOSTED, pinned to TestPX1CoreServiceG2FailClosed in run 43360330369, and is FAIL if the host evidence shows that any frame was sent.
+positive-request COVERED_BY_HOSTED pin=TestPX1CoreServiceG2FailClosed commit=ca5edc6809ae71f5365c142a0010ba95c43b27be run=43360330369 job=px1-core-gate host=not-sent positive_path=mainnet-smoke-gate
+cov-enoent-not-denied COVERED_BY_HOSTED pin=TestPX1T18DeniedReadMustBeEACCES commit=ca5edc6809ae71f5365c142a0010ba95c43b27be run=43360330648 job=checks
+cov-searchable-dir COVERED_BY_HOSTED pin=TestPX1T18SearchableDirectory commit=ca5edc6809ae71f5365c142a0010ba95c43b27be run=43360330648 job=checks
+cov-rpc-not-refused COVERED_BY_HOSTED pin=TestPX1T18RPCClassification commit=ca5edc6809ae71f5365c142a0010ba95c43b27be run=43360330648 job=checks
+cov-probe-uid-gate COVERED_BY_HOSTED pin=TestPX1T18ProbeUIDGate commit=ca5edc6809ae71f5365c142a0010ba95c43b27be run=43360330648 job=checks
+cov-verify-refusals COVERED_BY_HOSTED pin=TestPX1T18VerifyRefusals commit=ca5edc6809ae71f5365c142a0010ba95c43b27be run=43360330648 job=checks
+cov-host-flow-tripwire COVERED_BY_HOSTED pin=TestPX1S5HostFlowTripwire commit=ca5edc6809ae71f5365c142a0010ba95c43b27be run=43360330648 job=checks
+cov-readback-refusals COVERED_BY_HOSTED pin=TestPX1T18CustodyScript commit=ca5edc6809ae71f5365c142a0010ba95c43b27be run=43360330648 job=checks
+cov-core-node-policy COVERED_BY_HOSTED pin=TestPX1T18CoreNodePolicy commit=dcad699da8cbc7e03436b00b85f667a5b2093b04 run=43404324238 job=px1-core-gate
+cov-wallet-foreign-peer COVERED_BY_HOSTED pin=TestPX1T5ServiceRefusals commit=ca5edc6809ae71f5365c142a0010ba95c43b27be run=43360330369 job=px1-core-gate
+cov-positive-request-client COVERED_BY_HOSTED pin=TestCoreActionClient commit=ca5edc6809ae71f5365c142a0010ba95c43b27be run=43360330369 job=w2-core
+OVERALL PASS pass=19 stand_in=0 covered=11 fail=1 invalid=0 missing=0 run=real

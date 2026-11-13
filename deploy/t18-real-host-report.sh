@@ -34,7 +34,11 @@
 #       denied-read, status-dir, allowed-socket) is then STAND_IN, never PASS,
 #       and the OVERALL line says the run is valid only as a stand-in run
 #   t18-real-host-report.sh check REPORT
-#       recomputes the OVERALL line of a stored report
+#       recomputes the OVERALL line of a stored report with one strict
+#       parser: a duplicate field, a field that contradicts its verdict, the
+#       header or another item, and a trailing, unterminated or unparsable
+#       line are each refused with a named reason, and the report must end
+#       with exactly the recomputed OVERALL line
 #   t18-real-host-report.sh peer SOCKET
 #       connects, reads SO_PEERCRED, sends nothing
 #   t18-real-host-report.sh items
@@ -326,11 +330,19 @@ report_items() {
 	g4=$(awk '$1 == "Gid:" { print $2","$3","$4","$5 }' "$l" 2>/dev/null || true)
 	gs=$(awk '$1 == "Groups:" { for (i = 2; i <= NF; i++) print $i }' "$l" 2>/dev/null | sort -un | tr '\n' ',' | sed 's/,$//')
 	want_gs=$(printf '%s\n%s\n' "$gid" "$sgid" | sort -un | tr '\n' ',' | sed 's/,$//')
-	caps=$(awk '$1 ~ /^Cap(Prm|Eff|Amb):$/ { print $2 }' "$l" 2>/dev/null | sort -u | tr '\n' ',' | sed 's/,$//')
-	if [ "$u4" = "$uid,$uid,$uid,$uid" ] && [ "$g4" = "$gid,$gid,$gid,$gid" ] && [ "$gs" = "$want_gs" ] && [ "$(echo "$want_gs" | tr ',' '\n' | wc -l)" = 2 ] && [ "$caps" = 0000000000000000 ]; then
+	# Each of these lines stands exactly once: a missing or repeated line is
+	# unknown evidence, never a zero. caps lists the three capability sets in
+	# /proc order.
+	once=1
+	for k in Uid Gid Groups CapPrm CapEff CapAmb; do
+		[ "$(grep -c "^$k:" "$l" 2>/dev/null)" = 1 ] || once=0
+	done
+	caps=$(awk '$1 ~ /^Cap(Prm|Eff|Amb):$/ { printf "%s%s=%s", s, substr($1, 1, 6), $2; s = "," }' "$l" 2>/dev/null || true)
+	if [ "$once" = 1 ] && [ "$u4" = "$uid,$uid,$uid,$uid" ] && [ "$g4" = "$gid,$gid,$gid,$gid" ] && [ "$gs" = "$want_gs" ] && [ "$(echo "$want_gs" | tr ',' '\n' | wc -l)" = 2 ] &&
+		[ "$caps" = CapPrm=0000000000000000,CapEff=0000000000000000,CapAmb=0000000000000000 ]; then
 		echo "launch-form PASS uid=$u4 gid=$g4 groups=$gs caps=0"
 	else
-		echo "launch-form FAIL uid=${u4:-none} gid=${g4:-none} groups=${gs:-none} caps=${caps:-none} want_uid=$uid want_gid=$gid want_groups=$want_gs"
+		echo "launch-form FAIL uid=$(printf '%s' "${u4:-none}" | tr '\n' ';') gid=$(printf '%s' "${g4:-none}" | tr '\n' ';') groups=${gs:-none} caps=${caps:-none} each_line_once=$once want_uid=$uid want_gid=$gid want_groups=$want_gs"
 	fi
 
 	ck=$(file_line "$ag/custody/credentials-check.txt")
@@ -402,7 +414,7 @@ report_items() {
 
 	vf=$(file_line "$ag/custody/custody-verify.txt")
 	case $ex in
-	*" probe_exit=0 "*" verify_exit=0") ok=1 ;;
+	"uid=$uid probe_exit=0 positive_exit="*" verify_exit=0") ok=1 ;;
 	*) ok=0 ;;
 	esac
 	if [ "$ok" = 1 ] && [ "$vf" = "T18_CUSTODY_VERIFIED $spec_sha" ]; then
@@ -417,15 +429,20 @@ report_items() {
 	# sent a frame (a receipt other than the marker, another exit, or any
 	# client error output) fails this item.
 	echo "$positive_note"
-	rc=$(file_line "$ag/custody/positive-receipt.json")
-	if [ "$ex" = credentials=refused ] && [ ! -e "$ag/custody/positive-request.json" ] && [ ! -e "$ag/custody/positive-receipt.json" ]; then
+	# The receipt must be the marker line and nothing else, byte for byte: a
+	# second line, unterminated trailing bytes or a missing newline is a
+	# receipt this report cannot read as unsent. Client error output fails
+	# the item in both branches.
+	rc=0
+	printf '%s\n' "$stub_marker" | cmp -s - "$ag/custody/positive-receipt.json" 2>/dev/null && rc=1
+	if [ "$ex" = credentials=refused ] && [ ! -e "$ag/custody/positive-request.json" ] && [ ! -e "$ag/custody/positive-receipt.json" ] && [ ! -s "$ag/custody/positive.err" ]; then
 		echo "positive-request COVERED_BY_HOSTED $positive_pin host=not-run positive_path=mainnet-smoke-gate"
 	else
 		case $ex in
 		*" positive_exit=3 "*) pe=1 ;;
 		*) pe=0 ;;
 		esac
-		if [ "$pe" = 1 ] && [ "$rc" = "$stub_marker" ] && [ "$(wc -l <"$ag/custody/positive-receipt.json")" = 1 ] && [ ! -s "$ag/custody/positive.err" ]; then
+		if [ "$pe" = 1 ] && [ "$rc" = 1 ] && [ ! -s "$ag/custody/positive.err" ]; then
 			echo "positive-request COVERED_BY_HOSTED $positive_pin host=not-sent positive_path=mainnet-smoke-gate"
 		else
 			echo "positive-request FAIL host=request-sent-or-unknown"
@@ -436,12 +453,31 @@ report_items() {
 }
 
 # ---------------------------------------------------------------- check
-# check_report FILE: validate every line and print the recomputed OVERALL
-# line. Exit 0 only when it is PASS and agrees with a stated OVERALL line.
+# check_report FILE stored|composed: parse every line once, strictly, and
+# print the recomputed OVERALL line. Exit 0 only when it is PASS and, for a
+# stored report, the report ends with exactly that OVERALL line.
+#
+# The parser refuses instead of choosing: a line is the header, the literal
+# no-op apply line, the literal positive-path statement, an item line or (in
+# a stored report) the one last OVERALL line, single-space separated and
+# newline-terminated; anything else is invalid. An item line is
+# `<id> <verdict> <field>...`, where a field is key=value (or a bare word)
+# and each key stands once per line: a second occurrence is refused whether
+# or not it agrees. A PASS, STAND_IN or COVERED_BY_HOSTED line carries exactly
+# the fields of its item, in order, and every value is compared with the one
+# value that verdict needs (from the header or the pin table), so a field
+# that contradicts its verdict, the header or another item is refused.
 check_report() {
-	awk -v pins="$(covered_table; echo "$positive_row")" -v apply_line="$apply_noop_line" -v note="$positive_note" '
+	unterminated=0
+	if [ -s "$1" ] && [ "$(tail -c 1 "$1" | wc -l)" -eq 0 ]; then
+		unterminated=1
+	fi
+	awk -v pins="$(covered_table; echo "$positive_row")" -v apply_line="$apply_noop_line" -v note="$positive_note" \
+		-v pinned_commit="$pinned_commit" -v status_dir="$status_dir" -v unterminated="$unterminated" -v stored="$2" '
 	function bad(why) { invalid++; reasons = reasons " " why }
-	function has(tok) { return index(ev, " " tok " ") > 0 }
+	function num(s) { return s ~ /^[0-9]+$/ }
+	function hex64(s) { return length(s) == 64 && s !~ /[^0-9a-f]/ }
+	function pair(a, b) { return (a + 0 < b + 0) ? a "," b : b "," a }
 	BEGIN {
 		npin = split(pins, rows, "\n")
 		for (i = 1; i <= npin; i++) {
@@ -450,57 +486,135 @@ check_report() {
 			req_ids = req_ids " " f[1]
 		}
 		nreq = split("node-txindex render account agent-inputs launch-form credentials status-dir peer-precondition allowed-socket custody-verify" req_ids, req, " ")
+		nhk = split("wallet commit spec_sha256 agent_uid primary_gid socket_gid service_uid", hkey, " ")
+		# The fields of each non-FAIL item line, in order.
+		schema["node-txindex"] = "getindexinfo"
+		schema["render"] = "files custody_spec_file_sha256"
+		schema["account"] = "steps apply activation user real_account group_set"
+		schema["agent-inputs"] = "spec,client,params"
+		schema["launch-form"] = "uid gid groups caps"
+		schema["credentials"] = "observed_gid groups check"
+		schema["denied-read"] = "observed"
+		schema["status-dir"] = "path observed"
+		schema["denied-rpc"] = "observed"
+		schema["peer-precondition"] = "perl_v"
+		schema["allowed-socket"] = "wallet probe peer_uid service_uid socket socket_gid"
+		schema["custody-verify"] = "uid verified"
+		schema["positive-request"] = "pin commit run job host positive_path"
+		schema["covered"] = "pin commit run job"
+		schema["custody-spec"] = ""
 	}
 	NR == 1 {
-		if ($1 != "T18-REAL-HOST" || $2 != "v1" || ($3 != "wallet=real" && $3 != "wallet=stand-in")) { bad("header"); next }
-		wallet = substr($3, 8)
-		for (i = 4; i <= NF; i++) { split($i, kv, "="); hdr[kv[1]] = kv[2] }
+		hok = ($1 == "T18-REAL-HOST" && $2 == "v1" && NF == nhk + 2)
+		for (i = 3; i <= NF; i++) {
+			p = index($i, "="); k = p ? substr($i, 1, p - 1) : $i
+			if (k in hdr) { bad("duplicate-field:header:" k); hok = 0 }
+			hdr[k] = p ? substr($i, p + 1) : ""
+			if (k != hkey[i - 2]) hok = 0
+		}
+		if (hdr["wallet"] != "real" && hdr["wallet"] != "stand-in") hok = 0
+		if (hdr["commit"] != pinned_commit || !hex64(hdr["spec_sha256"])) hok = 0
+		if (!num(hdr["agent_uid"]) || !num(hdr["primary_gid"]) || !num(hdr["socket_gid"]) || !num(hdr["service_uid"])) hok = 0
+		if (hdr["socket_gid"] == hdr["primary_gid"]) hok = 0
+		if (!hok || $0 !~ /^[^ \t\r]+( [^ \t\r]+)*$/) { bad("header"); next }
+		wallet = hdr["wallet"]
 		next
 	}
+	overall_seen { bad("trailing-after-overall:line" NR); next }
 	$0 == apply_line { napply++; next }
 	$0 == note { nnote++; next }
-	/^#/ { next }
-	/^OVERALL / { stated = $2; next }
+	/^OVERALL / && stored == "stored" { stated = $2; stated_line = $0; overall_seen = 1; next }
+	$0 !~ /^[^# \t\r][^ \t\r]*( [^ \t\r]+)*$/ { bad("malformed-line:line" NR); next }
 	{
-		id = $1; v = $2; ev = " " $0 " "
+		id = $1; v = $2
 		if (NF < 3) bad("no-evidence:" id)
 		if (seen[id]++) bad("duplicate:" id)
 		if (v != "PASS" && v != "FAIL" && v != "STAND_IN" && v != "COVERED_BY_HOSTED") { bad("verdict:" id); next }
+		# The fields, once each.
+		split("", fv); keys = ""
+		for (i = 3; i <= NF; i++) {
+			p = index($i, "="); k = p ? substr($i, 1, p - 1) : $i
+			if (k in fv) { bad("duplicate-field:" id ":" k); continue }
+			fv[k] = p ? substr($i, p + 1) : ""
+			keys = keys (keys == "" ? "" : " ") k
+		}
+		kind = id
+		if (id ~ /^denied-read:./) kind = "denied-read"
+		else if (id ~ /^denied-rpc:./) kind = "denied-rpc"
+		else if ((id in pin_test) && id != "positive-request") kind = "covered"
+		vv[id] = v
 		count[v]++
 		if (v == "FAIL") fail++
-		placeholder = (id == "allowed-socket" || id == "status-dir" || id ~ /^denied-read:/)
+		placeholder = (kind == "allowed-socket" || kind == "status-dir" || kind == "denied-read")
+		if (!(kind in schema)) { bad(v == "COVERED_BY_HOSTED" ? "covered-not-allowed:" id : "unknown-item:" id); next }
+		if (v == "FAIL") next
+		if (kind == "custody-spec") { bad("custody-spec-not-fail"); next }
+		if (keys != schema[kind]) bad("fields:" id)
 		if (v == "STAND_IN" && (!placeholder || wallet != "stand-in")) bad("stand-in-misplaced:" id)
 		if (v == "PASS" && placeholder && wallet == "stand-in") bad("stand-in-placeholder-pass:" id)
-		if (v == "COVERED_BY_HOSTED") {
-			if (!(id in pin_test)) bad("covered-not-allowed:" id)
-			else {
-				if (!has("pin=" pin_test[id])) bad("no-pin:" id)
-				if (!has("commit=" pin_commit[id])) bad("no-commit:" id)
-				if (!has("run=" pin_run[id])) bad("no-run:" id)
-				if (!has("job=" pin_job[id])) bad("no-job:" id)
+		if (v == "COVERED_BY_HOSTED" && !(id in pin_test)) bad("covered-not-allowed:" id)
+		if (v != "COVERED_BY_HOSTED" && (id in pin_test)) bad("covered-item-verdict:" id)
+		A = hdr["agent_uid"]; G = hdr["primary_gid"]; S = hdr["socket_gid"]; U = hdr["service_uid"]
+		if (v == "COVERED_BY_HOSTED" && (id in pin_test)) {
+			if (fv["pin"] != pin_test[id]) bad("no-pin:" id)
+			if (fv["commit"] != pin_commit[id]) bad("no-commit:" id)
+			if (fv["run"] != pin_run[id]) bad("no-run:" id)
+			if (fv["job"] != pin_job[id]) bad("no-job:" id)
+			if (id == "positive-request") {
+				host = fv["host"]
+				if (host != "not-sent" && host != "not-run") bad("request-not-shown-unsent")
+				if (fv["positive_path"] != "mainnet-smoke-gate") bad("positive-path-not-stated")
 			}
-			if (id == "positive-request" && ev !~ / host=not-(sent|run) /) bad("request-not-shown-unsent")
-			if (id == "positive-request" && !has("positive_path=mainnet-smoke-gate")) bad("positive-path-not-stated")
-		} else if (id in pin_test) {
-			if (v != "FAIL") bad("covered-item-verdict:" id)
 		}
-		if (id ~ /^denied-read:/) { nread++; if (v != "FAIL" && ev !~ / observed=(EACCES|EPERM) /) bad("read-pass-without-eacces:" id) }
-		if (id == "status-dir" && v != "FAIL" && ev !~ / observed=(EACCES|EPERM) /) bad("status-pass-without-eacces")
-		if (id ~ /^denied-rpc:/) { nrpc++; if (v == "PASS" && ev !~ / observed=(HTTP_401|HTTP_403|REFUSED) /) bad("rpc-pass-without-refusal:" id) }
-		if (id == "peer-precondition" && v == "PASS" && ev !~ / perl_v=This_is_perl_5,_version_[0-9]+,_subversion_[0-9]+/) bad("peer-precondition-without-perl-version")
-		if (id == "account" && v == "PASS") {
+		if (kind == "denied-read") {
+			nread++
+			if (fv["observed"] != "EACCES" && fv["observed"] != "EPERM") bad("read-pass-without-eacces:" id)
+			read_o[substr(id, 13)] = fv["observed"]
+		}
+		if (kind == "status-dir") {
+			if (fv["observed"] != "EACCES" && fv["observed"] != "EPERM") bad("status-pass-without-eacces")
+			if (fv["path"] != status_dir) bad("status-pass-other-path")
+			status_o = fv["observed"]
+		}
+		if (kind == "denied-rpc") {
+			nrpc++
+			o = fv["observed"]
+			if (o != "HTTP_401" && o != "HTTP_403" && o != "REFUSED") bad("rpc-pass-without-refusal:" id)
+		}
+		if (id == "node-txindex" && fv["getindexinfo"] !~ /^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$/) bad("txindex-pass-without-synced-index")
+		if (id == "render" && (fv["files"] != "6" || !hex64(fv["custody_spec_file_sha256"]))) bad("render-pass-without-six-files")
+		if (id == "agent-inputs" && fv["spec,client,params"] != "rendered") bad("agent-inputs-pass-without-match")
+		if (id == "peer-precondition" && fv["perl_v"] !~ /^This_is_perl_5,_version_[0-9]+,_subversion_[0-9]+/) bad("peer-precondition-without-perl-version")
+		if (id == "account") {
 			account_pass = 1
-			if (!has("apply=noop")) bad("account-pass-without-noop-apply")
-			if (!has("group_set=G2_AGENT_GROUPS_OK")) bad("account-pass-without-real-group-set")
-			if (hdr["primary_gid"] != hdr["agent_uid"]) bad("account-own-gid-not-uid")
-			a = hdr["primary_gid"]; b = hdr["socket_gid"]
-			groups = (a + 0 < b + 0) ? a "," b : b "," a
-			if (!has("real_account=uid=" hdr["agent_uid"] "_gid=" hdr["primary_gid"] "_groups=" groups)) bad("account-pass-without-real-account")
+			if (fv["steps"] != "preflight,VerifyG2AgentAccount,group-set") bad("account-pass-without-steps")
+			if (fv["apply"] != "noop" || fv["activation"] != "noop") bad("account-pass-without-noop-apply")
+			if (fv["user"] !~ /^[a-z_][a-z0-9_-]*$/) bad("account-pass-without-user")
+			if (fv["group_set"] != "G2_AGENT_GROUPS_OK") bad("account-pass-without-real-group-set")
+			if (G != A) bad("account-own-gid-not-uid")
+			if (fv["real_account"] != "uid=" A "_gid=" G "_groups=" pair(G, S)) bad("account-pass-without-real-account")
 		}
-		if (id == "allowed-socket" && v == "PASS") {
-			if (wallet != "real") bad("wallet-pass-on-stand-in")
-			if (ev !~ / probe=CONNECTED /) bad("wallet-pass-without-connect")
-			if (!match(ev, / peer_uid=[0-9]+ /) || substr(ev, RSTART + 10, RLENGTH - 11) != hdr["service_uid"]) bad("wallet-pass-without-peer-identity")
+		if (id == "launch-form") {
+			if (fv["uid"] != A "," A "," A "," A) bad("launch-pass-other-uid")
+			if (fv["gid"] != G "," G "," G "," G) bad("launch-pass-other-gid")
+			if (fv["groups"] != pair(G, S)) bad("launch-pass-other-groups")
+			if (fv["caps"] != "0") bad("launch-pass-with-capabilities")
+		}
+		if (id == "credentials" && (fv["observed_gid"] != G || fv["groups"] != pair(G, S) || fv["check"] != "G2_AGENT_GROUPS_OK")) bad("credentials-pass-contradicts-evidence")
+		if (id == "custody-verify") {
+			cv = fv["uid"]
+			if (cv !~ /^[0-9]+,probe_exit=0,positive_exit=[0-9]+,verify_exit=0$/ || substr(cv, 1, index(cv, ",") - 1) != A) bad("custody-verify-pass-contradicts-exits")
+			if (fv["verified"] != hdr["spec_sha256"]) bad("custody-verify-pass-other-spec")
+		}
+		if (id == "allowed-socket") {
+			if (v == "PASS") {
+				if (wallet != "real" || fv["wallet"] != "real") bad("wallet-pass-on-stand-in")
+				if (fv["probe"] != "CONNECTED") bad("wallet-pass-without-connect")
+				if (fv["peer_uid"] != U || fv["service_uid"] != U) bad("wallet-pass-without-peer-identity")
+				if (fv["socket"] != "socket|" U "|" S "|660" || fv["socket_gid"] != S) bad("wallet-pass-socket-metadata")
+			} else if (v == "STAND_IN") {
+				if (fv["wallet"] != "stand-in" || fv["probe"] != "CONNECTED" || !num(fv["peer_uid"]) || fv["service_uid"] != U || fv["socket_gid"] != S) bad("stand-in-socket-contradicts-evidence")
+			}
 		}
 	}
 	END {
@@ -510,11 +624,25 @@ check_report() {
 		if (wallet == "") { invalid++; reasons = reasons " header" }
 		if (napply > 1 || (account_pass && napply != 1)) bad("apply-noop-line")
 		if (nnote != 1) bad("positive-path-statement")
-		overall = (fail + invalid + missing == 0) ? "PASS" : "FAIL"
+		# Contradictions between items.
+		if (vv["status-dir"] != "" && vv["status-dir"] != "FAIL" && (vv["denied-read:" status_dir] != vv["status-dir"] || read_o[status_dir] != status_o)) bad("status-dir-contradicts-denied-read")
+		if (vv["positive-request"] == "COVERED_BY_HOSTED") {
+			if (host == "not-run" && (vv["credentials"] == "PASS" || vv["custody-verify"] == "PASS")) bad("positive-not-run-contradicts-credentials")
+			if (host == "not-sent" && vv["custody-verify"] == "PASS" && cv !~ /,positive_exit=3,/) bad("positive-not-sent-contradicts-exits")
+		}
+		if (unterminated) bad("unterminated-last-line")
+		if (stored == "stored" && !overall_seen) bad("missing:OVERALL")
 		run = (wallet == "stand-in") ? "run=stand-in valid-only-as-a-stand-in-run" : "run=" (wallet == "" ? "unknown" : wallet)
-		printf "OVERALL %s pass=%d stand_in=%d covered=%d fail=%d invalid=%d missing=%d %s\n", overall, count["PASS"], count["STAND_IN"], count["COVERED_BY_HOSTED"], fail, invalid, missing, run
+		# A stored OVERALL line must be the recomputed line, byte for byte;
+		# one that disagrees is itself a contradiction.
+		for (pass = 1; pass <= 2; pass++) {
+			overall = (fail + invalid + missing == 0) ? "PASS" : "FAIL"
+			line = sprintf("OVERALL %s pass=%d stand_in=%d covered=%d fail=%d invalid=%d missing=%d %s", overall, count["PASS"], count["STAND_IN"], count["COVERED_BY_HOSTED"], fail, invalid, missing, run)
+			if (pass == 1 && stated_line != "" && stated_line != line) { disagree = 1; bad("stated-overall-disagrees") } else break
+		}
+		print line
 		if (reasons != "") print "# reasons:" reasons
-		if (stated != "" && stated != overall) { print "# stated OVERALL " stated " disagrees"; exit 1 }
+		if (disagree) print "# stated OVERALL " stated " disagrees"
 		exit (overall == "PASS") ? 0 : 1
 	}' "$1"
 }
@@ -569,7 +697,7 @@ self_test() {
 	expect stand-in-wallet 0 stand-in '^allowed-socket STAND_IN wallet=stand-in probe=CONNECTED '
 	expect stand-in-placeholders 0 stand-in '^OVERALL PASS pass=9 stand_in=4 covered=11 fail=0 invalid=0 missing=0 run=stand-in valid-only-as-a-stand-in-run$'
 	sed 's/^\(denied-read:[^ ]*\) STAND_IN /\1 PASS /' "$w/stand-in-placeholders.txt" >"$w/edited.txt"
-	check_report "$w/edited.txt" >/dev/null && got=0 || got=$?
+	check_report "$w/edited.txt" stored >/dev/null && got=0 || got=$?
 	if [ "$got" = 1 ]; then echo "self-test stand-in-placeholder-pass ok exit=1"; else echo "self-test stand-in-placeholder-pass WRONG exit=$got" && failures=$((failures + 1)); fi
 	echo 'deploy: invalid policy' >"$op/account-groups.txt"
 	expect account-real-group-set-refused 1 real '^account FAIL .* group_set=deploy:_invalid_policy$'
@@ -584,7 +712,7 @@ self_test() {
 	expect request-sent 1 real '^positive-request FAIL host=request-sent-or-unknown$'
 	echo "$stub_marker" >"$ag/custody/positive-receipt.json"
 	sed 's/^allowed-socket PASS /allowed-socket STAND_IN /' "$w/real-wallet-all-pass.txt" >"$w/edited.txt"
-	check_report "$w/edited.txt" >/dev/null && got=0 || got=$?
+	check_report "$w/edited.txt" stored >/dev/null && got=0 || got=$?
 	if [ "$got" = 1 ]; then echo "self-test stand-in-on-real-wallet ok exit=1"; else echo "self-test stand-in-on-real-wallet WRONG exit=$got" && failures=$((failures + 1)); fi
 	if [ "$failures" = 0 ]; then
 		echo "SELF_TEST PASS"
@@ -611,11 +739,11 @@ report)
 	trap 'rm -f "$report_tmp"' EXIT
 	report_items "$@" >"$report_tmp"
 	cat "$report_tmp"
-	check_report "$report_tmp"
+	check_report "$report_tmp" composed
 	;;
 check)
 	[ "$#" -eq 1 ] && [ -f "$1" ] || usage
-	check_report "$1"
+	check_report "$1" stored
 	;;
 self-test) self_test "$@" ;;
 *) usage ;;

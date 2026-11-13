@@ -417,7 +417,7 @@ func TestT18RealHostReportControls(t *testing.T) {
 		}, 1, `^launch-form FAIL uid=1201,1201,0,1201 `},
 		{"launch-capability", "real", func(t *testing.T, f *t18rhFix) {
 			f.write(t, "launch.txt", strings.Replace(t18rhLaunch(1201, 1201, "1201 1301"), "CapEff:\t0000000000000000", "CapEff:\t0000000000000400", 1))
-		}, 1, `^launch-form FAIL .* caps=0000000000000000,0000000000000400 `},
+		}, 1, `^launch-form FAIL .* caps=CapPrm=0000000000000000,CapEff=0000000000000400,CapAmb=0000000000000000 each_line_once=1 `},
 		{"launch-missing", "real", func(t *testing.T, f *t18rhFix) { os.Remove(filepath.Join(f.ag, "launch.txt")) }, 1, `^launch-form FAIL uid=none `},
 		{"credentials-refused", "real", func(t *testing.T, f *t18rhFix) {
 			f.write(t, "custody/exits.txt", "credentials=refused\n")
@@ -862,5 +862,195 @@ func TestT18RealHostAgentPhase(t *testing.T) {
 	}
 	if code != 1 || !strings.Contains(out, "\nOVERALL FAIL ") {
 		t.Fatalf("T18RH_AGENT a fixture-path run must not pass: %d", code)
+	}
+}
+
+// t18rhR3 holds the stored reports and evidence bytes of the r3 review: the
+// reviewer's witnesses, kept byte for byte, beside the valid reports they
+// were planted in.
+const t18rhR3 = "testdata/t18-real-host-r3"
+
+// t18rhCheckFile runs check on a stored report given as text.
+func t18rhCheckFile(t *testing.T, name, text string) (int, string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if e := os.WriteFile(path, []byte(text), 0600); e != nil {
+		t.Fatal(e)
+	}
+	return t18rhRun(t, nil, "check", path)
+}
+
+func t18rhRead(t *testing.T, name string) string {
+	t.Helper()
+	b, e := os.ReadFile(filepath.Join(t18rhR3, name))
+	if e != nil {
+		t.Fatal(e)
+	}
+	return string(b)
+}
+
+// Claim (r3): check parses a stored report once, strictly, and refuses (exit
+// 1, OVERALL FAIL and the named reason) every duplicate field, every field
+// that contradicts its verdict, the header or another item, and every
+// trailing, unterminated or unparsable line, while the valid real and
+// stand-in reports (the reviewer's baseline, which is exactly what the
+// composer emits for the standard evidence set) still pass with exit 0.
+// The reviewer's witnesses are refused by the planted field itself: the
+// three token-preserving duplicates (host=sent after host=not-sent on
+// positive-request, R2; a second real_account with a third group, R3; a
+// second run= naming the Deploy kit run in which TestPX1T18CoreNodePolicy
+// skipped, R6) keep the valid OVERALL line, and each relabelled PASS
+// (unsynced txindex, saved UID 0, verify_exit=1, socket mode 0666) is checked
+// under the OVERALL line the valid report states, so its refusal cannot come
+// from a count. A duplicate is refused even when both copies agree. Limit:
+// check sees only the stored report; whether every denied_reads target of
+// the rendered spec has a row is the composer's (report mode), not proven here.
+func TestT18RealHostStrictCheck(t *testing.T) {
+	real, standIn := t18rhRead(t, "valid-real.txt"), t18rhRead(t, "valid-stand-in.txt")
+	f := t18rhFixture(t)
+	if code, out := f.report(t, "real"); code != 0 || out != real {
+		t.Fatalf("T18RH_STRICT the stored valid report is not the composer's output (%d)\n%s", code, out)
+	}
+	for name, text := range map[string]string{"valid-real": real, "valid-stand-in": standIn} {
+		code, out := t18rhCheckFile(t, name, text)
+		last := text[strings.LastIndex(strings.TrimSuffix(text, "\n"), "\n")+1:]
+		if code != 0 || out != last {
+			t.Fatalf("T18RH_STRICT %s refused or recomputed differently: %d\n%s", name, code, out)
+		}
+	}
+	validOverall := "OVERALL PASS pass=20 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real"
+	overallRe := regexp.MustCompile(`(?m)^OVERALL .*$`)
+	sub := func(text, re, repl string) string {
+		out := regexp.MustCompile(`(?m)`+re).ReplaceAllString(text, repl)
+		if out == text {
+			t.Fatalf("T18RH_STRICT edit %q matched nothing", re)
+		}
+		return out
+	}
+	cases := []struct{ name, text, reason string }{
+		// The reviewer's witnesses, byte for byte (R2, R3, R6).
+		{"r2-duplicate-sent-wallet", t18rhRead(t, "duplicate-sent-wallet.txt"), "duplicate-field:positive-request:host"},
+		{"r2-conflicting-host-fields", t18rhRead(t, "wallet-conflicting-host-fields.txt"), "duplicate-field:positive-request:host"},
+		{"r3-duplicate-third-account-group", t18rhRead(t, "duplicate-third-account-group.txt"), "duplicate-field:account:real_account"},
+		{"r3-contradictory-duplicate-groups", t18rhRead(t, "account-contradictory-duplicate-groups.txt"), "duplicate-field:account:real_account"},
+		{"r6-duplicate-skipped-node-run", t18rhRead(t, "duplicate-skipped-node-run.txt"), "duplicate-field:cov-core-node-policy:run"},
+		{"r6-conflicting-skipped-pin", t18rhRead(t, "hosted-node-conflicting-skipped-pin.txt"), "duplicate-field:cov-core-node-policy:run"},
+		// The relabelled PASS witnesses under the valid OVERALL line.
+		{"relabel-unsynced-txindex", overallRe.ReplaceAllString(t18rhRead(t, "unsynced-node-relabeled.txt"), validOverall), "txindex-pass-without-synced-index"},
+		{"relabel-saved-root", overallRe.ReplaceAllString(t18rhRead(t, "saved-root-relabeled.txt"), validOverall), "launch-pass-other-uid"},
+		{"relabel-failed-verifier", overallRe.ReplaceAllString(t18rhRead(t, "failed-custody-verifier-relabeled.txt"), validOverall), "custody-verify-pass-contradicts-exits"},
+		{"relabel-world-writable-socket", overallRe.ReplaceAllString(t18rhRead(t, "world-writable-socket-relabeled.txt"), validOverall), "wallet-pass-socket-metadata"},
+		// Duplicates, agreeing or not, on items, pins and the header.
+		{"agreeing-duplicate-run", sub(real, `^(cov-core-node-policy .* job=px1-core-gate)$`, "$1 run="+t18rhRunNode), "duplicate-field:cov-core-node-policy:run"},
+		{"agreeing-duplicate-host", sub(real, `^(positive-request .*)$`, "$1 host=not-sent"), "duplicate-field:positive-request:host"},
+		{"duplicate-on-fail-line", sub(real, `^account PASS .*$`, "account FAIL host_flow=x host_flow=y"), "duplicate-field:account:host_flow"},
+		{"duplicate-header-field", sub(real, `^(T18-REAL-HOST v1 .*)$`, "$1 agent_uid=0"), "duplicate-field:header:agent_uid"},
+		{"duplicate-overall", sub(real, `^(OVERALL .*)$`, "$1\n$1"), "trailing-after-overall"},
+		// Fields that contradict the verdict, the header or another item.
+		{"extra-field", sub(real, `^(launch-form PASS .*)$`, "$1 note=extra"), "fields:launch-form"},
+		{"fields-reordered", sub(real, `^render PASS (files=6) (\S+)$`, "render PASS $2 $1"), "fields:render"},
+		{"not-run-beside-credentials-pass", sub(real, ` host=not-sent `, " host=not-run "), "positive-not-run-contradicts-credentials"},
+		{"not-sent-beside-sent-exit", sub(real, `positive_exit=3,verify_exit=0 `, "positive_exit=0,verify_exit=0 "), "positive-not-sent-contradicts-exits"},
+		{"status-dir-other-observation", sub(real, `^status-dir PASS (path=\S+) observed=EACCES$`, "status-dir PASS $1 observed=EPERM"), "status-dir-contradicts-denied-read"},
+		{"credentials-other-groups", sub(real, `^credentials PASS observed_gid=1201 groups=1201,1301 `, "credentials PASS observed_gid=1201 groups=1201,1301,1401 "), "credentials-pass-contradicts-evidence"},
+		{"verify-other-agent", sub(real, `uid=1201,probe_exit=0`, "uid=0,probe_exit=0"), "custody-verify-pass-contradicts-exits"},
+		{"unknown-item", sub(real, `^(render PASS .*)$`, "$1\nshadow PASS ok=1"), "unknown-item:shadow"},
+		{"header-other-commit", sub(real, `^T18-REAL-HOST v1 wallet=real commit=\S+ `, "T18-REAL-HOST v1 wallet=real commit="+t18rhNodeCommit+" "), "header"},
+		{"stated-other-counts", sub(real, `^OVERALL PASS pass=20 `, "OVERALL PASS pass=21 "), "# stated OVERALL PASS disagrees"},
+		// Trailing, unterminated or unparsable lines and blocks.
+		{"unterminated-last-line", strings.TrimSuffix(real, "\n"), "unterminated-last-line"},
+		{"trailing-line", real + "positive-request FAIL host=sent\n", "trailing-after-overall"},
+		{"trailing-unterminated", real + `{"receipt":{"verdict":"executed"}}`, "unterminated-last-line"},
+		{"missing-overall", strings.TrimSuffix(real, validOverall+"\n"), "missing:OVERALL"},
+		{"blank-line", sub(real, `^(render PASS .*)$`, "$1\n"), "malformed-line:"},
+		{"other-comment", sub(real, `^(render PASS .*)$`, "$1\n# host=sent"), "malformed-line:"},
+		{"double-space", sub(real, `^render PASS `, "render PASS  "), "malformed-line:"},
+		{"trailing-space", sub(real, `^(render PASS .*)$`, "$1 "), "malformed-line:"},
+		{"carriage-return", sub(real, `^(render PASS .*)$`, "$1\r"), "malformed-line:"},
+	}
+	for _, c := range cases {
+		code, out := t18rhCheckFile(t, c.name, c.text)
+		if code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.Contains(out, c.reason) {
+			t.Fatalf("T18RH_STRICT %s: exit %d, want 1 with %q\n%s", c.name, code, c.reason, out)
+		}
+	}
+}
+
+// Claim (r3): the composer reads the no-request receipt as the whole file,
+// byte for byte, and inspects client error output in both covered branches:
+// the reviewer's receipt (the marker, a newline, then an unterminated
+// executed receipt) and a refused-credentials run whose client error output
+// says a frame was sent both turn positive-request FAIL and OVERALL FAIL with
+// exit 1, beside their valid neighbours (the exact marker receipt, and a
+// refused-credentials run with no client output, both COVERED_BY_HOSTED). The
+// marker without its newline and the marker twice are refused too.
+func TestT18RealHostReceiptBytes(t *testing.T) {
+	refuse := func(t *testing.T, f *t18rhFix) {
+		f.write(t, "custody/exits.txt", "credentials=refused\n")
+		for _, n := range []string{"positive-request.json", "positive-receipt.json"} {
+			os.Remove(filepath.Join(f.ag, "custody", n))
+		}
+	}
+	cases := []struct {
+		name string
+		edit func(*testing.T, *t18rhFix)
+		line string
+	}{
+		{"marker-then-executed", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "custody/positive-receipt.json", t18rhRead(t, "receipt-marker-then-executed.json"))
+		}, "positive-request FAIL host=request-sent-or-unknown"},
+		{"marker-unterminated", func(t *testing.T, f *t18rhFix) { f.write(t, "custody/positive-receipt.json", t18rhMarker) }, "positive-request FAIL host=request-sent-or-unknown"},
+		{"marker-twice", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "custody/positive-receipt.json", t18rhMarker+"\n"+t18rhMarker+"\n")
+		}, "positive-request FAIL host=request-sent-or-unknown"},
+		{"refused-credentials-sent-error", func(t *testing.T, f *t18rhFix) {
+			refuse(t, f)
+			f.write(t, "custody/positive.err", t18rhRead(t, "refused-credentials-sent.err"))
+		}, "positive-request FAIL host=request-sent-or-unknown"},
+		{"valid-marker", func(*testing.T, *t18rhFix) {}, "positive-request COVERED_BY_HOSTED pin=TestPX1CoreServiceG2FailClosed commit=" + t18rhCommit + " run=" + t18rhRunAW + " job=px1-core-gate host=not-sent positive_path=mainnet-smoke-gate"},
+		{"valid-refused-credentials", refuse, "positive-request COVERED_BY_HOSTED pin=TestPX1CoreServiceG2FailClosed commit=" + t18rhCommit + " run=" + t18rhRunAW + " job=px1-core-gate host=not-run positive_path=mainnet-smoke-gate"},
+	}
+	for _, c := range cases {
+		f := t18rhFixture(t)
+		c.edit(t, f)
+		code, out := f.report(t, "real")
+		want := 1 // the refused-credentials neighbour fails on credentials, not on positive-request
+		if c.name == "valid-marker" {
+			want = 0
+		}
+		if code != want || !strings.Contains(out, "\n"+c.line+"\n") {
+			t.Fatalf("T18RH_RECEIPT %s: exit %d (want %d), want line %q\n%s", c.name, code, want, c.line, out)
+		}
+	}
+}
+
+// Claim (r3): launch-form PASS needs each of Uid, Gid, Groups, CapPrm, CapEff
+// and CapAmb exactly once in the launch evidence: removing any one capability
+// line (the reviewer's plants) or repeating one is launch-form FAIL with exit
+// 1, although every remaining line reads zero; the complete evidence passes.
+func TestT18RealHostLaunchLinesOnce(t *testing.T) {
+	full := t18rhLaunch(1201, 1201, "1201 1301")
+	cases := map[string]string{
+		"missing-CapPrm": strings.Replace(full, "CapPrm:\t0000000000000000\n", "", 1),
+		"missing-CapEff": strings.Replace(full, "CapEff:\t0000000000000000\n", "", 1),
+		"missing-CapAmb": strings.Replace(full, "CapAmb:\t0000000000000000\n", "", 1),
+		"twice-CapEff":   full + "CapEff:\t0000000000000000\n",
+		"twice-Uid":      full + "Uid:\t1201\t1201\t1201\t1201\n",
+		"valid":          full,
+	}
+	for name, launch := range cases {
+		if name != "valid" && launch == full {
+			t.Fatalf("T18RH_LAUNCH %s edit matched nothing", name)
+		}
+		f := t18rhFixture(t)
+		f.write(t, "launch.txt", launch)
+		code, out := f.report(t, "real")
+		ok := code == 1 && regexp.MustCompile(`(?m)^launch-form FAIL .* each_line_once=0 `).MatchString(out)
+		if name == "valid" {
+			ok = code == 0 && strings.Contains(out, "\nlaunch-form PASS uid=1201,1201,1201,1201 gid=1201,1201,1201,1201 groups=1201,1301 caps=0\n")
+		}
+		if !ok {
+			t.Fatalf("T18RH_LAUNCH %s: exit %d\n%s", name, code, out)
+		}
 	}
 }

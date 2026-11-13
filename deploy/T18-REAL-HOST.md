@@ -258,6 +258,22 @@ echo "check exit $?"
 Exit 0 means OVERALL PASS. Exit 1 means OVERALL FAIL, followed by a
 `# reasons:` line.
 
+`check` parses the stored report once and refuses instead of choosing. Every
+line is the header, the literal no-op apply line, the literal positive-path
+statement, an item line or the final OVERALL line, single-space separated and
+newline-terminated. In an item line each field key stands once: a second
+`host=`, `run=` or `real_account=` is refused (`duplicate-field:<item>:<key>`)
+even when both copies agree. A `PASS`, `STAND_IN` or `COVERED_BY_HOSTED` line
+carries exactly the fields of its item, in order, each with the one value its
+verdict needs (from the header or the pin table), so a field that contradicts
+its verdict, the header or another item is refused (for example a launch form
+with a saved UID 0, a socket that is not mode 660, `host=not-run` beside a
+credentials `PASS`). Any other line (a blank or comment line, a line after
+OVERALL, an unterminated last line) is refused too, and the stated OVERALL
+line must be the recomputed line byte for byte. The no-request receipt is read
+the same way in the report step: it must be exactly the marker line, and any
+client error output fails `positive-request` in both covered branches.
+
 **Dry run.** Anywhere, with no root and no station:
 
 ```sh
@@ -329,7 +345,7 @@ valid only as a stand-in run.
 | `render` | step 3 | `g2-render` exits 0 and its six files are byte-identical to `$RENDERED` |
 | `account` | step 3 | the no-op mode is recorded (the report prints `apply no-op: account pre-created by Infra`); `g2-host-flow` prints `G2_HOST_FLOW_ACTIVATED`: the preflight, `VerifyG2AgentAccount` and the exact set {own GID == UID, `agent_socket_gid`} passed on this host's account database; and the REAL account read back has UID `agent_uid`, primary GID == UID, and a group list `g2-agent-groups` accepts (`G2_AGENT_GROUPS_OK`). The apply and activation were no-ops. |
 | `agent-inputs` | steps 4, 5 | the agent's spec, client and parameters have the SHA-256 of `$RENDERED/custody-spec.json`, `$RENDERED/client.json` and `$PARAMS` |
-| `launch-form` | step 5 | `/proc` shows the setpriv launch form: real, effective, saved and filesystem UID all `agent_uid`; all four GIDs the declared primary GID; `Groups` exactly {primary, `agent_socket_gid`}; `CapPrm`, `CapEff` and `CapAmb` all zero |
+| `launch-form` | step 5 | `/proc` shows the setpriv launch form: real, effective, saved and filesystem UID all `agent_uid`; all four GIDs the declared primary GID; `Groups` exactly {primary, `agent_socket_gid`}; `CapPrm`, `CapEff` and `CapAmb` each present exactly once and all zero |
 | `credentials` | step 5 | `g2-agent-groups` accepted the readback: observed `id -g` == declared primary GID, `id -G` == exactly {primary, socket} (`G2_AGENT_GROUPS_OK`) |
 | `denied-read:<path>` | step 5 | one item per `denied_reads` path, in spec order; the probe observed `EACCES` or `EPERM` (and traversal was denied too). `ENOENT`, `READ_OK`, or no probe result is FAIL. With the stand-in flag a denial is `STAND_IN`, never PASS. |
 | `status-dir` | step 5 | `/run/swarma-wallet-status` is in `denied_reads` and its probe is `EACCES` or `EPERM` (freeze amendment 1, A8). With the stand-in flag a denial is `STAND_IN`, never PASS. |
