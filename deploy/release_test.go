@@ -461,6 +461,9 @@ func TestValidateManifest(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	if m, e := ValidateManifest(valid); e != nil || len(m.Tools) != 1 || m.Tools[0].Tool != "deploy-kit" {
+		t.Fatalf("built manifest lacks a validated deploy-kit tool row: %v", e)
+	}
 	edit := func(f func(m map[string]any)) []byte {
 		var m map[string]any
 		if e := json.Unmarshal(valid, &m); e != nil {
