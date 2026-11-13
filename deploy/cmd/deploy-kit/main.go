@@ -22,7 +22,7 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: deploy-kit build|validate|check-coins|check-model-terms|render-install-anchor|g2-render|g2-host-flow|g2-agent-groups|g2-custody-probe|g2-custody-verify|g2-custody-hash [flags]")
+		return errors.New("usage: deploy-kit build|validate|check-coins|check-model-terms|render-install-anchor|g2-render|g2-host-flow|g2-agent-groups|g2-custody-probe|g2-custody-verify|g2-funded-preflight|g2-custody-hash [flags]")
 	}
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	switch args[0] {
@@ -38,6 +38,8 @@ func run(args []string) error {
 		return g2CustodyVerify(args[1:], os.Stdout)
 	case "g2-custody-hash":
 		return g2CustodyHash(args[1:], os.Stdout)
+	case "g2-funded-preflight":
+		return g2FundedPreflight(args[1:], os.Stdout)
 	case "render-install-anchor":
 		return renderInstallAnchor(args[1:], os.Stdout)
 	case "check-model-terms":

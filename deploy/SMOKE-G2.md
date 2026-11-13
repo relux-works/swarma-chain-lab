@@ -87,6 +87,27 @@ a canary of at least 546 atoms, and
 `journal_spend_capacity ≥ max_day_count + 64`. The agent-wallet startup
 validator stays authoritative.
 
+### Funded station preflight
+
+Rehearsal parameters legitimately carry public test keys, so the render does
+not refuse them. A FUNDED station runs this read-only check (no network, no
+write) on its parameters file before any install step (render, `g2-host-flow`)
+and stops on any refusal:
+
+```sh
+deploy-kit g2-funded-preflight -params "$PARAMS"
+```
+
+It parses the file with the `g2-render` parser and returns that parser's
+refusal unchanged (which already refuses `grantee == receipt_pubkey` and an
+all-zero canary txid). It then refuses, one named stderr line each and exit 1:
+a `grantee` or `receipt_pubkey` that is `x(k·G)` for `1 ≤ k ≤ 1024`
+(`SMALL_SCALAR_KEY`), a BIP-340 test-vector key #0–#3 (`BIP340_VECTOR_KEY`)
+or an x-only key of this repository's G2 test fixtures (`FIXTURE_TEST_KEY`),
+and a canary txid whose 32 bytes are all one value (`DUMMY_CANARY_TXID`). Only
+then does it print `G2_FUNDED_PREFLIGHT_OK` and exit 0. It judges nothing
+else.
+
 ## 2. Render
 
 With the verified release tool from §0:
