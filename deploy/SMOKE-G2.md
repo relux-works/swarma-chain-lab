@@ -232,8 +232,59 @@ members of `wallet.json` come from three sources:
 | Source | Members |
 | --- | --- |
 | `-params` (the `g2-render` parser) | `network`, `genesis`, `fee_rate_sat_vb`; the port of all three routes (`node_rpc_port`); the wallet route's Core wallet (`hot_wallet_name`) |
-| `-wallet-public` (operator, public, no credential) | exactly `policy` (an object whose `network` and `genesis` equal the parameters and whose `state_dir` is `/var/lib/swarma-wallet/kernel`), `change_address`, and absolute `wallet_dir` and `memory_zone`. Any other member, a route or a password included, is refused. |
+| `-wallet-public` (operator, public, no credential) | exactly `policy` (the full W pay policy below), `change_address` (legacy P2PKH on the parameters' network), and absolute, clean `wallet_dir` and `memory_zone`. Any other member, a route or a password included, is refused. |
 | fixed | `version` 1; host `127.0.0.1` and the three user names; `state_dir` `/var/lib/swarma-wallet/wallet`; `objects_dir` `/var/lib/swarma-wallet/objects` (the directories T18 denies to the agent) |
+
+Before generating credentials, finalize all four public members:
+
+- `policy` requires `construction_profile: "W"`; `network` and `genesis`
+  exactly equal to the parameters; `state_dir` exactly
+  `/var/lib/swarma-wallet/kernel`; distinct `agent_name` and `landlord_name`
+  in the product's `id/` name form (1..252 lowercase ASCII letters, digits,
+  `-`, `_`, or `.` after `id/`); and `seal_script`, exactly a lowercase-hex
+  25-byte legacy P2PKH script (`76a914` + 20-byte hash + `88ac`). The grant
+  issuer supplies the two names and the matching seal script; the operator
+  pins them to the grants intended for this service. Optional
+  `known_pool_seals` is an array of at most 4096 distinct `{txid, vout}`
+  points, with lowercase 32-byte txids and uint32 indices. Omit all legacy-v1
+  members: `issuer_pubkey`, `agent_pubkey`, `station_name`, `station_script`,
+  `funding_script`, and `fee_rate`; even empty values are refused.
+- `change_address` must be a canonical Base58Check legacy P2PKH address for
+  that chain: version 52 on Namecoin main, 111 on regtest. Segwit `nc1`,
+  P2SH, a bad checksum, and a regtest address on main all refuse.
+- `wallet_dir` identifies the node wallet directory. It must neither equal,
+  contain, nor sit inside `/var/lib/swarma-wallet/wallet` or
+  `/var/lib/swarma-wallet/service`. A textual path check does not resolve
+  symlinks; the operator must pin the actual deployment paths.
+- `memory_zone` is the agent's **Curator memory path**, pinned by the owner
+  and Curator. It is not a wallet or wallet-service state path. The command
+  checks its absolute, clean form and refuses the wallet journal directory
+  (as service startup does); it cannot attest the owner/Curator pin.
+
+All four members (`policy`, `change_address`, `wallet_dir`, `memory_zone`)
+are hashed into the wallet's persistent state binding. They must be final
+**before the first service start**. Changing one afterwards is a state-binding
+change, not an ordinary configuration edit.
+
+The command refuses invalid public inputs before drawing randomness, writing
+`wallet.json`, or printing any rpcauth lines. It uses the product's
+single-use strict decoder and witness-profile check. Rental's private
+`Policy.validateGrant` and the wallet's private
+`addressScriptForNetwork` cannot be called across packages. Importing rental
+would additionally add its btcd/payment-chain/rental-booking dependency
+closure to deploy. Instead, dependency-free equivalent checks are pinned by
+`TestG2RPCAuthProductValidators`: temporary Go overlays call the actual
+validators inside their modules, including real `LoadConfig` and startup
+network validation on the generated mainnet file. G2 deliberately adds an
+exact kernel directory and absence of legacy fields to the grant rules.
+No product production files or deploy module dependencies change.
+
+To validate these tools from `deploy/`, run `go vet ./...` and
+`go test -race ./...`; the latter builds the real wallet consumers and runs
+the temporary product probes. Go owns their temporary artifacts under
+`TMPDIR` and removes them after the tests. Tests need the agent-wallet
+module's dependencies pre-downloaded as in the Deploy kit workflow. These
+checks do not start a service or prove target-host custody.
 
 Final owner and mode, set by the operator in §3:
 

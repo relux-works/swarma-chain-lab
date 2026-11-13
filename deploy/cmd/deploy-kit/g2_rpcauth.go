@@ -15,6 +15,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,11 +102,121 @@ func g2AbsClean(p string) bool {
 	return filepath.IsAbs(p) && filepath.Clean(p) == p && p != "/" && !strings.ContainsAny(p, "\x00\n")
 }
 
-// g2ReadWalletPublic reads and checks the operator's public wallet members
-// against the parameters: strict JSON (unknown, duplicate or null members
-// refuse), no placeholder, a policy object pinned to the parameters' chain
-// with state_dir g2KernelStateDir, a change address, and absolute clean
-// wallet_dir and memory_zone.
+// g2PayPolicy is the W pay-path subset of rental.Policy. A rental import adds
+// btcd and the payment-chain/rental-booking dependency closure to deploy;
+// validateGrant and wallet.addressScriptForNetwork are also package-private.
+// TestG2RPCAuthProductValidators pins these checks to those actual functions
+// in their own modules, without adding dependencies or changing product code.
+// Legacy-v1 members are intentionally absent: StrictInput refuses even empty
+// legacy members, as well as unknown, duplicate, aliased and null members.
+type g2PayPolicy struct {
+	ConstructionProfile string `json:"construction_profile"`
+	Network             string `json:"network"`
+	Genesis             string `json:"genesis"`
+	StateDir            string `json:"state_dir"`
+	AgentName           string `json:"agent_name"`
+	LandlordName        string `json:"landlord_name"`
+	SealScript          string `json:"seal_script"`
+	KnownPoolSeals      []struct {
+		TxID string `json:"txid"`
+		Vout uint32 `json:"vout"`
+	} `json:"known_pool_seals,omitempty"`
+}
+
+func g2PublicRefusal(member string) error {
+	return fmt.Errorf("%w: wallet-public %s", deploy.ErrPolicy, member)
+}
+
+// Same id/ name grammar as rental.station, including its byte limit.
+func g2PayName(s string) bool {
+	if !strings.HasPrefix(s, "id/") || len(s) <= 3 || len(s) > 255 {
+		return false
+	}
+	for _, c := range []byte(s[3:]) {
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c == '.') {
+			return false
+		}
+	}
+	return true
+}
+
+func g2ValidatePayPolicy(raw []byte, p deploy.G2PayParameters) error {
+	var policy g2PayPolicy
+	if su.StrictInput(raw, &policy) != nil {
+		return g2PublicRefusal("policy schema")
+	}
+	if su.RequireWitnessProfile(policy.ConstructionProfile) != nil {
+		return g2PublicRefusal("policy.construction_profile")
+	}
+	if policy.Network != p.Network {
+		return g2PublicRefusal("policy.network")
+	}
+	if policy.Genesis != p.Genesis || !su.NetworkPinned(policy.Network, policy.Genesis) {
+		return g2PublicRefusal("policy.genesis")
+	}
+	if policy.StateDir != g2KernelStateDir {
+		return g2PublicRefusal("policy.state_dir")
+	}
+	if !g2PayName(policy.AgentName) {
+		return g2PublicRefusal("policy.agent_name")
+	}
+	if !g2PayName(policy.LandlordName) || policy.LandlordName == policy.AgentName {
+		return g2PublicRefusal("policy.landlord_name")
+	}
+	b, e := hex.DecodeString(policy.SealScript)
+	if e != nil || hex.EncodeToString(b) != policy.SealScript || len(b) != 25 || !bytes.Equal(b[:3], []byte{0x76, 0xa9, 20}) || !bytes.Equal(b[23:], []byte{0x88, 0xac}) {
+		return g2PublicRefusal("policy.seal_script")
+	}
+	if len(policy.KnownPoolSeals) > 4096 {
+		return g2PublicRefusal("policy.known_pool_seals")
+	}
+	seen := map[string]bool{}
+	for _, point := range policy.KnownPoolSeals {
+		b, e := hex.DecodeString(point.TxID)
+		key := fmt.Sprintf("%s:%d", point.TxID, point.Vout)
+		if e != nil || len(b) != 32 || hex.EncodeToString(b) != point.TxID || seen[key] {
+			return g2PublicRefusal("policy.known_pool_seals")
+		}
+		seen[key] = true
+	}
+	return nil
+}
+
+// Equivalent to the wallet startup path: a canonical Base58Check encoding of
+// a 20-byte pubkey hash on the pinned network, never P2SH or witness. The
+// exact decoded length also rejects redundant leading Base58 zeroes.
+func g2PayChangeAddress(address, network, genesis string) bool {
+	if !su.NetworkPinned(network, genesis) || len(address) < 26 || len(address) > 35 {
+		return false
+	}
+	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+	n := new(big.Int)
+	for _, c := range []byte(address) {
+		i := strings.IndexByte(alphabet, c)
+		if i < 0 {
+			return false
+		}
+		n.Mul(n, big.NewInt(58))
+		n.Add(n, big.NewInt(int64(i)))
+	}
+	b := n.Bytes()
+	for i := 0; i < len(address) && address[i] == '1'; i++ {
+		b = append([]byte{0}, b...)
+	}
+	version := byte(111)
+	if network == "main" {
+		version = 52
+	}
+	if len(b) != 25 || b[0] != version {
+		return false
+	}
+	first := sha256.Sum256(b[:21])
+	second := sha256.Sum256(first[:])
+	return bytes.Equal(b[21:], second[:4])
+}
+
+// g2ReadWalletPublic validates every public input before any entropy is drawn
+// or any output file or rpcauth line is written.
 func g2ReadWalletPublic(path string, p deploy.G2PayParameters) (g2WalletPublic, error) {
 	var w g2WalletPublic
 	raw, e := readBounded(path, 1<<16)
@@ -117,18 +228,24 @@ func g2ReadWalletPublic(path string, p deploy.G2PayParameters) (g2WalletPublic, 
 	}
 	raw = bytes.TrimSuffix(raw, []byte("\n"))
 	if su.StrictInput(raw, &w) != nil || len(w.Policy) == 0 {
-		return g2WalletPublic{}, deploy.ErrPolicy
+		return g2WalletPublic{}, g2PublicRefusal("schema")
 	}
-	var policy struct {
-		Network  string `json:"network"`
-		Genesis  string `json:"genesis"`
-		StateDir string `json:"state_dir"`
+	if e := g2ValidatePayPolicy(w.Policy, p); e != nil {
+		return g2WalletPublic{}, e
 	}
-	if json.Unmarshal(w.Policy, &policy) != nil || policy.Network != p.Network || policy.Genesis != p.Genesis || policy.StateDir != g2KernelStateDir {
-		return g2WalletPublic{}, deploy.ErrPolicy
+	if !g2PayChangeAddress(w.ChangeAddress, p.Network, p.Genesis) {
+		return g2WalletPublic{}, g2PublicRefusal("change_address")
 	}
-	if w.ChangeAddress == "" || len(w.ChangeAddress) > 128 || strings.ContainsAny(w.ChangeAddress, " \t\r\n\x00") || !g2AbsClean(w.WalletDir) || !g2AbsClean(w.MemoryZone) {
-		return g2WalletPublic{}, deploy.ErrPolicy
+	if !g2AbsClean(w.WalletDir) {
+		return g2WalletPublic{}, g2PublicRefusal("wallet_dir")
+	}
+	for _, state := range []string{g2WalletStateDir, "/var/lib/swarma-wallet/service"} {
+		if w.WalletDir == state || strings.HasPrefix(w.WalletDir, state+"/") || strings.HasPrefix(state, w.WalletDir+"/") {
+			return g2WalletPublic{}, g2PublicRefusal("wallet_dir state overlap")
+		}
+	}
+	if !g2AbsClean(w.MemoryZone) || w.MemoryZone == g2WalletStateDir {
+		return g2WalletPublic{}, g2PublicRefusal("memory_zone")
 	}
 	return w, nil
 }

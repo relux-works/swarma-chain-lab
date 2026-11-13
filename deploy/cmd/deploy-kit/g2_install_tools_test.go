@@ -386,7 +386,7 @@ func TestG2KeygenActionKeyLoader(t *testing.T) {
 // g2TestPolicy is a TEST policy object pinned to one chain, with the fixed
 // G2 kernel state directory.
 func g2TestPolicy(network, genesis string) string {
-	return `{"construction_profile":"W","network":"` + network + `","genesis":"` + genesis + `","agent_name":"id/g2-test-agent","landlord_name":"id/g2-test-landlord","state_dir":"/var/lib/swarma-wallet/kernel"}`
+	return `{"construction_profile":"W","network":"` + network + `","genesis":"` + genesis + `","agent_name":"id/g2-test-agent","landlord_name":"id/g2-test-landlord","seal_script":"76a914111111111111111111111111111111111111111188ac","state_dir":"/var/lib/swarma-wallet/kernel"}`
 }
 
 // g2TestWritePublic writes the operator's public wallet members.
@@ -587,7 +587,7 @@ func TestG2RPCAuthRefusals(t *testing.T) {
 		}
 		var stdout bytes.Buffer
 		e := g2RPCAuthFrom([]string{"-params", c.params, "-wallet-public", c.public, "-wallet-config-out", c.out}, &stdout, rnd)
-		if e != c.want || stdout.Len() != 0 {
+		if !errors.Is(e, c.want) || stdout.Len() != 0 {
 			t.Fatalf("G2_RPCAUTH_ACCEPTED %s: err=%v want %v, stdout=%d bytes", c.name, e, c.want, stdout.Len())
 		}
 		if c.out != existing && c.name != "dangling-symlink" && filepath.IsAbs(c.out) {
