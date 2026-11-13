@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -280,7 +281,7 @@ func assemble(ctx context.Context, work, first, second, commit string, build bui
 // service, status or unit member and cannot move into the service rows.
 func ValidateManifest(raw []byte) (Manifest, error) {
 	var m Manifest
-	if len(raw) == 0 || len(raw) > 1<<20 || uniqueJSON(raw) != nil {
+	if len(raw) == 0 || len(raw) > 1<<20 || uniqueJSON(raw) != nil || !manifestMemberNames(raw) {
 		return Manifest{}, ErrManifest
 	}
 	d := json.NewDecoder(bytes.NewReader(raw))
@@ -310,6 +311,47 @@ func ValidateManifest(raw []byte) (Manifest, error) {
 		}
 	}
 	return m, nil
+}
+
+// encoding/json matches struct fields case-insensitively, even with
+// DisallowUnknownFields. Check exact member names at every manifest object
+// boundary first, so aliases cannot supply or overwrite canonical values.
+func manifestMemberNames(raw []byte) bool {
+	only := func(object map[string]json.RawMessage, names []string) bool {
+		if object == nil {
+			return false
+		}
+		for name := range object {
+			if !slices.Contains(names, name) {
+				return false
+			}
+		}
+		return true
+	}
+	var root map[string]json.RawMessage
+	if json.Unmarshal(raw, &root) != nil || !only(root, []string{"version", "commit", "go_version", "goos", "goarch", "cgo_enabled", "build_flags", "artifacts", "tools", "pending"}) {
+		return false
+	}
+	artifactNames := []string{"service", "module", "package", "binary", "sha256", "status", "reason", "screening"}
+	for _, inventory := range []struct {
+		name  string
+		names []string
+	}{
+		{"artifacts", artifactNames},
+		{"tools", []string{"tool", "module", "package", "binary", "sha256"}},
+		{"pending", artifactNames},
+	} {
+		var rows []map[string]json.RawMessage
+		if json.Unmarshal(root[inventory.name], &rows) != nil {
+			return false
+		}
+		for _, row := range rows {
+			if !only(row, inventory.names) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func buildPair(ctx context.Context, work, first, second string, a Artifact, build buildFunc) ([]byte, error) {

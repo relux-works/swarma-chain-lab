@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -535,6 +536,10 @@ func TestValidateManifest(t *testing.T) {
 		{"built", valid, true},
 		{"other-tool-hash", edit(func(m map[string]any) { tool(m)["sha256"] = otherHash }), true},
 		{"other-service-hash", edit(func(m map[string]any) { service(m, 8)["sha256"] = otherHash }), true},
+		// Case aliases must not supply or override canonical inventory members.
+		{"case-alias-only-tools", bytes.Replace(valid, []byte(`"tools": [`), []byte(`"TOOLS": [`), 1), false},
+		{"case-alias-overrides-empty-tools", bytes.Replace(valid, []byte(`"tools": [`), []byte(`"tools": [], "TOOLS": [`), 1), false},
+		{"case-alias-overrides-invalid-tool", bytes.Replace(valid, []byte(`"tool": "deploy-kit"`), []byte(`"tool": "not-deploy-kit", "TOOL": "deploy-kit"`), 1), false},
 		{"tool-dropped", edit(func(m map[string]any) { m["tools"] = []any{} }), false},
 		{"tools-member-missing", edit(func(m map[string]any) { delete(m, "tools") }), false},
 		{"tools-null", edit(func(m map[string]any) { m["tools"] = nil }), false},
@@ -575,6 +580,43 @@ func TestValidateManifest(t *testing.T) {
 			}
 			if e != ErrManifest || m.Tools != nil || m.Artifacts != nil {
 				t.Fatalf("tampered manifest not refused: %v", e)
+			}
+		})
+	}
+	// Every object boundary rejects aliases of every declared member, even
+	// when the canonical value is also present and both values are identical.
+	for _, boundary := range []string{"manifest", "artifacts", "tools", "pending"} {
+		t.Run("case-sensitive-members/"+boundary, func(t *testing.T) {
+			var original map[string]any
+			if e := json.Unmarshal(valid, &original); e != nil {
+				t.Fatal(e)
+			}
+			row := func(m map[string]any) map[string]any {
+				if boundary == "manifest" {
+					return m
+				}
+				return m[boundary].([]any)[0].(map[string]any)
+			}
+			for key := range row(original) {
+				for _, aliasOnly := range []bool{true, false} {
+					name := key + "/alias-and-canonical"
+					if aliasOnly {
+						name = key + "/alias-only"
+					}
+					t.Run(name, func(t *testing.T) {
+						raw := edit(func(m map[string]any) {
+							r := row(m)
+							r[strings.ToUpper(key)] = r[key]
+							if aliasOnly {
+								delete(r, key)
+							}
+						})
+						m, e := ValidateManifest(raw)
+						if e != ErrManifest || !reflect.DeepEqual(m, Manifest{}) {
+							t.Fatalf("case alias not refused with empty result: %v", e)
+						}
+					})
+				}
 			}
 		})
 	}

@@ -73,7 +73,9 @@ runs `bin/deploy-kit` from the verified release instead of a source checkout.
 `pending` keeps the a2ad row. `ValidateManifest` (package `deploy`) strictly
 decodes a manifest and accepts only this kit's target, flags and exact
 inventory with lowercase SHA-256 hashes; unknown, duplicate or missing members
-refuse. The builder runs it on its own manifest before staging it.
+refuse. Member names are case-sensitive in the manifest and in every service,
+tool and pending row: aliases such as `TOOLS` or `TOOL` refuse even alongside
+their canonical names. The builder runs it on its own manifest before staging it.
 
 ## Public configuration validation
 
