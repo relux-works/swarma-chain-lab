@@ -121,6 +121,7 @@ The G2 pay executor's deploy inputs are rendered from one canonical parameters
 file, `templates/g2-pay/parameters.json`. The frozen contract is
 `g2_pay_api.go`, and the implementation is `g2_pay.go`. The procedure, the
 target-host order and the limits are in [SMOKE-G2.md](SMOKE-G2.md).
+The real-host T18 and setpriv qualification report is in [T18-REAL-HOST.md](T18-REAL-HOST.md).
 
 - `go run ./cmd/deploy-kit g2-render -params "$PARAMS" -out "$NEW_ABSOLUTE_DIR"`
   validates the parameters and writes the six frozen G2 files (0600) into a new

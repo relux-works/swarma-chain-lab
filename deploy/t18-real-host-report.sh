@@ -11,15 +11,28 @@
 #
 # followed by one OVERALL line, which is PASS only when every required item is
 # present once, no item is FAIL, every line is consistent with its own
-# evidence, STAND_IN appears only for the wallet socket of a stand-in host, and
-# every COVERED_BY_HOSTED item carries its pin (test name, commit, hosted run).
+# evidence, STAND_IN appears only for the placeholder-backed items of a
+# stand-in run (and no such item is PASS there), and every COVERED_BY_HOSTED
+# item carries exactly its pin (test name, commit, hosted run, job).
+#
+# The real-wallet POSITIVE path (an authorized request that executes) is not
+# proven by T18 or by this report: it is proven by the separate
+# owner-authorized, bounded mainnet smoke gate. On a host the wallet client
+# sends nothing; positive-request is COVERED_BY_HOSTED, pinned to
+# TestPX1CoreServiceG2FailClosed in run 43360330369, and turns FAIL if the host
+# evidence shows that any frame was sent.
 #
 #   t18-real-host-report.sh operator OPDIR PARAMS RENDERED TXINDEX_JSON
 #       as the operator (no root needed): re-render, account checks, txindex
 #   t18-real-host-report.sh agent AGDIR SPEC CLIENT GRANTEE PARAMS
 #       as the agent, launched by root with setpriv exactly as SMOKE-G2.md §4
 #   t18-real-host-report.sh report OPDIR AGDIR RENDERED PARAMS real|stand-in
-#       reads both evidence directories and prints the report
+#       reads both evidence directories and prints the report. The last
+#       argument is the stand-in flag: `stand-in` marks a run on the stand-in
+#       station, whose wallet files are root-owned placeholders and whose
+#       socket is a planted listener; every placeholder-backed item (each
+#       denied-read, status-dir, allowed-socket) is then STAND_IN, never PASS,
+#       and the OVERALL line says the run is valid only as a stand-in run
 #   t18-real-host-report.sh check REPORT
 #       recomputes the OVERALL line of a stored report
 #   t18-real-host-report.sh peer SOCKET
@@ -48,6 +61,13 @@ set -eu
 pinned_commit=ca5edc6809ae71f5365c142a0010ba95c43b27be
 run_deploy=43360330648
 run_wallet=43360330369
+# TestPX1T18CoreNodePolicy needs W1_REGTEST=1, which the Deploy kit job does
+# not set; it first ran (and passed, no skip) in the px1-core-gate step added
+# at this commit, in this workflow_dispatch run of Agent wallet checks.
+node_policy_commit=dcad699da8cbc7e03436b00b85f667a5b2093b04
+run_node_policy=43404324238
+apply_noop_line="apply no-op: account pre-created by Infra"
+positive_note="# positive-path: the real-wallet positive path (an authorized request that executes) is proven by the separate owner-authorized, bounded mainnet smoke gate, not by T18. On this host the wallet client sends nothing: positive-request is COVERED_BY_HOSTED, pinned to TestPX1CoreServiceG2FailClosed in run $run_wallet, and is FAIL if the host evidence shows that any frame was sent."
 stub_marker=T18_REAL_HOST_REQUEST_NOT_SENT
 status_dir=/run/swarma-wallet-status
 rendered_files="client.json custody-spec.json namecoin-rpc.conf service.json sysusers.conf tmpfiles.conf"
@@ -63,25 +83,27 @@ usage() {
 # which that test ran: id, test, run, job.
 covered_table() {
 	cat <<EOF
-cov-enoent-not-denied TestPX1T18DeniedReadMustBeEACCES $run_deploy checks
-cov-searchable-dir TestPX1T18SearchableDirectory $run_deploy checks
-cov-rpc-not-refused TestPX1T18RPCClassification $run_deploy checks
-cov-probe-uid-gate TestPX1T18ProbeUIDGate $run_deploy checks
-cov-verify-refusals TestPX1T18VerifyRefusals $run_deploy checks
-cov-host-flow-tripwire TestPX1S5HostFlowTripwire $run_deploy checks
-cov-readback-refusals TestPX1T18CustodyScript $run_deploy checks
-cov-wallet-foreign-peer TestPX1T5ServiceRefusals $run_wallet px1-core-gate
-cov-positive-request-client TestCoreActionClient $run_wallet w2-core
+cov-enoent-not-denied TestPX1T18DeniedReadMustBeEACCES $pinned_commit $run_deploy checks
+cov-searchable-dir TestPX1T18SearchableDirectory $pinned_commit $run_deploy checks
+cov-rpc-not-refused TestPX1T18RPCClassification $pinned_commit $run_deploy checks
+cov-probe-uid-gate TestPX1T18ProbeUIDGate $pinned_commit $run_deploy checks
+cov-verify-refusals TestPX1T18VerifyRefusals $pinned_commit $run_deploy checks
+cov-host-flow-tripwire TestPX1S5HostFlowTripwire $pinned_commit $run_deploy checks
+cov-readback-refusals TestPX1T18CustodyScript $pinned_commit $run_deploy checks
+cov-core-node-policy TestPX1T18CoreNodePolicy $node_policy_commit $run_node_policy px1-core-gate
+cov-wallet-foreign-peer TestPX1T5ServiceRefusals $pinned_commit $run_wallet px1-core-gate
+cov-positive-request-client TestCoreActionClient $pinned_commit $run_wallet w2-core
 EOF
 }
 
 # positive_pin is the pin of the positive own-agent request (T18 item 2),
-# which this qualification never sends.
+# which this qualification never sends. The pin table of check holds it too.
+positive_row="positive-request TestPX1CoreServiceG2FailClosed $pinned_commit $run_wallet px1-core-gate"
 positive_pin="pin=TestPX1CoreServiceG2FailClosed commit=$pinned_commit run=$run_wallet job=px1-core-gate"
 
 covered_lines() {
-	covered_table | while read -r id test run job; do
-		echo "$id COVERED_BY_HOSTED pin=$test commit=$pinned_commit run=$run job=$job"
+	covered_table | while read -r id test commit run job; do
+		echo "$id COVERED_BY_HOSTED pin=$test commit=$commit run=$run job=$job"
 	done
 }
 
@@ -153,14 +175,26 @@ operator_phase() {
 
 	# Account: preflight, VerifyG2AgentAccount and the exact group set, in the
 	# RunG2HostFlow order, over this host's account database. The account was
-	# provisioned by Infra, so the apply and the activation are no-ops: nothing
-	# is applied and nothing is started.
+	# pre-created by Infra, so the apply and the activation are no-ops: nothing
+	# is applied and nothing is started. The mode is recorded as evidence.
 	set +e
+	echo "apply=noop activation=noop sysusers=true" >"$op/host-flow-mode.txt"
 	"$deploy_kit" g2-host-flow -params "$params" -sysusers true -- true >"$op/host-flow.out" 2>&1
 	echo "host_flow_exit=$?" >>"$op/exits.txt"
-	set -e
+	# The exact set {own GID == UID, agent_socket_gid} once more, read from the
+	# REAL account (not from a launch): its UID, its primary GID and its group
+	# list from this host's account database, given to g2-agent-groups. This
+	# runs in every operator phase; the account item needs both checks.
 	user=$(json_member "$params" agent_user)
-	id -- "$user" >"$op/account-id.txt" 2>&1 || true
+	id -- "$user" >"$op/account-id.txt" 2>&1
+	a_uid=$(id -u -- "$user" 2>/dev/null)
+	a_gid=$(id -g -- "$user" 2>/dev/null)
+	a_groups=$(id -G -- "$user" 2>/dev/null)
+	echo "uid=${a_uid:-none} gid=${a_gid:-none} groups=$(echo "${a_groups:-none}" | tr ' ' ',')" >"$op/account-real.txt"
+	# shellcheck disable=SC2086 # one argument per GID, as id -G prints them
+	"$deploy_kit" g2-agent-groups -params "$params" -gid "${a_gid:-none}" -- $a_groups >"$op/account-groups.txt" 2>&1
+	echo "account_groups_exit=$?" >>"$op/exits.txt"
+	set -e
 
 	# Node precondition: the operator's saved `getindexinfo txindex` answer.
 	if [ -f "$txindex" ]; then
@@ -191,7 +225,10 @@ agent_phase() {
 		sh "$here/g2-custody-check.sh" "$spec" "$client" "$grantee" "$params" "$ag/custody" >"$ag/custody-check.out" 2>&1
 	echo "custody_check_exit=$?" >"$ag/agent-exits.txt"
 
-	# Peer identity of the wallet socket: connect, SO_PEERCRED, no frame.
+	# Peer identity of the wallet socket: connect, SO_PEERCRED, no frame. Its
+	# precondition is perl with the core Socket module: the first version line
+	# of `perl -v` is kept as evidence.
+	perl -v 2>/dev/null | grep -m 1 'version' >"$ag/perl-version.txt"
 	socket=$(json_member "$spec" allowed_socket)
 	sh "$(self_path)" peer "$socket" >"$ag/peer.txt" 2>&1
 	echo "peer_exit=$?" >>"$ag/agent-exits.txt"
@@ -252,10 +289,26 @@ report_items() {
 		echo "render FAIL differ=$(grep '^differ ' "$op/render-cmp.txt" 2>/dev/null | cut -d ' ' -f 2 | tr '\n' ',')none $(grep '^render_exit' "$op/exits.txt" 2>/dev/null || echo render_exit=none)"
 	fi
 
-	if grep -qx host_flow_exit=0 "$op/exits.txt" 2>/dev/null && [ "$(cat "$op/host-flow.out" 2>/dev/null)" = G2_HOST_FLOW_ACTIVATED ]; then
-		echo "account PASS steps=preflight,VerifyG2AgentAccount,group-set apply=noop activation=noop user=$user"
+	# Account. This runner only adopts an account Infra pre-created: the apply
+	# is a no-op, and the report says so in one literal line. The account item
+	# then needs both the frozen host-flow checks (preflight,
+	# VerifyG2AgentAccount, the exact group set) and the exact set read from
+	# the REAL account: uid == agent_uid, primary GID == UID, and
+	# g2-agent-groups accepting its group list as {primary, agent_socket_gid}.
+	noop=0
+	if [ "$(file_line "$op/host-flow-mode.txt")" = "apply=noop activation=noop sysusers=true" ]; then
+		noop=1
+		echo "$apply_noop_line"
+	fi
+	real=$(file_line "$op/account-real.txt" | tr ' ' '_')
+	want_real="uid=${uid}_gid=${gid}_groups="
+	ag_ok="G2_AGENT_GROUPS_OK observed_gid=$gid declared_primary_gid=$gid socket_gid=$sgid"
+	if [ "$noop" = 1 ] && grep -qx host_flow_exit=0 "$op/exits.txt" 2>/dev/null && [ "$(cat "$op/host-flow.out" 2>/dev/null)" = G2_HOST_FLOW_ACTIVATED ] &&
+		grep -qx account_groups_exit=0 "$op/exits.txt" 2>/dev/null && [ "$(cat "$op/account-groups.txt" 2>/dev/null)" = "$ag_ok" ] &&
+		[ -n "$uid" ] && [ "$gid" = "$uid" ] && case $real in "$want_real"*) true ;; *) false ;; esac; then
+		echo "account PASS steps=preflight,VerifyG2AgentAccount,group-set apply=noop activation=noop user=$user real_account=$real group_set=G2_AGENT_GROUPS_OK"
 	else
-		echo "account FAIL host_flow=$(file_line "$op/host-flow.out" | tr ' ' '_')"
+		echo "account FAIL host_flow=$(file_line "$op/host-flow.out" | tr ' ' '_') apply_noop=$noop real_account=${real:-none} group_set=$(file_line "$op/account-groups.txt" | tr ' ' '_')"
 	fi
 
 	want=$(printf '%s\n' "$(sha_of "$spec")" "$(sha_of "$rendered/client.json")" "$(sha_of "$params")")
@@ -292,17 +345,22 @@ report_items() {
 	if [ -z "$reads" ] || [ -z "$rpcs" ]; then
 		echo "custody-spec FAIL unreadable-or-unsupported-characters"
 	fi
+	# On a stand-in run every denied_reads path is a root-owned placeholder
+	# (or not the production object), so a denial there is STAND_IN, never
+	# PASS. A missing placeholder is still FAIL.
+	denied=PASS
+	[ "$wallet" = stand-in ] && denied=STAND_IN
 	status_seen=0
 	for p in $reads; do
 		o=$(probe_observed read "$p" "$cr") || o=
 		case $o in
-		EACCES | EPERM) echo "denied-read:$p PASS observed=$o" ;;
+		EACCES | EPERM) echo "denied-read:$p $denied observed=$o" ;;
 		*) echo "denied-read:$p FAIL observed=${o:-none}" ;;
 		esac
 		if [ "$p" = "$status_dir" ]; then
 			status_seen=1
 			case $o in
-			EACCES | EPERM) echo "status-dir PASS path=$p observed=$o" ;;
+			EACCES | EPERM) echo "status-dir $denied path=$p observed=$o" ;;
 			*) echo "status-dir FAIL path=$p observed=${o:-none}" ;;
 			esac
 		fi
@@ -315,6 +373,14 @@ report_items() {
 		*) echo "denied-rpc:$rpc FAIL observed=${o:-none}" ;;
 		esac
 	done
+
+	# Precondition of the peer identity: perl, recorded by its first version
+	# line as the agent ran it.
+	pv=$(file_line "$ag/perl-version.txt")
+	case $pv in
+	"This is perl 5, version "[0-9]*", subversion "[0-9]*) echo "peer-precondition PASS perl_v=$(echo "$pv" | tr ' ' '_')" ;;
+	*) echo "peer-precondition FAIL perl_v=$(echo "${pv:-none}" | tr ' ' '_')" ;;
+	esac
 
 	sock=$(json_member "$spec" allowed_socket)
 	o=$(probe_observed socket "$sock" "$cr") || o=
@@ -346,17 +412,21 @@ report_items() {
 	fi
 
 	# The positive own-agent request is never sent here; the hosted test is
-	# its evidence. A host run that did send it fails this item.
+	# its evidence, and the real-wallet positive path is the owner-authorized
+	# mainnet smoke gate's. A host run whose evidence shows that the client
+	# sent a frame (a receipt other than the marker, another exit, or any
+	# client error output) fails this item.
+	echo "$positive_note"
 	rc=$(file_line "$ag/custody/positive-receipt.json")
-	if [ "$ex" = credentials=refused ] && [ ! -e "$ag/custody/positive-request.json" ]; then
-		echo "positive-request COVERED_BY_HOSTED $positive_pin host=not-run"
+	if [ "$ex" = credentials=refused ] && [ ! -e "$ag/custody/positive-request.json" ] && [ ! -e "$ag/custody/positive-receipt.json" ]; then
+		echo "positive-request COVERED_BY_HOSTED $positive_pin host=not-run positive_path=mainnet-smoke-gate"
 	else
 		case $ex in
 		*" positive_exit=3 "*) pe=1 ;;
 		*) pe=0 ;;
 		esac
-		if [ "$pe" = 1 ] && [ "$rc" = "$stub_marker" ] && [ "$(wc -l <"$ag/custody/positive-receipt.json")" = 1 ]; then
-			echo "positive-request COVERED_BY_HOSTED $positive_pin host=not-sent"
+		if [ "$pe" = 1 ] && [ "$rc" = "$stub_marker" ] && [ "$(wc -l <"$ag/custody/positive-receipt.json")" = 1 ] && [ ! -s "$ag/custody/positive.err" ]; then
+			echo "positive-request COVERED_BY_HOSTED $positive_pin host=not-sent positive_path=mainnet-smoke-gate"
 		else
 			echo "positive-request FAIL host=request-sent-or-unknown"
 		fi
@@ -369,10 +439,17 @@ report_items() {
 # check_report FILE: validate every line and print the recomputed OVERALL
 # line. Exit 0 only when it is PASS and agrees with a stated OVERALL line.
 check_report() {
-	awk -v commit="$pinned_commit" -v rd="$run_deploy" -v rw="$run_wallet" -v covered="$(covered_table | awk '{ print $1 }' | tr '\n' ' ')" '
+	awk -v pins="$(covered_table; echo "$positive_row")" -v apply_line="$apply_noop_line" -v note="$positive_note" '
 	function bad(why) { invalid++; reasons = reasons " " why }
+	function has(tok) { return index(ev, " " tok " ") > 0 }
 	BEGIN {
-		nreq = split("node-txindex render account agent-inputs launch-form credentials status-dir allowed-socket custody-verify positive-request " covered, req, " ")
+		npin = split(pins, rows, "\n")
+		for (i = 1; i <= npin; i++) {
+			if (split(rows[i], f, " ") != 5) continue
+			pin_test[f[1]] = f[2]; pin_commit[f[1]] = f[3]; pin_run[f[1]] = f[4]; pin_job[f[1]] = f[5]
+			req_ids = req_ids " " f[1]
+		}
+		nreq = split("node-txindex render account agent-inputs launch-form credentials status-dir peer-precondition allowed-socket custody-verify" req_ids, req, " ")
 	}
 	NR == 1 {
 		if ($1 != "T18-REAL-HOST" || $2 != "v1" || ($3 != "wallet=real" && $3 != "wallet=stand-in")) { bad("header"); next }
@@ -380,6 +457,8 @@ check_report() {
 		for (i = 4; i <= NF; i++) { split($i, kv, "="); hdr[kv[1]] = kv[2] }
 		next
 	}
+	$0 == apply_line { napply++; next }
+	$0 == note { nnote++; next }
 	/^#/ { next }
 	/^OVERALL / { stated = $2; next }
 	{
@@ -389,19 +468,35 @@ check_report() {
 		if (v != "PASS" && v != "FAIL" && v != "STAND_IN" && v != "COVERED_BY_HOSTED") { bad("verdict:" id); next }
 		count[v]++
 		if (v == "FAIL") fail++
-		if (v == "STAND_IN" && (id != "allowed-socket" || wallet != "stand-in")) bad("stand-in-misplaced:" id)
+		placeholder = (id == "allowed-socket" || id == "status-dir" || id ~ /^denied-read:/)
+		if (v == "STAND_IN" && (!placeholder || wallet != "stand-in")) bad("stand-in-misplaced:" id)
+		if (v == "PASS" && placeholder && wallet == "stand-in") bad("stand-in-placeholder-pass:" id)
 		if (v == "COVERED_BY_HOSTED") {
-			if (ev !~ / pin=Test[A-Za-z0-9_]+ /) bad("no-pin:" id)
-			if (ev !~ (" commit=" commit " ")) bad("no-commit:" id)
-			if (ev !~ (" run=(" rd "|" rw ") ")) bad("no-run:" id)
-			if (id != "positive-request" && id !~ /^cov-/) bad("covered-not-allowed:" id)
+			if (!(id in pin_test)) bad("covered-not-allowed:" id)
+			else {
+				if (!has("pin=" pin_test[id])) bad("no-pin:" id)
+				if (!has("commit=" pin_commit[id])) bad("no-commit:" id)
+				if (!has("run=" pin_run[id])) bad("no-run:" id)
+				if (!has("job=" pin_job[id])) bad("no-job:" id)
+			}
 			if (id == "positive-request" && ev !~ / host=not-(sent|run) /) bad("request-not-shown-unsent")
-		} else if (id ~ /^cov-/ || id == "positive-request") {
+			if (id == "positive-request" && !has("positive_path=mainnet-smoke-gate")) bad("positive-path-not-stated")
+		} else if (id in pin_test) {
 			if (v != "FAIL") bad("covered-item-verdict:" id)
 		}
-		if (id ~ /^denied-read:/) { nread++; if (v == "PASS" && ev !~ / observed=(EACCES|EPERM) /) bad("read-pass-without-eacces:" id) }
-		if (id == "status-dir" && v == "PASS" && ev !~ / observed=(EACCES|EPERM) /) bad("status-pass-without-eacces")
+		if (id ~ /^denied-read:/) { nread++; if (v != "FAIL" && ev !~ / observed=(EACCES|EPERM) /) bad("read-pass-without-eacces:" id) }
+		if (id == "status-dir" && v != "FAIL" && ev !~ / observed=(EACCES|EPERM) /) bad("status-pass-without-eacces")
 		if (id ~ /^denied-rpc:/) { nrpc++; if (v == "PASS" && ev !~ / observed=(HTTP_401|HTTP_403|REFUSED) /) bad("rpc-pass-without-refusal:" id) }
+		if (id == "peer-precondition" && v == "PASS" && ev !~ / perl_v=This_is_perl_5,_version_[0-9]+,_subversion_[0-9]+/) bad("peer-precondition-without-perl-version")
+		if (id == "account" && v == "PASS") {
+			account_pass = 1
+			if (!has("apply=noop")) bad("account-pass-without-noop-apply")
+			if (!has("group_set=G2_AGENT_GROUPS_OK")) bad("account-pass-without-real-group-set")
+			if (hdr["primary_gid"] != hdr["agent_uid"]) bad("account-own-gid-not-uid")
+			a = hdr["primary_gid"]; b = hdr["socket_gid"]
+			groups = (a + 0 < b + 0) ? a "," b : b "," a
+			if (!has("real_account=uid=" hdr["agent_uid"] "_gid=" hdr["primary_gid"] "_groups=" groups)) bad("account-pass-without-real-account")
+		}
 		if (id == "allowed-socket" && v == "PASS") {
 			if (wallet != "real") bad("wallet-pass-on-stand-in")
 			if (ev !~ / probe=CONNECTED /) bad("wallet-pass-without-connect")
@@ -413,8 +508,11 @@ check_report() {
 		if (nread < 1) { missing++; reasons = reasons " missing:denied-read" }
 		if (nrpc < 1) { missing++; reasons = reasons " missing:denied-rpc" }
 		if (wallet == "") { invalid++; reasons = reasons " header" }
+		if (napply > 1 || (account_pass && napply != 1)) bad("apply-noop-line")
+		if (nnote != 1) bad("positive-path-statement")
 		overall = (fail + invalid + missing == 0) ? "PASS" : "FAIL"
-		printf "OVERALL %s pass=%d stand_in=%d covered=%d fail=%d invalid=%d missing=%d\n", overall, count["PASS"], count["STAND_IN"], count["COVERED_BY_HOSTED"], fail, invalid, missing
+		run = (wallet == "stand-in") ? "run=stand-in valid-only-as-a-stand-in-run" : "run=" (wallet == "" ? "unknown" : wallet)
+		printf "OVERALL %s pass=%d stand_in=%d covered=%d fail=%d invalid=%d missing=%d %s\n", overall, count["PASS"], count["STAND_IN"], count["COVERED_BY_HOSTED"], fail, invalid, missing, run
 		if (reasons != "") print "# reasons:" reasons
 		if (stated != "" && stated != overall) { print "# stated OVERALL " stated " disagrees"; exit 1 }
 		exit (overall == "PASS") ? 0 : 1
@@ -433,8 +531,11 @@ self_test() {
 	printf '{"v":1,"agent_uid":210001,"service_uid":210201,"denied_reads":["/etc/swarma/wallet/wallet.json","%s"],"denied_rpc":["127.0.0.1:8336"],"allowed_socket":"/run/swarma-wallet/wallet.sock"}\n' "$status_dir" >"$r/custody-spec.json"
 	for f in client.json namecoin-rpc.conf service.json tmpfiles.conf; do echo "$f" >"$r/$f"; done
 	for f in $rendered_files; do cp "$r/$f" "$op/render/$f" && echo "same $f"; done >"$op/render-cmp.txt"
-	printf 'render_exit=0\nhost_flow_exit=0\n' >"$op/exits.txt"
+	printf 'render_exit=0\nhost_flow_exit=0\naccount_groups_exit=0\n' >"$op/exits.txt"
 	echo G2_HOST_FLOW_ACTIVATED >"$op/host-flow.out"
+	echo 'apply=noop activation=noop sysusers=true' >"$op/host-flow-mode.txt"
+	echo 'uid=210001 gid=210001 groups=210001,210101' >"$op/account-real.txt"
+	echo 'G2_AGENT_GROUPS_OK observed_gid=210001 declared_primary_gid=210001 socket_gid=210101' >"$op/account-groups.txt"
 	echo '{"txindex":{"synced":true,"best_block_height":1}}' >"$op/txindex.json"
 	sha256sum "$r/custody-spec.json" "$r/client.json" "$w/params.json" | cut -d ' ' -f 1 >"$ag/inputs.sha256"
 	printf 'Uid:\t210001\t210001\t210001\t210001\nGid:\t210001\t210001\t210001\t210001\nGroups:\t210001 210101 \nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapAmb:\t0000000000000000\n' >"$ag/launch.txt"
@@ -450,6 +551,7 @@ self_test() {
 	: >"$ag/custody/positive-request.json"
 	echo 'PEER connect=ok uid=210201 gid=210201' >"$ag/peer.txt"
 	echo 'socket|210201|210101|660' >"$ag/socket-stat.txt"
+	echo 'This is perl 5, version 34, subversion 0 (v5.34.0) built for x86_64-linux-gnu-thread-multi' >"$ag/perl-version.txt"
 
 	failures=0
 	expect() { # NAME WANT-EXIT REPORT-MODE WANT-LINE (extended regex)
@@ -462,8 +564,16 @@ self_test() {
 			failures=$((failures + 1))
 		fi
 	}
-	expect real-wallet-all-pass 0 real '^OVERALL PASS pass=12 stand_in=0 covered=10 fail=0 invalid=0 missing=0$'
+	expect real-wallet-all-pass 0 real '^OVERALL PASS pass=13 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real$'
+	expect apply-noop-line 0 real '^apply no-op: account pre-created by Infra$'
 	expect stand-in-wallet 0 stand-in '^allowed-socket STAND_IN wallet=stand-in probe=CONNECTED '
+	expect stand-in-placeholders 0 stand-in '^OVERALL PASS pass=9 stand_in=4 covered=11 fail=0 invalid=0 missing=0 run=stand-in valid-only-as-a-stand-in-run$'
+	sed 's/^\(denied-read:[^ ]*\) STAND_IN /\1 PASS /' "$w/stand-in-placeholders.txt" >"$w/edited.txt"
+	check_report "$w/edited.txt" >/dev/null && got=0 || got=$?
+	if [ "$got" = 1 ]; then echo "self-test stand-in-placeholder-pass ok exit=1"; else echo "self-test stand-in-placeholder-pass WRONG exit=$got" && failures=$((failures + 1)); fi
+	echo 'deploy: invalid policy' >"$op/account-groups.txt"
+	expect account-real-group-set-refused 1 real '^account FAIL .* group_set=deploy:_invalid_policy$'
+	echo 'G2_AGENT_GROUPS_OK observed_gid=210001 declared_primary_gid=210001 socket_gid=210101' >"$op/account-groups.txt"
 	probes ENOENT
 	expect enoent-denied-read 1 real '^denied-read:/etc/swarma/wallet/wallet.json FAIL observed=ENOENT$'
 	probes EACCES

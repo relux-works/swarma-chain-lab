@@ -28,21 +28,29 @@ const (
 	t18rhRunDK  = "43360330648" // Deploy kit checks, push on main at t18rhCommit
 	t18rhRunAW  = "43360330369" // Agent wallet checks, push on main at t18rhCommit
 	t18rhMarker = "T18_REAL_HOST_REQUEST_NOT_SENT"
+	// TestPX1T18CoreNodePolicy first ran (W1_REGTEST=1, no skip) in the
+	// px1-core-gate step added at this commit, in this Agent wallet checks run.
+	t18rhNodeCommit = "dcad699da8cbc7e03436b00b85f667a5b2093b04"
+	t18rhRunNode    = "43404324238"
+	t18rhApplyNoop  = "apply no-op: account pre-created by Infra"
+	t18rhNote       = "# positive-path: the real-wallet positive path (an authorized request that executes) is proven by the separate owner-authorized, bounded mainnet smoke gate, not by T18. On this host the wallet client sends nothing: positive-request is COVERED_BY_HOSTED, pinned to TestPX1CoreServiceG2FailClosed in run 43360330369, and is FAIL if the host evidence shows that any frame was sent."
+	t18rhPerl       = "This is perl 5, version 34, subversion 0 (v5.34.0) built for x86_64-linux-gnu-thread-multi"
 )
 
-// t18rhCovered is the expected COVERED_BY_HOSTED table: id, pinned test, run,
-// job. Every row is a negative or privileged case a correctly provisioned
-// host cannot show without a destructive or privileged fixture.
-var t18rhCovered = [][4]string{
-	{"cov-enoent-not-denied", "TestPX1T18DeniedReadMustBeEACCES", t18rhRunDK, "checks"},
-	{"cov-searchable-dir", "TestPX1T18SearchableDirectory", t18rhRunDK, "checks"},
-	{"cov-rpc-not-refused", "TestPX1T18RPCClassification", t18rhRunDK, "checks"},
-	{"cov-probe-uid-gate", "TestPX1T18ProbeUIDGate", t18rhRunDK, "checks"},
-	{"cov-verify-refusals", "TestPX1T18VerifyRefusals", t18rhRunDK, "checks"},
-	{"cov-host-flow-tripwire", "TestPX1S5HostFlowTripwire", t18rhRunDK, "checks"},
-	{"cov-readback-refusals", "TestPX1T18CustodyScript", t18rhRunDK, "checks"},
-	{"cov-wallet-foreign-peer", "TestPX1T5ServiceRefusals", t18rhRunAW, "px1-core-gate"},
-	{"cov-positive-request-client", "TestCoreActionClient", t18rhRunAW, "w2-core"},
+// t18rhCovered is the expected COVERED_BY_HOSTED table: id, pinned test,
+// commit, run, job. Every row is a negative or privileged case a correctly
+// provisioned host cannot show without a destructive or privileged fixture.
+var t18rhCovered = [][5]string{
+	{"cov-enoent-not-denied", "TestPX1T18DeniedReadMustBeEACCES", t18rhCommit, t18rhRunDK, "checks"},
+	{"cov-searchable-dir", "TestPX1T18SearchableDirectory", t18rhCommit, t18rhRunDK, "checks"},
+	{"cov-rpc-not-refused", "TestPX1T18RPCClassification", t18rhCommit, t18rhRunDK, "checks"},
+	{"cov-probe-uid-gate", "TestPX1T18ProbeUIDGate", t18rhCommit, t18rhRunDK, "checks"},
+	{"cov-verify-refusals", "TestPX1T18VerifyRefusals", t18rhCommit, t18rhRunDK, "checks"},
+	{"cov-host-flow-tripwire", "TestPX1S5HostFlowTripwire", t18rhCommit, t18rhRunDK, "checks"},
+	{"cov-readback-refusals", "TestPX1T18CustodyScript", t18rhCommit, t18rhRunDK, "checks"},
+	{"cov-core-node-policy", "TestPX1T18CoreNodePolicy", t18rhNodeCommit, t18rhRunNode, "px1-core-gate"},
+	{"cov-wallet-foreign-peer", "TestPX1T5ServiceRefusals", t18rhCommit, t18rhRunAW, "px1-core-gate"},
+	{"cov-positive-request-client", "TestCoreActionClient", t18rhCommit, t18rhRunAW, "w2-core"},
 }
 
 func t18rhSha(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
@@ -161,8 +169,11 @@ func t18rhFixture(t *testing.T) *t18rhFix {
 	os.WriteFile(f.params, append(raw, '\n'), 0600)
 
 	f.write(t, "op/render-cmp.txt", cmp.String())
-	f.write(t, "op/exits.txt", "render_exit=0\nhost_flow_exit=0\n")
+	f.write(t, "op/exits.txt", "render_exit=0\nhost_flow_exit=0\naccount_groups_exit=0\n")
 	f.write(t, "op/host-flow.out", "G2_HOST_FLOW_ACTIVATED\n")
+	f.write(t, "op/host-flow-mode.txt", "apply=noop activation=noop sysusers=true\n")
+	f.write(t, "op/account-real.txt", "uid=1201 gid=1201 groups=1201,1301\n")
+	f.write(t, "op/account-groups.txt", "G2_AGENT_GROUPS_OK observed_gid=1201 declared_primary_gid=1201 socket_gid=1301\n")
 	f.write(t, "op/txindex.json", `{"txindex":{"synced":true,"best_block_height":812345}}`)
 	f.write(t, "inputs.sha256", t18rhSha(files[G2FileCustodySpec])+"\n"+t18rhSha(files[G2FileClientConfig])+"\n"+t18rhSha(append(raw, '\n'))+"\n")
 	f.write(t, "launch.txt", t18rhLaunch(f.p.AgentUID, f.primary, strconv.FormatUint(uint64(f.primary), 10)+" "+strconv.FormatUint(uint64(f.socket), 10)))
@@ -175,6 +186,7 @@ func t18rhFixture(t *testing.T) *t18rhFix {
 	f.write(t, "custody/positive-receipt.json", t18rhMarker+"\n")
 	f.write(t, "peer.txt", "PEER connect=ok uid=1101 gid=1101\n")
 	f.write(t, "socket-stat.txt", "socket|1101|1301|660\n")
+	f.write(t, "perl-version.txt", t18rhPerl+"\n")
 	return f
 }
 
@@ -183,11 +195,12 @@ func (f *t18rhFix) report(t *testing.T, wallet string) (int, string) {
 	return t18rhRun(t, nil, "report", f.op, f.ag, f.rendered, f.params, wallet)
 }
 
-// t18rhIDs returns the item ids of a report (no header, OVERALL or comment).
+// t18rhIDs returns the item ids of a report (no header, OVERALL, comment or
+// the literal no-op apply line).
 func t18rhIDs(out string) []string {
 	var ids []string
 	for i, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		if i == 0 || strings.HasPrefix(line, "OVERALL ") || strings.HasPrefix(line, "#") {
+		if i == 0 || strings.HasPrefix(line, "OVERALL ") || strings.HasPrefix(line, "#") || line == t18rhApplyNoop {
 			continue
 		}
 		ids = append(ids, strings.Fields(line)[0])
@@ -200,13 +213,20 @@ func t18rhIDs(out string) []string {
 // inputs, the setpriv launch form, the credential readback, one denied-read
 // item per denied_reads path of the frozen launch custody spec (rendered by
 // RenderG2PayTemplates, in spec order), the status directory (A8, which must
-// be one of them), one denied-rpc item per denied_rpc target, the wallet
-// socket, the custody verify step, the positive own-agent request and the
-// COVERED_BY_HOSTED table. Every pin names a test function present in this
-// tree, the commit is ca5edc68 and the run is the hosted push run of the
-// module that holds the test. T18-REAL-HOST.md carries the SMOKE-G2.md §4
-// launch line verbatim. Limit: that the pinned tests ran green in those runs
-// is recorded from the hosted run, not re-checked here.
+// be one of them), one denied-rpc item per denied_rpc target, the peer
+// identity precondition (perl), the wallet socket, the custody verify step,
+// the positive own-agent request and the COVERED_BY_HOSTED table. The literal
+// line "apply no-op: account pre-created by Infra" stands once, right before
+// the account item, and the positive-path statement (the owner-authorized
+// mainnet smoke gate proves the real-wallet positive path, not T18) once,
+// right before positive-request. Every pin names a test function present in
+// this tree; the commit is ca5edc68 and the run the hosted push run of the
+// module that holds the test, except TestPX1T18CoreNodePolicy, pinned to the
+// px1-core-gate run at dcad699d that ran it with W1_REGTEST=1.
+// T18-REAL-HOST.md carries the SMOKE-G2.md §4 launch line verbatim, both
+// literal statements and the pins, and deploy/README.md links it. Limit: that
+// the pinned tests ran green in those runs is recorded from the hosted runs,
+// not re-checked here.
 func TestT18RealHostItemContract(t *testing.T) {
 	f := t18rhFixture(t)
 	if e := ValidateG2CustodyLaunchSpec(f.spec); e != nil || f.statusIdx < 0 {
@@ -222,7 +242,7 @@ func TestT18RealHostItemContract(t *testing.T) {
 	for _, r := range f.spec.DeniedRPC {
 		want = append(want, "denied-rpc:"+r)
 	}
-	want = append(want, "allowed-socket", "custody-verify", "positive-request")
+	want = append(want, "peer-precondition", "allowed-socket", "custody-verify", "positive-request")
 	for _, c := range t18rhCovered {
 		want = append(want, c[0])
 	}
@@ -237,16 +257,25 @@ func TestT18RealHostItemContract(t *testing.T) {
 	if !strings.HasPrefix(out, header) {
 		t.Fatalf("T18RH_CONTRACT header %q", strings.SplitN(out, "\n", 2)[0])
 	}
+	if strings.Count(out, "\n"+t18rhApplyNoop+"\naccount PASS ") != 1 || strings.Count(out, t18rhApplyNoop) != 1 {
+		t.Fatal("T18RH_CONTRACT the no-op apply line is not printed once, before the account item\n", out)
+	}
+	if strings.Count(out, "\n"+t18rhNote+"\npositive-request COVERED_BY_HOSTED ") != 1 || strings.Count(out, "# positive-path:") != 1 {
+		t.Fatal("T18RH_CONTRACT the positive-path statement is not printed once, before positive-request\n", out)
+	}
+	if !strings.HasSuffix(out, " run=real\n") {
+		t.Fatal("T18RH_CONTRACT the OVERALL line does not name the real run\n", out)
+	}
 
 	code, items := t18rhRun(t, nil, "items")
 	var wantItems strings.Builder
 	for _, c := range t18rhCovered {
-		wantItems.WriteString(c[0] + " COVERED_BY_HOSTED pin=" + c[1] + " commit=" + t18rhCommit + " run=" + c[2] + " job=" + c[3] + "\n")
+		wantItems.WriteString(c[0] + " COVERED_BY_HOSTED pin=" + c[1] + " commit=" + c[2] + " run=" + c[3] + " job=" + c[4] + "\n")
 	}
 	if code != 0 || items != wantItems.String() {
 		t.Fatalf("T18RH_CONTRACT pin table\n got %q\nwant %q", items, wantItems.String())
 	}
-	if !strings.Contains(out, "positive-request COVERED_BY_HOSTED pin=TestPX1CoreServiceG2FailClosed commit="+t18rhCommit+" run="+t18rhRunAW+" job=px1-core-gate host=not-sent\n") {
+	if !strings.Contains(out, "\npositive-request COVERED_BY_HOSTED pin=TestPX1CoreServiceG2FailClosed commit="+t18rhCommit+" run="+t18rhRunAW+" job=px1-core-gate host=not-sent positive_path=mainnet-smoke-gate\n") {
 		t.Fatal("T18RH_CONTRACT positive-request pin", out)
 	}
 	pinned := append([]string{"TestPX1CoreServiceG2FailClosed"}, func() (n []string) {
@@ -287,13 +316,18 @@ func TestT18RealHostItemContract(t *testing.T) {
 			t.Fatalf("T18RH_CONTRACT SMOKE-G2.md §4 line not carried verbatim: %s", line)
 		}
 	}
-	for _, id := range append(want, t18rhRunDK, t18rhRunAW, t18rhCommit) {
+	for _, id := range append(want, t18rhRunDK, t18rhRunAW, t18rhCommit, t18rhRunNode, t18rhNodeCommit, "TestPX1T18CoreNodePolicy", t18rhApplyNoop,
+		"proven by the separate owner-authorized, bounded mainnet smoke gate, not by T18", "valid-only-as-a-stand-in-run", "perl -v") {
 		if strings.HasPrefix(id, "denied-read:") || strings.HasPrefix(id, "denied-rpc:") {
 			continue
 		}
-		if !strings.Contains(string(doc), id) {
+		if !strings.Contains(strings.Join(strings.Fields(string(doc)), " "), id) {
 			t.Fatalf("T18RH_CONTRACT T18-REAL-HOST.md does not name %s", id)
 		}
+	}
+	readme, e := os.ReadFile("README.md")
+	if e != nil || !strings.Contains(string(readme), "](T18-REAL-HOST.md)") {
+		t.Fatal("T18RH_CONTRACT deploy/README.md does not link T18-REAL-HOST.md", e)
 	}
 	if regexp.MustCompile(`--regid="?\$AGENT_USER|--regid=[a-z]`).Match(doc) {
 		t.Fatal("T18RH_CONTRACT T18-REAL-HOST.md gives --regid a name")
@@ -302,11 +336,16 @@ func TestT18RealHostItemContract(t *testing.T) {
 
 // Claim: the composer turns each known-bad host observation into a FAIL of
 // the named item and an OVERALL FAIL with exit 1, beside the all-pass evidence
-// (OVERALL PASS, exit 0) and the stand-in evidence (allowed-socket STAND_IN,
-// still OVERALL PASS). In particular an ENOENT on a denied_reads path is never
-// counted as denied, a stand-in listener (peer UID 0) is never a PASS, a stand-in
-// is STAND_IN only when the socket connected, and a sent wallet request fails
-// the positive-request item instead of hiding behind its hosted pin.
+// (OVERALL PASS, exit 0) and the stand-in evidence (every placeholder-backed
+// item STAND_IN, none PASS, OVERALL PASS valid only as a stand-in run). In
+// particular an ENOENT on a denied_reads path is never counted as denied (a
+// missing stand-in placeholder included), a stand-in listener (peer UID 0) is
+// never a PASS, a stand-in is STAND_IN only when the socket connected, a sent
+// wallet request or any client error output fails the positive-request item
+// instead of hiding behind its hosted pin, the account item fails whenever
+// the exact group set read from the REAL account is refused, missing or for
+// another UID even though g2-host-flow passed, and when the no-op apply mode
+// is not recorded; and peer-precondition fails without perl's version line.
 func TestT18RealHostReportControls(t *testing.T) {
 	files, _ := RenderG2PayTemplates(g2Params())
 	spec, _ := ParseCustodySpec(files[G2FileCustodySpec][:len(files[G2FileCustodySpec])-1])
@@ -320,11 +359,32 @@ func TestT18RealHostReportControls(t *testing.T) {
 		code         int
 		line         string // regexp that must match a whole line
 	}{
-		{"valid-real", "real", func(*testing.T, *t18rhFix) {}, 0, `^OVERALL PASS pass=\d+ stand_in=0 covered=10 fail=0 invalid=0 missing=0$`},
+		{"valid-real", "real", func(*testing.T, *t18rhFix) {}, 0, `^OVERALL PASS pass=\d+ stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real$`},
 		{"valid-stand-in", "stand-in", func(t *testing.T, f *t18rhFix) {
 			f.write(t, "peer.txt", "PEER connect=ok uid=0 gid=0\n")
 			f.write(t, "socket-stat.txt", "socket|0|1301|660\n")
 		}, 0, `^allowed-socket STAND_IN wallet=stand-in probe=CONNECTED peer_uid=0 service_uid=1101 `},
+		{"valid-stand-in-overall", "stand-in", func(*testing.T, *t18rhFix) {}, 0, `^OVERALL PASS pass=\d+ stand_in=\d+ covered=11 fail=0 invalid=0 missing=0 run=stand-in valid-only-as-a-stand-in-run$`},
+		{"stand-in-placeholder-missing", "stand-in", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{read0: "ENOENT"}) }, 1, `^denied-read:` + regexp.QuoteMeta(read0) + ` FAIL observed=ENOENT$`},
+		{"account-real-group-set-refused", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/account-real.txt", "uid=1201 gid=1201 groups=1201,1301,1401\n")
+			f.write(t, "op/account-groups.txt", "deploy: invalid policy\n")
+			f.write(t, "op/exits.txt", "render_exit=0\nhost_flow_exit=0\naccount_groups_exit=1\n")
+		}, 1, `^account FAIL host_flow=G2_HOST_FLOW_ACTIVATED apply_noop=1 real_account=uid=1201_gid=1201_groups=1201,1301,1401 group_set=deploy:_invalid_policy$`},
+		{"account-real-group-set-missing", "real", func(t *testing.T, f *t18rhFix) {
+			os.Remove(filepath.Join(f.op, "account-groups.txt"))
+			f.write(t, "op/exits.txt", "render_exit=0\nhost_flow_exit=0\n")
+		}, 1, `^account FAIL host_flow=G2_HOST_FLOW_ACTIVATED apply_noop=1 .* group_set=$`},
+		{"account-real-group-set-exit", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/exits.txt", "render_exit=0\nhost_flow_exit=0\naccount_groups_exit=1\n")
+		}, 1, `^account FAIL host_flow=G2_HOST_FLOW_ACTIVATED apply_noop=1 `},
+		{"account-real-other-uid", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/account-real.txt", "uid=1202 gid=1201 groups=1201,1301\n")
+		}, 1, `^account FAIL host_flow=G2_HOST_FLOW_ACTIVATED apply_noop=1 real_account=uid=1202_`},
+		{"account-noop-not-recorded", "real", func(t *testing.T, f *t18rhFix) { os.Remove(filepath.Join(f.op, "host-flow-mode.txt")) }, 1, `^account FAIL host_flow=G2_HOST_FLOW_ACTIVATED apply_noop=0 `},
+		{"perl-missing", "real", func(t *testing.T, f *t18rhFix) { f.write(t, "perl-version.txt", "") }, 1, `^peer-precondition FAIL perl_v=none$`},
+		{"perl-other-line", "real", func(t *testing.T, f *t18rhFix) { f.write(t, "perl-version.txt", "sh: 1: perl: not found\n") }, 1, `^peer-precondition FAIL perl_v=sh:_1:_perl:_not_found$`},
+		{"request-client-error", "real", func(t *testing.T, f *t18rhFix) { f.write(t, "custody/positive.err", "dial: connected\n") }, 1, `^positive-request FAIL host=request-sent-or-unknown$`},
 		{"enoent-denied-read", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{read0: "ENOENT"}) }, 1, `^denied-read:` + regexp.QuoteMeta(read0) + ` FAIL observed=ENOENT$`},
 		{"readable-denied-read", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{read0: "READ_OK"}) }, 1, `^denied-read:` + regexp.QuoteMeta(read0) + ` FAIL observed=READ_OK$`},
 		{"status-dir-enoent", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{G2StatusSocketDir: "ENOENT"}) }, 1, `^status-dir FAIL path=/run/swarma-wallet-status observed=ENOENT$`},
@@ -388,7 +448,7 @@ func TestT18RealHostReportControls(t *testing.T) {
 		{"account-refused", "real", func(t *testing.T, f *t18rhFix) {
 			f.write(t, "op/exits.txt", "render_exit=0\nhost_flow_exit=1\n")
 			f.write(t, "op/host-flow.out", "g2 host flow: post-apply group set: deploy: invalid policy\n")
-		}, 1, `^account FAIL host_flow=g2_host_flow:_post-apply_group_set:_deploy:_invalid_policy$`},
+		}, 1, `^account FAIL host_flow=g2_host_flow:_post-apply_group_set:_deploy:_invalid_policy apply_noop=1 `},
 		{"agent-inputs-differ", "real", func(t *testing.T, f *t18rhFix) { f.write(t, "inputs.sha256", "0\n0\n0\n") }, 1, `^agent-inputs FAIL `},
 	}
 	for _, c := range cases {
@@ -409,6 +469,13 @@ func TestT18RealHostReportControls(t *testing.T) {
 			if c.code != 0 && strings.Contains(out, " fail=0 invalid=0 missing=0") {
 				t.Fatalf("T18RH_REPORT %s: a failing item did not count\n%s", c.name, out)
 			}
+			// A stand-in run never reports a placeholder-backed item PASS.
+			if c.wallet == "stand-in" && regexp.MustCompile(`(?m)^(denied-read:\S+|status-dir|allowed-socket) PASS `).MatchString(out) {
+				t.Fatalf("T18RH_REPORT %s: a placeholder-backed item is PASS on a stand-in run\n%s", c.name, out)
+			}
+			if c.name == "valid-stand-in-overall" && strings.Count(out, " STAND_IN ") != len(f.spec.DeniedReads)+2 {
+				t.Fatalf("T18RH_REPORT %s: want every denied read, status-dir and the socket STAND_IN\n%s", c.name, out)
+			}
 		})
 	}
 }
@@ -424,7 +491,14 @@ func TestT18RealHostReportControls(t *testing.T) {
 // PASS without a refusal; a wallet PASS without the service peer UID; a
 // positive request COVERED without host=not-sent; a covered item claimed as a
 // host PASS; a missing, duplicate or unknown-verdict item; a bad header; and a
-// stated OVERALL PASS that the items contradict.
+// stated OVERALL PASS that the items contradict. The r2 conditions add: a
+// COVERED item whose pin, commit, run or job differs from its table row (in
+// particular TestPX1T18CoreNodePolicy pinned to the Deploy kit run in which it
+// skipped); a stand-in run with any placeholder-backed item (a denied read,
+// the status directory, the socket) PASS; STAND_IN for a denied read on a real
+// run; an account PASS without the literal no-op apply line, with it twice,
+// or without the REAL account's exact set evidence; a missing positive-path
+// statement or positive_path token; and a perl-less peer precondition PASS.
 func TestT18RealHostCheckControls(t *testing.T) {
 	f := t18rhFixture(t)
 	code, real := f.report(t, "real")
@@ -447,6 +521,9 @@ func TestT18RealHostCheckControls(t *testing.T) {
 			t.Fatalf("T18RH_CHECK %s refused: %d %s", name, code, out)
 		}
 	}
+	if _, out := check("valid-stand-in-run", standIn); !strings.HasSuffix(out, " run=stand-in valid-only-as-a-stand-in-run\n") {
+		t.Fatalf("T18RH_CHECK a stand-in OVERALL line does not say it is valid only as a stand-in run: %s", out)
+	}
 	read0 := "denied-read:" + f.spec.DeniedReads[0]
 	sub := func(text, re, repl string) string {
 		out := regexp.MustCompile(`(?m)`+re).ReplaceAllString(text, repl)
@@ -463,7 +540,7 @@ func TestT18RealHostCheckControls(t *testing.T) {
 		{"covered-other-run", sub(real, `^(cov-host-flow-tripwire .*) run=\d+ `, "$1 run=1 "), "no-run:cov-host-flow-tripwire"},
 		{"covered-no-commit", sub(real, `^(cov-verify-refusals .*) commit=\S+ `, "$1 "), "no-commit:cov-verify-refusals"},
 		{"positive-no-run", sub(real, `^(positive-request .*) run=\d+ `, "$1 "), "no-run:positive-request"},
-		{"positive-sent", sub(real, `host=not-sent$`, "host=sent"), "request-not-shown-unsent"},
+		{"positive-sent", sub(real, `host=not-sent `, "host=sent "), "request-not-shown-unsent"},
 		{"wallet-pass-on-stand-in", sub(standIn, `^allowed-socket STAND_IN `, "allowed-socket PASS "), "wallet-pass-on-stand-in"},
 		{"stand-in-on-real", sub(real, `^allowed-socket PASS `, "allowed-socket STAND_IN "), "stand-in-misplaced:allowed-socket"},
 		{"stand-in-other-item", sub(standIn, `^account PASS `, "account STAND_IN "), "stand-in-misplaced:account"},
@@ -482,6 +559,24 @@ func TestT18RealHostCheckControls(t *testing.T) {
 		{"no-evidence", sub(real, `^render PASS .*$`, "render PASS"), "no-evidence:render"},
 		{"bad-header", sub(real, `^T18-REAL-HOST v1 wallet=real `, "T18-REAL-HOST v1 wallet=maybe "), "header"},
 		{"empty", "", "header"},
+		{"node-policy-skipped-run", sub(real, `^(cov-core-node-policy .*) commit=\S+ run=\d+ `, "$1 commit="+t18rhCommit+" run="+t18rhRunDK+" "), "no-run:cov-core-node-policy"},
+		{"node-policy-other-commit", sub(real, `^(cov-core-node-policy .*) commit=\S+ `, "$1 commit="+t18rhCommit+" "), "no-commit:cov-core-node-policy"},
+		{"covered-other-pin", sub(real, `^(cov-searchable-dir COVERED_BY_HOSTED) pin=\S+ `, "$1 pin=TestPX1T18RPCClassification "), "no-pin:cov-searchable-dir"},
+		{"covered-other-job", sub(real, `^(cov-wallet-foreign-peer .*) job=\S+$`, "$1 job=w2-core"), "no-job:cov-wallet-foreign-peer"},
+		{"covered-unknown", sub(real, `^cov-searchable-dir `, "cov-anything "), "covered-not-allowed:cov-anything"},
+		{"stand-in-read-pass", sub(standIn, `^(denied-read:\S+) STAND_IN `, "$1 PASS "), "stand-in-placeholder-pass:" + read0},
+		{"stand-in-status-pass", sub(standIn, `^status-dir STAND_IN `, "status-dir PASS "), "stand-in-placeholder-pass:status-dir"},
+		{"stand-in-read-on-real", sub(real, `^(`+regexp.QuoteMeta(read0)+`) PASS `, "$1 STAND_IN "), "stand-in-misplaced:" + read0},
+		{"stand-in-read-enoent", sub(standIn, `^(`+regexp.QuoteMeta(read0)+`) STAND_IN observed=EACCES$`, "$1 STAND_IN observed=ENOENT"), "read-pass-without-eacces:" + read0},
+		{"apply-line-removed", sub(real, `^`+regexp.QuoteMeta(t18rhApplyNoop)+`\n`, ""), "apply-noop-line"},
+		{"apply-line-twice", sub(real, `^(`+regexp.QuoteMeta(t18rhApplyNoop)+`)$`, "$1\n$1"), "apply-noop-line"},
+		{"account-no-noop", sub(real, `^(account PASS .*) apply=noop `, "$1 apply=sysusers "), "account-pass-without-noop-apply"},
+		{"account-no-group-set", sub(real, `^(account PASS .*) group_set=G2_AGENT_GROUPS_OK$`, "$1"), "account-pass-without-real-group-set"},
+		{"account-other-real", sub(real, `real_account=uid=1201_gid=1201_groups=1201,1301 `, "real_account=uid=1201_gid=1201_groups=1201,1301,1401 "), "account-pass-without-real-account"},
+		{"positive-note-removed", sub(real, `^# positive-path: .*\n`, ""), "positive-path-statement"},
+		{"positive-path-token-removed", sub(real, ` positive_path=mainnet-smoke-gate$`, ""), "positive-path-not-stated"},
+		{"perl-pass-without-version", sub(real, `^peer-precondition PASS perl_v=\S+$`, "peer-precondition PASS perl_v=none"), "peer-precondition-without-perl-version"},
+		{"missing-peer-precondition", sub(real, `^peer-precondition .*\n`, ""), "missing:peer-precondition"},
 	}
 	for _, c := range cases {
 		code, out := check(c.name, c.text)
@@ -498,12 +593,15 @@ func TestT18RealHostCheckControls(t *testing.T) {
 
 // Claim: the dry run needs no root, no station and no deploy-kit: self-test
 // composes its synthetic evidence through the real report path and prints
-// SELF_TEST PASS with exit 0 only when the valid samples pass and its
-// known-bad samples (ENOENT, a stand-in declared real, a sent request,
-// STAND_IN on a real wallet) fail with their named lines.
+// SELF_TEST PASS with exit 0 only when the valid samples pass (the real run
+// with its no-op apply line, the stand-in run with its placeholders STAND_IN
+// and its OVERALL line valid only as a stand-in run) and its known-bad samples
+// (a placeholder reported PASS on a stand-in run, a refused real-account
+// group set, ENOENT, a stand-in declared real, a sent request, STAND_IN on a
+// real wallet) fail with their named lines.
 func TestT18RealHostSelfTest(t *testing.T) {
 	code, out := t18rhRun(t, []string{"DEPLOY_KIT=/nonexistent/deploy-kit"}, "self-test")
-	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 6 {
+	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 10 {
 		t.Fatalf("T18RH_SELF_TEST %d\n%s", code, out)
 	}
 }
@@ -596,11 +694,15 @@ func TestT18RealHostPeerIdentity(t *testing.T) {
 // script prints T18_FAIL by construction, exits.txt records positive_exit=3
 // and the receipt is the marker. The operator phase re-renders the parameters
 // with the real deploy-kit and compares them byte for byte with the rendered
-// directory. The report then shows credentials PASS (the readback accepted
-// the fixture `id`), every fixture denied read EACCES, the RPC target
+// directory; it records the no-op apply mode and reads the account's exact
+// group set through the real g2-agent-groups, which accepts {UID, 1301} and
+// refuses the same account with a third group. The report then shows credentials PASS (the readback accepted
+// the fixture `id`), every fixture denied read EACCES (STAND_IN), the RPC target
 // REFUSED, the socket STAND_IN with the listener's UID, render and
-// agent-inputs PASS and positive-request COVERED_BY_HOSTED with
-// host=not-sent. Limits: id is the fixture readback adapter of
+// agent-inputs PASS, peer-precondition PASS from the host's real `perl -v`,
+// the literal no-op apply line and positive-request COVERED_BY_HOSTED with
+// host=not-sent. As a stand-in run the fixture denied reads are STAND_IN.
+// Limits: id is the fixture readback adapter of
 // TestPX1T18CustodyScript (no setpriv runs here); the spec uses fixture paths
 // (no status directory), so custody-verify, which requires the launch layout,
 // and status-dir are FAIL; the account check runs against this host's account
@@ -660,6 +762,35 @@ func TestT18RealHostAgentPhase(t *testing.T) {
 	if code, out := t18rhRun(t, env, "operator", op, paramsPath, rendered, txindex); code != 0 || !strings.HasPrefix(out, "T18_REAL_HOST_OPERATOR_DONE ") {
 		t.Fatalf("T18RH_AGENT operator phase %d\n%s", code, out)
 	}
+	// The operator phase reads the exact set from the account (here the
+	// fixture id: -u 1201, -g and -G from FAKE_ID_G) and the real deploy-kit
+	// g2-agent-groups accepts {UID, 1301}; beside it, the same account with a
+	// third group 1401 is refused, so that check really runs in the no-op
+	// apply mode.
+	wantReal := map[string]string{
+		"account-real.txt":   "uid=1201 gid=" + u + " groups=" + u + ",1301\n",
+		"account-groups.txt": "G2_AGENT_GROUPS_OK observed_gid=" + u + " declared_primary_gid=" + u + " socket_gid=1301\n",
+		"host-flow-mode.txt": "apply=noop activation=noop sysusers=true\n",
+	}
+	for name, want := range wantReal {
+		if b, _ := os.ReadFile(filepath.Join(op, name)); string(b) != want {
+			t.Fatalf("T18RH_AGENT operator %s %q want %q", name, b, want)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(op, "exits.txt")); !strings.Contains(string(b), "\naccount_groups_exit=0\n") {
+		t.Fatalf("T18RH_AGENT operator exits %q", b)
+	}
+	op3 := filepath.Join(root, "op-third-group")
+	env3 := append(append([]string{}, env[:2]...), "FAKE_ID_G="+u+" 1301 1401")
+	if code, out := t18rhRun(t, env3, "operator", op3, paramsPath, rendered, txindex); code != 0 {
+		t.Fatalf("T18RH_AGENT operator phase (third group) %d\n%s", code, out)
+	}
+	if b, _ := os.ReadFile(filepath.Join(op3, "account-groups.txt")); strings.Contains(string(b), "G2_AGENT_GROUPS_OK") {
+		t.Fatalf("T18RH_AGENT a third group on the account was accepted: %q", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(op3, "exits.txt")); !strings.Contains(string(b), "\naccount_groups_exit=1\n") {
+		t.Fatalf("T18RH_AGENT third group exits %q", b)
+	}
 	if code, out := t18rhRun(t, env, "agent", ag, specPath, clientPath, g2KeyG, paramsPath); code != 0 || !strings.HasPrefix(out, "T18_REAL_HOST_AGENT_DONE ") {
 		t.Fatalf("T18RH_AGENT agent phase %d\n%s", code, out)
 	}
@@ -703,10 +834,12 @@ func TestT18RealHostAgentPhase(t *testing.T) {
 		"credentials PASS observed_gid=" + u + " groups=" + groups + " check=G2_AGENT_GROUPS_OK",
 		"render PASS files=6 custody_spec_file_sha256=" + t18rhSha(append(specRaw, '\n')),
 		"agent-inputs PASS spec,client,params=rendered",
-		"denied-read:" + key + " PASS observed=EACCES",
-		"denied-read:" + state + " PASS observed=EACCES",
+		"denied-read:" + key + " STAND_IN observed=EACCES",
+		"denied-read:" + state + " STAND_IN observed=EACCES",
 		"denied-rpc:" + spec.DeniedRPC[0] + " PASS observed=REFUSED",
-		"positive-request COVERED_BY_HOSTED pin=TestPX1CoreServiceG2FailClosed commit=" + t18rhCommit + " run=" + t18rhRunAW + " job=px1-core-gate host=not-sent",
+		t18rhApplyNoop,
+		t18rhNote,
+		"positive-request COVERED_BY_HOSTED pin=TestPX1CoreServiceG2FailClosed commit=" + t18rhCommit + " run=" + t18rhRunAW + " job=px1-core-gate host=not-sent positive_path=mainnet-smoke-gate",
 	} {
 		if !strings.Contains(out, "\n"+line+"\n") {
 			t.Fatalf("T18RH_AGENT report lacks %q\n%s", line, out)
@@ -718,6 +851,7 @@ func TestT18RealHostAgentPhase(t *testing.T) {
 		`(?m)^status-dir FAIL path=/run/swarma-wallet-status not-in-denied_reads$`,
 		`(?m)^launch-form (PASS|FAIL) uid=` + u + `,` + u + `,` + u + `,` + u + ` `,
 		`(?m)^account FAIL host_flow=g2_host_flow:_preflight:_`,
+		`(?m)^peer-precondition PASS perl_v=This_is_perl_5,_version_\d+,_subversion_\d+_`,
 	} {
 		if !regexp.MustCompile(re).MatchString(out) {
 			t.Fatalf("T18RH_AGENT report lacks %s\n%s", re, out)
