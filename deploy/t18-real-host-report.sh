@@ -22,10 +22,38 @@
 # TestPX1CoreServiceG2FailClosed in run 43360330369, and turns FAIL if the host
 # evidence shows that any frame was sent.
 #
-#   t18-real-host-report.sh operator OPDIR PARAMS RENDERED TXINDEX_JSON
-#       as the operator (no root needed): re-render, account checks, txindex
+#   t18-real-host-report.sh node-capture OUT SPEC -- CLI [CLI-OPTION...]
+#       as the node's operator (r10): one node call, `CLI CLI-OPTION...
+#       -rpcconnect=HOST -rpcport=PORT getindexinfo txindex`, against the one
+#       denied_rpc entry HOST:PORT of SPEC, bracketed by two UTC times taken
+#       by this script. OUT (new) gets the capture: the lines
+#       `T18-NODE-CAPTURE v1`, `rpc=HOST:PORT`, `start=<UTC>`, `end=<UTC>`,
+#       `exit=<n>` and `answer=<answer without white space>`. The method is
+#       fixed here; CLI-OPTION may only be -datadir=, -conf=, -rpccookiefile=,
+#       -chain= or -rpcclienttimeout=, so no other call (no wallet call, no
+#       -getinfo, no -generate) can be made through this mode
+#   t18-real-host-report.sh operator OPDIR PARAMS RENDERED CAPTURE
+#       as the operator (no root needed): re-render, account checks, txindex.
+#       CAPTURE is the pre-probe node capture (node-capture output, kept as
+#       OPDIR/node-pre.txt); a bare saved getindexinfo answer is still read
+#       for node-txindex, but carries no time and no target
 #   t18-real-host-report.sh agent AGDIR SPEC CLIENT GRANTEE PARAMS
-#       as the agent, launched by root with setpriv exactly as SMOKE-G2.md §4
+#       as the agent, launched by root with setpriv exactly as SMOKE-G2.md §4.
+#       r10: the probe window, `probe_start=<UTC>` and `probe_end=<UTC>` taken
+#       right before and right after the custody script (which runs the
+#       probe), is kept in AGDIR/probe-window.txt
+#   t18-real-host-report.sh denied-stat SPEC
+#       as root (r10), read-only: prints one line per denied_reads path of
+#       SPEC, in spec order: `<path> exists=yes type=<%F, spaces as _>
+#       owner=<uid>:<gid> mode=<octal>` (stat -L) or `<path> exists=no`. The
+#       operator saves it as OPDIR/denied-paths-stat.txt
+#   r10, live runs (`real`): a denied-rpc row is PASS only when, beside the
+#       r9 rule, the pre-probe capture (OPDIR/node-pre.txt) and the post-probe
+#       capture (OPDIR/node-post.txt) both name the row's target, carry their
+#       times, and pre start <= pre end <= probe start <= probe end <= post
+#       start <= post end, and the post-probe answer is synced; a denied-read
+#       row is PASS only when OPDIR/denied-paths-stat.txt holds exactly one
+#       `exists=yes` line for its path. Stand-in runs are unchanged
 #   t18-real-host-report.sh report OPDIR AGDIR RENDERED PARAMS real|stand-in
 #       reads both evidence directories and prints the report. The last
 #       argument is the stand-in flag: `stand-in` marks a run on the stand-in
@@ -220,6 +248,53 @@ exact_pair() {
 	[ "$2" != "$3" ] && { [ "$1" = "$2,$3" ] || [ "$1" = "$3,$2" ]; }
 }
 
+# r10: times are UTC with nanoseconds (GNU date), one fixed width, so the
+# order of two times is the byte order of their text.
+capture_head="T18-NODE-CAPTURE v1"
+synced_re='^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$'
+utc_now() { date -u +%Y-%m-%dT%H:%M:%S.%NZ; }
+is_ts() {
+	printf '%s\n' "$1" | grep -Eqx '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\.[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]Z'
+}
+
+# kv_once KEY FILE: the value of the one KEY=... line of FILE, or nothing when
+# FILE is missing or KEY stands there other than exactly once.
+kv_once() {
+	[ -f "$2" ] && [ "$(grep -c "^$1=" "$2" 2>/dev/null)" = 1 ] || return 0
+	sed -n "s/^$1=//p" "$2"
+}
+
+# cap_val FILE KEY: kv_once in a node capture, whose first line is the
+# capture header; nothing otherwise.
+cap_val() {
+	[ -f "$1" ] && [ "$(head -n 1 "$1")" = "$capture_head" ] || return 0
+	kv_once "$2" "$1"
+}
+
+# ordered T...: 0 only when every time is well formed and each is at or
+# after the one before it.
+ordered() {
+	for x in "$@"; do is_ts "$x" || return 1; done
+	awk 'BEGIN { for (i = 1; i < ARGC - 1; i++) if (ARGV[i] "" > ARGV[i + 1] "") exit 1; exit 0 }' "$@"
+}
+
+# stat_rec PATH RECORD: the stat of PATH from the root-side record
+# (denied-stat output): `exists=yes type=.. owner=..:.. mode=..` or
+# `exists=no`, only when exactly one well-formed line names PATH; nothing
+# otherwise (a missing, repeated or malformed line).
+stat_rec() {
+	[ -f "$2" ] || return 0
+	awk -v p="$1" '$1 == p { n++; l = $0 } END { if (n == 1) print substr(l, length(p) + 2) }' "$2" |
+		grep -Ex 'exists=yes type=[a-z][a-z_]* owner=(0|[1-9][0-9]*):(0|[1-9][0-9]*) mode=[0-7]+|exists=no' || true
+}
+
+# tok VALUE: VALUE as one evidence token (every byte outside printable ASCII,
+# space included, a comma), or none. Display only.
+tok() {
+	v=$(printf '%s' "$1" | tr -c '\041-\176' ',')
+	printf '%s\n' "${v:-none}"
+}
+
 # no-request mode: the AGENT_WALLET of the custody script. It sends nothing.
 if [ "$#" -eq 4 ] && [ "$1" = --config ] && [ "$3" = --request ]; then
 	[ "${T18_REAL_HOST_NO_REQUEST:-}" = 1 ] || usage
@@ -278,12 +353,93 @@ operator_phase() {
 	set -e
 
 	# Node precondition: the operator's saved `getindexinfo txindex` answer.
-	if [ -f "$txindex" ]; then
+	# r10: a node capture (node-capture output) is kept whole as node-pre.txt,
+	# the pre-probe capture of the denied-rpc liveness rule, and its answer is
+	# the node-txindex evidence when the call exited 0. A bare saved answer
+	# is still read for node-txindex, but carries no time and no target.
+	if [ -f "$txindex" ] && [ "$(head -n 1 "$txindex")" = "$capture_head" ]; then
+		cp "$txindex" "$op/node-pre.txt"
+		if [ "$(kv_once exit "$txindex")" = 0 ]; then
+			kv_once answer "$txindex" | tr -d ' \t\r\n' >"$op/txindex.json"
+		else
+			: >"$op/txindex.json"
+		fi
+	elif [ -f "$txindex" ]; then
 		tr -d ' \t\r\n' <"$txindex" >"$op/txindex.json"
 	else
 		: >"$op/txindex.json"
 	fi
 	echo "T18_REAL_HOST_OPERATOR_DONE $op"
+}
+
+# ---------------------------------------------------------------- node-capture
+# r10: one `getindexinfo txindex` node call against the spec's one denied_rpc
+# target, between two UTC times. The method and the target are this script's;
+# the operator adds only the options that locate the node's datadir, config
+# and cookie. Any other option is refused before the CLI runs (and is not
+# printed: it could be a credential).
+node_capture() {
+	[ "$#" -ge 4 ] && [ "$3" = -- ] || usage
+	out=$1 spec=$2
+	shift 3
+	[ -f "$spec" ] && [ ! -e "$out" ] && [ ! -L "$out" ] || usage
+	rpc=$(json_array "$spec" denied_rpc) || usage
+	[ -n "$rpc" ] && [ "$(printf '%s\n' "$rpc" | wc -l)" = 1 ] || usage
+	host=${rpc%:*} port=${rpc##*:}
+	case $port in '' | *[!0-9]*) usage ;; esac
+	[ -n "$host" ] && [ "$host" != "$rpc" ] || usage
+	cli=$1
+	shift
+	for a in "$@"; do
+		case $a in
+		-datadir=?* | -conf=?* | -rpccookiefile=?* | -chain=?* | -rpcclienttimeout=?*) ;;
+		*)
+			echo "REFUSED node-capture option not allowed (allowed: -datadir= -conf= -rpccookiefile= -chain= -rpcclienttimeout=)" >&2
+			exit 64
+			;;
+		esac
+	done
+	umask 022
+	(set -C && : >"$out") || usage
+	ans=$(mktemp) || exit 1
+	start=$(utc_now)
+	"$cli" "$@" -rpcconnect="$host" -rpcport="$port" getindexinfo txindex >"$ans" 2>/dev/null && st=0 || st=$?
+	end=$(utc_now)
+	{
+		echo "$capture_head"
+		echo "rpc=$rpc"
+		echo "start=$start"
+		echo "end=$end"
+		echo "exit=$st"
+		echo "answer=$(tr -d ' \t\r\n' <"$ans")"
+	} >"$out"
+	rm -f "$ans"
+	echo "T18_REAL_HOST_NODE_CAPTURE_DONE exit=$st $out"
+	[ "$st" = 0 ] || exit 1
+}
+
+# ---------------------------------------------------------------- denied-stat
+# r10: the root-side existence record of every denied_reads path, read-only:
+# stat -L follows a link to the object an open of the path reaches. A path
+# stat cannot reach (missing, a dangling link) is `exists=no`.
+denied_stat() {
+	[ "$#" -eq 1 ] && [ -f "$1" ] || usage
+	reads=$(json_array "$1" denied_reads) || reads=
+	if [ -z "$reads" ]; then
+		echo "REFUSED denied-stat: no readable denied_reads in $1" >&2
+		exit 1
+	fi
+	for p in $reads; do
+		if s=$(stat -L -c '%F|%u|%g|%a' -- "$p" 2>/dev/null); then
+			ty=$(printf '%s' "${s%%|*}" | tr ' ' '_')
+			r=${s#*|}
+			u=${r%%|*}
+			r=${r#*|}
+			echo "$p exists=yes type=$ty owner=$u:${r%%|*} mode=${r#*|}"
+		else
+			echo "$p exists=no"
+		fi
+	done
 }
 
 # ---------------------------------------------------------------- agent
@@ -301,10 +457,15 @@ agent_phase() {
 	sha256sum "$spec" "$client" "$params" | cut -d ' ' -f 1 >"$ag/inputs.sha256"
 
 	# T18 through the unchanged custody script; the request is not sent.
+	# r10: the probe window. The custody script runs g2-custody-probe, whose
+	# report holds no time, so the window is taken right before and right
+	# after the whole script: it contains the probe.
 	set +e
+	echo "probe_start=$(utc_now)" >"$ag/probe-window.txt"
 	T18_REAL_HOST_NO_REQUEST=1 DEPLOY_KIT=$deploy_kit AGENT_WALLET=$(self_path) \
 		sh "$here/g2-custody-check.sh" "$spec" "$client" "$grantee" "$params" "$ag/custody" >"$ag/custody-check.out" 2>&1
 	echo "custody_check_exit=$?" >"$ag/agent-exits.txt"
+	echo "probe_end=$(utc_now)" >>"$ag/probe-window.txt"
 
 	# Launch layout (r7): the launch layout is a property of the run, which
 	# g2-custody-verify enforces with its -launch check. verify runs here on
@@ -390,7 +551,7 @@ report_items() {
 	# Precondition: txindex=1 and the index synced.
 	tx=$(cat "$op/txindex.json" 2>/dev/null || true)
 	node_live=0
-	if printf '%s\n' "$tx" | grep -Eq '^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$'; then
+	if printf '%s\n' "$tx" | grep -Eq "$synced_re"; then
 		node_live=1
 		echo "node-txindex PASS getindexinfo=$tx"
 	else
@@ -473,19 +634,40 @@ report_items() {
 	# On a stand-in run every denied_reads path is a root-owned placeholder
 	# (or not the production object), so a denial there is STAND_IN, never
 	# PASS. A missing placeholder is still FAIL.
+	# r10: on a live run a denial is PASS only when the root-side record
+	# (OPDIR/denied-paths-stat.txt, denied-stat output) holds exactly one
+	# `exists=yes` line for the path: a closed parent reads EACCES for a
+	# missing object too, so the denial alone does not show the object.
+	# A path the record lists as absent is FAIL reason=path-absent; a path it
+	# does not list (or lists twice, or malformed) is FAIL
+	# reason=path-not-in-stat-record. The stand-in run does not read the
+	# record: its denials stay STAND_IN, never PASS.
 	denied=PASS
 	[ "$wallet" = stand-in ] && denied=STAND_IN
+	statrec=$op/denied-paths-stat.txt
 	status_seen=0
 	for p in $reads; do
 		o=$(probe_observed read "$p" "$cr") || o=
+		why=
 		case $o in
-		EACCES | EPERM) echo "denied-read:$p $denied observed=$o" ;;
+		EACCES | EPERM)
+			dv=$denied ev=
+			if [ "$wallet" = real ]; then
+				sr=$(stat_rec "$p" "$statrec")
+				case $sr in
+				"exists=yes "*) ev=" $sr" ;;
+				exists=no) dv=FAIL why=" reason=path-absent" ;;
+				*) dv=FAIL why=" reason=path-not-in-stat-record" ;;
+				esac
+			fi
+			echo "denied-read:$p $dv observed=$o$ev$why"
+			;;
 		*) echo "denied-read:$p FAIL observed=${o:-none}" ;;
 		esac
 		if [ "$p" = "$status_dir" ]; then
 			status_seen=1
 			case $o in
-			EACCES | EPERM) echo "status-dir $denied path=$p observed=$o" ;;
+			EACCES | EPERM) echo "status-dir $dv path=$p observed=$o$why" ;;
 			*) echo "status-dir FAIL path=$p observed=${o:-none}" ;;
 			esac
 		fi
@@ -506,14 +688,58 @@ report_items() {
 	# a stand-in run (whose station may run no node), never PASS. A timeout or
 	# any other transport error aborts the product probe (no report), so the
 	# row is FAIL observed=none; HTTP_OK is FAIL (the call was not refused).
+	#
+	# r10: liveness at probe time, on a live run (`real`). The pre-probe
+	# capture (OPDIR/node-pre.txt, the node-txindex answer) and the post-probe
+	# capture (OPDIR/node-post.txt, taken right after the agent phase) are
+	# node calls made by node-capture against this row's target, each between
+	# two UTC times; the agent phase recorded the probe window. The row is
+	# PASS only when, beside the r9 rule:
+	#  - all six times are present and well formed (else
+	#    reason=capture-time-missing);
+	#  - both captures name this row's target, host and port (else
+	#    reason=capture-port-mismatch);
+	#  - pre start <= pre end <= probe start <= probe end <= post start <=
+	#    post end (else reason=window-not-bracketed): the pre-probe answer was
+	#    given before the probe began and the post-probe answer after it
+	#    ended, so the node answered at that address on both sides of the
+	#    probe's whole window;
+	#  - the post-probe call exited 0 with a synced answer (else
+	#    reason=capture-not-synced); the pre-probe answer is node-txindex.
+	# Stand-in runs read no capture: their rows are as in r9.
+	pre=$op/node-pre.txt post=$op/node-post.txt win=$ag/probe-window.txt
+	l_pr=$(cap_val "$pre" rpc) l_ps=$(cap_val "$pre" start) l_pe=$(cap_val "$pre" end)
+	l_ws=$(kv_once probe_start "$win") l_we=$(kv_once probe_end "$win")
+	l_qr=$(cap_val "$post" rpc) l_qs=$(cap_val "$post" start) l_qe=$(cap_val "$post" end)
+	l_qx=$(cap_val "$post" exit) l_qa=$(cap_val "$post" answer)
 	for rpc in $rpcs; do
 		o=$(probe_observed rpc "$rpc" "$cr") || o=
 		case $o in
 		HTTP_401 | HTTP_403)
-			if [ "$node_live" = 1 ]; then
+			if [ "$node_live" != 1 ]; then
+				echo "denied-rpc:$rpc FAIL observed=$o reason=node-liveness-unproven"
+			elif [ "$wallet" != real ]; then
 				echo "denied-rpc:$rpc PASS observed=$o"
 			else
-				echo "denied-rpc:$rpc FAIL observed=$o reason=node-liveness-unproven"
+				lv="pre_rpc=$(tok "$l_pr") pre_start=$(tok "$l_ps") pre_end=$(tok "$l_pe") probe_start=$(tok "$l_ws") probe_end=$(tok "$l_we") post_rpc=$(tok "$l_qr") post_start=$(tok "$l_qs") post_end=$(tok "$l_qe") post_getindexinfo=$(tok "$l_qa")"
+				why=
+				for x in "$l_ps" "$l_pe" "$l_ws" "$l_we" "$l_qs" "$l_qe"; do
+					is_ts "$x" || why=capture-time-missing
+				done
+				if [ -z "$why" ] && { [ "$l_pr" != "$rpc" ] || [ "$l_qr" != "$rpc" ]; }; then
+					why=capture-port-mismatch
+				fi
+				if [ -z "$why" ] && ! ordered "$l_ps" "$l_pe" "$l_ws" "$l_we" "$l_qs" "$l_qe"; then
+					why=window-not-bracketed
+				fi
+				if [ -z "$why" ] && { [ "$l_qx" != 0 ] || ! printf '%s\n' "$l_qa" | grep -Eq "$synced_re"; }; then
+					why=capture-not-synced
+				fi
+				if [ -z "$why" ]; then
+					echo "denied-rpc:$rpc PASS observed=$o $lv"
+				else
+					echo "denied-rpc:$rpc FAIL observed=$o reason=$why $lv"
+				fi
 			fi
 			;;
 		REFUSED)
@@ -660,6 +886,9 @@ check_report() {
 	# order (CheckG2AgentGroups); a third, missing or repeated GID is refused.
 	function gset(l, a, b) { return a != b && (l == a "," b || l == b "," a) }
 	function reserved(s) { return s == "0" || s == "65534" || s == "65535" || s == "4294967295" }
+	# r10: a UTC time with nanoseconds, the one fixed-width form node-capture
+	# and the agent phase write; two such times order as their text does.
+	function ts(s) { return s ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\.[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]Z$/ }
 	BEGIN {
 		# r6: the canonical hash comes from the product or not at all.
 		if (spec_canon_sha == "") bad("canonical-hash-unavailable")
@@ -684,6 +913,10 @@ check_report() {
 		schema["denied-read"] = "observed"
 		schema["status-dir"] = "path observed"
 		schema["denied-rpc"] = "observed"
+		# r10: on a live run a denied-read PASS carries its root-side stat and
+		# a denied-rpc PASS its two node captures and the probe window.
+		schema["denied-read-live"] = "observed exists type owner mode"
+		schema["denied-rpc-live"] = "observed pre_rpc pre_start pre_end probe_start probe_end post_rpc post_start post_end post_getindexinfo"
 		schema["peer-precondition"] = "perl_v"
 		schema["allowed-socket"] = "wallet probe peer_uid service_uid socket socket_gid"
 		schema["custody-verify"] = "uid verified"
@@ -773,7 +1006,9 @@ check_report() {
 		if (!(kind in schema)) { bad(v == "COVERED_BY_HOSTED" ? "covered-not-allowed:" id : "unknown-item:" id); next }
 		if (v == "FAIL") next
 		if (kind == "custody-spec") { bad("custody-spec-not-fail"); next }
-		if (keys != schema[kind]) bad("fields:" id)
+		sk = kind
+		if (wallet == "real" && v == "PASS" && (kind == "denied-read" || kind == "denied-rpc")) sk = kind "-live"
+		if (keys != schema[sk]) bad("fields:" id)
 		# r9: a denied-rpc row may be STAND_IN too, but only on a stand-in run
 		# and only for REFUSED (checked below).
 		if (v == "STAND_IN" && (!(placeholder || kind == "denied-rpc") || wallet != "stand-in")) bad("stand-in-misplaced:" id)
@@ -796,6 +1031,12 @@ check_report() {
 			nread++
 			if (fv["observed"] != "EACCES" && fv["observed"] != "EPERM") bad("read-pass-without-eacces:" id)
 			read_o[substr(id, 13)] = fv["observed"]
+			# r10: on a live run the denied path exists, by the root-side record.
+			if (wallet == "real" && v == "PASS") {
+				if (!("exists" in fv)) bad("read-pass-not-in-stat-record:" id)
+				else if (fv["exists"] != "yes") bad("read-pass-path-absent:" id)
+				else if (fv["type"] !~ /^[a-z][a-z_]*$/ || fv["owner"] !~ /^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$/ || fv["mode"] !~ /^[0-7]+$/) bad("read-pass-stat-malformed:" id)
+			}
 		}
 		if (kind == "status-dir") {
 			if (fv["observed"] != "EACCES" && fv["observed"] != "EPERM") bad("status-pass-without-eacces")
@@ -815,6 +1056,15 @@ check_report() {
 				else if (o != "HTTP_401" && o != "HTTP_403") bad("rpc-pass-without-refusal:" id)
 			}
 			if (v == "STAND_IN" && o != "REFUSED") bad("rpc-stand-in-without-refused:" id)
+			# r10: on a live run the node answered at this target on both
+			# sides of the probe window, synced after it too.
+			if (wallet == "real" && v == "PASS") {
+				tgt = substr(id, 12)
+				if (fv["pre_rpc"] != tgt || fv["post_rpc"] != tgt) bad("rpc-pass-capture-port-mismatch:" id)
+				if (!ts(fv["pre_start"]) || !ts(fv["pre_end"]) || !ts(fv["probe_start"]) || !ts(fv["probe_end"]) || !ts(fv["post_start"]) || !ts(fv["post_end"])) bad("rpc-pass-capture-time-missing:" id)
+				else if (!(fv["pre_start"] <= fv["pre_end"] && fv["pre_end"] <= fv["probe_start"] && fv["probe_start"] <= fv["probe_end"] && fv["probe_end"] <= fv["post_start"] && fv["post_start"] <= fv["post_end"])) bad("rpc-pass-window-not-bracketed:" id)
+				if (fv["post_getindexinfo"] !~ /^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$/) bad("rpc-pass-capture-not-synced:" id)
+			}
 		}
 		if (id == "node-txindex" && fv["getindexinfo"] !~ /^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$/) bad("txindex-pass-without-synced-index")
 		if (id == "render" && (fv["files"] != "6" || !hex64(fv["custody_spec_file_sha256"]))) bad("render-pass-without-six-files")
@@ -951,6 +1201,17 @@ self_test() {
 	echo 'PEER connect=ok uid=210201 gid=210201' >"$ag/peer.txt"
 	echo 'socket|210201|210101|660' >"$ag/socket-stat.txt"
 	echo 'This is perl 5, version 34, subversion 0 (v5.34.0) built for x86_64-linux-gnu-thread-multi' >"$ag/perl-version.txt"
+	# r10: the two node captures around the probe window, and the root-side
+	# stat record of the two denied paths.
+	capture() { # FILE RPC START END
+		printf '%s\nrpc=%s\nstart=%s\nend=%s\nexit=0\nanswer={"txindex":{"synced":true,"best_block_height":1}}\n' "$capture_head" "$2" "$3" "$4" >"$1"
+	}
+	day=2026-01-01T00
+	capture "$op/node-pre.txt" 127.0.0.1:8336 "$day:00:00.000000000Z" "$day:00:01.000000000Z"
+	printf 'probe_start=%s\nprobe_end=%s\n' "$day:05:00.000000000Z" "$day:05:02.000000000Z" >"$ag/probe-window.txt"
+	capture "$op/node-post.txt" 127.0.0.1:8336 "$day:06:00.000000000Z" "$day:06:01.000000000Z"
+	stats_ok() { printf '/etc/swarma/wallet/wallet.json exists=yes type=regular_file owner=210201:210201 mode=600\n%s exists=yes type=directory owner=210201:210301 mode=750\n' "$status_dir" >"$op/denied-paths-stat.txt"; }
+	stats_ok
 
 	expect() { # NAME WANT-EXIT REPORT-MODE WANT-LINE (extended regex)
 		sh "$(self_path)" report "$op" "$ag" "$r" "$w/params.json" "$3" >"$w/$1.txt" 2>&1 && got=0 || got=$?
@@ -1072,6 +1333,27 @@ self_test() {
 	: >"$op/txindex.json"
 	expect rpc-liveness-unproven 1 real '^denied-rpc:127\.0\.0\.1:8336 FAIL observed=HTTP_401 reason=node-liveness-unproven$'
 	echo '{"txindex":{"synced":true,"best_block_height":1}}' >"$op/txindex.json"
+	# r10: liveness at probe time and the existence of the denied paths, on a
+	# live run. A post-probe capture on another port, one taken before the
+	# probe ended, and a missing probe window are FAIL by name; a denied path
+	# the root-side record lists as absent, or does not list, is FAIL by name;
+	# and a stored live report without the r10 evidence (its denied-rpc row
+	# as r9 wrote it) is refused by check.
+	capture "$op/node-post.txt" 127.0.0.1:8337 "$day:06:00.000000000Z" "$day:06:01.000000000Z"
+	expect rpc-post-capture-other-port 1 real '^denied-rpc:127\.0\.0\.1:8336 FAIL observed=HTTP_401 reason=capture-port-mismatch '
+	capture "$op/node-post.txt" 127.0.0.1:8336 "$day:05:01.000000000Z" "$day:05:01.500000000Z"
+	expect rpc-window-not-bracketed 1 real '^denied-rpc:127\.0\.0\.1:8336 FAIL observed=HTTP_401 reason=window-not-bracketed '
+	capture "$op/node-post.txt" 127.0.0.1:8336 "$day:06:00.000000000Z" "$day:06:01.000000000Z"
+	mv "$ag/probe-window.txt" "$w/probe-window.txt"
+	expect rpc-capture-time-missing 1 real '^denied-rpc:127\.0\.0\.1:8336 FAIL observed=HTTP_401 reason=capture-time-missing .* probe_start=none probe_end=none '
+	mv "$w/probe-window.txt" "$ag/probe-window.txt"
+	sed 's#^/etc/swarma/wallet/wallet.json .*#/etc/swarma/wallet/wallet.json exists=no#' "$op/denied-paths-stat.txt" >"$w/stat.txt" && cp "$w/stat.txt" "$op/denied-paths-stat.txt"
+	expect denied-path-absent 1 real '^denied-read:/etc/swarma/wallet/wallet\.json FAIL observed=EACCES reason=path-absent$'
+	grep -v '^/etc/swarma/wallet/wallet.json ' "$w/stat.txt" >"$op/denied-paths-stat.txt"
+	expect denied-path-not-in-record 1 real '^denied-read:/etc/swarma/wallet/wallet\.json FAIL observed=EACCES reason=path-not-in-stat-record$'
+	stats_ok
+	sed 's/^\(denied-rpc:[^ ]* PASS observed=HTTP_401\) .*$/\1/' "$valid" >"$w/r9-live.txt"
+	checked stored-live-without-captures 1 "$w/r9-live.txt" "$spec" 'rpc-pass-capture-time-missing:denied-rpc:127.0.0.1:8336'
 	if [ "$failures" = 0 ]; then
 		echo "SELF_TEST PASS"
 		return 0
@@ -1083,6 +1365,8 @@ self_test() {
 case $mode in
 operator) operator_phase "$@" ;;
 agent) agent_phase "$@" ;;
+node-capture) node_capture "$@" ;;
+denied-stat) denied_stat "$@" ;;
 peer) peer_phase "$@" ;;
 items)
 	[ "$#" -eq 0 ] || usage

@@ -60,6 +60,78 @@ var t18rhCovered = [][5]string{
 
 func t18rhSha(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
 
+// r10 evidence of the standard set: the pre-probe node capture, the probe
+// window and the post-probe node capture, in this order in time, and the
+// post-probe answer (synced, one block later than node-txindex's).
+const (
+	t18rhPreStart   = "2026-11-13T10:00:00.000000000Z"
+	t18rhPreEnd     = "2026-11-13T10:00:00.250000000Z"
+	t18rhProbeStart = "2026-11-13T10:05:00.000000000Z"
+	t18rhProbeEnd   = "2026-11-13T10:05:03.000000000Z"
+	t18rhPostStart  = "2026-11-13T10:06:00.000000000Z"
+	t18rhPostEnd    = "2026-11-13T10:06:00.250000000Z"
+	t18rhPreAnswer  = `{"txindex":{"synced":true,"best_block_height":812345}}`
+	t18rhPostAnswer = `{"txindex":{"synced":true,"best_block_height":812346}}`
+)
+
+// t18rhCapture is a node-capture file: target, times, exit and answer.
+func t18rhCapture(rpc, start, end, exit, answer string) string {
+	return "T18-NODE-CAPTURE v1\nrpc=" + rpc + "\nstart=" + start + "\nend=" + end + "\nexit=" + exit + "\nanswer=" + answer + "\n"
+}
+
+// t18rhStat is the standard root-side stat of a denied path (synthetic).
+func t18rhStat(p string) string {
+	if p == G2StatusSocketDir || strings.HasPrefix(p, "/var/lib/swarma-wallet/") {
+		return "exists=yes type=directory owner=1101:1101 mode=700"
+	}
+	return "exists=yes type=regular_file owner=0:0 mode=600"
+}
+
+// t18rhLiveFields is the r10 evidence of a live denied-rpc PASS row for target.
+func t18rhLiveFields(target string) string {
+	return "pre_rpc=" + target + " pre_start=" + t18rhPreStart + " pre_end=" + t18rhPreEnd + " probe_start=" + t18rhProbeStart + " probe_end=" + t18rhProbeEnd +
+		" post_rpc=" + target + " post_start=" + t18rhPostStart + " post_end=" + t18rhPostEnd + " post_getindexinfo=" + t18rhPostAnswer
+}
+
+var (
+	t18rhLiveRead = regexp.MustCompile(`(?m)^denied-read:(\S+) PASS observed=(EACCES|EPERM)$`)
+	t18rhLiveRPC  = regexp.MustCompile(`(?m)^denied-rpc:(\S+) PASS observed=(HTTP_401|HTTP_403)$`)
+)
+
+// t18rhLive turns a stored live (wallet=real) report of r3 to r9, which
+// predates the r10 evidence, into the report the composer now prints for the
+// same standard evidence set: each denied-read PASS row gains its root-side
+// stat, each denied-rpc PASS row its two node captures and the probe window.
+// Nothing else changes (no count, no hash). A stand-in report is returned
+// unchanged. The stored bytes are not changed; TestT18RealHostStoredLiveRefused
+// shows that check refuses the stored live reports as they are.
+func t18rhLive(text string) string {
+	if !strings.HasPrefix(text, "T18-REAL-HOST v1 wallet=real ") {
+		return text
+	}
+	text = t18rhLiveRead.ReplaceAllStringFunc(text, func(l string) string {
+		return l + " " + t18rhStat(t18rhLiveRead.FindStringSubmatch(l)[1])
+	})
+	return t18rhLiveRPC.ReplaceAllStringFunc(text, func(l string) string {
+		return l + " " + t18rhLiveFields(t18rhLiveRPC.FindStringSubmatch(l)[1])
+	})
+}
+
+// t18rhLiveFile writes t18rhLive of the stored r4 report name to a temporary
+// file and returns its path.
+func t18rhLiveFile(t *testing.T, name string) string {
+	t.Helper()
+	b, e := os.ReadFile(filepath.Join("testdata/t18-real-host-r4", name))
+	if e != nil {
+		t.Fatal(e)
+	}
+	path := filepath.Join(t.TempDir(), name)
+	if e := os.WriteFile(path, []byte(t18rhLive(string(b))), 0600); e != nil {
+		t.Fatal(e)
+	}
+	return path
+}
+
 // t18rhKitDir holds the real deploy-kit, built once from this tree for the
 // report and check modes (r6: their canonical spec hash comes only from
 // `deploy-kit g2-custody-hash`); TestMain removes it.
@@ -246,7 +318,30 @@ func t18rhFixtureFor(t *testing.T, p G2PayParameters) *t18rhFix {
 	f.write(t, "peer.txt", "PEER connect=ok uid="+su+" gid="+su+"\n")
 	f.write(t, "socket-stat.txt", "socket|"+su+"|"+sg+"|660\n")
 	f.write(t, "perl-version.txt", t18rhPerl+"\n")
+	// r10: the node captures around the probe window, against the spec's
+	// denied_rpc target, and the root-side stat of every denied path.
+	f.write(t, "op/node-pre.txt", t18rhCapture(f.spec.DeniedRPC[0], t18rhPreStart, t18rhPreEnd, "0", t18rhPreAnswer))
+	f.write(t, "probe-window.txt", "probe_start="+t18rhProbeStart+"\nprobe_end="+t18rhProbeEnd+"\n")
+	f.write(t, "op/node-post.txt", t18rhCapture(f.spec.DeniedRPC[0], t18rhPostStart, t18rhPostEnd, "0", t18rhPostAnswer))
+	f.writeStats(t, nil)
 	return f
+}
+
+// writeStats writes the root-side stat record, one line per denied path in
+// spec order; over replaces a path's stat ("" drops its line).
+func (f *t18rhFix) writeStats(t *testing.T, over map[string]string) {
+	t.Helper()
+	var b strings.Builder
+	for _, p := range f.spec.DeniedReads {
+		s, ok := over[p]
+		if !ok {
+			s = t18rhStat(p)
+		}
+		if s != "" {
+			b.WriteString(p + " " + s + "\n")
+		}
+	}
+	f.write(t, "op/denied-paths-stat.txt", b.String())
 }
 
 func (f *t18rhFix) report(t *testing.T, wallet string) (int, string) {
@@ -463,7 +558,7 @@ func TestT18RealHostReportControls(t *testing.T) {
 		// the RPC port) is FAIL reason=node-not-listening, never PASS.
 		{"rpc-node-stopped", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{rpc0: "REFUSED"}) }, 1, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` FAIL observed=REFUSED reason=node-not-listening$`},
 		// r9 claim (valid neighbour): a 403 from a live node (node-txindex PASS) is PASS.
-		{"rpc-403-live-node", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{rpc0: "HTTP_403"}) }, 0, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` PASS observed=HTTP_403$`},
+		{"rpc-403-live-node", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{rpc0: "HTTP_403"}) }, 0, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` PASS observed=HTTP_403 ` + regexp.QuoteMeta(t18rhLiveFields(rpc0)) + `$`},
 		// r9 claim: a 401 without node liveness in the run (no getindexinfo
 		// answer, node-txindex FAIL) is FAIL reason=node-liveness-unproven.
 		{"rpc-401-node-not-live", "real", func(t *testing.T, f *t18rhFix) { f.write(t, "op/txindex.json", "") }, 1, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` FAIL observed=HTTP_401 reason=node-liveness-unproven$`},
@@ -639,16 +734,16 @@ func TestT18RealHostCheckControls(t *testing.T) {
 		{"wallet-pass-on-stand-in", sub(standIn, `^allowed-socket STAND_IN `, "allowed-socket PASS "), "wallet-pass-on-stand-in"},
 		{"stand-in-on-real", sub(real, `^allowed-socket PASS `, "allowed-socket STAND_IN "), "stand-in-misplaced:allowed-socket"},
 		{"stand-in-other-item", sub(standIn, `^account PASS `, "account STAND_IN "), "stand-in-misplaced:account"},
-		{"enoent-as-denied", sub(real, `^(`+regexp.QuoteMeta(read0)+`) PASS observed=EACCES$`, "$1 PASS observed=ENOENT"), "read-pass-without-eacces:" + read0},
+		{"enoent-as-denied", sub(real, `^(`+regexp.QuoteMeta(read0)+`) PASS observed=EACCES( .*)$`, "$1 PASS observed=ENOENT$2"), "read-pass-without-eacces:" + read0},
 		{"status-enoent", sub(real, `^status-dir PASS path=(\S+) observed=EACCES$`, "status-dir PASS path=$1 observed=ENOENT"), "status-pass-without-eacces"},
-		{"rpc-answered", sub(real, `^(denied-rpc:\S+) PASS observed=HTTP_401$`, "$1 PASS observed=HTTP_OK"), "rpc-pass-without-refusal:"},
+		{"rpc-answered", sub(real, `^(denied-rpc:\S+) PASS observed=HTTP_401( .*)$`, "$1 PASS observed=HTTP_OK$2"), "rpc-pass-without-refusal:"},
 		// r9 claims: a hand-edited PASS observed=REFUSED is refused by name, on
 		// a real and on a stand-in report; STAND_IN for REFUSED is refused on
 		// a real run, and STAND_IN for a 401 on a stand-in run; a denied-rpc
 		// PASS while node-txindex is not PASS is refused.
-		{"rpc-refused-as-pass", sub(real, `^(denied-rpc:\S+) PASS observed=HTTP_401$`, "$1 PASS observed=REFUSED"), "rpc-pass-node-not-listening:denied-rpc:"},
+		{"rpc-refused-as-pass", sub(real, `^(denied-rpc:\S+) PASS observed=HTTP_401( .*)$`, "$1 PASS observed=REFUSED$2"), "rpc-pass-node-not-listening:denied-rpc:"},
 		{"rpc-refused-as-pass-stand-in", sub(standInRefused, `^(denied-rpc:\S+) STAND_IN observed=REFUSED$`, "$1 PASS observed=REFUSED"), "rpc-pass-node-not-listening:denied-rpc:"},
-		{"rpc-stand-in-on-real", sub(real, `^(denied-rpc:\S+) PASS observed=HTTP_401$`, "$1 STAND_IN observed=REFUSED"), "stand-in-misplaced:denied-rpc:"},
+		{"rpc-stand-in-on-real", sub(real, `^(denied-rpc:\S+) PASS observed=HTTP_401 .*$`, "$1 STAND_IN observed=REFUSED"), "stand-in-misplaced:denied-rpc:"},
 		{"rpc-stand-in-401", sub(standIn, `^(denied-rpc:\S+) PASS observed=HTTP_401$`, "$1 STAND_IN observed=HTTP_401"), "rpc-stand-in-without-refused:denied-rpc:"},
 		{"rpc-pass-node-not-live", sub(real, `^node-txindex PASS .*$`, "node-txindex FAIL getindexinfo=missing"), "rpc-pass-without-live-node"},
 		{"wallet-other-peer", sub(real, `peer_uid=1101 `, "peer_uid=0 "), "wallet-pass-without-peer-identity"},
@@ -724,7 +819,7 @@ func TestT18RealHostCheckControls(t *testing.T) {
 // node-liveness-unproven.
 func TestT18RealHostSelfTest(t *testing.T) {
 	code, out := t18rhRun(t, []string{"DEPLOY_KIT=/nonexistent/deploy-kit"}, "self-test")
-	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 32 ||
+	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 38 ||
 		!strings.HasPrefix(out, "self-test build-deploy-kit ok exit=0\n") || !strings.Contains(out, "\nself-test whitespace-spec-agrees ok exit=0\n") {
 		t.Fatalf("T18RH_SELF_TEST %d\n%s", code, out)
 	}
@@ -919,6 +1014,11 @@ func TestT18RealHostAgentPhase(t *testing.T) {
 	if code, out := t18rhRun(t, env, "agent", ag, specPath, clientPath, g2KeyG, paramsPath); code != 0 || !strings.HasPrefix(out, "T18_REAL_HOST_AGENT_DONE ") {
 		t.Fatalf("T18RH_AGENT agent phase %d\n%s", code, out)
 	}
+	// r10: the probe window brackets the custody script: two times in the
+	// nanosecond UTC form, start at or before end.
+	if b, _ := os.ReadFile(filepath.Join(ag, "probe-window.txt")); !regexp.MustCompile(`^probe_start=(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{9}Z)\nprobe_end=(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{9}Z)\n$`).Match(b) || string(b[12:42]) > string(b[53:83]) {
+		t.Fatalf("T18RH_AGENT probe window %q", b)
+	}
 	if b, _ := os.ReadFile(filepath.Join(ag, "custody-check.out")); string(b) != "T18_FAIL\n" {
 		t.Fatalf("T18RH_AGENT custody script output %q", b)
 	}
@@ -1052,7 +1152,7 @@ func TestT18RealHostStrictCheck(t *testing.T) {
 		t.Fatal(e)
 	}
 	specHash := t18rhSha(specFile)
-	r3 := func(name string) string { return t18rhWithHash(t18rhRead(t, name), specHash) }
+	r3 := func(name string) string { return t18rhLive(t18rhWithHash(t18rhRead(t, name), specHash)) }
 	real, standIn := r3("valid-real.txt"), r3("valid-stand-in.txt")
 	if code, out := f.report(t, "real"); code != 0 || out != real {
 		t.Fatalf("T18RH_STRICT the stored valid report is not the composer's output (%d)\n%s", code, out)
@@ -1238,7 +1338,10 @@ func TestT18RealHostSpecBoundCheck(t *testing.T) {
 	if read("custody-spec.json") != string(rendered) {
 		t.Fatal("T18RH_SPEC the stored spec is not the rendered launch spec")
 	}
-	valid := read("valid-real.txt")
+	// r10: the stored r4 report predates the r10 evidence; the composer prints
+	// it with that evidence (t18rhLive). The stored plants are checked the same way.
+	validRaw := read("valid-real.txt")
+	valid := t18rhLive(validRaw)
 	if code, out := f.report(t, "real"); code != 0 || out != valid {
 		t.Fatalf("T18RH_SPEC the stored valid report is not the composer's output (%d)\n%s", code, out)
 	}
@@ -1279,17 +1382,17 @@ func TestT18RealHostSpecBoundCheck(t *testing.T) {
 	const extra = "denied-read:/etc/swarma/wallet/extra.json PASS observed=EACCES"
 	hashLine := `^custody_spec_sha256 [0-9a-f]{64}\n`
 	stored := []struct{ file, made, reason string }{
-		{"row-deleted-overall-edited.txt", edit(edit(valid, `^`+regexp.QuoteMeta(wallet)+` .*\n`, ""), `^OVERALL PASS pass=21 `, "OVERALL PASS pass=20 "), "missing:denied-read:/etc/swarma/wallet/wallet.json"},
-		{"missing-hash.txt", edit(valid, hashLine, ""), "custody-spec-sha256:missing"},
-		{"duplicate-hash.txt", edit(valid, `^(custody_spec_sha256 [0-9a-f]{64}\n)`, "$1$1"), "custody-spec-sha256:duplicate"},
-		{"extra-denied-row.txt", edit(edit(valid, `^(denied-rpc:)`, extra+"\n$1"), `^OVERALL PASS pass=21 `, "OVERALL PASS pass=22 "), "extra-row:denied-read:/etc/swarma/wallet/extra.json"},
+		{"row-deleted-overall-edited.txt", edit(edit(validRaw, `^`+regexp.QuoteMeta(wallet)+` .*\n`, ""), `^OVERALL PASS pass=21 `, "OVERALL PASS pass=20 "), "missing:denied-read:/etc/swarma/wallet/wallet.json"},
+		{"missing-hash.txt", edit(validRaw, hashLine, ""), "custody-spec-sha256:missing"},
+		{"duplicate-hash.txt", edit(validRaw, `^(custody_spec_sha256 [0-9a-f]{64}\n)`, "$1$1"), "custody-spec-sha256:duplicate"},
+		{"extra-denied-row.txt", edit(edit(validRaw, `^(denied-rpc:)`, extra+"\n$1"), `^OVERALL PASS pass=21 `, "OVERALL PASS pass=22 "), "extra-row:denied-read:/etc/swarma/wallet/extra.json"},
 	}
 	for _, c := range stored {
 		text := read(c.file)
 		if text != c.made {
 			t.Fatalf("T18RH_SPEC %s is not the valid report with exactly its stated edit", c.file)
 		}
-		code, out := t18rhCheckFile(t, c.file, text, spec)
+		code, out := t18rhCheckFile(t, c.file, t18rhLive(text), spec)
 		if code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.Contains(out, "\n# reasons: "+c.reason+" stated-overall-disagrees\n") {
 			t.Fatalf("T18RH_SPEC %s: exit %d, want 1 with exactly %q\n%s", c.file, code, c.reason, out)
 		}
@@ -1317,7 +1420,7 @@ func TestT18RealHostSpecBoundCheck(t *testing.T) {
 	}
 	// A FAIL row is still the spec entry's row: the report fails on that item
 	// alone, with nothing missing and nothing invalid.
-	failRow := edit(edit(valid, `^(`+regexp.QuoteMeta(wallet)+`) PASS observed=EACCES$`, "$1 FAIL observed=ENOENT"),
+	failRow := edit(edit(valid, `^(`+regexp.QuoteMeta(wallet)+`) PASS observed=EACCES .*$`, "$1 FAIL observed=ENOENT"),
 		`^OVERALL PASS pass=21 stand_in=0 covered=11 fail=0 `, "OVERALL FAIL pass=20 stand_in=0 covered=11 fail=1 ")
 	want := strings.Replace(overall, "OVERALL PASS pass=21 stand_in=0 covered=11 fail=0 ", "OVERALL FAIL pass=20 stand_in=0 covered=11 fail=1 ", 1)
 	if code, out := t18rhCheckFile(t, "fail-row", failRow, spec); code != 1 || out != want {
@@ -1368,7 +1471,7 @@ func TestT18RealHostAllSpecHashesBound(t *testing.T) {
 	if fileSHA == canonSHA || otherFile == fileSHA || otherCanon == canonSHA {
 		t.Fatal("T18RH_HASHES the file and canonical hashes of the two specs must all differ")
 	}
-	valid := read(filepath.Join(t18rhR4, "valid-real.txt"))
+	valid := t18rhLive(read(filepath.Join(t18rhR4, "valid-real.txt")))
 	header := valid[:strings.Index(valid, "\n")]
 	if !strings.Contains(header, " spec_sha256="+canonSHA+" ") || strings.Count(valid, canonSHA) != 3 ||
 		strings.Count(valid, "\ncustody_spec_sha256 "+fileSHA+"\n") != 1 ||
@@ -1393,7 +1496,7 @@ func TestT18RealHostAllSpecHashesBound(t *testing.T) {
 		{"render-hash-differs.txt", edit(valid, `^(render PASS files=6 custody_spec_file_sha256=)`+fileSHA+`$`, "${1}"+otherFile), "render-custody-spec-file-sha256:differs"},
 	}
 	for _, c := range plants {
-		text := read(filepath.Join(t18rhR5, c.file))
+		text := t18rhLive(read(filepath.Join(t18rhR5, c.file)))
 		if text != c.made {
 			t.Fatalf("T18RH_HASHES %s is not the valid report with exactly its stated edit", c.file)
 		}
@@ -1448,7 +1551,7 @@ func TestT18RealHostCanonicalHashFromProduct(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	valid := string(b)
+	valid := t18rhLive(string(b))
 	last := valid[strings.LastIndex(strings.TrimSuffix(valid, "\n"), "\n")+1:]
 	sp, e := ParseCustodySpec(raw[:len(raw)-1])
 	if e != nil {
@@ -1613,7 +1716,7 @@ func TestT18RealHostLaunchLayoutItem(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	valid := string(b)
+	valid := t18rhLive(string(b))
 	edit := func(text, re, repl string) string {
 		out := regexp.MustCompile(`(?m)`+re).ReplaceAllString(text, repl)
 		if out == text {
@@ -1682,7 +1785,7 @@ func TestT18RealHostHashStepErrexitOff(t *testing.T) {
 		}
 		return cmd.ProcessState.ExitCode(), string(out)
 	}
-	valid := filepath.Join(t18rhR4, "valid-real.txt")
+	valid := t18rhLiveFile(t, "valid-real.txt")
 	if code, out := run(t18rhKit(t), "check", valid, spec); code != 0 || !strings.HasPrefix(out, "OVERALL PASS ") {
 		t.Fatalf("T18RH_ERREXIT control: errexit-off check with the real deploy-kit: %d\n%s", code, out)
 	}
@@ -1728,7 +1831,7 @@ func TestT18RealHostHeaderIdentityMatchesSpec(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	valid := string(b)
+	valid := t18rhLive(string(b))
 	if code, out := t18rhCheckFile(t, "valid", valid, spec); code != 0 || out != t18rhLastLine(valid) {
 		t.Fatalf("T18RH_IDENTITY control: the stored r4 report: %d\n%s", code, out)
 	}
@@ -1818,7 +1921,7 @@ func TestT18RealHostRawProductBytes(t *testing.T) {
 		t.Fatal(e)
 	}
 	spec := filepath.Join(t18rhR4, "custody-spec.json")
-	validPath := filepath.Join(t18rhR4, "valid-real.txt")
+	validPath := t18rhLiveFile(t, "valid-real.txt")
 	b, e := os.ReadFile(validPath)
 	if e != nil {
 		t.Fatal(e)
@@ -2041,7 +2144,8 @@ func TestT18RealHostRPCLivenessMutants(t *testing.T) {
 		}
 		return strings.Replace(text, old, repl, 1)
 	}
-	refusedPass := write("refused-pass.txt", edit(real, "\n"+rpc+" PASS observed=HTTP_401\n", "\n"+rpc+" PASS observed=REFUSED\n"))
+	live := " " + t18rhLiveFields(target)
+	refusedPass := write("refused-pass.txt", edit(real, "\n"+rpc+" PASS observed=HTTP_401"+live+"\n", "\n"+rpc+" PASS observed=REFUSED"+live+"\n"))
 	notLive := write("not-live.txt", regexp.MustCompile(`(?m)^node-txindex PASS .*$`).ReplaceAllString(real, "node-txindex FAIL getindexinfo=missing"))
 	standIn401 := write("stand-in-401.txt", edit(standIn, "\n"+rpc+" PASS observed=HTTP_401\n", "\n"+rpc+" STAND_IN observed=HTTP_401\n"))
 	refused := t18rhFixture(t)
@@ -2089,7 +2193,7 @@ func TestT18RealHostRPCLivenessMutants(t *testing.T) {
 		// REFUSED is PASS on a stand-in run.
 		{"report-stand-in-refused-pass", `echo "denied-rpc:$rpc STAND_IN observed=$o"`, `echo "denied-rpc:$rpc PASS observed=$o"`, "report/stand-in-refused"},
 		// A 401 or 403 passes without node liveness.
-		{"report-no-liveness", `if [ "$node_live" = 1 ]; then`, `if true; then`, "report/401-node-not-live"},
+		{"report-no-liveness", `if [ "$node_live" != 1 ]; then`, `if false; then`, "report/401-node-not-live"},
 		// The r8 check rule: a PASS may show REFUSED.
 		{"check-accepts-refused", "if (o == \"REFUSED\") bad(\"rpc-pass-node-not-listening:\" id)\n\t\t\t\telse if (o != \"HTTP_401\" && o != \"HTTP_403\")", "if (o != \"HTTP_401\" && o != \"HTTP_403\" && o != \"REFUSED\")", "check/refused-as-pass"},
 		// check drops the liveness binding to node-txindex.
@@ -2121,5 +2225,458 @@ func TestT18RealHostRPCLivenessMutants(t *testing.T) {
 		if !found {
 			t.Fatalf("T18RH_MUTANT %s survived its control %s", m.name, m.killer)
 		}
+	}
+}
+
+// t18rhLiveCases are the r10 controls on the standard evidence set, shared by
+// the control and mutant tests: each edit of the evidence (report) or of the
+// valid live report (check) and the line or reason that must name it.
+type t18rhLiveCase struct {
+	name, wallet string
+	edit         func(*testing.T, *t18rhFix)
+	code         int
+	line         string // regexp that must match a whole line of the report
+}
+
+func t18rhLiveReportCases(rpc0, read0 string) []t18rhLiveCase {
+	rpcRe, readRe := regexp.QuoteMeta("denied-rpc:"+rpc0), regexp.QuoteMeta("denied-read:"+read0)
+	post := func(rpc, start, end, exit, answer string) func(*testing.T, *t18rhFix) {
+		return func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/node-post.txt", t18rhCapture(rpc, start, end, exit, answer))
+		}
+	}
+	return []t18rhLiveCase{
+		// Claim (valid neighbour): both captures at the target around the
+		// probe window, synced, and every denied path in the root-side record
+		// with exists=yes: the live run passes, each denied row carrying it.
+		{"valid-live", "real", func(*testing.T, *t18rhFix) {}, 0, `^` + rpcRe + ` PASS observed=HTTP_401 ` + regexp.QuoteMeta(t18rhLiveFields(rpc0)) + `$`},
+		{"valid-live-stat", "real", func(*testing.T, *t18rhFix) {}, 0, `^` + readRe + ` PASS observed=EACCES ` + regexp.QuoteMeta(t18rhStat(read0)) + `$`},
+		// Claim: a post-probe capture on another port does not tie the 401 to
+		// a node at the probed target: FAIL capture-port-mismatch.
+		{"post-capture-other-port", "real", post("127.0.0.1:8337", t18rhPostStart, t18rhPostEnd, "0", t18rhPostAnswer), 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-port-mismatch pre_rpc=` + regexp.QuoteMeta(rpc0) + ` .* post_rpc=127\.0\.0\.1:8337 `},
+		// Claim (neighbour): so does a pre-probe capture on another host.
+		{"pre-capture-other-host", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/node-pre.txt", t18rhCapture("127.0.0.2:"+strings.SplitN(rpc0, ":", 2)[1], t18rhPreStart, t18rhPreEnd, "0", t18rhPreAnswer))
+		}, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-port-mismatch pre_rpc=127\.0\.0\.2:`},
+		// Claim: a post-probe capture taken before the probe ended (inside the
+		// window) does not show the node after the probe: window-not-bracketed.
+		{"post-capture-inside-window", "real", post(rpc0, "2026-11-13T10:05:02.000000000Z", "2026-11-13T10:05:02.100000000Z", "0", t18rhPostAnswer), 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=window-not-bracketed `},
+		// Claim (neighbour): a pre-probe capture that ended after the probe
+		// started is not before it: window-not-bracketed.
+		{"pre-capture-after-probe-start", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/node-pre.txt", t18rhCapture(rpc0, t18rhPreStart, "2026-11-13T10:05:00.000000001Z", "0", t18rhPreAnswer))
+		}, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=window-not-bracketed `},
+		// Claim: missing times are FAIL capture-time-missing: no probe window,
+		// a post capture without its start, a pre answer saved bare (r9 form,
+		// no capture), times without nanoseconds.
+		{"probe-window-missing", "real", func(t *testing.T, f *t18rhFix) { os.Remove(filepath.Join(f.ag, "probe-window.txt")) }, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-time-missing .* probe_start=none probe_end=none `},
+		{"post-start-missing", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/node-post.txt", strings.Replace(t18rhCapture(rpc0, t18rhPostStart, t18rhPostEnd, "0", t18rhPostAnswer), "start="+t18rhPostStart+"\n", "", 1))
+		}, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-time-missing .* post_start=none `},
+		{"pre-capture-bare-answer", "real", func(t *testing.T, f *t18rhFix) { os.Remove(filepath.Join(f.op, "node-pre.txt")) }, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-time-missing pre_rpc=none pre_start=none pre_end=none `},
+		{"post-times-in-seconds", "real", post(rpc0, "2026-11-13T10:06:00Z", "2026-11-13T10:06:01Z", "0", t18rhPostAnswer), 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-time-missing `},
+		// Claim: a post-probe answer that is not synced, or a failed call, is
+		// FAIL capture-not-synced.
+		{"post-capture-not-synced", "real", post(rpc0, t18rhPostStart, t18rhPostEnd, "0", `{"txindex":{"synced":false,"best_block_height":812346}}`), 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-not-synced `},
+		{"post-capture-failed-call", "real", post(rpc0, t18rhPostStart, t18rhPostEnd, "1", ""), 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-not-synced .* post_getindexinfo=none$`},
+		// Claim: a denied path the root-side record lists as absent is FAIL
+		// path-absent; for the status directory status-dir FAILs with it.
+		{"path-absent", "real", func(t *testing.T, f *t18rhFix) { f.writeStats(t, map[string]string{read0: "exists=no"}) }, 1, `^` + readRe + ` FAIL observed=EACCES reason=path-absent$`},
+		{"status-dir-absent", "real", func(t *testing.T, f *t18rhFix) { f.writeStats(t, map[string]string{G2StatusSocketDir: "exists=no"}) }, 1, `^status-dir FAIL path=/run/swarma-wallet-status observed=EACCES reason=path-absent$`},
+		// Claim: a denied path missing from the record (its line dropped, the
+		// record absent, or the line twice) is FAIL path-not-in-stat-record.
+		{"path-missing-from-record", "real", func(t *testing.T, f *t18rhFix) { f.writeStats(t, map[string]string{read0: ""}) }, 1, `^` + readRe + ` FAIL observed=EACCES reason=path-not-in-stat-record$`},
+		{"record-missing", "real", func(t *testing.T, f *t18rhFix) { os.Remove(filepath.Join(f.op, "denied-paths-stat.txt")) }, 1, `^` + readRe + ` FAIL observed=EACCES reason=path-not-in-stat-record$`},
+		{"path-twice-in-record", "real", func(t *testing.T, f *t18rhFix) {
+			b, _ := os.ReadFile(filepath.Join(f.op, "denied-paths-stat.txt"))
+			f.write(t, "op/denied-paths-stat.txt", string(b)+read0+" "+t18rhStat(read0)+"\n")
+		}, 1, `^` + readRe + ` FAIL observed=EACCES reason=path-not-in-stat-record$`},
+	}
+}
+
+// Claim (r10, QA decisions 1 and 2): on a live run (`real`) the composer
+// passes a denied-rpc row only with both node captures at the row's target,
+// bracketing the probe window, the post-probe answer synced; and a
+// denied-read row only when the root-side record lists its path once with
+// exists=yes. Every case of t18rhLiveReportCases (each with its own claim)
+// gives its named line, exit 1 and OVERALL FAIL, beside the valid live
+// neighbours (exit 0, OVERALL PASS). Stand-in unaffected: on a stand-in run
+// the r10 evidence is not read: with it removed, or with a capture on another
+// port and every path recorded absent, the stand-in report is byte for byte
+// the same, still OVERALL PASS with every denial STAND_IN and none PASS.
+// Limit: the times are synthetic here; that the agent phase writes the probe
+// window is TestT18RealHostAgentPhase's, node-capture's and denied-stat's own
+// behaviour TestT18RealHostCaptureAndStatModes'.
+func TestT18RealHostLiveAtProbe(t *testing.T) {
+	f0 := t18rhFixture(t)
+	rpc0, read0 := f0.spec.DeniedRPC[0], f0.spec.DeniedReads[0]
+	for _, c := range t18rhLiveReportCases(rpc0, read0) {
+		f := t18rhFixture(t)
+		c.edit(t, f)
+		code, out := f.report(t, c.wallet)
+		if code != c.code || !regexp.MustCompile(`(?m)`+c.line).MatchString(out) {
+			t.Fatalf("T18RH_LIVE %s: exit %d (want %d), want line %s\n%s", c.name, code, c.code, c.line, out)
+		}
+		want := "\nOVERALL PASS "
+		if c.code != 0 {
+			want = "\nOVERALL FAIL "
+		}
+		if !strings.Contains(out, want) {
+			t.Fatalf("T18RH_LIVE %s: no %q\n%s", c.name, want, out)
+		}
+	}
+	// Stand-in unaffected.
+	base := t18rhFixture(t)
+	code, standIn := base.report(t, "stand-in")
+	if code != 0 || !strings.Contains(standIn, "\nOVERALL PASS ") || regexp.MustCompile(`(?m)^(denied-read:\S+|status-dir|allowed-socket) PASS `).MatchString(standIn) ||
+		strings.Contains(standIn, " exists=") || strings.Contains(standIn, " pre_rpc=") {
+		t.Fatalf("T18RH_LIVE stand-in setup: %d\n%s", code, standIn)
+	}
+	for name, edit := range map[string]func(*t18rhFix){
+		"stand-in-without-r10-evidence": func(f *t18rhFix) {
+			for _, p := range []string{filepath.Join(f.op, "node-pre.txt"), filepath.Join(f.op, "node-post.txt"), filepath.Join(f.op, "denied-paths-stat.txt"), filepath.Join(f.ag, "probe-window.txt")} {
+				os.Remove(p)
+			}
+		},
+		"stand-in-bad-r10-evidence": func(f *t18rhFix) {
+			f.write(t, "op/node-post.txt", t18rhCapture("127.0.0.1:8337", t18rhPostStart, t18rhPostEnd, "0", t18rhPostAnswer))
+			over := map[string]string{}
+			for _, p := range f.spec.DeniedReads {
+				over[p] = "exists=no"
+			}
+			f.writeStats(t, over)
+		},
+	} {
+		f := t18rhFixture(t)
+		edit(f)
+		if code, out := f.report(t, "stand-in"); code != 0 || out != standIn {
+			t.Fatalf("T18RH_LIVE %s: the stand-in report changed (%d)\n%s", name, code, out)
+		}
+	}
+}
+
+// t18rhLiveCheckCases are the r10 check controls: the valid live report with
+// one hand edit, and the named reason check must give.
+func t18rhLiveCheckCases(t *testing.T, real, rpc0, read0 string) []struct{ name, text, reason string } {
+	t.Helper()
+	sub := func(old, repl string) string {
+		if strings.Count(real, old) != 1 {
+			t.Fatalf("T18RH_LIVE_CHECK edit %q matches %d times", old, strings.Count(real, old))
+		}
+		return strings.Replace(real, old, repl, 1)
+	}
+	rpcRow, readRow := "denied-rpc:"+rpc0+" PASS observed=HTTP_401 ", "denied-read:"+read0+" PASS observed=EACCES "
+	return []struct{ name, text, reason string }{
+		// Claim: a post-probe capture on another port is refused by name.
+		{"post-other-port", sub(" post_rpc="+rpc0+" ", " post_rpc=127.0.0.1:8337 "), "rpc-pass-capture-port-mismatch:denied-rpc:" + rpc0},
+		// Claim: a post-probe capture taken before the probe ended is refused.
+		{"window-not-bracketed", sub(" post_start="+t18rhPostStart+" ", " post_start=2026-11-13T10:05:02.000000000Z "), "rpc-pass-window-not-bracketed:denied-rpc:" + rpc0},
+		// Claim: a PASS row without the times (the r9 row) or with a time in
+		// another form is refused as capture-time-missing.
+		{"times-missing", sub(rpcRow+t18rhLiveFields(rpc0)+"\n", "denied-rpc:"+rpc0+" PASS observed=HTTP_401\n"), "rpc-pass-capture-time-missing:denied-rpc:" + rpc0},
+		{"time-in-seconds", sub(" probe_end="+t18rhProbeEnd+" ", " probe_end=2026-11-13T10:05:03Z "), "rpc-pass-capture-time-missing:denied-rpc:" + rpc0},
+		// Claim: an unsynced post-probe answer is refused.
+		{"post-not-synced", sub(`post_getindexinfo={"txindex":{"synced":true,`, `post_getindexinfo={"txindex":{"synced":false,`), "rpc-pass-capture-not-synced:denied-rpc:" + rpc0},
+		// Claim: a denied path recorded absent is refused.
+		{"path-absent", sub(readRow+t18rhStat(read0)+"\n", readRow+"exists=no type=regular_file owner=0:0 mode=600\n"), "read-pass-path-absent:denied-read:" + read0},
+		// Claim: a denied path without its stat (missing from the record, the
+		// r9 row) is refused.
+		{"path-not-in-record", sub(readRow+t18rhStat(read0)+"\n", "denied-read:"+read0+" PASS observed=EACCES\n"), "read-pass-not-in-stat-record:denied-read:" + read0},
+	}
+}
+
+// Claim (r10): check, on a stored live report, refuses each r10 contradiction
+// of t18rhLiveCheckCases by its named reason (exit 1, OVERALL FAIL), beside
+// the valid live report (exit 0) and the valid stand-in report, which carries
+// no r10 field and passes unchanged; the stat record cannot upgrade a stand-in
+// denial: a stand-in row relabelled PASS with its stat fields is refused
+// (stand-in-placeholder-pass). Limit: check reads the report, not the
+// evidence files; that the composer reads the files is TestT18RealHostLiveAtProbe's.
+func TestT18RealHostLiveAtProbeCheck(t *testing.T) {
+	f := t18rhFixture(t)
+	rpc0, read0 := f.spec.DeniedRPC[0], f.spec.DeniedReads[0]
+	code, real := f.report(t, "real")
+	code2, standIn := f.report(t, "stand-in")
+	if code != 0 || code2 != 0 {
+		t.Fatal("T18RH_LIVE_CHECK setup", real, standIn)
+	}
+	for name, text := range map[string]string{"valid-live": real, "valid-stand-in": standIn} {
+		if code, out := t18rhCheckFile(t, name, text, f.renderedSpec); code != 0 || out != t18rhLastLine(text) {
+			t.Fatalf("T18RH_LIVE_CHECK %s refused: %d\n%s", name, code, out)
+		}
+	}
+	upgraded := strings.Replace(standIn, "\ndenied-read:"+read0+" STAND_IN observed=EACCES\n", "\ndenied-read:"+read0+" PASS observed=EACCES "+t18rhStat(read0)+"\n", 1)
+	if upgraded == standIn {
+		t.Fatal("T18RH_LIVE_CHECK stand-in edit matched nothing")
+	}
+	if code, out := t18rhCheckFile(t, "stand-in-upgraded", upgraded, f.renderedSpec); code != 1 || !strings.Contains(out, " stand-in-placeholder-pass:denied-read:"+read0) {
+		t.Fatalf("T18RH_LIVE_CHECK a stand-in denial relabelled PASS with its stat: %d\n%s", code, out)
+	}
+	for _, c := range t18rhLiveCheckCases(t, real, rpc0, read0) {
+		code, out := t18rhCheckFile(t, c.name, c.text, f.renderedSpec)
+		if code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.Contains(out, " "+c.reason) {
+			t.Fatalf("T18RH_LIVE_CHECK %s: exit %d, want 1 with %q\n%s", c.name, code, c.reason, out)
+		}
+	}
+}
+
+// Claim (r10, stored testdata): the stored live reports, which predate the
+// r10 evidence (testdata/t18-real-host-r3/valid-real.txt with the r4 hash line
+// inserted, and testdata/t18-real-host-r4/valid-real.txt), are refused by
+// check as stored, exit 1, with exactly these r10 reasons: every denied-read
+// row read-pass-not-in-stat-record, and the denied-rpc row
+// rpc-pass-capture-port-mismatch, rpc-pass-capture-time-missing and
+// rpc-pass-capture-not-synced (it carries no capture at all), each row beside
+// fields: (it lacks its r10 fields), and the stated OVERALL PASS disagrees. The stored stand-in report (r3) still passes: stand-in runs
+// are unchanged. The same reports with the r10 evidence (t18rhLive) pass.
+func TestT18RealHostStoredLiveRefused(t *testing.T) {
+	f := t18rhFixture(t)
+	specFile, e := os.ReadFile(f.renderedSpec)
+	if e != nil {
+		t.Fatal(e)
+	}
+	r4, e := os.ReadFile(filepath.Join(t18rhR4, "valid-real.txt"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	var want strings.Builder
+	want.WriteString("# reasons:")
+	for _, p := range f.spec.DeniedReads {
+		want.WriteString(" fields:denied-read:" + p + " read-pass-not-in-stat-record:denied-read:" + p)
+	}
+	rpc := "denied-rpc:" + f.spec.DeniedRPC[0]
+	want.WriteString(" fields:" + rpc + " rpc-pass-capture-port-mismatch:" + rpc + " rpc-pass-capture-time-missing:" + rpc + " rpc-pass-capture-not-synced:" + rpc + " stated-overall-disagrees\n")
+	for name, text := range map[string]string{
+		"r3/valid-real.txt": t18rhWithHash(t18rhRead(t, "valid-real.txt"), t18rhSha(specFile)),
+		"r4/valid-real.txt": string(r4),
+	} {
+		code, out := t18rhCheckFile(t, "stored", text, f.renderedSpec)
+		t.Logf("T18RH_STORED %s as stored: exit %d\n%s", name, code, out)
+		if code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.HasSuffix(out, want.String()+"# stated OVERALL PASS disagrees\n") {
+			t.Fatalf("T18RH_STORED %s as stored: exit %d, want 1 with %q\n%s", name, code, want.String(), out)
+		}
+		if code, out := t18rhCheckFile(t, "live", t18rhLive(text), f.renderedSpec); code != 0 {
+			t.Fatalf("T18RH_STORED %s with the r10 evidence: exit %d\n%s", name, code, out)
+		}
+	}
+	standIn := t18rhWithHash(t18rhRead(t, "valid-stand-in.txt"), t18rhSha(specFile))
+	if code, out := t18rhCheckFile(t, "stored-stand-in", standIn, f.renderedSpec); code != 0 {
+		t.Fatalf("T18RH_STORED r3/valid-stand-in.txt: exit %d\n%s", code, out)
+	}
+}
+
+// Claim (r10, mutants of the liveness-at-probe and denied-path existence
+// rules): every control below passes on this runner, and each mutant, one
+// textual edit that drops the port check, the bracket check or the
+// stat-record check from the composer or from check, is killed by its named
+// control. A mutant whose edit matches the source other than exactly once
+// fails the test. The kill matrix is logged. Limit: one mutant per rule part
+// and side; the capture-time and not-synced reasons are covered by the
+// control tests, not by a mutant here.
+func TestT18RealHostLiveAtProbeMutants(t *testing.T) {
+	kit := t18rhKit(t)
+	src, e := os.ReadFile(t18rhScript)
+	if e != nil {
+		t.Fatal(e)
+	}
+	dir := t.TempDir()
+	f := t18rhFixture(t)
+	rpc0, read0 := f.spec.DeniedRPC[0], f.spec.DeniedReads[0]
+	code, real := f.report(t, "real")
+	if code != 0 {
+		t.Fatal("T18RH_LIVE_MUTANT setup", real)
+	}
+	checks := map[string]string{}
+	for _, c := range t18rhLiveCheckCases(t, real, rpc0, read0) {
+		path := filepath.Join(dir, c.name+".txt")
+		if e := os.WriteFile(path, []byte(c.text), 0600); e != nil {
+			t.Fatal(e)
+		}
+		checks[c.name] = path
+	}
+	reports := map[string]*t18rhFix{}
+	lines := map[string]string{}
+	for _, c := range t18rhLiveReportCases(rpc0, read0) {
+		g := t18rhFixture(t)
+		c.edit(t, g)
+		reports[c.name], lines[c.name] = g, c.line
+	}
+	reportCtl := func(name string, want int) func(string) bool {
+		return func(s string) bool {
+			g := reports[name]
+			c, out := t18rhRunScript(t, s, kit, "report", g.op, g.ag, g.rendered, g.params, "real")
+			return c == want && regexp.MustCompile(`(?m)`+lines[name]).MatchString(out)
+		}
+	}
+	checkCtl := func(name, reason string) func(string) bool {
+		return func(s string) bool {
+			c, out := t18rhRunScript(t, s, kit, "check", checks[name], f.renderedSpec)
+			return c == 1 && strings.Contains(out, " "+reason)
+		}
+	}
+	controls := []struct {
+		name string
+		ok   func(string) bool
+	}{
+		{"report/valid-live", reportCtl("valid-live", 0)},
+		{"report/post-capture-other-port", reportCtl("post-capture-other-port", 1)},
+		{"report/post-capture-inside-window", reportCtl("post-capture-inside-window", 1)},
+		{"report/path-absent", reportCtl("path-absent", 1)},
+		{"report/path-missing-from-record", reportCtl("path-missing-from-record", 1)},
+		{"check/post-other-port", checkCtl("post-other-port", "rpc-pass-capture-port-mismatch:denied-rpc:"+rpc0)},
+		{"check/window-not-bracketed", checkCtl("window-not-bracketed", "rpc-pass-window-not-bracketed:denied-rpc:"+rpc0)},
+		{"check/path-absent", checkCtl("path-absent", "read-pass-path-absent:denied-read:"+read0)},
+		{"check/path-not-in-record", checkCtl("path-not-in-record", "read-pass-not-in-stat-record:denied-read:"+read0)},
+	}
+	mutants := []struct{ name, old, repl, killer string }{
+		// The composer drops the port check: a capture at another port passes.
+		{"report-no-port", `if [ -z "$why" ] && { [ "$l_pr" != "$rpc" ] || [ "$l_qr" != "$rpc" ]; }; then`, `if false; then`, "report/post-capture-other-port"},
+		// The composer drops the bracket check: any capture time passes.
+		{"report-no-bracket", `if [ -z "$why" ] && ! ordered`, `if false && ! ordered`, "report/post-capture-inside-window"},
+		// The composer drops the stat record: every denial is taken as existing.
+		{"report-no-stat", `sr=$(stat_rec "$p" "$statrec")`, `sr="exists=yes type=regular_file owner=0:0 mode=600"`, "report/path-absent"},
+		// check drops the port check.
+		{"check-no-port", `if (fv["pre_rpc"] != tgt || fv["post_rpc"] != tgt) bad("rpc-pass-capture-port-mismatch:" id)`, ``, "check/post-other-port"},
+		// check drops the bracket check.
+		{"check-no-bracket", `else if (!(fv["pre_start"] <= fv["pre_end"] && fv["pre_end"] <= fv["probe_start"] && fv["probe_start"] <= fv["probe_end"] && fv["probe_end"] <= fv["post_start"] && fv["post_start"] <= fv["post_end"])) bad("rpc-pass-window-not-bracketed:" id)`, ``, "check/window-not-bracketed"},
+		// check drops the stat-record check (the schema still asks for the fields).
+		{"check-no-stat", "if (wallet == \"real\" && v == \"PASS\") {\n\t\t\t\tif (!(\"exists\" in fv))", "if (0) {\n\t\t\t\tif (!(\"exists\" in fv))", "check/path-absent"},
+	}
+	for _, c := range controls {
+		if !c.ok(t18rhScript) {
+			t.Fatalf("T18RH_LIVE_MUTANT control %s fails on the runner itself", c.name)
+		}
+	}
+	for _, m := range mutants {
+		if n := strings.Count(string(src), m.old); n != 1 {
+			t.Fatalf("T18RH_LIVE_MUTANT %s: the edit matches the runner %d times, want 1", m.name, n)
+		}
+		path := filepath.Join(dir, m.name+".sh")
+		if e := os.WriteFile(path, []byte(strings.Replace(string(src), m.old, m.repl, 1)), 0600); e != nil {
+			t.Fatal(e)
+		}
+		var killed []string
+		for _, c := range controls {
+			if !c.ok(path) {
+				killed = append(killed, c.name)
+			}
+		}
+		t.Logf("T18RH_LIVE_MUTANT %s killed by %s", m.name, strings.Join(killed, ","))
+		found := false
+		for _, k := range killed {
+			found = found || k == m.killer
+		}
+		if !found {
+			t.Fatalf("T18RH_LIVE_MUTANT %s survived its control %s", m.name, m.killer)
+		}
+	}
+}
+
+// Claim (r10, the operator modes): node-capture makes exactly one node call,
+// `CLI <allowed options> -rpcconnect=HOST -rpcport=PORT getindexinfo txindex`,
+// against the spec's one denied_rpc target, and writes the capture (header,
+// rpc, start <= end in the nanosecond UTC form, exit, the answer without white
+// space); a failed call is kept with its exit and the mode exits 1. It refuses
+// (64, no call, no file) any other option, a positional argument (a method),
+// -getinfo, the operator's own -rpcport, an existing output file and a spec
+// with two denied_rpc entries, and never prints a refused option's value.
+// The operator phase keeps a capture whole as node-pre.txt and takes its
+// answer as txindex.json only when the call exited 0. denied-stat prints one
+// line per denied path in spec order: exists=yes with type, owner and mode
+// for a file and a directory, exists=no for a missing path and a dangling
+// link. Limit: the CLI is a stand-in script; a real namecoin-cli's option
+// precedence (the last -rpcport wins) is Bitcoin Core's documented
+// command-line behaviour, not exercised here.
+func TestT18RealHostCaptureAndStatModes(t *testing.T) {
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "custody-spec.json")
+	file, sub, missing, dangling := filepath.Join(dir, "secret"), filepath.Join(dir, "state"), filepath.Join(dir, "absent"), filepath.Join(dir, "link")
+	os.WriteFile(file, []byte("x"), 0600)
+	os.Mkdir(sub, 0700)
+	os.Symlink(filepath.Join(dir, "nowhere"), dangling)
+	writeSpec := func(path string, rpcs string) {
+		os.WriteFile(path, []byte(`{"v":1,"agent_uid":1201,"service_uid":1101,"denied_reads":["`+file+`","`+sub+`","`+missing+`","`+dangling+`"],"denied_rpc":[`+rpcs+`],"allowed_socket":"/run/swarma-wallet/wallet.sock"}`+"\n"), 0600)
+	}
+	writeSpec(spec, `"127.0.0.1:8336"`)
+	argv := filepath.Join(dir, "argv")
+	cli := filepath.Join(dir, "namecoin-cli")
+	os.WriteFile(cli, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" >\""+argv+"\"\nprintf '{\\n  \"txindex\": {\"synced\": true, \"best_block_height\": 9}\\n}\\n'\nexit ${FAKE_EXIT:-0}\n"), 0700)
+	out := filepath.Join(dir, "pre.txt")
+	code, msg := t18rhRun(t, nil, "node-capture", out, spec, "--", cli, "-datadir=/var/lib/namecoind-main", "-rpccookiefile=/var/lib/namecoind-main/.cookie")
+	b, _ := os.ReadFile(out)
+	m := regexp.MustCompile(`^T18-NODE-CAPTURE v1\nrpc=127\.0\.0\.1:8336\nstart=(\S+)\nend=(\S+)\nexit=0\nanswer=\{"txindex":\{"synced":true,"best_block_height":9\}\}\n$`).FindStringSubmatch(string(b))
+	ts := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{9}Z$`)
+	if code != 0 || m == nil || !ts.MatchString(m[1]) || !ts.MatchString(m[2]) || m[1] > m[2] || !strings.HasPrefix(msg, "T18_REAL_HOST_NODE_CAPTURE_DONE exit=0 ") {
+		t.Fatalf("T18RH_MODES node-capture: %d %q\n%s", code, msg, b)
+	}
+	if a, _ := os.ReadFile(argv); string(a) != "-datadir=/var/lib/namecoind-main\n-rpccookiefile=/var/lib/namecoind-main/.cookie\n-rpcconnect=127.0.0.1\n-rpcport=8336\ngetindexinfo\ntxindex\n" {
+		t.Fatalf("T18RH_MODES node-capture call %q", a)
+	}
+	// The operator phase keeps the capture and takes its answer.
+	kit := t18rhKit(t)
+	files, _ := RenderG2PayTemplates(g2Params())
+	rendered, params := filepath.Join(dir, "rendered"), filepath.Join(dir, "parameters.json")
+	os.Mkdir(rendered, 0700)
+	for name, c := range files {
+		os.WriteFile(filepath.Join(rendered, name), c, 0600)
+	}
+	rawParams, _ := json.Marshal(g2Params())
+	os.WriteFile(params, append(rawParams, '\n'), 0600)
+	op := filepath.Join(dir, "op")
+	if code, msg := t18rhRun(t, []string{"DEPLOY_KIT=" + kit}, "operator", op, params, rendered, out); code != 0 {
+		t.Fatalf("T18RH_MODES operator phase: %d\n%s", code, msg)
+	}
+	if pre, _ := os.ReadFile(filepath.Join(op, "node-pre.txt")); string(pre) != string(b) {
+		t.Fatalf("T18RH_MODES node-pre.txt %q", pre)
+	}
+	if tx, _ := os.ReadFile(filepath.Join(op, "txindex.json")); string(tx) != `{"txindex":{"synced":true,"best_block_height":9}}` {
+		t.Fatalf("T18RH_MODES txindex.json %q", tx)
+	}
+	// A failed call: kept with its exit, mode exit 1, and no answer for node-txindex.
+	failed := filepath.Join(dir, "failed.txt")
+	if code, _ := t18rhRun(t, []string{"FAKE_EXIT=1"}, "node-capture", failed, spec, "--", cli); code != 1 {
+		t.Fatalf("T18RH_MODES failed call exit %d", code)
+	}
+	if fb, _ := os.ReadFile(failed); !strings.Contains(string(fb), "\nexit=1\n") {
+		t.Fatalf("T18RH_MODES failed capture %q", fb)
+	}
+	op2 := filepath.Join(dir, "op2")
+	t18rhRun(t, []string{"DEPLOY_KIT=" + kit}, "operator", op2, params, rendered, failed)
+	if tx, e := os.ReadFile(filepath.Join(op2, "txindex.json")); e != nil || len(tx) != 0 {
+		t.Fatalf("T18RH_MODES a failed pre capture gave txindex.json %q %v", tx, e)
+	}
+	// Refusals: nothing runs, nothing is written, the value is not printed.
+	two := filepath.Join(dir, "two-rpc.json")
+	writeSpec(two, `"127.0.0.1:8336","127.0.0.1:8337"`)
+	for name, args := range map[string][]string{
+		"password-option": {spec, "--", cli, "-rpcpassword=hunter2-not-a-secret"},
+		"method":          {spec, "--", cli, "getbalance"},
+		"getinfo":         {spec, "--", cli, "-getinfo"},
+		"own-port":        {spec, "--", cli, "-rpcport=18336"},
+		"no-separator":    {spec, cli},
+		"two-targets":     {two, "--", cli},
+	} {
+		os.Remove(argv)
+		o := filepath.Join(dir, "refused-"+name+".txt")
+		code, msg := t18rhRun(t, nil, append([]string{"node-capture", o}, args...)...)
+		if _, e := os.Stat(argv); code != 64 || e == nil || strings.Contains(msg, "hunter2") {
+			t.Fatalf("T18RH_MODES %s: exit %d, called=%v\n%s", name, code, e == nil, msg)
+		}
+		if _, e := os.Stat(o); e == nil {
+			t.Fatalf("T18RH_MODES %s wrote %s", name, o)
+		}
+	}
+	if code, _ := t18rhRun(t, nil, "node-capture", out, spec, "--", cli); code != 64 {
+		t.Fatalf("T18RH_MODES an existing capture was not refused: %d", code)
+	}
+	if after, _ := os.ReadFile(out); string(after) != string(b) {
+		t.Fatal("T18RH_MODES an existing capture was overwritten")
+	}
+	// denied-stat.
+	code, stat := t18rhRun(t, nil, "denied-stat", spec)
+	u, g := strconv.Itoa(os.Getuid()), strconv.Itoa(os.Getgid())
+	want := file + " exists=yes type=regular_file owner=" + u + ":" + g + " mode=600\n" + sub + " exists=yes type=directory owner=" + u + ":" + g + " mode=700\n" + missing + " exists=no\n" + dangling + " exists=no\n"
+	if code != 0 || stat != want {
+		t.Fatalf("T18RH_MODES denied-stat: %d\n got %q\nwant %q", code, stat, want)
 	}
 }

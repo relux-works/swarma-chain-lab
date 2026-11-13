@@ -22,7 +22,7 @@ There are two kinds of station:
   placeholder files at the production paths of `denied_reads`, with the
   production modes, holding no secret (empty or random bytes), and a listener
   planted by root (`root:swarma-wallet-peer`, mode 0660) answers at the wallet
-  socket path. The report runs there with the stand-in flag (see §3, step 6).
+  socket path. The report runs there with the stand-in flag (see §3, step 7).
   Every placeholder-backed item (each `denied-read`, `status-dir` and
   `allowed-socket`) is then `STAND_IN`, never `PASS`, and the OVERALL line ends
   in `run=stand-in valid-only-as-a-stand-in-run`: such a report is valid only
@@ -74,23 +74,22 @@ stat -c '%U %a %F' /etc/swarma-g2-agent /etc /             # root 755 directory,
 ## 2. Preconditions
 
 1. **Node: `txindex=1`, with the index synced.** The payment tracker needs
-   this (SMOKE-G2.md, "Node prerequisite"). The node's operator saves the
-   node's answer to a file. This is a node call, not a wallet call.
+   this (SMOKE-G2.md, "Node prerequisite"). The node's operator captures the
+   node's `getindexinfo txindex` answer twice in the run, through the
+   runner's `node-capture` mode (§3, steps 3 and 6). These are node calls,
+   not wallet calls.
 
-   ```sh
-   namecoin-cli -datadir="$NODE_DATADIR" getindexinfo txindex > getindexinfo.json
-   ```
+   The answer must read `{"txindex": {"synced": true, "best_block_height":
+   N}}`. Any other answer, an empty answer, a failed call, or no capture
+   makes the item `node-txindex` FAIL.
 
-   It must read `{"txindex": {"synced": true, "best_block_height": N}}`. Any
-   other answer, an empty answer, or no file makes the item `node-txindex`
-   FAIL.
-
-   This answer is also the node-liveness evidence of the `denied-rpc` items
-   (r9): a `denied-rpc` item is PASS only when `node-txindex` is PASS in the
-   same report. Save it in this run, right before step 3, with the node
-   running; the node must keep running through step 5. A stopped node makes
-   the RPC port refuse the probe's connection, and that is FAIL (see the item
-   table).
+   The two captures are also the node-liveness evidence of the `denied-rpc`
+   items. r9: a `denied-rpc` item is PASS only when `node-txindex` is PASS in
+   the same report. r10, on a live run: both captures must also be made
+   against the probed `denied_rpc` address and must bracket the probe in
+   time (§4). Keep the node running from step 3 through step 6. A stopped
+   node makes the RPC port refuse the probe's connection, and that is FAIL
+   (see the item table).
 2. **The account exists as in §1**, created by Infra. This procedure never
    creates or changes an account. It never runs `systemd-sysusers`.
 3. **Every `denied_reads` path exists.** On the live-wallet station each
@@ -100,8 +99,10 @@ stat -c '%U %a %F' /etc/swarma-g2-agent /etc /             # root 755 directory,
    placeholder with the production mode and no secret (empty or random
    bytes); those items are `STAND_IN`, never `PASS`. A missing path under a
    parent the agent can search reads `ENOENT`, and its item FAILs on either
-   station (a missing file proves nothing); under a parent the agent cannot
-   search it reads `EACCES` (see §7). Step 2 of §3 lists missing paths before the run.
+   station (a missing file proves nothing). Under a parent the agent cannot
+   search, it reads `EACCES`. Step 2 of §3 lists missing paths before the
+   run. r10: on a live run, step 6 records a root-side `stat` of every path,
+   and a denial is PASS only for a path that record shows as existing (§4).
 4. **Tools.**
    - `deploy-kit` is built from the reviewed head. Put it, with
      `t18-real-host-report.sh` and `g2-custody-check.sh` side by side, in a
@@ -126,7 +127,7 @@ overwrites earlier evidence.
 KIT=/opt/t18/deploy-kit                # built from the reviewed head
 T18=/opt/t18                           # holds t18-real-host-report.sh and g2-custody-check.sh
 PARAMS=/root/g2/parameters.json        # the station's parameters (no secret)
-TXINDEX=/root/g2/getindexinfo.json     # the node's answer saved in §2
+NODE_DATADIR=/var/lib/namecoind-main   # the node's datadir (its cookie and config)
 RENDERED=/root/g2/rendered-$(date -u +%Y%m%dT%H%M%SZ)
 RUN=/var/lib/t18/run-$(date -u +%Y%m%dT%H%M%SZ)
 AGENT_USER=g2-agent
@@ -156,16 +157,45 @@ be empty:
 grep -o '"/[^"]*"' "$RENDERED/custody-spec.json" | tr -d '"' | while read -r p; do test -e "$p" || echo "MISSING $p"; done
 ```
 
-**Step 3. Operator phase: re-render, account check and txindex.** This step
-needs no root. The account is pre-created by Infra, so the apply is a no-op;
+**Step 3. Pre-probe node capture, then the operator phase: re-render,
+account check and txindex.** This step needs no root beyond reading the
+node's cookie. The account is pre-created by Infra, so the apply is a no-op;
 the report prints the literal line `apply no-op: account pre-created by
 Infra` above the `account` item.
 
+First the pre-probe capture (r10), with the node running. It is one node
+call, `getindexinfo txindex`, made by the runner against the spec's one
+`denied_rpc` address, between two UTC times the runner takes:
+
 ```sh
-DEPLOY_KIT="$KIT" sh "$T18/t18-real-host-report.sh" operator "$RUN/operator" "$PARAMS" "$RENDERED" "$TXINDEX"
+sh "$T18/t18-real-host-report.sh" node-capture "$RUN/node-pre.txt" "$RENDERED/custody-spec.json" -- namecoin-cli -datadir="$NODE_DATADIR"
+DEPLOY_KIT="$KIT" sh "$T18/t18-real-host-report.sh" operator "$RUN/operator" "$PARAMS" "$RENDERED" "$RUN/node-pre.txt"
 ```
 
-It does three things:
+`node-capture OUT SPEC -- CLI [OPTION...]` runs `CLI OPTION...
+-rpcconnect=HOST -rpcport=PORT getindexinfo txindex`, where `HOST:PORT` is the
+one `denied_rpc` entry of `SPEC` (a spec with another number of entries is a
+usage error). The method and the address are the runner's; command-line
+options override the datadir's config file, so the call goes to that
+address. `OPTION` may only be
+`-datadir=`, `-conf=`, `-rpccookiefile=`, `-chain=` or `-rpcclienttimeout=`.
+Any other option, any method name, `-getinfo`, `-generate`, and an own
+`-rpcport` are refused before the call (exit 64), and the refused option is
+not printed (it could be a credential). So no other node call, and no wallet
+call, can be made through it. `OUT` must not exist. It gets six lines:
+
+```
+T18-NODE-CAPTURE v1
+rpc=<HOST:PORT>
+start=<UTC, date -u +%Y-%m-%dT%H:%M:%S.%NZ, before the call>
+end=<UTC, after the answer>
+exit=<the CLI's exit status>
+answer=<the answer without white space>
+```
+
+The mode exits 1 when the call failed; the capture is still written.
+
+The operator phase does four things:
 
 - It re-renders `$PARAMS` and compares the result byte for byte with
   `$RENDERED`.
@@ -191,7 +221,12 @@ It does three things:
   account's UID is `agent_uid`, its primary GID equals that UID, and
   `g2-agent-groups` printed `G2_AGENT_GROUPS_OK` for its group list. So the
   no-op apply cannot skip the exact-set check.
-- It saves `id g2-agent` and the flattened `getindexinfo.json`.
+- It saves `id g2-agent`, keeps the capture whole as
+  `$RUN/operator/node-pre.txt` (the pre-probe capture), and saves its answer
+  as `txindex.json` when the call exited 0 (otherwise an empty answer, so
+  `node-txindex` FAILs). A bare saved answer instead of a capture is still
+  read for `node-txindex`, but it carries no time and no address, so on a
+  live run every `denied-rpc` item FAILs `capture-time-missing`.
 
 **Step 4. The agent's numbers and inputs** (root). Both numbers come from
 the agent's `u` line of the rendered `sysusers.conf`, with the two lines of
@@ -231,7 +266,11 @@ As the agent, the agent phase does four things:
 1. It records its own `Uid`, `Gid`, `Groups` and capability lines from
    `/proc/<pid>/status` (`launch.txt`).
 2. It records the SHA-256 of its three inputs.
-3. It runs the unchanged `g2-custody-check.sh`:
+3. It runs the unchanged `g2-custody-check.sh`, and records the probe window
+   (r10): `probe_start=<UTC>` right before the script and `probe_end=<UTC>`
+   right after it, in `probe-window.txt`, in the same nanosecond form. The
+   probe's own report holds no time, so the window is the whole script, which
+   contains the probe. The script runs:
    - the readback (`id -g`, `id -G`, `deploy-kit g2-agent-groups`);
    - `deploy-kit g2-custody-probe`;
    - `deploy-kit g2-custody-verify`.
@@ -246,7 +285,34 @@ As the agent, the agent phase does four things:
    credentials (`SO_PEERCRED`) without sending a byte, and records the
    socket's type, owner, group and mode (`stat`).
 
-**Step 6. Report** (root, because the agent's evidence is mode 0600; this step
+**Step 6. Post-probe node capture and root-side stat of the denied paths**
+(r10). Right after step 5, with the node still running, the second capture,
+against the same address, into the operator's evidence. Then root records a
+`stat` of every `denied_reads` path of the spec. `denied-stat` only runs
+`stat -L` (it follows a link to the object an open of the path reaches) and
+prints; it opens nothing.
+
+```sh
+sh "$T18/t18-real-host-report.sh" node-capture "$RUN/operator/node-post.txt" "$RENDERED/custody-spec.json" -- namecoin-cli -datadir="$NODE_DATADIR"
+sh "$T18/t18-real-host-report.sh" denied-stat "$RENDERED/custody-spec.json" > "$RUN/operator/denied-paths-stat.txt"
+```
+
+`denied-paths-stat.txt` has one line per `denied_reads` path, in spec order,
+in exactly one of these forms (`%F` with spaces as `_`, for example
+`regular_file` or `directory`; owner and mode as `stat` prints `%u:%g` and
+`%a`):
+
+```
+<path> exists=yes type=<type> owner=<uid>:<gid> mode=<octal>
+<path> exists=no
+```
+
+A path `stat` cannot reach (missing, or a dangling link) is `exists=no`. On
+the stand-in station both commands are optional: the stand-in report does
+not read the captures or the record (stand-in runs are unchanged), so they
+cannot turn any `STAND_IN` into `PASS`.
+
+**Step 7. Report** (root, because the agent's evidence is mode 0600; this step
 only reads files). The last argument is the stand-in flag: `real` or
 `stand-in`. The report records the SHA-256 of `$RENDERED/custody-spec.json`,
 the exact spec file it was composed from, and that file is copied next to the
@@ -258,7 +324,7 @@ echo "report exit $?"
 cp "$RENDERED/custody-spec.json" "$RUN/custody-spec.json"
 ```
 
-**Step 7. Check** (anyone). This recomputes the OVERALL line from the stored
+**Step 8. Check** (anyone). This recomputes the OVERALL line from the stored
 report. The second argument, the custody spec the run used, is required:
 without it `check` does not run (usage error, exit 64).
 
@@ -339,6 +405,27 @@ either order, as `CheckG2AgentGroups` defines it; a third, missing or
 repeated GID is refused. This is deliberately stricter than
 `CheckG2AgentGroups` for a repeated GID, which `id -G` does not print.
 
+**r10: liveness at probe time and existence of the denied paths (live runs).**
+On a `wallet=real` report, `check` reads a `denied-rpc` PASS line with its
+r10 fields, in this order: `observed pre_rpc pre_start pre_end probe_start
+probe_end post_rpc post_start post_end post_getindexinfo`. It refuses the
+line when `pre_rpc` or `post_rpc` is not the row's own target
+(`rpc-pass-capture-port-mismatch:<item>`), when any of the six times is
+missing or not in the nanosecond UTC form (`rpc-pass-capture-time-missing:<item>`),
+when the times are not in the order `pre_start <= pre_end <= probe_start <=
+probe_end <= post_start <= post_end` (`rpc-pass-window-not-bracketed:<item>`),
+and when the post-probe answer is not synced
+(`rpc-pass-capture-not-synced:<item>`); the pre-probe answer is `node-txindex`,
+whose PASS r9 already requires (`rpc-pass-without-live-node`). It reads a
+`denied-read` PASS line with its stat, in this order: `observed exists type
+owner mode`, and refuses it without the stat
+(`read-pass-not-in-stat-record:<item>`), with `exists` other than `yes`
+(`read-pass-path-absent:<item>`) or with a malformed type, owner or mode
+(`read-pass-stat-malformed:<item>`). A line without its r10 fields is also
+`fields:<item>`. A stand-in report is read exactly as before: its `denied-read`
+and `denied-rpc` lines carry `observed` only, and a stand-in denial relabeled
+`PASS`, with or without a stat, is still `stand-in-placeholder-pass:<item>`.
+
 **Dry run.** Anywhere, with no root and no station, with `go` on `PATH`:
 
 ```sh
@@ -367,6 +454,13 @@ reads it as the same spec. r9: a refused RPC connection is FAIL
 `node-not-listening` on a real run and `STAND_IN` on a stand-in run, `check`
 refuses that `STAND_IN` relabeled `PASS` (`rpc-pass-node-not-listening`), and
 an HTTP 401 without a `getindexinfo` answer is FAIL `node-liveness-unproven`.
+r10: on a live run, a post-probe capture on another port is FAIL
+`capture-port-mismatch`, one taken inside the probe window is FAIL
+`window-not-bracketed`, a missing probe window is FAIL `capture-time-missing`,
+a denied path recorded absent is FAIL `path-absent`, one missing from the
+record is FAIL `path-not-in-stat-record`, and a stored live report whose
+`denied-rpc` row has no captures (the r9 form) is refused by `check`
+(`rpc-pass-capture-time-missing`).
 
 ## 4. The report
 
@@ -374,7 +468,7 @@ The first line is the header: `T18-REAL-HOST v1 wallet=<mode> commit=<pinned
 commit> spec_sha256=<canonical spec> agent_uid=... primary_gid=...
 socket_gid=... service_uid=...`. The second line is `custody_spec_sha256
 <hex>`, the SHA-256 of the exact `custody-spec.json` file the report was
-composed from (step 7 checks the report against that file, and checks the
+composed from (step 8 checks the report against that file, and checks the
 header's canonical `spec_sha256` and the `render` line's
 `custody_spec_file_sha256` against it too). Then comes one
 line per item, in this form:
@@ -425,6 +519,11 @@ valid only as a stand-in run.
     report (`rpc-pass-without-live-node`); a `denied-rpc` `STAND_IN` shows
     `REFUSED` (`rpc-stand-in-without-refused:<item>`) on a stand-in run
     (`stand-in-misplaced:<item>` otherwise);
+  - r10, on a live run: a `denied-rpc` PASS carries both node captures at
+    its own target and the probe window, every time present, the six times
+    in order, and the post-probe answer synced; a `denied-read` PASS
+    carries the root-side stat of its path with `exists=yes` (§3, step 8,
+    names each refusal);
   - a socket PASS shows `CONNECTED` and a peer UID equal to the header's
     `service_uid`;
 - every covered item carries exactly its pin;
@@ -438,15 +537,15 @@ valid only as a stand-in run.
 
 | Item | Run in | PASS when |
 | --- | --- | --- |
-| `node-txindex` | step 3 | `getindexinfo txindex` reads exactly `{"txindex":{"synced":true,"best_block_height":N}}` |
+| `node-txindex` | step 3 | the pre-probe capture's `getindexinfo txindex` call exited 0 and its answer reads exactly `{"txindex":{"synced":true,"best_block_height":N}}` (a bare saved answer is read too, but on a live run it leaves every `denied-rpc` item FAIL `capture-time-missing`) |
 | `render` | step 3 | `g2-render` exits 0 and its six files are byte-identical to `$RENDERED` |
 | `account` | step 3 | the no-op mode is recorded (the report prints `apply no-op: account pre-created by Infra`); `g2-host-flow` prints `G2_HOST_FLOW_ACTIVATED`: the preflight, `VerifyG2AgentAccount` and the exact set {own GID == UID, `agent_socket_gid`} passed on this host's account database; and the REAL account read back has UID `agent_uid`, primary GID == UID, a group list `g2-agent-groups` accepts (`G2_AGENT_GROUPS_OK`), and that list, as `id -G` printed it, is exactly {primary, `agent_socket_gid`} in either order (r8). The apply and activation were no-ops. |
 | `agent-inputs` | steps 4, 5 | the agent's spec, client and parameters have the SHA-256 of `$RENDERED/custody-spec.json`, `$RENDERED/client.json` and `$PARAMS` |
 | `launch-form` | step 5 | `/proc` shows the setpriv launch form: real, effective, saved and filesystem UID all `agent_uid`; all four GIDs the declared primary GID; `Groups` exactly {primary, `agent_socket_gid`}; `CapPrm`, `CapEff` and `CapAmb` each present exactly once and all zero |
 | `credentials` | step 5 | `g2-agent-groups` accepted the readback: observed `id -g` == declared primary GID, `id -G` == exactly {primary, socket} (`G2_AGENT_GROUPS_OK`) |
-| `denied-read:<path>` | step 5 | one item per `denied_reads` path, in spec order; the probe observed `EACCES` or `EPERM` (and traversal was denied too). `ENOENT`, `READ_OK`, or no probe result is FAIL. With the stand-in flag a denial is `STAND_IN`, never PASS. |
-| `status-dir` | step 5 | `/run/swarma-wallet-status` is in `denied_reads` and its probe is `EACCES` or `EPERM` (freeze amendment 1, A8). With the stand-in flag a denial is `STAND_IN`, never PASS. |
-| `denied-rpc:<target>` | step 5 | r9: denied RPC needs a live node. PASS only when both hold: the credential-less JSON-RPC call got an explicit authorization refusal, HTTP 401 or HTTP 403 (`observed=HTTP_401` or `HTTP_403`: a listener at the target answered at probe time and refused it), and `node-txindex` is PASS in the same report (node liveness in this run). A refusal without that liveness is FAIL `reason=node-liveness-unproven`. A refused connection (`observed=REFUSED`: nothing listens at the port, no node or a stopped node) proves nothing: FAIL `reason=node-not-listening` on a `real` run, `STAND_IN` on a `stand-in` run, never PASS. A timeout or any other transport error aborts the probe, so there is no observation: FAIL `observed=none`. `HTTP_OK` (not refused) is FAIL. |
+| `denied-read:<path>` | steps 5, 6 | one item per `denied_reads` path, in spec order; the probe observed `EACCES` or `EPERM` (and traversal was denied too). `ENOENT`, `READ_OK`, or no probe result is FAIL. r10, live run: the PASS also needs exactly one `exists=yes` line for the path in `denied-paths-stat.txt` (root `stat`, step 6), and the line carries it (`exists=yes type=.. owner=..:.. mode=..`); a path recorded `exists=no` is FAIL `reason=path-absent`, and a path the record does not list (or lists twice, or in another form) is FAIL `reason=path-not-in-stat-record`. With the stand-in flag a denial is `STAND_IN`, never PASS, and the record is not read. |
+| `status-dir` | steps 5, 6 | `/run/swarma-wallet-status` is in `denied_reads` and its probe is `EACCES` or `EPERM` (freeze amendment 1, A8). Its verdict is the one of its `denied-read` item: on a live run it FAILs with the same `reason=` when the record does not show the directory. With the stand-in flag a denial is `STAND_IN`, never PASS. |
+| `denied-rpc:<target>` | steps 3, 5, 6 | r9: denied RPC needs a live node. PASS only when both hold: the credential-less JSON-RPC call got an explicit authorization refusal, HTTP 401 or HTTP 403 (`observed=HTTP_401` or `HTTP_403`: a listener at the target answered at probe time and refused it), and `node-txindex` is PASS in the same report (node liveness in this run). A refusal without that liveness is FAIL `reason=node-liveness-unproven`. A refused connection (`observed=REFUSED`: nothing listens at the port, no node or a stopped node) proves nothing: FAIL `reason=node-not-listening` on a `real` run, `STAND_IN` on a `stand-in` run, never PASS. A timeout or any other transport error aborts the probe, so there is no observation: FAIL `observed=none`. `HTTP_OK` (not refused) is FAIL. r10, live run: the PASS also needs liveness at probe time. The pre-probe capture (step 3) and the post-probe capture (step 6) must both name this target (else FAIL `reason=capture-port-mismatch`); all six times (the two captures' `start` and `end`, `probe_start` and `probe_end`) must be present in the nanosecond UTC form (else `reason=capture-time-missing`); they must stand in the order pre start <= pre end <= probe start <= probe end <= post start <= post end (else `reason=window-not-bracketed`); and the post-probe call must have exited 0 with a synced answer (else `reason=capture-not-synced`). The PASS line carries `pre_rpc`, the six times, `post_rpc` and `post_getindexinfo`; a FAIL line carries the same fields, `none` where missing. On a stand-in run the captures are not read. |
 | `peer-precondition` | step 5 | the first version line of `perl -v`, as the agent ran it, reads `This is perl 5, version N, subversion M ...`; the line is on the item (`perl_v=`) |
 | `allowed-socket` | step 5 | `real`: the probe connected (`CONNECTED`, no frame), and the peer is identified: `SO_PEERCRED` UID == `service_uid`, socket owner == `service_uid`, group == `agent_socket_gid`, mode 0660. These are the checks the agent client makes before its first frame. `stand-in`: `STAND_IN` after a successful connect, otherwise FAIL. |
 | `custody-verify` | step 5 | probe exit 0, verify exit 0, and `T18_CUSTODY_VERIFIED <sha>` binds the canonical spec of the header |
@@ -523,7 +622,7 @@ sha256sum "$RUN.tar.gz" "$RUN/custody-spec.json"
 Hand over: `T18-REPORT.txt`, the `custody-spec.json` the run used and its
 SHA-256 (`check` needs the file; it is also in the tarball), the tarball and
 its SHA-256, and the `deploy-kit` commit the run was built from. The receiver
-checks the spec's SHA-256 before running `check` (step 7), with the hash
+checks the spec's SHA-256 before running `check` (step 8), with the hash
 handed over in place of `<spec sha256>`:
 
 ```sh
@@ -535,7 +634,11 @@ The evidence holds no credential:
 - the public parameters' renders and their comparison, and the custody spec
   the run used (public paths and IDs);
 - the `g2-host-flow` output and `id g2-agent`;
-- the `getindexinfo` answer;
+- the `getindexinfo` answer, and the two node captures (address, times, exit,
+  answer; r10);
+- the probe window (`probe-window.txt`) and the root-side stat of the denied
+  paths (`denied-paths-stat.txt`: paths, types, owners and modes, no
+  content);
 - the `/proc` credential lines;
 - the custody script's evidence (the readback, the probe report, the verify
   output, the request it did not send, and the marker);
@@ -557,25 +660,36 @@ The evidence holds no credential:
   fails is the covered `cov-searchable-dir` item.
 - **The node's own access policy** beyond one credential-less call. The route
   whitelists are shown by the Core test in SMOKE-G2.md §5.
-- **That the node answered at the probe's moment and port** (r9). The
-  liveness evidence of `denied-rpc` is the `getindexinfo` answer, an
-  authenticated node call saved by the operator before step 3, so before the
-  probe of step 5. The report cannot see when it was saved, and `namecoin-cli`
-  reaches the node through the datadir's own settings, not through the
-  probed `denied_rpc` target. What is shown at probe time is that a listener
-  at the target answered the credential-less call with 401 or 403. To bind
-  both to the same node at the probe's moment, a second `getindexinfo` answer
-  is needed, saved after step 5 against the `denied_rpc` target
-  (`-rpcconnect`/`-rpcport`), with both save times recorded; this runner does
-  not collect it. That is a node call, not a wallet call; no wallet RPC is
-  ever added.
-- **That a denied path exists, when its parent is closed.** A missing path
-  whose parent directory the agent cannot search (for example the node cookie
-  of a stopped node, under a mode 0700 datadir) reads `EACCES`, not `ENOENT`:
-  the denial comes from the parent and holds for any object later created at
-  that path, but the report does not prove the object exists. The root
-  preflight of step 2 (`MISSING` lines) is that evidence; the runner does not
-  collect it.
+- **That the node answered at the probe's exact instant** (r10). The two
+  node captures show that a node with a synced index answered an
+  authenticated `getindexinfo` at the probed `denied_rpc` address before the
+  probe window began and again after it ended; the 401 or 403 shows that a
+  listener at that address answered the probe's call in between and refused
+  it. Together they tie the refusal to a live node at that address across
+  the whole window. They do not exclude a node that stopped and was replaced
+  by another listener inside the window and then restored: the runner sees
+  only the two ends. The times come from the station's clock (`date -u`);
+  a clock step during the run can reorder them. The window is the whole
+  custody script, which contains the probe: it is wider than the probe, so
+  it can only make the bracket stricter. A real station with more than one
+  `denied_rpc` entry (the G2 launch spec has exactly one) cannot pass: the
+  captures name one address, and every other row FAILs `capture-port-mismatch`.
+- **That a denied path existed at the probe's instant.** The root-side
+  record is one `stat -L` after the probe (step 6). A path the record shows
+  as existing but which was missing at the probe could only read `ENOENT`
+  (FAIL) under a searchable parent; under a closed parent it reads `EACCES`
+  either way, and the denial comes from the parent and holds for any object
+  later created at that path. Nobody creates or removes wallet or node files
+  during the run (§5).
+- **What `custodyPass` states in production.** The product's custody rule
+  (`custodyPass`, `deploy/g2_pay.go:441`, applied by `RunCustodyProbe` at
+  `:637` and by `VerifyCustodyReport` at `:663`) counts a refused connection
+  (`REFUSED`) as an RPC denial; the product and its frozen interface are not
+  changed here. In production that check therefore states only that the
+  agent cannot reach the node's RPC at that moment. Proving the node's
+  whitelist against a LIVE node is this qualification's job, and the runner
+  enforces it: a live `denied-rpc` item is PASS only for 401 or 403 with the
+  two captures above, never for `REFUSED`.
 - **That `custody-verify` and `launch-layout` saw an RPC denial.** They state
   the product verifier's verdict, and the product counts a refused
   connection as a denial. On a live run with a stopped node they can be PASS

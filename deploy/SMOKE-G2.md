@@ -259,6 +259,20 @@ It then prints `T18_PASS` and exits 0 only when all three of these hold:
 The denied reads include `/run/swarma-wallet-status`: the agent is not in the
 operator group, so it must get `EACCES` there.
 
+**Stated limit: a refused connection counts as an RPC denial here.** The
+product's custody rule (`custodyPass`, `deploy/g2_pay.go`, applied by
+`g2-custody-probe` and `g2-custody-verify`) accepts a refused connection to
+the node port as denied, so `T18_CUSTODY_VERIFIED` and this script's own
+verdict also hold with no node listening. In production that check states
+only this: at that moment the agent cannot reach the node's RPC. It does not
+show that the node's credential and route whitelist refused a call from a
+live node. Proving that whitelist against a live node is the job of the G2
+real-host qualification: its runner (`deploy/t18-real-host-report.sh`,
+[T18-REAL-HOST.md](T18-REAL-HOST.md)) passes a live run's RPC item only for
+an explicit HTTP 401 or 403 with authenticated `getindexinfo` answers from
+the same address before and after the probe, and never for a refused
+connection. The product rule is unchanged.
+
 The evidence directory keeps `credentials.txt`, `credentials-check.txt`, `custody-report.json`, the
 positive request and receipt, the verify output, and `exits.txt`. Keep it with
 the launch packet.
