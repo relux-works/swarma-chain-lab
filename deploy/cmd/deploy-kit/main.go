@@ -46,6 +46,10 @@ func run(args []string) error {
 		return checkModelTerms(args[1:])
 	case "check-coins":
 		return checkCoins(args[1:])
+	case "g2-keygen":
+		return g2Keygen(args[1:], os.Stdout)
+	case "g2-rpcauth":
+		return g2RPCAuth(args[1:], os.Stdout)
 	case "build":
 		repo := f.String("repo", "", "canonical clean repository root")
 		commit := f.String("commit", "", "exact HEAD commit SHA")

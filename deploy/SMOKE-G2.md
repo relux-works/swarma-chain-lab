@@ -183,6 +183,69 @@ The wallet validator accepts the `g2` member only with an explicit chain pin and
 a launch-valid operator block. A W2 `service.json` without `g2` validates
 exactly as before.
 
+### Station keys and node credentials (root, on the station)
+
+The funded station needs two private scalar files and three node RPC
+credentials. Root makes them ON the station with the `deploy-kit` binary built
+from the reviewed head. No secret is ever printed, logged or passed on a
+command line, and no secret leaves the station. Both commands create their
+output exclusively: they refuse an existing path (a dangling symlink
+included), a relative or unclean path, and a parent directory reached through
+a symlink. They never create directories, so the parent must already exist.
+The file gets its final mode at creation. Owner and group stay root's; the
+chown is a separate operator step (§3).
+
+**Keys, before the parameters are final.** The printed x-only keys are the
+parameters' `grantee` and `receipt_pubkey`:
+
+```sh
+deploy-kit g2-keygen -out "$AGENT_KEY_FILE"                              # prints G2_KEY_XONLY <grantee>
+deploy-kit g2-keygen -out /etc/swarma/wallet/receipt.key -mode 0640      # prints G2_KEY_XONLY <receipt_pubkey>
+```
+
+Each file holds a uniformly random secp256k1 scalar as exactly 64 lowercase
+hex characters with no newline, the format of agent-wallet `LoadActionKey`
+and the receipt key loader. A scalar whose x-only key is trivial is drawn
+again and never written. Trivial means `x(k·G)` for `1 ≤ k ≤ 1024`, or a
+BIP-340 test-vector key #0–#3, the same rule as `g2-funded-preflight`. Stdout
+is the single line `G2_KEY_XONLY <64 hex>`. `-mode` is `0600` (the default;
+the agent key, which `LoadActionKey` reads only from an owner-only file) or
+`0640` (the receipt key).
+
+**Node credentials, after the parameters are final:**
+
+```sh
+deploy-kit g2-rpcauth -params "$PARAMS" -wallet-public "$WALLET_PUBLIC" \
+  -wallet-config-out /etc/swarma/wallet/wallet.json >> "$NODE_CONF_RPCAUTH"
+```
+
+For each route (`w3-observer`, `w1-wallet`, `w1-broadcast`) it draws a
+32-byte random password and a 16-byte random salt. It writes the passwords
+only into a new `wallet.json` (mode 0640, compact JSON, no trailing newline)
+in the agent-wallet `Config` schema (`experiments/agent-wallet/wallet.go`).
+Stdout is exactly the three Core lines
+`rpcauth=<user>:<salt>$<HMAC-SHA256(key=salt, msg=password)>`, the algorithm
+of Namecoin Core 28's `share/rpcauth/rpcauth.py`. Append them to the node
+config next to the rendered `namecoin-rpc.conf`. They carry no password. The
+members of `wallet.json` come from three sources:
+
+| Source | Members |
+| --- | --- |
+| `-params` (the `g2-render` parser) | `network`, `genesis`, `fee_rate_sat_vb`; the port of all three routes (`node_rpc_port`); the wallet route's Core wallet (`hot_wallet_name`) |
+| `-wallet-public` (operator, public, no credential) | exactly `policy` (an object whose `network` and `genesis` equal the parameters and whose `state_dir` is `/var/lib/swarma-wallet/kernel`), `change_address`, and absolute `wallet_dir` and `memory_zone`. Any other member, a route or a password included, is refused. |
+| fixed | `version` 1; host `127.0.0.1` and the three user names; `state_dir` `/var/lib/swarma-wallet/wallet`; `objects_dir` `/var/lib/swarma-wallet/objects` (the directories T18 denies to the agent) |
+
+Final owner and mode, set by the operator in §3:
+
+| File | Made by | Owner and mode after chown |
+| --- | --- | --- |
+| `agent_key_file` | `g2-keygen` (0600) | `agent_user`, 0600 (`LoadActionKey` requires the reading UID as owner) |
+| `/etc/swarma/wallet/receipt.key` | `g2-keygen -mode 0640` | root:swarma-wallet 0640 |
+| `/etc/swarma/wallet/wallet.json` | `g2-rpcauth` (0640) | root:swarma-wallet 0640 |
+
+`receipt.key` and `wallet.json` are installed inputs of the wallet service.
+List both in its private signed manifest (`INSTALL-CONFIG.md`, step 3).
+
 ## 3. Target-host flow (root, on the target host only)
 
 The account binding is checked on the TARGET host, the host that applies
@@ -218,6 +281,20 @@ The command after `--` is the activation; it runs only after the post-apply
 check. The command prints `G2_HOST_FLOW_ACTIVATED` only after a successful
 activation. Do not run `systemd-sysusers` on the rendered file by hand, and do
 not start a G2 service before this command has printed that line.
+
+**Ownership of the station secrets.** The files from §2 "Station keys and
+node credentials" stay root's until the accounts exist, and the accounts
+exist only after the apply. So the chown belongs in the activation, after
+the post-apply check and before the service starts. For example:
+
+```sh
+deploy-kit g2-host-flow -params "$PARAMS" -- sh -c '
+  chown root:swarma-wallet /etc/swarma/wallet/receipt.key /etc/swarma/wallet/wallet.json &&
+  chown "$0" "$1" && exec systemctl start swarma-wallet.service' "$AGENT_USER" "$AGENT_KEY_FILE"
+```
+
+This leaves the modes of the §2 table unchanged and gives only owners and
+groups.
 
 **Groups (A8).** The service account `swarma-wallet` is in
 `swarma-wallet-peer` (it owns `wallet.sock`) and in `swarma-wallet-status` (it
