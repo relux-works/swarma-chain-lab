@@ -50,23 +50,18 @@
   refused (`BROADCAST_UNCERTAIN`), so a running service tracks it to
   `conflicted` without a restart; the debit stays retained until an operator
   release.
-- **F6 (matrix row 20 negative test):** not routed to the integration
-  follow-up. The [runbook](RECONCILE-RUNBOOK.md), operator reconcile CLI and
-  separate alert forwarder now implement the approved conflict-only policy:
-  release at six active-chain confirmations, receipt-key signing, service UID,
-  one-hour gate, no wire action and no absent release. Function/unit and real
-  socket evidence are separate from installed-CLI qualification and T18.
-  A no-root local fixture cannot supply the root-owned signed DK5 set; the
-  rehearsal records the actual binary refusal rather than adding a bypass.
-  Keeper-confirmed human/backup assignment, measured delivery to both watched
-  destinations, independent review and post-install station readback remain
-  open. No frozen PX1 interface change is made.
-- **F6 startup after a conflict release.** Startup's known-send set includes
-  `record.txid` but not `reconcile.conflict_txid`. An out-of-band conflict can
-  therefore still return `STATE_RECONCILE_REQUIRED` after a valid signed
-  release. The operator command deliberately preserves this guard. QA must
-  decide whether verified signed conflict evidence should qualify a known send
-  in a separate bounded change, or retain an explicit station recovery hold.
+- **F6 installation/operational acceptance.** The operator CLI, forwarder and
+  exact named-conflict startup rule are implemented without frozen/wire changes.
+  Native F6 rehearsal is assigned to Infra inside the draft-6 signed install
+  fixture, per the [runbook](RECONCILE-RUNBOOK.md#infra-installed-rehearsal).
+  A local DK5 refusal is correct; no stub or fallback is an acceptance route.
+  Actual separate-UID T18, independent review, keeper-confirmed assignment,
+  measured delivery to both watched destinations and station readback remain
+  external deployment gates, not local producer blockers.
+- **F6 startup policy (resolved).** A valid signed, hash-chained conflict release
+  recognizes only its named txid after own-node evidence revalidation at k>=6.
+  Unknown sends, rollback and replay still refuse; invalid chain/signature or
+  evidence prevents serving. No broad whitelist or history repair was added.
 - **Replay after a release.** `px1Prior` skips `track` records only. After a
   `reconcile` record, a wallet-layer replay reports that record's phase
   (`released`), also for a partial release, whose accounting phase is

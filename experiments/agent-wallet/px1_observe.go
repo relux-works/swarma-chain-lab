@@ -561,9 +561,9 @@ func NewStartupReconciler(walletRoute su.Node) (StartupReconciler, error) {
 
 // Reconcile lists every hot-wallet transaction (pages of px1oReconcilePage)
 // and refuses STATE_RECONCILE_REQUIRED for any "send" whose txid no
-// wallet-layer record carries: an out-of-band spend or a restored older
-// journal (T13). More rows than the bound also refuse, because the check
-// could not be completed. The hot wallet must therefore start without sends.
+// wallet-layer spend record carries, unless that exact txid is the verified
+// conflict evidence of a signed release in the hash-chained journal. Unknown
+// sends (including rollback, T13) and an exhausted history bound still refuse.
 func (r *px1oReconciler) Reconcile(ctx context.Context, wallet JournalV2) error {
 	if wallet == nil {
 		return fail("STATE_UNAVAILABLE")
@@ -572,12 +572,17 @@ func (r *px1oReconciler) Reconcile(ctx context.Context, wallet JournalV2) error 
 		return fail(CodeJournalSegment)
 	}
 	known := map[string]bool{}
+	var records []JournalRecordV2
 	if e := wallet.Iterate(1, func(rec JournalRecordV2) error {
 		if rec.TxID != "" {
 			known[rec.TxID] = true
 		}
+		records = append(records, rec)
 		return nil
 	}); e != nil {
+		return e
+	}
+	if e := startupKnownConflicts(ctx, r.wallet, wallet, records, known); e != nil {
 		return e
 	}
 	for page := 0; page < px1oReconcileMaxPages; page++ {

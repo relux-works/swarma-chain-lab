@@ -36,7 +36,8 @@ socket); without it the service stays W2. The documents:
   track and reconcile records and the receipt-key release authorization.
 - [RECONCILE-RUNBOOK.md](RECONCILE-RUNBOOK.md): F6 service-UID operator CLI,
   six-confirmation conflict-only release, separate journald alert forwarder,
-  hourly refusals, startup holds and private-regtest qualification limits.
+  hourly refusals, exact verified-conflict startup recognition and Infra
+  installation-rehearsal procedure.
 - [STATUS.md](STATUS.md): the tracker, canary, float monitor, alerts and the
   operator status projection.
 - [SERVICE.md](SERVICE.md): the service, its G2 operations section, the
@@ -204,25 +205,19 @@ W1_DEP_ROOT=ABSOLUTE_EXPERIMENTS_DIRECTORY \
 go test -count=1 -run '^TestGuardPlants/F6-' -v .
 ```
 
-The opt-in `TestF6CoreRehearsal` uses a fresh private Core node, explicit ports
-above 28000 and PID-specific cleanup. Run from this module with the binary built
-from this source and the existing Core binary pins:
+Native F6 qualification belongs to Infra's draft-6 signed install rehearsal;
+[the runbook](RECONCILE-RUNBOOK.md#infra-installed-rehearsal) gives the exact
+private-node/agent/service-shell steps, commands, refusals and capture contract.
+Do not use a local SDK reader stub or the historical function diagnostic as a
+substitute. `DK5_SERVICE_GROUP` remains a correct refusal outside a provisioned
+installation. The existing optional `TestF6CoreRehearsal` name is retained as a
+function-only diagnostic; it no longer invokes a native CLI or expects the old
+startup hold. It is not the installed rehearsal or T18 proof.
 
-```sh
-W1_REGTEST=1 W1_RUN_ROOT=FRESH_ABSOLUTE_DIRECTORY \
-W1_CORE_CLI=ABSOLUTE_NAMECOIN_CLI W1_CORE_DAEMON=ABSOLUTE_NAMECOIND \
-F6_RECONCILE_BINARY=ABSOLUTE_BUILT_RECONCILE_BINARY \
-go test -race -count=1 -timeout=12m -run '^TestF6CoreRehearsal$' -v .
-```
-
-It records sanitized commands/exit codes, chain evidence and signed records in
-the fresh root's `public/`; private node/config/key material is never evidence.
-The existing DK5 unit ownership seam permits function-level exercise only.
-When the actual built CLI cannot admit the fixture, this rehearsal deliberately
-fails `F6_CLI_QUALIFICATION_BLOCKED` after collecting the bounded functional
-evidence. It does not convert a DK5 refusal into CLI qualification or T18 proof.
-The separate owner-controlled installed fixture/station readback and measured
-operator-room plus owner-DM delivery remain deployment obligations.
+The six startup-policy groups in `reconcile_startup_test.go` cover named X,
+unknown Y, T13 rollback, tampered/unchained releases, the k=6 append boundary and
+replay for later conflicts, each with a valid neighbor. They run with the normal
+race-enabled suite and need no node or privileged user.
 
 Go 1.26.8 builds, races, vets and runs controls. Unit checks skip Core/plant
 suites unless explicitly enabled. No external library update is implicit.

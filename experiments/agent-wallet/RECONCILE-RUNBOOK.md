@@ -185,16 +185,22 @@ outcome without first resolving its journal state.
 ## Startup integrity and wire prohibition
 
 Startup reconciliation pages wallet `listtransactions` (1000 rows/page, at most
-100 pages). A send whose txid is absent from the wallet record `txid` fields, or
-an exhausted history bound, returns `STATE_RECONCILE_REQUIRED` before serving;
-that refusal poisons the runtime. RPC/malformed-history failures also fail closed.
-It produces no release and repairs no missing history.
+100 pages). A send is known only when its txid is in a wallet spend record, or
+is the **exact** conflicting txid named by a conflict-release record in the
+opened hash-chained journal. The latter must pass existing receipt-key,
+binding, sequence and fold verification, then own-node raw transaction/input,
+active membership, signed evidence-tip and k>=6 checks. The observer uses the
+installed network/genesis pins and its existing read-only credential route.
 
-A conflicting out-of-band hot-wallet send can therefore still block restart
-after its debit release: the current startup check does not count
-`reconcile.conflict_txid` as a known send. Preserve state and escalate that
-startup hold to the keeper/QA; never invent a record or reset state to pass it.
-The reconcile command does not grant a startup bypass.
+A verified release naming X permits startup with X; it does not whitelist an
+unrelated or later Y. A rollback lacking the release still refuses
+`STATE_RECONCILE_REQUIRED`. Tampered signatures or broken segment links refuse
+`JOURNAL_SEGMENT` at journal open; false/orphaned/insufficient-depth evidence
+refuses `RECONCILE_EVIDENCE` before serving. A lifted release cannot authorize a
+later conflict. History bounds and RPC failures remain fail-closed. Startup
+never writes a release or repairs history; debit accounting comes only from
+verified journal records. The generic frozen journal does not query the node;
+the operator's append boundary checks k>=6 before calling it.
 
 No action on either socket may produce a reconcile record. The action socket
 supports only spend/balance/receive/history/budget; `reconcile` is
@@ -222,11 +228,415 @@ drill, not delivery. Archive sanitized commands, actual exit codes, source and
 both arrival observations with SHA-256; keeper confirms the private assignment
 and measurement before the public window.
 
+## Infra installed rehearsal
+
+Infra runs this inside the draft-6 installation rehearsal on its assigned
+station, with the installed **signed** configuration and distinct service and
+agent UIDs. This is a procedure, not a claim that the producer ran the native
+rehearsal. The owner separately authorizes the watched-channel delivery drill.
+
+### Fixture admission and capture
+
+Use a fresh private **regtest** fixture only. The install manifest supplies the
+absolute installed binaries `NAMECOIND`, `NMC`, `RECONCILE`, `CLIENT`, the fresh
+`PRIVATE_DATADIR`, its `NODE_CONF`, free `RPC_PORT`/`P2P_PORT` above 28000,
+`SERVICE_CONFIG`, `CLIENT_CONFIG`, `WALLET_STATE`, `SERVICE_STATE`, dedicated
+`WALLET_UNIT`, action `SOCKET`, numerical `SERVICE_UID`/`AGENT_UID`, hot-wallet
+name `HOT_WALLET`, funded/mined `MINER_ADDRESS`, allow-listed `RECIPIENT`,
+standing `GRANT_ID`, operator `STATUS_SOCKET` and public `GRANTEE`. Paths and ports must match the signed
+installed config. Do not repoint an existing installation or use shared nodes.
+Record manifest/release hashes and public pins; never print a config, cookie,
+key or wallet file. The fixture needs one confirmed spendable input, fresh
+journals and allowance for 20000 sat plus a fee limit of 30000 sat. If those
+terms are unsuitable, Infra provisions an approved fixture before proceeding.
+
+Each actor runs in its own already-authorized shell. `CAP` is an absolute,
+actor-owned `0700` evidence directory; use separate directories for node,
+service and agent actors. Transfer only the explicitly public evidence files
+between actors through the installation evidence collector. The agent never
+reads the service evidence directory, journals or receipt key. Use this Bash
+capture function in each shell. Require the saved exit to be 0 after each
+capture unless a different expected exit is stated below; stop on any mismatch.
+Expected refusals are checked explicitly. Capture the surrounding generation,
+extraction and assertion commands in the private operator transcript as well:
+
+```bash
+umask 077
+mkdir -p "$CAP"
+chmod 0700 "$CAP"
+cap() {
+  local label=$1 rc
+  shift
+  printf '%q ' "$@" >"$CAP/$label.command"
+  printf '\n' >>"$CAP/$label.command"
+  "$@" >"$CAP/$label.stdout" 2>"$CAP/$label.stderr" &
+  local child=$!
+  printf '%s\n' "$child" >"$CAP/$label.pid"
+  if wait "$child"; then rc=0; else rc=$?; fi
+  printf '%s\n' "$rc" >"$CAP/$label.exit"
+}
+```
+
+In the service-UID shell:
+
+```bash
+test "$(id -u)" = "$SERVICE_UID"
+cap admission "$RECONCILE" --check-installed
+test "$(cat "$CAP/admission.exit")" = 0
+```
+
+Expect `reason=INSTALLED_OK`. `DK5_SERVICE_GROUP`, any other DK5 refusal, or
+inability to enter the real service UID stops qualification. Fix the signed
+installation through its normal owner process; do not stub admission. Infra
+also records separate-UID T18 denied-read checks against the installed journal
+and receipt-key **paths**, without printing their contents. If unavailable,
+record `T18_NOT_QUALIFIED` and the missing environment capability.
+
+### Produce an uncertain spend through the installed service
+
+The node operator starts only its own fresh fixture node, before the dedicated
+wallet unit. The existing draft-6 node config contains the observer, wallet and
+broadcast credential routes. Use explicit public method sets for all three routes, plus the broadcast
+intersection. Repeating the normal sets is deliberate: it preserves them even
+when command-line settings take precedence over the config file. These match
+`deploy/g2_pay.go`; Infra checks them against the admitted fixture manifest:
+
+```bash
+FAULT=(
+  -rpcwhitelist=w3-observer:getblockchaininfo,getblockhash,getblockheader,getrawtransaction,gettxout,name_show,getrawmempool,getblock
+  -rpcwhitelist=w1-wallet:getbalances,getnewaddress,listtransactions,fundrawtransaction,signrawtransactionwithwallet
+  -rpcwhitelist=w1-broadcast:sendrawtransaction
+  -rpcwhitelist=w1-broadcast:getblockchaininfo
+)
+printf '%q ' "$NAMECOIND" -regtest -datadir="$PRIVATE_DATADIR" -conf="$NODE_CONF" \
+  -port="$P2P_PORT" -rpcport="$RPC_PORT" -listen=0 -networkactive=0 \
+  "${FAULT[@]}" >"$CAP/node.command"
+"$NAMECOIND" -regtest -datadir="$PRIVATE_DATADIR" -conf="$NODE_CONF" \
+  -port="$P2P_PORT" -rpcport="$RPC_PORT" -listen=0 -networkactive=0 \
+  "${FAULT[@]}" >"$CAP/node.log" 2>&1 &
+NODE_PID=$!
+printf '%s\n' "$NODE_PID" >"$CAP/node.pid"
+RPC=(-regtest -datadir="$PRIVATE_DATADIR" -conf="$NODE_CONF" -rpcport="$RPC_PORT")
+cap chain "$NMC" "${RPC[@]}" -rpcwait getblockchaininfo
+cap genesis "$NMC" "${RPC[@]}" getblockhash 0
+```
+
+Require `chain=regtest` and the installed regtest genesis. Core intersects
+multiple whitelists for one user: this removes `sendrawtransaction` from
+`w1-broadcast` while leaving planning/signing/observer routes unchanged. Keep
+the fixture's `rpcwhitelistdefault=0` so its own cookie administrator can mine
+and construct the conflict. No RPC credential is passed on a command line.
+Record the node PID and exact argv; stop that PID at the end. Infra's normal
+fixture setup funds/matures the input on this node and starts only the dedicated
+installed wallet unit. Do not touch another unit or daemon.
+
+In the agent-UID shell, create the canonical public request (environment values
+are public; the client loads its existing private key itself):
+
+```bash
+test "$(id -u)" = "$AGENT_UID"
+export CAP RECIPIENT GRANT_ID GRANTEE
+python3 - <<'PYREQ'
+import json, os, secrets, time
+r = dict(v=1, service="wallet.nmc", action="spend",
+         params=dict(to=os.environ["RECIPIENT"], amount_sat=20000, fee_limit_sat=30000),
+         grant=dict(kind="standing", id=os.environ["GRANT_ID"]),
+         nonce=secrets.token_hex(16), created_at=int(time.time()), grantee=os.environ["GRANTEE"])
+open(os.environ["CAP"]+"/spend.json", "w").write(json.dumps(r, separators=(",", ":")))
+PYREQ
+cap uncertain "$CLIENT" --config "$CLIENT_CONFIG" --request "$CAP/spend.json"
+test "$(cat "$CAP/uncertain.exit")" = 4
+```
+
+Require the signed receipt's `receipt.verdict=uncertain`,
+`receipt.reason=BROADCAST_UNCERTAIN` and `receipt.effect.txid=PLAN_TXID`.
+Capture the typed journald alert and timestamp in the service/operator shell.
+Do not resend this nonce or create a replacement payment. Infra stops the
+**dedicated fixture unit** using its authorized install controller, e.g.
+`cap stop-wallet systemctl stop "$WALLET_UNIT"`, before journal inspection or
+reconciliation. A running holder must refuse `STATE_BUSY`.
+
+In the service-UID shell, extract only the reserve metadata. Set `PLAN_TXID`
+from the public receipt; the fixture must have exactly one reserved input. Define a public metadata snapshot helper in that
+same shell and capture both journal layers around every refusal/socket probe:
+
+```bash
+export WALLET_STATE SERVICE_STATE
+cat >"$CAP/snapshot.py" <<'PYSNAP'
+import glob, json, os
+out = {}
+for label, root in [("wallet", os.environ["WALLET_STATE"]), ("service", os.environ["SERVICE_STATE"])]:
+    rows = []
+    for p in sorted(glob.glob(root+"/journal-v2-*.json")):
+        rows.extend(json.load(open(p))["records"])
+    out[label] = dict(last_seq=max([r["seq"] for r in rows], default=0),
+                      reconciles=sum(r["kind"] == "reconcile" for r in rows))
+print(json.dumps(out, sort_keys=True))
+PYSNAP
+cap before-k5 python3 "$CAP/snapshot.py"
+```
+
+Extract the reserve:
+
+```bash
+export CAP WALLET_STATE PLAN_TXID
+python3 - <<'PYRES'
+import glob, json, os
+rows = []
+for p in sorted(glob.glob(os.environ["WALLET_STATE"]+"/journal-v2-*.json")):
+    rows.extend(json.load(open(p))["records"])
+r, = [r for r in rows if r["kind"] == "reserve" and r["txid"] == os.environ["PLAN_TXID"]]
+assert len(r["inputs"]) == 1
+out = dict(target_seq=r["seq"], released_sat=r["reserved_sat"], input=r["inputs"][0],
+           plan_txid=r["txid"], original_day=r["day"], grant_id=r["grant_id"])
+open(os.environ["CAP"]+"/reserve.json", "w").write(json.dumps(out))
+open(os.environ["CAP"]+"/before.json", "w").write(json.dumps(dict(
+    last_seq=max(r["seq"] for r in rows), reconciles=sum(r["kind"]=="reconcile" for r in rows))))
+PYRES
+```
+
+The collector gives only `reserve.json` to the node operator. Assign
+`INPUT_TXID`, `INPUT_VOUT`, `RESERVE_SEQ`, `RELEASE_SAT` from its exact fields;
+never copy a wallet file, key, cookie or private config. Retained debit must
+still include the full `reserved_sat`, with the original-day transfer count.
+
+### Mine the conflicting spend and collect evidence
+
+In the node shell, use its own cookie administrator and fixture hot wallet:
+
+```bash
+INPUT_TXID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["input"]["txid"])' "$CAP/reserve.json")
+INPUT_VOUT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["input"]["vout"])' "$CAP/reserve.json")
+cap input "$NMC" "${RPC[@]}" gettxout "$INPUT_TXID" "$INPUT_VOUT" true
+export CAP MINER_ADDRESS
+python3 - <<'PYTX'
+from decimal import Decimal
+import json, os
+root = os.environ["CAP"]
+r = json.load(open(root+"/reserve.json"))
+i = json.load(open(root+"/input.stdout"), parse_float=Decimal)
+assert i is not None and i["confirmations"] > 0
+value = i["value"] - Decimal("0.00100000")
+assert value > Decimal("0.00100000")
+open(root+"/inputs.json", "w").write(json.dumps([r["input"]], separators=(",", ":")))
+# Decimal is emitted as a JSON number, without binary floating point rounding.
+open(root+"/outputs.json", "w").write("{"+json.dumps(os.environ["MINER_ADDRESS"])+":"+format(value, ".8f")+"}")
+PYTX
+INPUTS_JSON=$(cat "$CAP/inputs.json")
+OUTPUTS_JSON=$(cat "$CAP/outputs.json")
+```
+
+The 100000 sat fixture conflict fee is independent of the agent's payment fee.
+All transaction inputs/outputs below are public data.
+
+```bash
+cap raw "$NMC" "${RPC[@]}" createrawtransaction "$INPUTS_JSON" "$OUTPUTS_JSON"
+RAW=$(cat "$CAP/raw.stdout")
+cap signed "$NMC" "${RPC[@]}" -rpcwallet="$HOT_WALLET" signrawtransactionwithwallet "$RAW"
+```
+
+Require `complete=true`. Extract the public transaction hex:
+
+```bash
+SIGNED_CONFLICT=$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); assert r["complete"]; print(r["hex"])' "$CAP/signed.stdout")
+```
+
+Then:
+
+```bash
+cap broadcast-conflict "$NMC" "${RPC[@]}" sendrawtransaction "$SIGNED_CONFLICT"
+CONFLICT_TXID=$(cat "$CAP/broadcast-conflict.stdout")
+test "$CONFLICT_TXID" != "$PLAN_TXID"
+cap mine-five "$NMC" "${RPC[@]}" generatetoaddress 5 "$MINER_ADDRESS"
+cap depth-five "$NMC" "${RPC[@]}" getrawtransaction "$CONFLICT_TXID" true
+```
+
+In the service shell, derive the exact target and amount from its reserve
+metadata. Set `NOTE` to a service-owned operator-note path; transfer only public
+conflict txid/evidence through the collector:
+
+```bash
+RESERVE_SEQ=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["target_seq"])' "$CAP/reserve.json")
+RELEASE_SAT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["released_sat"])' "$CAP/reserve.json")
+printf 'Private regtest incident; reserve=%s; conflict=%s; release_sat=%s; confirmed conflict only.\n' \
+  "$RESERVE_SEQ" "$CONFLICT_TXID" "$RELEASE_SAT" >"$NOTE"
+chmod 0600 "$NOTE"
+cap note-hash sha256sum "$NOTE"
+```
+
+Run the **built installed binary**:
+
+```bash
+ARGS=(--config "$SERVICE_CONFIG" --target-seq "$RESERVE_SEQ" \
+  --released-sat "$RELEASE_SAT" --evidence conflict \
+  --conflict-txid "$CONFLICT_TXID" --note "$NOTE")
+cap k5 "$RECONCILE" "${ARGS[@]}"
+test "$(cat "$CAP/k5.exit")" = 2
+cap after-k5 python3 "$CAP/snapshot.py"
+cap k5-no-write cmp "$CAP/before-k5.stdout" "$CAP/after-k5.stdout"
+test "$(cat "$CAP/k5-no-write.exit")" = 0
+```
+
+Require `reason=RECONCILE_EVIDENCE`, `may_have_written=false`, no new journal
+record and unchanged debit. Node operator mines one more block, then collects:
+
+```bash
+cap mine-six "$NMC" "${RPC[@]}" generatetoaddress 1 "$MINER_ADDRESS"
+cap tip-before "$NMC" "${RPC[@]}" getblockchaininfo
+cap conflict "$NMC" "${RPC[@]}" getrawtransaction "$CONFLICT_TXID" true
+CONFLICT_BLOCK=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["blockhash"])' "$CAP/conflict.stdout")
+cap header "$NMC" "${RPC[@]}" getblockheader "$CONFLICT_BLOCK"
+CONFLICT_HEIGHT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["height"])' "$CAP/header.stdout")
+cap membership "$NMC" "${RPC[@]}" getblock "$CONFLICT_BLOCK" 1
+cap active-height "$NMC" "${RPC[@]}" getblockhash "$CONFLICT_HEIGHT"
+cap tip-after "$NMC" "${RPC[@]}" getblockchaininfo
+```
+
+Require raw txid/input binding, active block membership, matching
+height hash, confirmations>=6 and unchanged before/after tip. CLI hash outputs
+are plain hex lines; do not decode them as JSON strings. Save this evidence and
+the note SHA-256 before the service shell continues:
+
+```bash
+cap release "$RECONCILE" "${ARGS[@]}"
+test "$(cat "$CAP/release.exit")" = 0
+cap before-hourly python3 "$CAP/snapshot.py"
+cap hourly "$RECONCILE" "${ARGS[@]}"
+test "$(cat "$CAP/hourly.exit")" = 2
+cap after-hourly python3 "$CAP/snapshot.py"
+cap hourly-no-write cmp "$CAP/before-hourly.stdout" "$CAP/after-hourly.stdout"
+test "$(cat "$CAP/hourly-no-write.exit")" = 0
+```
+
+Require `release.reason=RECONCILED`, `verified=true`, `may_have_written=true`;
+the signed record must match reserve, amount, conflict, evidence tip and note
+hash. Require `hourly.reason=RECONCILE_RATE_LIMITED`, no possible write and no
+new record. Do not change clocks or wait out the hour. Preserve a filtered
+journal header and signed release for `VerifyReconcileV2` audit; the CLI's fold
+and subsequent daemon reopen independently reverify its receipt-key binding.
+
+### Startup, row 20 and capture closeout
+
+Infra starts only the dedicated installed wallet unit through its install
+controller. Capture unit status and bounded journald output: startup must open
+and verify the journal, recognize **only X**, and serve a valid signed balance
+request. It must not stay at `STATE_RECONCILE_REQUIRED`. Operator status must
+show `reserved_sat=0`, `uncertain_sat=0`, `released_sat=RELEASE_SAT` for
+`GRANT_ID`; original-day transfer count is unchanged. Run the framed read in an
+operator shell entitled to the status socket (not in the agent shell):
+
+```bash
+export STATUS_SOCKET GRANT_ID
+cat >"$CAP/status.py" <<'PYSTATUS'
+import json, os, socket, struct
+b = b'{"v":1,"action":"status"}'
+def readn(s, n):
+    out = b""
+    while len(out) < n:
+        part = s.recv(n-len(out))
+        if not part: raise RuntimeError("short status frame")
+        out += part
+    return out
+with socket.socket(socket.AF_UNIX) as s:
+    s.settimeout(10); s.connect(os.environ["STATUS_SOCKET"])
+    s.sendall(struct.pack(">I", len(b))+b)
+    size, = struct.unpack(">I", readn(s, 4)); assert size <= 1048576
+    p = json.loads(readn(s, size)); print(json.dumps(p))
+    assert not p["poisoned"]
+    g, = [g for g in p["grants"] if g["grant_id"] == os.environ["GRANT_ID"]]
+    assert g["reserved_sat"] == 0 and g["uncertain_sat"] == 0
+PYSTATUS
+cap startup-status python3 "$CAP/status.py"
+test "$(cat "$CAP/startup-status.exit")" = 0
+```
+
+The ledger's input-release invariant is covered by `TestF6StartupNamedConflict`;
+status does not expose an input-reservation field. In the service shell, take
+`cap before-row20 python3 "$CAP/snapshot.py"` after startup completes and before
+the following agent requests. Do not mine or introduce another spend during
+these probes. The six startup-policy test groups cover unknown Y, rollback,
+tampering, depth and replay; never tamper with installed fixture journals to
+simulate those unit cases.
+
+For row 20, in the agent shell use the real installed action socket. Export
+`SOCKET`, `GRANTEE` and `CAP`; this deliberately unsupported action must reach
+the socket (the signing client would reject it locally):
+
+```bash
+python3 - <<'PYWIRE' >"$CAP/row20.stdout" 2>"$CAP/row20.stderr"
+import json, os, secrets, socket, struct, time
+r = dict(v=1, service="wallet.nmc", action="reconcile", params={},
+         grant=dict(kind="none"), nonce=secrets.token_hex(16),
+         created_at=int(time.time()), grantee=os.environ["GRANTEE"])
+b = json.dumps(dict(request=r, signature="0"*128), separators=(",", ":")).encode()
+def readn(s, n):
+    out = b""
+    while len(out) < n:
+        part = s.recv(n-len(out))
+        if not part: raise RuntimeError("short frame")
+        out += part
+    return out
+with socket.socket(socket.AF_UNIX) as s:
+    s.settimeout(10); s.connect(os.environ["SOCKET"])
+    s.sendall(struct.pack(">I", len(b))+b)
+    size, = struct.unpack(">I", readn(s, 4)); assert size <= 65536
+    reply = json.loads(readn(s, size)); print(json.dumps(reply))
+    assert reply["receipt"]["reason"] == "ACTION_UNSUPPORTED"
+PYWIRE
+printf '%s\n' "$?" >"$CAP/row20.exit"
+```
+
+Require exit 0 and the named refusal, rather than timeout or authentication
+failure. The placeholder signature bounds this probe to dispatch refusal;
+`TestF6Row20Socket` also covers valid signed unsupported requests, payload
+injection and valid read controls over the real socket. Create and execute the
+valid neighbor in the agent shell:
+
+```bash
+python3 - <<'PYBAL'
+import json, os, secrets, time
+r = dict(v=1, service="wallet.nmc", action="balance", params={}, grant=dict(kind="none"),
+         nonce=secrets.token_hex(16), created_at=int(time.time()), grantee=os.environ["GRANTEE"])
+open(os.environ["CAP"]+"/balance.json", "w").write(json.dumps(r, separators=(",", ":")))
+PYBAL
+cap balance "$CLIENT" --config "$CLIENT_CONFIG" --request "$CAP/balance.json"
+test "$(cat "$CAP/balance.exit")" = 0
+```
+
+Require `receipt.verdict=executed`. Service UID compares both journals'
+last sequence and reconcile count before/after these socket probes: unchanged,
+exactly the one operator release, no wire-produced reconcile:
+
+```bash
+cap after-row20 python3 "$CAP/snapshot.py"
+cap row20-no-write cmp "$CAP/before-row20.stdout" "$CAP/after-row20.stdout"
+test "$(cat "$CAP/row20-no-write.exit")" = 0
+```
+
+Stop the dedicated fixture wallet unit, then `kill -TERM "$NODE_PID"` and
+`wait "$NODE_PID"`, recording both real statuses and the final node log. Kill
+only the recorded node started above; never use pattern kills. Discard the
+runtime whitelist fault with this node shutdown; no installed config was
+changed. If another run is needed, provision a new fixture through draft 6.
+
+Infra's `REHEARSAL.md` includes every executed command (including generation,
+field extraction, unit control and checks), actor UID, PID, exact exit and
+bounded output, installed head/signature, signed-config admission, private node
+pins, uncertain signed receipt/alert, reserve metadata, k5 refusal/no-change,
+k6 evidence, verified signed record, hourly refusal/no-change, startup balance,
+row-20 no-write snapshots and cleanup. Hash an **explicit allow-list** of these
+public evidence files with SHA-256; never recursively walk a datadir or hash/copy
+wallets, cookies, private keys or credential configs. Record any missed step as
+unqualified. Add the separately authorized measured alert drill and T18 results
+before public-window acceptance; procedure availability is not qualification.
+
 ## Qualification limits
 
 A local fixture under one UID cannot qualify T18. A test-only synthetic installed
-reader cannot qualify the built CLI's DK5 installed path. The private rehearsal
-must report its actual binary exit and any such limit; primitive/function tests
-are separate evidence. Fresh independent review, installed station readback,
-measured real-room/owner-DM delivery and keeper-confirmed assignments remain
+reader cannot qualify the built CLI's DK5 installed path. Infra performs the
+native F6 rehearsal inside the draft-6 signed installation fixture using the procedure above.
+The producer does not run a local native-CLI
+rehearsal; historical DK5 refusals remain correct, not a reason to add a bypass.
+Primitive/function tests are separate evidence. Fresh independent review,
+installed station readback, measured real-room/owner-DM delivery and keeper-confirmed assignments remain
 explicit deployment gates. See [unresolved questions](UNRESOLVED_QUESTIONS.md).

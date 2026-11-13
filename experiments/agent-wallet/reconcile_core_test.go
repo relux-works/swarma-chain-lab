@@ -249,9 +249,9 @@ func init() {
 // Claim (private Core, no host-custody claim): production spends become uncertain
 // when the own node rejects broadcast; a distinct mined input conflict remains
 // charged at k=5 and permits the operator core at k=6. Real action socket requests
-// never append reconcile records. The actual production CLI is also executed;
-// without root-owned signed DK5 fixtures its refusal is recorded as a named
-// rehearsal limit, never replaced with a production bypass.
+// never append reconcile records. This is an optional function-only diagnostic;
+// Infra performs native CLI qualification in the signed draft-6 install fixture.
+// No local native-CLI fallback or DK5 admission override is provided.
 func TestF6CoreRehearsal(t *testing.T) {
 	l := newF6Core(t)
 	l.now = time.Now().Unix()
@@ -388,37 +388,12 @@ func TestF6CoreRehearsal(t *testing.T) {
 	writeInstalled(t, configPath, canonical(p.config))
 	note := filepath.Join(l.root, "public-operator-note.txt")
 	os.WriteFile(note, []byte("Private regtest fixture: distinct input conflict confirmed at six; no external node or funds."), 0600)
-	binary := os.Getenv("F6_RECONCILE_BINARY")
-	if !filepath.IsAbs(binary) {
-		t.Fatal("F6_RECONCILE_BINARY must name the built production binary")
-	}
-	args := []string{"--config", configPath, "--target-seq", fmt.Sprint(reserves[0].Seq), "--released-sat", fmt.Sprint(reserves[0].Reserved), "--evidence", "conflict", "--conflict-txid", conflict, "--note", note}
-	cmd := exec.Command(binary, args...)
-	output, cliErr := cmd.CombinedOutput()
-	exit := 0
-	if cliErr != nil {
-		exit = 1
-		if ee, ok := cliErr.(*exec.ExitError); ok {
-			exit = ee.ExitCode()
-		}
-	}
-	l.save("production-cli.json", map[string]any{"binary": binary, "argv": args, "exit": exit, "output": string(output), "binary_sha256": f6BinaryHash(t, binary)})
+	// Function-only diagnostic. Native installed CLI rehearsal belongs to Infra's
+	// draft-6 install fixture and must not use this synthetic installed reader.
 	q := ReconcileRequest{TargetSeq: reserves[0].Seq, ReleasedSat: reserves[0].Reserved, Evidence: "conflict", ConflictTxID: conflict, NotePath: note}
-	var result ReconcileResult
-	if exit == 0 {
-		if json.Unmarshal(output, &result) != nil || !result.Verified {
-			t.Fatal("F6_CLI_SUCCESS_SHAPE")
-		}
-	} else {
-		if exit != 2 || !strings.Contains(string(output), "DK5_") {
-			t.Fatal("F6_CLI_UNEXPECTED", exit, string(output))
-		}
-		t.Errorf("F6_CLI_QUALIFICATION_BLOCKED: root-owned signed installed fixture unavailable; built CLI refused DK5")
-		l.save("rehearsal-limit.json", map[string]any{"limit": "root-owned signed DK5 fixture not provisioned; production CLI correctly refuses", "host_custody": "no separate UID/root access", "cli_rehearsal": "NOT QUALIFIED", "core_path": "same ReconcileWallet production entrypoint under existing synthetic installed-reader TEST seam"})
-		result, e = ReconcileWallet(context.Background(), configPath, q)
-		if e != nil {
-			t.Fatal("F6_CORE_OPERATOR_ENTRY", e)
-		}
+	result, e := ReconcileWallet(context.Background(), configPath, q)
+	if e != nil {
+		t.Fatal("F6_CORE_OPERATOR_ENTRY", e)
 	}
 	l.save("signed-reconcile.json", result)
 	if result.Record == nil || !result.Verified {
@@ -457,12 +432,12 @@ func TestF6CoreRehearsal(t *testing.T) {
 	if e2 != nil || ledger.SpendUsed(reserves[0].GrantID) != 0 {
 		t.Fatal("F6_LEDGER_AFTER", e2)
 	}
-	reconciler, _ := NewStartupReconciler(wallet.wallet)
-	if e2 = reconciler.Reconcile(context.Background(), j); e2 == nil || e2.Error() != CodeStateReconcileRequired {
-		t.Fatal("F6_STARTUP_UNKNOWN_SEND", e2)
+	reconciler, _ := NewStartupReconciler(startupReconcileRoute{Node: wallet.wallet, observer: wallet.px1Observer(), network: wc.Network, genesis: wc.Genesis})
+	if e2 = reconciler.Reconcile(context.Background(), j); e2 != nil {
+		t.Fatal("F6_STARTUP_VERIFIED_CONFLICT", e2)
 	}
 	l.save("wallet-after.json", px1sRecords(t, j))
-	l.save("verified-reopen.json", map[string]any{"signature": "verified", "retained_sat": ledger.SpendUsed(reserves[0].GrantID), "startup": CodeStateReconcileRequired})
+	l.save("verified-reopen.json", map[string]any{"signature": "verified", "retained_sat": ledger.SpendUsed(reserves[0].GrantID), "startup": "verified named conflict accepted"})
 }
 
 func f6CoreWire(t *testing.T, s *ActionService, raw []byte) (SignedActionReceipt, []byte) {
@@ -489,13 +464,4 @@ func f6CoreWire(t *testing.T, s *ActionService, raw []byte) (SignedActionReceipt
 		t.Fatal(e)
 	}
 	return receipt, reply
-}
-
-func f6BinaryHash(t *testing.T, path string) string {
-	t.Helper()
-	b, e := os.ReadFile(path)
-	if e != nil {
-		t.Fatal(e)
-	}
-	return Hash(b)
 }

@@ -197,6 +197,11 @@ type reconcileTip struct {
 }
 
 func reconcileConflict(ctx context.Context, node su.Node, reserve JournalRecordV2, conflict, network, genesis string) (reconcileTip, error) {
+	return reconcileConflictAt(ctx, node, reserve, conflict, network, genesis, nil)
+}
+
+// Startup also verifies the signed evidence tip and six-block depth at that tip.
+func reconcileConflictAt(ctx context.Context, node su.Node, reserve JournalRecordV2, conflict, network, genesis string, cited *ReconcileRecordV2) (reconcileTip, error) {
 	var tip reconcileTip
 	bad := func(e error) (reconcileTip, error) {
 		if e != nil && strings.HasPrefix(e.Error(), "RPC_") {
@@ -238,6 +243,18 @@ func reconcileConflict(ctx context.Context, node su.Node, reserve JournalRecordV
 	}
 	if header.Confirmations < ReconcileConfirmations {
 		return bad(nil)
+	}
+	if cited != nil {
+		if cited.Height > tip.Blocks || cited.Height < header.Height || cited.Height-header.Height+1 < ReconcileConfirmations {
+			return bad(nil)
+		}
+		var active string
+		if e = observation.Call("getblockhash", &active, cited.Height); e != nil {
+			return bad(e)
+		}
+		if active != cited.BlockHash {
+			return bad(nil)
+		}
 	}
 	if e = observation.Stable(); e != nil {
 		return bad(e)

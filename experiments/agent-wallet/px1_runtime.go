@@ -43,6 +43,7 @@ type px1oEnv struct {
 	walletRoute su.Node   // w1-wallet route (getbalances, listtransactions)
 	receiptKey  string
 	network     string
+	genesis     string
 	now         int64
 	poisoned    bool
 	poison      func() // marks the service poisoned (in memory, sticky)
@@ -134,7 +135,7 @@ func (r *px1Runtime) start(ctx context.Context, env px1oEnv) error {
 	if e != nil {
 		return e
 	}
-	reconciler, e := d.newReconciler(env.walletRoute)
+	reconciler, e := d.newReconciler(startupReconcileRoute{Node: env.walletRoute, observer: env.observer, network: env.network, genesis: env.genesis})
 	if e != nil {
 		return e
 	}
@@ -548,7 +549,7 @@ func (s *ActionService) px1oEnvFor() (px1oEnv, error) {
 		return px1oEnv{}, fail("SERVICE_PROFILE")
 	}
 	w := s.wallet
-	env := px1oEnv{profile: profile, service: s.PX1ServiceJournal(), wallet: w.PX1Journal(), observer: w.px1Observer(), walletRoute: w.wallet, receiptKey: s.pub, network: w.config.Network,
+	env := px1oEnv{profile: profile, service: s.PX1ServiceJournal(), wallet: w.PX1Journal(), observer: w.px1Observer(), walletRoute: w.wallet, receiptKey: s.pub, network: w.config.Network, genesis: w.config.Genesis,
 		now: s.clock(), poisoned: s.poisoned, poison: func() { s.poisoned = true }}
 	env.limitsFor = func(id string) (EffectiveLimits, error) {
 		raw, e := LoadGrant(w.config, id)

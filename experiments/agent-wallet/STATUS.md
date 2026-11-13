@@ -127,13 +127,18 @@ A `track` record repeats the binding fields of the request's `reserve` record:
 ## Startup reconciliation (T13)
 
 The pass pages through every hot-wallet `listtransactions` row, 1000 rows per
-page and at most 100 pages. Any `send` whose txid is carried by no
-wallet-layer record refuses `STATE_RECONCILE_REQUIRED`. Such a send is either
-an out-of-band spend or a restored older journal. A longer history also
-refuses, because the check could not finish.
+page and at most 100 pages. An unrecognized `send` refuses `STATE_RECONCILE_REQUIRED`: it may be an
+out-of-band spend or a restored older journal. Journal spend txids are known. A receipt-key-signed conflict
+release in the opened hash-chained journal can recognize only its exact
+`conflict_txid`, after existing journal/fold verification and own-node evidence
+checks at k>=6, including the signed evidence tip. It never exempts another
+send. Invalid signatures/chain links fail journal open; invalid evidence fails
+startup before serving. A longer history still refuses because the check could
+not finish. See [the operator runbook](RECONCILE-RUNBOOK.md).
 
-**Operational rule:** the hot wallet must start with no sends at all. Fund the
-float and the canary from outside the wallet.
+**Operational rule:** initially fund the float and canary from outside the hot
+wallet. Later starts recognize only journal spend txids and exact verified
+conflict releases; do not import unrelated send history.
 
 ## Status projection (`PX1Status`, `ProjectStatus`)
 
