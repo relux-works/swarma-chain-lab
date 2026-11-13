@@ -84,6 +84,13 @@ stat -c '%U %a %F' /etc/swarma-g2-agent /etc /             # root 755 directory,
    It must read `{"txindex": {"synced": true, "best_block_height": N}}`. Any
    other answer, an empty answer, or no file makes the item `node-txindex`
    FAIL.
+
+   This answer is also the node-liveness evidence of the `denied-rpc` items
+   (r9): a `denied-rpc` item is PASS only when `node-txindex` is PASS in the
+   same report. Save it in this run, right before step 3, with the node
+   running; the node must keep running through step 5. A stopped node makes
+   the RPC port refuse the probe's connection, and that is FAIL (see the item
+   table).
 2. **The account exists as in §1**, created by Infra. This procedure never
    creates or changes an account. It never runs `systemd-sysusers`.
 3. **Every `denied_reads` path exists.** On the live-wallet station each
@@ -91,9 +98,10 @@ stat -c '%U %a %F' /etc/swarma-g2-agent /etc /             # root 755 directory,
    includes the node cookie and `wallet.dat` from `custody-spec.json`. On the
    stand-in station Infra creates each missing path as a root-owned
    placeholder with the production mode and no secret (empty or random
-   bytes); those items are `STAND_IN`, never `PASS`. A missing path reads
-   `ENOENT`, and its item FAILs on either station (a missing file proves
-   nothing). Step 2 of §3 lists missing paths before the run.
+   bytes); those items are `STAND_IN`, never `PASS`. A missing path under a
+   parent the agent can search reads `ENOENT`, and its item FAILs on either
+   station (a missing file proves nothing); under a parent the agent cannot
+   search it reads `EACCES` (see §7). Step 2 of §3 lists missing paths before the run.
 4. **Tools.**
    - `deploy-kit` is built from the reviewed head. Put it, with
      `t18-real-host-report.sh` and `g2-custody-check.sh` side by side, in a
@@ -355,7 +363,10 @@ one that prints nothing, garbage or exits non-zero, `check` refuses with
 `canonical-hash-unavailable`; one that prints another well-formed hash gives
 `header-spec-sha256:differs`; and the valid report checked against its spec
 with a leading space (file hashes moved along) passes, because the product
-reads it as the same spec.
+reads it as the same spec. r9: a refused RPC connection is FAIL
+`node-not-listening` on a real run and `STAND_IN` on a stand-in run, `check`
+refuses that `STAND_IN` relabeled `PASS` (`rpc-pass-node-not-listening`), and
+an HTTP 401 without a `getindexinfo` answer is FAIL `node-liveness-unproven`.
 
 ## 4. The report
 
@@ -389,7 +400,13 @@ valid only as a stand-in run.
   `status-dir`, `allowed-socket`), and only with the stand-in flag (header
   `wallet=stand-in`): a denial (`EACCES` or `EPERM`) of a placeholder, or a
   successful connect to the planted listener. It is never a PASS, and `check`
-  refuses any of these items as `PASS` on a stand-in report.
+  refuses any of these items as `PASS` on a stand-in report. r9: a
+  `denied-rpc` item is `STAND_IN` too, but only on a stand-in run and only for
+  a refused connection (`observed=REFUSED`): the stand-in station may run no
+  node. Nothing is planted at the RPC port, so `denied-rpc` is not
+  placeholder-backed: an explicit `HTTP_401` or `HTTP_403` there is a real
+  refusal and is PASS under the same liveness rule as on the live-wallet
+  station.
 - `COVERED_BY_HOSTED`: the property cannot be shown on a correctly provisioned
   host without a destructive or privileged fixture. The line must carry
   exactly the pin of its row below: `pin=<test>`, `commit=<commit>`,
@@ -402,7 +419,12 @@ valid only as a stand-in run.
 - no item is FAIL;
 - each line agrees with its own evidence:
   - a `denied-read` or `status-dir` PASS shows `EACCES` or `EPERM`;
-  - a `denied-rpc` PASS shows `HTTP_401`, `HTTP_403` or `REFUSED`;
+  - a `denied-rpc` PASS shows `HTTP_401` or `HTTP_403`, never `REFUSED`
+    (`rpc-pass-node-not-listening:<item>`; another observation is
+    `rpc-pass-without-refusal:<item>`), and `node-txindex` is PASS in the same
+    report (`rpc-pass-without-live-node`); a `denied-rpc` `STAND_IN` shows
+    `REFUSED` (`rpc-stand-in-without-refused:<item>`) on a stand-in run
+    (`stand-in-misplaced:<item>` otherwise);
   - a socket PASS shows `CONNECTED` and a peer UID equal to the header's
     `service_uid`;
 - every covered item carries exactly its pin;
@@ -424,7 +446,7 @@ valid only as a stand-in run.
 | `credentials` | step 5 | `g2-agent-groups` accepted the readback: observed `id -g` == declared primary GID, `id -G` == exactly {primary, socket} (`G2_AGENT_GROUPS_OK`) |
 | `denied-read:<path>` | step 5 | one item per `denied_reads` path, in spec order; the probe observed `EACCES` or `EPERM` (and traversal was denied too). `ENOENT`, `READ_OK`, or no probe result is FAIL. With the stand-in flag a denial is `STAND_IN`, never PASS. |
 | `status-dir` | step 5 | `/run/swarma-wallet-status` is in `denied_reads` and its probe is `EACCES` or `EPERM` (freeze amendment 1, A8). With the stand-in flag a denial is `STAND_IN`, never PASS. |
-| `denied-rpc:<target>` | step 5 | the credential-less JSON-RPC call got HTTP 401, HTTP 403 or a refused connection |
+| `denied-rpc:<target>` | step 5 | r9: denied RPC needs a live node. PASS only when both hold: the credential-less JSON-RPC call got an explicit authorization refusal, HTTP 401 or HTTP 403 (`observed=HTTP_401` or `HTTP_403`: a listener at the target answered at probe time and refused it), and `node-txindex` is PASS in the same report (node liveness in this run). A refusal without that liveness is FAIL `reason=node-liveness-unproven`. A refused connection (`observed=REFUSED`: nothing listens at the port, no node or a stopped node) proves nothing: FAIL `reason=node-not-listening` on a `real` run, `STAND_IN` on a `stand-in` run, never PASS. A timeout or any other transport error aborts the probe, so there is no observation: FAIL `observed=none`. `HTTP_OK` (not refused) is FAIL. |
 | `peer-precondition` | step 5 | the first version line of `perl -v`, as the agent ran it, reads `This is perl 5, version N, subversion M ...`; the line is on the item (`perl_v=`) |
 | `allowed-socket` | step 5 | `real`: the probe connected (`CONNECTED`, no frame), and the peer is identified: `SO_PEERCRED` UID == `service_uid`, socket owner == `service_uid`, group == `agent_socket_gid`, mode 0660. These are the checks the agent client makes before its first frame. `stand-in`: `STAND_IN` after a successful connect, otherwise FAIL. |
 | `custody-verify` | step 5 | probe exit 0, verify exit 0, and `T18_CUSTODY_VERIFIED <sha>` binds the canonical spec of the header |
@@ -535,3 +557,27 @@ The evidence holds no credential:
   fails is the covered `cov-searchable-dir` item.
 - **The node's own access policy** beyond one credential-less call. The route
   whitelists are shown by the Core test in SMOKE-G2.md §5.
+- **That the node answered at the probe's moment and port** (r9). The
+  liveness evidence of `denied-rpc` is the `getindexinfo` answer, an
+  authenticated node call saved by the operator before step 3, so before the
+  probe of step 5. The report cannot see when it was saved, and `namecoin-cli`
+  reaches the node through the datadir's own settings, not through the
+  probed `denied_rpc` target. What is shown at probe time is that a listener
+  at the target answered the credential-less call with 401 or 403. To bind
+  both to the same node at the probe's moment, a second `getindexinfo` answer
+  is needed, saved after step 5 against the `denied_rpc` target
+  (`-rpcconnect`/`-rpcport`), with both save times recorded; this runner does
+  not collect it. That is a node call, not a wallet call; no wallet RPC is
+  ever added.
+- **That a denied path exists, when its parent is closed.** A missing path
+  whose parent directory the agent cannot search (for example the node cookie
+  of a stopped node, under a mode 0700 datadir) reads `EACCES`, not `ENOENT`:
+  the denial comes from the parent and holds for any object later created at
+  that path, but the report does not prove the object exists. The root
+  preflight of step 2 (`MISSING` lines) is that evidence; the runner does not
+  collect it.
+- **That `custody-verify` and `launch-layout` saw an RPC denial.** They state
+  the product verifier's verdict, and the product counts a refused
+  connection as a denial. On a live run with a stopped node they can be PASS
+  while the `denied-rpc` item is FAIL `node-not-listening`, so OVERALL is
+  FAIL; only the `denied-rpc` items judge the RPC denial.

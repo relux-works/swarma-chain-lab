@@ -32,7 +32,11 @@
 #       station, whose wallet files are root-owned placeholders and whose
 #       socket is a planted listener; every placeholder-backed item (each
 #       denied-read, status-dir, allowed-socket) is then STAND_IN, never PASS,
-#       and the OVERALL line says the run is valid only as a stand-in run
+#       and the OVERALL line says the run is valid only as a stand-in run.
+#       r9: a denied-rpc row is PASS only for an explicit refusal (HTTP_401
+#       or HTTP_403) while node-txindex is PASS in the same report; a refused
+#       connection (REFUSED: nothing listens) is FAIL reason=node-not-listening
+#       on a real run and STAND_IN on a stand-in run, never PASS
 #   t18-real-host-report.sh check REPORT SPEC
 #       recomputes the OVERALL line of a stored report with one strict
 #       parser: a duplicate field, a field that contradicts its verdict, the
@@ -385,7 +389,9 @@ report_items() {
 
 	# Precondition: txindex=1 and the index synced.
 	tx=$(cat "$op/txindex.json" 2>/dev/null || true)
+	node_live=0
 	if printf '%s\n' "$tx" | grep -Eq '^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$'; then
+		node_live=1
 		echo "node-txindex PASS getindexinfo=$tx"
 	else
 		echo "node-txindex FAIL getindexinfo=${tx:-missing}"
@@ -485,10 +491,38 @@ report_items() {
 		fi
 	done
 	[ "$status_seen" = 1 ] || echo "status-dir FAIL path=$status_dir not-in-denied_reads"
+	# r9: denied RPC needs a live node. The product probe counts a refused
+	# connection (REFUSED, ECONNREFUSED: nothing listens at the target) as a
+	# denial; this report does not, because with no node, or a stopped one,
+	# that observation proves nothing. A row is PASS only when both hold:
+	#  - the credential-less call got an explicit authorization refusal,
+	#    HTTP_401 or HTTP_403: a listener at the target answered it at probe
+	#    time (step 5) and refused it;
+	#  - node liveness in the same run: node-txindex is PASS, i.e. the node's
+	#    saved getindexinfo answer (a node call, authenticated, made before the
+	#    operator phase, so before the probe) shows a synced index.
+	# A refusal without that liveness is FAIL reason=node-liveness-unproven.
+	# REFUSED is FAIL reason=node-not-listening on a real run, and STAND_IN on
+	# a stand-in run (whose station may run no node), never PASS. A timeout or
+	# any other transport error aborts the product probe (no report), so the
+	# row is FAIL observed=none; HTTP_OK is FAIL (the call was not refused).
 	for rpc in $rpcs; do
 		o=$(probe_observed rpc "$rpc" "$cr") || o=
 		case $o in
-		HTTP_401 | HTTP_403 | REFUSED) echo "denied-rpc:$rpc PASS observed=$o" ;;
+		HTTP_401 | HTTP_403)
+			if [ "$node_live" = 1 ]; then
+				echo "denied-rpc:$rpc PASS observed=$o"
+			else
+				echo "denied-rpc:$rpc FAIL observed=$o reason=node-liveness-unproven"
+			fi
+			;;
+		REFUSED)
+			if [ "$wallet" = stand-in ]; then
+				echo "denied-rpc:$rpc STAND_IN observed=$o"
+			else
+				echo "denied-rpc:$rpc FAIL observed=$o reason=node-not-listening"
+			fi
+			;;
 		*) echo "denied-rpc:$rpc FAIL observed=${o:-none}" ;;
 		esac
 	done
@@ -740,7 +774,9 @@ check_report() {
 		if (v == "FAIL") next
 		if (kind == "custody-spec") { bad("custody-spec-not-fail"); next }
 		if (keys != schema[kind]) bad("fields:" id)
-		if (v == "STAND_IN" && (!placeholder || wallet != "stand-in")) bad("stand-in-misplaced:" id)
+		# r9: a denied-rpc row may be STAND_IN too, but only on a stand-in run
+		# and only for REFUSED (checked below).
+		if (v == "STAND_IN" && (!(placeholder || kind == "denied-rpc") || wallet != "stand-in")) bad("stand-in-misplaced:" id)
 		if (v == "PASS" && placeholder && wallet == "stand-in") bad("stand-in-placeholder-pass:" id)
 		if (v == "COVERED_BY_HOSTED" && !(id in pin_test)) bad("covered-not-allowed:" id)
 		if (v != "COVERED_BY_HOSTED" && (id in pin_test)) bad("covered-item-verdict:" id)
@@ -766,10 +802,19 @@ check_report() {
 			if (fv["path"] != status_dir) bad("status-pass-other-path")
 			status_o = fv["observed"]
 		}
+		# r9: a PASS needs an explicit refusal (401, 403) from a live node: a
+		# refused connection is node-not-listening, never PASS, and node-txindex
+		# must be PASS in the same report (checked at the end). STAND_IN is
+		# REFUSED on a stand-in run only.
 		if (kind == "denied-rpc") {
 			nrpc++
 			o = fv["observed"]
-			if (o != "HTTP_401" && o != "HTTP_403" && o != "REFUSED") bad("rpc-pass-without-refusal:" id)
+			if (v == "PASS") {
+				rpc_pass++
+				if (o == "REFUSED") bad("rpc-pass-node-not-listening:" id)
+				else if (o != "HTTP_401" && o != "HTTP_403") bad("rpc-pass-without-refusal:" id)
+			}
+			if (v == "STAND_IN" && o != "REFUSED") bad("rpc-stand-in-without-refused:" id)
 		}
 		if (id == "node-txindex" && fv["getindexinfo"] !~ /^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$/) bad("txindex-pass-without-synced-index")
 		if (id == "render" && (fv["files"] != "6" || !hex64(fv["custody_spec_file_sha256"]))) bad("render-pass-without-six-files")
@@ -827,6 +872,7 @@ check_report() {
 		if (napply > 1 || (account_pass && napply != 1)) bad("apply-noop-line")
 		if (nnote != 1) bad("positive-path-statement")
 		# Contradictions between items.
+		if (rpc_pass && vv["node-txindex"] != "PASS") bad("rpc-pass-without-live-node")
 		if (vv["status-dir"] != "" && vv["status-dir"] != "FAIL" && (vv["denied-read:" status_dir] != vv["status-dir"] || read_o[status_dir] != status_o)) bad("status-dir-contradicts-denied-read")
 		if (vv["positive-request"] == "COVERED_BY_HOSTED") {
 			if (host == "not-run" && (vv["credentials"] == "PASS" || vv["custody-verify"] == "PASS")) bad("positive-not-run-contradicts-credentials")
@@ -890,8 +936,8 @@ self_test() {
 		echo "SELF_TEST FAIL failures=1"
 		return 1
 	fi
-	probes() {
-		printf '{"v":1,"spec_sha256":"%s","uid":210001,"gid":210001,"probes":[{"kind":"read","target":"/etc/swarma/wallet/wallet.json","expect":"denied","observed":"%s","pass":true},{"kind":"read","target":"%s","expect":"denied","observed":"EACCES","pass":true},{"kind":"rpc","target":"127.0.0.1:8336","expect":"denied","observed":"HTTP_401","pass":true},{"kind":"socket","target":"/run/swarma-wallet/wallet.sock","expect":"allowed","observed":"CONNECTED","pass":true}],"pass":true}\n' "$spec_sha" "$1" "$status_dir" >"$ag/custody/custody-report.json"
+	probes() { # FIRST-READ-OBSERVED [RPC-OBSERVED, default HTTP_401]
+		printf '{"v":1,"spec_sha256":"%s","uid":210001,"gid":210001,"probes":[{"kind":"read","target":"/etc/swarma/wallet/wallet.json","expect":"denied","observed":"%s","pass":true},{"kind":"read","target":"%s","expect":"denied","observed":"EACCES","pass":true},{"kind":"rpc","target":"127.0.0.1:8336","expect":"denied","observed":"%s","pass":true},{"kind":"socket","target":"/run/swarma-wallet/wallet.sock","expect":"allowed","observed":"CONNECTED","pass":true}],"pass":true}\n' "$spec_sha" "$1" "$status_dir" "${2:-HTTP_401}" >"$ag/custody/custody-report.json"
 	}
 	probes EACCES
 	echo "uid=210001 probe_exit=0 positive_exit=3 verify_exit=0" >"$ag/custody/exits.txt"
@@ -1013,6 +1059,19 @@ self_test() {
 	ws=$(sha_of "$w/ws-spec.json")
 	sed -e "s/^custody_spec_sha256 [0-9a-f]*\$/custody_spec_sha256 $ws/" -e "s/^\(render PASS files=6 custody_spec_file_sha256=\)[0-9a-f]*\$/\1$ws/" "$valid" >"$w/ws-report.txt"
 	checked whitespace-spec-agrees 0 "$w/ws-report.txt" "$w/ws-spec.json" 'OVERALL PASS pass=14 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real'
+	# r9: denied RPC needs a live node. A refused connection (nothing listens
+	# at the RPC port) is FAIL node-not-listening on a real run and STAND_IN on
+	# a stand-in run; check refuses that STAND_IN relabeled PASS by name; an
+	# explicit 401 without node liveness (no getindexinfo answer) is FAIL.
+	probes EACCES REFUSED
+	expect rpc-node-not-listening 1 real '^denied-rpc:127\.0\.0\.1:8336 FAIL observed=REFUSED reason=node-not-listening$'
+	expect rpc-refused-stand-in 0 stand-in '^denied-rpc:127\.0\.0\.1:8336 STAND_IN observed=REFUSED$'
+	sed 's/^\(denied-rpc:[^ ]*\) STAND_IN observed=REFUSED$/\1 PASS observed=REFUSED/' "$w/rpc-refused-stand-in.txt" >"$w/rpc-refused-pass.txt"
+	checked rpc-refused-as-pass 1 "$w/rpc-refused-pass.txt" "$spec" 'rpc-pass-node-not-listening:denied-rpc:127.0.0.1:8336'
+	probes EACCES
+	: >"$op/txindex.json"
+	expect rpc-liveness-unproven 1 real '^denied-rpc:127\.0\.0\.1:8336 FAIL observed=HTTP_401 reason=node-liveness-unproven$'
+	echo '{"txindex":{"synced":true,"best_block_height":1}}' >"$op/txindex.json"
 	if [ "$failures" = 0 ]; then
 		echo "SELF_TEST PASS"
 		return 0

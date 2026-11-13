@@ -459,6 +459,24 @@ func TestT18RealHostReportControls(t *testing.T) {
 		{"readable-denied-read", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{read0: "READ_OK"}) }, 1, `^denied-read:` + regexp.QuoteMeta(read0) + ` FAIL observed=READ_OK$`},
 		{"status-dir-enoent", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{G2StatusSocketDir: "ENOENT"}) }, 1, `^status-dir FAIL path=/run/swarma-wallet-status observed=ENOENT$`},
 		{"rpc-answered", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{rpc0: "HTTP_OK"}) }, 1, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` FAIL observed=HTTP_OK$`},
+		// r9 claim: on a live run a stopped node (REFUSED: nothing listens at
+		// the RPC port) is FAIL reason=node-not-listening, never PASS.
+		{"rpc-node-stopped", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{rpc0: "REFUSED"}) }, 1, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` FAIL observed=REFUSED reason=node-not-listening$`},
+		// r9 claim (valid neighbour): a 403 from a live node (node-txindex PASS) is PASS.
+		{"rpc-403-live-node", "real", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{rpc0: "HTTP_403"}) }, 0, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` PASS observed=HTTP_403$`},
+		// r9 claim: a 401 without node liveness in the run (no getindexinfo
+		// answer, node-txindex FAIL) is FAIL reason=node-liveness-unproven.
+		{"rpc-401-node-not-live", "real", func(t *testing.T, f *t18rhFix) { f.write(t, "op/txindex.json", "") }, 1, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` FAIL observed=HTTP_401 reason=node-liveness-unproven$`},
+		// r9 claim: on a stand-in run REFUSED is STAND_IN, never PASS, and the
+		// run can still pass as a stand-in run.
+		{"stand-in-rpc-refused", "stand-in", func(t *testing.T, f *t18rhFix) { f.probes(t, map[string]string{rpc0: "REFUSED"}) }, 0, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` STAND_IN observed=REFUSED$`},
+		// r9 claim (valid neighbour): on a stand-in run a 401 with node
+		// liveness is PASS: nothing is planted at the RPC port, so it is not a
+		// placeholder-backed item.
+		{"stand-in-rpc-401-live-node", "stand-in", func(*testing.T, *t18rhFix) {}, 0, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` PASS observed=HTTP_401$`},
+		// r9 claim: a timeout aborts the product probe (no report), so the
+		// row has no observation and is FAIL, never PASS.
+		{"rpc-probe-aborted", "real", func(t *testing.T, f *t18rhFix) { f.write(t, "custody/custody-report.json", "") }, 1, `^denied-rpc:` + regexp.QuoteMeta(rpc0) + ` FAIL observed=none$`},
 		{"no-custody-report", "real", func(t *testing.T, f *t18rhFix) { f.write(t, "custody/custody-report.json", "") }, 1, `^denied-read:` + regexp.QuoteMeta(read0) + ` FAIL observed=none$`},
 		{"stand-in-declared-real", "real", func(t *testing.T, f *t18rhFix) {
 			f.write(t, "peer.txt", "PEER connect=ok uid=0 gid=0\n")
@@ -580,13 +598,20 @@ func TestT18RealHostCheckControls(t *testing.T) {
 	if code != 0 || !strings.Contains(standIn, "\nallowed-socket STAND_IN ") {
 		t.Fatal("T18RH_CHECK setup stand-in", standIn)
 	}
+	// r9: a stand-in run whose RPC port refused the connection.
+	f.probes(t, map[string]string{f.spec.DeniedRPC[0]: "REFUSED"})
+	code, standInRefused := f.report(t, "stand-in")
+	if code != 0 || !strings.Contains(standInRefused, "\ndenied-rpc:"+f.spec.DeniedRPC[0]+" STAND_IN observed=REFUSED\n") {
+		t.Fatal("T18RH_CHECK setup stand-in REFUSED", standInRefused)
+	}
 	dir := t.TempDir()
 	check := func(name, text string) (int, string) {
 		path := filepath.Join(dir, name)
 		os.WriteFile(path, []byte(text), 0600)
 		return t18rhRun(t, nil, "check", path, f.renderedSpec)
 	}
-	for name, text := range map[string]string{"valid-real": real, "valid-stand-in": standIn} {
+	// r9 claim (valid neighbour): REFUSED as STAND_IN on a stand-in run passes check.
+	for name, text := range map[string]string{"valid-real": real, "valid-stand-in": standIn, "valid-stand-in-rpc-refused": standInRefused} {
 		if code, out := check(name, text); code != 0 || !strings.HasPrefix(out, "OVERALL PASS ") {
 			t.Fatalf("T18RH_CHECK %s refused: %d %s", name, code, out)
 		}
@@ -617,6 +642,15 @@ func TestT18RealHostCheckControls(t *testing.T) {
 		{"enoent-as-denied", sub(real, `^(`+regexp.QuoteMeta(read0)+`) PASS observed=EACCES$`, "$1 PASS observed=ENOENT"), "read-pass-without-eacces:" + read0},
 		{"status-enoent", sub(real, `^status-dir PASS path=(\S+) observed=EACCES$`, "status-dir PASS path=$1 observed=ENOENT"), "status-pass-without-eacces"},
 		{"rpc-answered", sub(real, `^(denied-rpc:\S+) PASS observed=HTTP_401$`, "$1 PASS observed=HTTP_OK"), "rpc-pass-without-refusal:"},
+		// r9 claims: a hand-edited PASS observed=REFUSED is refused by name, on
+		// a real and on a stand-in report; STAND_IN for REFUSED is refused on
+		// a real run, and STAND_IN for a 401 on a stand-in run; a denied-rpc
+		// PASS while node-txindex is not PASS is refused.
+		{"rpc-refused-as-pass", sub(real, `^(denied-rpc:\S+) PASS observed=HTTP_401$`, "$1 PASS observed=REFUSED"), "rpc-pass-node-not-listening:denied-rpc:"},
+		{"rpc-refused-as-pass-stand-in", sub(standInRefused, `^(denied-rpc:\S+) STAND_IN observed=REFUSED$`, "$1 PASS observed=REFUSED"), "rpc-pass-node-not-listening:denied-rpc:"},
+		{"rpc-stand-in-on-real", sub(real, `^(denied-rpc:\S+) PASS observed=HTTP_401$`, "$1 STAND_IN observed=REFUSED"), "stand-in-misplaced:denied-rpc:"},
+		{"rpc-stand-in-401", sub(standIn, `^(denied-rpc:\S+) PASS observed=HTTP_401$`, "$1 STAND_IN observed=HTTP_401"), "rpc-stand-in-without-refused:denied-rpc:"},
+		{"rpc-pass-node-not-live", sub(real, `^node-txindex PASS .*$`, "node-txindex FAIL getindexinfo=missing"), "rpc-pass-without-live-node"},
 		{"wallet-other-peer", sub(real, `peer_uid=1101 `, "peer_uid=0 "), "wallet-pass-without-peer-identity"},
 		{"wallet-not-connected", sub(real, `probe=CONNECTED `, "probe=REFUSED "), "wallet-pass-without-connect"},
 		{"covered-as-pass", sub(real, `^cov-rpc-not-refused COVERED_BY_HOSTED `, "cov-rpc-not-refused PASS "), "covered-item-verdict:cov-rpc-not-refused"},
@@ -684,9 +718,13 @@ func TestT18RealHostCheckControls(t *testing.T) {
 // along) passes with the real product. The r7 sample: verify -launch=true
 // refused the run's launch layout while -launch=false accepted the same
 // report, so launch-layout is FAIL layout=refused and OVERALL is not PASS.
+// The r9 samples: a refused RPC connection is FAIL node-not-listening on a
+// real run and STAND_IN on a stand-in run, check refuses that STAND_IN
+// relabeled PASS by name, and a 401 without a getindexinfo answer is FAIL
+// node-liveness-unproven.
 func TestT18RealHostSelfTest(t *testing.T) {
 	code, out := t18rhRun(t, []string{"DEPLOY_KIT=/nonexistent/deploy-kit"}, "self-test")
-	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 28 ||
+	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 32 ||
 		!strings.HasPrefix(out, "self-test build-deploy-kit ok exit=0\n") || !strings.Contains(out, "\nself-test whitespace-spec-agrees ok exit=0\n") {
 		t.Fatalf("T18RH_SELF_TEST %d\n%s", code, out)
 	}
@@ -784,7 +822,7 @@ func TestT18RealHostPeerIdentity(t *testing.T) {
 // group set through the real g2-agent-groups, which accepts {UID, 1301} and
 // refuses the same account with a third group. The report then shows credentials PASS (the readback accepted
 // the fixture `id`), every fixture denied read EACCES (STAND_IN), the RPC target
-// REFUSED, the socket STAND_IN with the listener's UID, render and
+// (a closed port) REFUSED and STAND_IN (r9: never PASS), the socket STAND_IN with the listener's UID, render and
 // agent-inputs PASS, peer-precondition PASS from the host's real `perl -v`,
 // the literal no-op apply line and positive-request COVERED_BY_HOSTED with
 // host=not-sent. As a stand-in run the fixture denied reads are STAND_IN.
@@ -923,7 +961,9 @@ func TestT18RealHostAgentPhase(t *testing.T) {
 		"agent-inputs PASS spec,client,params=rendered",
 		"denied-read:" + key + " STAND_IN observed=EACCES",
 		"denied-read:" + state + " STAND_IN observed=EACCES",
-		"denied-rpc:" + spec.DeniedRPC[0] + " PASS observed=REFUSED",
+		// r9: the real probe of a closed port is REFUSED, STAND_IN on this
+		// stand-in run, never PASS.
+		"denied-rpc:" + spec.DeniedRPC[0] + " STAND_IN observed=REFUSED",
 		t18rhApplyNoop,
 		t18rhNote,
 		"positive-request COVERED_BY_HOSTED pin=TestPX1CoreServiceG2FailClosed commit=" + t18rhCommit + " run=" + t18rhRunAW + " job=px1-core-gate host=not-sent positive_path=mainnet-smoke-gate",
@@ -1963,5 +2003,123 @@ func TestT18RealHostAccountGroupSet(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Claim (r9, mutants of the denied-rpc liveness rule): every control below
+// passes on this runner, and each mutant, one textual edit that reverts or
+// narrows one part of the rule, is killed by its named control (the control
+// fails on the mutant). A mutant whose edit matches the source other than
+// exactly once fails the test, so a mutant cannot silently vanish. The full
+// kill matrix is logged. Limit: one mutant per rule part; this shows the
+// controls detect these regressions, not every possible one.
+func TestT18RealHostRPCLivenessMutants(t *testing.T) {
+	kit := t18rhKit(t)
+	src, e := os.ReadFile(t18rhScript)
+	if e != nil {
+		t.Fatal(e)
+	}
+	dir := t.TempDir()
+	f := t18rhFixture(t)
+	target := f.spec.DeniedRPC[0]
+	rpc := "denied-rpc:" + target
+	code, real := f.report(t, "real")
+	code2, standIn := f.report(t, "stand-in")
+	if code != 0 || code2 != 0 {
+		t.Fatal("T18RH_MUTANT setup", real, standIn)
+	}
+	write := func(name, text string) string {
+		path := filepath.Join(dir, name)
+		if e := os.WriteFile(path, []byte(text), 0600); e != nil {
+			t.Fatal(e)
+		}
+		return path
+	}
+	edit := func(text, old, repl string) string {
+		if strings.Count(text, old) != 1 {
+			t.Fatalf("T18RH_MUTANT setup edit %q", old)
+		}
+		return strings.Replace(text, old, repl, 1)
+	}
+	refusedPass := write("refused-pass.txt", edit(real, "\n"+rpc+" PASS observed=HTTP_401\n", "\n"+rpc+" PASS observed=REFUSED\n"))
+	notLive := write("not-live.txt", regexp.MustCompile(`(?m)^node-txindex PASS .*$`).ReplaceAllString(real, "node-txindex FAIL getindexinfo=missing"))
+	standIn401 := write("stand-in-401.txt", edit(standIn, "\n"+rpc+" PASS observed=HTTP_401\n", "\n"+rpc+" STAND_IN observed=HTTP_401\n"))
+	refused := t18rhFixture(t)
+	refused.probes(t, map[string]string{target: "REFUSED"})
+	dead := t18rhFixture(t)
+	dead.write(t, "op/txindex.json", "")
+	report := func(script string, g *t18rhFix, wallet string) (int, string) {
+		return t18rhRunScript(t, script, kit, "report", g.op, g.ag, g.rendered, g.params, wallet)
+	}
+	check := func(script, path string) (int, string) {
+		return t18rhRunScript(t, script, kit, "check", path, f.renderedSpec)
+	}
+	controls := []struct {
+		name string
+		ok   func(script string) bool
+	}{
+		{"report/real-node-stopped", func(s string) bool {
+			c, out := report(s, refused, "real")
+			return c == 1 && strings.Contains(out, "\n"+rpc+" FAIL observed=REFUSED reason=node-not-listening\n")
+		}},
+		{"report/stand-in-refused", func(s string) bool {
+			c, out := report(s, refused, "stand-in")
+			return c == 0 && strings.Contains(out, "\n"+rpc+" STAND_IN observed=REFUSED\n")
+		}},
+		{"report/401-node-not-live", func(s string) bool {
+			c, out := report(s, dead, "real")
+			return c == 1 && strings.Contains(out, "\n"+rpc+" FAIL observed=HTTP_401 reason=node-liveness-unproven\n")
+		}},
+		{"check/refused-as-pass", func(s string) bool {
+			c, out := check(s, refusedPass)
+			return c == 1 && strings.Contains(out, " rpc-pass-node-not-listening:"+rpc)
+		}},
+		{"check/pass-node-not-live", func(s string) bool {
+			c, out := check(s, notLive)
+			return c == 1 && strings.Contains(out, " rpc-pass-without-live-node")
+		}},
+		{"check/stand-in-401", func(s string) bool {
+			c, out := check(s, standIn401)
+			return c == 1 && strings.Contains(out, " rpc-stand-in-without-refused:"+rpc)
+		}},
+	}
+	mutants := []struct{ name, old, repl, killer string }{
+		// The r8 mapping: REFUSED is PASS on a live run.
+		{"report-refused-pass", `echo "denied-rpc:$rpc FAIL observed=$o reason=node-not-listening"`, `echo "denied-rpc:$rpc PASS observed=$o"`, "report/real-node-stopped"},
+		// REFUSED is PASS on a stand-in run.
+		{"report-stand-in-refused-pass", `echo "denied-rpc:$rpc STAND_IN observed=$o"`, `echo "denied-rpc:$rpc PASS observed=$o"`, "report/stand-in-refused"},
+		// A 401 or 403 passes without node liveness.
+		{"report-no-liveness", `if [ "$node_live" = 1 ]; then`, `if true; then`, "report/401-node-not-live"},
+		// The r8 check rule: a PASS may show REFUSED.
+		{"check-accepts-refused", "if (o == \"REFUSED\") bad(\"rpc-pass-node-not-listening:\" id)\n\t\t\t\telse if (o != \"HTTP_401\" && o != \"HTTP_403\")", "if (o != \"HTTP_401\" && o != \"HTTP_403\" && o != \"REFUSED\")", "check/refused-as-pass"},
+		// check drops the liveness binding to node-txindex.
+		{"check-no-liveness", `if (rpc_pass && vv["node-txindex"] != "PASS") bad("rpc-pass-without-live-node")`, ``, "check/pass-node-not-live"},
+		// check lets a denied-rpc row be STAND_IN for any observation.
+		{"check-stand-in-any", `if (v == "STAND_IN" && o != "REFUSED") bad("rpc-stand-in-without-refused:" id)`, ``, "check/stand-in-401"},
+	}
+	for _, c := range controls {
+		if !c.ok(t18rhScript) {
+			t.Fatalf("T18RH_MUTANT control %s fails on the runner itself", c.name)
+		}
+	}
+	for _, m := range mutants {
+		if strings.Count(string(src), m.old) != 1 {
+			t.Fatalf("T18RH_MUTANT %s: the edit matches the runner %d times, want 1", m.name, strings.Count(string(src), m.old))
+		}
+		script := write(m.name+".sh", strings.Replace(string(src), m.old, m.repl, 1))
+		var killed []string
+		for _, c := range controls {
+			if !c.ok(script) {
+				killed = append(killed, c.name)
+			}
+		}
+		t.Logf("T18RH_MUTANT %s killed by %s", m.name, strings.Join(killed, ","))
+		found := false
+		for _, k := range killed {
+			found = found || k == m.killer
+		}
+		if !found {
+			t.Fatalf("T18RH_MUTANT %s survived its control %s", m.name, m.killer)
+		}
 	}
 }
