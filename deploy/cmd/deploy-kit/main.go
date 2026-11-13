@@ -24,6 +24,11 @@ func run(args []string) error {
 	if len(args) == 0 {
 		return errors.New("usage: deploy-kit build|validate|check-coins|check-model-terms|render-install-anchor|g2-render|g2-host-flow|g2-agent-groups|g2-custody-probe|g2-custody-verify|g2-funded-preflight|g2-custody-hash [flags]")
 	}
+	if args[0] == "g2-keygen" || args[0] == "g2-rpcauth" {
+		// A closed stdout pipe must return EPIPE to secret-file rollback,
+		// rather than terminate this command before cleanup can run.
+		signal.Ignore(syscall.SIGPIPE)
+	}
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	switch args[0] {
 	case "g2-render":

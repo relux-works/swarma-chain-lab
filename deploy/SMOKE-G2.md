@@ -196,15 +196,20 @@ The file gets its final mode at creation. Owner and group stay root's; the
 chown is a separate operator step (§3).
 
 A command succeeds only after the file and parent directory are synced and
-its public stdout write succeeds. A stdout error exits nonzero and removes
+its public stdout write succeeds. These two commands ignore SIGPIPE so that
+a closed stdout pipe returns a write error and runs the same rollback as an
+invalid stdout descriptor (EBADF). A stdout error exits nonzero and removes
 the newly created credential file, permitting retry. A removal or directory
 sync failure is reported alongside the output error; check the destination
 before retrying in that case. Already emitted public bytes cannot be recalled:
 discard incomplete public output (including any appended rpcauth lines) before
 retrying. Neither stdout nor the diagnostic contains the private scalar or
-RPC passwords. This recovery applies to returned errors; a killed process or
-power loss between file creation and stdout publication can leave a file that
-requires operator recovery.
+RPC passwords. Keeping file creation and sync before public output prevents
+publishing keys or rpcauth lines when file creation fails. This recovery covers
+stdout write errors, including closed pipes; an external kill or power loss
+between file creation and stdout publication can still leave a file that
+requires operator recovery. A successful write means the stream accepted the
+public bytes; it cannot guarantee that a downstream reader saved them.
 
 **Keys, before the parameters are final.** The printed x-only keys are the
 parameters' `grantee` and `receipt_pubkey`:
