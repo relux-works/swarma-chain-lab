@@ -98,15 +98,42 @@ and stops on any refusal:
 deploy-kit g2-funded-preflight -params "$PARAMS"
 ```
 
-It parses the file with the `g2-render` parser and returns that parser's
-refusal unchanged (which already refuses `grantee == receipt_pubkey` and an
-all-zero canary txid). It then refuses, one named stderr line each and exit 1:
+It parses the file with the `g2-render` parser (which already refuses
+`grantee == receipt_pubkey` and an all-zero canary txid). Parser refusals
+preserve the parser's error class and add safe schema member names for
+missing/null/mistyped members, placeholders, equal keys and an all-zero
+canary; network failures name both chain pins. Other canonical or semantic
+failures name `parameters`. Supplied values and unknown member names are
+never echoed. It then refuses, one named stderr line each and exit 1:
 a `grantee` or `receipt_pubkey` that is `x(k·G)` for `1 ≤ k ≤ 1024`
-(`SMALL_SCALAR_KEY`), a BIP-340 test-vector key #0–#3 (`BIP340_VECTOR_KEY`)
+(`SMALL_SCALAR_KEY`), a published-secret BIP-340 test-vector key #0–#3 or #15–#18
+(`BIP340_VECTOR_KEY`; rows 15–18 share one key)
 or an x-only key of this repository's G2 test fixtures (`FIXTURE_TEST_KEY`),
 and a canary txid whose 32 bytes are all one value (`DUMMY_CANARY_TXID`). Only
 then does it print `G2_FUNDED_PREFLIGHT_OK` and exit 0. It judges nothing
-else.
+else. This command has no release-policy input: it does not validate release
+versions, commits or binary hashes. Its stricter funded-only key set is not
+shared with the rehearsal renderer.
+
+#### Preflight validation tools
+
+From `deploy/`, with the repository's Go toolchain and `GOTOOLCHAIN=local`:
+
+```sh
+go vet ./...
+go test -race -count=1 ./...
+go test -count=1 -v -run '^TestG2FundedPreflight' ./cmd/deploy-kit
+```
+
+The public-entry test builds the real command with `go build` and runs it
+under Linux `strace` (required on Linux). It observes file/network attempts
+and process exit for success and refusals, checks input bytes afterwards,
+and admits only named loader/Go-runtime bootstrap reads in addition to the
+parameters file. Synthetic trace controls pin forbidden writes, extra reads,
+network attempts and child execution. Built binaries, parameters and traces
+use Go's test temporary directories and are removed by the test harness.
+Other platforms explicitly skip the Linux observer. These static synthetic
+controls do not attest a funded station or a release.
 
 ## 2. Render
 

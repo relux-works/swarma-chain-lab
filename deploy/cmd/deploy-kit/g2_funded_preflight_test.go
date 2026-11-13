@@ -17,14 +17,15 @@ import (
 	"github.com/relux-works/swarma-chain-lab/deploy"
 )
 
-// BIP-340 test vectors #0-#3, "public key" column of rows index 0..3 of
-// https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
+// BIP-340 test vectors #0-#3 and #15-#18, distinct "public key" column entries.
+// https://github.com/bitcoin/bips/blob/200f9b26fe0a2f235a2af8b30c4be9f12f6bc9cb/bip-0340/test-vectors.csv
 // (lowercased). The product derives these from the "secret key" column.
-var bip340PublishedKeys = [4]string{
+var bip340PublishedKeys = [...]string{
 	"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
 	"dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659",
 	"dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8",
 	"25d1dff95105f5253c4022f628a996ad3a0d95fbf21d468a1b33f8c160d8f517",
+	"778caa53b4393ac467774d09497a87224bf9fab6f6e68b23086497324d6fd117",
 }
 
 func scalarKey(k uint32) string {
@@ -67,9 +68,8 @@ func writeG2Params(t *testing.T, p deploy.G2PayParameters) (dir, path string) {
 	return dir, path
 }
 
-// runFundedPreflight runs the command on p and also checks it is read-only:
-// the parameters directory holds only the parameters file afterwards, and
-// nothing is printed on a refusal.
+// runFundedPreflight checks function output and the local fixture directory.
+// The separate built-main observer checks the process I/O and exit contract.
 func runFundedPreflight(t *testing.T, p deploy.G2PayParameters) (string, error) {
 	t.Helper()
 	dir, path := writeG2Params(t, p)
@@ -147,10 +147,11 @@ func TestG2FundedPreflightRehearsalKeys(t *testing.T) {
 	}
 }
 
-// Claim: the product's BIP-340 vector keys #0-#3, derived from the published
+// Claim: the product's BIP-340 vector keys #0-#3 and #15-#18, derived from the published
 // secret keys, equal the published public keys, and each is refused as
 // grantee and as receipt_pubkey (#0, secret 3, also as k=3).
 func TestG2FundedPreflightBIP340Vectors(t *testing.T) {
+	vectorIDs := [...]string{"0", "1", "2", "3", "15-18"}
 	for i, published := range bip340PublishedKeys {
 		b, _ := hex.DecodeString(g2BIP340VectorSecrets[i])
 		var s secp256k1.ModNScalar
@@ -164,7 +165,7 @@ func TestG2FundedPreflightBIP340Vectors(t *testing.T) {
 			} else {
 				p.ReceiptPubkey = published
 			}
-			want := []string{"BIP340_VECTOR_KEY " + field + " vector=" + strconv.Itoa(i)}
+			want := []string{"BIP340_VECTOR_KEY " + field + " vector=" + vectorIDs[i]}
 			if i == 0 {
 				want = append([]string{"SMALL_SCALAR_KEY " + field + " k=3"}, want...)
 			}
@@ -211,7 +212,7 @@ func TestG2FundedPreflightCanary(t *testing.T) {
 	}
 	p := fundedParams()
 	p.G2.Canary.Outpoint.TxID = strings.Repeat("00", 32)
-	if _, e := runFundedPreflight(t, p); e != deploy.ErrPolicy {
+	if _, e := runFundedPreflight(t, p); !errors.Is(e, deploy.ErrPolicy) {
 		t.Fatal("all-zero canary not the parser's refusal", e)
 	}
 	wantFundedRefusal(t, "canary-00-check", g2FundedCheck(p), "DUMMY_CANARY_TXID g2.canary.outpoint.txid byte=00")
@@ -223,7 +224,7 @@ func TestG2FundedPreflightCanary(t *testing.T) {
 }
 
 // Claim: input the g2-render parser refuses is refused with that parser's
-// sentinel and no funded refusal: malformed JSON, an unknown member, a
+// sentinel (with a safe field annotation) and no funded refusal: malformed JSON, an unknown member, a
 // PLACEHOLDER, a test network, grantee == receipt_pubkey (rule 5 is the
 // parser's), a missing file and an extra argument.
 func TestG2FundedPreflightParserRefusals(t *testing.T) {
@@ -252,7 +253,7 @@ func TestG2FundedPreflightParserRefusals(t *testing.T) {
 		var out bytes.Buffer
 		e := g2FundedPreflight([]string{"-params", path}, &out)
 		var rs g2FundedRefusals
-		if e != c.want || errors.As(e, &rs) || out.Len() != 0 {
+		if !errors.Is(e, c.want) || errors.As(e, &rs) || out.Len() != 0 {
 			t.Fatalf("%s: got %v %q, want the parser's %v", c.name, e, out.String(), c.want)
 		}
 	}
