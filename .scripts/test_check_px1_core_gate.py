@@ -6,11 +6,14 @@ Each case writes a synthetic `go test -json` stream built from the real gate
 manifest and runs the checker CLI exactly as CI does. PX1_GATE_CHECKER may
 point at a mutated copy of the checker for gate-mutation runs. W2Gate holds
 the controls of the w2-core job (.scripts/w2-core-gate.json, the legacy W2
-Core tests).
+Core tests); it finds the newCore users with the Go syntax-tree helper
+.scripts/w2-newcore-users.go, run with the go on PATH (W2_NEWCORE_HELPER may
+point at a mutated copy of the helper).
 """
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -26,24 +29,66 @@ W2 = REPO / ".scripts" / "w2-core-gate.json"
 WALLET = REPO / "experiments" / "agent-wallet"
 WORKFLOW = REPO / ".github" / "workflows" / "agent-wallet.yml"
 INTERFACES = REPO / "experiments" / "agent-wallet" / "PX1-INTERFACES.md"
-FUNC = re.compile(r"^func (?:\([^)]*\)\s*)?([A-Za-z0-9_]+)\(")
+NEWCORE_HELPER = Path(os.environ.get("W2_NEWCORE_HELPER", REPO / ".scripts" / "w2-newcore-users.go"))
 
 
 def newcore_users(directory=WALLET):
-    """(tests, helpers): the top-level Test functions of the package's
-    *_test.go files whose body calls newCore (the W2 grant fixture), and any
-    other function that calls it (an indirect user the manifest could miss)."""
-    tests, helpers = set(), set()
-    for path in sorted(Path(directory).glob("*_test.go")):
-        name, body = None, []
-        for line in path.read_text(encoding="utf-8").splitlines() + ["func end("]:
-            m = FUNC.match(line)
-            if m:
-                if name and name != "newCore" and any("newCore(" in b for b in body):
-                    (tests if name.startswith("Test") else helpers).add(name)
-                name, body = m.group(1), []
-            body.append(line)
-    return sorted(tests), sorted(helpers)
+    """(tests, helpers) from the Go syntax tree of the package's *_test.go
+    files (.scripts/w2-newcore-users.go): the Test functions whose body
+    references the identifier newCore (the W2 grant fixture) in any form, and
+    every other top-level declaration that references it (an indirect user
+    the manifest could miss). Never a text match: comments and strings do not
+    count, (newCore)(t) and f := newCore do. Raises if go is missing or the
+    helper fails (no test file, a parse error, not exactly one func newCore)."""
+    go = shutil.which("go")
+    if go is None:
+        raise RuntimeError("go is not on PATH")
+    r = subprocess.run([go, "run", str(NEWCORE_HELPER), "-dir", str(directory)], cwd=REPO,
+                       env=dict(os.environ, GOTOOLCHAIN="local"), capture_output=True, text=True, timeout=300)
+    if r.returncode != 0:
+        raise RuntimeError(f"w2-newcore-users exit {r.returncode}: {r.stderr.strip()}")
+    out = json.loads(r.stdout)
+    return out["tests"], out["helpers"]
+
+
+def w2_manifest_errors(manifest, directory=WALLET):
+    """Why the W2 manifest is not exactly the newCore tests of the tree, each
+    once under its own core-only label; empty when it is."""
+    tests, helpers = newcore_users(directory)
+    core = manifest.get("core_tests", [])
+    errors = [f"MISSING {n}" for n in sorted(set(tests) - set(core))]
+    errors += [f"NOT_NEWCORE_USER {n}" for n in sorted(set(core) - set(tests))]
+    errors += [f"INDIRECT_USER {n}" for n in helpers]
+    if len(core) != len(set(core)):
+        errors.append("DUPLICATE_TEST")
+    labels = ["W2-" + n[len("Test"):] for n in core]
+    if manifest.get("labels") != labels or set(manifest.get("tids", {})) != set(labels):
+        errors.append("LABELS")
+    errors += [f"TID {label}" for label, n in zip(labels, core)
+               if manifest.get("tids", {}).get(label) != {"layers": ["core"], "core": [n]}]
+    if "core_runs" in manifest:
+        errors.append("CORE_RUNS")
+    return errors
+
+
+def with_tests(manifest, *names):
+    """The manifest with core-only labels for extra tests appended."""
+    m = json.loads(json.dumps(manifest))
+    for n in names:
+        label = "W2-" + n[len("Test"):]
+        m["core_tests"].append(n)
+        m["labels"].append(label)
+        m["tids"][label] = {"layers": ["core"], "core": [n]}
+    return m
+
+
+def tree_with(directory, files):
+    """A copy of the package's *_test.go files plus the given synthetic ones."""
+    for path in WALLET.glob("*_test.go"):
+        (Path(directory) / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    for name, text in files.items():
+        (Path(directory) / name).write_text(text, encoding="utf-8")
+    return directory
 
 
 def job_block(text, job):
@@ -427,30 +472,97 @@ class W2Gate(unittest.TestCase):
         for label, n in zip(m["labels"], m["core_tests"]):
             self.assertRegex(out, rf"(?m)^{label} PASS layers=core core: pass {n}$")
 
-    # Claim: the manifest requires exactly the tests that build their lab with
-    # newCore (the W2 grant fixture), each once under its own core-only label,
-    # and no other function calls newCore (no indirect user is missed).
-    # Controls: a source tree with an extra newCore test, and one with a
-    # helper that calls newCore, are both detected.
+    # Claim: the manifest requires exactly the Test functions whose body
+    # references newCore (the W2 grant fixture) in the Go syntax tree, each
+    # once under its own core-only label, and no other declaration references
+    # newCore (no indirect user is missed). Controls: a tree with an extra
+    # direct-call test and a method that calls newCore is detected.
     def test_w2_manifest_is_newcore_users(self):
         m = load(W2)
         tests, helpers = newcore_users()
         self.assertEqual(len(tests), 23)
         self.assertEqual(helpers, [])
         self.assertEqual(sorted(m["core_tests"]), tests)
-        self.assertEqual(m["labels"], ["W2-" + n[len("Test"):] for n in m["core_tests"]])
-        for label, n in zip(m["labels"], m["core_tests"]):
-            self.assertEqual(m["tids"][label], {"layers": ["core"], "core": [n]})
-        self.assertNotIn("core_runs", m)
+        self.assertEqual(w2_manifest_errors(m), [])
         with tempfile.TemporaryDirectory() as d:
-            for path in WALLET.glob("*_test.go"):
-                (Path(d) / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-            (Path(d) / "extra_test.go").write_text(
+            tree_with(d, {"extra_test.go":
                 "package wallet\n\nfunc TestCoreExtra(t *testing.T) {\n\tl := newCore(t)\n\t_ = l\n}\n\n"
-                "func (x *coreLab) relab(t *testing.T) *coreLab {\n\treturn newCore(t)\n}\n", encoding="utf-8")
+                "func (x *coreLab) relab(t *testing.T) *coreLab {\n\treturn newCore(t)\n}\n"})
             tests, helpers = newcore_users(d)
             self.assertEqual(sorted(set(tests) - set(m["core_tests"])), ["TestCoreExtra"])
             self.assertEqual(helpers, ["relab"])
+
+    # Claim (known-bad controls beside passing neighbours): on a copy of the
+    # real tree plus one synthetic test file, the current manifest FAILS when
+    # the file adds a test that references newCore without the text
+    # "newCore(" - a parenthesised call (newCore)(t), a call through a local
+    # variable, newCore passed as an argument - and the same manifest
+    # completed with that test passes. A package-level alias of newCore is an
+    # indirect user that fails every manifest. A test that names newCore only
+    # in a comment and a string is not a user: the current manifest passes and
+    # a manifest naming that test FAILS. Each verdict is the exact error list.
+    # Limit: the helper reads syntax, not types (a shadowing local named
+    # newCore also counts: an over-count, never an under-count).
+    def test_w2_manifest_ast_controls(self):
+        m = load(W2)
+        head = "package wallet\n\nimport \"testing\"\n\n"
+        cases = [
+            ("paren", "func TestCoreParenCall(t *testing.T) {\n\tl := (newCore)(t)\n\t_ = l\n}\n",
+             ["MISSING TestCoreParenCall"], "TestCoreParenCall", []),
+            ("local", "func TestCoreLocalCall(t *testing.T) {\n\tbuild := newCore\n\tl := build(t)\n\t_ = l\n}\n",
+             ["MISSING TestCoreLocalCall"], "TestCoreLocalCall", []),
+            ("argument", "func TestCoreFixtureArg(t *testing.T) {\n"
+             "\tfunc(mk func(*testing.T) *coreLab) { _ = mk(t) }(newCore)\n}\n",
+             ["MISSING TestCoreFixtureArg"], "TestCoreFixtureArg", []),
+            ("alias", "var buildCore = newCore\n\nfunc TestCoreAliasCall(t *testing.T) {\n\tl := buildCore(t)\n\t_ = l\n}\n",
+             ["INDIRECT_USER buildCore"], "TestCoreAliasCall",
+             ["NOT_NEWCORE_USER TestCoreAliasCall", "INDIRECT_USER buildCore"]),
+            ("mention", "func TestCoreMentionOnly(t *testing.T) {\n\t// newCore(t) is not called here.\n"
+             "\tt.Log(\"newCore(t)\")\n}\n",
+             [], "TestCoreMentionOnly", ["NOT_NEWCORE_USER TestCoreMentionOnly"]),
+        ]
+        self.assertEqual(w2_manifest_errors(m), [])
+        for name, src, current, test, completed in cases:
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as d:
+                tree_with(d, {"synthetic_test.go": head + src})
+                self.assertEqual(w2_manifest_errors(m, d), current)
+                self.assertEqual(w2_manifest_errors(with_tests(m, test), d), completed)
+
+    # Claim (known-bad manifests on the real tree, beside the current one that
+    # passes): a manifest naming a real test that does not reference newCore,
+    # one naming a test that does not exist, and one that omits a newCore test
+    # each FAIL with exactly that error.
+    def test_w2_manifest_wrong_tests_fail(self):
+        m = load(W2)
+        self.assertEqual(w2_manifest_errors(m), [])
+        self.assertEqual(w2_manifest_errors(with_tests(m, "TestDK5InstalledMode")),
+                         ["NOT_NEWCORE_USER TestDK5InstalledMode"])
+        self.assertEqual(w2_manifest_errors(with_tests(m, "TestCoreAbsent")), ["NOT_NEWCORE_USER TestCoreAbsent"])
+        short = json.loads(json.dumps(m))
+        short["core_tests"].remove("TestCoreRevocation")
+        short["labels"].remove("W2-CoreRevocation")
+        del short["tids"]["W2-CoreRevocation"]
+        self.assertEqual(w2_manifest_errors(short), ["MISSING TestCoreRevocation"])
+
+    # Claim: the helper fails closed instead of reporting no users: a tree
+    # with a file that does not parse, a tree that does not declare func
+    # newCore, and a directory without test files each raise, beside the real
+    # tree copy that reads cleanly (the controls above).
+    def test_w2_newcore_helper_fails_closed(self):
+        bad = {
+            "parse": ({"broken_test.go": "package wallet\n\nfunc TestCoreBroken(t *testing.T) {\n\tnewCore(t\n}\n"},
+                      r"W2_NEWCORE_USERS_ERROR .*broken_test\.go:4:"),
+            "no fixture": (None, r"W2_NEWCORE_USERS_ERROR 0 top-level func newCore declarations"),
+            "empty": ({}, r"W2_NEWCORE_USERS_ERROR no \*_test\.go file"),
+        }
+        for name, (files, reason) in bad.items():
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as d:
+                if files is None:
+                    (Path(d) / "unit_test.go").write_text("package wallet\n\nfunc TestUnit(t *testing.T) {}\n", encoding="utf-8")
+                elif files:
+                    tree_with(d, files)
+                with self.assertRaisesRegex(RuntimeError, reason):
+                    newcore_users(d)
 
     # Claim (known-bad controls): for EVERY W2 Core test, a skip, a failure or
     # a missing stream fails the gate (exit 1) with REQUIRED_SKIPPED,
