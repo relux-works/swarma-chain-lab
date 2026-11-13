@@ -23,15 +23,16 @@
 # evidence shows that any frame was sent.
 #
 #   t18-real-host-report.sh node-capture OUT SPEC -- CLI [CLI-OPTION...]
-#       as the node's operator (r10): one node call, `CLI CLI-OPTION...
-#       -rpcconnect=HOST -rpcport=PORT getindexinfo txindex`, against the one
+#       as the node's operator: one node call, `CLI -datadir=EMPTY_TEMP_DIR
+#       -conf=/dev/null -rpccookiefile=COOKIE -rpcconnect=HOST -rpcport=PORT
+#       getindexinfo txindex`, against the one
 #       denied_rpc entry HOST:PORT of SPEC, bracketed by two UTC times taken
 #       by this script. OUT (new) gets the capture: the lines
 #       `T18-NODE-CAPTURE v1`, `rpc=HOST:PORT`, `start=<UTC>`, `end=<UTC>`,
 #       `exit=<n>` and `answer=<answer without white space>`. The method is
-#       fixed here; CLI-OPTION may only be -datadir=, -conf=, -rpccookiefile=,
-#       -chain= or -rpcclienttimeout=, so no other call (no wallet call, no
-#       -getinfo, no -generate) can be made through this mode
+#       fixed here; CLI-OPTION may only be -datadir=, -conf=, -rpccookiefile=.
+#       The datadir locates the cookie; -conf is ignored. No operator option
+#       or config is passed through, including default/included configs.
 #   t18-real-host-report.sh operator OPDIR PARAMS RENDERED CAPTURE
 #       as the operator (no root needed): re-render, account checks, txindex.
 #       CAPTURE is the pre-probe node capture (node-capture output, kept as
@@ -51,7 +52,8 @@
 #       r9 rule, the pre-probe capture (OPDIR/node-pre.txt) and the post-probe
 #       capture (OPDIR/node-post.txt) both name the row's target, carry their
 #       times, and pre start <= pre end <= probe start <= probe end <= post
-#       start <= post end, and the post-probe answer is synced; a denied-read
+#       start <= post end, both calls exited 0 with synced answers and the
+#       pre answer equals node-txindex; a denied-read
 #       row is PASS only when OPDIR/denied-paths-stat.txt holds exactly one
 #       `exists=yes` line for its path. Stand-in runs are unchanged
 #   t18-real-host-report.sh report OPDIR AGDIR RENDERED PARAMS real|stand-in
@@ -390,20 +392,33 @@ node_capture() {
 	[ -n "$host" ] && [ "$host" != "$rpc" ] || usage
 	cli=$1
 	shift
+	# Operator configuration is never loaded by the CLI. These options only
+	# locate the cookie; -conf is accepted for compatibility and ignored.
+	cookie= datadir=${HOME:?}/.namecoin
 	for a in "$@"; do
 		case $a in
-		-datadir=?* | -conf=?* | -rpccookiefile=?* | -chain=?* | -rpcclienttimeout=?*) ;;
+		-datadir=?*) datadir=${a#*=} ;;
+		-conf=?*) ;;
+		-rpccookiefile=?*) cookie=${a#*=} ;;
 		*)
-			echo "REFUSED node-capture option not allowed (allowed: -datadir= -conf= -rpccookiefile= -chain= -rpcclienttimeout=)" >&2
+			echo "REFUSED node-capture option not allowed (allowed: -datadir= -conf= -rpccookiefile=)" >&2
 			exit 64
 			;;
 		esac
 	done
+	case $datadir in /*) ;; *) datadir=$PWD/$datadir ;; esac
+	cookie=${cookie:-$datadir/.cookie}
+	case $cookie in /*) ;; *) cookie=$datadir/$cookie ;; esac
 	umask 022
 	(set -C && : >"$out") || usage
-	ans=$(mktemp) || exit 1
+	# A private empty datadir also isolates the CLI from its default config.
+	# No operator option reaches the executable; /dev/null cannot include a
+	# config-selected handler (generate, getinfo, rpcwallet, includeconf, ...).
+	capture_tmp=$(mktemp -d) || exit 1
+	trap 'rm -rf -- "$capture_tmp"' EXIT
+	ans=$capture_tmp/answer
 	start=$(utc_now)
-	"$cli" "$@" -rpcconnect="$host" -rpcport="$port" getindexinfo txindex >"$ans" 2>/dev/null && st=0 || st=$?
+	"$cli" -datadir="$capture_tmp" -conf=/dev/null -rpccookiefile="$cookie" -rpcconnect="$host" -rpcport="$port" getindexinfo txindex >"$ans" 2>/dev/null && st=0 || st=$?
 	end=$(utc_now)
 	{
 		echo "$capture_head"
@@ -704,11 +719,14 @@ report_items() {
 	#    given before the probe began and the post-probe answer after it
 	#    ended, so the node answered at that address on both sides of the
 	#    probe's whole window;
-	#  - the post-probe call exited 0 with a synced answer (else
-	#    reason=capture-not-synced); the pre-probe answer is node-txindex.
+	#  - the pre-probe call exited 0 with a synced answer exactly matching
+	#    node-txindex (pre-capture-failed, pre-capture-not-synced or
+	#    pre-capture-answer-mismatch); the post-probe call also exited 0 with
+	#    a synced answer (capture-not-synced).
 	# Stand-in runs read no capture: their rows are as in r9.
 	pre=$op/node-pre.txt post=$op/node-post.txt win=$ag/probe-window.txt
 	l_pr=$(cap_val "$pre" rpc) l_ps=$(cap_val "$pre" start) l_pe=$(cap_val "$pre" end)
+	l_px=$(cap_val "$pre" exit) l_pa=$(cap_val "$pre" answer)
 	l_ws=$(kv_once probe_start "$win") l_we=$(kv_once probe_end "$win")
 	l_qr=$(cap_val "$post" rpc) l_qs=$(cap_val "$post" start) l_qe=$(cap_val "$post" end)
 	l_qx=$(cap_val "$post" exit) l_qa=$(cap_val "$post" answer)
@@ -721,7 +739,7 @@ report_items() {
 			elif [ "$wallet" != real ]; then
 				echo "denied-rpc:$rpc PASS observed=$o"
 			else
-				lv="pre_rpc=$(tok "$l_pr") pre_start=$(tok "$l_ps") pre_end=$(tok "$l_pe") probe_start=$(tok "$l_ws") probe_end=$(tok "$l_we") post_rpc=$(tok "$l_qr") post_start=$(tok "$l_qs") post_end=$(tok "$l_qe") post_getindexinfo=$(tok "$l_qa")"
+				lv="pre_rpc=$(tok "$l_pr") pre_start=$(tok "$l_ps") pre_end=$(tok "$l_pe") pre_exit=$(tok "$l_px") pre_getindexinfo=$(tok "$l_pa") probe_start=$(tok "$l_ws") probe_end=$(tok "$l_we") post_rpc=$(tok "$l_qr") post_start=$(tok "$l_qs") post_end=$(tok "$l_qe") post_exit=$(tok "$l_qx") post_getindexinfo=$(tok "$l_qa")"
 				why=
 				for x in "$l_ps" "$l_pe" "$l_ws" "$l_we" "$l_qs" "$l_qe"; do
 					is_ts "$x" || why=capture-time-missing
@@ -731,6 +749,15 @@ report_items() {
 				fi
 				if [ -z "$why" ] && ! ordered "$l_ps" "$l_pe" "$l_ws" "$l_we" "$l_qs" "$l_qe"; then
 					why=window-not-bracketed
+				fi
+				if [ -z "$why" ] && [ "$l_px" != 0 ]; then
+					why=pre-capture-failed
+				fi
+				if [ -z "$why" ] && ! printf '%s\n' "$l_pa" | grep -Eq "$synced_re"; then
+					why=pre-capture-not-synced
+				fi
+				if [ -z "$why" ] && [ "$l_pa" != "$tx" ]; then
+					why=pre-capture-answer-mismatch
 				fi
 				if [ -z "$why" ] && { [ "$l_qx" != 0 ] || ! printf '%s\n' "$l_qa" | grep -Eq "$synced_re"; }; then
 					why=capture-not-synced
@@ -916,7 +943,7 @@ check_report() {
 		# r10: on a live run a denied-read PASS carries its root-side stat and
 		# a denied-rpc PASS its two node captures and the probe window.
 		schema["denied-read-live"] = "observed exists type owner mode"
-		schema["denied-rpc-live"] = "observed pre_rpc pre_start pre_end probe_start probe_end post_rpc post_start post_end post_getindexinfo"
+		schema["denied-rpc-live"] = "observed pre_rpc pre_start pre_end pre_exit pre_getindexinfo probe_start probe_end post_rpc post_start post_end post_exit post_getindexinfo"
 		schema["peer-precondition"] = "perl_v"
 		schema["allowed-socket"] = "wallet probe peer_uid service_uid socket socket_gid"
 		schema["custody-verify"] = "uid verified"
@@ -1063,9 +1090,13 @@ check_report() {
 				if (fv["pre_rpc"] != tgt || fv["post_rpc"] != tgt) bad("rpc-pass-capture-port-mismatch:" id)
 				if (!ts(fv["pre_start"]) || !ts(fv["pre_end"]) || !ts(fv["probe_start"]) || !ts(fv["probe_end"]) || !ts(fv["post_start"]) || !ts(fv["post_end"])) bad("rpc-pass-capture-time-missing:" id)
 				else if (!(fv["pre_start"] <= fv["pre_end"] && fv["pre_end"] <= fv["probe_start"] && fv["probe_start"] <= fv["probe_end"] && fv["probe_end"] <= fv["post_start"] && fv["post_start"] <= fv["post_end"])) bad("rpc-pass-window-not-bracketed:" id)
-				if (fv["post_getindexinfo"] !~ /^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$/) bad("rpc-pass-capture-not-synced:" id)
+				if (fv["pre_exit"] != "0") bad("rpc-pass-pre-capture-failed:" id)
+				if (fv["pre_getindexinfo"] !~ /^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$/) bad("rpc-pass-pre-capture-not-synced:" id)
+				rpc_pre[id] = fv["pre_getindexinfo"]
+				if (fv["post_exit"] != "0" || fv["post_getindexinfo"] !~ /^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$/) bad("rpc-pass-capture-not-synced:" id)
 			}
 		}
+		if (id == "node-txindex") node_answer = fv["getindexinfo"]
 		if (id == "node-txindex" && fv["getindexinfo"] !~ /^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$/) bad("txindex-pass-without-synced-index")
 		if (id == "render" && (fv["files"] != "6" || !hex64(fv["custody_spec_file_sha256"]))) bad("render-pass-without-six-files")
 		# The render line names the SHA-256 of the given spec file (r5).
@@ -1122,6 +1153,7 @@ check_report() {
 		if (napply > 1 || (account_pass && napply != 1)) bad("apply-noop-line")
 		if (nnote != 1) bad("positive-path-statement")
 		# Contradictions between items.
+		for (id in rpc_pre) if (rpc_pre[id] != node_answer) bad("rpc-pass-pre-capture-answer-mismatch:" id)
 		if (rpc_pass && vv["node-txindex"] != "PASS") bad("rpc-pass-without-live-node")
 		if (vv["status-dir"] != "" && vv["status-dir"] != "FAIL" && (vv["denied-read:" status_dir] != vv["status-dir"] || read_o[status_dir] != status_o)) bad("status-dir-contradicts-denied-read")
 		if (vv["positive-request"] == "COVERED_BY_HOSTED") {

@@ -270,8 +270,15 @@ live node. Proving that whitelist against a live node is the job of the G2
 real-host qualification: its runner (`deploy/t18-real-host-report.sh`,
 [T18-REAL-HOST.md](T18-REAL-HOST.md)) passes a live run's RPC item only for
 an explicit HTTP 401 or 403 with authenticated `getindexinfo` answers from
-the same address before and after the probe, and never for a refused
-connection. The product rule is unchanged.
+the same address before and after the probe. Both captures must record
+exit 0 and synced answers; the pre-capture answer must exactly agree with
+node-txindex. The capture helper isolates the CLI with an empty temporary
+datadir, `-conf=/dev/null`, an explicit cookie, and the spec's fixed RPC
+host/port plus `getindexinfo txindex`. Its only accepted locating inputs are
+`-datadir=`, `-conf=` (ignored) and `-rpccookiefile=`; no operator option or
+configuration reaches the CLI. See the exact command and refusal table in
+T18-REAL-HOST.md §3. A refused connection never passes qualification. The
+product rule is unchanged.
 
 The evidence directory keeps `credentials.txt`, `credentials-check.txt`, `custody-report.json`, the
 positive request and receipt, the verify output, and `exits.txt`. Keep it with

@@ -13,6 +13,8 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -89,8 +91,8 @@ func t18rhStat(p string) string {
 
 // t18rhLiveFields is the r10 evidence of a live denied-rpc PASS row for target.
 func t18rhLiveFields(target string) string {
-	return "pre_rpc=" + target + " pre_start=" + t18rhPreStart + " pre_end=" + t18rhPreEnd + " probe_start=" + t18rhProbeStart + " probe_end=" + t18rhProbeEnd +
-		" post_rpc=" + target + " post_start=" + t18rhPostStart + " post_end=" + t18rhPostEnd + " post_getindexinfo=" + t18rhPostAnswer
+	return "pre_rpc=" + target + " pre_start=" + t18rhPreStart + " pre_end=" + t18rhPreEnd + " pre_exit=0 pre_getindexinfo=" + t18rhPreAnswer + " probe_start=" + t18rhProbeStart + " probe_end=" + t18rhProbeEnd +
+		" post_rpc=" + target + " post_start=" + t18rhPostStart + " post_end=" + t18rhPostEnd + " post_exit=0 post_getindexinfo=" + t18rhPostAnswer
 }
 
 var (
@@ -2279,6 +2281,29 @@ func t18rhLiveReportCases(rpc0, read0 string) []t18rhLiveCase {
 		// FAIL capture-not-synced.
 		{"post-capture-not-synced", "real", post(rpc0, t18rhPostStart, t18rhPostEnd, "0", `{"txindex":{"synced":false,"best_block_height":812346}}`), 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-not-synced `},
 		{"post-capture-failed-call", "real", post(rpc0, t18rhPostStart, t18rhPostEnd, "1", ""), 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-not-synced .* post_getindexinfo=none$`},
+		// Claim: pre-capture status and answer must stand on their own; a
+		// separate synced txindex file cannot rescue failure, missing fields,
+		// an unsynced answer or a different successful answer.
+		{"pre-failed-empty", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/node-pre.txt", t18rhCapture(rpc0, t18rhPreStart, t18rhPreEnd, "1", ""))
+		}, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=pre-capture-failed `},
+		{"pre-failed-success-answer", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/node-pre.txt", t18rhCapture(rpc0, t18rhPreStart, t18rhPreEnd, "1", t18rhPreAnswer))
+		}, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=pre-capture-failed `},
+		{"pre-missing-exit-answer", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/node-pre.txt", strings.Replace(t18rhCapture(rpc0, t18rhPreStart, t18rhPreEnd, "0", t18rhPreAnswer), "exit=0\nanswer="+t18rhPreAnswer+"\n", "", 1))
+		}, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=pre-capture-failed `},
+		{"pre-missing-answer", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/node-pre.txt", t18rhCapture(rpc0, t18rhPreStart, t18rhPreEnd, "0", ""))
+		}, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=pre-capture-not-synced `},
+		{"pre-unsynced", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/node-pre.txt", t18rhCapture(rpc0, t18rhPreStart, t18rhPreEnd, "0", `{"txindex":{"synced":false,"best_block_height":0}}`))
+		}, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=pre-capture-not-synced `},
+		{"pre-answer-mismatch", "real", func(t *testing.T, f *t18rhFix) {
+			f.write(t, "op/node-pre.txt", t18rhCapture(rpc0, t18rhPreStart, t18rhPreEnd, "0", t18rhPostAnswer))
+		}, 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=pre-capture-answer-mismatch `},
+		// Claim: success-shaped stdout cannot hide a failed post call.
+		{"post-failed-success-answer", "real", post(rpc0, t18rhPostStart, t18rhPostEnd, "1", t18rhPostAnswer), 1, `^` + rpcRe + ` FAIL observed=HTTP_401 reason=capture-not-synced `},
 		// Claim: a denied path the root-side record lists as absent is FAIL
 		// path-absent; for the status directory status-dir FAILs with it.
 		{"path-absent", "real", func(t *testing.T, f *t18rhFix) { f.writeStats(t, map[string]string{read0: "exists=no"}) }, 1, `^` + readRe + ` FAIL observed=EACCES reason=path-absent$`},
@@ -2296,7 +2321,8 @@ func t18rhLiveReportCases(rpc0, read0 string) []t18rhLiveCase {
 
 // Claim (r10, QA decisions 1 and 2): on a live run (`real`) the composer
 // passes a denied-rpc row only with both node captures at the row's target,
-// bracketing the probe window, the post-probe answer synced; and a
+// bracketing the probe window, both calls successful and synced and the
+// pre answer bound to node-txindex; and a
 // denied-read row only when the root-side record lists its path once with
 // exists=yes. Every case of t18rhLiveReportCases (each with its own claim)
 // gives its named line, exit 1 and OVERALL FAIL, beside the valid live
@@ -2369,6 +2395,18 @@ func t18rhLiveCheckCases(t *testing.T, real, rpc0, read0 string) []struct{ name,
 	return []struct{ name, text, reason string }{
 		// Claim: a post-probe capture on another port is refused by name.
 		{"post-other-port", sub(" post_rpc="+rpc0+" ", " post_rpc=127.0.0.1:8337 "), "rpc-pass-capture-port-mismatch:denied-rpc:" + rpc0},
+		// Claim: independently changing only the stored pre target is refused.
+		{"pre-other-host", sub(" pre_rpc="+rpc0+" ", " pre_rpc=127.0.0.2:8336 "), "rpc-pass-capture-port-mismatch:denied-rpc:" + rpc0},
+		// Claim: stored pre evidence must record exit 0, a synced answer and
+		// exact agreement with node-txindex. Row order cannot bypass binding.
+		{"pre-failed-empty", sub(" pre_exit=0 pre_getindexinfo="+t18rhPreAnswer+" ", " pre_exit=1 pre_getindexinfo=none "), "rpc-pass-pre-capture-failed:denied-rpc:" + rpc0},
+		{"pre-failed-success-answer", sub(" pre_exit=0 ", " pre_exit=1 "), "rpc-pass-pre-capture-failed:denied-rpc:" + rpc0},
+		{"pre-missing-exit-answer", sub(" pre_exit=0 pre_getindexinfo="+t18rhPreAnswer+" ", " "), "rpc-pass-pre-capture-failed:denied-rpc:" + rpc0},
+		{"pre-missing-answer", sub(" pre_getindexinfo="+t18rhPreAnswer+" ", " "), "rpc-pass-pre-capture-not-synced:denied-rpc:" + rpc0},
+		{"pre-unsynced", sub(`pre_getindexinfo={"txindex":{"synced":true,`, `pre_getindexinfo={"txindex":{"synced":false,`), "rpc-pass-pre-capture-not-synced:denied-rpc:" + rpc0},
+		{"pre-answer-mismatch", sub(" pre_getindexinfo="+t18rhPreAnswer+" ", " pre_getindexinfo="+t18rhPostAnswer+" "), "rpc-pass-pre-capture-answer-mismatch:denied-rpc:" + rpc0},
+		// Claim: stored successful stdout still requires post exit 0.
+		{"post-failed-success-answer", sub(" post_exit=0 ", " post_exit=1 "), "rpc-pass-capture-not-synced:denied-rpc:" + rpc0},
 		// Claim: a post-probe capture taken before the probe ended is refused.
 		{"window-not-bracketed", sub(" post_start="+t18rhPostStart+" ", " post_start=2026-11-13T10:05:02.000000000Z "), "rpc-pass-window-not-bracketed:denied-rpc:" + rpc0},
 		// Claim: a PASS row without the times (the r9 row) or with a time in
@@ -2400,7 +2438,15 @@ func TestT18RealHostLiveAtProbeCheck(t *testing.T) {
 	if code != 0 || code2 != 0 {
 		t.Fatal("T18RH_LIVE_CHECK setup", real, standIn)
 	}
-	for name, text := range map[string]string{"valid-live": real, "valid-stand-in": standIn} {
+	// Claim: node-txindex binding holds when its row is read after the RPC
+	// row; the comparison is deferred, not dependent on composition order.
+	nodeRow := "node-txindex PASS getindexinfo=" + t18rhPreAnswer + "\n"
+	if strings.Count(real, nodeRow) != 1 {
+		t.Fatal("T18RH_LIVE_CHECK node row reorder did not apply exactly once")
+	}
+	reordered := strings.Replace(real, nodeRow, "", 1)
+	reordered = strings.Replace(reordered, "\nOVERALL ", "\n"+nodeRow+"OVERALL ", 1)
+	for name, text := range map[string]string{"valid-live": real, "valid-stand-in": standIn, "valid-node-row-last": reordered} {
 		if code, out := t18rhCheckFile(t, name, text, f.renderedSpec); code != 0 || out != t18rhLastLine(text) {
 			t.Fatalf("T18RH_LIVE_CHECK %s refused: %d\n%s", name, code, out)
 		}
@@ -2425,9 +2471,10 @@ func TestT18RealHostLiveAtProbeCheck(t *testing.T) {
 // inserted, and testdata/t18-real-host-r4/valid-real.txt), are refused by
 // check as stored, exit 1, with exactly these r10 reasons: every denied-read
 // row read-pass-not-in-stat-record, and the denied-rpc row
-// rpc-pass-capture-port-mismatch, rpc-pass-capture-time-missing and
-// rpc-pass-capture-not-synced (it carries no capture at all), each row beside
-// fields: (it lacks its r10 fields), and the stated OVERALL PASS disagrees. The stored stand-in report (r3) still passes: stand-in runs
+// target/time, pre-exit, pre-answer, post-answer and pre/node mismatch
+// refusals (it carries no capture at all), each row beside fields: (it lacks
+// the required live fields), and the stated OVERALL PASS disagrees.
+// The stored stand-in report (r3) still passes: stand-in runs
 // are unchanged. The same reports with the r10 evidence (t18rhLive) pass.
 func TestT18RealHostStoredLiveRefused(t *testing.T) {
 	f := t18rhFixture(t)
@@ -2445,7 +2492,7 @@ func TestT18RealHostStoredLiveRefused(t *testing.T) {
 		want.WriteString(" fields:denied-read:" + p + " read-pass-not-in-stat-record:denied-read:" + p)
 	}
 	rpc := "denied-rpc:" + f.spec.DeniedRPC[0]
-	want.WriteString(" fields:" + rpc + " rpc-pass-capture-port-mismatch:" + rpc + " rpc-pass-capture-time-missing:" + rpc + " rpc-pass-capture-not-synced:" + rpc + " stated-overall-disagrees\n")
+	want.WriteString(" fields:" + rpc + " rpc-pass-capture-port-mismatch:" + rpc + " rpc-pass-capture-time-missing:" + rpc + " rpc-pass-pre-capture-failed:" + rpc + " rpc-pass-pre-capture-not-synced:" + rpc + " rpc-pass-capture-not-synced:" + rpc + " rpc-pass-pre-capture-answer-mismatch:" + rpc + " stated-overall-disagrees\n")
 	for name, text := range map[string]string{
 		"r3/valid-real.txt": t18rhWithHash(t18rhRead(t, "valid-real.txt"), t18rhSha(specFile)),
 		"r4/valid-real.txt": string(r4),
@@ -2469,10 +2516,9 @@ func TestT18RealHostStoredLiveRefused(t *testing.T) {
 // rules): every control below passes on this runner, and each mutant, one
 // textual edit that drops the port check, the bracket check or the
 // stat-record check from the composer or from check, is killed by its named
-// control. A mutant whose edit matches the source other than exactly once
-// fails the test. The kill matrix is logged. Limit: one mutant per rule part
-// and side; the capture-time and not-synced reasons are covered by the
-// control tests, not by a mutant here.
+// control, including separate pre-answer/exit/binding guards, post exit and
+// pre target. A mutant edit must match exactly once. The kill matrix is
+// logged; these bounded plants do not establish exhaustive mutation coverage.
 func TestT18RealHostLiveAtProbeMutants(t *testing.T) {
 	kit := t18rhKit(t)
 	src, e := os.ReadFile(t18rhScript)
@@ -2521,6 +2567,15 @@ func TestT18RealHostLiveAtProbeMutants(t *testing.T) {
 		{"report/valid-live", reportCtl("valid-live", 0)},
 		{"report/post-capture-other-port", reportCtl("post-capture-other-port", 1)},
 		{"report/post-capture-inside-window", reportCtl("post-capture-inside-window", 1)},
+		{"report/pre-failed-success-answer", reportCtl("pre-failed-success-answer", 1)},
+		{"report/pre-unsynced", reportCtl("pre-unsynced", 1)},
+		{"report/pre-answer-mismatch", reportCtl("pre-answer-mismatch", 1)},
+		{"report/post-failed-success-answer", reportCtl("post-failed-success-answer", 1)},
+		{"check/pre-other-host", checkCtl("pre-other-host", "rpc-pass-capture-port-mismatch:denied-rpc:"+rpc0)},
+		{"check/pre-failed-success-answer", checkCtl("pre-failed-success-answer", "rpc-pass-pre-capture-failed:denied-rpc:"+rpc0)},
+		{"check/pre-unsynced", checkCtl("pre-unsynced", "rpc-pass-pre-capture-not-synced:denied-rpc:"+rpc0)},
+		{"check/pre-answer-mismatch", checkCtl("pre-answer-mismatch", "rpc-pass-pre-capture-answer-mismatch:denied-rpc:"+rpc0)},
+		{"check/post-failed-success-answer", checkCtl("post-failed-success-answer", "rpc-pass-capture-not-synced:denied-rpc:"+rpc0)},
 		{"report/path-absent", reportCtl("path-absent", 1)},
 		{"report/path-missing-from-record", reportCtl("path-missing-from-record", 1)},
 		{"check/post-other-port", checkCtl("post-other-port", "rpc-pass-capture-port-mismatch:denied-rpc:"+rpc0)},
@@ -2529,6 +2584,17 @@ func TestT18RealHostLiveAtProbeMutants(t *testing.T) {
 		{"check/path-not-in-record", checkCtl("path-not-in-record", "read-pass-not-in-stat-record:denied-read:"+read0)},
 	}
 	mutants := []struct{ name, old, repl, killer string }{
+		// Narrowing plants isolate each newly required pre guard, post exit,
+		// and the pre half of the target binding (not just all guards at once).
+		{"report-no-pre-exit", `if [ -z "$why" ] && [ "$l_px" != 0 ]; then`, `if false; then`, "report/pre-failed-success-answer"},
+		{"report-no-pre-sync", `if [ -z "$why" ] && ! printf '%s\n' "$l_pa" | grep -Eq "$synced_re"; then`, `if false; then`, "report/pre-unsynced"},
+		{"report-no-pre-binding", `if [ -z "$why" ] && [ "$l_pa" != "$tx" ]; then`, `if false; then`, "report/pre-answer-mismatch"},
+		{"report-no-post-exit", `[ "$l_qx" != 0 ] || `, ``, "report/post-failed-success-answer"},
+		{"check-only-post-target", `fv["pre_rpc"] != tgt || `, ``, "check/pre-other-host"},
+		{"check-no-pre-exit", `if (fv["pre_exit"] != "0") bad("rpc-pass-pre-capture-failed:" id)`, ``, "check/pre-failed-success-answer"},
+		{"check-no-pre-sync", `if (fv["pre_getindexinfo"] !~ /^\{"txindex":\{"synced":true,"best_block_height":[0-9]+\}\}$/) bad("rpc-pass-pre-capture-not-synced:" id)`, ``, "check/pre-unsynced"},
+		{"check-no-pre-binding", `for (id in rpc_pre) if (rpc_pre[id] != node_answer) bad("rpc-pass-pre-capture-answer-mismatch:" id)`, ``, "check/pre-answer-mismatch"},
+		{"check-no-post-exit", `fv["post_exit"] != "0" || `, ``, "check/post-failed-success-answer"},
 		// The composer drops the port check: a capture at another port passes.
 		{"report-no-port", `if [ -z "$why" ] && { [ "$l_pr" != "$rpc" ] || [ "$l_qr" != "$rpc" ]; }; then`, `if false; then`, "report/post-capture-other-port"},
 		// The composer drops the bracket check: any capture time passes.
@@ -2573,7 +2639,8 @@ func TestT18RealHostLiveAtProbeMutants(t *testing.T) {
 }
 
 // Claim (r10, the operator modes): node-capture makes exactly one node call,
-// `CLI <allowed options> -rpcconnect=HOST -rpcport=PORT getindexinfo txindex`,
+// `CLI -datadir=EMPTY -conf=/dev/null -rpccookiefile=COOKIE
+// -rpcconnect=HOST -rpcport=PORT getindexinfo txindex`,
 // against the spec's one denied_rpc target, and writes the capture (header,
 // rpc, start <= end in the nanosecond UTC form, exit, the answer without white
 // space); a failed call is kept with its exit and the mode exits 1. It refuses
@@ -2584,9 +2651,8 @@ func TestT18RealHostLiveAtProbeMutants(t *testing.T) {
 // answer as txindex.json only when the call exited 0. denied-stat prints one
 // line per denied path in spec order: exists=yes with type, owner and mode
 // for a file and a directory, exists=no for a missing path and a dangling
-// link. Limit: the CLI is a stand-in script; a real namecoin-cli's option
-// precedence (the last -rpcport wins) is Bitcoin Core's documented
-// command-line behaviour, not exercised here.
+// link. Limit: this test's CLI is a stand-in; the pinned real executable's
+// handler isolation is exercised by TestT18RealHostCaptureConfigIsolation.
 func TestT18RealHostCaptureAndStatModes(t *testing.T) {
 	dir := t.TempDir()
 	spec := filepath.Join(dir, "custody-spec.json")
@@ -2600,7 +2666,7 @@ func TestT18RealHostCaptureAndStatModes(t *testing.T) {
 	writeSpec(spec, `"127.0.0.1:8336"`)
 	argv := filepath.Join(dir, "argv")
 	cli := filepath.Join(dir, "namecoin-cli")
-	os.WriteFile(cli, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" >\""+argv+"\"\nprintf '{\\n  \"txindex\": {\"synced\": true, \"best_block_height\": 9}\\n}\\n'\nexit ${FAKE_EXIT:-0}\n"), 0700)
+	os.WriteFile(cli, []byte("#!/bin/sh\nprintf 'CALL\\n' >>\""+argv+"\"\nprintf '%s\\n' \"$@\" >>\""+argv+"\"\nprintf '{\\n  \"txindex\": {\"synced\": true, \"best_block_height\": 9}\\n}\\n'\nexit ${FAKE_EXIT:-0}\n"), 0700)
 	out := filepath.Join(dir, "pre.txt")
 	code, msg := t18rhRun(t, nil, "node-capture", out, spec, "--", cli, "-datadir=/var/lib/namecoind-main", "-rpccookiefile=/var/lib/namecoind-main/.cookie")
 	b, _ := os.ReadFile(out)
@@ -2609,7 +2675,7 @@ func TestT18RealHostCaptureAndStatModes(t *testing.T) {
 	if code != 0 || m == nil || !ts.MatchString(m[1]) || !ts.MatchString(m[2]) || m[1] > m[2] || !strings.HasPrefix(msg, "T18_REAL_HOST_NODE_CAPTURE_DONE exit=0 ") {
 		t.Fatalf("T18RH_MODES node-capture: %d %q\n%s", code, msg, b)
 	}
-	if a, _ := os.ReadFile(argv); string(a) != "-datadir=/var/lib/namecoind-main\n-rpccookiefile=/var/lib/namecoind-main/.cookie\n-rpcconnect=127.0.0.1\n-rpcport=8336\ngetindexinfo\ntxindex\n" {
+	if a, _ := os.ReadFile(argv); !regexp.MustCompile(`^CALL\n-datadir=[^\n]+\n-conf=/dev/null\n-rpccookiefile=/var/lib/namecoind-main/\.cookie\n-rpcconnect=127\.0\.0\.1\n-rpcport=8336\ngetindexinfo\ntxindex\n$`).Match(a) {
 		t.Fatalf("T18RH_MODES node-capture call %q", a)
 	}
 	// The operator phase keeps the capture and takes its answer.
@@ -2653,6 +2719,11 @@ func TestT18RealHostCaptureAndStatModes(t *testing.T) {
 		"method":          {spec, "--", cli, "getbalance"},
 		"getinfo":         {spec, "--", cli, "-getinfo"},
 		"own-port":        {spec, "--", cli, "-rpcport=18336"},
+		"chain":           {spec, "--", cli, "-chain=regtest"},
+		"timeout":         {spec, "--", cli, "-rpcclienttimeout=9"},
+		"wallet":          {spec, "--", cli, "-rpcwallet=fixture"},
+		"include":         {spec, "--", cli, "-includeconf=fixture"},
+		"generate":        {spec, "--", cli, "-generate"},
 		"no-separator":    {spec, cli},
 		"two-targets":     {two, "--", cli},
 	} {
@@ -2679,4 +2750,140 @@ func TestT18RealHostCaptureAndStatModes(t *testing.T) {
 	if code != 0 || stat != want {
 		t.Fatalf("T18RH_MODES denied-stat: %d\n got %q\nwant %q", code, stat, want)
 	}
+}
+
+// Claim: with the repository-pinned Core 28.0 CLI, operator, default and
+// included configs cannot select a handler or target. Each scenario reaches
+// only this mock, exactly once, with getindexinfo(txindex). No node or wallet
+// is involved. Limit: this supplemental executable regression requires the
+// pinned binary via T18_NAMECOIN_CLI; it skips explicitly when unavailable.
+func TestT18RealHostCaptureConfigIsolation(t *testing.T) {
+	cli := os.Getenv("T18_NAMECOIN_CLI")
+	if cli == "" {
+		t.Skip("set T18_NAMECOIN_CLI to the pinned Namecoin Core 28.0 CLI for mock-only qualification")
+	}
+	binary, err := os.ReadFile(cli)
+	if err != nil || t18rhSha(binary) != "318b6c881c8071abbafd984550172369c3498b4c65c389797350f2d458f085b1" {
+		t.Fatal("pinned Core CLI unavailable or digest differs")
+	}
+	for _, scenario := range []struct{ name, config string }{
+		{"empty", ""},
+		{"generate", "generate=1\n"},
+		{"getinfo", "getinfo=1\n"},
+		{"dash-getinfo", "-getinfo=1\n"},
+		{"rpcwallet", "rpcwallet=fixture\n"},
+		{"includeconf", "includeconf=included.conf\n"},
+		{"combined", "generate=1\ngetinfo=1\nrpcwallet=fixture\nincludeconf=included.conf\nrpcconnect=192.0.2.1\nrpcport=1\n"},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			dir := t.TempDir()
+			home := filepath.Join(dir, "home")
+			data := filepath.Join(dir, "operator-data")
+			write := func(path, contents string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, root := range []string{data, filepath.Join(home, ".namecoin")} {
+				write(filepath.Join(root, "namecoin.conf"), scenario.config)
+				write(filepath.Join(root, "included.conf"), "generate=1\ngetinfo=1\nrpcwallet=fixture\n")
+				// Synthetic mock authentication, never a real node credential.
+				write(filepath.Join(root, ".cookie"), "mock:fixture")
+			}
+			var mu sync.Mutex
+			var calls []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var request struct {
+					ID     json.RawMessage `json:"id"`
+					Method string          `json:"method"`
+					Params []string        `json:"params"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					http.Error(w, "invalid mock request", http.StatusBadRequest)
+					return
+				}
+				mu.Lock()
+				calls = append(calls, request.Method+"("+strings.Join(request.Params, ",")+") "+r.URL.Path)
+				mu.Unlock()
+				w.Header().Set("Content-Type", "application/json")
+				response := map[string]any{"jsonrpc": "2.0", "id": request.ID}
+				if request.Method == "getindexinfo" && len(request.Params) == 1 && request.Params[0] == "txindex" && r.URL.Path == "/" {
+					response["result"] = json.RawMessage(`{"txindex":{"synced":true,"best_block_height":9}}`)
+				} else {
+					response["error"] = map[string]any{"code": -32601, "message": "mock refuses non-status methods"}
+				}
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					t.Error("mock response failed")
+				}
+			}))
+			defer server.Close()
+			spec := filepath.Join(dir, "spec.json")
+			write(spec, `{"denied_rpc":["`+server.Listener.Addr().String()+`"]}`+"\n")
+			// With and without explicit -conf, and with no operator options,
+			// exercise explicit config, datadir config and HOME defaults.
+			for n, options := range [][]string{
+				{"-datadir=" + data, "-conf=" + filepath.Join(data, "namecoin.conf"), "-rpccookiefile=" + filepath.Join(data, ".cookie")},
+				{"-datadir=" + data},
+				{},
+			} {
+				mu.Lock()
+				calls = nil
+				mu.Unlock()
+				capture := filepath.Join(dir, "capture-"+strconv.Itoa(n))
+				args := append([]string{"node-capture", capture, spec, "--", cli}, options...)
+				code, message := t18rhRun(t, []string{"HOME=" + home}, args...)
+				mu.Lock()
+				recorded := strings.Join(calls, "\n")
+				mu.Unlock()
+				answer, err := os.ReadFile(capture)
+				if code != 0 || err != nil || recorded != "getindexinfo(txindex) /" || !strings.Contains(string(answer), "\nexit=0\nanswer={\"txindex\":{\"synced\":true,\"best_block_height\":9}}\n") {
+					t.Fatalf("config isolation variant %d: exit=%d calls=%q read=%v capture=%q message=%q", n, code, recorded, err, answer, message)
+				}
+				t.Logf("variant=%d exactly one getindexinfo(txindex), no wallet route", n)
+			}
+		})
+	}
+}
+
+// Claim: an append-only invocation record rejects a duplicate status call,
+// even if its last argv and output are identical to a permitted call. The
+// unmodified runner is the positive control; only the invocation is doubled.
+func TestT18RealHostCaptureCallMutant(t *testing.T) {
+	src, err := os.ReadFile(t18rhScript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	call := `"$cli" -datadir="$capture_tmp" -conf=/dev/null -rpccookiefile="$cookie" -rpcconnect="$host" -rpcport="$port" getindexinfo txindex >"$ans" 2>/dev/null && st=0 || st=$?`
+	if strings.Count(string(src), call) != 1 {
+		t.Fatal("duplicate-call mutation must apply exactly once")
+	}
+	control := func(script string) bool {
+		dir := t.TempDir()
+		spec, cli := filepath.Join(dir, "spec.json"), filepath.Join(dir, "cli")
+		calls, capture := filepath.Join(dir, "calls"), filepath.Join(dir, "capture")
+		if err := os.WriteFile(spec, []byte(`{"denied_rpc":["127.0.0.1:8336"]}`+"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(cli, []byte("#!/bin/sh\nprintf 'call\\n' >>'"+calls+"'\nprintf '{\"txindex\":{\"synced\":true,\"best_block_height\":9}}\\n'\n"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		code, _ := t18rhRunScript(t, script, "", "node-capture", capture, spec, "--", cli)
+		record, err := os.ReadFile(calls)
+		return code == 0 && err == nil && string(record) == "call\n"
+	}
+	if !control(t18rhScript) {
+		t.Fatal("exactly-one-call positive control failed")
+	}
+	mutant := filepath.Join(t.TempDir(), "double-call.sh")
+	if err := os.WriteFile(mutant, []byte(strings.Replace(string(src), call, call+"\n\t"+call, 1)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if control(mutant) {
+		t.Fatal("duplicate-call mutant survived the append-only counter")
+	}
+	t.Log("T18RH_CALL_MUTANT helper-double-call killed by exactly-one-call control")
 }

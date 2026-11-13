@@ -168,21 +168,44 @@ call, `getindexinfo txindex`, made by the runner against the spec's one
 `denied_rpc` address, between two UTC times the runner takes:
 
 ```sh
-sh "$T18/t18-real-host-report.sh" node-capture "$RUN/node-pre.txt" "$RENDERED/custody-spec.json" -- namecoin-cli -datadir="$NODE_DATADIR"
+sh "$T18/t18-real-host-report.sh" node-capture "$RUN/node-pre.txt" "$RENDERED/custody-spec.json" -- namecoin-cli -rpccookiefile="$NODE_COOKIE"
 DEPLOY_KIT="$KIT" sh "$T18/t18-real-host-report.sh" operator "$RUN/operator" "$PARAMS" "$RENDERED" "$RUN/node-pre.txt"
 ```
 
-`node-capture OUT SPEC -- CLI [OPTION...]` runs `CLI OPTION...
--rpcconnect=HOST -rpcport=PORT getindexinfo txindex`, where `HOST:PORT` is the
-one `denied_rpc` entry of `SPEC` (a spec with another number of entries is a
-usage error). The method and the address are the runner's; command-line
-options override the datadir's config file, so the call goes to that
-address. `OPTION` may only be
-`-datadir=`, `-conf=`, `-rpccookiefile=`, `-chain=` or `-rpcclienttimeout=`.
-Any other option, any method name, `-getinfo`, `-generate`, and an own
-`-rpcport` are refused before the call (exit 64), and the refused option is
-not printed (it could be a credential). So no other node call, and no wallet
-call, can be made through it. `OUT` must not exist. It gets six lines:
+Set `NODE_COOKIE` to the node's existing cookie file (an absolute path;
+never copy its contents). The exact CLI command built by
+`node-capture OUT SPEC -- CLI [OPTION...]` is:
+
+```sh
+"$CLI" -datadir="$EMPTY_TEMP_DIR" -conf=/dev/null -rpccookiefile="$RESOLVED_COOKIE" -rpcconnect="$HOST" -rpcport="$PORT" getindexinfo txindex
+```
+
+`HOST:PORT` is the one `denied_rpc` entry of `SPEC`; another number of
+entries is a usage error. `EMPTY_TEMP_DIR` is a private, empty directory
+created and removed by the runner. The CLI reads `/dev/null`, so neither
+operator, default nor included configuration can select `generate`,
+`getinfo`, `rpcwallet` or another handler or route. No operator CLI option
+is forwarded. This isolation is needed because a positional method alone
+does not override configuration-selected Core CLI handlers.
+
+The exact input allowlist is `-datadir=`, `-conf=`, `-rpccookiefile=` (each
+with a nonempty value). `-conf` is accepted for compatibility and ignored;
+its contents, includes and cookie settings are never read. `-datadir`
+locates the cookie only, defaulting to `$HOME/.namecoin`; a relative datadir
+is relative to the caller's working directory. The cookie defaults to
+`DATADIR/.cookie`, and a relative `-rpccookiefile` is relative to that
+datadir. The last supplied value of each locating option wins. Supply an
+explicit absolute cookie path for a network subdirectory or a node using a
+custom cookie location; chain selection and RPC password authentication
+from config are unsupported.
+
+| Input | Result before the call |
+| --- | --- |
+| Nonempty `-datadir=`, `-conf=`, `-rpccookiefile=` | Accepted with the locating/ignored semantics above |
+| `-chain=`, `-rpcclienttimeout=`, `-rpcconnect=`, `-rpcport=` | Refused, exit 64; no call or output file |
+| Method name, `-getinfo`, `-generate`, `-rpcwallet=`, `-includeconf=`, credentials or any other option | Refused, exit 64; no call or output file; the value is not printed |
+
+Exactly one status lookup is made. `OUT` must not exist. It gets six lines:
 
 ```
 T18-NODE-CAPTURE v1
@@ -293,7 +316,7 @@ against the same address, into the operator's evidence. Then root records a
 prints; it opens nothing.
 
 ```sh
-sh "$T18/t18-real-host-report.sh" node-capture "$RUN/operator/node-post.txt" "$RENDERED/custody-spec.json" -- namecoin-cli -datadir="$NODE_DATADIR"
+sh "$T18/t18-real-host-report.sh" node-capture "$RUN/operator/node-post.txt" "$RENDERED/custody-spec.json" -- namecoin-cli -rpccookiefile="$NODE_COOKIE"
 sh "$T18/t18-real-host-report.sh" denied-stat "$RENDERED/custody-spec.json" > "$RUN/operator/denied-paths-stat.txt"
 ```
 
@@ -407,16 +430,22 @@ repeated GID is refused. This is deliberately stricter than
 
 **r10: liveness at probe time and existence of the denied paths (live runs).**
 On a `wallet=real` report, `check` reads a `denied-rpc` PASS line with its
-r10 fields, in this order: `observed pre_rpc pre_start pre_end probe_start
-probe_end post_rpc post_start post_end post_getindexinfo`. It refuses the
+fields, in this order: `observed pre_rpc pre_start pre_end pre_exit
+pre_getindexinfo probe_start probe_end post_rpc post_start post_end post_exit
+post_getindexinfo`. It refuses the
 line when `pre_rpc` or `post_rpc` is not the row's own target
 (`rpc-pass-capture-port-mismatch:<item>`), when any of the six times is
 missing or not in the nanosecond UTC form (`rpc-pass-capture-time-missing:<item>`),
 when the times are not in the order `pre_start <= pre_end <= probe_start <=
 probe_end <= post_start <= post_end` (`rpc-pass-window-not-bracketed:<item>`),
-and when the post-probe answer is not synced
-(`rpc-pass-capture-not-synced:<item>`); the pre-probe answer is `node-txindex`,
-whose PASS r9 already requires (`rpc-pass-without-live-node`). It reads a
+when the pre-probe exit is missing or nonzero
+(`rpc-pass-pre-capture-failed:<item>`), its answer is missing or unsynced
+(`rpc-pass-pre-capture-not-synced:<item>`), or it differs from the same
+report's `node-txindex` answer (`rpc-pass-pre-capture-answer-mismatch:<item>`).
+The post-probe exit must also be 0 and its own answer synced
+(`rpc-pass-capture-not-synced:<item>`). The node-txindex row must be PASS
+(`rpc-pass-without-live-node`). The later answer may have a newer height;
+only the pre answer must equal node-txindex. It reads a
 `denied-read` PASS line with its stat, in this order: `observed exists type
 owner mode`, and refuses it without the stat
 (`read-pass-not-in-stat-record:<item>`), with `exists` other than `yes`
@@ -521,7 +550,8 @@ valid only as a stand-in run.
     (`stand-in-misplaced:<item>` otherwise);
   - r10, on a live run: a `denied-rpc` PASS carries both node captures at
     its own target and the probe window, every time present, the six times
-    in order, and the post-probe answer synced; a `denied-read` PASS
+    in order, both calls exited 0 with synced answers, and the pre answer
+    exactly equals `node-txindex`; a `denied-read` PASS
     carries the root-side stat of its path with `exists=yes` (§3, step 8,
     names each refusal);
   - a socket PASS shows `CONNECTED` and a peer UID equal to the header's
@@ -545,7 +575,7 @@ valid only as a stand-in run.
 | `credentials` | step 5 | `g2-agent-groups` accepted the readback: observed `id -g` == declared primary GID, `id -G` == exactly {primary, socket} (`G2_AGENT_GROUPS_OK`) |
 | `denied-read:<path>` | steps 5, 6 | one item per `denied_reads` path, in spec order; the probe observed `EACCES` or `EPERM` (and traversal was denied too). `ENOENT`, `READ_OK`, or no probe result is FAIL. r10, live run: the PASS also needs exactly one `exists=yes` line for the path in `denied-paths-stat.txt` (root `stat`, step 6), and the line carries it (`exists=yes type=.. owner=..:.. mode=..`); a path recorded `exists=no` is FAIL `reason=path-absent`, and a path the record does not list (or lists twice, or in another form) is FAIL `reason=path-not-in-stat-record`. With the stand-in flag a denial is `STAND_IN`, never PASS, and the record is not read. |
 | `status-dir` | steps 5, 6 | `/run/swarma-wallet-status` is in `denied_reads` and its probe is `EACCES` or `EPERM` (freeze amendment 1, A8). Its verdict is the one of its `denied-read` item: on a live run it FAILs with the same `reason=` when the record does not show the directory. With the stand-in flag a denial is `STAND_IN`, never PASS. |
-| `denied-rpc:<target>` | steps 3, 5, 6 | r9: denied RPC needs a live node. PASS only when both hold: the credential-less JSON-RPC call got an explicit authorization refusal, HTTP 401 or HTTP 403 (`observed=HTTP_401` or `HTTP_403`: a listener at the target answered at probe time and refused it), and `node-txindex` is PASS in the same report (node liveness in this run). A refusal without that liveness is FAIL `reason=node-liveness-unproven`. A refused connection (`observed=REFUSED`: nothing listens at the port, no node or a stopped node) proves nothing: FAIL `reason=node-not-listening` on a `real` run, `STAND_IN` on a `stand-in` run, never PASS. A timeout or any other transport error aborts the probe, so there is no observation: FAIL `observed=none`. `HTTP_OK` (not refused) is FAIL. r10, live run: the PASS also needs liveness at probe time. The pre-probe capture (step 3) and the post-probe capture (step 6) must both name this target (else FAIL `reason=capture-port-mismatch`); all six times (the two captures' `start` and `end`, `probe_start` and `probe_end`) must be present in the nanosecond UTC form (else `reason=capture-time-missing`); they must stand in the order pre start <= pre end <= probe start <= probe end <= post start <= post end (else `reason=window-not-bracketed`); and the post-probe call must have exited 0 with a synced answer (else `reason=capture-not-synced`). The PASS line carries `pre_rpc`, the six times, `post_rpc` and `post_getindexinfo`; a FAIL line carries the same fields, `none` where missing. On a stand-in run the captures are not read. |
+| `denied-rpc:<target>` | steps 3, 5, 6 | r9: denied RPC needs a live node. PASS only when both hold: the credential-less JSON-RPC call got an explicit authorization refusal, HTTP 401 or HTTP 403 (`observed=HTTP_401` or `HTTP_403`: a listener at the target answered at probe time and refused it), and `node-txindex` is PASS in the same report (node liveness in this run). A refusal without that liveness is FAIL `reason=node-liveness-unproven`. A refused connection (`observed=REFUSED`: nothing listens at the port, no node or a stopped node) proves nothing: FAIL `reason=node-not-listening` on a `real` run, `STAND_IN` on a `stand-in` run, never PASS. A timeout or any other transport error aborts the probe, so there is no observation: FAIL `observed=none`. `HTTP_OK` (not refused) is FAIL. r10, live run: the PASS also needs liveness at probe time. The pre-probe capture (step 3) and the post-probe capture (step 6) must both name this target (else FAIL `reason=capture-port-mismatch`); all six times (the two captures' `start` and `end`, `probe_start` and `probe_end`) must be present in the nanosecond UTC form (else `reason=capture-time-missing`); they must stand in the order pre start <= pre end <= probe start <= probe end <= post start <= post end (else `reason=window-not-bracketed`); the pre-probe call must have exited 0 (else `reason=pre-capture-failed`), its own answer must be synced (else `reason=pre-capture-not-synced`) and exactly equal the node-txindex evidence (else `reason=pre-capture-answer-mismatch`); and the post-probe call must have exited 0 with a synced answer (else `reason=capture-not-synced`). The PASS line carries `pre_rpc`, the six times, `pre_exit`, `pre_getindexinfo`, `post_rpc`, `post_exit` and `post_getindexinfo`; a FAIL line carries the same fields, `none` where missing. On a stand-in run the captures are not read. |
 | `peer-precondition` | step 5 | the first version line of `perl -v`, as the agent ran it, reads `This is perl 5, version N, subversion M ...`; the line is on the item (`perl_v=`) |
 | `allowed-socket` | step 5 | `real`: the probe connected (`CONNECTED`, no frame), and the peer is identified: `SO_PEERCRED` UID == `service_uid`, socket owner == `service_uid`, group == `agent_socket_gid`, mode 0660. These are the checks the agent client makes before its first frame. `stand-in`: `STAND_IN` after a successful connect, otherwise FAIL. |
 | `custody-verify` | step 5 | probe exit 0, verify exit 0, and `T18_CUSTODY_VERIFIED <sha>` binds the canonical spec of the header |
@@ -660,6 +690,16 @@ The evidence holds no credential:
   fails is the covered `cov-searchable-dir` item.
 - **The node's own access policy** beyond one credential-less call. The route
   whitelists are shown by the Core test in SMOKE-G2.md §5.
+- **CLI qualification scope.** `TestT18RealHostCaptureConfigIsolation` uses
+  the pinned Namecoin Core 28.0 CLI against an isolated HTTP mock only. Set
+  `T18_NAMECOIN_CLI` to that verified executable and run
+  `go test -v -run '^TestT18RealHostCaptureConfigIsolation$' .` from `deploy`.
+  It exercises empty, generate, getinfo, wallet-route and included configs
+  through explicit, datadir and HOME-default paths, counting exactly one
+  `getindexinfo(txindex)` request in each case. Without the binary it skips
+  explicitly; ordinary fake-CLI tests do not establish handler isolation.
+  The runner trusts the operator-selected executable; it does not attest a
+  substituted CLI, the cookie's provenance or a listener's implementation.
 - **That the node answered at the probe's exact instant** (r10). The two
   node captures show that a node with a synced index answered an
   authenticated `getindexinfo` at the probed `denied_rpc` address before the
