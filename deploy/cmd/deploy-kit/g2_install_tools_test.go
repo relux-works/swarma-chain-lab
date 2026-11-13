@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -168,7 +169,7 @@ func TestG2NewSecretFileExclusive(t *testing.T) {
 	existing := filepath.Join(dir, "existing")
 	os.WriteFile(existing, []byte("prior"), 0644)
 	os.Chmod(existing, 0644) // independent of the umask
-	if e := g2NewSecretFile(existing, []byte("new"), 0600); e != deploy.ErrInput {
+	if e := g2NewSecretFile(existing, []byte("new"), 0600, io.Discard, ""); e != deploy.ErrInput {
 		t.Fatal("G2_SECRET_FILE_EXCLUSIVE an existing file was opened", e)
 	}
 	if b, e := os.ReadFile(existing); e != nil || string(b) != "prior" {
@@ -178,7 +179,7 @@ func TestG2NewSecretFileExclusive(t *testing.T) {
 		t.Fatal("G2_SECRET_FILE_EXCLUSIVE the existing mode changed", info.Mode())
 	}
 	fresh := filepath.Join(dir, "fresh")
-	if e := g2NewSecretFile(fresh, []byte("new"), 0640); e != nil {
+	if e := g2NewSecretFile(fresh, []byte("new"), 0640, io.Discard, ""); e != nil {
 		t.Fatal("G2_SECRET_FILE valid neighbour", e)
 	}
 	if b, _ := os.ReadFile(fresh); string(b) != "new" {
@@ -669,5 +670,191 @@ func TestG2RPCAuthWalletLoader(t *testing.T) {
 		if json.Unmarshal([]byte(out), &r) != nil || code != 2 || r.Status != "refused" || r.Reason != k.want {
 			t.Fatalf("G2_RPCAUTH_CONSUMER %s: exit %d reason %q, want %s", k.name, code, r.Reason, k.want)
 		}
+	}
+}
+
+type g2OutputFailure struct {
+	accepted int
+	failure  error
+	output   bytes.Buffer
+}
+
+func (writer *g2OutputFailure) Write(data []byte) (int, error) {
+	count := min(writer.accepted, len(data))
+	writer.output.Write(data[:count])
+	return count, writer.failure
+}
+
+func g2OutputInputs(t *testing.T) (string, string, string) {
+	t.Helper()
+	directory := t.TempDir()
+	parameters := cliParams()
+	parameters.Network, parameters.Genesis = "regtest", g2TestRegtestGenesis
+	params := g2TestWriteParams(t, directory, "params.json", parameters)
+	public := g2TestWritePublic(t, directory, "public.json", parameters.Network, parameters.Genesis, g2TestRegtestChange)
+	return directory, params, public
+}
+
+func g2OutputCall(t *testing.T, command, destination, params, public string, writer io.Writer) error {
+	t.Helper()
+	if command == "g2-keygen" {
+		return g2KeygenFrom([]string{"-out", destination}, writer, bytes.NewReader(g2TestGoodScalar("review2-output")))
+	}
+	return g2RPCAuthFrom([]string{"-params", params, "-wallet-public", public, "-wallet-config-out", destination}, writer, bytes.NewReader(bytes.Repeat([]byte{0x41}, 144)))
+}
+
+// Claim: zero-byte, partial, full-length-with-error and short-without-error
+// stdout writes remove the new credential file and permit retry, beside a
+// successful writer control. Already emitted public bytes remain in the stream.
+// Fixed test-only entropy is used; this does not model process death.
+func TestReview2OutputFailureAtomicity(t *testing.T) {
+	for _, command := range []string{"g2-keygen", "g2-rpcauth"} {
+		t.Run(command, func(t *testing.T) {
+			directory, params, public := g2OutputInputs(t)
+			var output bytes.Buffer
+			if err := g2OutputCall(t, command, filepath.Join(directory, "positive"), params, public, &output); err != nil || output.Len() == 0 {
+				t.Fatalf("positive control failed: err=%v output_bytes=%d", err, output.Len())
+			}
+			for _, c := range []struct {
+				name          string
+				accepted      int
+				failure, want error
+			}{
+				{"accepted-0", 0, io.ErrClosedPipe, io.ErrClosedPipe},
+				{"accepted-32", 32, io.ErrClosedPipe, io.ErrClosedPipe},
+				{"full-with-error", output.Len(), io.ErrClosedPipe, io.ErrClosedPipe},
+				{"short-without-error", 32, nil, io.ErrShortWrite},
+			} {
+				t.Run(c.name, func(t *testing.T) {
+					destination := filepath.Join(directory, "failed-"+c.name)
+					writer := &g2OutputFailure{accepted: c.accepted, failure: c.failure}
+					err := g2OutputCall(t, command, destination, params, public, writer)
+					if !errors.Is(err, c.want) {
+						t.Fatalf("wrong error: %v", err)
+					}
+					info, statErr := os.Lstat(destination)
+					var size int64
+					if info != nil {
+						size = info.Size()
+					}
+					if !os.IsNotExist(statErr) || writer.output.Len() != c.accepted {
+						t.Fatalf("REVIEW2_OUTPUT_ERROR_EFFECTS file_exists=%t file_bytes=%d stdout_bytes=%d error=%v", statErr == nil, size, writer.output.Len(), err)
+					}
+					var retry bytes.Buffer
+					if err := g2OutputCall(t, command, destination, params, public, &retry); err != nil || retry.Len() == 0 {
+						t.Fatalf("retry after output error: err=%v output_bytes=%d", err, retry.Len())
+					}
+				})
+			}
+		})
+	}
+}
+
+// Claim: an actual deploy-kit process with an unwritable stdout reports failure and must not leave a credential file. No external files or services are used.
+func TestReview2CLIOutputFailure(t *testing.T) {
+	directory, params, public := g2OutputInputs(t)
+	binary := filepath.Join(directory, "deploy-kit")
+	build := exec.Command("go", "build", "-o", binary, ".")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("setup build: %v %s", err, output)
+	}
+	readOnlyPath := filepath.Join(directory, "readonly-stdout")
+	if err := os.WriteFile(readOnlyPath, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	readOnly, err := os.Open(readOnlyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer readOnly.Close()
+	for _, command := range []string{"g2-keygen", "g2-rpcauth"} {
+		t.Run(command, func(t *testing.T) {
+			destination := filepath.Join(directory, command+"-output")
+			args := []string{command, "-out", destination}
+			if command == "g2-rpcauth" {
+				args = []string{command, "-params", params, "-wallet-public", public, "-wallet-config-out", destination}
+			}
+			process := exec.Command(binary, args...)
+			process.Stdout = readOnly
+			var stderr bytes.Buffer
+			process.Stderr = &stderr
+			if err := process.Run(); err == nil || process.ProcessState.ExitCode() != 1 || !strings.Contains(stderr.String(), "bad file descriptor") {
+				t.Fatalf("expected stdout EBADF: err=%v stderr=%q", err, stderr.String())
+			}
+			if _, err := os.Lstat(destination); !os.IsNotExist(err) {
+				t.Fatalf("REVIEW2_CLI_OUTPUT_ERROR_EFFECTS exit=%d stat_err=%v", process.ProcessState.ExitCode(), err)
+			}
+			var stdout bytes.Buffer
+			stderr.Reset()
+			retry := exec.Command(binary, args...)
+			retry.Stdout, retry.Stderr = &stdout, &stderr
+			if err := retry.Run(); err != nil || stderr.Len() != 0 || stdout.Len() == 0 {
+				t.Fatalf("CLI retry failed: err=%v stderr_bytes=%d stdout_bytes=%d", err, stderr.Len(), stdout.Len())
+			}
+		})
+	}
+}
+
+type g2OutputFunc func([]byte) (int, error)
+
+func (write g2OutputFunc) Write(b []byte) (int, error) { return write(b) }
+
+// Claim: rollback preserves a replacement path and reports cleanup failures
+// alongside the stdout cause. Controls exercise successful removal and a path
+// already removed by the writer. These are synchronous writer interventions.
+func TestG2OutputRollbackOwnership(t *testing.T) {
+	for _, operation := range []string{"normal", "removed", "replacement", "removal-denied"} {
+		t.Run(operation, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "new.key")
+			writer := g2OutputFunc(func(b []byte) (int, error) {
+				switch operation {
+				case "removed":
+					if err := os.Remove(path); err != nil {
+						t.Fatal(err)
+					}
+				case "replacement":
+					// Keep the original inode allocated, independent of filesystem reuse.
+					if err := os.Rename(path, path+".original"); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(path, []byte("replacement fixture"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				case "removal-denied":
+					if err := os.Chmod(dir, 0500); err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() {
+						if err := os.Chmod(dir, 0700); err != nil {
+							t.Error(err)
+						}
+					})
+				}
+				return 0, io.ErrClosedPipe
+			})
+			err := g2KeygenFrom([]string{"-out", path}, writer, bytes.NewReader(g2TestGoodScalar("rollback-ownership")))
+			if !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatalf("lost stdout error: %v", err)
+			}
+			switch operation {
+			case "replacement":
+				raw, readErr := os.ReadFile(path)
+				if readErr != nil || string(raw) != "replacement fixture" || !strings.Contains(err.Error(), "path changed") {
+					t.Fatal("replacement was removed or cleanup refusal was omitted")
+				}
+			case "removal-denied":
+				if !errors.Is(err, os.ErrPermission) {
+					t.Fatal("cleanup failure was omitted")
+				}
+				if _, statErr := os.Stat(path); statErr != nil {
+					t.Fatal("permission control did not retain the file")
+				}
+			default:
+				if _, statErr := os.Lstat(path); !os.IsNotExist(statErr) {
+					t.Fatal("new file retained")
+				}
+			}
+		})
 	}
 }

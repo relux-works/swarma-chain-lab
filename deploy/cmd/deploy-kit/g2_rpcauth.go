@@ -271,7 +271,8 @@ func g2ReadWalletPublic(path string, p deploy.G2PayParameters) (g2WalletPublic, 
 //
 // Stdout is exactly the three rpcauth lines, in route order, for the node
 // config; it never carries a password. Nothing is printed unless FILE was
-// written.
+// written and synced. A stdout error removes the new file (or reports the
+// rollback error too); already emitted public bytes cannot be recalled.
 func g2RPCAuth(args []string, out io.Writer) error { return g2RPCAuthFrom(args, out, rand.Reader) }
 
 // g2RPCAuthFrom is g2RPCAuth with the random source as a parameter (the test
@@ -333,11 +334,7 @@ func g2RPCAuthFrom(args []string, out io.Writer, rnd io.Reader) error {
 	if e != nil {
 		return deploy.ErrPolicy
 	}
-	e = g2NewSecretFile(*path, config, 0640)
+	e = g2NewSecretFile(*path, config, 0640, out, lines[0]+"\n"+lines[1]+"\n"+lines[2]+"\n")
 	clear(config)
-	if e != nil {
-		return e
-	}
-	_, e = fmt.Fprint(out, lines[0]+"\n"+lines[1]+"\n"+lines[2]+"\n")
 	return e
 }

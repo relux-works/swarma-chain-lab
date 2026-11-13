@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"flag"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -109,8 +108,11 @@ func g2NewScalar(rnd io.Reader) (*[64]byte, string, error) {
 // anything is written. The file is created with mode and set to mode on the
 // open descriptor before any byte is written (umask can only narrow it), so
 // it is never readable more widely than mode. On a failure after creation
-// the new file is removed.
-func g2NewSecretFile(path string, data []byte, mode os.FileMode) error {
+// the new file is removed. Public output is written only after the file and
+// directory have synced; an output error rolls back the new file. Bytes
+// already accepted by out cannot be recalled. A rollback failure is returned
+// alongside the output error, so callers must not assume cleanup succeeded.
+func g2NewSecretFile(path string, data []byte, mode os.FileMode, out io.Writer, public string) error {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path || path == "/" {
 		return deploy.ErrInput
 	}
@@ -161,6 +163,33 @@ func g2NewSecretFile(path string, data []byte, mode os.FileMode) error {
 		os.Remove(path)
 		return deploy.ErrPolicy
 	}
+	// The command commits only after public output succeeds. Keep the original
+	// inode identity to refuse rollback of an observed replacement path.
+	n, outputErr := io.WriteString(out, public)
+	if outputErr == nil && n != len(public) {
+		outputErr = io.ErrShortWrite
+	}
+	if outputErr != nil {
+		linked, statErr := os.Lstat(path)
+		if errors.Is(statErr, os.ErrNotExist) {
+			return outputErr
+		}
+		if statErr != nil {
+			return errors.Join(outputErr, statErr)
+		}
+		if !os.SameFile(opened, linked) {
+			return errors.Join(outputErr, errors.New("deploy-kit: secret output path changed during publication"))
+		}
+		if removeErr := os.Remove(path); removeErr != nil {
+			return errors.Join(outputErr, removeErr)
+		}
+		d, openErr := os.Open(dir)
+		if openErr != nil {
+			return errors.Join(outputErr, openErr)
+		}
+		syncErr := d.Sync()
+		return errors.Join(outputErr, syncErr, d.Close())
+	}
 	return nil
 }
 
@@ -207,11 +236,7 @@ func g2KeygenFrom(args []string, out io.Writer, rnd io.Reader) error {
 	if e != nil {
 		return e
 	}
-	e = g2NewSecretFile(*path, scalar[:], mode)
+	e = g2NewSecretFile(*path, scalar[:], mode, out, "G2_KEY_XONLY "+xonly+"\n")
 	clear(scalar[:])
-	if e != nil {
-		return e
-	}
-	_, e = fmt.Fprintln(out, "G2_KEY_XONLY "+xonly)
 	return e
 }
