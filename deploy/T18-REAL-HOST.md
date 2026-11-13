@@ -277,7 +277,11 @@ g2-custody-hash -spec SPEC`, which reads the spec with the reader of
 report carries and verify checks). If that command cannot be run, exits
 non-zero, refuses the spec or prints anything else, `check` refuses with
 `canonical-hash-unavailable`, and `report` composes nothing and exits 1
-(`REFUSED canonical-hash-unavailable`). There is no fallback. Every
+(`REFUSED canonical-hash-unavailable`). There is no fallback. The hash
+names the spec's CONTENT only: `g2-custody-hash` applies probe's reader and
+not verify's `-launch` layout check. The launch layout is a property of the
+run, checked per run by `g2-custody-verify -launch=true` in the agent phase
+and reported as its own item, `launch-layout` (r7). Every
 `denied_reads` and `denied_rpc` entry of the spec must have exactly one
 `denied-read:<path>` or `denied-rpc:<target>` row, whatever its verdict: a
 deleted row is `missing:denied-read:<path>` even when the OVERALL counts were
@@ -398,6 +402,7 @@ valid only as a stand-in run.
 | `peer-precondition` | step 5 | the first version line of `perl -v`, as the agent ran it, reads `This is perl 5, version N, subversion M ...`; the line is on the item (`perl_v=`) |
 | `allowed-socket` | step 5 | `real`: the probe connected (`CONNECTED`, no frame), and the peer is identified: `SO_PEERCRED` UID == `service_uid`, socket owner == `service_uid`, group == `agent_socket_gid`, mode 0660. These are the checks the agent client makes before its first frame. `stand-in`: `STAND_IN` after a successful connect, otherwise FAIL. |
 | `custody-verify` | step 5 | probe exit 0, verify exit 0, and `T18_CUSTODY_VERIFIED <sha>` binds the canonical spec of the header |
+| `launch-layout` | step 5 | the agent phase ran `g2-custody-verify -launch=true` on the custody report: it exited 0 (one `launch_true_exit` line) and printed exactly `T18_CUSTODY_VERIFIED <sha>` of the header. Otherwise FAIL, with `layout=refused` when the same report passed verify with `-launch=false` (the launch layout check alone refused it) and `layout=unknown` otherwise. |
 | `positive-request` | step 5 | never sent here: `COVERED_BY_HOSTED` with `host=not-sent` (the receipt is the no-request marker, the exit is 3 and the client wrote no error output), or `host=not-run` (a refused readback stopped the script), and `positive_path=mainnet-smoke-gate`. Any other evidence, such as a real receipt, is FAIL. The real-wallet positive path is the owner-authorized mainnet smoke gate's, not T18's. |
 
 **Covered items.** Every row but one pins a test at commit
@@ -448,7 +453,9 @@ A covered item is never pinned to a run in which its test skipped.
   only attempts a read as the agent, and the kernel refuses it. Never run the
   probe, the custody script or the agent phase as root or as the service UID.
 - **Do not weaken the check.**
-  - Do not use `g2-custody-verify -launch=false`.
+  - Do not use `g2-custody-verify -launch=false` as evidence. The agent
+    phase runs it once, only to name the cause of a `launch-layout` FAIL
+    (`layout=refused`); no item passes on it.
   - Do not edit `custody-spec.json` or a report line.
   - Do not create a file to turn an `ENOENT` into a denial. (Placeholders
     belong only to the stand-in station, are created by Infra before the run,

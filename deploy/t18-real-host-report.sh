@@ -266,6 +266,17 @@ agent_phase() {
 		sh "$here/g2-custody-check.sh" "$spec" "$client" "$grantee" "$params" "$ag/custody" >"$ag/custody-check.out" 2>&1
 	echo "custody_check_exit=$?" >"$ag/agent-exits.txt"
 
+	# Launch layout (r7): the launch layout is a property of the run, which
+	# g2-custody-verify enforces with its -launch check. verify runs here on
+	# the custody script's report twice, read-only, with -launch=true and with
+	# -launch=false; the first is the launch-layout item's evidence, the
+	# second only names the cause when the first refuses (the same report
+	# accepted without the launch check: the layout was refused).
+	"$deploy_kit" g2-custody-verify -launch=true -spec "$spec" -report "$ag/custody/custody-report.json" >"$ag/launch-layout-on.txt" 2>&1
+	echo "launch_true_exit=$?" >>"$ag/agent-exits.txt"
+	"$deploy_kit" g2-custody-verify -launch=false -spec "$spec" -report "$ag/custody/custody-report.json" >"$ag/launch-layout-off.txt" 2>&1
+	echo "launch_false_exit=$?" >>"$ag/agent-exits.txt"
+
 	# Peer identity of the wallet socket: connect, SO_PEERCRED, no frame. Its
 	# precondition is perl with the core Socket module: the first version line
 	# of `perl -v` is kept as evidence.
@@ -300,6 +311,13 @@ probe_observed() {
 
 # file_line FILE: the first line of FILE, or nothing.
 file_line() { [ -f "$1" ] && head -n 1 "$1" || true; }
+
+# agent_exit KEY FILE: the value of the one KEY=<digits> line of FILE, or
+# nothing when KEY stands there other than exactly once.
+agent_exit() {
+	[ "$(grep -c "^$1=" "$2" 2>/dev/null)" = 1 ] || return 0
+	sed -n "s/^$1=\([0-9][0-9]*\)\$/\1/p" "$2"
+}
 
 report_items() {
 	op=$1 ag=$2 rendered=$3 params=$4 wallet=$5
@@ -463,6 +481,23 @@ report_items() {
 		echo "custody-verify FAIL exits=$(echo "${ex:-none}" | tr ' ' ',') verify=$(echo "${vf:-none}" | tr ' ' ',')"
 	fi
 
+	# Launch layout (r7): verify's -launch=true result on this run, as its own
+	# item. PASS only when that run exited 0 (one exit line) and printed
+	# exactly `T18_CUSTODY_VERIFIED <header spec_sha256>`; FAIL otherwise.
+	# layout=refused when the same report passed verify with -launch=false
+	# (the launch layout check alone refused), layout=unknown otherwise.
+	lt=$(agent_exit launch_true_exit "$ag/agent-exits.txt")
+	lf=$(agent_exit launch_false_exit "$ag/agent-exits.txt")
+	lon=$(cat "$ag/launch-layout-on.txt" 2>/dev/null || true)
+	loff=$(cat "$ag/launch-layout-off.txt" 2>/dev/null || true)
+	if [ "$lt" = 0 ] && [ "$lon" = "T18_CUSTODY_VERIFIED $spec_sha" ]; then
+		echo "launch-layout PASS verify=g2-custody-verify launch=true verify_exit=0 verified=$spec_sha"
+	else
+		cause=unknown
+		[ "$lf" = 0 ] && [ "$loff" = "T18_CUSTODY_VERIFIED $spec_sha" ] && cause=refused
+		echo "launch-layout FAIL launch=true verify_exit=${lt:-none} verify=$(printf '%s' "${lon:-none}" | tr ' \n' ',;') launch_false_exit=${lf:-none} layout=$cause"
+	fi
+
 	# The positive own-agent request is never sent here; the hosted test is
 	# its evidence, and the real-wallet positive path is the owner-authorized
 	# mainnet smoke gate's. A host run whose evidence shows that the client
@@ -542,7 +577,7 @@ check_report() {
 			pin_test[f[1]] = f[2]; pin_commit[f[1]] = f[3]; pin_run[f[1]] = f[4]; pin_job[f[1]] = f[5]
 			req_ids = req_ids " " f[1]
 		}
-		nreq = split("node-txindex render account agent-inputs launch-form credentials status-dir peer-precondition allowed-socket custody-verify" req_ids, req, " ")
+		nreq = split("node-txindex render account agent-inputs launch-form credentials status-dir peer-precondition allowed-socket custody-verify launch-layout" req_ids, req, " ")
 		nhk = split("wallet commit spec_sha256 agent_uid primary_gid socket_gid service_uid", hkey, " ")
 		# The fields of each non-FAIL item line, in order.
 		schema["node-txindex"] = "getindexinfo"
@@ -557,6 +592,7 @@ check_report() {
 		schema["peer-precondition"] = "perl_v"
 		schema["allowed-socket"] = "wallet probe peer_uid service_uid socket socket_gid"
 		schema["custody-verify"] = "uid verified"
+		schema["launch-layout"] = "verify launch verify_exit verified"
 		schema["positive-request"] = "pin commit run job host positive_path"
 		schema["covered"] = "pin commit run job"
 		schema["custody-spec"] = ""
@@ -689,6 +725,8 @@ check_report() {
 			if (cv !~ /^[0-9]+,probe_exit=0,positive_exit=[0-9]+,verify_exit=0$/ || substr(cv, 1, index(cv, ",") - 1) != A) bad("custody-verify-pass-contradicts-exits")
 			if (fv["verified"] != hdr["spec_sha256"]) bad("custody-verify-pass-other-spec")
 		}
+		# r7: the launch layout is checked per run by verify -launch=true.
+		if (id == "launch-layout" && (fv["verify"] != "g2-custody-verify" || fv["launch"] != "true" || fv["verify_exit"] != "0" || fv["verified"] != hdr["spec_sha256"])) bad("launch-layout-pass-contradicts-verify")
 		if (id == "allowed-socket") {
 			if (v == "PASS") {
 				if (wallet != "real" || fv["wallet"] != "real") bad("wallet-pass-on-stand-in")
@@ -784,6 +822,10 @@ self_test() {
 	probes EACCES
 	echo "uid=210001 probe_exit=0 positive_exit=3 verify_exit=0" >"$ag/custody/exits.txt"
 	echo "T18_CUSTODY_VERIFIED $spec_sha" >"$ag/custody/custody-verify.txt"
+	exits_ok() { printf 'custody_check_exit=1\nlaunch_true_exit=0\nlaunch_false_exit=0\npeer_exit=0\n' >"$ag/agent-exits.txt"; }
+	exits_ok
+	echo "T18_CUSTODY_VERIFIED $spec_sha" >"$ag/launch-layout-on.txt"
+	echo "T18_CUSTODY_VERIFIED $spec_sha" >"$ag/launch-layout-off.txt"
 	echo "$stub_marker" >"$ag/custody/positive-receipt.json"
 	: >"$ag/custody/positive-request.json"
 	echo 'PEER connect=ok uid=210201 gid=210201' >"$ag/peer.txt"
@@ -800,10 +842,10 @@ self_test() {
 			failures=$((failures + 1))
 		fi
 	}
-	expect real-wallet-all-pass 0 real '^OVERALL PASS pass=13 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real$'
+	expect real-wallet-all-pass 0 real '^OVERALL PASS pass=14 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real$'
 	expect apply-noop-line 0 real '^apply no-op: account pre-created by Infra$'
 	expect stand-in-wallet 0 stand-in '^allowed-socket STAND_IN wallet=stand-in probe=CONNECTED '
-	expect stand-in-placeholders 0 stand-in '^OVERALL PASS pass=9 stand_in=4 covered=11 fail=0 invalid=0 missing=0 run=stand-in valid-only-as-a-stand-in-run$'
+	expect stand-in-placeholders 0 stand-in '^OVERALL PASS pass=10 stand_in=4 covered=11 fail=0 invalid=0 missing=0 run=stand-in valid-only-as-a-stand-in-run$'
 	sed 's/^\(denied-read:[^ ]*\) STAND_IN /\1 PASS /' "$w/stand-in-placeholders.txt" >"$w/edited.txt"
 	check_report "$w/edited.txt" stored "$r/custody-spec.json" >/dev/null && got=0 || got=$?
 	if [ "$got" = 1 ]; then echo "self-test stand-in-placeholder-pass ok exit=1"; else echo "self-test stand-in-placeholder-pass WRONG exit=$got" && failures=$((failures + 1)); fi
@@ -819,6 +861,14 @@ self_test() {
 	echo '{"receipt":{"verdict":"executed"}}' >"$ag/custody/positive-receipt.json"
 	expect request-sent 1 real '^positive-request FAIL host=request-sent-or-unknown$'
 	echo "$stub_marker" >"$ag/custody/positive-receipt.json"
+	# r7: verify -launch=true refused the run's launch layout (the same report
+	# passed with -launch=false): launch-layout FAIL, OVERALL FAIL.
+	echo 'deploy: invalid policy' >"$ag/launch-layout-on.txt"
+	printf 'custody_check_exit=1\nlaunch_true_exit=1\nlaunch_false_exit=0\npeer_exit=0\n' >"$ag/agent-exits.txt"
+	expect launch-layout-refused 1 real '^launch-layout FAIL launch=true verify_exit=1 verify=deploy:,invalid,policy launch_false_exit=0 layout=refused$'
+	if grep -q '^OVERALL PASS ' "$w/launch-layout-refused.txt"; then echo "self-test launch-layout-refused-overall WRONG" && failures=$((failures + 1)); fi
+	echo "T18_CUSTODY_VERIFIED $spec_sha" >"$ag/launch-layout-on.txt"
+	exits_ok
 	sed 's/^allowed-socket PASS /allowed-socket STAND_IN /' "$w/real-wallet-all-pass.txt" >"$w/edited.txt"
 	check_report "$w/edited.txt" stored "$r/custody-spec.json" >/dev/null && got=0 || got=$?
 	if [ "$got" = 1 ]; then echo "self-test stand-in-on-real-wallet ok exit=1"; else echo "self-test stand-in-on-real-wallet WRONG exit=$got" && failures=$((failures + 1)); fi
@@ -843,10 +893,10 @@ self_test() {
 	}
 	valid=$w/real-wallet-all-pass.txt
 	spec=$r/custody-spec.json
-	checked spec-bound-valid 0 "$valid" "$spec" 'OVERALL PASS pass=13 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real'
+	checked spec-bound-valid 0 "$valid" "$spec" 'OVERALL PASS pass=14 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real'
 	checked spec-not-given 64 "$valid" - 'usage:'
 	# The repro: a required row deleted and the OVERALL count edited to match.
-	grep -v '^denied-read:/etc/swarma/wallet/wallet.json ' "$valid" | sed 's/^OVERALL PASS pass=13 /OVERALL PASS pass=12 /' >"$w/row-deleted.txt"
+	grep -v '^denied-read:/etc/swarma/wallet/wallet.json ' "$valid" | sed 's/^OVERALL PASS pass=14 /OVERALL PASS pass=13 /' >"$w/row-deleted.txt"
 	checked row-deleted-overall-edited 1 "$w/row-deleted.txt" "$spec" 'missing:denied-read:/etc/swarma/wallet/wallet.json'
 	# The same valid report against another spec: the rows agree, the file not.
 	sed 's/"agent_uid":210001/"agent_uid":210002/' "$spec" >"$w/other-spec.json"
@@ -863,7 +913,7 @@ self_test() {
 	checked header-hash-differs 1 "$w/header-hash.txt" "$spec" 'header-spec-sha256:differs'
 	sed "s/^\(render PASS files=6 custody_spec_file_sha256=\)[0-9a-f]*\$/\1$zero/" "$valid" >"$w/render-hash.txt"
 	checked render-hash-differs 1 "$w/render-hash.txt" "$spec" 'render-custody-spec-file-sha256:differs'
-	awk '/^denied-rpc:/ { print "denied-read:/etc/swarma/wallet/extra.json PASS observed=EACCES" } { sub(/^OVERALL PASS pass=13 /, "OVERALL PASS pass=14 "); print }' "$valid" >"$w/extra-row.txt"
+	awk '/^denied-rpc:/ { print "denied-read:/etc/swarma/wallet/extra.json PASS observed=EACCES" } { sub(/^OVERALL PASS pass=14 /, "OVERALL PASS pass=15 "); print }' "$valid" >"$w/extra-row.txt"
 	checked extra-row 1 "$w/extra-row.txt" "$spec" 'extra-row:denied-read:/etc/swarma/wallet/extra.json'
 	# r6: the canonical hash comes only from the product. Beside the valid
 	# report, which passed above with the real deploy-kit: no deploy-kit, a
@@ -888,7 +938,7 @@ self_test() {
 	printf ' ' >"$w/ws-spec.json" && cat "$spec" >>"$w/ws-spec.json"
 	ws=$(sha_of "$w/ws-spec.json")
 	sed -e "s/^custody_spec_sha256 [0-9a-f]*\$/custody_spec_sha256 $ws/" -e "s/^\(render PASS files=6 custody_spec_file_sha256=\)[0-9a-f]*\$/\1$ws/" "$valid" >"$w/ws-report.txt"
-	checked whitespace-spec-agrees 0 "$w/ws-report.txt" "$w/ws-spec.json" 'OVERALL PASS pass=13 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real'
+	checked whitespace-spec-agrees 0 "$w/ws-report.txt" "$w/ws-spec.json" 'OVERALL PASS pass=14 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real'
 	if [ "$failures" = 0 ]; then
 		echo "SELF_TEST PASS"
 		return 0

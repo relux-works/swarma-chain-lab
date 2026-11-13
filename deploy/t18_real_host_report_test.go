@@ -37,6 +37,9 @@ const (
 	t18rhApplyNoop  = "apply no-op: account pre-created by Infra"
 	t18rhNote       = "# positive-path: the real-wallet positive path (an authorized request that executes) is proven by the separate owner-authorized, bounded mainnet smoke gate, not by T18. On this host the wallet client sends nothing: positive-request is COVERED_BY_HOSTED, pinned to TestPX1CoreServiceG2FailClosed in run 43360330369, and is FAIL if the host evidence shows that any frame was sent."
 	t18rhPerl       = "This is perl 5, version 34, subversion 0 (v5.34.0) built for x86_64-linux-gnu-thread-multi"
+	// The agent phase's exit lines on a station whose every item passes (r7:
+	// verify -launch=true and -launch=false both accepted the report).
+	t18rhAgentExitsOK = "custody_check_exit=1\nlaunch_true_exit=0\nlaunch_false_exit=0\npeer_exit=0\n"
 )
 
 // t18rhCovered is the expected COVERED_BY_HOSTED table: id, pinned test,
@@ -224,6 +227,9 @@ func t18rhFixture(t *testing.T) *t18rhFix {
 	f.probes(t, nil)
 	f.write(t, "custody/exits.txt", "uid=1201 probe_exit=0 positive_exit=3 verify_exit=0\n")
 	f.write(t, "custody/custody-verify.txt", "T18_CUSTODY_VERIFIED "+f.specSHA+"\n")
+	f.write(t, "agent-exits.txt", t18rhAgentExitsOK)
+	f.write(t, "launch-layout-on.txt", "T18_CUSTODY_VERIFIED "+f.specSHA+"\n")
+	f.write(t, "launch-layout-off.txt", "T18_CUSTODY_VERIFIED "+f.specSHA+"\n")
 	f.write(t, "custody/positive-request.json", `{"v":1}`)
 	f.write(t, "custody/positive-receipt.json", t18rhMarker+"\n")
 	f.write(t, "peer.txt", "PEER connect=ok uid=1101 gid=1101\n")
@@ -286,7 +292,7 @@ func TestT18RealHostItemContract(t *testing.T) {
 	for _, r := range f.spec.DeniedRPC {
 		want = append(want, "denied-rpc:"+r)
 	}
-	want = append(want, "peer-precondition", "allowed-socket", "custody-verify", "positive-request")
+	want = append(want, "peer-precondition", "allowed-socket", "custody-verify", "launch-layout", "positive-request")
 	for _, c := range t18rhCovered {
 		want = append(want, c[0])
 	}
@@ -664,10 +670,12 @@ func TestT18RealHostCheckControls(t *testing.T) {
 // garbage or exits non-zero, check refuses canonical-hash-unavailable; one
 // that prints another well-formed hash gives header-spec-sha256:differs; and
 // the valid report with its spec behind a leading space (file hashes moved
-// along) passes with the real product.
+// along) passes with the real product. The r7 sample: verify -launch=true
+// refused the run's launch layout while -launch=false accepted the same
+// report, so launch-layout is FAIL layout=refused and OVERALL is not PASS.
 func TestT18RealHostSelfTest(t *testing.T) {
 	code, out := t18rhRun(t, []string{"DEPLOY_KIT=/nonexistent/deploy-kit"}, "self-test")
-	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 27 ||
+	if code != 0 || !strings.HasSuffix(out, "SELF_TEST PASS\n") || strings.Count(out, " ok exit=") != 28 ||
 		!strings.HasPrefix(out, "self-test build-deploy-kit ok exit=0\n") || !strings.Contains(out, "\nself-test whitespace-spec-agrees ok exit=0\n") {
 		t.Fatalf("T18RH_SELF_TEST %d\n%s", code, out)
 	}
@@ -772,7 +780,8 @@ func TestT18RealHostPeerIdentity(t *testing.T) {
 // Limits: id is the fixture readback adapter of
 // TestPX1T18CustodyScript (no setpriv runs here); the spec uses fixture paths
 // (no status directory), so custody-verify, which requires the launch layout,
-// and status-dir are FAIL; the account check runs against this host's account
+// and status-dir are FAIL; launch-layout is FAIL layout=refused from the real
+// verify (-launch=true refused, -launch=false accepted the same report); the account check runs against this host's account
 // database, where the agent account does not exist, so the preflight refuses
 // it (FAIL); launch-form reads this test process, not a setpriv launch.
 func TestT18RealHostAgentPhase(t *testing.T) {
@@ -915,6 +924,9 @@ func TestT18RealHostAgentPhase(t *testing.T) {
 	for _, re := range []string{
 		`(?m)^allowed-socket STAND_IN wallet=stand-in probe=CONNECTED peer_uid=` + u + ` `,
 		`(?m)^custody-verify FAIL `,
+		// r7: the real verify -launch=true refused the fixture spec's layout,
+		// and -launch=false accepted the same report.
+		`(?m)^launch-layout FAIL launch=true verify_exit=1 verify=deploy:,invalid,policy launch_false_exit=0 layout=refused$`,
 		`(?m)^status-dir FAIL path=/run/swarma-wallet-status not-in-denied_reads$`,
 		`(?m)^launch-form (PASS|FAIL) uid=` + u + `,` + u + `,` + u + `,` + u + ` `,
 		`(?m)^account FAIL host_flow=g2_host_flow:_preflight:_`,
@@ -1001,7 +1013,7 @@ func TestT18RealHostStrictCheck(t *testing.T) {
 			t.Fatalf("T18RH_STRICT %s refused or recomputed differently: %d\n%s", name, code, out)
 		}
 	}
-	validOverall := "OVERALL PASS pass=20 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real"
+	validOverall := "OVERALL PASS pass=21 stand_in=0 covered=11 fail=0 invalid=0 missing=0 run=real"
 	overallRe := regexp.MustCompile(`(?m)^OVERALL .*$`)
 	sub := func(text, re, repl string) string {
 		out := regexp.MustCompile(`(?m)`+re).ReplaceAllString(text, repl)
@@ -1039,7 +1051,7 @@ func TestT18RealHostStrictCheck(t *testing.T) {
 		{"verify-other-agent", sub(real, `uid=1201,probe_exit=0`, "uid=0,probe_exit=0"), "custody-verify-pass-contradicts-exits"},
 		{"unknown-item", sub(real, `^(render PASS .*)$`, "$1\nshadow PASS ok=1"), "unknown-item:shadow"},
 		{"header-other-commit", sub(real, `^T18-REAL-HOST v1 wallet=real commit=\S+ `, "T18-REAL-HOST v1 wallet=real commit="+t18rhNodeCommit+" "), "header"},
-		{"stated-other-counts", sub(real, `^OVERALL PASS pass=20 `, "OVERALL PASS pass=21 "), "# stated OVERALL PASS disagrees"},
+		{"stated-other-counts", sub(real, `^OVERALL PASS pass=21 `, "OVERALL PASS pass=22 "), "# stated OVERALL PASS disagrees"},
 		// Trailing, unterminated or unparsable lines and blocks.
 		{"unterminated-last-line", strings.TrimSuffix(real, "\n"), "unterminated-last-line"},
 		{"trailing-line", real + "positive-request FAIL host=sent\n", "trailing-after-overall"},
@@ -1216,10 +1228,10 @@ func TestT18RealHostSpecBoundCheck(t *testing.T) {
 	const extra = "denied-read:/etc/swarma/wallet/extra.json PASS observed=EACCES"
 	hashLine := `^custody_spec_sha256 [0-9a-f]{64}\n`
 	stored := []struct{ file, made, reason string }{
-		{"row-deleted-overall-edited.txt", edit(edit(valid, `^`+regexp.QuoteMeta(wallet)+` .*\n`, ""), `^OVERALL PASS pass=20 `, "OVERALL PASS pass=19 "), "missing:denied-read:/etc/swarma/wallet/wallet.json"},
+		{"row-deleted-overall-edited.txt", edit(edit(valid, `^`+regexp.QuoteMeta(wallet)+` .*\n`, ""), `^OVERALL PASS pass=21 `, "OVERALL PASS pass=20 "), "missing:denied-read:/etc/swarma/wallet/wallet.json"},
 		{"missing-hash.txt", edit(valid, hashLine, ""), "custody-spec-sha256:missing"},
 		{"duplicate-hash.txt", edit(valid, `^(custody_spec_sha256 [0-9a-f]{64}\n)`, "$1$1"), "custody-spec-sha256:duplicate"},
-		{"extra-denied-row.txt", edit(edit(valid, `^(denied-rpc:)`, extra+"\n$1"), `^OVERALL PASS pass=20 `, "OVERALL PASS pass=21 "), "extra-row:denied-read:/etc/swarma/wallet/extra.json"},
+		{"extra-denied-row.txt", edit(edit(valid, `^(denied-rpc:)`, extra+"\n$1"), `^OVERALL PASS pass=21 `, "OVERALL PASS pass=22 "), "extra-row:denied-read:/etc/swarma/wallet/extra.json"},
 	}
 	for _, c := range stored {
 		text := read(c.file)
@@ -1239,9 +1251,9 @@ func TestT18RealHostSpecBoundCheck(t *testing.T) {
 	noRPC := filepath.Join(t.TempDir(), "no-rpc.json")
 	os.WriteFile(noRPC, []byte(edit(read("custody-spec.json"), `"denied_rpc":\[[^]]*\],`, "")), 0600)
 	neighbours := []struct{ name, text, spec, reason string }{
-		{"extra-rpc-row", edit(edit(valid, `^(peer-precondition )`, "denied-rpc:127.0.0.1:8337 PASS observed=HTTP_401\n$1"), `^OVERALL PASS pass=20 `, "OVERALL PASS pass=21 "), spec, "extra-row:denied-rpc:127.0.0.1:8337"},
-		{"missing-rpc-row", edit(edit(valid, `^denied-rpc:.*\n`, ""), `^OVERALL PASS pass=20 `, "OVERALL PASS pass=19 "), spec, "missing:denied-rpc:127.0.0.1:8336"},
-		{"duplicate-denied-row", edit(edit(valid, `^(`+regexp.QuoteMeta(wallet)+` .*\n)`, "$1$1"), `^OVERALL PASS pass=20 `, "OVERALL PASS pass=21 "), spec, "duplicate:" + wallet},
+		{"extra-rpc-row", edit(edit(valid, `^(peer-precondition )`, "denied-rpc:127.0.0.1:8337 PASS observed=HTTP_401\n$1"), `^OVERALL PASS pass=21 `, "OVERALL PASS pass=22 "), spec, "extra-row:denied-rpc:127.0.0.1:8337"},
+		{"missing-rpc-row", edit(edit(valid, `^denied-rpc:.*\n`, ""), `^OVERALL PASS pass=21 `, "OVERALL PASS pass=20 "), spec, "missing:denied-rpc:127.0.0.1:8336"},
+		{"duplicate-denied-row", edit(edit(valid, `^(`+regexp.QuoteMeta(wallet)+` .*\n)`, "$1$1"), `^OVERALL PASS pass=21 `, "OVERALL PASS pass=22 "), spec, "duplicate:" + wallet},
 		{"hash-uppercase", edit(valid, `^custody_spec_sha256 8d1820c3`, "custody_spec_sha256 8D1820C3"), spec, "custody-spec-sha256:malformed:line2"},
 		{"hash-short", edit(valid, `^(custody_spec_sha256 [0-9a-f]{63})[0-9a-f]$`, "$1"), spec, "custody-spec-sha256:malformed:line2"},
 		{"spec-without-rpc", valid, noRPC, "custody-spec-unreadable"},
@@ -1255,8 +1267,8 @@ func TestT18RealHostSpecBoundCheck(t *testing.T) {
 	// A FAIL row is still the spec entry's row: the report fails on that item
 	// alone, with nothing missing and nothing invalid.
 	failRow := edit(edit(valid, `^(`+regexp.QuoteMeta(wallet)+`) PASS observed=EACCES$`, "$1 FAIL observed=ENOENT"),
-		`^OVERALL PASS pass=20 stand_in=0 covered=11 fail=0 `, "OVERALL FAIL pass=19 stand_in=0 covered=11 fail=1 ")
-	want := strings.Replace(overall, "OVERALL PASS pass=20 stand_in=0 covered=11 fail=0 ", "OVERALL FAIL pass=19 stand_in=0 covered=11 fail=1 ", 1)
+		`^OVERALL PASS pass=21 stand_in=0 covered=11 fail=0 `, "OVERALL FAIL pass=20 stand_in=0 covered=11 fail=1 ")
+	want := strings.Replace(overall, "OVERALL PASS pass=21 stand_in=0 covered=11 fail=0 ", "OVERALL FAIL pass=20 stand_in=0 covered=11 fail=1 ", 1)
 	if code, out := t18rhCheckFile(t, "fail-row", failRow, spec); code != 1 || out != want {
 		t.Fatalf("T18RH_SPEC a FAIL row: exit %d, want exactly %q\n%s", code, want, out)
 	}
@@ -1275,8 +1287,8 @@ const t18rhR5 = "testdata/t18-real-host-r5"
 // names its spec in all three and passes (exit 0). Each stored plant is that
 // report with one of the three changed alone to the other spec's value, and
 // is refused with exit 1 and exactly its named reason beside the stated
-// OVERALL line; the header plant also contradicts custody-verify's verified=,
-// which equals the header in a valid report. Neighbours: the header and
+// OVERALL line; the header plant also contradicts custody-verify's and (r7)
+// launch-layout's verified=, which equal the header in a valid report. Neighbours: the header and
 // verified= changed together are refused by the header comparison alone, and
 // the given spec with one more trailing newline (same canonical hash, another
 // file, which the product's spec reader accepts) is refused by the two file
@@ -1307,7 +1319,7 @@ func TestT18RealHostAllSpecHashesBound(t *testing.T) {
 	}
 	valid := read(filepath.Join(t18rhR4, "valid-real.txt"))
 	header := valid[:strings.Index(valid, "\n")]
-	if !strings.Contains(header, " spec_sha256="+canonSHA+" ") || strings.Count(valid, canonSHA) != 2 ||
+	if !strings.Contains(header, " spec_sha256="+canonSHA+" ") || strings.Count(valid, canonSHA) != 3 ||
 		strings.Count(valid, "\ncustody_spec_sha256 "+fileSHA+"\n") != 1 ||
 		strings.Count(valid, "\nrender PASS files=6 custody_spec_file_sha256="+fileSHA+"\n") != 1 || strings.Count(valid, fileSHA) != 2 {
 		t.Fatal("T18RH_HASHES the valid report does not name its spec in all three fields\n", valid)
@@ -1326,7 +1338,7 @@ func TestT18RealHostAllSpecHashesBound(t *testing.T) {
 	headerRe, headerTo := `^(T18-REAL-HOST v1 .* spec_sha256=)`+canonSHA+` `, "${1}"+otherCanon+" "
 	plants := []struct{ file, made, reasons string }{
 		{"custody-hash-differs.txt", edit(valid, `^custody_spec_sha256 `+fileSHA+`$`, "custody_spec_sha256 "+otherFile), "custody-spec-sha256:differs"},
-		{"header-hash-differs.txt", edit(valid, headerRe, headerTo), "header-spec-sha256:differs custody-verify-pass-other-spec"},
+		{"header-hash-differs.txt", edit(valid, headerRe, headerTo), "header-spec-sha256:differs custody-verify-pass-other-spec launch-layout-pass-contradicts-verify"},
 		{"render-hash-differs.txt", edit(valid, `^(render PASS files=6 custody_spec_file_sha256=)`+fileSHA+`$`, "${1}"+otherFile), "render-custody-spec-file-sha256:differs"},
 	}
 	for _, c := range plants {
@@ -1339,9 +1351,9 @@ func TestT18RealHostAllSpecHashesBound(t *testing.T) {
 			t.Fatalf("T18RH_HASHES %s: exit %d, want 1 with exactly %q\n%s", c.file, code, c.reasons, out)
 		}
 	}
-	// The header and verified= moved together: only the header comparison
-	// sees it.
-	both := edit(edit(valid, headerRe, headerTo), `^(custody-verify PASS .* verified=)`+canonSHA+`$`, "${1}"+otherCanon)
+	// The header and both verified= (custody-verify, r7 launch-layout) moved
+	// together: only the header comparison sees it.
+	both := edit(edit(edit(valid, headerRe, headerTo), `^(custody-verify PASS .* verified=)`+canonSHA+`$`, "${1}"+otherCanon), `^(launch-layout PASS .* verified=)`+canonSHA+`$`, "${1}"+otherCanon)
 	if code, out := t18rhCheckFile(t, "header-and-verified", both, spec); code != 1 || !strings.Contains(out, "\n# reasons: header-spec-sha256:differs stated-overall-disagrees\n") {
 		t.Fatalf("T18RH_HASHES header and verified= moved together: exit %d\n%s", code, out)
 	}
@@ -1478,5 +1490,161 @@ func TestT18RealHostCanonicalHashFromProduct(t *testing.T) {
 	if code != 0 || !strings.HasPrefix(out, "T18-REAL-HOST v1 wallet=real commit="+t18rhCommit+" spec_sha256="+f.specSHA+" ") ||
 		!strings.Contains(out, "\ncustody_spec_sha256 "+t18rhSha(lead)+"\n") || !strings.Contains(out, "\nOVERALL PASS ") {
 		t.Fatalf("T18RH_CANON report on a leading-space spec: %d\n%s", code, out)
+	}
+}
+
+// Claim (r7): the launch layout, which g2-custody-verify enforces per run with
+// -launch=true, is its own required item. On the all-pass evidence it is
+// PASS with verify_exit=0 and verified= the header's canonical hash (OVERALL
+// PASS). The planted control, verify -launch=true refusing the run's layout
+// (`deploy: invalid policy`, exit 1) while -launch=false accepted the same
+// report, makes launch-layout FAIL layout=refused and OVERALL FAIL with that
+// item the only failure, even though custody-verify's own evidence is
+// unchanged. Neighbours: both refusing is layout=unknown; a repeated or
+// missing exit line, a second output line, another hash, and missing output
+// are FAIL. check refuses a stored report without the item (missing) and a
+// PASS line that contradicts verify (exit 1, launch=false, another hash).
+// Limit: the evidence files are synthetic here; the real verify's refusal of
+// a non-launch spec is TestT18RealHostAgentPhase's.
+func TestT18RealHostLaunchLayoutItem(t *testing.T) {
+	refused := "custody_check_exit=1\nlaunch_true_exit=1\nlaunch_false_exit=0\npeer_exit=0\n"
+	for _, c := range []struct {
+		name  string
+		plant func(f *t18rhFix)
+		code  int
+		want  string
+	}{
+		{"valid", func(f *t18rhFix) {}, 0, `^launch-layout PASS verify=g2-custody-verify launch=true verify_exit=0 verified=%s$`},
+		{"layout-refused", func(f *t18rhFix) {
+			f.write(t, "agent-exits.txt", refused)
+			f.write(t, "launch-layout-on.txt", "deploy: invalid policy\n")
+		}, 1, `^launch-layout FAIL launch=true verify_exit=1 verify=deploy:,invalid,policy launch_false_exit=0 layout=refused$`},
+		{"both-refused", func(f *t18rhFix) {
+			f.write(t, "agent-exits.txt", "custody_check_exit=1\nlaunch_true_exit=1\nlaunch_false_exit=1\npeer_exit=0\n")
+			f.write(t, "launch-layout-on.txt", "deploy: G2 custody check refused\n")
+			f.write(t, "launch-layout-off.txt", "deploy: G2 custody check refused\n")
+		}, 1, `^launch-layout FAIL launch=true verify_exit=1 .* launch_false_exit=1 layout=unknown$`},
+		{"exit-line-twice", func(f *t18rhFix) {
+			f.write(t, "agent-exits.txt", t18rhAgentExitsOK+"launch_true_exit=0\n")
+		}, 1, `^launch-layout FAIL launch=true verify_exit=none `},
+		{"exit-line-missing", func(f *t18rhFix) {
+			f.write(t, "agent-exits.txt", "custody_check_exit=1\nlaunch_false_exit=0\npeer_exit=0\n")
+		}, 1, `^launch-layout FAIL launch=true verify_exit=none .* layout=refused$`},
+		{"second-output-line", func(f *t18rhFix) {
+			f.write(t, "launch-layout-on.txt", "T18_CUSTODY_VERIFIED "+f.specSHA+"\nextra\n")
+		}, 1, `^launch-layout FAIL launch=true verify_exit=0 `},
+		{"other-hash", func(f *t18rhFix) {
+			f.write(t, "launch-layout-on.txt", "T18_CUSTODY_VERIFIED "+strings.Repeat("0", 64)+"\n")
+		}, 1, `^launch-layout FAIL launch=true verify_exit=0 `},
+		{"no-output", func(f *t18rhFix) {
+			os.Remove(filepath.Join(f.ag, "launch-layout-on.txt"))
+		}, 1, `^launch-layout FAIL launch=true verify_exit=0 verify=none `},
+	} {
+		f := t18rhFixture(t)
+		c.plant(f)
+		code, out := f.report(t, "real")
+		want := c.want
+		if c.name == "valid" {
+			want = strings.Replace(want, "%s", f.specSHA, 1)
+		}
+		if code != c.code || !regexp.MustCompile(`(?m)`+want).MatchString(out) {
+			t.Fatalf("T18RH_LAUNCH %s: exit %d, want %d and %s\n%s", c.name, code, c.code, want, out)
+		}
+		if c.code == 0 && !strings.Contains(out, "\nOVERALL PASS ") {
+			t.Fatalf("T18RH_LAUNCH %s: OVERALL is not PASS\n%s", c.name, out)
+		}
+		if c.code != 0 && (strings.Contains(out, "\nOVERALL PASS ") || !strings.Contains(out, " fail=1 ")) {
+			t.Fatalf("T18RH_LAUNCH %s: OVERALL must be FAIL from launch-layout alone\n%s", c.name, out)
+		}
+	}
+	spec := filepath.Join(t18rhR4, "custody-spec.json")
+	b, e := os.ReadFile(filepath.Join(t18rhR4, "valid-real.txt"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	valid := string(b)
+	edit := func(text, re, repl string) string {
+		out := regexp.MustCompile(`(?m)`+re).ReplaceAllString(text, repl)
+		if out == text {
+			t.Fatalf("T18RH_LAUNCH edit %q matched nothing", re)
+		}
+		return out
+	}
+	if code, out := t18rhCheckFile(t, "valid", valid, spec); code != 0 || !strings.HasPrefix(out, "OVERALL PASS pass=21 ") {
+		t.Fatalf("T18RH_LAUNCH the stored valid report: %d\n%s", code, out)
+	}
+	for _, c := range []struct{ name, text, reason string }{
+		{"item-missing", edit(edit(valid, `^launch-layout .*\n`, ""), `^OVERALL PASS pass=21 `, "OVERALL PASS pass=20 "), "missing:launch-layout"},
+		{"pass-with-exit-1", edit(valid, `^(launch-layout PASS .*) verify_exit=0 `, "$1 verify_exit=1 "), "launch-layout-pass-contradicts-verify"},
+		{"pass-launch-false", edit(valid, `^(launch-layout PASS .*) launch=true `, "$1 launch=false "), "launch-layout-pass-contradicts-verify"},
+		{"pass-other-hash", edit(valid, `^(launch-layout PASS .* verified=)[0-9a-f]+$`, "${1}"+strings.Repeat("0", 64)), "launch-layout-pass-contradicts-verify"},
+		{"pass-other-verifier", edit(valid, `^(launch-layout PASS) verify=g2-custody-verify `, "$1 verify=other "), "launch-layout-pass-contradicts-verify"},
+	} {
+		code, out := t18rhCheckFile(t, c.name, c.text, spec)
+		if code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") || !strings.Contains(out, c.reason) {
+			t.Fatalf("T18RH_LAUNCH check %s: exit %d, want 1 with %s\n%s", c.name, code, c.reason, out)
+		}
+	}
+}
+
+// Claim (r7): the hash step refuses a failing product on its own exit-status
+// check, not because errexit happens to stop the command substitution. The
+// runner is copied with its one `set -eu` line changed to `set -u` (errexit
+// OFF, nothing else changed) and given a product that prints the correct
+// canonical line and exits 1: check still refuses canonical-hash-unavailable
+// and report still composes nothing (REFUSED canonical-hash-unavailable).
+// Positive control: the same errexit-off copy with the real deploy-kit passes
+// check on the valid report and composes a passing report.
+func TestT18RealHostHashStepErrexitOff(t *testing.T) {
+	src, e := os.ReadFile(t18rhScript)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if strings.Count(string(src), "\nset -eu\n") != 1 {
+		t.Fatal("T18RH_ERREXIT setup: the runner has not exactly one `set -eu` line")
+	}
+	dir := t.TempDir()
+	copyPath := filepath.Join(dir, "t18-real-host-report.sh")
+	if e := os.WriteFile(copyPath, []byte(strings.Replace(string(src), "\nset -eu\n", "\nset -u\n", 1)), 0700); e != nil {
+		t.Fatal(e)
+	}
+	spec := filepath.Join(t18rhR4, "custody-spec.json")
+	raw, e := os.ReadFile(spec)
+	if e != nil {
+		t.Fatal(e)
+	}
+	sp, e := ParseCustodySpec(raw[:len(raw)-1])
+	if e != nil {
+		t.Fatal(e)
+	}
+	failing := filepath.Join(dir, "deploy-kit-exit1")
+	if e := os.WriteFile(failing, []byte("#!/bin/sh\necho T18_CUSTODY_SPEC_SHA256 "+CustodySpecSHA256(sp)+"\nexit 1\n"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	run := func(kit string, args ...string) (int, string) {
+		t.Helper()
+		cmd := exec.Command("/bin/sh", append([]string{copyPath}, args...)...)
+		cmd.Env = append(os.Environ(), "DEPLOY_KIT="+kit)
+		out, e := cmd.CombinedOutput()
+		if _, ok := e.(*exec.ExitError); e != nil && !ok {
+			t.Fatal("T18RH_ERREXIT", e)
+		}
+		return cmd.ProcessState.ExitCode(), string(out)
+	}
+	valid := filepath.Join(t18rhR4, "valid-real.txt")
+	if code, out := run(t18rhKit(t), "check", valid, spec); code != 0 || !strings.HasPrefix(out, "OVERALL PASS ") {
+		t.Fatalf("T18RH_ERREXIT control: errexit-off check with the real deploy-kit: %d\n%s", code, out)
+	}
+	if code, out := run(failing, "check", valid, spec); code != 1 || !strings.HasPrefix(out, "OVERALL FAIL ") ||
+		!strings.Contains(out, "\n# reasons: canonical-hash-unavailable stated-overall-disagrees\n") {
+		t.Fatalf("T18RH_ERREXIT errexit-off check with a product that exits 1: %d\n%s", code, out)
+	}
+	f := t18rhFixture(t)
+	if code, out := run(t18rhKit(t), "report", f.op, f.ag, f.rendered, f.params, "real"); code != 0 || !strings.Contains(out, "\nOVERALL PASS ") {
+		t.Fatalf("T18RH_ERREXIT control: errexit-off report with the real deploy-kit: %d\n%s", code, out)
+	}
+	if code, out := run(failing, "report", f.op, f.ag, f.rendered, f.params, "real"); code != 1 ||
+		!strings.HasPrefix(out, "REFUSED canonical-hash-unavailable: ") || strings.Contains(out, "T18-REAL-HOST") || strings.Contains(out, "OVERALL") {
+		t.Fatalf("T18RH_ERREXIT errexit-off report with a product that exits 1: %d\n%s", code, out)
 	}
 }
