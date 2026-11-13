@@ -34,9 +34,9 @@ socket); without it the service stays W2. The documents:
   cap checker, the request fee limit and the wallet-layer spend path.
 - [FORMAT-JOURNAL-V2.md](FORMAT-JOURNAL-V2.md): journal v2, day buckets,
   track and reconcile records and the receipt-key release authorization.
-- [RECONCILE-RUNBOOK.md](RECONCILE-RUNBOOK.md): F6 operator runbook draft;
-  blocked because the operator reconcile command is not implemented. The
-  private-regtest reconciliation rehearsal remains outstanding.
+- [RECONCILE-RUNBOOK.md](RECONCILE-RUNBOOK.md): F6 service-UID operator CLI,
+  six-confirmation conflict-only release, separate journald alert forwarder,
+  hourly refusals, startup holds and private-regtest qualification limits.
 - [STATUS.md](STATUS.md): the tracker, canary, float monitor, alerts and the
   operator status projection.
 - [SERVICE.md](SERVICE.md): the service, its G2 operations section, the
@@ -186,11 +186,43 @@ administrative route; that route is not a product capability.
 ## Tools and reproducible checks
 
 For F6 investigation, `journalctl --unit=swarma-wallet.service --no-pager`
-reads the supplied unit's captured alerts. The blocked
-[reconciliation runbook](RECONCILE-RUNBOOK.md) lists explicit `namecoin-cli`
-regtest evidence commands; they do not release a debit. Keep command outputs,
-exit codes and evidence hashes in private operator records, with local scratch
-logs under `.temp/`. No operator reconcile executable is shipped yet.
+reads the supplied unit's captured alerts. The
+[reconciliation runbook](RECONCILE-RUNBOOK.md) gives exact
+`agent-wallet-reconcile` and `agent-wallet-alert-forwarder` build/run commands,
+the separate unit/config templates and explicit `namecoin-cli` regtest evidence
+commands. Keep outputs, real exit codes and evidence hashes in private operator
+records, with local scratch logs under `.temp/`; never archive credentials or
+wallet files. The forwarder uses only an operator-provisioned a2a infrastructure
+identity through its admitted absolute CLI path; tests send to no real room.
+
+F6 unit and real-socket checks run with the normal race-enabled suite. Its
+focused mutation controls use the existing runner:
+
+```sh
+W1_MUTATIONS=1 W1_MUTATION_ROOT=FRESH_ABSOLUTE_DIRECTORY \
+W1_DEP_ROOT=ABSOLUTE_EXPERIMENTS_DIRECTORY \
+go test -count=1 -run '^TestGuardPlants/F6-' -v .
+```
+
+The opt-in `TestF6CoreRehearsal` uses a fresh private Core node, explicit ports
+above 28000 and PID-specific cleanup. Run from this module with the binary built
+from this source and the existing Core binary pins:
+
+```sh
+W1_REGTEST=1 W1_RUN_ROOT=FRESH_ABSOLUTE_DIRECTORY \
+W1_CORE_CLI=ABSOLUTE_NAMECOIN_CLI W1_CORE_DAEMON=ABSOLUTE_NAMECOIND \
+F6_RECONCILE_BINARY=ABSOLUTE_BUILT_RECONCILE_BINARY \
+go test -race -count=1 -timeout=12m -run '^TestF6CoreRehearsal$' -v .
+```
+
+It records sanitized commands/exit codes, chain evidence and signed records in
+the fresh root's `public/`; private node/config/key material is never evidence.
+The existing DK5 unit ownership seam permits function-level exercise only.
+When the actual built CLI cannot admit the fixture, this rehearsal deliberately
+fails `F6_CLI_QUALIFICATION_BLOCKED` after collecting the bounded functional
+evidence. It does not convert a DK5 refusal into CLI qualification or T18 proof.
+The separate owner-controlled installed fixture/station readback and measured
+operator-room plus owner-DM delivery remain deployment obligations.
 
 Go 1.26.8 builds, races, vets and runs controls. Unit checks skip Core/plant
 suites unless explicitly enabled. No external library update is implicit.

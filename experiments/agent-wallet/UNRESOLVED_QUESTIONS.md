@@ -51,13 +51,22 @@
   `conflicted` without a restart; the debit stays retained until an operator
   release.
 - **F6 (matrix row 20 negative test):** not routed to the integration
-  follow-up; open. At base `32dd1d18`, there is no operator reconcile CLI:
-  only the signed journal primitives and startup integrity check exist.
-  [The blocked runbook draft](RECONCILE-RUNBOOK.md) records the current
-  behavior. QA must decide the operator command and chain-evidence policy
-  before implementation; then the private-regtest rehearsal and row-20
-  negative must run. Human assignment and monitored-channel delivery also
-  remain unconfirmed. No frozen PX1 interface change is proposed here.
+  follow-up. The [runbook](RECONCILE-RUNBOOK.md), operator reconcile CLI and
+  separate alert forwarder now implement the approved conflict-only policy:
+  release at six active-chain confirmations, receipt-key signing, service UID,
+  one-hour gate, no wire action and no absent release. Function/unit and real
+  socket evidence are separate from installed-CLI qualification and T18.
+  A no-root local fixture cannot supply the root-owned signed DK5 set; the
+  rehearsal records the actual binary refusal rather than adding a bypass.
+  Keeper-confirmed human/backup assignment, measured delivery to both watched
+  destinations, independent review and post-install station readback remain
+  open. No frozen PX1 interface change is made.
+- **F6 startup after a conflict release.** Startup's known-send set includes
+  `record.txid` but not `reconcile.conflict_txid`. An out-of-band conflict can
+  therefore still return `STATE_RECONCILE_REQUIRED` after a valid signed
+  release. The operator command deliberately preserves this guard. QA must
+  decide whether verified signed conflict evidence should qualify a known send
+  in a separate bounded change, or retain an explicit station recovery hold.
 - **Replay after a release.** `px1Prior` skips `track` records only. After a
   `reconcile` record, a wallet-layer replay reports that record's phase
   (`released`), also for a partial release, whose accounting phase is

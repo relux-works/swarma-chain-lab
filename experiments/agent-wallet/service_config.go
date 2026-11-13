@@ -92,7 +92,10 @@ func LoadServiceConfig(path string) (ServiceConfig, error) {
 	}
 	return c, nil
 }
-func validServiceConfig(c ServiceConfig) error {
+
+// validServiceIdentityAndPaths is shared by the daemon and offline operator.
+// Runtime socket custody remains a separate daemon admission requirement.
+func validServiceIdentityAndPaths(c ServiceConfig) error {
 	network, genesis := serviceNetworkPins(c.Network, c.Genesis)
 	if !su.NetworkPinned(network, genesis) {
 		return fail("SERVICE_NETWORK_PIN")
@@ -108,6 +111,13 @@ func validServiceConfig(c ServiceConfig) error {
 		if !filepath.IsAbs(p) || filepath.Clean(p) != p {
 			return fail("SERVICE_PATH")
 		}
+	}
+	return nil
+}
+
+func validServiceConfig(c ServiceConfig) error {
+	if e := validServiceIdentityAndPaths(c); e != nil {
+		return e
 	}
 	parent := filepath.Dir(c.Socket)
 	resolved, e := filepath.EvalSymlinks(parent)

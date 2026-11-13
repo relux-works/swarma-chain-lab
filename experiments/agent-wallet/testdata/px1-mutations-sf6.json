@@ -1,0 +1,26 @@
+[
+  {
+    "Name": "F6-release-at-five",
+    "File": "reconcile.go",
+    "Old": "const ReconcileConfirmations int64 = 6",
+    "New": "const ReconcileConfirmations int64 = 5",
+    "Selector": "TestF6ReconcileRefusals/k5",
+    "Marker": "F6_UNSAFE_RELEASE"
+  },
+  {
+    "Name": "F6-allow-absent-helper",
+    "File": "reconcile.go",
+    "Old": "if q.Evidence != \"conflict\" || !hexN(q.ConflictTxID, 32) {",
+    "New": "if !hexN(q.ConflictTxID, 32) {",
+    "Selector": "TestF6ReconcileRefusals/absent",
+    "Marker": "F6_UNSAFE_RELEASE"
+  },
+  {
+    "Name": "F6-timestamp-before-evidence",
+    "File": "reconcile.go",
+    "Old": "rec.LastTime = at",
+    "New": "rec.LastTime = now",
+    "Selector": "TestF6ClockAtAppend/30",
+    "Marker": "F6_TIMESTAMP_BEFORE_EVIDENCE"
+  }
+]
