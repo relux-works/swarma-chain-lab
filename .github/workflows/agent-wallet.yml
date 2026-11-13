@@ -13,6 +13,8 @@ on:
       - '.scripts/test_check_px1_core_gate.py'
       - '.scripts/px1-core-gate.json'
       - '.scripts/w2-core-gate.json'
+      - '.scripts/w2-newcore-users.go'
+      - '.scripts/px1-s5-consumer-gate.json'
   push:
     branches: [main]
     paths:
@@ -27,6 +29,8 @@ on:
       - '.scripts/test_check_px1_core_gate.py'
       - '.scripts/px1-core-gate.json'
       - '.scripts/w2-core-gate.json'
+      - '.scripts/w2-newcore-users.go'
+      - '.scripts/px1-s5-consumer-gate.json'
   workflow_dispatch:
 permissions:
   contents: read

@@ -10,6 +10,7 @@ Core tests); it finds the newCore users with the Go syntax-tree helper
 .scripts/w2-newcore-users.go, run with the go on PATH (W2_NEWCORE_HELPER may
 point at a mutated copy of the helper).
 """
+import ast
 import json
 import os
 from pathlib import Path
@@ -114,6 +115,146 @@ def core_fetch(text, job):
         if inside:
             step.append(line)
     return pins, step
+
+
+def job_steps(text, job):
+    """(working directory, step text) for each step of one job, comment lines
+    dropped. The directory is repository-relative ("" for the root) or None
+    when it lies outside the checkout (a ${{ ... }} expression)."""
+    block = job_block(text, job)
+    head = block[:block.index("    steps:")]
+    default = next((m.group(1) for m in (re.match(r"^\s+working-directory:\s*(\S+)\s*$", x) for x in head) if m), ".")
+    steps = []
+    for line in block[len(head) + 1:]:
+        if line.startswith("      - "):
+            steps.append([])
+        if steps and not line.strip().startswith("#"):
+            steps[-1].append(line)
+    out = []
+    for lines in steps:
+        wd = next((m.group(1) for m in (re.match(r"^        working-directory:\s*(\S+)\s*$", x) for x in lines) if m), default)
+        wd = None if "${{" in wd else os.path.normpath(wd)
+        out.append(("" if wd == "." else wd, "\n".join(lines)))
+    return out
+
+
+def repo_file(rel):
+    """The repository-relative path of rel when it names a file of the
+    checkout, else None."""
+    rel = os.path.normpath(rel)
+    if os.path.isabs(rel) or rel == ".." or rel.startswith("../"):
+        return None
+    return rel if (REPO / rel).is_file() else None
+
+
+def script_inputs(rel):
+    """The files a Python script of the checkout reads by a REPO / "..." path
+    (its syntax tree, not a text match)."""
+    out = set()
+    for node in ast.walk(ast.parse((REPO / rel).read_text(encoding="utf-8"))):
+        parts = []
+        while isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div) and isinstance(node.right, ast.Constant) and isinstance(node.right.value, str):
+            parts.insert(0, node.right.value)
+            node = node.left
+        if parts and isinstance(node, ast.Name) and node.id == "REPO":
+            found = repo_file("/".join(parts))
+            if found:
+                out.add(found)
+    return out
+
+
+def job_inputs(text, job):
+    """The repository files one job of the workflow executes or reads as gate
+    input, derived from its steps: every path token of a step that names a
+    file of the checkout relative to the step's working directory, the
+    modules a `unittest discover -s DIR -p PATTERN` step runs, and,
+    transitively, every file such a Python script reads by a REPO / "..."
+    path (for the checker controls: the manifests and the newCore helper)."""
+    found = set()
+    for wd, step in job_steps(text, job):
+        if wd is None:
+            continue
+        for token in re.findall(r"[A-Za-z0-9_./-]+", step):
+            rel = repo_file(os.path.join(wd, token))
+            if rel:
+                found.add(rel)
+        for d, pattern in re.findall(r"unittest discover -s (\S+) -p '([^']+)'", step):
+            found.update(str(p.relative_to(REPO)) for p in (REPO / wd / d).glob(pattern) if p.is_file())
+    todo = sorted(p for p in found if p.endswith(".py"))
+    while todo:
+        for rel in script_inputs(todo.pop()) - found:
+            found.add(rel)
+            if rel.endswith(".py"):
+                todo.append(rel)
+    return found
+
+
+def path_filters(text):
+    """The `paths` lists of the triggers under `on:` ({event: [pattern]}).
+    Raises on paths-ignore, which this check does not model."""
+    out, on, event, inside = {}, False, None, False
+    for line in text.splitlines():
+        if re.match(r"^\S", line):
+            on, event, inside = line.rstrip() == "on:", None, False
+            continue
+        if not on or not line.strip() or line.strip().startswith("#"):
+            continue
+        m = re.match(r"^  ([A-Za-z_]+):", line)
+        if m:
+            event, inside = m.group(1), False
+            continue
+        m = re.match(r"^    ([A-Za-z_-]+):", line)
+        if m:
+            if m.group(1) == "paths-ignore":
+                raise ValueError(f"paths-ignore under {event}")
+            inside = m.group(1) == "paths"
+            if inside:
+                out.setdefault(event, [])
+            continue
+        m = re.match(r"""^      - (['"]?)(.+)\1\s*$""", line)
+        if inside and m:
+            out[event].append(m.group(2))
+    return out
+
+
+def filter_matches(pattern, path):
+    """GitHub path-filter semantics for the pattern subset this workflow uses:
+    `**` crosses `/`, `*` does not, everything else literal. Any other glob
+    character raises rather than guessing."""
+    rx, i = "", 0
+    while i < len(pattern):
+        if pattern.startswith("**", i):
+            rx, i = rx + ".*", i + 2
+        elif pattern[i] == "*":
+            rx, i = rx + "[^/]*", i + 1
+        elif re.fullmatch(r"[A-Za-z0-9_./-]", pattern[i]):
+            rx, i = rx + re.escape(pattern[i]), i + 1
+        else:
+            raise ValueError(f"unsupported path-filter pattern {pattern!r}")
+    return re.fullmatch(rx, path) is not None
+
+
+def filter_triggers(patterns, path):
+    """Whether a change to path triggers a filter: patterns in order, a later
+    `!` pattern excluding what an earlier one included."""
+    hit = False
+    for p in patterns:
+        if p.startswith("!"):
+            hit = hit and not filter_matches(p[1:], path)
+        elif filter_matches(p, path):
+            hit = True
+    return hit
+
+
+def filter_gaps(text, job):
+    """Each (event, input) pair where a gate input of the job is not matched
+    by the paths filter of pull_request or push; empty when both filters
+    cover every input."""
+    filters = path_filters(text)
+    gaps = [f"NO_PATHS {e}" for e in ("pull_request", "push") if not filters.get(e)]
+    for rel in sorted(job_inputs(text, job)):
+        gaps += [f"{e} {rel}" for e in ("pull_request", "push") if not filter_triggers(filters.get(e, []), rel)]
+    return gaps
 
 
 def table_layers(path=INTERFACES):
@@ -642,6 +783,79 @@ class W2Gate(unittest.TestCase):
             self.assertEqual(len(parts), 2)
             bad = parts[0] + "\n  w2-core:\n" + parts[1].replace(old, new, 1)
             self.assertNotEqual(core_fetch(bad, "w2-core"), core_fetch(bad, "px1-core-gate"), old)
+
+
+class PathFilters(unittest.TestCase):
+    """Both path filters of agent-wallet.yml cover the gate inputs of the
+    w2-core and px1-core-gate jobs, so a change to one of them reruns the
+    gate on the pull request and on main."""
+
+    ANCHORS = {
+        "w2-core": {".scripts/check-px1-core-gate.py", ".scripts/w2-core-gate.json",
+                    ".scripts/test_check_px1_core_gate.py", ".scripts/w2-newcore-users.go"},
+        "px1-core-gate": {".scripts/check-px1-core-gate.py", ".scripts/px1-core-gate.json",
+                          ".scripts/test_check_px1_core_gate.py", ".scripts/px1-s5-consumer-gate.json"},
+    }
+
+    @staticmethod
+    def drop_filter(text, event, path):
+        """The workflow text with path removed from one event's filter only."""
+        head, sep, rest = text.partition(f"\n  {event}:\n")
+        body, sep2, tail = rest.partition("\n  workflow_dispatch:\n" if event == "push" else "\n  push:\n")
+        return head + sep + body.replace(f"\n      - '{path}'", "", 1) + sep2 + tail
+
+    # Claim: in the real workflow, every repository file each gate job runs
+    # or reads as gate input (derived from its steps and, transitively, from
+    # the REPO paths of the Python scripts it runs) is matched by both the
+    # pull_request and the push filter. The anchors keep the derivation from
+    # passing vacuously: the checker, the job's manifest, the checker
+    # controls and (through them) the newCore helper must be derived.
+    # Limit: Go module dependencies are not derived; the go test steps' own
+    # package trees are covered only because their filters list them.
+    def test_path_filters_cover_gate_inputs(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        filters = path_filters(text)
+        self.assertEqual(set(filters), {"pull_request", "push"})
+        for job, anchors in self.ANCHORS.items():
+            inputs = job_inputs(text, job)
+            self.assertLessEqual(anchors, inputs, job)
+            self.assertEqual(filter_gaps(text, job), [], job)
+
+    # Claim: known-bad workflow texts fail the check, each naming exactly the
+    # dropped input and the event whose filter lost it: one executed script,
+    # the job's manifest or the helper dropped from either filter; and a new
+    # step running a repository script outside both filters (a future helper)
+    # is caught for both events. The real text is the passing neighbour.
+    def test_path_filters_known_bad(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        for job, path in (("w2-core", ".scripts/check-px1-core-gate.py"), ("w2-core", ".scripts/w2-newcore-users.go"),
+                          ("w2-core", ".scripts/w2-core-gate.json"), ("px1-core-gate", ".scripts/px1-core-gate.json")):
+            for event in ("pull_request", "push"):
+                bad = self.drop_filter(text, event, path)
+                self.assertEqual(len(bad), len(text) - len(f"\n      - '{path}'"), (event, path))
+                self.assertEqual(filter_gaps(bad, job), [f"{event} {path}"], (job, event, path))
+        self.assertTrue(text.endswith("\n"))
+        future = text + "      - name: Future gate helper\n        run: python3 -B ../../.scripts/check-module-graph.py\n"
+        self.assertEqual(filter_gaps(future, "w2-core"),
+                         ["pull_request .scripts/check-module-graph.py", "push .scripts/check-module-graph.py"])
+        self.assertEqual(filter_gaps(text, "w2-core"), [])
+
+    # Claim: the filter matcher follows GitHub's semantics for the patterns
+    # used here (`*` stops at `/`, `**` crosses it, a later `!` excludes) and
+    # refuses glob syntax it does not model instead of guessing; paths-ignore
+    # is refused too.
+    def test_path_filter_matcher(self):
+        deep = "experiments/agent-wallet/testdata/service-mutations.json"
+        self.assertTrue(filter_triggers(["experiments/agent-wallet/**"], deep))
+        self.assertFalse(filter_triggers(["experiments/agent-wallet/*"], deep))
+        self.assertTrue(filter_triggers(["experiments/agent-wallet/*"], "experiments/agent-wallet/go.mod"))
+        self.assertFalse(filter_triggers(["experiments/agent-wallet/**", "!experiments/agent-wallet/testdata/**"], deep))
+        self.assertFalse(filter_triggers([".scripts/w2-core-gate.json"], ".scripts/w2-core-gate-json"))
+        for bad in (".scripts/[a-z]*.go", ".scripts/w2-core-gate.json?", ".scripts/w2+.go"):
+            with self.assertRaises(ValueError):
+                filter_triggers([bad], ".scripts/w2-newcore-users.go")
+        with self.assertRaises(ValueError):
+            path_filters("on:\n  push:\n    paths-ignore:\n      - 'docs/**'\n")
 
 
 if __name__ == "__main__":
