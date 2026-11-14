@@ -37,6 +37,9 @@ type fakeSystem struct {
 func newSystem() *fakeSystem {
 	return &fakeSystem{unitFiles: map[string]string{}, also: map[string][]string{}, unitLinks: map[string][]UnitLink{}, users: map[string]Account{}, groups: map[string]Account{}, members: map[string]map[string]bool{}, units: map[string]string{}, live: map[string]bool{}}
 }
+func (s *fakeSystem) UnitPaths() ([]string, string, error) {
+	return []string{s.unitRoot, filepath.Join(s.unitRoot, "vendor")}, s.unitRoot, nil
+}
 func (s *fakeSystem) Chown(f *os.File, u, g uint32) error {
 	if s.chownError != nil {
 		return s.chownError
@@ -51,6 +54,10 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 		}
 	}
 	switch cmd {
+	case "/usr/bin/systemd-analyze":
+		if len(args) == 1 && args[0] == "--version" {
+			return "systemd 259 (259.9)\n", 0, nil
+		}
 	case "/usr/bin/getent":
 		db, key := args[0], args[1]
 		table := s.users
@@ -269,7 +276,7 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 					if err = os.Symlink(target, path); err != nil {
 						return "", -1, err
 					}
-					output += fmt.Sprintf("Created symlink %s -> %s.\n", path, target)
+					output += fmt.Sprintf("Created symlink '%s' -> '%s'.\n", path, target)
 					s.unitLinks[unit] = append(s.unitLinks[unit], UnitLink{Path: path, Target: target})
 				}
 				s.units[unit] = "enabled"

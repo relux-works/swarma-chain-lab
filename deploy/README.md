@@ -67,7 +67,21 @@ observes native payload, parent and journal sync ordering without hooks and inje
 real payload/parent EIO; traces stay in Go test temporary directories.
 
 `go test -race ./g2ledger ./cmd/deploy-kit -run '^TestLedger' -count=1` exercises
-real temporary files and a fake account/systemd boundary without root operations.
+real temporary files and a fake account/systemd boundary without root operations. The
+[unit-enable receipt grammar](G2-LEDGER.md#unit-enable-receipts-and-undo) documents
+the supported versioned output and ASCII Install whitespace rules.
+`go test -race ./g2ledger -run '^TestInstallWhitespace$' -count=1` checks
+ASCII controls and named Unicode refusals before intent; output goes to the terminal.
+To replay an external native capture verbatim
+without storing machine-specific paths in test fixtures, run from `deploy/`:
+
+```sh
+G2LEDGER_NATIVE_ENABLE_OUTPUT=/path/to/enable.log go test -race ./g2ledger -run '^TestUnitReceiptNativeQuoted$' -count=1
+```
+
+The fixture unit is `xcheck-fixture.service`. The test checks its first receipt
+line and refuses any following diagnostic. Test output goes to the invoking
+terminal; keep private captures and saved logs outside published source.
 
 ## Build contract
 
@@ -158,6 +172,13 @@ values are sentinels to replace. See [SURVEY.md](SURVEY.md) for the landed nativ
 schemas and [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for deployment inputs.
 
 ## Tools and artifacts
+
+- `/usr/bin/systemd-analyze --system unit-paths` supplies the unit search order
+  for `g2-ledger enable`; `systemd-analyze --version` bounds `UpheldBy=` support.
+  Their stdout is consumed internally; no artifact is
+  written. The selected regular unit's supported `[Install]` lists determine
+  the exact authorised receipt set. See the
+  [expected-set and no-adoption rules](G2-LEDGER.md#unit-enable-receipts-and-undo).
 
 - `deploy-kit g2-keygen -out "$KEY" [-mode 0600|0640] [-owner U] [-group G]`
   creates one new scalar file; the default mode is `0600`.

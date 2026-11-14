@@ -573,22 +573,166 @@ may invoke `groupdel`. Retained users still retain their identities and policy.
 
 ### Unit enable receipts and undo
 
-Before enable, the ledger parses `systemctl cat NAME` (unit and drop-ins) and
-refuses any `[Install] Also=` assignment, including resets. See
-[systemd.unit(5)](https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#Also=).
-It repeats that inspection after intent and before enable. Privileged unit-file
-writers must remain quiescent during the operation.
+Before enable, the ledger derives the **expected PATH/TARGET set from the
+requested unit file**, independently of the command receipt. The system scope
+uses the search order returned by `/usr/bin/systemd-analyze --system unit-paths`
+and reads the first file named `NAME` with no-follow filesystem operations.
+Selected symlinks (aliases, masks, linked units), escaped unit names and
+non-regular files refuse; the ledger does not guess their resolution. The
+installed unit file under `/etc/systemd/system/NAME` is selected ahead of vendor
+files in the usual search path. See
+[systemd.unit(5), search path and Install section](https://www.freedesktop.org/software/systemd/man/259/systemd.unit.html),
+and the shared `lookup_paths_init(..., 0)` calls in
+[systemd-analyze unit-paths](https://github.com/systemd/systemd/blob/v259.9/src/analyze/analyze-unit-paths.c)
+and [unit_file_enable](https://github.com/systemd/systemd/blob/v259.9/src/shared/install.c#L2874).
+The local systemd client and manager must use the same system unit search path.
+
+The modeled `[Install]` lists are `WantedBy=`, `RequiredBy=`, `UpheldBy=`
+(accepted only on audited supporting v254-v259 releases; see the
+[v254 install table](https://github.com/systemd/systemd/blob/v254/src/shared/install.c#L1235)) and `Alias=`. Repeated lines
+append; multiple whitespace-separated names per line are allowed; an empty
+assignment resets that list. Full-line `#`/`;` comments are ignored, including
+comments inside a trailing-backslash continuation; that backslash becomes a
+space. Only an unescaped backslash at the physical end continues the line; a
+blank line ends the continuation. Dangling continuations at EOF refuse. A whole simple name may be enclosed in matching single or double quotes.
+`/usr/bin/systemd-analyze --version` bounds UpheldBy support; older, newer or
+unrecognized versions refuse that directive as `UNIT_UPHELD_BY_VERSION_REFUSED`.
+C-style escapes and other values outside the simple unit-name subset refuse
+rather than being decoded. Inline comments are not interpreted as comments.
+See [systemd.syntax(7)](https://www.freedesktop.org/software/systemd/man/259/systemd.syntax.html).
+
+Keys and values trim only ASCII space (`0x20`), tab (`0x09`), line feed
+(`0x0a`) and carriage return (`0x0d`); list separators use that same set.
+Line feeds delimit physical lines and trailing backslashes join logical lines.
+This is systemd v259's
+[`WHITESPACE`](https://github.com/systemd/systemd/blob/v259/src/fundamental/string-util-fundamental.h#L15),
+used by [`strstrip`](https://github.com/systemd/systemd/blob/v259/src/basic/string-util.c#L67)
+on [assignment keys and values](https://github.com/systemd/systemd/blob/v259/src/shared/conf-parser.c#L265)
+and by [default word extraction](https://github.com/systemd/systemd/blob/v259/src/basic/extract-word.c#L27).
+Vertical tab and form feed are outside that set and conservatively refuse as
+`UNIT_INSTALL_TEXT_REFUSED`. After ASCII trimming, any non-ASCII key byte
+refuses as `UNIT_INSTALL_KEY_NON_ASCII`; every other unknown key refuses as
+`UNIT_INSTALL_DIRECTIVE_REFUSED`. Values containing non-ASCII Unicode whitespace
+or U+FEFF refuse as `UNIT_INSTALL_VALUE_WHITESPACE_REFUSED`, including inside
+quotes. In particular, U+00A0, U+2002, U+3000, U+FEFF and U+0085 are never
+trimmed or treated as separators. This is a conservative refusal of unsupported
+values, rather than a claim that systemd recognizes those characters as whitespace.
+These checks run before intent and enable.
+
+Persistent system enable writes to **`/etc/systemd/system`**, called `D` below;
+it does not write to the selected vendor source directory. The expected links
+all target the selected unit file's absolute path `F`:
+
+| Install assignment | Expected path | Target |
+| --- | --- | --- |
+| `WantedBy=T` | `D/T.wants/NAME` | `F` |
+| `RequiredBy=T` | `D/T.requires/NAME` | `F` |
+| `UpheldBy=T` | `D/T.upholds/NAME` | `F` |
+| `Alias=A` | `D/A` | `F` |
+
+Aliases must have the requested unit's type suffix and differ from its name;
+legacy alias paths containing `/` are outside this model. Duplicate expected
+paths collapse to one link. These rules follow
+[`install_info_apply` and the alias/dependency link builders](https://github.com/systemd/systemd/blob/v259.9/src/shared/install.c#L1967).
+[`config_path_from_flags`](https://github.com/systemd/systemd/blob/v259.9/src/shared/install.c#L269)
+selects `persistent_config` for ordinary enable; the
+[system lookup directory table](https://github.com/systemd/systemd/blob/v259.9/src/libsystemd/sd-path/path-lookup.c#L193)
+maps it to the system configuration directory.
+
+Before intent, named refusals reject `Also=` (even an empty assignment),
+`DefaultInstance=`, `%` specifiers in Install values, template/instance names
+containing `@`, unknown Install directives, malformed/unsupported values, and
+any drop-in `[Install]` section. Drop-ins are inspected in every search
+directory at the exact unit, dashed-name prefix and type levels; even masked or
+lower-priority Install drop-ins conservatively refuse. Non-Install drop-ins are
+allowed. The source and expected link pre-state are read again after intent;
+any difference in expected pairs or existing identities leaves an orphan before
+enable. Privileged unit-file and namespace writers must remain quiescent.
+
+An expected path that already exists must be a symlink with **exactly** the
+expected target text (relative spellings are outside this exact-text model). A different target or object type refuses before intent.
+The correct pre-existing link is not created by this attempt: it is excluded
+from the required receipt set, never recorded and never removed by replay.
+If every expected link already exists, `UNIT_NO_NEW_LINKS` refuses without an
+intent or enable call. The initially-disabled requirement still applies.
+For a mixed set, only the paths absent immediately before enable must appear
+in its receipt. Already-present links are rechecked after enable for their full
+identity, but confer no undo authority. If a surviving pre-existing link keeps
+the unit enabled, replay removes only the newly created links and stops at the
+existing final-state comparison; it never removes that link to force success.
 
 [systemctl(1)](https://www.freedesktop.org/software/systemd/man/249/systemctl.html)
-documents that enable reports the filesystem operations it performs. The
-[systemd v249 implementation](https://github.com/systemd/systemd/blob/v249/src/shared/install.c#L312)
-prints `Created symlink A -> B.` in the C locale. The real seam captures enable's
-stderr along with stdout with `LC_ALL=C`; every reported absolute link and
-absolute target becomes part of the commit receipt only after no-follow
-observation. Each receipt also stores lstat device, inode, UID, GID and full
-symlink mode. Legacy receipts without these fields refuse validation.
-Unknown output, empty output, duplicate paths, or missing/retargeted links leave
-a named orphan. Other output formats are deliberately unsupported.
+documents that enable reports its filesystem operations. The supported upstream
+C-locale receipt forms are:
+
+| Audited upstream release tags | Exact line grammar |
+| --- | --- |
+| [v249](https://github.com/systemd/systemd/blob/v249/src/shared/install.c#L336), [v250](https://github.com/systemd/systemd/blob/v250/src/shared/install.c#L337), [v251](https://github.com/systemd/systemd/blob/v251/src/shared/install.c#L336), [v252](https://github.com/systemd/systemd/blob/v252/src/shared/install.c#L349), [v253](https://github.com/systemd/systemd/blob/v253/src/shared/install.c#L354), [v254](https://github.com/systemd/systemd/blob/v254/src/shared/install.c#L364), [v255](https://github.com/systemd/systemd/blob/v255/src/shared/install.c#L352) | `Created symlink PATH -> TARGET.` |
+| [v256](https://github.com/systemd/systemd/blob/v256/src/shared/install.c#L347), [v257](https://github.com/systemd/systemd/blob/v257/src/shared/install.c#L350), [v258](https://github.com/systemd/systemd/blob/v258/src/shared/install.c#L346), [v259](https://github.com/systemd/systemd/blob/v259/src/shared/install.c#L346), [v259.9](https://github.com/systemd/systemd/blob/v259.9/src/shared/install.c#L346) | `Created symlink 'PATH' -> 'TARGET'.` |
+
+The quoted format entered upstream in
+[the install error-handling change](https://github.com/systemd/systemd/commit/d41f08bd2ac4cfa58191b64d31ca9e6f3dec7552),
+between v255 and v256. These are audited release tags, not a claim about every
+vendor backport. Both formats are accepted without guessing the installed
+version. The formatter interpolates each path directly with `%s`: spaces and
+backslashes remain literal; it does not shell-escape embedded quotes. The parser
+removes exactly one matched pair of ASCII single quotes from **each** path in
+the quoted form. It never trims path whitespace or decodes backslash escapes.
+
+The arrow comes from the locale-sensitive
+[glyph table](https://github.com/systemd/systemd/blob/v259/src/basic/glyph-util.c#L65):
+ASCII `->` for C, `→` for UTF-8; the
+[v249 table](https://github.com/systemd/systemd/blob/v249/src/basic/locale-util.c#L366)
+has the same distinction.
+[`RealSystem.Run`](g2ledger/system_linux.go) captures enable's stderr along with
+stdout and sets `LC_ALL=C`, `SYSTEMD_COLORS=0`, `SYSTEMD_URLIFY=0`.
+An inherited `SYSTEMD_UTF8=1` can
+[override locale selection](https://github.com/systemd/systemd/blob/v259/src/basic/locale-util.c#L324);
+its Unicode receipt remains unsupported and refuses. No color/URL escape or
+non-C arrow syntax is accepted.
+
+Each nonempty receipt consists solely of these lines, separated by newlines,
+with at most one final newline. Refusals return no partial set:
+
+- `UNIT_ENABLE_QUOTE`: unbalanced/mixed quotes, embedded single or double quotes,
+  extra quote pairs or text outside a quoted path.
+- `UNIT_ENABLE_ARROW`: missing, Unicode or additional arrows, including arrows
+  inside either path.
+- `UNIT_ENABLE_OUTPUT`: unknown/blank/extra lines or text after the terminal
+  period. Legacy path text containing period followed by ASCII whitespace is ambiguous with
+  appended diagnostics and deliberately refused; the quoted form supports it.
+- `UNIT_ENABLE_DUPLICATE`: a repeated link path, even with a different target.
+- `UNIT_ENABLE_LINK`: either path fails the existing absolute, clean, non-root,
+  NUL/CR/newline-free `validPath` policy. Newlines also break the line grammar.
+- `UNIT_ENABLE_EMPTY`: no output.
+
+Before recording, the reported PATH/TARGET set must **equal exactly the
+expected set minus the verified pre-existing subset**, independent of order.
+An extra unrelated link, a link to another unit, a wrong path/target, or a
+missing expected created link refuses as `UNIT_ENABLE_SET_MISMATCH` (named
+orphan, exit 3). Reporting a correct pre-existing link also refuses: it cannot
+be adopted. Malformed/empty output follows the grammar refusals above. No
+partial result is committed, so replay cannot acquire authority from a rejected
+receipt.
+
+Every accepted reported link and target still requires post-enable no-follow
+observation. Each receipt stores lstat device, inode, UID, GID and full symlink
+mode. Legacy ledger records without these identity fields refuse validation.
+Missing/retargeted links or a changed pre-existing identity leave a named orphan
+(exit 3). Other install messages, including removed-link reports,
+masked/dangling-alias notices and missing-dependency warnings, remain
+unsupported even if enable exits zero.
+
+There is no exact JSON/plain receipt switch in the audited
+[v259 enable implementation](https://github.com/systemd/systemd/blob/v259/src/systemctl/systemctl-enable.c#L230).
+[`--no-reload`](https://github.com/systemd/systemd/blob/v259/man/systemctl.xml#L2470)
+only suppresses daemon reload;
+[`--plain`](https://github.com/systemd/systemd/blob/v259/man/systemctl.xml#L2774)
+changes listing decoration. Reading `[Install]` predicts authorised links; the pre-state snapshot and exact
+receipt comparison bind which of them this invocation claims to have created. A future direct
+[`EnableUnitFiles` D-Bus call](https://github.com/systemd/systemd/blob/v259/man/org.freedesktop.systemd1.xml#L1528)
+could consume its machine-readable `a(sss)` changes (type, path, target), with
+the same observation/identity checks. This parser fix retains the CLI seam.
 
 Undo checks the entire recorded set before any removal, then rechecks each link
 through the same pinned parent descriptor used for `unlinkat`, comparing ALL
