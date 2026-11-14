@@ -41,6 +41,9 @@ state. A new runtime experiment requires its own admitted isolation and bounds.
 
 Licensed under [Apache-2.0](LICENSE); see [NOTICE](NOTICE) and experiment notices.
 
+See the [signature-bearing identifier audit](docs/signature-identities.md) for
+exact-byte identities, independent replay bindings and signature-variant tests.
+
 ## Public repository hygiene tools
 
 Run `python3 -B .github/scripts/check-public-hygiene.py` from the repository root
