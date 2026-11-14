@@ -44,6 +44,12 @@ Licensed under [Apache-2.0](LICENSE); see [NOTICE](NOTICE) and experiment notice
 See the [signature-bearing identifier audit](docs/signature-identities.md) for
 exact-byte identities, independent replay bindings and signature-variant tests.
 
+The wallet Core-test inventory is `.scripts/w2-core-gate.json`. Run
+`python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v`
+to check that every Core-fixture test is registered and that missing, skipped
+or failing evidence is refused. The controls write to stdout; local logs and
+Go JSON evidence belong under `.temp/`.
+
 ## Public repository hygiene tools
 
 Run `python3 -B .github/scripts/check-public-hygiene.py` from the repository root

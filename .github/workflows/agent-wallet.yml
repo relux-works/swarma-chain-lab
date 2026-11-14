@@ -266,16 +266,16 @@ jobs:
           echo "control: real skip first, then the passing streams: gate exit $gate_exit (want 1), skip reported $skip_seen (want 0)"
           test "$gate_exit" = 1 && test "$skip_seen" = 0
 
-  # W2 Core gate: the 23 legacy W2 Core tests (every test that builds its lab
-  # with newCore, the W2 grant fixture), as listed in
-  # .scripts/w2-core-gate.json, on the same genuine Namecoin Core 28.0 regtest
+  # W2 Core gate: every test using newCore, including signature-identity
+  # regressions, is listed in .scripts/w2-core-gate.json and runs on the
+  # same genuine Namecoin Core 28.0 regtest
   # node as px1-core-gate (the same archive, upstream SHA256SUMS and
   # repository pins, fetched by an identical step), with `go test -json` and
   # the same checker. A failure, a skip anywhere or a missing listed test
   # fails the job. Controls: a real skip (no W1_REGTEST) fails the checker,
   # alone and beside the passing streams; and one W2 plant of
   # testdata/service-mutations.json, applied to a copy of the tree, must fail
-  # the checker beside the 22 real passing streams.
+  # the checker beside the 24 real passing streams.
   w2-core:
     name: w2-core
     runs-on: ubuntu-22.04
