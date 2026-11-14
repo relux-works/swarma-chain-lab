@@ -8,6 +8,7 @@ consumers are not proven safe by this check. Inventory reasons document scope.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 
@@ -18,18 +19,23 @@ REFERENCE = re.compile(
     r'DetachedEnvelope|DetachedCertificate|IssueDetached|issueDetached|IssueResult|'
     r'issuedDetached|detachedState|seenSeal|readPresentations|cachedPresentation|'
     r'presentationCache|CertificateSHA256)\b|certificate_sha256|check-v2|present-v2')
-SOURCE_SUFFIXES = {'.go', '.py', '.sh', '.js', '.jsx', '.ts', '.tsx', '.mjs',
-                   '.cjs', '.rs', '.rb', '.lua'}
-DETECTOR_TOOLS = {'.scripts/check-detached-v2-consumers.py',
-                  '.scripts/test_check_detached_v2_consumers.py'}
 
 
 def production_paths(root):
-    return sorted(p for p in root.rglob('*')
-                  if p.is_file() and p.suffix in SOURCE_SUFFIXES
-                  and not p.name.endswith('_test.go') and not p.name.startswith('test_')
-                  and p.relative_to(root).as_posix() not in DETECTOR_TOOLS
-                  and not any(part in {'.git', '.temp'} for part in p.relative_to(root).parts))
+    # Go excludes *_test.go from production packages (go help test).
+    # Other names, suffixes, directories and build tags stay in this lexical
+    # inventory: explicit builds/imports can consume files discovery omits.
+    paths = []
+    for directory, directories, files in os.walk(root):
+        if Path(directory) == root:
+            directories[:] = [name for name in directories if name != '.git']
+        for name in files:
+            path = Path(directory) / name
+            if path == root / '.git' or name.endswith('_test.go'):
+                continue
+            if path.is_file():
+                paths.append(path)
+    return sorted(paths)
 
 
 def check(root, inventory):
@@ -38,7 +44,7 @@ def check(root, inventory):
     for path in production_paths(root):
         relative = path.relative_to(root).as_posix()
         raw = path.read_bytes()
-        if REFERENCE.search(raw.decode('utf-8')) or relative in inventory:
+        if REFERENCE.search(raw.decode('utf-8', errors='replace')) or relative in inventory:
             found.add(relative)
             entry = inventory.get(relative)
             if entry is None:

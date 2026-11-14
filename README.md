@@ -53,7 +53,17 @@ with `python3 -B .scripts/check-detached-v2-consumers.py` and detector controls
 via `python3 -B -m unittest discover -s .scripts -p 'test_check_detached_v2_consumers.py' -v`.
 The reviewed file hashes and locality reasons live in
 `.scripts/detached-v2-consumers.json`; changed consumers require a fresh audit.
-Output goes to stdout; retain local validation logs under `.temp/`.
+Only Go's `*_test.go` files are excluded by name (`go help test`); Git's
+root `.git` entry is repository metadata. No other suffix, directory (including
+`testdata`, `vendor`, hidden or scratch directories), build tag or detector-tool
+path is excluded. The guard scans bytes conservatively, including documentation
+and its own tools, so it also covers extensionless consumers. Run it on a clean
+source tree and keep generated code/caches outside that checked tree.
+Python collection uses `unittest discover -p 'test_*.py'` in the directories
+selected by `.github/scripts/offline-checks.sh`, and explicit test files in other
+workflow steps; `.github/CI.md` documents the offline selection. Collection does
+not prevent production imports or execution, so no Python file is excluded.
+Output goes to stdout; retain validation logs outside the checked source tree.
 
 The wallet Core-test inventory is `.scripts/w2-core-gate.json`. Run
 `python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v`

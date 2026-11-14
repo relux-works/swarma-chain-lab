@@ -1,7 +1,35 @@
 {
+  ".scripts/check-detached-v2-consumers.py": {
+    "sha256": "6c278f70ed6a31b3e4662f975238a5add05e75c0d9b9c90f5ab3429aaf5a7f0c",
+    "reason": "Lexical detector implementation; identifier strings define detection, with no payment or observer-state consumer."
+  },
+  ".scripts/test_check_detached_v2_consumers.py": {
+    "sha256": "54b23e0b178be341ca4caf88451fab092127efe09f1c201e6ca30cee123dcf9c",
+    "reason": "Isolated detector controls and planted payment maps; never a deployed payment consumer."
+  },
+  "docs/signature-identities.md": {
+    "sha256": "59497c191a9b65d2742cf9f8ee4b7a4bfb0b6d2cb412b001448090cc5eb1390f",
+    "reason": "Identifier audit and accepted observer-local boundary; documentation only."
+  },
   "experiments/fullnode-trusts/seal_anchor.py": {
     "sha256": "af4a38ea89c07ac96fdb901e5cbbde61c63211ed1fbe8c121b051846927df1c2",
     "reason": "Separate full-node certificate name-value anchors; exact committed certificate hash, not a detached-v2 envelope consumer."
+  },
+  "experiments/rental/CIP-0003-DRAFT.md": {
+    "sha256": "0f7d20d65c20c6d29302bddc6a63a0b307a8da295d46003a38c2b5864c00ad21",
+    "reason": "Protocol proposal and CLI examples; documentation only."
+  },
+  "experiments/rental/LIP-0003-PROFILE.md": {
+    "sha256": "4742f636474c4227e48112c00ec1dbe2351f78483039cbec521f30d05bcb3ad1",
+    "reason": "Detached profile specification; documentation only."
+  },
+  "experiments/rental/MAIN-ISSUANCE-AUDIT.md": {
+    "sha256": "0541857947f7334d4c92f7ebcc9fb0b0a2d4aa5a851aeded68e792cfa4b14e6a",
+    "reason": "Historical issuance read-site audit; documentation only."
+  },
+  "experiments/rental/README.md": {
+    "sha256": "6454461ede580031c38029f08a8999baeeb1ebeab199924c2064012942e8b8e1",
+    "reason": "Experiment documentation and CLI examples; no executable consumer."
   },
   "experiments/rental/certificate.go": {
     "sha256": "818922503f204b43fa03e839cb9f68d2e82122e089c866392a0049fb3f555a96",
@@ -9,11 +37,11 @@
   },
   "experiments/rental/cmd/rental-issue/main.go": {
     "sha256": "e30c2423a1bbc141658b843f4888872c2c7f5f594207093c998ae04ef2cc32b5",
-    "reason": "CLI serializes IssueDetached result including exact-envelope ID; no cross-observer lookup, audit or payment key."
+    "reason": "CLI serializes detached issuance result including exact-envelope ID; no cross-observer lookup, audit or payment key."
   },
   "experiments/rental/cmd/rental-kernel/main.go": {
     "sha256": "f3bad278642ce0bff0dc3893e2807b3dda58b60283f6f0db4d39c73cb8767d48",
-    "reason": "CLI exact inline ID argument to PresentV2 and JSON Receipt output for one observer invocation; no aggregation or payment/journal key."
+    "reason": "CLI exact inline ID argument to v2 presentation and JSON Receipt output for one observer invocation; no aggregation or payment/journal key."
   },
   "experiments/rental/detached_certificate.go": {
     "sha256": "2bd3d60b1a38be2591e740384afff342c37381e9745eb8f2dfb078d6d63cc927",
@@ -21,7 +49,7 @@
   },
   "experiments/rental/detached_issuer.go": {
     "sha256": "92c4afcf95f567c527d7b9918445cb7567d8cc040d455eb51bb8259679b8feb5",
-    "reason": "Exact-envelope issuer record integrity/replay and IssueResult export; booking ID and reserved seal key issuance, never envelope ID."
+    "reason": "Exact-envelope issuer record integrity/replay and issuance result export; booking ID and reserved seal key issuance, never envelope ID."
   },
   "experiments/rental/detached_kernel.go": {
     "sha256": "caa376f25dc8d2e90bee7c9e98d629ac7d67dddfbfe63d73a43b1842cc0c929a",
@@ -41,7 +69,7 @@
   },
   "experiments/rental/presentation.go": {
     "sha256": "d049ac09b4db0566913e5c28c6a505d0dfc3417bff185040c32e48594b9eb041",
-    "reason": "Observer-local exact-envelope validation, per-sender cache replacement and CachedCertificateV2 return; sender is the cache key, with fresh CheckV2 required."
+    "reason": "Observer-local exact-envelope validation, per-sender cache replacement and cached v2 certificate return; sender is the cache key, with fresh v2 validation required."
   },
   "experiments/single-use/executor.go": {
     "sha256": "c91ac7034509c5b37144f7a8853a82bba24ee2dd42b6e33bcafac68484f07e08",
