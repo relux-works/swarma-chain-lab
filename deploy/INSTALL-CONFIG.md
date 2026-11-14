@@ -2,8 +2,9 @@
 
 This is the Linux installation contract for Infra, not host acceptance evidence.
 Root compromise is out of scope. The checker never installs, signs, repairs or
-falls back to an unsigned/default input. Install-key custody belongs to Infra;
-the private key must stay root-only and outside every agent-readable path.
+falls back to an unsigned/default input. Install-key custody belongs to Infra.
+The recommended signer keeps its ephemeral private key in memory; any alternative signer must keep private keys root-only
+and outside every agent-readable path.
 
 ## Provisioning and binding
 
@@ -35,19 +36,62 @@ to1MiB; individual config files have tighter native bounds, never above16MiB.
 The CLI credential `NodeConfig` used by booking is admitted before its external
 reader starts; mutable CLI datadir stays service-owned outside `/etc`.
 
-4. Sign EXACT manifest bytes prefixed by the bytes of
-   `swarma-config-install-v1` followed by one NUL. Detached signature JSON is:
+4. Use the in-memory signer on the independently approved manifest bytes:
+
+```sh
+deploy-kit g2-install-sign -manifest "$MANIFEST" -sig-out "$SIGNATURE" -pub-out "$PUBLIC_KEY_FILE"
+```
+
+Use new absolute output paths in existing directories with no symlink ancestors.
+Both outputs must be absent (including dangling symlinks); a collision found at
+preflight refuses with exit 1 before reading the input or generating a key.
+Exclusive creation also refuses a collision introduced after preflight. The signer generates a
+fresh Ed25519 key with `crypto/rand`, signs EXACT manifest bytes prefixed by
+`swarma-config-install-v1` followed by one NUL, and writes only these two files:
+
+- `-sig-out`: detached signature JSON, with a final newline:
 
 ```json
 {"v":1,"algorithm":"ed25519","signature":"STANDARD_BASE64_SIGNATURE"}
 ```
 
-Supported algorithms are `ed25519` (direct signature over domain+bytes) and
-`rsa-pss-sha256` (SHA256 of domain+bytes, RSA3072–8192 bits, exponent65537, PSS salt
-length32). Unknown algorithms and key/algorithm mismatches refuse. Public keys
-are canonical standard-base64 PKIX SubjectPublicKeyInfo DER, never private-key
-DER or bare keys. Signature base64 is canonical too. Infra supplies the signer;
-this release supplies verification and public-anchor rendering only.
+- `-pub-out`: canonical standard-base64 PKIX SubjectPublicKeyInfo DER, without a
+  newline, directly usable as `render-install-anchor --public-key
+  "$(cat "$PUBLIC_KEY_FILE")"`. It contains no private key.
+
+`-manifest` is recommended so callers never construct the domain prefix.
+For callers that already have the framed input, the compatible interface is
+`deploy-kit g2-install-sign -input "$SIGNED_INPUT" -sig-out "$SIGNATURE" -pub-out
+"$PUBLIC_KEY_FILE"`. Choose exactly one of `-manifest` and `-input`; `-input` must
+start with the exact domain and NUL and contain nonempty manifest bytes after it.
+The manifest is bounded to 1 MiB in either mode. Signing does not approve the
+manifest schema, provenance or deployment policy; configguard still checks them.
+
+Each output is opened with `O_CREAT|O_EXCL|O_NOFOLLOW`, set to mode 0644, written
+with a complete-count check and fsynced, along with its parent directory. Any
+write failure returns nonzero and rolls back only outputs created by this call,
+after checking the path's device and inode against the creating descriptor.
+An observed replacement is preserved and cleanup refusal is reported. Keep the
+parent directories under exclusive provisioner control during the operation;
+identity lookup and unlink do not form an atomic compare-and-delete against a
+concurrent privileged directory writer. Abrupt termination can leave public
+outputs; inspect them and use new paths rather than automatic deletion/retry.
+
+The private key is never written, printed or logged. Owned seed and private-key
+buffers are cleared after use, before output publication. This is best effort:
+Go, the cryptographic implementation, runtime copies, swap and crash dumps are
+outside the buffer-clearing guarantee. The command prints nothing on success
+and only generic errors on failure. Its fresh key cannot sign a later revision;
+provision a newly approved anchor with every newly signed manifest.
+
+Alternative external signers (including OpenSSL where already provisioned) must
+produce the same domain-separated signature JSON and public-key encoding.
+Supported verification algorithms remain `ed25519` (direct signature over
+domain+bytes) and `rsa-pss-sha256` (SHA256 of domain+bytes, RSA3072–8192 bits,
+exponent65537, PSS salt length32). Unknown algorithms and key/algorithm
+mismatches refuse. Signature base64 is canonical. External private-key custody
+and cleanup are the provisioner's responsibility; do not infer file ownership
+from a writer PID or delete a key merely because that process has exited.
 
 5. Install manifest and signature root:swarma-SERVICE0644 INSIDE that service's
    private0750 directory. Do not publish either file or private hashes. Render

@@ -6,8 +6,9 @@ station-manager, station-payload and agent-walletd, plus deploy-kit,
 agent-wallet-reconcile, agent-wallet and agent-wallet-alert-forwarder,
 from an exact clean HEAD twice, refuses
 any byte difference, then emits an unsigned bundle with SHA256SUMS and a manifest.
-No source product changes, key creation, signing, installation or host deployment
-occur inside the tool. [SMOKE.md](SMOKE.md) is the separate Infra handoff plan.
+The release builder does not modify source or install/deploy services. Separate
+explicit subcommands provide provisioning helpers, including in-memory install
+signing as described below. [SMOKE.md](SMOKE.md) is the separate Infra handoff plan.
 
 Gateway now wires the real kernel, E1 and remote station manager, with explicit
 screening off in its manifest row and native config. Gateway, booking, store and relay
@@ -436,6 +437,19 @@ installed public-host inputs after G6 lands and after either config changes.
 Issuer policies and gateway kernel templates explicitly carry `construction_profile: "W"`. Issuer funding is `0014` plus the 20-byte compressed-key hash (native P2WPKH); the grant seal remains its separately pinned script. Templates do not migrate funds or state. Missing/unknown/L pins refuse in the consuming service, and prior durable bindings are not silently adopted. See [the W inventory](../experiments/WITNESS-PROFILE.md) for the linkage-only scope and SW1b payment-proof deferral.
 
 ## DK5 tools
+
+From `deploy/`, `go run ./cmd/deploy-kit g2-install-sign -manifest "$MANIFEST"
+-sig-out "$SIGNATURE" -pub-out "$PUBLIC_KEY_FILE"` signs approved private
+manifest bytes with a fresh in-memory Ed25519 key. It builds the domain prefix,
+creates only signature JSON and a base64 PKIX public key (both 0644, exclusive,
+no symlink following, fsynced), and prints nothing on success. Both outputs must
+be new absolute paths; an existing output refuses before key generation.
+The compatible `-input "$SIGNED_INPUT"` alternative requires already framed
+bytes; it is mutually exclusive with `-manifest`. Use private provisioning
+storage for outputs, never a public release directory. Private key buffers are
+cleared best effort and never written or logged. See [step 4 of the install
+contract](INSTALL-CONFIG.md#provisioning-and-binding) for rollback, custody and
+memory-clearing limits.
 
 `go run ./cmd/deploy-kit render-install-anchor --manifest /etc/swarma/model/install-manifest.json --signature /etc/swarma/model/install-manifest.json.sig --manifest-sha256 "$PRIVATE_MANIFEST_SHA256" --release-sha256 "$ACCEPTED_RELEASE_SHA256" --algorithm ed25519 --public-key "$PKIX_PUBLIC_KEY_BASE64"`
 prints only the validated public drop-in. Infra supplies approved pins; this
