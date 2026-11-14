@@ -1,5 +1,11 @@
 # Published module graph audit
 
+The current floor is signed source `ffefc6d423aeed245faa38d47de1ce1874ef3c3d`, published at
+`20261114144010`. All 101 internal requirements select this snapshot or a later version so
+external consumers can resolve the shared strict BIP-340 parser and the
+verification sites that use it. No local replacement or internal graph edge
+changes. The earlier audit below records why coherent snapshot floors matter.
+
 The current inventory covers all 21 `go.mod` files and all 101 internal require edges.
 The initial audit covered 20 manifests across 19 consumer modules at base
 `288d63e191fefac885d6a39aa65f0a5fbb6ed7ee`.
@@ -11,7 +17,7 @@ The new bootstrap/model packages are also absent from `single-use v0.1.0`.
 
 All 101 internal require edges, in standalone `require` lines, `require (...)`
 blocks and `// indirect` entries alike, now select versions at or above the
-already-published base snapshot. The first revision of this audit counted 96: it missed the two
+published source snapshot. The first revision of this audit counted 96: it missed the two
 standalone `single-use` requires in `deploy/go.mod` and
 `experiments/station-lifecycle/go.mod`, which left `deploy` and
 `station-lifecycle/cmd/station-manager` unbuildable for external consumers
@@ -26,20 +32,21 @@ refused the Go 1.26 requirement; its failure was retained, not treated as a pass
 
 | Dependency under experiments/ | Published requirement |
 | --- | --- |
-| `grant-store` | `v0.1.1-0.20261111181054-288d63e191fe` |
-| `m5-host-smoke` | `v0.3.1-0.20261111181054-288d63e191fe` |
-| `model-proxy` | `v0.4.1-0.20261111181054-288d63e191fe` |
-| `payment-chain` | `v0.2.1-0.20261111181054-288d63e191fe` |
-| `rental` | `v0.5.1-0.20261111181054-288d63e191fe` |
-| `rental-booking` | `v0.4.1-0.20261111181054-288d63e191fe` |
-| `rental-gateway` | `v0.4.1-0.20261111181054-288d63e191fe` |
-| `rental-gateway/kernelbind` | `v0.1.1-0.20261111181054-288d63e191fe` |
-| `sealwatch` | `v0.2.1-0.20261111181054-288d63e191fe` |
-| `signer-service` | `v0.3.1-0.20261111181054-288d63e191fe` |
-| `single-use` | `v0.3.1-0.20261111181054-288d63e191fe` |
-| `station-lifecycle` | `v0.2.1-0.20261111181054-288d63e191fe` |
-| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261111181054-288d63e191fe` |
-| `station-payload` | `v0.3.1-0.20261111181054-288d63e191fe` |
+| `grant-store` | `v0.1.1-0.20261114144010-ffefc6d423ae` |
+| `m5-host-smoke` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
+| `model-proxy` | `v0.4.1-0.20261114144010-ffefc6d423ae` |
+| `payment-chain` | `v0.2.1-0.20261114144010-ffefc6d423ae` |
+| `rental` | `v0.5.1-0.20261114144010-ffefc6d423ae` |
+| `rental-booking` | `v0.4.1-0.20261114144010-ffefc6d423ae` |
+| `rental-gateway` | `v0.4.1-0.20261114144010-ffefc6d423ae` |
+| `rental-gateway/kernelbind` | `v0.1.1-0.20261114144010-ffefc6d423ae` |
+| `sealwatch` | `v0.2.1-0.20261114144010-ffefc6d423ae` |
+| `signer-service` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
+| `single-use` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
+| `station-lifecycle` | `v0.2.1-0.20261114144010-ffefc6d423ae` |
+| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261114144010-ffefc6d423ae` |
+| `station-payload` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
+| `grantcheck` | `v0.1.2-0.20261114144010-ffefc6d423ae` |
 
 The inventory below is generated and checked by
 `python3 .scripts/check-module-graph.py`, which parses every `go.mod` with
@@ -108,12 +115,11 @@ contracts change.
 
 The envelope admission bench adds the first wallet consumer edge to `grantcheck`
 and its two gateway dependencies. The previously unconsumed `grantcheck` module
-now has a floor at the same historical snapshot, resolved by Go as
-`v0.1.2-0.20261111181054-288d63e191fe`; the snapshot commit is unchanged.
+now follows the shared strict-parser snapshot floor above.
 
 The bench now calls the transport-neutral grantcheck API and terms-v2 rental
 API. Its wallet manifest pins both to the already-published `3baa201b` source;
-the historical snapshot floor remains unchanged. The external `grant-bench`
+both are above the shared strict-parser snapshot floor. The external `grant-bench`
 consumer at `1b3c321` is the known stale-graph negative: resolve succeeds, but
 vet/build must fail with missing terms-v2 or transport API symbols. The candidate
 must resolve, vet and build offline without replacements. This supplements the
