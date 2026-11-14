@@ -25,7 +25,11 @@ PREFIX = "github.com/relux-works/swarma-chain-lab/"
 SINGLE_USE = PREFIX + "experiments/single-use"
 SNAPSHOT_FLOORS = json.loads((REPO / "experiments/module-graph-snapshot.json").read_text())["modules"]
 SNAPSHOT_SINGLE_USE = SNAPSHOT_FLOORS[SINGLE_USE]
-WALLET_SINGLE_USE = SNAPSHOT_SINGLE_USE
+# Fixtures mutate the selected wallet edge, which may legitimately exceed the
+# global semantic floor. Read it with Go's parser rather than assuming equality.
+WALLET_SINGLE_USE = next(r["Version"] for r in json.loads(subprocess.run(
+    ["go", "mod", "edit", "-json", str(REPO / "experiments/agent-wallet/go.mod")],
+    check=True, capture_output=True, text=True).stdout)["Require"] if r["Path"] == SINGLE_USE)
 STANDALONE = ("deploy/go.mod", "experiments/station-lifecycle/go.mod")
 
 

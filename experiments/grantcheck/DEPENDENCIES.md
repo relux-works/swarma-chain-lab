@@ -22,3 +22,16 @@ bounded grant-cert. It does not resolve S1 in v1. Upstream a2a owns a generic
 admission seam; a downstream transport adapter registers CG1 at build time. A downstream transport adapter may use the test-bench grant policy only with
 the verified per-message BIP-340 sender contract documented in POLICY.md. Held/retry and exchange spools are bounded and
 owned by a2a daemon, and never confer inbox or signing authority themselves.
+
+## Combined-budget published selections
+
+The durable writer snapshot is `v0.3.1-0.20261114224110-dc6be5c16d88` and the
+grantcheck snapshot containing its requirement is `v0.1.2-0.20261114224915-633a050cea27`.
+Both descend from the strict-parser snapshot
+`e70a35a41dec5948d5452f1f898f4d26977372d7`; the writer selection also contains
+`dc6be5c16d8875de430e5c84943aecbc98efa23f`, which adds `Store.WriteBounded`.
+Grantcheck consumers must select the corrected grantcheck manifest, not merely
+a commit with a newer timestamp or the new API source. These pseudo-versions
+name earlier signed commits; delivery must preserve those exact objects.
+The graph snapshot remains a semantic floor and is regenerated independently
+from the published strict-parser snapshot.
