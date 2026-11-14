@@ -39,15 +39,19 @@ type Config struct {
 	AgentName           string
 	LandlordName        string
 	IssuerPubkey        string
-	StateDir            string
-	Node                su.Node
-	Now                 func() time.Time
-	CheckTimeout        time.Duration
+	ExecutorKey         string
+	Freshness           *FreshnessPolicy
+	// Terms is a bounded, nonblocking lookup of canonical terms by contract hash.
+	// It must not perform I/O; transport adapters resolve objects before checking.
+	Terms        func(string) ([]byte, error)
+	StateDir     string
+	Node         su.Node
+	Now          func() time.Time
+	CheckTimeout time.Duration
 }
 
 type backend interface {
 	kernel.Checker
-	kernel.Presenter
 }
 
 // Checker cannot be copied or constructed as a useful zero value. Only New
@@ -60,12 +64,15 @@ type Checker struct {
 	binding   string
 	backend   backend
 	poisoned  bool
+	node      *policyNode
 }
 
 type state struct {
-	Version int    `json:"version"`
-	Binding string `json:"binding"`
-	High    int64  `json:"high"`
+	Version      int               `json:"version"`
+	Binding      string            `json:"binding"`
+	High         int64             `json:"high"`
+	Provisioning []ProvisionRecord `json:"provisioning,omitempty"`
+	Cache        []cachedProof     `json:"cache,omitempty"`
 }
 
 func validLabel(s string, max int) bool {
@@ -107,6 +114,10 @@ func NewForTransport(config Config, transport Transport) (*Checker, error) {
 	if e := su.RequireWitnessProfile(config.ConstructionProfile); e != nil {
 		return nil, e
 	}
+	if !validKey(config.ExecutorKey) || config.Terms == nil || !validFreshness(config.Freshness) {
+		return nil, ErrConfig
+	}
+	config.Freshness = cloneFreshness(config.Freshness)
 	if !validLabel(config.Identity, 128) || !validName(config.AgentName) || !validName(config.LandlordName) ||
 		config.AgentName == config.LandlordName || !validKey(config.IssuerPubkey) || config.Node == nil ||
 		config.CheckTimeout < 0 || config.CheckTimeout > 5*time.Second {
@@ -121,23 +132,27 @@ func NewForTransport(config Config, transport Transport) (*Checker, error) {
 	if !canonicalRoot(config.StateDir) {
 		return nil, ErrState
 	}
-	a, err := kernelbind.New(config.Node, config.StateDir, config.AgentName, config.LandlordName, config.IssuerPubkey, config.ConstructionProfile)
+	node := &policyNode{Node: config.Node, policy: *config.Freshness}
+	a, err := kernelbind.New(node, config.StateDir, config.AgentName, config.LandlordName, config.IssuerPubkey, config.ConstructionProfile)
 	if err != nil {
 		return nil, ErrConfig
 	}
 	pins, _ := json.Marshal(struct {
 		Identity, Agent, Landlord, Issuer, Network, Genesis, Construction string
 		Transport                                                         Transport
+		Executor                                                          string
+		Age, Skew                                                         int64
+		Floor                                                             int64
 	}{
-		config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, "regtest", su.RegtestGenesis, config.ConstructionProfile, transport,
+		config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, "regtest", su.RegtestGenesis, config.ConstructionProfile, transport, config.ExecutorKey, int64(config.Freshness.MaxTipAge / time.Second), int64(*config.Freshness.MaxFutureSkew / time.Second), *config.Freshness.MinimumHeight,
 	})
-	c := &Checker{config: config, transport: transport, binding: rental.Hash(pins), backend: a}
+	c := &Checker{config: config, transport: transport, binding: rental.Hash(pins), backend: a, node: node}
 	s, err := durable.Open(config.StateDir, "grantcheck.lock")
 	if err != nil {
 		return nil, ErrState
 	}
 	defer s.Close()
-	raw, err := s.Read(stateName, 4096)
+	raw, err := s.Read(stateName, maxStateBytes)
 	if err != nil {
 		return nil, ErrState
 	}
@@ -172,12 +187,12 @@ func canonicalRoot(path string) bool {
 }
 func (c *Checker) load(s *durable.Store) (state, error) {
 	var m state
-	raw, err := s.Read(stateName, 4096)
+	raw, err := s.Read(stateName, maxStateBytes)
 	if err != nil || raw == nil || json.Unmarshal(raw, &m) != nil {
 		return m, ErrState
 	}
 	b, _ := json.Marshal(m)
-	if !bytes.Equal(raw, b) || m.Version != 1 || m.Binding != c.binding || m.High < 0 || m.High > maxUnix {
+	if !bytes.Equal(raw, b) || m.Version != 1 || m.Binding != c.binding || m.High < 0 || m.High > maxUnix || !validProvisioning(m.Provisioning) || !c.validCache(m.Cache) {
 		return m, ErrState
 	}
 	return m, nil
@@ -219,6 +234,21 @@ func (c *Checker) parse(p Presentation, peer string) (rental.Grant, Code) {
 		g.IssuerKey != c.config.IssuerPubkey || g.Network != "regtest" || g.Genesis != su.RegtestGenesis {
 		return empty, CodeBindingMismatch
 	}
+	terms, err := c.config.Terms(g.ContractSHA256)
+	if err != nil || len(terms) == 0 || len(terms) > MaxPresentationBytes || rental.Hash(terms) != g.ContractSHA256 {
+		return empty, CodeTermsInvalid
+	}
+	var pay rental.PayTermsV2
+	if json.Unmarshal(terms, &pay) != nil {
+		return empty, CodeTermsInvalid
+	}
+	canonical, err := rental.EncodePayTermsV2(pay)
+	if err != nil || !bytes.Equal(canonical, terms) || pay.Network != g.Network || pay.Genesis != g.Genesis {
+		return empty, CodeTermsInvalid
+	}
+	if pay.ExecutorKey != c.config.ExecutorKey {
+		return empty, CodeExecutorMismatch
+	}
 	return g, CodeLive
 }
 
@@ -238,8 +268,14 @@ func (c *Checker) Outbound(ctx context.Context, recipient string) Verdict {
 }
 
 func (c *Checker) check(ctx context.Context, peer string, supplied *Presentation, inbound bool) Verdict {
+	return c.checkOperation(ctx, peer, supplied, inbound, false)
+}
+func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Presentation, inbound, provision bool) (out Verdict) {
 	fail := func(code Code) Verdict { return route(code, inbound, false) }
 	if ctx == nil || ctx.Err() != nil {
+		if provision && c != nil && c.backend != nil && supplied != nil {
+			return c.auditRefusal(*supplied, fail(CodeCancelled))
+		}
 		return fail(CodeCancelled)
 	}
 	if c == nil || c.backend == nil {
@@ -259,6 +295,9 @@ func (c *Checker) check(ctx context.Context, peer string, supplied *Presentation
 		var code Code
 		g, code = c.parse(p, peer)
 		if code != CodeLive {
+			if provision {
+				return c.auditRefusal(*supplied, fail(code))
+			}
 			return fail(code)
 		}
 	}
@@ -280,6 +319,29 @@ func (c *Checker) check(ctx context.Context, peer string, supplied *Presentation
 	if err != nil {
 		return fail(CodeStateUnavailable)
 	}
+	// Persistence is deferred until a final live result. A failed check cannot
+	// insert/replace bytes, including expiry or rollback after a live K1 receipt.
+	defer func() {
+		changed := false
+		if out.Decision == Live && supplied != nil {
+			if code := putCached(&m, peer, p); code != CodeLive {
+				out = fail(code)
+			} else {
+				changed = true
+			}
+		}
+		if provision {
+			appendProvision(&m, p, out, c.config.Now().Unix())
+			changed = true
+		}
+		if changed {
+			raw, _ := json.Marshal(m)
+			if s.Write(stateName, raw) != nil {
+				c.poisoned = true
+				out = fail(CodeStateUnavailable)
+			}
+		}
+	}()
 	now, code := c.stamp(s, &m)
 	if code != CodeLive {
 		return fail(code)
@@ -288,7 +350,7 @@ func (c *Checker) check(ctx context.Context, peer string, supplied *Presentation
 		return fail(CodeCancelled)
 	}
 	if supplied == nil {
-		raw, err := c.backend.CachedGrant(peer)
+		raw, err := cachedGrant(m, peer)
 		if errors.Is(err, kernel.ErrNoPresentation) {
 			v := fail(CodeNoGrant)
 			v.CheckedAt = now
@@ -307,12 +369,9 @@ func (c *Checker) check(ctx context.Context, peer string, supplied *Presentation
 			return fail(CodeStateUnavailable)
 		}
 	}
+	c.node.reset(now)
 	var r kernel.Receipt
-	if supplied != nil {
-		r, err = c.backend.Present(ctx, p.Bytes, p.GrantID, c.config.AgentName, peer, now)
-	} else {
-		r, err = c.backend.Check(ctx, p.Bytes, c.config.AgentName, peer, now)
-	}
+	r, err = c.backend.Check(ctx, p.Bytes, c.config.AgentName, peer, now)
 	if ctx.Err() != nil {
 		return fail(CodeCancelled)
 	}
@@ -323,6 +382,9 @@ func (c *Checker) check(ctx context.Context, peer string, supplied *Presentation
 		return fail(CodeCheckFailed)
 	}
 	v := mapReceipt(r, inbound)
+	if c.node.code != "" {
+		return fail(c.node.code)
+	}
 	// An unexpected scope on a live result cannot become executor metadata.
 	if v.Decision == Live && !slices.Equal(r.Scope, g.Scope) {
 		return fail(CodeCheckFailed)
@@ -331,8 +393,8 @@ func (c *Checker) check(ctx context.Context, peer string, supplied *Presentation
 	if v.Decision != Live {
 		return v
 	}
-	// Repeat the clock check after kernel cache/journal writes, and after our
-	// own persistence. Bounded retries cover a second boundary during fsync.
+	// Repeat the clock check after kernel journal writes and before our deferred
+	// proof-cache persistence. Bounded retries cover a second boundary during fsync.
 	for range 3 {
 		end, code := c.stamp(s, &m)
 		if code != CodeLive {
@@ -354,6 +416,11 @@ func (c *Checker) check(ctx context.Context, peer string, supplied *Presentation
 			return fail(CodeClockInvalid)
 		}
 		if last == end {
+			if c.node.seen {
+				if code := c.node.freshAt(end); code != CodeLive {
+					return fail(code)
+				}
+			}
 			v.CheckedAt = end
 			v.Scope = slices.Clone(g.Scope)
 			return v

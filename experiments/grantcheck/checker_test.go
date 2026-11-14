@@ -1,6 +1,7 @@
 package grantcheck
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -23,7 +24,7 @@ func (f nodeFunc) Call(ctx context.Context, method string, args ...any) (json.Ra
 
 func unitConfig(t *testing.T) Config {
 	t.Helper()
-	return Config{ConstructionProfile: "W", Identity: "test-identity", AgentName: "id/test-agent", LandlordName: "id/test-landlord", IssuerPubkey: xonly(1), StateDir: stateDir(t), Now: func() time.Time { return time.Unix(500, 0) }, Node: nodeFunc(func(context.Context, string, ...any) (json.RawMessage, error) {
+	return Config{ExecutorKey: xonly(9), Freshness: testFreshness(600*time.Second, 120*time.Second, 0), Terms: unitTermsLookup, ConstructionProfile: "W", Identity: "test-identity", AgentName: "id/test-agent", LandlordName: "id/test-landlord", IssuerPubkey: xonly(1), StateDir: stateDir(t), Now: func() time.Time { return time.Unix(500, 0) }, Node: nodeFunc(func(context.Context, string, ...any) (json.RawMessage, error) {
 		return nil, errors.New("sensitive-node-marker")
 	})}
 }
@@ -62,7 +63,7 @@ func TestInputBoundary(t *testing.T) {
 	ctx := context.Background()
 	peer := xonly(2)
 	assertVerdict(t, c.Inbound(ctx, peer, &p), Live, CodeLive, false, false)
-	before := b.PresentCalls
+	before := b.Calls
 	for _, tc := range []struct {
 		name, peer string
 		p          Presentation
@@ -81,10 +82,10 @@ func TestInputBoundary(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assertVerdict(t, c.Inbound(ctx, tc.peer, &tc.p), Refused, tc.code, false, false)
-			if b.PresentCalls != before {
+			if b.Calls != before {
 				t.Fatal("invalid input reached backend")
 			}
-			if string(b.Cached[peer]) != string(p.Bytes) {
+			if !bytes.Equal(cachedBytes(t, c, peer), p.Bytes) {
 				t.Fatal("invalid input replaced cache")
 			}
 		})
@@ -92,7 +93,7 @@ func TestInputBoundary(t *testing.T) {
 	assertVerdict(t, c.Outbound(ctx, peer), Live, CodeLive, false, false)
 }
 
-// Cached bytes trigger Check each time; only explicit live inbound uses Present.
+// Cached bytes trigger Check each time; only fully live supplied proofs persist.
 // A closed or unavailable fresh result never falls back to a prior live verdict.
 func TestFreshCacheAndOutbound(t *testing.T) {
 	c, b, p := unitChecker(t)
@@ -104,7 +105,7 @@ func TestFreshCacheAndOutbound(t *testing.T) {
 	n := b.Calls
 	assertVerdict(t, c.Inbound(ctx, peer, nil), Live, CodeLive, false, false)
 	assertVerdict(t, c.Outbound(ctx, peer), Live, CodeLive, false, false)
-	if b.Calls != n+2 || b.PresentCalls != 1 {
+	if b.Calls != n+2 || b.PresentCalls != 0 {
 		t.Fatal("cache bypassed fresh check")
 	}
 	old := b.Handler
@@ -164,6 +165,9 @@ func TestInconsistentReceipts(t *testing.T) {
 			}
 			v := c.Inbound(context.Background(), xonly(2), &p)
 			assertVerdict(t, v, Refused, CodeCheckFailed, false, false)
+			if _, e := c.cachedGrant(xonly(2)); e != kernel.ErrNoPresentation {
+				t.Fatal("inconsistent receipt cached proof", e)
+			}
 			if strings.Contains(string(jsonBytes(t, v)), "sensitive-node-marker") {
 				t.Fatal("backend text escaped")
 			}
@@ -297,6 +301,13 @@ func TestClockBoundaries(t *testing.T) {
 				retry = false
 			}
 			assertVerdict(t, c.Inbound(context.Background(), xonly(2), &p), Refused, code, false, retry)
+			if name == "restart" {
+				if !bytes.Equal(cachedBytes(t, c, xonly(2)), p.Bytes) {
+					t.Fatal("rollback replaced existing proof")
+				}
+			} else if _, e := c.cachedGrant(xonly(2)); e != kernel.ErrNoPresentation {
+				t.Fatal("late clock refusal cached proof", e)
+			}
 		})
 	}
 }

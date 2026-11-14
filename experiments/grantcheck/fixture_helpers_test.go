@@ -3,15 +3,17 @@ package grantcheck
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	"os"
-	"path/filepath"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func xonly(n byte) string {
@@ -73,7 +75,7 @@ func proofGrant(t *testing.T, raw []byte) rental.SignedGrant {
 }
 
 // Offline cryptographic fixture only. The genuine Core suite creates every
-// admitted v3 grant through rental.IssueGrant instead.
+// admitted v3 grant through rental.IssuePayGrantV2 instead.
 func unitGrant(t *testing.T) []byte {
 	t.Helper()
 	keyBytes := make([]byte, 32)
@@ -84,7 +86,7 @@ func unitGrant(t *testing.T) []byte {
 	if e != nil {
 		t.Fatal(e)
 	}
-	hash := strings.Repeat("a", 64)
+	hash := rental.Hash(unitTerms(t))
 	consent := signEvent(t, renter, rental.Event{CreatedAt: 200, Kind: 8181, Tags: [][]string{{"t", "swarma-rental-consent-v1"}, {"contract", hash}, {"booking", strings.Repeat("b", 64)}, {"privacy", strings.Repeat("c", 64)}}})
 	g := rental.Grant{Version: 3, Network: "regtest", Genesis: su.RegtestGenesis, AgentName: "id/test-agent", LandlordName: "id/test-landlord", IssuerKey: xonly(1), GranteeKey: renter.PubKeyHex(), ContractSHA256: hash, Scope: []string{"deliver", "pay"}, NotBefore: 300, NotAfter: 1000, Seal: rental.Point{TxID: strings.Repeat("d", 64)}, Consent: rental.GrantConsent{ContractSHA256: hash, ConsentEvent: consent, LandlordSig: signHash(t, k, hash)}}
 	digest, e := g.SigningHash()
@@ -94,6 +96,34 @@ func unitGrant(t *testing.T) []byte {
 	raw, e := rental.PresentIssuedGrant(jsonBytes(t, rental.SignedGrant{Grant: g, Signature: signHash(t, k, digest)}), strings.Repeat("e", 64))
 	if e != nil {
 		t.Fatal(e)
+	}
+	return raw
+}
+
+func testFreshness(age, skew time.Duration, floor int64) *FreshnessPolicy {
+	return &FreshnessPolicy{MaxTipAge: age, MaxFutureSkew: &skew, MinimumHeight: &floor}
+}
+func unitTerms(t *testing.T) []byte {
+	t.Helper()
+	raw, err := rental.EncodePayTermsV2(rental.PayTermsV2{Version: 2, Service: "wallet.nmc", ExecutorKey: xonly(9), Network: "regtest", Genesis: su.RegtestGenesis, RecipientMode: "any", Recipients: []string{}, SpendCap: 1000000, TransferCap: 100000, DayCap: 1000000, DayCountCap: 10, FeeCap: 1000, DayBasis: "utc-calendar"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+func unitTermsLookup(hash string) ([]byte, error) {
+	raw, err := rental.EncodePayTermsV2(rental.PayTermsV2{Version: 2, Service: "wallet.nmc", ExecutorKey: xonly(9), Network: "regtest", Genesis: su.RegtestGenesis, RecipientMode: "any", Recipients: []string{}, SpendCap: 1000000, TransferCap: 100000, DayCap: 1000000, DayCountCap: 10, FeeCap: 1000, DayBasis: "utc-calendar"})
+	if err != nil || rental.Hash(raw) != hash {
+		return nil, errors.New("terms unavailable")
+	}
+	return raw, nil
+}
+
+func cachedBytes(t *testing.T, c *Checker, peer string) []byte {
+	t.Helper()
+	raw, err := c.cachedGrant(peer)
+	if err != nil {
+		t.Fatal(err)
 	}
 	return raw
 }

@@ -221,11 +221,16 @@ func TestG1BenchCore(t *testing.T) {
 			}
 		}
 		clock := func() time.Time { return time.Unix(at, 0) }
-		checker, err := cg.NewForTransport(cg.Config{ConstructionProfile: "W", Identity: fmt.Sprintf("bench-%d", seq), AgentName: id.fixture.AgentName, LandlordName: id.fixture.LandlordName, IssuerPubkey: issuer, StateDir: state, Node: node, Now: clock}, cg.SwarmEnvelopeV2)
+		checker, err := cg.NewForTransport(cg.Config{ExecutorKey: executor, Freshness: &cg.FreshnessPolicy{MaxTipAge: 24 * time.Hour, MaxFutureSkew: durationPtr(120 * time.Second), MinimumHeight: &info.Blocks}, Terms: func(hash string) ([]byte, error) {
+			if rental.Hash(id.fixture.Terms) != hash {
+				return nil, fmt.Errorf("terms unavailable")
+			}
+			return bytes.Clone(id.fixture.Terms), nil
+		}, ConstructionProfile: "W", Identity: fmt.Sprintf("bench-%d", seq), AgentName: id.fixture.AgentName, LandlordName: id.fixture.LandlordName, IssuerPubkey: issuer, StateDir: state, Node: node, Now: clock}, cg.SwarmEnvelopeV2)
 		if err != nil {
 			t.Fatal("checker construction", err)
 		}
-		return bench.New(checker, executor, node, info.Blocks, clock, map[string]string{to: id.fixture.GranteeKey}), checker, node
+		return bench.New(checker, clock, map[string]string{to: id.fixture.GranteeKey}), checker, node
 	}
 	event := func(t *testing.T, id *benchIdentity, key *btcec.PrivateKey, raw, terms []byte, text string, at int64) bench.Event {
 		t.Helper()
@@ -432,7 +437,7 @@ func TestG1BenchCore(t *testing.T) {
 	})
 	t.Run("OutboundRecipientBinding", func(t *testing.T) {
 		// Claim: one signed carrier recipient resolves to one protected key; missing/wrong pins and delivery substitutions deny.
-		g, c, node := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
+		g, c, _ := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
 		expect(t, g, good(t, &a, now), "live", "live") // Admit proof, not a reusable live verdict.
 		send := func(g *bench.Gate, e bench.Event, route, code string) {
 			t.Helper()
@@ -450,7 +455,7 @@ func TestG1BenchCore(t *testing.T) {
 			if pin != "" {
 				pins[to] = pin
 			}
-			out := bench.New(c, a.fixture.ExecutorKey, node, 0, func() time.Time { return time.Unix(now, 0) }, pins)
+			out := bench.New(c, func() time.Time { return time.Unix(now, 0) }, pins)
 			code := "recipient_unresolved"
 			if pin != "" {
 				code = "no_grant"
@@ -463,7 +468,7 @@ func TestG1BenchCore(t *testing.T) {
 		send(g, e, "refused", "envelope_invalid")
 		// Two different signed recipients require two different envelopes, even with the same pinned key.
 		pins := map[string]string{to: a.fixture.GranteeKey, "@other:example.invalid": a.fixture.GranteeKey}
-		out := bench.New(c, a.fixture.ExecutorKey, node, 0, func() time.Time { return time.Unix(now, 0) }, pins)
+		out := bench.New(c, func() time.Time { return time.Unix(now, 0) }, pins)
 		pins[to] = b.fixture.GranteeKey // Constructor must retain its private copy.
 		first := good(t, &a, now)
 		send(out, first, "live", "live")
@@ -502,9 +507,9 @@ func TestG1BenchCore(t *testing.T) {
 			t.Fatal("issuer pin did not reject at the entry boundary", v.Code, v.CheckedAt, node.reads)
 		}
 		// Claim: the verified-envelope adapter preserves that exact checker refusal;
-		// only Gate's sync read precedes the checker's early issuer-pin rejection.
+		// executor and sync checks now belong to the shared checker.
 		r := expect(t, g, good(t, &a, now), "refused", "binding_mismatch")
-		if benchDecision(r.Verdict) != "refused" || r.Verdict.Code != cg.CodeBindingMismatch || r.Verdict.CheckedAt != 0 || r.Verdict.GrantID != "" || node.reads != 1 {
+		if benchDecision(r.Verdict) != "refused" || r.Verdict.Code != cg.CodeBindingMismatch || r.Verdict.CheckedAt != 0 || r.Verdict.GrantID != "" || node.reads != 0 {
 			t.Fatal("integrated issuer pin did not preserve early refusal", r.Code, node.reads)
 		}
 	})
@@ -538,7 +543,7 @@ func TestG1BenchCore(t *testing.T) {
 		positive(t, &a, end-1)
 		g, _, node := open(t, &a, end, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
 		expect(t, g, good(t, &a, end), "refused", "expired")
-		if node.reads != 1 {
+		if node.reads != 0 {
 			t.Fatal("expired grant read past the early window guard", node.reads)
 		}
 	})
@@ -548,7 +553,11 @@ func TestG1BenchCore(t *testing.T) {
 			// headers ahead of blocks is held at the bench boundary; other RPCs stay real.
 			positive(t, &a, now)
 			g, _, _ := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, mode)
-			expect(t, g, good(t, &a, now), "refused", "node_not_synced")
+			code := "node_not_synced"
+			if mode == "height" {
+				code = "tip_below_floor"
+			}
+			expect(t, g, good(t, &a, now), "refused", code)
 		})
 	}
 	t.Run("Replay", func(t *testing.T) {
@@ -625,6 +634,7 @@ func TestG1BenchCore(t *testing.T) {
 	})
 	var warm *bench.Gate
 	var warmNode *benchNode
+	var warmClosed bool
 	warmLive := func(t *testing.T) {
 		t.Helper()
 		var c *cg.Checker
@@ -675,13 +685,15 @@ func TestG1BenchCore(t *testing.T) {
 		if warmNode.reads <= reads {
 			t.Fatal("warm revocation made no fresh node observation")
 		}
+		warmClosed = true
 		g, _, _ := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
 		expectSpent(t, g)
 		positive(t, &b, now)
 	})
 	t.Run("SealConfirmed", func(t *testing.T) {
 		// Claim: the Gate warmed before spending still refuses after confirmation;
-		// a cold Gate agrees. Independent selection warms before its own spend.
+		// a cold Gate agrees. A positively persisted closure needs no new node read.
+		// Independent selection still warms and observes its own real spend.
 		if warm == nil {
 			warmLive(t)
 			wif, _ := btcutil.NewWIF(a.issuer, &chaincfg.RegressionNetParams, true)
@@ -704,7 +716,7 @@ func TestG1BenchCore(t *testing.T) {
 		g, _, _ := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
 		reads := warmNode.reads
 		expectSpent(t, warm)
-		if warmNode.reads <= reads {
+		if !warmClosed && warmNode.reads <= reads {
 			t.Fatal("confirmed warm revocation made no fresh node observation")
 		}
 		expectSpent(t, g)
@@ -725,3 +737,5 @@ func benchNoUTXO(raw []byte) bool {
 }
 
 func benchDecision(v cg.Verdict) string { route, _, _ := v.A2ADecision(); return route }
+
+func durationPtr(d time.Duration) *time.Duration { return &d }

@@ -2,7 +2,7 @@
 
 CG1 reuses the landed rental v3 kernel and rental-gateway/kernelbind. It neither
 forks chain validation nor depends on the unlanded exchange. The packaging and
-Go version decision is tracked in UNRESOLVED_QUESTIONS.md: CG1 and a2a-link use
+Go version decision is tracked in UNRESOLVED_QUESTIONS.md: CG1 and a downstream transport adapter use
 Go 1.26, while upstream a2a remains on 1.25 and never imports this module.
 
 Infra must provision the verifier's own Namecoin Core regtest observer with
@@ -19,6 +19,6 @@ cancellation; untrusted received data must never select a Node implementation.
 
 a2a daemon supplies a transport-verified NIP-17 inner seal key and the complete
 bounded grant-cert. It does not resolve S1 in v1. Upstream a2a owns a generic
-admission seam; the a2a-link fork registers CG1 at build time. Matrix identities
-cannot carry a grant policy. Held/retry and exchange spools are bounded and
+admission seam; a downstream transport adapter registers CG1 at build time. A downstream transport adapter may use the test-bench grant policy only with
+the verified per-message BIP-340 sender contract documented in POLICY.md. Held/retry and exchange spools are bounded and
 owned by a2a daemon, and never confer inbox or signing authority themselves.

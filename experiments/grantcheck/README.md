@@ -1,5 +1,33 @@
 # Grant check boundary for a2a daemon (a2ad) (CG1)
 
+
+## Required executor and interim node policy
+
+`New` and `NewForTransport` now require `Config.ExecutorKey`, `Config.Terms`
+and an explicit `Config.Freshness` policy. Missing/invalid inputs refuse
+construction with `ErrConfig`, including an unset executor pin. Both inbound
+and cached/outbound checks enforce the canonical terms' executor, headers equal
+to blocks, minimum height, maximum tip age and maximum future skew.
+`node_not_synced`, `tip_below_floor` and `tip_stale` are retryable;
+`executor_mismatch`, `terms_invalid`, `tip_future` and `issuance_mismatch` are not.
+
+The HIDDEN age of an admitted view is at most A + F (not A).
+`trusted_now` is the consumer's trusted `Config.Now` clock input (the consumer's
+`time.Now` system clock if omitted), never the node's own time. A must be positive;
+F is explicitly supplied in `[0, 10 minutes]`; FLOOR is explicitly supplied in
+`[0, 2147483647]`. Durations are whole seconds and none of A/F/FLOOR defaults.
+This is an INTERIM rule for the v3 TEST BENCH, superseded by LIP-0022 once
+accepted. Production values are NOT set here and need a runtime probe on a real
+Namecoin node before any non-bench use.
+
+`Checker.Provision(ctx, Presentation)` verifies a counterpart's canonical proof
+through the full admission path before caching it, with a durable bounded audit.
+It enables first-message bootstrap without any prior inbound message. The cache
+and successful provision audit are persisted together after all final checks.
+The bench delegates executor and freshness checks to grantcheck.
+See [POLICY.md](POLICY.md) for the required config/API change, exact rule,
+provisioning hash semantics, explicit bench values, tests and six overlay controls.
+
 ## SW1 witness construction
 
 `Config.ConstructionProfile` is required and must equal `"W"`; it is supplied by the authenticated daemon configuration, never by a peer message. It is included in the durable identity binding. Missing/unknown/L pins refuse before state opens.
@@ -24,7 +52,7 @@ hash. Old unpinned state and differently pinned state refuse with `ErrState`;
 there is no implicit migration or cache adoption. Retain old closure history and
 resolve any migration separately before using a new state root. Do not adopt
 another kernel's state or delete closure
-history to regain capacity. `New` exposes only `ErrConfig` or `ErrState`.
+history to regain capacity. `New` exposes only bounded construction/configuration/state errors.
 
 `Now` defaults to `time.Now` and belongs to the verifier. The persistent clock
 high-water rejects rollback across restart. `CheckTimeout` defaults to 5 seconds
@@ -33,7 +61,7 @@ has no background workers or unbounded queue. Concurrent work may return `busy`
 or `state_unavailable` instead of waiting for a lock.
 
 ```go
-// Legacy Nostr API remains unchanged.
+// Nostr call signatures remain; the required construction policy applies.
 // Sender is the transport-verified NIP-17 inner seal key, not a rumor field.
 v := checker.Inbound(ctx, verifiedSender, presentation)
 // Later, immediately before sending to this exact recipient:
@@ -59,18 +87,19 @@ An envelope sender with no cached proof gets `refused/no_grant`; the Nostr
 `exchange/no_grant` behavior is unchanged. A
 non-nil invalid proof never falls back. Every cache hit runs the real checker
 again. Only lowercase valid BIP-340 peer keys and proofs of at most 16384 bytes
-are accepted. Proof cache limits remain K1's 64 senders / 60000 aggregate bytes.
+are accepted. Grantcheck persists proof only after all checks; limits remain 64 senders /
+60000 aggregate encoded bytes.
 
 `Retryable` is true only for `verifier_unavailable`, `state_unavailable`, `busy`,
-`cancelled`, `clock_invalid`, `grant_pending` and `identity_pending`. a2a daemon
+`cancelled`, `clock_invalid`, `grant_pending`, `identity_pending`, `node_not_synced`, `tip_stale` and
+`tip_below_floor`. a2a daemon
 retains those events in its bounded held queue and checks again; cursor progress
 must not discard them. An inbound `exchange` goes to the separate bounded
 per-identity exchange spool, never the agent inbox or model. Scope is returned
 only for live results and remains metadata, not execution authority.
 
-The fork a2a-link registers CG1 at build time and uses Go 1.26. Upstream a2a stays
-on Go 1.25 and has no chain-lab dependency. Under the owner's decision T23 of
-2026-11-14, transports only carry; authority comes from a signed envelope inside
+A downstream transport adapter registers CG1 at build time and uses Go 1.26. Upstream a2a stays
+on Go 1.25 and has no chain-lab dependency. For the test bench, transports only carry; authority comes from a signed envelope inside
 the message on every transport. For the v3 test bench, Matrix grant policy is
 allowed only with the verified sender key defined below. The grant ID and
 canonical v3 presentation (at most 16384 bytes) travel inside the envelope or
@@ -115,7 +144,7 @@ Unknown/zero provenance or a different supported provenance returns
 and more than 64 returns `oversize`. These reuse the documented closed code set.
 No new reason is introduced. `A2ADecision` provides the pure closed mapping in
 [DESIGN.md](DESIGN.md#4-closed-routing-and-refusal-codes).
-The keeper's 2026-11-14 11:39:01Z decision resolves the lifecycle mapping:
+The inbound lifecycle mapping is:
 
 | Inbound code | SwarmEnvelopeV2 seam verdict / reason / retryable | NostrNIP17Seal seam verdict / reason / retryable |
 | --- | --- | --- |
@@ -143,6 +172,11 @@ never queue a live verdict as a reusable permission token.
 
 ## Tools and artifacts
 
+- The policy witnesses and overlay controls are documented in
+  [POLICY.md](POLICY.md#validation-and-controls); outputs go to the explicitly
+  chosen `.temp/` evidence directory and fresh isolated regtest root.
+
+
 - From this module: `go test -race ./...`, `go vet ./...`, `go build ./...`,
   `go mod tidy -diff` and `go mod verify`. Go 1.26 is required; development
   commands use `GOTOOLCHAIN=local` with the installed Go 1.26 toolchain.
@@ -155,10 +189,12 @@ never queue a live verdict as a reusable permission token.
   Core and the real issuer. Set all variables in one shell command. The fresh
   root contains public vectors/issuer receipts plus private node/wallet state.
   The harness stops its own recorded Core PID. No existing datadir is accepted.
-- `go run .scripts/guards.go -out .temp/guards -core` runs isolated guard-removal
+- `go run .scripts/guards.go -out .temp/guards -core -private-root <fresh-absolute-directory>` runs isolated guard-removal
   controls; set `CG1_CORE_DAEMON` and `CG1_CORE_CLI` as above. Without `-core`,
   only offline plants run. Logs, source hashes and intended-failure verdicts go
-  under a fresh run directory in the requested output path. Never publish nested
+  under a fresh run directory in the requested output path. Core datadirs go
+  under `-private-root` (default: a fresh directory under `TMPDIR`), separately
+  from public evidence. Never publish nested
   Core state directories, including wallet and RPC configuration.
 - `go run .scripts/sender-guards.go -out .temp/sender-guards` runs the four
   provenance controls using Go overlays: accept any transport, skip key-format

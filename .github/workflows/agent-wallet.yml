@@ -20,6 +20,8 @@ on:
       - '.scripts/rt-grant-fixture-core-gate.json'
       - '.scripts/g1-bench-core-gate.json'
       - '.scripts/g1-bench-guards.py'
+      - '.scripts/grantcheck-policy-guards.py'
+      - '.scripts/grantcheck-policy-core-gate.json'
       - '.scripts/w2-newcore-users.go'
       - '.scripts/px1-s5-consumer-gate.json'
       - 'deploy/**'
@@ -44,6 +46,8 @@ on:
       - '.scripts/rt-grant-fixture-core-gate.json'
       - '.scripts/g1-bench-core-gate.json'
       - '.scripts/g1-bench-guards.py'
+      - '.scripts/grantcheck-policy-guards.py'
+      - '.scripts/grantcheck-policy-core-gate.json'
       - '.scripts/w2-newcore-users.go'
       - '.scripts/px1-s5-consumer-gate.json'
       - 'deploy/**'
@@ -189,6 +193,37 @@ jobs:
           gate=$?
           echo "G1_BENCH: skip test=$control_test gate=$control_gate seen=$skip_seen; Core test=$code gate=$gate"
           test "$control_test" = 0 && test "$control_gate" = 1 && test "$skip_seen" = 0 && test "$code" = 0 && test "$gate" = 0
+      - name: Grantcheck policy on Core (required witnesses and real skip control)
+        working-directory: experiments/grantcheck
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          export CG1_CORE_DAEMON="$W1_CORE_DAEMON" CG1_CORE_CLI="$W1_CORE_CLI"
+          set +e
+          manifest=../../.scripts/grantcheck-policy-core-gate.json
+          checker=../../.scripts/check-px1-core-gate.py
+          env -u CG1_REGTEST go test -count=1 -json -run '^TestCore(Vectors|Freshness|Provisioning)$' . > "$RUNNER_TEMP/grantcheck-skip.json"
+          control_test=$?
+          python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/grantcheck-skip.json" > "$RUNNER_TEMP/grantcheck-skip.txt"
+          control_gate=$?
+          grep -qx 'SKIPPED TestCoreFreshness' "$RUNNER_TEMP/grantcheck-skip.txt"
+          skip_seen=$?
+          CG1_REGTEST=1 CG1_RUN_ROOT="$RUNNER_TEMP/grantcheck-policy-core" go test -race -count=1 -timeout 10m -json -run '^TestCore(Vectors|Freshness|Provisioning)$' . > "$RUNNER_TEMP/grantcheck-policy.json"
+          code=$?
+          python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/grantcheck-policy.json"
+          gate=$?
+          echo "GRANTCHECK_POLICY: skip test=$control_test gate=$control_gate seen=$skip_seen; Core test=$code gate=$gate"
+          test "$control_test" = 0 && test "$control_gate" = 1 && test "$skip_seen" = 0 && test "$code" = 0 && test "$gate" = 0
+      - name: Grantcheck policy guard-removal overlays
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          export CG1_CORE_DAEMON="$W1_CORE_DAEMON" CG1_CORE_CLI="$W1_CORE_CLI"
+          python3 -B ../../.scripts/grantcheck-policy-guards.py --out "$RUNNER_TEMP/grantcheck-policy-guards" --private-root "$RUNNER_TEMP/grantcheck-policy-private"
       - name: Envelope grant bench guard-removal controls
         env:
           GOPROXY: 'off'

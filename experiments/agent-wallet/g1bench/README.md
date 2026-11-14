@@ -14,9 +14,9 @@ names and a live grant. The real terms-v2 issuer cross-binds their executor keys
 
 ## Envelope profile and integration limit
 
-The carriage key and unpadded base64url encoding follow the Matrix adapter at
-`a2a-swarm` revision `86c2c308`, `internal/matrix/envelope.go`. The four-member
-container and protected `{body,key,role,version}` record follow the
+The carriage key and unpadded base64url encoding match a downstream transport
+adapter. The four-member container and protected `{body,key,role,version}` record
+follow the public
 [envelope specification](https://github.com/relux-works/swarma-envelope/blob/e38510c503d266d36a275a5976f933e10fae4060/spec/swarm-envelope-2.md)
 sections 2.1–2.4.
 
@@ -191,6 +191,14 @@ key, no installed consumers, transport registration, native envelope trust or
 cross-user custody qualification. The two identities use separate chains because
 the existing fixture has fixed names. The gate's replay set lasts one instance,
 is bounded to 4096 accepted directional envelope ids, and fails closed at capacity; it
-provides no replay continuity across restart. The height floor and explicit sync
-flags do not prove wall-clock freshness of a connected node. A live verdict is a
+provides no replay continuity across restart. Executor pinning, the height floor and sync/freshness policy now belong to
+[grantcheck](../../grantcheck/POLICY.md), including cached outbound checks.
+The bench supplies A = 24 hours, F = 120 seconds, and an independently observed
+post-issuance FLOOR. This long test age keeps its full-lifetime expiry controls
+in scope; the dedicated frozen-view witness uses A = 60 seconds instead.
+The HIDDEN age of an admitted view is at most A + F (not A).
+`trusted_now` is the consumer's configured trusted clock, never node time.
+This is an INTERIM rule for the v3 TEST BENCH, superseded by LIP-0022 once
+accepted. Production values are NOT set here and need a runtime probe on a real
+Namecoin node before any non-bench use. A live verdict is a
 bounded observation, never a permission to execute text or a token for later use.

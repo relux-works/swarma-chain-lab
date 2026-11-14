@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"sync"
 	"time"
 
 	cg "github.com/relux-works/swarma-chain-lab/experiments/grantcheck"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
-	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // Event's routing fields come from the trusted carrier adapter. MatrixSender
@@ -28,17 +26,14 @@ type Result struct {
 	Verdict cg.Verdict
 }
 type Gate struct {
-	checker       *cg.Checker
-	node          su.Node
-	minimumHeight int64
-	executor      string
-	now           func() time.Time
-	mu            sync.Mutex
-	seen          map[string]bool
-	bindings      map[string]string
+	checker  *cg.Checker
+	now      func() time.Time
+	mu       sync.Mutex
+	seen     map[string]bool
+	bindings map[string]string
 }
 
-func New(checker *cg.Checker, executor string, node su.Node, minimumHeight int64, now func() time.Time, bindings map[string]string) *Gate {
+func New(checker *cg.Checker, now func() time.Time, bindings map[string]string) *Gate {
 	if now == nil {
 		now = time.Now
 	}
@@ -46,7 +41,7 @@ func New(checker *cg.Checker, executor string, node su.Node, minimumHeight int64
 	for id, key := range bindings {
 		pins[id] = key
 	}
-	return &Gate{bindings: pins, checker: checker, executor: executor, node: node, minimumHeight: minimumHeight, now: now, seen: map[string]bool{}}
+	return &Gate{bindings: pins, checker: checker, now: now, seen: map[string]bool{}}
 }
 
 func (g *Gate) Admit(ctx context.Context, event Event) Result {
@@ -108,9 +103,6 @@ func (g *Gate) Admit(ctx context.Context, event Event) Result {
 	if err != nil || string(canonical) != string(terms) {
 		return refuse("terms_invalid")
 	}
-	if pay.ExecutorKey != g.executor {
-		return refuse("executor_mismatch")
-	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	replay := e.ID
@@ -119,9 +111,6 @@ func (g *Gate) Admit(ctx context.Context, event Event) Result {
 	}
 	if len(g.seen) >= 4096 {
 		return refuse("replay_capacity")
-	}
-	if err := g.fresh(ctx); err != nil {
-		return refuse("node_not_synced")
 	}
 	verdict := g.checker.InboundFrom(ctx, cg.SenderProof{Transport: cg.SwarmEnvelopeV2, Key: key}, &p)
 	route, _, _ := verdict.A2ADecision()
@@ -177,9 +166,6 @@ func (g *Gate) Outbound(ctx context.Context, event Event) Result {
 	if len(g.seen) >= 4096 {
 		return deny("replay_capacity")
 	}
-	if err := g.fresh(ctx); err != nil {
-		return deny("node_not_synced")
-	}
 	verdict := g.checker.OutboundFrom(ctx, cg.RecipientProof{Transport: cg.SwarmEnvelopeV2, Keys: []string{key}})
 	route, _, _ := verdict.A2ADecision()
 	if route != "live" {
@@ -187,21 +173,4 @@ func (g *Gate) Outbound(ctx context.Context, event Event) Result {
 	}
 	g.seen["out:"+e.ID] = true
 	return Result{Route: "live", Code: "live", Verdict: verdict}
-}
-
-// fresh adds a conservative bench floor to the existing own-node checks. The
-// floor is protected harness configuration, never a field in an envelope.
-func (g *Gate) fresh(ctx context.Context) error {
-	if g.node == nil {
-		return errors.New("bench node missing")
-	}
-	raw, err := g.node.Call(ctx, "getblockchaininfo")
-	var info su.ChainInfo
-	if err != nil || json.Unmarshal(raw, &info) != nil {
-		return errors.New("bench node unavailable")
-	}
-	if info.Chain != "regtest" || info.IBD || info.Blocks < g.minimumHeight || info.Headers > info.Blocks {
-		return errors.New("bench node not synced")
-	}
-	return nil
 }

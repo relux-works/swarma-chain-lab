@@ -30,7 +30,7 @@ roots to the authenticated station is a2a daemon's responsibility, tested at its
 integration boundary; a string passed by an untrusted station is not proof.
 
 The a2a maintainers own insertion of the following calls once a2a daemon's
-per-identity engine boundary settles. CG1 changes no a2a-swarm source:
+per-identity engine boundary settles. CG1 changes no transport implementation:
 
 | Direction | Call point | Only a live verdict permits |
 | --- | --- | --- |
@@ -49,8 +49,8 @@ Queue capacity, persistence, expiry and overflow are a2a daemon's contract. CG1
 does not own a queue or turn a retryable refusal into admission.
 
 Upstream a2a defines an `admission` interface with no policy by default. The
-a2a-link fork registers CG1 at build time; upstream never imports chain-lab.
-The owner's decision T23 of 2026-11-14 states that transports only carry and
+a downstream transport adapter registers CG1 at build time; upstream never imports chain-lab.
+The transport contract states that transports only carry and
 authority always comes from a signed envelope inside the message, on every
 transport. Matrix grant policy is allowed for the v3 test bench only when the
 sender key satisfies the contract below. The grant ID and canonical v3 proof of
@@ -87,7 +87,7 @@ agent reply through it to bypass Outbound is forbidden. Scope returned by a live
 verdict is authenticated metadata, not authority to execute effects: executors
 still check action-specific grants independently.
 
-## 2. Proposed narrow API
+## 2. Narrow API
 
 ```go
 type Presentation struct {
@@ -111,8 +111,9 @@ type Transport uint8 // closed: NostrNIP17Seal = 1, SwarmEnvelopeV2 = 2
 type SenderProof struct { Transport Transport; Key string }
 type RecipientProof struct { Transport Transport; Keys []string }
 
-func New(Config) (*Checker, error) // fixed Nostr pin, existing API unchanged
+func New(Config) (*Checker, error) // fixed Nostr pin, required executor/terms/freshness config
 func NewForTransport(Config, Transport) (*Checker, error) // required explicit pin
+func (*Checker) Provision(context.Context, Presentation) Verdict // protected bootstrap
 func (*Checker) Inbound(context.Context, string, *Presentation) Verdict // Nostr only
 func (*Checker) InboundFrom(context.Context, SenderProof, *Presentation) Verdict
 func (*Checker) Outbound(context.Context, string) Verdict // Nostr only
@@ -141,9 +142,11 @@ cached proof for this sender. With no cached proof, envelope provenance returns
 `refused/no_grant`; legacy Nostr keeps `exchange/no_grant`. A non-nil malformed/empty presentation is refused,
 never converted to absence and never replaced by a cached valid grant. Outbound
 has no presentation parameter: the agent cannot plant authority by attaching a
-new proof to its reply. It uses proof admitted by prior live inbound presentation.
+new proof to its reply. It uses proof admitted by prior live inbound presentation
+or protected `Provision`, with the same checks in both cases.
 
-Config contains operator-owned identity/name/key pins, StateDir, read-only Node,
+Config contains operator-owned identity/name/key pins, a required executor key,
+canonical terms resolver and explicit freshness policy, StateDir, read-only Node,
 and Now (default time.Now), not receive-time fields or messaging credentials.
 Each operation reads verifier time itself. A private persisted clock high-water
 rejects backward time across calls/restarts rather than reviving an expired grant.
@@ -200,17 +203,20 @@ is live authority. Never follow a received arbitrary URL, accept a mismatched S1
 hash, or use store access credentials from the rented agent. CG1 takes completed
 bounded bytes and performs no S1/network fetch itself.
 
-Explicit inbound presentation calls `kernelbind.Adapter.Present`, which runs
-K1 Check fresh and only then inserts/replaces the per-sender cache. Inbound cache
-hits and all outbound calls use `CachedGrant` followed by normal `Check` at current
-time. Metadata's grant ID must agree with the receipt and expected presentation
-ID. The wrapper adds no independent chain or revocation judgment.
+Supplied inbound proofs and protected `Provision` call `kernelbind.Adapter.Check`.
+Grantcheck validates hash-bound canonical terms/executor and wraps actual kernel
+node observations with the required interim freshness policy. Only after the
+receipt and final clock/freshness checks pass does it atomically persist its own
+proof cache; successful provisioning includes its audit in that same write.
+Cache hits use these admitted bytes with normal fresh `Check`, never a stored
+verdict. See [POLICY.md](POLICY.md) for configuration, hash semantics, named
+refusals, test values and limits. There is no raw insertion entry point.
 
 ## 4. Closed routing and refusal codes
 
 `A2ADecision` maps public verdicts to the a2a admission seam's closed vocabulary,
 without depending on its internal package. The adapter enforces inbound-only
-exchange and converts these strings to the seam's named types. The keeper's
+exchange and converts these strings to the seam's named types. The lifecycle policy of
 2026-11-14 11:39:01Z decision resolves the envelope lifecycle mapping. Inbound
 results privately retain the validated checker pin; this is local provenance,
 not a wire field. Map the fresh in-memory verdict; serialization omits provenance
@@ -247,6 +253,11 @@ inbox/sign/send. Unknown future K1 reasons map to
 
 | Condition | Inbound decision/code | Outbound decision/code | Durable closed |
 | --- | --- | --- | --- |
+| Wrong executor / invalid canonical terms | refused / executor_mismatch or terms_invalid | refused / executor_mismatch or terms_invalid | false |
+| IBD or headers unequal to blocks | refused / node_not_synced | refused / node_not_synced | false |
+| Tip below FLOOR / older than A | refused / tip_below_floor or tip_stale | refused / tip_below_floor or tip_stale | false |
+| Tip beyond future skew F | refused / tip_future | refused / tip_future | false |
+| On-chain issuance hash mismatch | refused / issuance_mismatch | refused / issuance_mismatch | false |
 | Fresh K1 live, correct bindings and current window | live / live | live / live | false |
 | No supplied proof and cache genuinely absent | Nostr exchange / no_grant; envelope refused / no_grant | refused / no_grant | false |
 | Well-formed owned grant before start | exchange / not_yet | refused / not_yet | false |
@@ -268,7 +279,8 @@ inbox/sign/send. Unknown future K1 reasons map to
 | Any unclassified receipt/error/inconsistent live metadata | refused / check_failed | refused / check_failed | false |
 
 `Retryable` is true exactly for `verifier_unavailable`, `state_unavailable`,
-`busy`, `cancelled`, `clock_invalid`, `grant_pending` and `identity_pending`.
+`busy`, `cancelled`, `clock_invalid`, `grant_pending`, `identity_pending`,
+`node_not_synced`, `tip_stale` and `tip_below_floor`.
 It is false for every live/exchange result and every other refusal. This fixed
 classification lets a2a daemon retain transiently blocked work without guessing
 from error text. A closed-and-live or otherwise inconsistent receipt maps to
@@ -290,17 +302,22 @@ entry point; this library contains no exchange reply policy.
 
 ## 5. Caching, time and observation limits
 
-K1's live-admitted cache contains public proof bytes only (64 senders, aggregate
-60000 bytes in the landed profile). It never stores an authorization result for reuse.
+Grantcheck's live-admitted cache contains public proof bytes only (64 senders,
+aggregate 60000 encoded bytes). It never stores an authorization result for reuse.
 A denied new presentation does not overwrite a prior valid proof. Expired/closed
 bytes may remain for evidence/repeated checks; "cache never serves a closed grant"
 means no cached proof can produce permission without a fresh successful check.
+The HIDDEN age of an admitted view is at most A + F (not A).
+This is an INTERIM rule for the v3 TEST BENCH, superseded by LIP-0022 once
+accepted. Production values are NOT set here and need a runtime probe on a real
+Namecoin node before any non-bench use. `trusted_now` is supplied by the
+consumer's `Config.Now` clock, never the node's own time; see [POLICY.md](POLICY.md).
 Do not delete K1 closure/seal-index history to recover capacity or revive service.
 These lifetime safety journals are distinct from the bounded presentation cache;
 CG1 makes no claim that retained historical records have a fixed total size.
 
 Each result is scoped to the exact operation, peer and resolved identity. After
-parsing/check/cache persistence, reread verifier time and refuse if the window
+parsing/check and before cache persistence, reread verifier time and refuse if the window
 ended or the clock moved backward before returning. a2a daemon must not queue a live
 receipt for later signing, reuse it for a different recipient, or use it after an
 await/delay without another check. At window end there is no permission to receive
@@ -382,7 +399,7 @@ Required controls, each with valid neighbours:
 
 The integration owner requires a separately tagged module. The initial Go 1.25
 constraint was corrected after verifying that the landed K1/kernelbind graph
-requires Go 1.26: CG1 and the a2a-link fork use Go 1.26; upstream remains on
+requires Go 1.26: CG1 and a downstream transport adapter use Go 1.26; upstream remains on
 Go 1.25.x and never imports chain-lab. Existing dependency directives remain
 unchanged. The fork's CI must run upstream's complete suite and transport
 conformance on Go 1.26; that integration work belongs to the a2a maintainers.

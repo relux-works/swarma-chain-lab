@@ -12,13 +12,13 @@ failures are invalid. No published source or test is replaced by the script.
 | `no-envelope` | `NoEnvelope` | Early missing-envelope classification; signature checks remain |
 | `bad-signature` | `BadSignature` | Signature math with other bindings retained |
 | `wrong-key` | `WrongKey` | Verified co-signer cannot be replaced by a proof-claimed key |
-| `wrong-executor` | `WrongExecutor` | Protected terms executor pin |
+| `wrong-executor` | `WrongExecutor` | Protected terms executor pin in grantcheck |
 | `unknown-issuer` | `UnknownIssuer` | Early issuer pin before metadata/reads; deeper K1 pin remains |
 | `before-window` | `BeforeWindow` | Early not-before routing; final CG1 clock defence remains |
 | `after-window` | `AfterWindow` | Early expiry before reads; late expiry defences remain |
-| `stale-ibd` | `StaleNode-ibd` | Bench sync routing; K1 IBD defence remains |
+| `stale-ibd` | `StaleNode-ibd` | Grantcheck sync routing; K1 IBD defence remains |
 | `stale-height` | `StaleNode-height` | Protected minimum height before K1 chain binding |
-| `stale-headers` | `StaleNode-headers` | Conservative catch-up refusal |
+| `stale-headers` | `StaleNode-headers` | Grantcheck headers-equal-blocks refusal |
 | `replay` | `Replay` | Per-instance accepted-envelope memory |
 | `matrix-sender` | `MatrixSender` | No id-to-claimed-key normalization |
 | `owner-dm` | `OwnerDM` | No admission or replay work for protected owner route |

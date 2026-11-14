@@ -18,6 +18,7 @@ WALLET = ROOT / 'experiments/agent-wallet'
 GATE = 'experiments/agent-wallet/g1bench/gate.go'
 ENVELOPE = 'experiments/agent-wallet/g1bench/envelope.go'
 CG = 'experiments/grantcheck/checker.go'
+FRESH = 'experiments/grantcheck/freshness.go'
 GRANT = 'experiments/rental/grant_kernel.go'
 SEAL = 'experiments/rental/kernel.go'
 
@@ -36,8 +37,8 @@ PLANTS = [
   'verdict := g.checker.InboundFrom(ctx, cg.SenderProof{Transport: cg.SwarmEnvelopeV2, Key: key}, &p)',
   'key = parsed.SignedGrant.Grant.GranteeKey\n verdict := g.checker.InboundFrom(ctx, cg.SenderProof{Transport: cg.SwarmEnvelopeV2, Key: key}, &p)',
   'verified envelope key must not be replaced by a claimed grantee field'),
- ('wrong-executor', 'WrongExecutor', GATE,
-  'if pay.ExecutorKey != g.executor {', 'if false && pay.ExecutorKey != g.executor {',
+ ('wrong-executor', 'WrongExecutor', CG,
+  'if pay.ExecutorKey != c.config.ExecutorKey {', 'if false && pay.ExecutorKey != c.config.ExecutorKey {',
   'the protected executor pin on hash-bound canonical terms'),
  ('unknown-issuer', 'UnknownIssuer', CG,
   'g.IssuerKey != c.config.IssuerPubkey ||', 'false ||',
@@ -48,15 +49,15 @@ PLANTS = [
  ('after-window', 'AfterWindow', GRANT,
   'if now >= g.NotAfter {', 'if false && now >= g.NotAfter {',
   'early expiry before chain reads; late expiry defences remain'),
- ('stale-ibd', 'StaleNode-ibd', GATE,
-  '|| info.IBD ||', '|| false ||',
-  'bench sync refusal before CG1; independent K1 IBD guard remains'),
- ('stale-height', 'StaleNode-height', GATE,
-  '|| info.Blocks < g.minimumHeight ||', '|| false ||',
+ ('stale-ibd', 'StaleNode-ibd', FRESH,
+  'if info.IBD || info.Headers != info.Blocks {', 'if info.Headers != info.Blocks {',
+  'shared checker sync refusal before K1; independent K1 IBD guard remains'),
+ ('stale-height', 'StaleNode-height', FRESH,
+  'if info.Blocks < *n.policy.MinimumHeight {', 'if false {',
   'protected observed-height floor before CG1 chain binding'),
- ('stale-headers', 'StaleNode-headers', GATE,
-  '|| info.Headers > info.Blocks {', '|| false {',
-  'conservative bench headers-ahead sync refusal'),
+ ('stale-headers', 'StaleNode-headers', FRESH,
+  'if info.IBD || info.Headers != info.Blocks {', 'if info.IBD {',
+  'shared checker headers-equal-blocks refusal'),
  ('replay', 'Replay', GATE,
   'if g.seen[replay] {', 'if false && g.seen[replay] {',
   'one accepted use per envelope id in this Gate lifetime'),

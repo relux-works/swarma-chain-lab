@@ -11,6 +11,9 @@ func TestA2ADecisionTable(t *testing.T) {
 		retry, closed, exchange bool
 	}{
 		{CodeLive, "allowed", false, false, false},
+		{CodeExecutorMismatch, "denied", false, false, false}, {CodeTermsInvalid, "denied", false, false, false},
+		{CodeNodeNotSynced, "dependency_unavailable", true, false, false}, {CodeTipStale, "dependency_unavailable", true, false, false},
+		{CodeTipBelowFloor, "dependency_unavailable", true, false, false}, {CodeTipFuture, "denied", false, false, false}, {CodeIssuanceMismatch, "denied", false, false, false},
 		{CodeNoGrant, "denied", false, false, true},
 		{CodeNotYet, "denied", false, false, true},
 		{CodeExpired, "denied", false, false, true},

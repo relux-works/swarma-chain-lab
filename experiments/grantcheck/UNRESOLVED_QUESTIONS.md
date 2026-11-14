@@ -3,8 +3,7 @@
 The routing table and per-identity boundary are accepted. Integration corrections
 are recorded in DESIGN.md: closed Retryable classification, a2a daemon (a2ad)-owned bounded
 held/exchange queues, full grant-cert only in v1, build-time fork registration,
-and transport-pinned grant policies. Under the owner's decision T23 of
-2026-11-14, transports only carry; authority comes from a signed envelope inside
+and transport-pinned grant policies. For the test bench, transports only carry; authority comes from a signed envelope inside
 the message on every transport. Matrix is allowed for the v3 test bench only
 with the verified sender key below. The grant ID and canonical v3 proof (at most
 16384 bytes) are in the envelope or already cached. Owner DM remains outside
@@ -55,7 +54,7 @@ and be specified and reviewed separately.
 
 ## Resolved: inbound envelope lifecycle seam mapping
 
-The keeper's 2026-11-14 11:39:01Z decision maps `not_yet`, `expired`,
+The inbound lifecycle policy maps `not_yet`, `expired`,
 `seal_spent`, `landlord_rotated` and `landlord_changed` to
 refused/denied/false for SwarmEnvelopeV2 inbound. NostrNIP17Seal keeps
 exchange/exchange/false. `A2ADecision` uses the inbound verdict's validated
@@ -80,7 +79,7 @@ Evidence is retained in the task's `.temp/CG1-01/compat/` logs. The initial
 repository-root probe was a module-selection error and is not compatibility
 evidence; the direct kernelbind probe establishes the version refusal.
 
-The a2a maintainers resolved this by setting the a2a-link fork and CG1 to Go 1.26. Upstream
+The a2a maintainers resolved this by setting a downstream transport adapter and CG1 to Go 1.26. Upstream
 a2a stays on Go 1.25.x and never imports chain-lab. No dependency migration,
 kernel duplication or toolchain workaround is needed. The early standalone
 routing test on Go 1.25 is not a compatibility claim for the complete checker.
@@ -91,5 +90,14 @@ Publication must also make the complete transitive module graph resolvable by an
 external consumer. In-tree relative replaces are not inherited by consumers;
 The GitHub module paths and complete v0.1.0 tag set described in the root README
 need a public remote consumer check
-before claiming that a2a-link can import CG1. No producer push/tag publication is
+before claiming that a downstream transport adapter can import CG1. No producer push/tag publication is
 authorized by this task. The maintainers own review and release coordination.
+
+## Open: production node policy and freshness replacement
+
+The executor pin and explicit A/F/FLOOR configuration are required now; they
+have no compatibility bypass. The current freshness rule is INTERIM for the
+v3 TEST BENCH and is superseded by LIP-0022 once accepted. Production values
+are NOT set here and require a runtime probe on a real Namecoin node before
+any non-bench use. Manual protected provisioning is implemented; automatic
+retrieval/discovery remains outside this library. See [POLICY.md](POLICY.md).

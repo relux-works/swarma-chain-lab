@@ -1,0 +1,144 @@
+{
+  "v": 1,
+  "package": "github.com/relux-works/swarma-chain-lab/experiments/grantcheck",
+  "labels": [
+    "TestCoreVectors",
+    "TestCoreFreshness/ExecutorPin",
+    "TestCoreFreshness/HeadersEqualBlocks",
+    "TestCoreFreshness/HeightFloor",
+    "TestCoreFreshness/FrozenOldView",
+    "TestCoreFreshness/LateAge",
+    "TestCoreFreshness/FutureSkew",
+    "TestCoreProvisioning/Bootstrap",
+    "TestCoreProvisioning/Tampered",
+    "TestCoreProvisioning/UncommittedHash",
+    "TestCoreProvisioning/WrongExecutor",
+    "TestCoreProvisioning/StaleNode",
+    "TestCoreProvisioning/SpentSeal"
+  ],
+  "core_tests": [
+    "TestCoreVectors",
+    "TestCoreFreshness",
+    "TestCoreProvisioning"
+  ],
+  "core_runs": {
+    "TestCoreVectors": {
+      "count": 1,
+      "race": true
+    },
+    "TestCoreFreshness": {
+      "count": 1,
+      "race": true
+    },
+    "TestCoreProvisioning": {
+      "count": 1,
+      "race": true
+    }
+  },
+  "tids": {
+    "TestCoreVectors": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreVectors"
+      ]
+    },
+    "TestCoreFreshness/ExecutorPin": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreFreshness/ExecutorPin"
+      ]
+    },
+    "TestCoreFreshness/HeadersEqualBlocks": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreFreshness/HeadersEqualBlocks"
+      ]
+    },
+    "TestCoreFreshness/HeightFloor": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreFreshness/HeightFloor"
+      ]
+    },
+    "TestCoreFreshness/FrozenOldView": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreFreshness/FrozenOldView"
+      ]
+    },
+    "TestCoreFreshness/LateAge": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreFreshness/LateAge"
+      ]
+    },
+    "TestCoreFreshness/FutureSkew": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreFreshness/FutureSkew"
+      ]
+    },
+    "TestCoreProvisioning/Bootstrap": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/Bootstrap"
+      ]
+    },
+    "TestCoreProvisioning/Tampered": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/Tampered"
+      ]
+    },
+    "TestCoreProvisioning/UncommittedHash": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/UncommittedHash"
+      ]
+    },
+    "TestCoreProvisioning/WrongExecutor": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/WrongExecutor"
+      ]
+    },
+    "TestCoreProvisioning/StaleNode": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/StaleNode"
+      ]
+    },
+    "TestCoreProvisioning/SpentSeal": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/SpentSeal"
+      ]
+    }
+  }
+}

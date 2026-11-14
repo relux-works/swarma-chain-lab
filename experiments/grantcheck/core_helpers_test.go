@@ -25,6 +25,8 @@ import (
 	"time"
 )
 
+const coreEpoch int64 = 1700000000
+
 const e2eAgentName = "id/swarma-agent-e2e"
 const e2eLandlordName = "id/swarma-landlord-e2e"
 
@@ -181,6 +183,10 @@ func newCoreLab(t *testing.T, agentNostrPub string) *coreLab {
 	if !filepath.IsAbs(root) {
 		t.Fatal("absolute CG1_RUN_ROOT required")
 	}
+	root = filepath.Join(root, strings.ReplaceAll(t.Name(), "/", "-"))
+	if e := os.MkdirAll(filepath.Dir(root), 0700); e != nil {
+		t.Fatal(e)
+	}
 	if e := os.Mkdir(root, 0700); e != nil {
 		t.Fatal(e)
 	}
@@ -231,6 +237,7 @@ func newCoreLab(t *testing.T, agentNostrPub string) *coreLab {
 	}
 	t.Cleanup(l.stop)
 	l.start()
+	l.rpc("", "setmocktime", coreEpoch+500)
 	l.rpc("", "createwallet", "issuer", false, false, "", false, false)
 	l.address = labText(t, l.rpc("issuer", "getnewaddress", "", "legacy"))
 	l.script = labText(t, labObject(t, l.rpc("issuer", "getaddressinfo", l.address))["scriptPubKey"])
@@ -309,59 +316,50 @@ func (l *coreLab) nativeFunding() (rental.Point, string) {
 	return l.output(address, script), script
 }
 
-// grant uses the real K1 issuer after a confirmed payment and authenticated
-// booking package. The harness signs/broadcasts its returned transaction plan;
-// it never constructs or signs a v3 grant itself.
-func (l *coreLab) grant(grantee *nostr.PrivKey, label string, seal rental.Point, confirmed bool) []byte {
+// grant uses the real terms-v2 issuer and issuance planner on isolated Core.
+// The earlier-consent not-before fixture is explicitly re-signed before anchoring.
+func (l *coreLab) grant(grantee *nostr.PrivKey, label string, seal rental.Point, confirmed bool, executor ...string) []byte {
 	l.t.Helper()
-	booking := rental.Hash([]byte(label))
-	provider, err := nostr.GeneratePrivKey()
+	granteeKey, _ := btcec.PrivKeyFromBytes(grantee.Bytes())
+	var terms rental.PayTermsV2
+	if err := json.Unmarshal(unitTerms(l.t), &terms); err != nil {
+		l.t.Fatal(err)
+	}
+	if len(executor) > 0 {
+		terms.ExecutorKey = executor[0]
+	}
+	issued, err := rental.IssuePayGrantV2(context.Background(), rental.PayGrantV2Input{
+		Network: "regtest", Genesis: su.RegtestGenesis, AgentName: e2eAgentName, LandlordName: e2eLandlordName,
+		IssuerKey: l.issuerPub, GranteeKey: grantee.PubKeyHex(), NotBefore: coreEpoch + 200, NotAfter: coreEpoch + 1000,
+		Seal: seal, BudgetSat: 1000000, Terms: terms, ConsentCreatedAt: coreEpoch + 200, PrivacyNoticeSHA256: rental.Hash([]byte("regtest privacy")),
+	}, labSigner{granteeKey}, labSigner{l.issuer})
 	if err != nil {
 		l.t.Fatal(err)
 	}
-	payment := l.output(l.address, l.script)
+	signed, err := rental.ParseSignedGrant(issued.SignedGrant)
+	if err != nil {
+		l.t.Fatal(err)
+	}
+	signed.Grant.NotBefore = coreEpoch + 300
+	digest, err := signed.Grant.SigningHash()
+	if err != nil {
+		l.t.Fatal(err)
+	}
+	signed.Signature = signHash(l.t, l.issuer, digest)
+	raw := jsonBytes(l.t, signed)
 	funding, fundingScript := l.nativeFunding()
-	var paymentTx su.TransactionView
-	if err = json.Unmarshal(l.rpc("", "getrawtransaction", payment.TxID, true), &paymentTx); err != nil {
-		l.t.Fatal(err)
-	}
-	var header su.Header
-	if err = json.Unmarshal(l.rpc("", "getblockheader", paymentTx.Block), &header); err != nil {
-		l.t.Fatal(err)
-	}
-	contract := rental.Contract{
-		Version: 1, BookingID: booking, RenterPubkey: grantee.PubKeyHex(), AgentPubkey: l.agentNostrPub,
-		StationName: e2eAgentName, NotBefore: 300, NotAfter: 1000,
-		Allowed: []string{"deliver", "pay"}, Forbidden: []string{"publish", "repository.push", "secret.release"}, BudgetSat: 1000000,
-		TemplateID: "lab-template", TemplateSHA256: strings.Repeat("1", 64), ProfileID: "lab-profile", ProfileVersion: "1", ProfileSHA256: strings.Repeat("2", 64),
-		PriceUSDCents: 100, USDMicrosPerNMC: 100000000, RateAsOf: 100, PriceNMCSat: 1000000, PaymentPolicy: "advance", PaymentAddress: l.address, PrivacySHA256: strings.Repeat("3", 64),
-	}
-	contractID := rental.Hash(jsonBytes(l.t, contract))
-	consent := signEvent(l.t, grantee, rental.Event{CreatedAt: 200, Kind: 8181, Tags: [][]string{{"t", "swarma-rental-consent-v1"}, {"contract", contractID}, {"booking", booking}, {"privacy", contract.PrivacySHA256}}})
-	pk, _ := btcec.PrivKeyFromBytes(provider.Bytes())
-	pack := rental.Package{Version: 1, Contract: contract, Consent: consent, ProviderPubkey: provider.PubKeyHex(), ProviderSignature: signHash(l.t, pk, contractID), PrivacyAckAt: 100, PrivacySHA256: contract.PrivacySHA256, HoldCreatedAt: 100, HoldExpiresAt: 900}
-	publication := signEvent(l.t, provider, rental.Event{CreatedAt: 300, Kind: 8182, Tags: [][]string{{"t", "swarma-rental-package-v1"}, {"contract", contractID}, {"booking", booking}, {"e", consent.ID}}, Content: string(jsonBytes(l.t, pack))})
-	req := rental.IssuanceRequest{Version: 1, BookingID: booking, StationName: e2eAgentName, AgentPubkey: l.agentNostrPub, RenterPubkey: grantee.PubKeyHex(), ContractSHA256: contractID, Scope: contract.Allowed, BudgetSat: contract.BudgetSat, NotBefore: 300, NotAfter: 1000, PaymentPolicy: "advance", PaymentTxID: payment.TxID, PaymentVout: payment.Vout, PaymentHeight: header.Height, PaymentBlockHash: paymentTx.Block, ObservedTipHash: labText(l.t, l.rpc("", "getbestblockhash")), PackageEventID: publication.ID}
-	issuerState := filepath.Join(l.private, "issuer-"+label)
-	if err = os.Mkdir(issuerState, 0700); err != nil {
-		l.t.Fatal(err)
-	}
-	keyPath := filepath.Join(issuerState, "grant-key")
-	if err = os.WriteFile(keyPath, l.issuer.Serialize(), 0600); err != nil {
-		l.t.Fatal(err)
-	}
 	sealScript, _ := rental.GrantSealScript(l.issuerPub)
-	policy := rental.Policy{ConstructionProfile: "W", Network: "regtest", Genesis: su.RegtestGenesis, AgentName: e2eAgentName, LandlordName: e2eLandlordName, SealScript: sealScript, FundingScript: fundingScript, StateDir: issuerState}
+	policy := rental.Policy{ConstructionProfile: "W", Network: "regtest", Genesis: su.RegtestGenesis, AgentName: e2eAgentName, LandlordName: e2eLandlordName, SealScript: sealScript, FundingScript: fundingScript, StateDir: l.private}
 	spec := rental.PlanSpec{Kind: "grant-issue", Inputs: []su.PlanInput{{Point: su.Point{TxID: funding.TxID, Vout: funding.Vout}, ValueSat: 1000000, Script: fundingScript, Role: "funding"}}, ChangeScript: fundingScript}
-	r := rental.IssueGrant(context.Background(), l.observer, rental.IssuerPolicy{Policy: policy, ProviderPubkey: provider.PubKeyHex()}, jsonBytes(l.t, req), jsonBytes(l.t, publication), seal, spec, keyPath, 500)
-	if r.Verdict != "prepared" || r.Plan == nil || r.GrantID != rental.Hash(r.SignedGrant) {
-		l.t.Fatalf("K1 issuer: %s/%s", r.Verdict, r.Reason)
+	plan, err := rental.MakeGrantIssuancePlan(policy, spec, raw)
+	if err != nil {
+		l.t.Fatal(err)
 	}
-	tx := su.Transaction{Version: r.Plan.TransactionVersion}
-	for _, in := range r.Plan.Inputs {
+	tx := su.Transaction{Version: plan.TransactionVersion}
+	for _, in := range plan.Inputs {
 		tx.Inputs = append(tx.Inputs, su.Input{Point: in.Point, Sequence: 0xfffffffe})
 	}
-	for _, out := range r.Plan.Outputs {
+	for _, out := range plan.Outputs {
 		script, err := hex.DecodeString(out.Script)
 		if err != nil {
 			l.t.Fatal(err)
@@ -369,18 +367,37 @@ func (l *coreLab) grant(grantee *nostr.PrivKey, label string, seal rental.Point,
 		tx.Outputs = append(tx.Outputs, su.Output{Value: out.ValueSat, Script: script})
 	}
 	id := l.send(hex.EncodeToString(tx.Bytes()), confirmed)
-	proof, err := rental.PresentIssuedGrant(r.SignedGrant, id)
+	proof, err := rental.PresentIssuedGrant(raw, id)
 	if err != nil {
-		l.t.Fatal(err)
-	}
-	// Persist only public issuance evidence; key files stay in private/.
-	if err = os.WriteFile(filepath.Join(l.root, label+"-issued.json"), jsonBytes(l.t, r), 0600); err != nil {
 		l.t.Fatal(err)
 	}
 	if err = os.WriteFile(filepath.Join(l.root, label+"-presentation.json"), proof, 0600); err != nil {
 		l.t.Fatal(err)
 	}
 	return proof
+}
+
+type labSigner struct{ key *btcec.PrivateKey }
+
+func (s labSigner) XOnlyKey() string {
+	return hex.EncodeToString(schnorr.SerializePubKey(s.key.PubKey()))
+}
+func (s labSigner) Sign(ctx context.Context, r rental.PayGrantSigningRequest) (rental.PayGrantSignature, error) {
+	if err := ctx.Err(); err != nil {
+		return rental.PayGrantSignature{}, err
+	}
+	if _, err := rental.VerifyPayGrantSigningRequest(r); err != nil {
+		return rental.PayGrantSignature{}, err
+	}
+	digest, err := hex.DecodeString(r.Digest)
+	if err != nil {
+		return rental.PayGrantSignature{}, err
+	}
+	sig, err := schnorr.Sign(s.key, digest)
+	if err != nil {
+		return rental.PayGrantSignature{}, err
+	}
+	return rental.PayGrantSignature{Version: 1, Purpose: r.Purpose, SignerKey: s.XOnlyKey(), Digest: r.Digest, Signature: hex.EncodeToString(sig.Serialize())}, nil
 }
 
 func (l *coreLab) output(address, script string) rental.Point {

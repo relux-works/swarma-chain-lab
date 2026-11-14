@@ -298,6 +298,32 @@ historical failures. SR1 fixed startup admission; RK1 fixed relay liveness and
 expiry across transport loss. The current witness checks admission during an
 active Starting attempt, including rejection of an incorrect credential.
 
+## Grantcheck admission policy
+
+[Grantcheck](experiments/grantcheck/POLICY.md) requires the consumer's own
+executor key, a canonical terms resolver, and explicit A/F/FLOOR configuration.
+It checks headers equal to blocks, minimum height, maximum tip age and future
+skew for every admission and cached send. `Checker.Provision` protects manual
+first-message proof bootstrap with the same full checks and durable auditing.
+The envelope bench delegates these shared checks to grantcheck.
+
+The HIDDEN age of an admitted view is at most A + F (not A).
+`trusted_now` is the consumer's `Config.Now` trusted clock input, using the
+consumer's system clock if omitted, never the node's own time. A/F/FLOOR have
+no defaults; missing or invalid policy and missing executor pins refuse
+construction. This is an INTERIM rule for the v3 TEST BENCH, superseded by
+LIP-0022 once accepted. Production values are NOT set here and need a runtime
+probe on a real Namecoin node before any non-bench use. Exact test values and
+named Core witnesses are listed in the policy document.
+
+Policy tools from the repository root: `python3 -B .scripts/grantcheck-policy-guards.py
+--out .temp/policy-guards --private-root <fresh-absolute-regtest-parent>` runs six
+Go-overlay controls and writes hashes/exits/logs there. The existing
+`python3 -B .scripts/check-px1-core-gate.py check --manifest
+.scripts/grantcheck-policy-core-gate.json <go-test-json>` checks the Core witness
+stream. Both use the commands and pinned Core setup documented in
+[grantcheck's tools section](experiments/grantcheck/POLICY.md#validation-and-controls).
+
 ## Go modules and releases
 
 The 19 modules use `github.com/relux-works/swarma-chain-lab/<directory>` paths.

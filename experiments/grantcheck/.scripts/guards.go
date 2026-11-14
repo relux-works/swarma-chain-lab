@@ -1,4 +1,4 @@
-// Run from grantcheck: go run .scripts/guards.go -out .temp/guards [-core]
+// Run from grantcheck: go run .scripts/guards.go -out .temp/guards [-core -private-root <fresh-absolute-directory>]
 // Each plant changes only an isolated copy. A compile error, skip, panic or
 // unrelated failed assertion never counts as detecting the intended violation.
 package main
@@ -27,7 +27,7 @@ type plant struct {
 
 var plants = []plant{
 	{"foreign_grantee", "checker.go", "g.GranteeKey != peer || ", "", "TestInputBoundary/foreign", "verdict contract", false},
-	{"explicit_invalid_fallback", "checker.go", "g, code = c.parse(p, peer)\n\t\tif code != CodeLive {\n\t\t\treturn fail(code)", "g, code = c.parse(p, peer)\n\t\tif code != CodeLive {\n\t\t\treturn c.check(ctx, peer, nil, inbound)", "TestInputBoundary", "verdict contract", false},
+	{"explicit_invalid_fallback", "checker.go", "g, code = c.parse(p, peer)\n\t\tif code != CodeLive {\n\t\t\tif provision {\n\t\t\t\treturn c.auditRefusal(*supplied, fail(code))\n\t\t\t}\n\t\t\treturn fail(code)", "g, code = c.parse(p, peer)\n\t\tif code != CodeLive {\n\t\t\tif provision {\n\t\t\t\treturn c.auditRefusal(*supplied, fail(code))\n\t\t\t}\n\t\t\treturn c.check(ctx, peer, nil, inbound)", "TestInputBoundary", "verdict contract", false},
 	{"proof_bound", "checker.go", "const MaxPresentationBytes = 16384", "const MaxPresentationBytes = 32768", "TestInputBoundary/oversize", "verdict contract", false},
 	{"receipt_id", "checker.go", "r.GrantID != p.GrantID || ", "", "TestInconsistentReceipts/grant", "verdict contract", false},
 	{"receipt_agent", "checker.go", "r.AgentName != g.AgentName || ", "", "TestInconsistentReceipts/agent", "verdict contract", false},
@@ -67,6 +67,7 @@ func main() {
 func run() error {
 	out := flag.String("out", ".temp/guards", "evidence directory")
 	core := flag.Bool("core", false, "include pinned Core controls; CG1_CORE_* required")
+	privateRoot := flag.String("private-root", "", "fresh absolute parent for Core datadirs (default: a fresh TMPDIR directory)")
 	flag.Parse()
 	root, e := os.Getwd()
 	if e != nil {
@@ -87,6 +88,22 @@ func run() error {
 		return e
 	}
 	fmt.Println("evidence:", runDir)
+	coreRuns := runDir
+	if *core {
+		if *privateRoot == "" {
+			coreRuns, e = os.MkdirTemp(os.TempDir(), "grantcheck-core-guards-")
+		} else {
+			if !filepath.IsAbs(*privateRoot) {
+				return errors.New("absolute private-root required")
+			}
+			coreRuns = *privateRoot
+			e = os.Mkdir(coreRuns, 0700)
+		}
+		if e != nil {
+			return e
+		}
+		fmt.Println("private regtest root:", coreRuns)
+	}
 	if e = os.MkdirAll(filepath.Join(root, ".temp"), 0700); e != nil {
 		return e
 	}
@@ -111,7 +128,7 @@ func run() error {
 		cmd.Dir = module
 		cmd.Env = append(os.Environ(), "GOWORK=off", "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local", "CG1_REGTEST=0")
 		if useCore {
-			cmd.Env = append(cmd.Env, "CG1_REGTEST=1", "CG1_RUN_ROOT="+filepath.Join(runDir, name+"-core"))
+			cmd.Env = append(cmd.Env, "CG1_REGTEST=1", "CG1_RUN_ROOT="+filepath.Join(coreRuns, name+"-core"))
 		}
 		var output bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &output, &output

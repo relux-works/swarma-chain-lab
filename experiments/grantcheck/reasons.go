@@ -28,7 +28,9 @@ func mapReceipt(r kernel.Receipt, inbound bool) Verdict {
 			code = CodeGrantPending
 		case "GRANT_POLICY", "GRANTEE_MISMATCH", "SEAL_KEY_BINDING", "AGENT_LANDLORD_MISMATCH", "LANDLORD_KEY_MISMATCH", "UNOBSERVED_ROTATION", "PRIOR_GENERATION_BINDING":
 			code = CodeBindingMismatch
-		case "PRESENTATION_ID", "ISSUANCE_COMMITMENT", "ISSUANCE_SPENDS_SEAL", "SEAL_BINDING", "SEAL_OUTPUT":
+		case "ISSUANCE_COMMITMENT":
+			code = CodeIssuanceMismatch
+		case "PRESENTATION_ID", "ISSUANCE_SPENDS_SEAL", "SEAL_BINDING", "SEAL_OUTPUT":
 			code = CodeInvalidPresentation
 		case "CLOCK_INPUT", "CONSENT_FUTURE":
 			code = CodeClockInvalid

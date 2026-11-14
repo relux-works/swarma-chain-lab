@@ -16,6 +16,13 @@ type Code string
 
 const (
 	CodeLive                Code = "live"
+	CodeExecutorMismatch    Code = "executor_mismatch"
+	CodeTermsInvalid        Code = "terms_invalid"
+	CodeNodeNotSynced       Code = "node_not_synced"
+	CodeTipStale            Code = "tip_stale"
+	CodeTipBelowFloor       Code = "tip_below_floor"
+	CodeTipFuture           Code = "tip_future"
+	CodeIssuanceMismatch    Code = "issuance_mismatch"
 	CodeNoGrant             Code = "no_grant"
 	CodeNotYet              Code = "not_yet"
 	CodeExpired             Code = "expired"
@@ -88,12 +95,12 @@ func route(code Code, inbound, closed bool) Verdict {
 			v.Decision = Exchange
 		}
 	case CodeVerifierUnavailable, CodeStateUnavailable, CodeBusy, CodeCancelled,
-		CodeClockInvalid, CodeGrantPending, CodeIdentityPending:
+		CodeClockInvalid, CodeGrantPending, CodeIdentityPending, CodeNodeNotSynced, CodeTipStale, CodeTipBelowFloor:
 		if closed {
 			return route(CodeCheckFailed, inbound, false)
 		}
 		v.Retryable = true
-	case CodeBindingMismatch, CodeInvalidPresentation, CodeOversize, CodeInvalidPeer, CodeCheckFailed:
+	case CodeExecutorMismatch, CodeTermsInvalid, CodeTipFuture, CodeIssuanceMismatch, CodeBindingMismatch, CodeInvalidPresentation, CodeOversize, CodeInvalidPeer, CodeCheckFailed:
 		if closed {
 			return route(CodeCheckFailed, inbound, false)
 		}

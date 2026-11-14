@@ -26,13 +26,13 @@ func (v Verdict) A2ADecision() (verdict, reason string, retryable bool) {
 			}
 			return "exchange", "exchange", false
 		}
-	case CodeIdentityPending, CodeGrantPending, CodeVerifierUnavailable, CodeClockInvalid, CodeCancelled, CodeBusy:
+	case CodeNodeNotSynced, CodeTipStale, CodeTipBelowFloor, CodeIdentityPending, CodeGrantPending, CodeVerifierUnavailable, CodeClockInvalid, CodeCancelled, CodeBusy:
 		reason, retryable = "dependency_unavailable", true
 	case CodeStateUnavailable:
 		reason, retryable = "storage_error", true
 	case CodeCheckFailed:
 		reason = "policy_error"
-	case CodeBindingMismatch, CodeInvalidPresentation, CodeOversize, CodeInvalidPeer:
+	case CodeExecutorMismatch, CodeTermsInvalid, CodeTipFuture, CodeIssuanceMismatch, CodeBindingMismatch, CodeInvalidPresentation, CodeOversize, CodeInvalidPeer:
 	default:
 		return "refused", "policy_invalid", false
 	}

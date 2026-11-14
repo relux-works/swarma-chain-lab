@@ -96,7 +96,7 @@ func TestSenderUnknownTransport(t *testing.T) {
 	for _, transport := range []Transport{0, 3, 255} {
 		assertVerdict(t, c.InboundFrom(ctx, SenderProof{transport, peer}, &p), Refused, CodeBindingMismatch, false, false)
 	}
-	if b.Calls != before || !bytes.Equal(b.Cached[peer], p.Bytes) {
+	if b.Calls != before || !bytes.Equal(cachedBytes(t, c, peer), p.Bytes) {
 		t.Fatal("unknown provenance reached backend or altered cache")
 	}
 }
@@ -117,7 +117,7 @@ func TestSenderKeyFormat(t *testing.T) {
 			before := b.Calls
 			assertVerdict(t, c.InboundFrom(ctx, SenderProof{SwarmEnvelopeV2, tc.key}, &p), Refused, CodeInvalidPeer, false, false)
 			assertVerdict(t, c.InboundFrom(ctx, SenderProof{SwarmEnvelopeV2, tc.key}, nil), Refused, CodeInvalidPeer, false, false)
-			if b.Calls != before || !bytes.Equal(b.Cached[peer], p.Bytes) {
+			if b.Calls != before || !bytes.Equal(cachedBytes(t, c, peer), p.Bytes) {
 				t.Fatal("invalid key reached backend or altered cache")
 			}
 		})
@@ -132,7 +132,7 @@ func TestSenderGrantKeyMismatch(t *testing.T) {
 	assertVerdict(t, c.InboundFrom(ctx, SenderProof{SwarmEnvelopeV2, xonly(2)}, &p), Live, CodeLive, false, false)
 	before := b.Calls
 	assertVerdict(t, c.InboundFrom(ctx, SenderProof{SwarmEnvelopeV2, xonly(3)}, &p), Refused, CodeBindingMismatch, false, false)
-	if b.Calls != before || len(b.Cached) != 1 {
+	if b.Calls != before || !bytes.Equal(cachedBytes(t, c, xonly(2)), p.Bytes) {
 		t.Fatal("foreign sender reached backend or changed cache")
 	}
 }
@@ -154,7 +154,7 @@ func TestSenderTransportPin(t *testing.T) {
 		if pin == SwarmEnvelopeV2 {
 			assertVerdict(t, c.Inbound(ctx, peer, &p), Refused, CodeBindingMismatch, false, false)
 		}
-		if b.Calls != before || !bytes.Equal(b.Cached[peer], p.Bytes) {
+		if b.Calls != before || !bytes.Equal(cachedBytes(t, c, peer), p.Bytes) {
 			t.Fatal("mismatched provenance reached backend or altered cache")
 		}
 		assertVerdict(t, c.OutboundFrom(ctx, RecipientProof{pin, []string{peer}}), Live, CodeLive, false, false)
@@ -170,7 +170,7 @@ func TestEnvelopeCacheFresh(t *testing.T) {
 	assertVerdict(t, c.InboundFrom(ctx, proof, &p), Live, CodeLive, false, false)
 	before := b.Calls
 	assertVerdict(t, c.InboundFrom(ctx, proof, nil), Live, CodeLive, false, false)
-	if b.Calls != before+1 || b.PresentCalls != 1 {
+	if b.Calls != before+1 || b.PresentCalls != 0 {
 		t.Fatal("cache bypassed fresh check")
 	}
 	assertVerdict(t, c.InboundFrom(ctx, proof, &Presentation{}), Refused, CodeInvalidPresentation, false, false)
@@ -181,7 +181,7 @@ func TestEnvelopeCacheFresh(t *testing.T) {
 		return r, err
 	}
 	assertVerdict(t, c.InboundFrom(ctx, proof, nil), Refused, CodeVerifierUnavailable, false, true)
-	if !bytes.Equal(b.Cached[proof.Key], p.Bytes) {
+	if !bytes.Equal(cachedBytes(t, c, proof.Key), p.Bytes) {
 		t.Fatal("refusal replaced cached proof")
 	}
 }
