@@ -8,49 +8,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// systemd.unit(5): Also installs/deinstalls additional units. Inspect the unit
-// plus drop-ins via cat; reject any Also assignment in [Install], even resets.
-func unitInstallSafe(sys System, name string) error {
-	raw, status, err := sys.Run("/usr/bin/systemctl", "cat", name)
-	if err != nil {
-		return err
-	}
-	if status != 0 {
-		return errors.New("UNIT_CAT_FAILED")
-	}
-	section, pending := "", ""
-	for _, line := range strings.Split(raw, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
-			continue
-		}
-		line = pending + line
-		if strings.HasSuffix(line, `\`) {
-			pending = strings.TrimSuffix(line, `\`) + " "
-			continue
-		}
-		pending = ""
-		if strings.HasPrefix(line, "[") {
-			if !strings.HasSuffix(line, "]") {
-				return errors.New("UNIT_SECTION")
-			}
-			section = strings.TrimSpace(line[1 : len(line)-1])
-			continue
-		}
-		key, _, ok := strings.Cut(line, "=")
-		if !ok {
-			return errors.New("UNIT_DIRECTIVE")
-		}
-		if section == "Install" && strings.TrimSpace(key) == "Also" {
-			return errors.New("UNIT_ALSO_REFUSED")
-		}
-	}
-	if pending != "" || strings.TrimSpace(raw) == "" {
-		return errors.New("UNIT_INCOMPLETE")
-	}
-	return nil
-}
-
 // systemd v249-v255 emit unquoted paths; v256-v259 emit single-quoted
 // paths. Both use the ASCII arrow in the C locale. See G2-LEDGER.md for sources
 // and deliberately refused ambiguous path text. No shell unescaping is applied.

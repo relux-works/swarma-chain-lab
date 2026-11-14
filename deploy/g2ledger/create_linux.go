@@ -236,6 +236,9 @@ func (l *Ledger) AddMember(user, group string) error {
 	return l.commit(seq, a, []Identity{*got})
 }
 func (l *Ledger) Enable(name string) error {
+	if e := installName(name); e != nil {
+		return stopped("UNIT_INSTALL "+name, e)
+	}
 	if !unitPattern.MatchString(name) {
 		return fail(2, "UNIT_NAME")
 	}
@@ -246,8 +249,12 @@ func (l *Ledger) Enable(name string) error {
 	if before.Unit.State != "disabled" {
 		return fail(1, "UNIT_ALREADY_ENABLED "+name)
 	}
-	if e = unitInstallSafe(l.sys, name); e != nil {
+	plan, e := expectedUnitInstall(l.sys, name)
+	if e != nil {
 		return stopped("UNIT_INSTALL "+name, e)
+	}
+	if len(plan.Missing) == 0 {
+		return fail(1, "UNIT_NO_NEW_LINKS "+name)
 	}
 	a := Action{Kind: "unit", Ret: "state", Name: name, Before: []Identity{*before}}
 	seq, e := l.begin(a)
@@ -259,7 +266,8 @@ func (l *Ledger) Enable(name string) error {
 		l.poisoned = true
 		return orphan(a)
 	}
-	if e = unitInstallSafe(l.sys, name); e != nil {
+	current, e := expectedUnitInstall(l.sys, name)
+	if e != nil || !plan.equal(current) {
 		l.poisoned = true
 		return orphan(a)
 	}
@@ -272,6 +280,17 @@ func (l *Ledger) Enable(name string) error {
 	if e != nil {
 		l.poisoned = true
 		return orphan(a)
+	}
+	if !unitReceiptMatches(links, plan.Missing) {
+		l.poisoned = true
+		return fail(3, "ORPHAN "+name+" UNIT_ENABLE_SET_MISMATCH")
+	}
+	for _, link := range plan.Existing {
+		present, err := unitLinkPresent(link)
+		if err != nil || !present {
+			l.poisoned = true
+			return fail(3, "ORPHAN "+name+" UNIT_EXISTING_LINK_CHANGED")
+		}
 	}
 	for j := range links {
 		got, present, err := observeUnitLink(links[j])
