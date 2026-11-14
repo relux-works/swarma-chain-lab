@@ -17,12 +17,18 @@ REFERENCE = re.compile(
     r'\b(?:CheckV2|PresentV2|CachedCertificateV2|ParseDetachedEnvelope|'
     r'DetachedEnvelope|DetachedCertificate|IssueDetached|issueDetached|IssueResult|'
     r'issuedDetached|detachedState|seenSeal|readPresentations|cachedPresentation|'
-    r'presentationCache|CertificateSHA256)\b|certificate_sha256')
+    r'presentationCache|CertificateSHA256)\b|certificate_sha256|check-v2|present-v2')
+SOURCE_SUFFIXES = {'.go', '.py', '.sh', '.js', '.jsx', '.ts', '.tsx', '.mjs',
+                   '.cjs', '.rs', '.rb', '.lua'}
+DETECTOR_TOOLS = {'.scripts/check-detached-v2-consumers.py',
+                  '.scripts/test_check_detached_v2_consumers.py'}
 
 
 def production_paths(root):
-    return sorted(p for p in root.rglob('*.go')
-                  if not p.name.endswith('_test.go')
+    return sorted(p for p in root.rglob('*')
+                  if p.is_file() and p.suffix in SOURCE_SUFFIXES
+                  and not p.name.endswith('_test.go') and not p.name.startswith('test_')
+                  and p.relative_to(root).as_posix() not in DETECTOR_TOOLS
                   and not any(part in {'.git', '.temp'} for part in p.relative_to(root).parts))
 
 

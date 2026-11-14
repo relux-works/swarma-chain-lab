@@ -40,14 +40,20 @@ class DetachedConsumerGuard(unittest.TestCase):
 
     # Claim: a new production path cannot use a detached ID without review.
     def test_new_cross_observer_consumer(self):
-        with tempfile.TemporaryDirectory() as scratch:
-            root = Path(scratch)
-            self.fixture(root)
-            path = root / 'experiments/payment-chain/cross_observer.go'
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text('package payment\nfunc key(r rental.Receipt) string { return r.CertificateSHA256 }\n')
-            self.assertEqual(guard.check(root, INVENTORY),
-                             ['unreviewed detached-v2 reference: experiments/payment-chain/cross_observer.go'])
+        for suffix, plant in {
+            '.go': 'package payment\nfunc key(r rental.Receipt) string { return r.CertificateSHA256 }\n',
+            '.py': 'cross_observer_payments[receipt["certificate_sha256"]] = True\n',
+            '.sh': 'jq -r .certificate_sha256 receipts.json > payment-key\n',
+        }.items():
+            with self.subTest(suffix=suffix), tempfile.TemporaryDirectory() as scratch:
+                root = Path(scratch)
+                self.fixture(root)
+                relative = 'experiments/payment-chain/cross_observer' + suffix
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(plant)
+                self.assertEqual(guard.check(root, INVENTORY),
+                                 ['unreviewed detached-v2 reference: ' + relative])
 
     # Claim: deleting a reviewed path fails closed rather than narrowing scope.
     def test_missing_consumer(self):
