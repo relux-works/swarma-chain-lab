@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -52,6 +53,18 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 	}
 	switch cmd {
 	case "/usr/bin/getent":
+		if len(args) == 1 && args[0] == "passwd" {
+			names := make([]string, 0, len(s.users))
+			for name := range s.users {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			var out strings.Builder
+			for _, name := range names {
+				out.WriteString(fakePasswd(s.users[name]))
+			}
+			return out.String(), 0, nil
+		}
 		db, key := args[0], args[1]
 		table := s.users
 		if db == "group" {
@@ -74,11 +87,7 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 		}
 		a := *found
 		if db == "passwd" {
-			home := a.Home
-			if home == "" {
-				home = "/nonexistent"
-			}
-			return fmt.Sprintf("%s:x:%d:%d:%s:%s:%s\n", a.Name, a.UID, a.GID, a.Description, home, a.Shell), 0, nil
+			return fakePasswd(a), 0, nil
 		}
 		ms := []string{}
 		for u, yes := range s.members[a.Name] {
@@ -356,4 +365,12 @@ func TestLedgerFakeEncodesToolRefusals(t *testing.T) {
 	if e != nil || status != 0 {
 		t.Fatal(status, e)
 	}
+}
+
+func fakePasswd(a Account) string {
+	home := a.Home
+	if home == "" {
+		home = "/nonexistent"
+	}
+	return fmt.Sprintf("%s:x:%d:%d:%s:%s:%s\n", a.Name, a.UID, a.GID, a.Description, home, a.Shell)
 }

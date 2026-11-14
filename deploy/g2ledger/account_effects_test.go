@@ -8,9 +8,7 @@ import (
 	"testing"
 )
 
-// Claim: either login.defs setting preserves unrecorded and retained same-name
-// groups in rehearsal by refusing before userdel or any older undo; another primary-group
-// name permits deletion. A separate removable group receipt grants no shortcut.
+// Claim: either login.defs setting refuses unrecorded/retained same-name groups, permits a removable recorded pair, and preserves a differently named primary group.
 func TestLedgerUserRemovalHasNoImplicitGroupEffect(t *testing.T) {
 	for _, origin := range []string{"unrecorded", "d6", "remove", "different-name"} {
 		for _, auto := range []bool{false, true} {
@@ -31,14 +29,18 @@ func TestLedgerUserRemovalHasNoImplicitGroupEffect(t *testing.T) {
 				must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 				f.l.Close()
 				err := Run([]string{"replay", "-dir", f.dir, "-mode", "rehearsal"}, f.sys, io.Discard)
-				if origin == "different-name" {
+				if origin == "different-name" || origin == "remove" {
 					must(t, err)
 					absent(t, older)
 					if _, ok := f.sys.users["demo"]; ok {
 						t.Fatal("user retained")
 					}
-					if _, ok := f.sys.groups["primary"]; !ok {
-						t.Fatal("group lost")
+					if origin == "different-name" {
+						if _, ok := f.sys.groups["primary"]; !ok {
+							t.Fatal("group lost")
+						}
+					} else if _, ok := f.sys.groups["demo"]; ok {
+						t.Fatal("paired group retained")
 					}
 				} else {
 					code(t, err, 1)

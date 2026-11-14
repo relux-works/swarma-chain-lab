@@ -395,9 +395,9 @@ retention. It keeps state/d6 trees, with each immediate content-name difference
 reported under the retained tree's policy reason in the final comparison.
 `d6` stays retained in rehearsal too. Only a rehearsal-purpose ledger in
 rehearsal mode can remove a tree. Its owner cannot be removed while any of its
-recorded trees remains, including a retained tree. Use differently named user
-and primary group for removable owners, because the account-removal safeguard
-against implicit same-name group deletion still applies.
+recorded trees remains, including a retained tree. Same-name primary groups
+must satisfy the [paired account removal rule](#account-removal-effect-boundary)
+below; the recorded tree-owner role remains checked before account removal.
 
 Removal is two phases, under the existing attempt lock:
 
@@ -561,15 +561,56 @@ the scope and limits of the cross-check witnesses and positive neighbours.
 
 ### Account removal effect boundary
 
-On the installed shadow-utils, `userdel` has no reliable preserve-group option.
-As documented by [userdel(8)](https://man7.org/linux/man-pages/man8/userdel.8.html)
+As documented by shadow-utils [userdel(8)](https://man7.org/linux/man-pages/man8/userdel.8.html)
 and [login.defs(5)](https://man7.org/linux/man-pages/man5/login.defs.5.html),
-`USERGROUPS_ENAB=yes` permits implicit deletion of the same-name group.
-Replay therefore refuses with `USER_SAME_NAME_GROUP` before invoking `userdel`
-whenever that group exists, even if separately recorded. It does not change host
-policy. Use a differently named primary group for removable users. Only a
-separate recorded group step, checked against its own identity and retention,
-may invoke `groupdel`. Retained users still retain their identities and policy.
+`USERGROUPS_ENAB=yes` permits `userdel` to delete an empty same-name group.
+Replay observes either documented outcome without reading or changing that
+policy. A same-name user and its primary group may be removed as **one checked
+logical operation** only when all of these conditions hold before `userdel`:
+
+- Both have committed `create-user` and `create-group` receipts in this attempt's
+  validated ledger. S0 absence or a current lookup never substitutes for either
+  creation receipt. The user role must match its committed creating action;
+  role is ledger metadata, not a passwd field.
+- Live user name, uid, primary gid, home, GECOS and shell match the full user
+  receipt. Live group name and gid match its group receipt, and that gid equals
+  the user's primary gid.
+- The group's explicit supplementary member list is empty after reversing this
+  attempt's own `add-member` records. Full passwd enumeration through the
+  account lookup boundary proves no other entry uses that gid as primary.
+  Lookup/enumeration errors, unsupported enumeration, malformed or duplicate
+  entries, or a missing/changed expected user stop; they never prove emptiness.
+- Both retention decisions permit removal in rehearsal. Station never removes
+  either account; a retained group cannot be paired with a removable user.
+
+Rehearsal preflight checks pair authority, identities, policy and primary users
+before any reversal, and rejects foreign supplementary members. Replay repeats
+these checks at the user step after reversing recorded memberships, and
+rechecks the group after passwd enumeration immediately before the effect.
+A missing recorded same-name group while its user remains stops with
+`PAIRED_GROUP_MISSING`. An unrecorded/pre-existing same-name group still refuses
+with `USER_SAME_NAME_GROUP`, under either policy value, without deleting either
+account. A recorded group with a different primary gid also refuses.
+
+After successful `userdel`, replay verifies user absence and checks the group:
+if absent, it records the verified implicit group removal in replay-local effect
+bookkeeping. If the group survives (`USERGROUPS_ENAB=no`, for example), replay
+rechecks its receipt identity, empty supplementary list and absence of primary
+users, rechecks the group immediately before `groupdel`, then verifies absence.
+Only then does it record that explicit removal. The older committed group step
+accepts the recorded effect only while the group remains absent; reappearance
+stops with `PAIRED_GROUP_REAPPEARED`. No journal schema or creation authority is
+changed. The final baseline JSONL remains a comparison against S0.
+
+A changed group, foreign member/primary user, failed tool, still-present account
+or lookup error stops with a named reason before older reversals. This checked
+operation is not an OS transaction: a failure after `userdel` may leave the
+user absent and group present. Retrying the remaining group receipt repeats
+its identity/member checks and the full passwd scan before `groupdel`; a failed
+scan or another primary user still stops. Existing absence rules apply, and
+privileged account writers must remain quiescent throughout replay. Tests use
+the fake account boundary with both `USERGROUPS_ENAB=yes` and `no`; they never
+invoke real account mutation commands.
 
 ### Unit enable receipts and undo
 

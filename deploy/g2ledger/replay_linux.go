@@ -34,6 +34,7 @@ func (l *Ledger) Replay(mode string) error {
 			return e
 		}
 	}
+	removedGroups := map[string]string{} // verified paired effects, consumed by the older group receipt
 	for j := len(l.rows) - 1; j >= 1; j-- {
 		r := l.rows[j]
 		if r.Body.Op != "commit" {
@@ -41,14 +42,14 @@ func (l *Ledger) Replay(mode string) error {
 		}
 		a := *l.rows[r.Body.Result.Intent].Body.Action
 		for k := len(r.Body.Result.Identities) - 1; k >= 0; k-- {
-			if e := l.undo(a, r.Body.Result.Identities[k], mode); e != nil {
+			if e := l.undo(a, r.Body.Result.Identities[k], mode, removedGroups); e != nil {
 				return e
 			}
 		}
 	}
 	return l.compareBaseline(mode)
 }
-func (l *Ledger) undo(a Action, want Identity, mode string) error {
+func (l *Ledger) undo(a Action, want Identity, mode string, removedGroups map[string]string) error {
 	switch a.Kind {
 	case "tree":
 		if effect, _ := retentionPolicy(a.Kind, a.Ret, mode); effect == "keep" {
@@ -129,6 +130,12 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 		if e != nil {
 			return stopped("LOOKUP "+a.Name, e)
 		}
+		if a.Kind == "group" && removedGroups[a.Name] != "" {
+			if got != nil {
+				return namedError("PAIRED_GROUP_REAPPEARED", a)
+			}
+			return nil
+		}
 		if got == nil {
 			return nil
 		}
@@ -143,22 +150,26 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 			if mode == "rehearsal" && len(members) > 0 {
 				return fail(1, "GROUP_NOT_EMPTY group:"+a.Name+"/member:"+members[0])
 			}
+			if e := l.checkUnfinishedPair(a, want); e != nil {
+				return e
+			}
 			command = "/usr/sbin/groupdel"
 		}
 		if a.Kind == "user" {
 			if e := l.ownerTreesGone(a.Name); e != nil {
 				return e
 			}
-			// shadow-utils userdel(8), login.defs(5): USERGROUPS_ENAB=yes
-			// may delete the same-name group. Installed userdel has no reliable
-			// preserve-group option. Refuse independently of host policy and of
-			// any separate group receipt; only groupdel may remove a group.
-			group, _, err := lookup(l.sys, "group", a.Name)
+			pair, err := l.userGroupPair(a, want, mode, true)
 			if err != nil {
-				return stopped("USER_GROUP_LOOKUP "+a.Name, err)
+				return err
 			}
-			if group != nil {
-				return namedError("USER_SAME_NAME_GROUP", a)
+			if pair != nil {
+				outcome, err := l.removePairedAccounts(a, *pair)
+				if err != nil {
+					return err
+				}
+				removedGroups[a.Name] = outcome
+				return nil
 			}
 		}
 		if e = commandOK(l.sys, command, a.Name); e != nil {
@@ -267,6 +278,7 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 // Reversed absence, disabled units, removed memberships and restored config are
 // accepted for retries; they never authorize a mismatched present object.
 func (l *Ledger) preflightRehearsal() error {
+	auth := l.authorities()
 	for j := len(l.rows) - 1; j >= 1; j-- {
 		r := l.rows[j]
 		if r.Body.Op != "commit" {
@@ -347,6 +359,25 @@ func (l *Ledger) preflightRehearsal() error {
 			}
 			if !matches {
 				return mismatch(a)
+			}
+			_, pairedUser := auth[objectKey("user", a.Name)]
+			if a.Kind == "group" && effect == "remove" && pairedUser {
+				user, _, e := lookup(l.sys, "user", a.Name)
+				if e != nil {
+					return stopped("PREFLIGHT_LOOKUP "+a.Name, e)
+				}
+				if user == nil {
+					if e := l.checkUnfinishedPair(a, want); e != nil {
+						return e
+					}
+				}
+			}
+			if a.Kind == "user" && effect == "remove" {
+				// Own supplementary additions may still be present in preflight;
+				// the group pass checks them against committed membership receipts.
+				if _, e := l.userGroupPair(a, want, "rehearsal", false); e != nil {
+					return e
+				}
 			}
 		}
 	}
