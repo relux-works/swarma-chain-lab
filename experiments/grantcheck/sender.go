@@ -15,11 +15,16 @@ func (t Transport) valid() bool {
 	return t == NostrNIP17Seal || t == SwarmEnvelopeV2
 }
 
-// SenderProof asserts how the caller verified Key. The caller must verify the
-// NIP-17 inner seal or swarm-envelope/2 signature before constructing this value.
-// Key is that signature's lowercase BIP-340 x-only key, never a message field,
-// Matrix user ID, display name or gift-wrap signer. This is not an opaque token:
-// the library checks the assertion's shape and pin, not the envelope signature.
+// SenderProof asserts how the caller verified the lowercase BIP-340 x-only Key.
+// For NostrNIP17Seal, the caller verifies the NIP-17 inner seal and passes its
+// key, never a rumor field or gift-wrap signer.
+// For SwarmEnvelopeV2, Key is the grant-named BIP-340 key that the caller verified
+// from a per-message BIP-340 co-signature over the exact swarm-envelope/2 bytes
+// (slice 1), or from a BIP-340 author profile once one exists (target); never the
+// envelope's Ed25519 author key, a carrier id, display name or message field.
+// In slice 1 the caller verifies the envelope first; envelope verification alone
+// does not establish Key. This assertion is not an opaque token: grantcheck
+// checks its shape and pin but verifies neither the envelope nor the co-signature.
 type SenderProof struct {
 	Transport Transport
 	Key       string
@@ -46,8 +51,13 @@ func (c *Checker) InboundFrom(ctx context.Context, proof SenderProof, p *Present
 	return v
 }
 
-// RecipientProof contains every addressee key extracted by the adapter from its
-// authenticated outbound envelope. Room membership and room IDs are not inputs.
+// RecipientProof contains the BIP-340 addressee keys supplied by the adapter.
+// For SwarmEnvelopeV2, the adapter resolves the envelope's signed "to" carrier id
+// through a pinned binding from authenticated configuration to exactly one
+// BIP-340 key per message and passes that key in Keys. Grantcheck never sees a
+// carrier id; room membership, room IDs and message fields never supply keys.
+// The library permits 1..MaxRecipients (64) supplied keys and freshly checks each;
+// exactly one key per envelope message is the adapter's obligation.
 // Keys must not be mutated concurrently with the call. Empty lists refuse.
 type RecipientProof struct {
 	Transport Transport
