@@ -473,7 +473,7 @@ func TestLedgerTreeProcUIDFields(t *testing.T) {
 }
 
 // Claim: station refuses tree removal retention at create and journal load, keeps a valid state tree and names retained contents; rehearsal remains removable.
-// Claim: station preserves its recorded tree and names its content, while the retained root independently violates its pre-existing parent invariant.
+// Claim: station names its retained tree content and allows the exact recorded root in its declared parent.
 func TestLedgerTreeStationRetention(t *testing.T) {
 	f, p := treeFixture(t, "station")
 	n := len(f.l.rows)
@@ -487,7 +487,7 @@ func TestLedgerTreeStationRetention(t *testing.T) {
 	foreign(t, filepath.Join(p, "payload"), "file")
 	var out bytes.Buffer
 	f.l.output = &out
-	requireParentInvariantViolation(t, treeReplay(t, f.l, "station"), f.root)
+	must(t, treeReplay(t, f.l, "station"))
 	exists(t, p)
 	if !strings.Contains(out.String(), "retain-station-protected-tree-content") {
 		t.Fatal("tree content missing from compare", out.String())

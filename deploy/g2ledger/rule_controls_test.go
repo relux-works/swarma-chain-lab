@@ -62,7 +62,7 @@ func TestLedgerRecordHashIsolated(t *testing.T) {
 				exists(t, older)
 				exists(t, target)
 			} else {
-				requireParentInvariantViolation(t, err, f.root)
+				must(t, err)
 				absent(t, older)
 				exists(t, target)
 			}

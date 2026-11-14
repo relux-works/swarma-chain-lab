@@ -238,6 +238,11 @@ func (l *Ledger) undo(a Action, want Identity, mode string, removedGroups map[st
 				return stopped("UNIT_LINK_REMOVE "+a.Name, e)
 			}
 		}
+		for _, dir := range want.Unit.Directories {
+			if e = l.undo(Action{Kind: "dir", Ret: "remove", Paths: []string{dir.Path}}, dir, mode, removedGroups); e != nil {
+				return e
+			}
+		}
 		if e = commandOK(l.sys, "/usr/bin/systemctl", "daemon-reload"); e != nil {
 			return stopped("UNIT_RELOAD "+a.Name, e)
 		}
@@ -354,6 +359,7 @@ func (l *Ledger) preflightRehearsal() error {
 				}
 				if got != nil {
 					got.Unit.Links = want.Unit.Links
+					got.Unit.Directories = want.Unit.Directories
 				}
 			}
 			if e != nil {

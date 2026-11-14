@@ -85,7 +85,10 @@ func TestLedgerGetentFailureNeverAbsenceG2(t *testing.T) {
 			t.Fatal("failed inspection entered intent")
 		}
 	}
-	f := setupWith(t, "rehearsal", func(f *fixture) { f.sys.groups["primary"] = Account{Name: "primary", GID: 301} })
+	f := setupWith(t, "rehearsal", func(f *fixture) {
+		f.scope.Reused = []string{}
+		f.sys.groups["primary"] = Account{Name: "primary", GID: 301}
+	})
 	must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 	must(t, f.l.Replay("rehearsal"))
 }
@@ -179,7 +182,7 @@ func TestLedgerLiveWriterSurvivesInspectionFailureG3(t *testing.T) {
 	exists(t, marker)
 	exists(t, probe)
 	f.sys.fault = nil
-	requireParentInvariantViolation(t, f.l.Replay("station"), f.root)
+	must(t, f.l.Replay("station"))
 	absent(t, probe)
 	exists(t, key)
 	must(t, syscall.Kill(cmd.Process.Pid, 0))
@@ -252,6 +255,7 @@ func TestLedgerModifyFileRestoresExactCommittedNew(t *testing.T) {
 func TestLedgerMembershipIDsAndEnableState(t *testing.T) {
 	for _, drift := range []bool{false, true} {
 		f := setupWith(t, "station", func(f *fixture) {
+			f.scope.Reused = []string{}
 			f.sys.groups["primary"] = Account{Name: "primary", GID: 301}
 			f.sys.groups["access"] = Account{Name: "access", GID: 302}
 			f.sys.users["demo"] = Account{Name: "demo", UID: 301, GID: 301, Shell: "/bin/sh"}
@@ -292,7 +296,11 @@ func TestLedgerRetentionModes(t *testing.T) {
 			key := f.create(t, "key", "secret", "d6")
 			state := f.create(t, "state", "dir", "state")
 			remove := f.create(t, "remove", "file", "remove")
-			requireParentInvariantViolation(t, f.l.Replay(mode), f.root)
+			if mode == "station" {
+				must(t, f.l.Replay(mode))
+			} else {
+				requireParentInvariantViolation(t, f.l.Replay(mode), f.root)
+			}
 			exists(t, key)
 			if mode == "rehearsal" {
 				absent(t, state)
@@ -311,7 +319,10 @@ func TestLedgerRetentionModes(t *testing.T) {
 func TestLedgerExecMissingExtraAndToolFailure(t *testing.T) {
 	for _, scenario := range []string{"missing", "extra", "tool-failure", "foreign-before-tool", "valid"} {
 		t.Run(scenario, func(t *testing.T) {
-			f := setupWith(t, "station", func(f *fixture) { must(t, os.Mkdir(filepath.Join(f.root, "outputs"), 0700)) })
+			f := setupWith(t, "station", func(f *fixture) {
+				f.scope.Reused = []string{}
+				must(t, os.Mkdir(filepath.Join(f.root, "outputs"), 0700))
+			})
 			outputs := filepath.Join(f.root, "outputs")
 			p := filepath.Join(outputs, "key")
 			extra := filepath.Join(outputs, "extra")
@@ -345,7 +356,7 @@ func TestLedgerExecMissingExtraAndToolFailure(t *testing.T) {
 			if scenario == "valid" {
 				must(t, e)
 				f.reopen(t)
-				requireParentInvariantViolation(t, f.l.Replay("station"), filepath.Dir(p))
+				must(t, f.l.Replay("station"))
 				exists(t, p)
 			} else {
 				code(t, e, 3)
@@ -459,7 +470,11 @@ func TestLedgerReplayRejectsUnknownModesBeforeOpen(t *testing.T) {
 					t.Fatal("usage refusal changed", path)
 				}
 			}
-			requireParentInvariantViolation(t, Run([]string{"replay", "-dir", f.dir, "-mode", purpose}, f.sys, &bytes.Buffer{}), f.root)
+			if purpose == "station" {
+				must(t, Run([]string{"replay", "-dir", f.dir, "-mode", purpose}, f.sys, &bytes.Buffer{}))
+			} else {
+				requireParentInvariantViolation(t, Run([]string{"replay", "-dir", f.dir, "-mode", purpose}, f.sys, &bytes.Buffer{}), f.root)
+			}
 			absent(t, own)
 			exists(t, key)
 		})
@@ -556,7 +571,7 @@ func TestLedgerExecInventorySeparatesJournalWrites(t *testing.T) {
 			} else {
 				must(t, e)
 				f.reopen(t)
-				requireParentInvariantViolation(t, f.l.Replay("station"), filepath.Dir(p))
+				must(t, f.l.Replay("station"))
 				exists(t, p)
 			}
 		})

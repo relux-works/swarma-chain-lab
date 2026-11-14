@@ -26,6 +26,25 @@ type parentWatch struct {
 func (l *Ledger) startParentWatch(a Action, ids []Identity) (err error) {
 	l.closeParentWatch()
 	paths := append([]string(nil), a.Paths...)
+	for _, path := range a.Paths {
+		dir := filepath.Dir(path)
+		d, err := openDir(dir)
+		if err != nil {
+			if len(ids) > 0 && errors.Is(err, unix.ENOENT) {
+				continue
+			}
+			return stopped("ENTRY_PARENT_LOOKUP "+dir, err)
+		}
+		d.Close()
+		check := l.checkEntryParent
+		if l.entryCheck != nil {
+			check = l.entryCheck
+		}
+		if err := check(dir); err != nil {
+			return err
+		}
+	}
+	bases := l.parentInventory()
 	if a.Kind == "unit" && len(ids) == 0 {
 		plan, e := expectedUnitInstall(l.sys, a.Name)
 		if e != nil {
@@ -33,12 +52,63 @@ func (l *Ledger) startParentWatch(a Action, ids []Identity) (err error) {
 		}
 		for _, link := range plan.Missing {
 			paths = append(paths, link.Path)
+			dir := filepath.Dir(link.Path)
+			for {
+				snap, e := snapshotObject(BaselineObject{Kind: "dir", Name: dir}, l.sys, l.root, l.rows[0].Body.Genesis.Baseline)
+				if e != nil {
+					return stopped("UNIT_LINK_PARENT_LOOKUP "+dir, e)
+				}
+				if snap.Identity != nil {
+					check := l.checkUnitParent
+					if l.unitParentCheck != nil {
+						check = l.unitParentCheck
+					}
+					if e := check(dir); e != nil {
+						return e
+					}
+					if _, ok := bases[dir]; !ok {
+						bases[dir] = snap
+					}
+					break
+				}
+				paths = append(paths, dir)
+				dir = filepath.Dir(dir)
+			}
 		}
 	}
 	for _, id := range ids {
 		if id.Unit != nil {
 			for _, link := range id.Unit.Links {
+				d, err := openDir(filepath.Dir(link.Path))
+				if err == nil {
+					d.Close()
+					check := l.checkUnitParent
+					if l.unitParentCheck != nil {
+						check = l.unitParentCheck
+					}
+					if err := check(filepath.Dir(link.Path)); err != nil {
+						return err
+					}
+				} else if !errors.Is(err, unix.ENOENT) {
+					return stopped("UNIT_LINK_PARENT_LOOKUP "+filepath.Dir(link.Path), err)
+				}
 				paths = append(paths, link.Path)
+			}
+			for _, dir := range id.Unit.Directories {
+				d, err := openDir(filepath.Dir(dir.Path))
+				if err == nil {
+					d.Close()
+					check := l.checkUnitParent
+					if l.unitParentCheck != nil {
+						check = l.unitParentCheck
+					}
+					if err := check(filepath.Dir(dir.Path)); err != nil {
+						return err
+					}
+				} else if !errors.Is(err, unix.ENOENT) {
+					return stopped("UNIT_LINK_PARENT_LOOKUP "+filepath.Dir(dir.Path), err)
+				}
+				paths = append(paths, dir.Path)
 			}
 		}
 	}
@@ -48,7 +118,7 @@ func (l *Ledger) startParentWatch(a Action, ids []Identity) (err error) {
 	}
 	w := &parentWatch{fd: -1, dirs: map[int]BaselineObject{}}
 	l.parentWatch = w
-	for _, base := range l.rows[0].Body.Genesis.S0 {
+	for _, base := range orderedParents(bases) {
 		if parents[base.Name] && base.Identity != nil && base.Identity.FS != nil && base.Identity.FS.Type == "dir" {
 			w.names = append(w.names, base.Name)
 		}
@@ -59,7 +129,7 @@ func (l *Ledger) startParentWatch(a Action, ids []Identity) (err error) {
 			l.closeParentWatch()
 		}
 	}()
-	for _, base := range l.rows[0].Body.Genesis.S0 {
+	for _, base := range orderedParents(bases) {
 		if !parents[base.Name] || base.Identity == nil || base.Identity.FS == nil || base.Identity.FS.Type != "dir" {
 			continue
 		}
@@ -219,7 +289,7 @@ type ParentCause struct {
 
 // parentExplanation requires an unbroken chain of recorded entry transitions;
 // declaring reuse alone, or a child receipt alone, never excuses timestamp drift.
-func (l *Ledger) parentExplanation(base, now BaselineObject) ([]ParentCause, string) {
+func (l *Ledger) parentExplanation(base, now BaselineObject, mode string) ([]ParentCause, string) {
 	reused := false
 	for _, path := range l.rows[0].Body.Genesis.Scope.Reused {
 		if path == base.Name {
@@ -229,7 +299,7 @@ func (l *Ledger) parentExplanation(base, now BaselineObject) ([]ParentCause, str
 	if !reused {
 		return nil, "parent-not-declared-reused"
 	}
-	if !parentStable(base, now) {
+	if !l.parentFinalStable(base, now, mode) {
 		return nil, "reused-parent-baseline-invariant"
 	}
 	expected := base
@@ -268,6 +338,9 @@ func (l *Ledger) parentExplanation(base, now BaselineObject) ([]ParentCause, str
 				if id.Unit != nil {
 					for _, link := range id.Unit.Links {
 						allowed[link.Path] = true
+					}
+					for _, dir := range id.Unit.Directories {
+						allowed[dir.Path] = true
 					}
 				}
 			}
@@ -348,6 +421,11 @@ func parentSnapshotCauses(r ParentReceipt, a Action, ids []Identity, replay bool
 			}
 		}
 		if id.Unit != nil {
+			for _, dir := range id.Unit.Directories {
+				if !apply(dir.Path, unix.S_IFDIR) {
+					return nil, "parent-snapshot-intent-mismatch"
+				}
+			}
 			for _, link := range id.Unit.Links {
 				if !apply(link.Path, unix.S_IFLNK) {
 					return nil, "parent-snapshot-intent-mismatch"

@@ -22,6 +22,10 @@ type parentFixture struct {
 
 func newParentFixture(t *testing.T, reused bool, secret bool) *parentFixture {
 	t.Helper()
+	return newParentFixtureMode(t, reused, secret, "rehearsal")
+}
+func newParentFixtureMode(t *testing.T, reused, secret bool, purpose string) *parentFixture {
+	t.Helper()
 	root := t.TempDir()
 	p := filepath.Join(root, "reused")
 	must(t, os.Mkdir(p, 0700))
@@ -47,7 +51,7 @@ func newParentFixture(t *testing.T, reused bool, secret bool) *parentFixture {
 		scope.Reused = append(scope.Reused, p)
 	}
 	dir := filepath.Join(root, "ledger")
-	must(t, Init(dir, manifest, base, InitOptions{Purpose: "rehearsal", Scope: scope, System: newSystem()}))
+	must(t, Init(dir, manifest, base, InitOptions{Purpose: purpose, Scope: scope, System: newSystem()}))
 	l, e := Open(dir, newSystem())
 	must(t, e)
 	t.Cleanup(l.Close)
@@ -367,6 +371,7 @@ func TestLedgerReusedParentEventsCannotInventCause(t *testing.T) {
 // Claim: a recorded child cycle cannot authorize timestamp drift on an undeclared reused parent.
 func TestLedgerReusedParentRequiresDeclaration(t *testing.T) {
 	f := newParentFixture(t, false, false)
+	f.l.entryCheck = func(string) error { return nil } // Exercise the independent final compare backstop.
 	f.create(t)
 	rows, total, e := f.compare(t)
 	code(t, e, 1)
@@ -502,12 +507,12 @@ func TestLedgerReusedParentRejectsOwnerAndSize(t *testing.T) {
 	}
 }
 
-// Claim: untouched parents produce no difference row and zero parent-change counts.
+// Claim: an unused reuse declaration is refused by its exact name without inventing a parent change.
 func TestLedgerReusedParentUntouched(t *testing.T) {
 	f := newParentFixture(t, true, false)
 	rows, total, e := f.compare(t)
-	must(t, e)
-	if len(rows) != 0 || total.ReusedParentChanges != 0 || total.ParentViolations != 0 || total.Unlisted != 0 {
+	code(t, e, 1)
+	if len(rows) != 1 || rows[0].Object != "path:"+f.parent || rows[0].Rule != "reused-parent-not-touched" || total.ReusedParentChanges != 0 || total.ParentViolations != 0 || total.Unlisted != 1 {
 		t.Fatalf("untouched changed: %+v %+v", rows, total)
 	}
 }
@@ -540,7 +545,7 @@ func TestLedgerForeignFileCtimeViolation(t *testing.T) {
 
 // Claim: a real read changing only atime on a metadata-only file is ignored; ctime/mtime and the parent remain unchanged.
 func TestLedgerAtimeOnlyIgnored(t *testing.T) {
-	f := newParentFixture(t, true, true)
+	f := newParentFixture(t, false, true)
 	var before, after unix.Stat_t
 	must(t, unix.Stat(f.foreign, &before))
 	_, e := os.ReadFile(f.foreign)

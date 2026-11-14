@@ -14,9 +14,18 @@ import (
 
 const pairName = "swarma-wallet"
 
+func userGroupFixtureNoReuse(t *testing.T, purpose string, auto bool, roles ...string) *fixture {
+	return userGroupFixtureInput(t, purpose, auto, false, roles...)
+}
 func userGroupFixture(t *testing.T, purpose string, auto bool, roles ...string) *fixture {
+	return userGroupFixtureInput(t, purpose, auto, true, roles...)
+}
+func userGroupFixtureInput(t *testing.T, purpose string, auto, reuse bool, roles ...string) *fixture {
 	t.Helper()
 	f := setupWith(t, purpose, func(f *fixture) {
+		if !reuse {
+			f.scope.Reused = []string{}
+		}
 		f.sys.usergroups = auto
 		f.scope.Users = append(f.scope.Users, pairName)
 		f.scope.Groups = append(f.scope.Groups, pairName, "swarma-wallet-peer", "swarma-wallet-status")
@@ -101,7 +110,7 @@ func requireCleanPairBaseline(t *testing.T, out string) {
 func TestLedgerUserGroupSysusersRollback(t *testing.T) {
 	for _, auto := range []bool{false, true} {
 		t.Run(map[bool]string{false: "USERGROUPS_ENAB=no", true: "USERGROUPS_ENAB=yes"}[auto], func(t *testing.T) {
-			f := userGroupFixture(t, "rehearsal", auto)
+			f := userGroupFixtureNoReuse(t, "rehearsal", auto)
 			for i, group := range []string{"swarma-wallet-peer", "swarma-wallet-status"} {
 				must(t, f.l.CreateAccount("group", group, "state", 0, uint32(210101+i*200)))
 				must(t, f.l.AddMember(pairName, group))
@@ -256,7 +265,7 @@ func TestLedgerUserGroupIdentityAndRetentionStops(t *testing.T) {
 // Claim: station purpose retains both exact accounts and refuses rehearsal mode before account deletion under either USERGROUPS_ENAB setting.
 func TestLedgerUserGroupStationRetains(t *testing.T) {
 	for _, auto := range []bool{false, true} {
-		f := userGroupFixture(t, "station", auto)
+		f := userGroupFixtureNoReuse(t, "station", auto)
 		user, group := f.sys.users[pairName], f.sys.groups[pairName]
 		_, err := replayPair(t, f, "station")
 		must(t, err)
@@ -273,7 +282,7 @@ func TestLedgerUserGroupStationRetains(t *testing.T) {
 func TestLedgerUserGroupPasswdLookupStops(t *testing.T) {
 	for _, variant := range []string{"error", "status", "unsupported", "malformed", "duplicate", "carriage-return", "missing", "changed", "bad-id", "late-error"} {
 		t.Run(variant, func(t *testing.T) {
-			f := userGroupFixture(t, "rehearsal", true)
+			f := userGroupFixtureNoReuse(t, "rehearsal", true)
 			calls := 0
 			f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 				if cmd != "/usr/bin/getent" || len(args) != 1 || args[0] != "passwd" {
@@ -498,7 +507,7 @@ func TestLedgerUserGroupReappearanceStops(t *testing.T) {
 func TestLedgerUserGroupInterruptedRetry(t *testing.T) {
 	for _, fault := range []string{"primary-user", "lookup-error", "valid"} {
 		t.Run(fault, func(t *testing.T) {
-			f := userGroupFixture(t, "rehearsal", false)
+			f := userGroupFixtureNoReuse(t, "rehearsal", false)
 			f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 				return fakeReply{status: 10}, cmd == "/usr/sbin/groupdel"
 			}
@@ -538,7 +547,7 @@ func TestLedgerUserGroupRoleReceiptStops(t *testing.T) {
 	for _, role := range []string{"service", "tree-owner"} {
 		for _, tampered := range []bool{false, true} {
 			t.Run(role+"/tampered="+strconv.FormatBool(tampered), func(t *testing.T) {
-				f := userGroupFixture(t, "rehearsal", true, role)
+				f := userGroupFixtureNoReuse(t, "rehearsal", true, role)
 				if !tampered {
 					out, err := replayPair(t, f, "rehearsal")
 					must(t, err)
@@ -629,7 +638,7 @@ func TestLedgerUserGroupUnrecordedSupplementaryStops(t *testing.T) {
 func TestLedgerUserGroupSupplementaryLookupStops(t *testing.T) {
 	for _, variant := range []string{"error", "status", "unsupported", "malformed", "duplicate", "carriage-return", "bad-id", "invalid-member", "duplicate-member", "trailing-member"} {
 		t.Run(variant, func(t *testing.T) {
-			f := userGroupFixture(t, "rehearsal", true)
+			f := userGroupFixtureNoReuse(t, "rehearsal", true)
 			f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 				if cmd != "/usr/bin/getent" || len(args) != 1 || args[0] != "group" {
 					return fakeReply{}, false
@@ -677,7 +686,7 @@ func TestLedgerUserGroupSupplementaryLookupStops(t *testing.T) {
 func TestLedgerUserGroupSupplementaryScanBoundaryStops(t *testing.T) {
 	for _, drift := range []string{"gid", "member", "gone"} {
 		t.Run(drift, func(t *testing.T) {
-			f := userGroupFixture(t, "rehearsal", true)
+			f := userGroupFixtureNoReuse(t, "rehearsal", true)
 			group := f.sys.groups[pairName]
 			f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 				if cmd == "/usr/bin/getent" && len(args) == 1 && args[0] == "group" {

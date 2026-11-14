@@ -22,6 +22,9 @@ type fixture struct {
 	scope          Scope
 }
 
+func setupNoReuse(t *testing.T) *fixture {
+	return setupWith(t, "station", func(f *fixture) { f.scope.Reused = []string{} })
+}
 func setup(t *testing.T) *fixture { return setupWith(t, "station", nil) }
 func setupWith(t *testing.T, purpose string, prepare func(*fixture)) *fixture {
 	t.Helper()
@@ -36,7 +39,8 @@ func setupWith(t *testing.T, purpose string, prepare func(*fixture)) *fixture {
 	must(t, e)
 	must(t, os.WriteFile(manifest, manifestRaw, 0600))
 	f := &fixture{root: root, dir: dir, src: filepath.Join(root, "source"), sys: newSystem()}
-	f.sys.unitRoot = t.TempDir()
+	// Keep the modeled unit config in the explicitly reused fixture parent.
+	f.sys.unitRoot = root
 	must(t, os.WriteFile(filepath.Join(f.sys.unitRoot, "demo.service"), []byte("[Unit]\nDescription=fixture\n[Install]\nWantedBy=multi-user.target\n"), 0600))
 	f.scope = Scope{Reused: []string{root}, Users: []string{"demo", "foreign"}, Groups: []string{"demo", "foreign", "primary", "access"}, Units: []string{"demo.service"}}
 	f.sys.units["demo.service"] = "disabled"
@@ -467,6 +471,9 @@ func TestLedgerFilesystemDriftAndNoFollow(t *testing.T) {
 				if change == "foreign-child" {
 					f.declare("target", "dir")
 				}
+				if change == "parent-symlink" {
+					must(t, os.Mkdir(filepath.Join(f.root, "parent"), 0700))
+				}
 			})
 			older := f.create(t, "older", "file", "remove")
 			kind := "file"
@@ -494,7 +501,6 @@ func TestLedgerFilesystemDriftAndNoFollow(t *testing.T) {
 				must(t, os.Symlink(older, p))
 			case "parent-symlink":
 				d := filepath.Join(f.root, "parent")
-				must(t, os.Mkdir(d, 0700))
 				nested := filepath.Join(d, "file")
 				must(t, f.l.CreateFS(nested, f.src, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600))
 				must(t, os.Rename(d, d+".original"))

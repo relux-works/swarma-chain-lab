@@ -192,7 +192,7 @@ func TestLedgerUserGroupPreflightBeforeNewerFile(t *testing.T) {
 func TestLedgerUserGroupSupplementaryRecheckStops(t *testing.T) {
 	for _, variant := range []string{"foreign", "empty"} {
 		t.Run(variant, func(t *testing.T) {
-			f := userGroupFixture(t, "rehearsal", true)
+			f := userGroupFixtureNoReuse(t, "rehearsal", true)
 			f.sys.groups["unrelated"] = Account{Name: "unrelated", GID: 240002}
 			f.sys.members["unrelated"] = map[string]bool{"outsider": true}
 			user, group := f.sys.users[pairName], f.sys.groups[pairName]

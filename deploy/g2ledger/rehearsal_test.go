@@ -69,6 +69,7 @@ func TestLedgerRehearsalRemovesCreatedObjects(t *testing.T) {
 		f.declare("regtest/block", "file")
 		f.declare("out", "dir")
 		f.declare("out/result", "file")
+		must(t, os.Remove(filepath.Join(f.root, "demo.service")))
 		f.declare("demo.service", "file")
 		unitPath := filepath.Join(f.root, "demo.service")
 		f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
@@ -88,7 +89,10 @@ func TestLedgerRehearsalRemovesCreatedObjects(t *testing.T) {
 	block := f.create(t, "regtest/block", "file", "state")
 	out := f.create(t, "out", "dir", "state")
 	result := f.create(t, "out/result", "file", "state")
-	unit := f.create(t, "demo.service", "file", "state")
+	unitSource := filepath.Join(f.root, "baseline", "unit-source")
+	must(t, os.WriteFile(unitSource, []byte("[Install]\nWantedBy=multi-user.target\n"), 0600))
+	unit := filepath.Join(f.root, "demo.service")
+	must(t, f.l.CreateFS(unit, unitSource, "file", "state", uint32(os.Geteuid()), uint32(os.Getegid()), 0600))
 	must(t, f.l.Enable("demo.service"))
 	initialFault := f.sys.fault
 	f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
@@ -244,7 +248,7 @@ func TestLedgerRehearsalClassRefusedOnStation(t *testing.T) {
 	}
 }
 
-// Claim: mode/purpose mismatches fail before effects; matching modes retain station state (with parent violation) and remove rehearsal state.
+// Claim: mode/purpose mismatches fail before effects; matching modes retain station state with a named parent allowance and remove rehearsal state.
 func TestLedgerModePurposeMismatch(t *testing.T) {
 	for _, purpose := range []string{"station", "rehearsal"} {
 		for _, mode := range []string{"station", "rehearsal"} {
@@ -264,11 +268,7 @@ func TestLedgerModePurposeMismatch(t *testing.T) {
 						t.Fatal("mismatch performed system lookup")
 					}
 				} else {
-					if mode == "station" {
-						requireParentInvariantViolation(t, e, f.root)
-					} else {
-						must(t, e)
-					}
+					must(t, e)
 					if mode == "rehearsal" {
 						absent(t, p)
 					} else {
@@ -280,7 +280,7 @@ func TestLedgerModePurposeMismatch(t *testing.T) {
 	}
 }
 
-// Claim: station replay names retained objects with real result sequences and separately rejects the changed pre-existing parent entry set.
+// Claim: station replay names retained objects with real result sequences and allows their recorded parent entry deltas.
 func TestLedgerFinalCompareExplainsEveryRetention(t *testing.T) {
 	for _, mode := range []string{"station"} {
 		t.Run(mode, func(t *testing.T) {
@@ -292,15 +292,13 @@ func TestLedgerFinalCompareExplainsEveryRetention(t *testing.T) {
 			var out, summary bytes.Buffer
 			f.l.output = &out
 			f.l.summary = &summary
-			requireParentInvariantViolation(t, f.l.Replay(mode), f.root)
+			must(t, f.l.Replay(mode))
 			exists(t, key)
 			exists(t, dir)
 			rows := comparisonObjectRows(t, &out)
 			seen := map[string]bool{}
 			for _, r := range rows {
-				if r.Object == "path:"+f.root && r.Difference == "parent-metadata" && r.Rule == "reused-parent-baseline-invariant" {
-					continue
-				}
+
 				if r.Type != "retained" || r.Seq == nil || *r.Seq >= uint64(len(f.l.rows)) || f.l.rows[*r.Seq].Body.Op != "commit" || r.Mode != mode || r.Rule == "" || r.Retention == "" {
 					t.Fatalf("unexplained row %+v", r)
 				}
@@ -311,14 +309,14 @@ func TestLedgerFinalCompareExplainsEveryRetention(t *testing.T) {
 					t.Fatal("retention omitted", key)
 				}
 			}
-			if len(rows) != 7 || !strings.Contains(summary.String(), "retained=6 unlisted=1") {
+			if len(rows) != 6 || !strings.Contains(summary.String(), "retained=6 unlisted=0") {
 				t.Fatalf("incomplete comparison rows=%d summary=%s", len(rows), summary.String())
 			}
 		})
 	}
 }
 
-// Claim: every mode names foreign children, parent entries, extra group members and changed unused declarations, independently of the retained-child parent violation.
+// Claim: every mode names foreign children, parent entries, extra group members and changed unused declarations.
 func TestLedgerFinalCompareRejectsUnlistedDifferences(t *testing.T) {
 	for _, mode := range []string{"station", "rehearsal"} {
 		t.Run(mode, func(t *testing.T) {
@@ -352,7 +350,11 @@ func TestLedgerFinalCompareRejectsUnlistedDifferences(t *testing.T) {
 					f.l.summary = &summary
 					e := f.l.Replay(mode)
 					if variant == "valid" {
-						requireParentInvariantViolation(t, e, f.root)
+						if mode == "station" {
+							must(t, e)
+						} else {
+							requireParentInvariantViolation(t, e, f.root)
+						}
 						return
 					}
 					code(t, e, 1)
@@ -368,8 +370,12 @@ func TestLedgerFinalCompareRejectsUnlistedDifferences(t *testing.T) {
 							}
 						}
 					}
-					if !found || !strings.Contains(summary.String(), "parent_violations=1") {
-						t.Fatal("missing compare evidence")
+					wantParents := "parent_violations=0"
+					if mode == "rehearsal" || variant == "parent-file" {
+						wantParents = "parent_violations=1"
+					}
+					if !found || !strings.Contains(summary.String(), wantParents) {
+						t.Fatal("missing compare evidence", summary.String())
 					}
 					if variant == "file" || variant == "parent-file" {
 						exists(t, object)

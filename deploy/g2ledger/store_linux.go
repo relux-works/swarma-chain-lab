@@ -21,6 +21,8 @@ const maxLedger = 64 << 20
 // The lock covers verification, all creating calls and replay, not just append.
 // A failed append poisons the open handle: no subsequent operation may proceed.
 type Ledger struct {
+	entryCheck      func(string) error // test-only bypass for compare controls
+	unitParentCheck func(string) error // test-only bypass of pre-effect declaration check
 	parentWatch     *parentWatch
 	parentWatchInit func(int) (int, error) // test-only fault injection; never set by CLI
 	parentWatchAdd  func(int, string, uint32) (int, error)

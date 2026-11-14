@@ -62,7 +62,12 @@ func TestLedgerStationProtectedCreation(t *testing.T) {
 		for _, scenario := range []string{"station-remove", "station-state", "station-d6", "rehearsal-remove"} {
 			t.Run(kind+"/"+scenario, func(t *testing.T) {
 				purpose, ret, _ := strings.Cut(scenario, "-")
-				f := protectedFixture(t, purpose)
+				f := setupWith(t, purpose, func(f *fixture) {
+					f.sys.groups["primary"] = Account{Name: "primary", GID: 301}
+					if kind == "user" || kind == "group" {
+						f.scope.Reused = []string{}
+					}
+				})
 				before, err := os.ReadFile(filepath.Join(f.dir, recordsName))
 				must(t, err)
 				calls := len(f.sys.calls)
@@ -80,11 +85,7 @@ func TestLedgerStationProtectedCreation(t *testing.T) {
 					protectedPresent(t, f, kind, false)
 				} else {
 					must(t, err)
-					if purpose == "station" && (kind == "secret" || kind == "exec-secret") {
-						requireParentInvariantViolation(t, f.l.Replay(purpose), f.root)
-					} else {
-						must(t, f.l.Replay(purpose))
-					}
+					must(t, f.l.Replay(purpose))
 					protectedPresent(t, f, kind, purpose == "station" || ret == "d6")
 				}
 			})
@@ -124,11 +125,7 @@ func TestLedgerStationProtectedReplay(t *testing.T) {
 						}
 						exists(t, newer)
 					} else {
-						if op == "replay" && (kind == "secret" || kind == "exec-secret") {
-							requireParentInvariantViolation(t, err, f.root)
-						} else {
-							must(t, err)
-						}
+						must(t, err)
 					}
 					protectedPresent(t, f, kind, true)
 				}

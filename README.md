@@ -227,6 +227,11 @@ NMC main for v3 grants, v2 payments and W2 spend/reads, with configured movement
 exposure and model caps. BTC/LTC main and legacy/name executors refuse.
 No host deployment or mainnet action is part of this tooling. Release outputs
 use a new directory outside the source checkout; task logs stay in `.temp/`.
+The [G2 attempt ledger](deploy/G2-LEDGER.md) requires explicit declarations for
+every pre-existing entry parent, including unit-link directories. Station
+retained children receive a named parent allowance only for their exact ledger
+identities; rehearsal restores the baseline entry set. From `deploy/`, validate
+this contract with `go test -race ./g2ledger ./cmd/deploy-kit`.
 
 ## Demo station lifecycle tools
 

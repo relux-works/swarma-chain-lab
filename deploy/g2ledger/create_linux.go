@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -256,6 +257,31 @@ func (l *Ledger) Enable(name string) error {
 	if len(plan.Missing) == 0 {
 		return fail(1, "UNIT_NO_NEW_LINKS "+name)
 	}
+	// Snapshot absent install directories before the command can create them.
+	missingDirs := []string{}
+	seenDirs := map[string]bool{}
+	for _, link := range plan.Missing {
+		dir := filepath.Dir(link.Path)
+		for {
+			st, err := os.Lstat(dir)
+			if err == nil {
+				if !st.IsDir() {
+					return fail(1, "UNIT_LINK_PARENT_NOT_DIRECTORY "+dir)
+				}
+				break
+			}
+			if !errors.Is(err, os.ErrNotExist) {
+				return stopped("UNIT_LINK_PARENT_LOOKUP "+dir, err)
+			}
+			if !seenDirs[dir] {
+				missingDirs = append(missingDirs, dir)
+				seenDirs[dir] = true
+			}
+			dir = filepath.Dir(dir)
+		}
+	}
+	// Remove descendants before ancestors when replaying a newly created hierarchy.
+	sort.Slice(missingDirs, func(i, j int) bool { return len(missingDirs[i]) > len(missingDirs[j]) })
 	a := Action{Kind: "unit", Ret: "state", Name: name, Before: []Identity{*before}}
 	seq, e := l.begin(a)
 	if e != nil {
@@ -270,6 +296,27 @@ func (l *Ledger) Enable(name string) error {
 	if e != nil || !plan.equal(current) {
 		l.poisoned = true
 		return orphan(a)
+	}
+	for _, path := range missingDirs {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			l.poisoned = true
+			return orphan(a)
+		}
+	}
+	// Revalidate parent authority after the intent hook, immediately before enable.
+	for _, link := range plan.Missing {
+		dir := filepath.Dir(link.Path)
+		for seenDirs[dir] {
+			dir = filepath.Dir(dir)
+		}
+		check := l.checkUnitParent
+		if l.unitParentCheck != nil {
+			check = l.unitParentCheck
+		}
+		if err := check(dir); err != nil {
+			l.poisoned = true
+			return err
+		}
 	}
 	output, status, e := l.sys.Run("/usr/bin/systemctl", "enable", name)
 	if e != nil || status != 0 {
@@ -306,6 +353,14 @@ func (l *Ledger) Enable(name string) error {
 		return orphan(a)
 	}
 	got.Unit.Links = links
+	for _, path := range missingDirs {
+		id, err := observe(path, "dir")
+		if err != nil || id == nil {
+			l.poisoned = true
+			return orphan(a)
+		}
+		got.Unit.Directories = append(got.Unit.Directories, *id)
+	}
 	return l.commit(seq, a, []Identity{*got})
 }
 

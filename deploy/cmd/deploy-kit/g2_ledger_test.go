@@ -117,10 +117,20 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 		t.Fatal("committed identity differs from generator output")
 	}
 	invoke(0, "g2-ledger", "verify", "-dir", dir)
-	// Claim: keeping a new secret names both its retention and the independent parent entry-set violation.
-	initialCompare := invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
-	if !bytes.Contains(initialCompare, []byte(`"rule":"reused-parent-baseline-invariant"`)) || !bytes.Contains(initialCompare, []byte(`"parent_violations":1`)) {
-		t.Fatal("missing parent violation", string(initialCompare))
+	// Claim: keeping an exact new station secret names its retention and the allowed parent with that secret as the cause.
+	initialCompare := invoke(0, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
+	namedParent := false
+	for _, line := range bytes.Split(bytes.TrimSpace(initialCompare), []byte{'\n'}) {
+		var row g2ledger.CompareRow
+		if err := json.Unmarshal(line, &row); err != nil {
+			t.Fatal(err)
+		}
+		if row.Type == "reused_parent_change" && row.Object == "path:"+outputs && row.Verdict == "ALLOWED-NAMED" && len(row.Causes) == 1 && row.Causes[0].Object == key {
+			namedParent = true
+		}
+	}
+	if !namedParent || !bytes.Contains(initialCompare, []byte(`"parent_violations":0`)) {
+		t.Fatal("missing named retained-child allowance", string(initialCompare))
 	}
 	// A post-creation metadata change must be refused; restoring the approved
 	// mode below is a bounded fixture intervention, not an installation step.
@@ -144,7 +154,7 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 	invoke(1, "g2-ledger", "exec-create", "-dir", dir, "-kind", "secret", "-ret", "d6", "-path", key, "--", kit, "g2-keygen", "-out", key)
 	invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "rehearsal")
 	invoke(0, "g2-ledger", "verify", "-dir", dir)
-	compareOut := invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
+	compareOut := invoke(0, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
 	if !bytes.Contains(compareOut, []byte(`"type":"retained"`)) || !bytes.Contains(compareOut, []byte(`"rule":"retain-d6"`)) {
 		t.Fatal("missing machine-readable retention")
 	}

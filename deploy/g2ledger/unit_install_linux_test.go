@@ -45,7 +45,9 @@ func installReply(t *testing.T, f *fixture, created, reported []UnitLink) {
 func TestReviewForeignReceiptCannotGrantUndo(t *testing.T) {
 	for _, attack := range []string{"valid", "extra-unrelated", "wrong-path", "wrong-target", "wrong-path-and-target", "missing"} {
 		t.Run(attack, func(t *testing.T) {
-			f := setup(t)
+			f := setupWith(t, "station", func(f *fixture) {
+				must(t, os.Symlink(filepath.Join(f.sys.unitRoot, "other-unit.service"), filepath.Join(f.sys.unitRoot, "other.service")))
+			})
 			older := f.create(t, "older", "file", "remove")
 			source := installFixture(t, f, "[Install]\nWantedBy=multi-user.target\nAlias=demo-alias.service\n")
 			want := []UnitLink{
@@ -53,7 +55,7 @@ func TestReviewForeignReceiptCannotGrantUndo(t *testing.T) {
 				{Path: filepath.Join(f.sys.unitRoot, "demo-alias.service"), Target: source},
 			}
 			foreign := UnitLink{Path: filepath.Join(f.sys.unitRoot, "other.service"), Target: filepath.Join(f.sys.unitRoot, "other-unit.service")}
-			must(t, os.Symlink(foreign.Target, foreign.Path))
+
 			original, present, err := observeUnitLink(foreign)
 			must(t, err)
 			if !present {

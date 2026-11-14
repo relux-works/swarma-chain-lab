@@ -106,7 +106,7 @@ func TestLedgerVolatileCreatorsRefused(t *testing.T) {
 
 // Claim: baseline comparison emits /run as excluded volatile, and parent inventories omit runtime aliases while retaining persistent children.
 func TestLedgerVolatileBaselineExclusion(t *testing.T) {
-	f := setup(t)
+	f := setupNoReuse(t)
 	var out, summary bytes.Buffer
 	f.l.output = &out
 	f.l.summary = &summary

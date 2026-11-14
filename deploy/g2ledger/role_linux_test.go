@@ -15,7 +15,7 @@ import (
 func TestLedgerUserRoleRequired(t *testing.T) {
 	for _, role := range []string{"", "operator", "tree_owner", "tree-owner", "service"} {
 		t.Run("role="+role, func(t *testing.T) {
-			f := setup(t)
+			f := setupNoReuse(t)
 			must(t, f.l.CreateAccount("group", "primary", "state", 0, 230302))
 			f.l.Close()
 			args := []string{"create-user", "-dir", f.dir, "-name", "demo", "-uid", "230301", "-gid", "230302", "-ret", "state"}
@@ -149,7 +149,7 @@ func TestLedgerUserRoleReplayTamperRefused(t *testing.T) {
 	for _, mode := range []string{"station", "rehearsal"} {
 		for _, edit := range []string{"none", "chain", "resealed"} {
 			t.Run(mode+"/"+edit, func(t *testing.T) {
-				f := profileFixtureFor(t, "/", "", mode)
+				f := profileFixtureForNoReuse(t, "/", "", mode)
 				f.l.Close()
 				if edit == "chain" {
 					raw, e := os.ReadFile(filepath.Join(f.dir, recordsName))

@@ -71,9 +71,10 @@ type UnitLink struct {
 	Mode   uint32 `json:"mode"`
 }
 type Unit struct {
-	Name  string     `json:"name"`
-	State string     `json:"state"`
-	Links []UnitLink `json:"links,omitempty"`
+	Name        string     `json:"name"`
+	State       string     `json:"state"`
+	Links       []UnitLink `json:"links,omitempty"`
+	Directories []Identity `json:"directories,omitempty"`
 }
 type Identity struct {
 	Role       string      `json:"role,omitempty"` // Ledger relation, never inferred from passwd.
@@ -311,7 +312,27 @@ func validateIdentity(i Identity, kind string) error {
 			}
 			seen[link.Path] = true
 		}
-		if i.Unit.State == "disabled" && len(i.Unit.Links) != 0 {
+		for _, dir := range i.Unit.Directories {
+			if validateIdentity(dir, "dir") != nil || seen[dir.Path] {
+				return errors.New("IDENTITY_UNIT_DIRECTORY")
+			}
+			child := false
+			for _, link := range i.Unit.Links {
+				if filepath.Dir(link.Path) == dir.Path {
+					child = true
+				}
+			}
+			for _, nested := range i.Unit.Directories {
+				if filepath.Dir(nested.Path) == dir.Path {
+					child = true
+				}
+			}
+			if !child {
+				return errors.New("IDENTITY_UNIT_DIRECTORY_LINK")
+			}
+			seen[dir.Path] = true
+		}
+		if i.Unit.State == "disabled" && (len(i.Unit.Links) != 0 || len(i.Unit.Directories) != 0) {
 			return errors.New("IDENTITY_DISABLED_LINKS")
 		}
 	default:

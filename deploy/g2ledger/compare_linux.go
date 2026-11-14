@@ -109,16 +109,41 @@ func (l *Ledger) compareBaseline(mode string) error {
 		}
 		return nil, "no-retention-authority"
 	}
-	for _, base := range g.S0 {
+	objects := append([]BaselineObject(nil), g.S0...)
+	known := map[string]bool{}
+	for _, base := range objects {
+		known[base.Name] = true
+	}
+	for _, base := range orderedParents(l.parentInventory()) {
+		if !known[base.Name] {
+			objects = append(objects, base)
+		}
+	}
+	touched := l.touchedParents()
+	createdDirs := l.createdDirectories()
+	reused := map[string]bool{}
+	for _, path := range g.Scope.Reused {
+		reused[path] = true
+	}
+	for _, path := range g.Scope.Reused {
+		if !touched[path] {
+			if e := emit("path:"+path, "unused-reuse-declaration", nil, "reused-parent-not-touched"); e != nil {
+				return e
+			}
+		}
+	}
+	for _, base := range objects {
 		key := objectKey(base.Kind, base.Name)
 		compared++
 		now, e := snapshotObject(base, l.sys, l.root, g.Baseline)
 		if e != nil {
 			return stopped("COMPARE_LOOKUP "+key, e)
 		}
-		if !bytes.Equal(canonical(base.Identity), canonical(now.Identity)) || !comparisonMetadataEqual(base.Metadata, now.Metadata) {
-			if base.Identity != nil && base.Identity.FS != nil && base.Identity.FS.Type == "dir" {
-				causes, rule := l.parentExplanation(base, now)
+		_, created := createdDirs[base.Name]
+		undeclared := (base.Kind == "dir" || base.Kind == "tree") && touched[base.Name] && !reused[base.Name] && !created
+		if undeclared || !bytes.Equal(canonical(base.Identity), canonical(now.Identity)) || !comparisonMetadataEqual(base.Metadata, now.Metadata) {
+			if undeclared || base.Identity != nil && base.Identity.FS != nil && base.Identity.FS.Type == "dir" {
+				causes, rule := l.parentExplanation(base, now, mode)
 				row := CompareRow{Verdict: "ALLOWED-NAMED", Type: "reused_parent_change", Object: key, Difference: "parent-metadata", Mode: mode, Rule: rule, Causes: causes}
 				if causes == nil {
 					row.Type = "unlisted_difference"

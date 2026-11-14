@@ -12,9 +12,22 @@ func profileFixture(t *testing.T, home, gecos string) *fixture {
 	t.Helper()
 	return profileFixtureFor(t, home, gecos, "rehearsal")
 }
+func profileFixtureNoReuse(t *testing.T, home, gecos string) *fixture {
+	return profileFixtureInput(t, home, gecos, "rehearsal", false)
+}
+func profileFixtureForNoReuse(t *testing.T, home, gecos, purpose string) *fixture {
+	return profileFixtureInput(t, home, gecos, purpose, false)
+}
 func profileFixtureFor(t *testing.T, home, gecos, purpose string) *fixture {
+	return profileFixtureInput(t, home, gecos, purpose, true)
+}
+func profileFixtureInput(t *testing.T, home, gecos, purpose string, reuse bool) *fixture {
 	t.Helper()
-	f := setupWith(t, purpose, nil)
+	f := setupWith(t, purpose, func(f *fixture) {
+		if !reuse {
+			f.scope.Reused = []string{}
+		}
+	})
 	ret := "rehearsal"
 	if purpose == "station" {
 		ret = "state"
@@ -32,7 +45,7 @@ func profileFixtureFor(t *testing.T, home, gecos, purpose string) *fixture {
 func TestLedgerUserProfileRecorded(t *testing.T) {
 	for _, tc := range []struct{ name, home, gecos string }{{"service", "/var/lib/swarma-wallet", "Swarma G2 pay executor"}, {"agent", "/", ""}, {"no-home-creation", filepath.Join(t.TempDir(), "not-created"), ""}} {
 		t.Run(tc.name, func(t *testing.T) {
-			f := profileFixture(t, tc.home, tc.gecos)
+			f := profileFixtureNoReuse(t, tc.home, tc.gecos)
 			a := f.l.rows[3].Body.Action
 			got := f.l.rows[4].Body.Result.Identities[0].Account
 			if a.Home != tc.home || a.Description != tc.gecos || got.Home != tc.home || got.Description != tc.gecos || got.Shell != "/usr/sbin/nologin" {
@@ -56,7 +69,7 @@ func TestLedgerUserProfileRecorded(t *testing.T) {
 func TestLedgerUserProfileReplayDriftStops(t *testing.T) {
 	for _, field := range []string{"home", "gecos"} {
 		t.Run(field, func(t *testing.T) {
-			f := profileFixture(t, "/var/lib/swarma-wallet", "Swarma G2 pay executor")
+			f := profileFixtureNoReuse(t, "/var/lib/swarma-wallet", "Swarma G2 pay executor")
 			original := f.sys.users["demo"]
 			changed := original
 			if field == "home" {
@@ -112,7 +125,7 @@ func TestLedgerUserProfileInvalidFlags(t *testing.T) {
 func TestLedgerUserProfileStationDriftStops(t *testing.T) {
 	for _, field := range []string{"home", "gecos"} {
 		t.Run(field, func(t *testing.T) {
-			f := profileFixtureFor(t, "/var/lib/swarma-wallet", "Swarma G2 pay executor", "station")
+			f := profileFixtureForNoReuse(t, "/var/lib/swarma-wallet", "Swarma G2 pay executor", "station")
 			original := f.sys.users["demo"]
 			changed := original
 			if field == "home" {

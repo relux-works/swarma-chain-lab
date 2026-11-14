@@ -357,8 +357,11 @@ four conditions hold:
 1. The parent is in the plan's explicit `reused` set.
 2. Every entry created or removed during the attempt is an attempt-recorded
    ledger object. A current entry-set match alone proves no such history.
-3. After rollback, the parent's entry set (names and types), device/inode,
-   mode, uid/gid and size equal S0.
+3. The parent's device/inode, mode and uid/gid equal S0. In rehearsal,
+   its entry set (names and types) and size must also equal S0. On a station,
+   an entry-set delta is allowed only for exact retained (`keep`) ledger
+   objects with their committed live identities. Removed or type-replaced S0
+   names, unrecorded names and non-retained recorded leftovers are violations.
 4. The compare emits one `reused_parent_change` JSON line naming that parent
    and the causing ledger intent sequences and absolute object paths.
 
@@ -395,12 +398,29 @@ A missing reuse declaration, unknown entry event, unexplained timestamp gap,
 missing receipt, changed invariant or absent ledger cause is a **VIOLATION**:
 a named `unlisted_difference` row, `parent_violations` increment and exit 1.
 A crash after removal but before sealing its replay receipt leaves unexplained
-evidence; retry never fabricates that receipt. An untouched parent emits no
-parent line and counts zero. Retention of a new child still explains the child
-under the existing policy, but cannot waive the independent requirement that
-a pre-existing parent's entry set and size return to S0. Such a replay reports
-the retained child and the parent violation together. Volatile entry exclusions
-do not excuse changes to a nonvolatile parent's size or timestamps.
+evidence; retry never fabricates that receipt. An untouched parent outside the
+reuse set emits no parent line. A declared reused directory that no recorded
+entry operation wrote into is refused by name as `reused-parent-not-touched`.
+Station retention explains both the exact retained child and its named parent
+entry-set delta; it grants no authority for an extra name or changed parent
+identity. Rehearsal still requires the parent's entry set and size to return
+to S0, including when the child policy itself keeps a d6 object. Volatile entry
+exclusions do not excuse changes to a nonvolatile parent's size or timestamps.
+
+The compared parent inventory includes parents of **all ledger-recorded
+entries**: scope targets, atomic replacement temporaries, unit enable links,
+alias links and attempt-created install directories. It is not limited to
+scope-path parents. An existing install-link parent must be a declared `reused`
+directory in S0, or an exact attempt-created directory, before enable or link
+removal can act; otherwise `UNIT_LINK_PARENT_NOT_DECLARED <directory>` refuses
+before the effect. Scope creators and atomic replacement temporaries enforce
+the same first line with `ENTRY_PARENT_NOT_DECLARED <directory>`. There is no exception for system directories. The final
+compare independently names an undeclared touched parent as
+`parent-not-declared-reused`, even if a pre-effect check was bypassed. A missing
+`.wants` directory created during enable is recorded with its own directory
+identity under the unit result, never treated as reused. Replay removes only
+that exact, empty attempt-created directory after removing its recorded links.
+Its pre-existing containing directory follows the same reused-parent rule.
 
 Synthetic output examples (sequence is the **commit** record's sequence):
 
