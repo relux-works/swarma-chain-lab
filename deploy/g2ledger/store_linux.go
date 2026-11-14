@@ -21,6 +21,7 @@ const maxLedger = 64 << 20
 // The lock covers verification, all creating calls and replay, not just append.
 // A failed append poisons the open handle: no subsequent operation may proceed.
 type Ledger struct {
+	parentWatch     *parentWatch
 	output          io.Writer
 	summary         io.Writer
 	root            string
@@ -133,6 +134,10 @@ func Init(dir, manifest, baseline string, options ...InitOptions) error {
 	if e = lock.Sync(); e != nil {
 		return stopped("INIT_LOCK_SYNC", e)
 	}
+	s0, e = captureBaseline(opts.Scope, opts.System, dir, baseline)
+	if e != nil {
+		return stopped("INIT_S0", e)
+	}
 	g := &Genesis{Version: 1, Purpose: opts.Purpose, Scope: opts.Scope, S0: s0, Attempt: randomID(), ManifestSHA256: digest(raw), ReleaseSHA: digest(raw), Commit: m.Commit, H12: m.Commit[:12], Baseline: baseline, BaselineSHA256: sum}
 	if e = l.append(Body{Op: "genesis", Genesis: g}); e != nil {
 		return e
@@ -172,6 +177,7 @@ func Open(dir string, sys System) (*Ledger, error) {
 	return l, nil
 }
 func (l *Ledger) Close() {
+	l.closeParentWatch()
 	if l.lock != nil {
 		unix.Flock(int(l.lock.Fd()), unix.LOCK_UN)
 		l.lock.Close()
@@ -228,6 +234,9 @@ func (l *Ledger) load() error {
 			return fail(1, fmt.Sprintf("LEDGER_CHAIN seq=%d", j))
 		}
 		body := r.Body
+		if body.Op != "parent-replay" && body.ParentReplay != nil {
+			return fail(1, "LEDGER_PARENT_REPLAY_SCHEMA")
+		}
 		switch body.Op {
 		case "genesis":
 			g := body.Genesis
@@ -267,10 +276,13 @@ func (l *Ledger) load() error {
 				return fail(1, "LEDGER_UNPAIRED_RESULT")
 			}
 			if body.Op == "abort" {
-				if len(result.Identities) != 0 || result.Reason != "exclusive-refused" {
+				if len(result.Parents) != 0 || len(result.Identities) != 0 || result.Reason != "exclusive-refused" {
 					return fail(1, "LEDGER_ABORT")
 				}
 			} else {
+				if e := validateParentReceipts(result.Parents, a); e != nil {
+					return stopped("LEDGER_PARENT_RECEIPT", e)
+				}
 				if result.Reason != "" {
 					return fail(1, "LEDGER_COMMIT_REASON")
 				}
@@ -285,6 +297,15 @@ func (l *Ledger) load() error {
 				}
 			}
 			delete(pending, result.Intent)
+		case "parent-replay":
+			p := body.ParentReplay
+			if body.Genesis != nil || body.Action != nil || body.Result != nil || p == nil || len(p.Parents) == 0 || len(pending) != 0 || p.Commit >= r.Seq || rows[p.Commit].Body.Op != "commit" {
+				return fail(1, "LEDGER_PARENT_REPLAY_SCHEMA")
+			}
+			a := *rows[rows[p.Commit].Body.Result.Intent].Body.Action
+			if e := validateParentReceipts(p.Parents, a); e != nil {
+				return stopped("LEDGER_PARENT_REPLAY", e)
+			}
 		default:
 			return fail(1, "LEDGER_UNKNOWN_OP")
 		}
@@ -459,6 +480,9 @@ func (l *Ledger) begin(a Action) (uint64, error) {
 			}
 		}
 	}
+	if e := l.startParentWatch(a, nil); e != nil {
+		return 0, e
+	}
 	seq := uint64(len(l.rows))
 	if e := l.append(Body{Op: "intent", Action: &a}); e != nil {
 		return 0, e
@@ -476,12 +500,18 @@ func (l *Ledger) commit(seq uint64, a Action, ids []Identity) error {
 		l.poisoned = true
 		return orphan(a)
 	}
-	if e := l.append(Body{Op: "commit", Result: &Result{Intent: seq, Identities: ids}}); e != nil {
+	parents, e := l.finishParentWatch()
+	if e != nil {
+		l.poisoned = true
+		return fail(3, "ORPHAN "+actionName(a)+" PARENT_EVIDENCE "+e.Error())
+	}
+	if e := l.append(Body{Op: "commit", Result: &Result{Intent: seq, Identities: ids, Parents: parents}}); e != nil {
 		return fail(3, "ORPHAN "+actionName(a)+" COMMIT_FAILED "+e.Error())
 	}
 	return nil
 }
 func (l *Ledger) abort(seq uint64, a Action) error {
+	l.closeParentWatch()
 	if e := l.append(Body{Op: "abort", Result: &Result{Intent: seq, Reason: "exclusive-refused"}}); e != nil {
 		return e
 	}

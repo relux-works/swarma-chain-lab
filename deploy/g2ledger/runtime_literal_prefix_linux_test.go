@@ -25,7 +25,7 @@ func TestLedgerLiteralRuntimePrefixRefused(t *testing.T) {
 			}
 			f := setup(t)
 			ledger := filepath.Join(f.root, "refused-ledger")
-			err = Init(ledger, filepath.Join(f.root, "manifest.json"), filepath.Join(f.root, "baseline"), InitOptions{Purpose: "station", Scope: Scope{Paths: []ScopePath{{Path: path, Kind: "file"}}}, System: f.sys})
+			err = Init(ledger, filepath.Join(f.root, "manifest.json"), filepath.Join(f.root, "baseline"), InitOptions{Purpose: "station", Scope: Scope{Reused: []string{}, Paths: []ScopePath{{Path: path, Kind: "file"}}}, System: f.sys})
 			if ExitCode(err) != 1 || !strings.Contains(err.Error(), volatileRuntimeReason) {
 				t.Errorf("public init lacks runtime refusal: exit=%d err=%v", ExitCode(err), err)
 			}

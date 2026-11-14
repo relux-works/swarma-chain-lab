@@ -179,7 +179,7 @@ func TestLedgerLiveWriterSurvivesInspectionFailureG3(t *testing.T) {
 	exists(t, marker)
 	exists(t, probe)
 	f.sys.fault = nil
-	must(t, f.l.Replay("station"))
+	requireParentInvariantViolation(t, f.l.Replay("station"), f.root)
 	absent(t, probe)
 	exists(t, key)
 	must(t, syscall.Kill(cmd.Process.Pid, 0))
@@ -292,7 +292,7 @@ func TestLedgerRetentionModes(t *testing.T) {
 			key := f.create(t, "key", "secret", "d6")
 			state := f.create(t, "state", "dir", "state")
 			remove := f.create(t, "remove", "file", "remove")
-			must(t, f.l.Replay(mode))
+			requireParentInvariantViolation(t, f.l.Replay(mode), f.root)
 			exists(t, key)
 			if mode == "rehearsal" {
 				absent(t, state)
@@ -345,7 +345,7 @@ func TestLedgerExecMissingExtraAndToolFailure(t *testing.T) {
 			if scenario == "valid" {
 				must(t, e)
 				f.reopen(t)
-				must(t, f.l.Replay("station"))
+				requireParentInvariantViolation(t, f.l.Replay("station"), filepath.Dir(p))
 				exists(t, p)
 			} else {
 				code(t, e, 3)
@@ -459,7 +459,7 @@ func TestLedgerReplayRejectsUnknownModesBeforeOpen(t *testing.T) {
 					t.Fatal("usage refusal changed", path)
 				}
 			}
-			must(t, Run([]string{"replay", "-dir", f.dir, "-mode", purpose}, f.sys, &bytes.Buffer{}))
+			requireParentInvariantViolation(t, Run([]string{"replay", "-dir", f.dir, "-mode", purpose}, f.sys, &bytes.Buffer{}), f.root)
 			absent(t, own)
 			exists(t, key)
 		})
@@ -556,7 +556,7 @@ func TestLedgerExecInventorySeparatesJournalWrites(t *testing.T) {
 			} else {
 				must(t, e)
 				f.reopen(t)
-				must(t, f.l.Replay("station"))
+				requireParentInvariantViolation(t, f.l.Replay("station"), filepath.Dir(p))
 				exists(t, p)
 			}
 		})

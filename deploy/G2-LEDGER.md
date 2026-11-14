@@ -65,6 +65,7 @@ in-place upgrade or inferred purpose.
 
 ```json
 {
+  "reused": ["/etc/systemd/system", "/var/lib/swarma-rehearsal"],
   "paths": [
     {"path":"/var/lib/swarma-rehearsal/regtest","kind":"dir"},
     {"path":"/var/lib/swarma-rehearsal/regtest/probe","kind":"file"},
@@ -76,6 +77,15 @@ in-place upgrade or inferred purpose.
   "units": ["swarma-rehearsal.service"]
 }
 ```
+
+`reused` is a **required** array of absolute directory paths in the same
+`-scope` JSON input. Supply `"reused": []` when the plan reuses no directories;
+omission or null refuses initialization. Each listed path must already exist
+in the live S0 as a directory. Duplicate, relative, missing, non-directory,
+symlink and volatile-runtime entries refuse. Reuse declarations add comparison
+scope only: they grant no creation, adoption, retention or recursive authority.
+The plan scripts must declare every pre-existing parent they intend to reuse
+before init; the engine never infers this set from observed child operations.
 
 Declare every intended mutation path with its kind (`dir`, `tree`, `file`, `secret`),
 every created account, both subjects of every membership, and every enabled
@@ -94,6 +104,10 @@ target or another tree.
 
 Scopes include immediate parents, with directory mode (including sticky bits),
 uid, gid, device and inode, and a **shallow** inventory of child names and types.
+Every present filesystem S0 object also has comparison-only `metadata` with
+`size`, `mtime_ns` and `ctime_ns`. Directory rollback identities continue to
+exclude mutable size/times; comparison evidence does not. Atime is never
+recorded or compared. Descriptor snapshots reject changes during observation.
 Public `file` targets include metadata and content digests; `secret` targets
 include metadata only, never content or digests. Account identities include
 name, uid, primary gid, shell, home and GECOS; groups include their full explicit member
@@ -103,7 +117,9 @@ excluded from parent inventories by exact pathname; neither may be a mutation
 target. The JSON scope input is recorded as typed data in genesis and need not
 be reopened at replay.
 
-`init` exclusively creates D with mode 0700. An existing D, including an
+`init` validates the inputs before exclusively creating D with mode 0700.
+It then takes the sealed live S0 after this excluded journal-directory bootstrap,
+before any target mutation; it never refreshes S0 on a later command. An existing D, including an
 incomplete attempt, refuses. `LOCK`, `records.jsonl`, `HEAD` and the temporary `UNSEALED` guard are private
 0600 owner files. Never recreate or edit these to make a failed attempt pass.
 The journal and baseline cannot themselves be mutation targets.
@@ -193,8 +209,9 @@ previous record hash. The body is a discriminated union:
 | --- | --- | --- |
 | `genesis` | `genesis` | Version, purpose, declared scope, typed live S0 snapshot, random 128-bit attempt ID, manifest/release SHA-256, full commit, H12, S0 evidence path and digest |
 | `intent` | `action` | Kind, retention, targets, requested IDs/mode, and applicable before identities and backup/new hashes |
-| `commit` | `result` | Intent sequence and the exact ordered observed identities |
+| `commit` | `result` | Intent sequence, exact ordered observed identities, and parent transition receipts |
 | `abort` | `result` | Intent sequence and `exclusive-refused`; the exclusive call proved it did not create the object |
+| `parent-replay` | `parent_replay` | Earlier commit sequence plus sealed parent transition receipts after its reversal; grants no new removal authority |
 
 Exactly one intent may be outstanding. A commit or abort must resolve that
 intent; a standalone result, duplicate completed `(path, kind)` creation,
@@ -321,31 +338,76 @@ groups. This includes unused declared targets and exclusive creation refusals.
 No late scope expansion or post-hoc S0 capture is permitted.
 
 The compared properties are precisely the identities and shallow directory
-inventories described above. Each identity difference, child-name/type delta,
+inventories described above, including existence, type, mode, uid/gid, device,
+inode, size, mtime and ctime; public files additionally compare SHA-256.
+Unit link identities retain their exact link targets. Atime is excluded.
+Each identity difference, child-name/type delta,
 and explicit group-member delta is a separate JSON line on stdout. A difference
 is accepted only with a real committed record, retention class, and the mode's
 policy rule. A retained directory does not explain foreign children. Missing,
 changed or extra members have no blanket group retention exception. A config
 restore may change inode/mtime because it uses atomic replacement; only exact
 S0 before-identity plus restored S0 content, size, uid/gid and mode authorizes
-that difference. Its rule is
+that attempt-caused replacement difference, including its ctime. Its rule is
 `restore-attempt-transition-replacement-inode-or-mtime`.
+
+A pre-existing parent's mtime/ctime change is **ALLOWED-NAMED** only when all
+four conditions hold:
+
+1. The parent is in the plan's explicit `reused` set.
+2. Every entry created or removed during the attempt is an attempt-recorded
+   ledger object. A current entry-set match alone proves no such history.
+3. After rollback, the parent's entry set (names and types), device/inode,
+   mode, uid/gid and size equal S0.
+4. The compare emits one `reused_parent_change` JSON line naming that parent
+   and the causing ledger intent sequences and absolute object paths.
+
+Each creator/reversal watches its existing baseline parents using Linux
+inotify. Its sealed receipt records the before/after snapshots and entry events.
+The final compare requires an unbroken chain from S0 through those receipts to
+the final snapshot. An unrecorded create/delete cycle inside a command remains
+visible in the entry events; timestamp gaps between commands also refuse,
+even when the entry set is restored. Audited atomic replacement temporary
+objects are explicitly named in the receipt and in the causing-object list.
+Recorded unit-link paths can explain their own parent entry events. Queue
+overflow, watch/read failures and unstable snapshots fail closed. No daemon
+or privileged monitor is required. Protected parents and serialized privileged
+writers remain required; event names do not authenticate another writer using
+the exact same path during an engine syscall interval.
+
+A missing reuse declaration, unknown entry event, unexplained timestamp gap,
+missing receipt, changed invariant or absent ledger cause is a **VIOLATION**:
+a named `unlisted_difference` row, `parent_violations` increment and exit 1.
+A crash after removal but before sealing its replay receipt leaves unexplained
+evidence; retry never fabricates that receipt. An untouched parent emits no
+parent line and counts zero. Retention of a new child still explains the child
+under the existing policy, but cannot waive the independent requirement that
+a pre-existing parent's entry set and size return to S0. Such a replay reports
+the retained child and the parent violation together. Volatile entry exclusions
+do not excuse changes to a nonvolatile parent's size or timestamps.
 
 Synthetic output examples (sequence is the **commit** record's sequence):
 
 ```jsonl
 {"type":"retained","object":"path:/var/lib/swarma-rehearsal/key","difference":"identity","mode":"rehearsal","seq":2,"retention":"d6","rule":"retain-d6"}
 {"type":"unlisted_difference","object":"group:swarma_rehearsal/member:foreign","difference":"group-member","mode":"station","rule":"unrecorded-group-membership"}
-{"excluded_volatile":["/run"],"type":"baseline_summary","mode":"station","compared":5,"retained":2,"unlisted":1}
+{"verdict":"ALLOWED-NAMED","causes":[{"intent":1,"object":"/var/lib/swarma-rehearsal/probe"}],"type":"reused_parent_change","object":"path:/var/lib/swarma-rehearsal","difference":"parent-metadata","mode":"rehearsal","rule":"allowed-named-reused-parent"}
+{"verdict":"VIOLATION","type":"unlisted_difference","object":"path:/var/lib/swarma-rehearsal","difference":"parent-metadata","mode":"rehearsal","rule":"unrecorded-parent-transition"}
+{"reused_parent_changes":1,"parent_violations":1,"excluded_volatile":["/run"],"type":"baseline_summary","mode":"rehearsal","compared":5,"retained":0,"unlisted":1}
 ```
 
 `object` is `path:<absolute-path>`, `user:<name>`, `group:<name>` or
 `unit:<name>`, with `/member:<name>` for a group-member difference.
-`difference` is `identity`, `directory-entry` or `group-member`. A kept file may
+`difference` is `identity`, `directory-entry`, `group-member` or
+`parent-metadata`. For allowed parent changes `causes[].intent` identifies the
+creation intent (not the commit) and `causes[].object` names its causing path.
+`reused_parent_changes` counts allowed named parents; `parent_violations` counts
+rejected parents and is also included in `unlisted`. These counts are independent
+of `retained`; a changed parent can never disappear into an all-zero summary. A kept file may
 have both an identity row and a parent directory-entry row; counts are
 **differences**, not distinct objects. The summary JSON line is always emitted
 even when no differences exist. Stderr also reports
-`FINAL_BASELINE_COMPARE mode=... retained=N unlisted=N`.
+`FINAL_BASELINE_COMPARE mode=... compared=N retained=N unlisted=N reused_parent_changes=N parent_violations=N excluded_volatile=/run`.
 All unlisted differences are emitted before exit 1 with
 `UNLISTED_DIFFERENCE <first-object>`. Lookup/output failures also stop with a
 named reason and exit 1. Final comparison detects drift; it never authorizes
@@ -353,10 +415,12 @@ additional cleanup or undoes earlier successful reversals.
 
 Out of scope: recursive contents of unrecorded subdirectories, unrecorded
 siblings' contents/metadata beyond their names and types, secret contents,
-mutable directory size/timestamps, access/change timestamps, account fields
+access timestamps, account fields
 other than the recorded identity, memberships of unrecorded groups, active/running unit state,
 open descriptors, mounts outside a removable tree, ACLs/xattrs, remote services, release verification,
 and whole-host equivalence. Parent inventories are not recursive traversal.
+Old ledgers without the required `reused` input and filesystem comparison
+metadata fail closed; there is no inferred set or in-place schema upgrade.
 Native privileged qualification remains separate work.
 
 ## Process-written rehearsal trees

@@ -10,7 +10,7 @@ import (
 )
 
 // Claim: the kernel-equivalent nested-symlink/.. spelling of /run receives the
-// same public init refusal and baseline exclusion as a direct /run alias.
+// same init refusal and entry exclusion as a direct /run alias; unrecorded nonvolatile parent metadata still fails.
 func TestReviewPR99VolatileDotDotAlias(t *testing.T) {
 	if info, err := os.Stat("/run/lock"); err != nil || !info.IsDir() {
 		t.Fatal("read-only /run/lock fixture unavailable", err)
@@ -34,7 +34,7 @@ func TestReviewPR99VolatileDotDotAlias(t *testing.T) {
 			t.Logf("alias resolves to %s; policy=%v", resolved, targetPathPolicy(alias))
 			t.Run("init-refusal", func(t *testing.T) {
 				ledger := filepath.Join(t.TempDir(), "refused-ledger")
-				err := Init(ledger, filepath.Join(fixture.root, "manifest.json"), filepath.Join(fixture.root, "baseline"), InitOptions{Purpose: "station", Scope: Scope{Paths: []ScopePath{{Path: filepath.Join(alias, "missing-fixture"), Kind: "file"}}}, System: fixture.sys})
+				err := Init(ledger, filepath.Join(fixture.root, "manifest.json"), filepath.Join(fixture.root, "baseline"), InitOptions{Purpose: "station", Scope: Scope{Reused: []string{}, Paths: []ScopePath{{Path: filepath.Join(alias, "missing-fixture"), Kind: "file"}}}, System: fixture.sys})
 				if ExitCode(err) != 1 || !strings.Contains(err.Error(), volatileRuntimeReason) {
 					t.Fatalf("runtime alias missing named refusal: exit=%d err=%v", ExitCode(err), err)
 				}
@@ -45,11 +45,9 @@ func TestReviewPR99VolatileDotDotAlias(t *testing.T) {
 				var output bytes.Buffer
 				err := Run([]string{"replay", "-dir", fixture.dir, "-mode", "station"}, fixture.sys, &output)
 				t.Logf("replay_exit=%d output=%s", ExitCode(err), output.String())
-				if err != nil {
-					t.Fatalf("excluded /run alias created an unlisted baseline difference: %v", err)
-				}
-				if strings.Contains(output.String(), `"unlisted":1`) {
-					t.Fatal("volatile alias counted as unlisted")
+				code(t, err, 1)
+				if !strings.Contains(output.String(), `"difference":"parent-metadata"`) || strings.Contains(output.String(), `"object":"path:`+alias+`"`) {
+					t.Fatal("volatile alias itself must stay excluded; its nonvolatile parent change must be named", output.String())
 				}
 				exists(t, alias)
 			})

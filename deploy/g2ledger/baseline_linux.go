@@ -17,6 +17,19 @@ func objectKey(kind, name string) string {
 	return kind + ":" + name
 }
 func validateScope(s Scope) error {
+	if s.Reused == nil {
+		return errors.New("REUSED_SET_REQUIRED")
+	}
+	reused := map[string]bool{}
+	for _, path := range s.Reused {
+		if path != "/" && !validPath(path) || reused[path] {
+			return errors.New("REUSED_PATH_INVALID_OR_DUPLICATE " + path)
+		}
+		if e := targetPathPolicy(path); e != nil {
+			return e
+		}
+		reused[path] = true
+	}
 	seen := map[string]bool{}
 	add := func(k string) error {
 		if seen[k] {
@@ -77,6 +90,15 @@ func scopeObjects(s Scope) ([]BaselineObject, error) {
 			objects[k] = BaselineObject{Kind: "dir", Name: name}
 		}
 	}
+	for _, path := range s.Reused {
+		k := objectKey("dir", path)
+		if old, ok := objects[k]; ok && old.Kind != "dir" && old.Kind != "tree" {
+			return nil, errors.New("REUSED_NOT_DIRECTORY " + path)
+		}
+		if _, ok := objects[k]; !ok {
+			objects[k] = BaselineObject{Kind: "dir", Name: path}
+		}
+	}
 	for kind, names := range map[string][]string{"user": s.Users, "group": s.Groups, "unit": s.Units} {
 		for _, n := range names {
 			objects[objectKey(kind, n)] = BaselineObject{Kind: kind, Name: n}
@@ -101,6 +123,7 @@ func excludedPath(path, ledger, baseline string) bool {
 	return errors.Is(err, errVolatileRuntime)
 }
 func snapshotObject(o BaselineObject, sys System, ledger, baseline string) (BaselineObject, error) {
+	o.Metadata = nil
 	o.Identity = nil
 	o.Children = nil
 	o.Members = nil
@@ -123,6 +146,7 @@ func snapshotObject(o BaselineObject, sys System, ledger, baseline string) (Base
 			return o, e
 		}
 		o.Identity = &Identity{Path: o.Name, FS: id}
+		o.Metadata = baselineMetadata(st)
 		entries, e := d.ReadDir(-1)
 		if e != nil {
 			return o, e
@@ -138,12 +162,20 @@ func snapshotObject(o BaselineObject, sys System, ledger, baseline string) (Base
 			}
 			o.Children = append(o.Children, DirectoryEntry{Name: entry.Name(), Type: st.Mode & unix.S_IFMT})
 		}
+		var after unix.Stat_t
+		if e := unix.Fstat(int(d.Fd()), &after); e != nil {
+			return o, e
+		}
+		if !stableStat(st, after) {
+			return o, errors.New("BASELINE_DIRECTORY_CHANGED")
+		}
 	case "file", "secret":
-		id, e := observe(o.Name, o.Kind)
+		id, metadata, e := observeBaselineFile(o.Name, o.Kind)
 		if e != nil {
 			return o, e
 		}
 		o.Identity = id
+		o.Metadata = metadata
 	case "user", "group":
 		a, members, e := lookup(sys, o.Kind, o.Name)
 		if e != nil {
@@ -189,10 +221,35 @@ func captureBaseline(s Scope, sys System, ledger, baseline string) ([]BaselineOb
 	for j, o := range objects {
 		objects[j], e = snapshotObject(o, sys, ledger, baseline)
 		if e != nil {
+			for _, path := range s.Reused {
+				if path == o.Name {
+					return nil, fmt.Errorf("REUSED_DIRECTORY_LOOKUP %s: %w", path, e)
+				}
+			}
 			return nil, fmt.Errorf("%s: %w", objectKey(o.Kind, o.Name), e)
 		}
 	}
+	if e := validateReused(s, objects); e != nil {
+		return nil, e
+	}
 	return objects, nil
+}
+func baselineMetadata(st unix.Stat_t) *BaselineMetadata {
+	return &BaselineMetadata{Size: st.Size, MtimeNS: st.Mtim.Sec*1e9 + st.Mtim.Nsec, CtimeNS: st.Ctim.Sec*1e9 + st.Ctim.Nsec}
+}
+func validateReused(s Scope, objects []BaselineObject) error {
+	for _, path := range s.Reused {
+		found := false
+		for _, o := range objects {
+			if o.Name == path && (o.Kind == "dir" || o.Kind == "tree") && o.Identity != nil && o.Identity.FS != nil && o.Metadata != nil {
+				found = true
+			}
+		}
+		if !found {
+			return errors.New("REUSED_NOT_BASELINE_DIRECTORY " + path)
+		}
+	}
+	return nil
 }
 func validateBaseline(g *Genesis) error {
 	if e := validateScope(g.Scope); e != nil {
@@ -205,16 +262,22 @@ func validateBaseline(g *Genesis) error {
 	if len(objects) != len(g.S0) {
 		return errors.New("S0_COUNT")
 	}
+	if e := validateReused(g.Scope, g.S0); e != nil {
+		return e
+	}
 	for j, want := range objects {
 		got := g.S0[j]
 		if got.Kind != want.Kind || got.Name != want.Name {
 			return errors.New("S0_SCOPE")
 		}
 		if got.Identity == nil {
-			if len(got.Children) > 0 || len(got.Members) > 0 {
+			if got.Metadata != nil || len(got.Children) > 0 || len(got.Members) > 0 {
 				return errors.New("S0_ABSENT_FIELDS")
 			}
 			continue
+		}
+		if (got.Identity.FS != nil) != (got.Metadata != nil) || got.Metadata != nil && got.Metadata.Size < 0 {
+			return errors.New("S0_METADATA")
 		}
 		id := *got.Identity
 		if got.Kind == "user" {
@@ -308,4 +371,38 @@ func actionAllowed(g Genesis, a Action) error {
 		return namedError("TARGET_OUTSIDE_INIT_SCOPE", a)
 	}
 	return nil
+}
+
+func observeBaselineFile(path, kind string) (*Identity, *BaselineMetadata, error) {
+	d, n, e := parent(path)
+	if errors.Is(e, unix.ENOENT) {
+		return nil, nil, nil
+	}
+	if e != nil {
+		return nil, nil, e
+	}
+	defer d.Close()
+	f, e := at(d, n, unix.O_RDONLY, 0)
+	if errors.Is(e, unix.ENOENT) {
+		return nil, nil, nil
+	}
+	if e != nil {
+		return nil, nil, e
+	}
+	defer f.Close()
+	var before, after unix.Stat_t
+	if e := unix.Fstat(int(f.Fd()), &before); e != nil {
+		return nil, nil, e
+	}
+	id, e := fsIdentity(f, kind)
+	if e != nil {
+		return nil, nil, e
+	}
+	if e := unix.Fstat(int(f.Fd()), &after); e != nil {
+		return nil, nil, e
+	}
+	if !stableStat(before, after) {
+		return nil, nil, errors.New("BASELINE_FILE_CHANGED")
+	}
+	return &Identity{Path: path, FS: id}, baselineMetadata(after), nil
 }

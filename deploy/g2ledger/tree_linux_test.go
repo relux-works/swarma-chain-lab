@@ -473,6 +473,7 @@ func TestLedgerTreeProcUIDFields(t *testing.T) {
 }
 
 // Claim: station refuses tree removal retention at create and journal load, keeps a valid state tree and names retained contents; rehearsal remains removable.
+// Claim: station preserves its recorded tree and names its content, while the retained root independently violates its pre-existing parent invariant.
 func TestLedgerTreeStationRetention(t *testing.T) {
 	f, p := treeFixture(t, "station")
 	n := len(f.l.rows)
@@ -486,7 +487,7 @@ func TestLedgerTreeStationRetention(t *testing.T) {
 	foreign(t, filepath.Join(p, "payload"), "file")
 	var out bytes.Buffer
 	f.l.output = &out
-	must(t, treeReplay(t, f.l, "station"))
+	requireParentInvariantViolation(t, treeReplay(t, f.l, "station"), f.root)
 	exists(t, p)
 	if !strings.Contains(out.String(), "retain-station-protected-tree-content") {
 		t.Fatal("tree content missing from compare", out.String())
@@ -527,7 +528,7 @@ func TestLedgerTreeDedicatedOwnerAndAccountOrder(t *testing.T) {
 	g, q := treeFixture(t, "rehearsal")
 	must(t, g.l.CreateTree(q, "demo", "d6", 0700, nil))
 	treeRefusal(t, g, "TREE_OWNER_STILL_IN_USE", q)
-	if validateScope(Scope{Paths: []ScopePath{{Path: "/fixture/tree", Kind: "tree"}, {Path: "/fixture/tree/file", Kind: "file"}}}) == nil {
+	if validateScope(Scope{Reused: []string{}, Paths: []ScopePath{{Path: "/fixture/tree", Kind: "tree"}, {Path: "/fixture/tree/file", Kind: "file"}}}) == nil {
 		t.Fatal("tree scope overlap accepted")
 	}
 	validTreeNeighbour(t)

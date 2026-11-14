@@ -12,21 +12,25 @@ import (
 // CompareRow describes one difference, never secret content. Seq identifies the
 // committed result that authorizes retention; its intent carries the policy.
 type CompareRow struct {
-	Type       string  `json:"type"`
-	Object     string  `json:"object"`
-	Difference string  `json:"difference"`
-	Mode       string  `json:"mode"`
-	Seq        *uint64 `json:"seq,omitempty"`
-	Retention  string  `json:"retention,omitempty"`
-	Rule       string  `json:"rule"`
+	Verdict    string        `json:"verdict,omitempty"`
+	Causes     []ParentCause `json:"causes,omitempty"`
+	Type       string        `json:"type"`
+	Object     string        `json:"object"`
+	Difference string        `json:"difference"`
+	Mode       string        `json:"mode"`
+	Seq        *uint64       `json:"seq,omitempty"`
+	Retention  string        `json:"retention,omitempty"`
+	Rule       string        `json:"rule"`
 }
 type CompareSummary struct {
-	ExcludedVolatile []string `json:"excluded_volatile"`
-	Type             string   `json:"type"`
-	Mode             string   `json:"mode"`
-	Compared         int      `json:"compared"`
-	Retained         int      `json:"retained"`
-	Unlisted         int      `json:"unlisted"`
+	ReusedParentChanges int      `json:"reused_parent_changes"`
+	ParentViolations    int      `json:"parent_violations"`
+	ExcludedVolatile    []string `json:"excluded_volatile"`
+	Type                string   `json:"type"`
+	Mode                string   `json:"mode"`
+	Compared            int      `json:"compared"`
+	Retained            int      `json:"retained"`
+	Unlisted            int      `json:"unlisted"`
 }
 
 type authority struct {
@@ -68,6 +72,7 @@ func (l *Ledger) compareBaseline(mode string) error {
 	}
 	enc := json.NewEncoder(out)
 	retained, unlisted, compared := 0, 0, 0
+	reusedParentChanges, parentViolations := 0, 0
 	first := ""
 	emit := func(object, difference string, allowed *authority, rule string) error {
 		row := CompareRow{Type: "unlisted_difference", Object: object, Difference: difference, Mode: mode, Rule: rule}
@@ -111,10 +116,29 @@ func (l *Ledger) compareBaseline(mode string) error {
 		if e != nil {
 			return stopped("COMPARE_LOOKUP "+key, e)
 		}
-		if !bytes.Equal(canonical(base.Identity), canonical(now.Identity)) {
-			a, rule := explain(key, base.Identity, now.Identity)
-			if e = emit(key, "identity", a, rule); e != nil {
-				return e
+		if !bytes.Equal(canonical(base.Identity), canonical(now.Identity)) || !comparisonMetadataEqual(base.Metadata, now.Metadata) {
+			if base.Identity != nil && base.Identity.FS != nil && base.Identity.FS.Type == "dir" {
+				causes, rule := l.parentExplanation(base, now)
+				row := CompareRow{Verdict: "ALLOWED-NAMED", Type: "reused_parent_change", Object: key, Difference: "parent-metadata", Mode: mode, Rule: rule, Causes: causes}
+				if causes == nil {
+					row.Type = "unlisted_difference"
+					row.Verdict = "VIOLATION"
+					unlisted++
+					parentViolations++
+					if first == "" {
+						first = key + " " + rule
+					}
+				} else {
+					reusedParentChanges++
+				}
+				if e := enc.Encode(row); e != nil {
+					return stopped("COMPARE_OUTPUT", e)
+				}
+			} else {
+				a, rule := explain(key, base.Identity, now.Identity)
+				if e = emit(key, "identity", a, rule); e != nil {
+					return e
+				}
 			}
 		}
 		// Parent and recorded-directory inventories are shallow. Each entry delta
@@ -196,10 +220,10 @@ func (l *Ledger) compareBaseline(mode string) error {
 			}
 		}
 	}
-	if e := enc.Encode(CompareSummary{Type: "baseline_summary", Mode: mode, Compared: compared, Retained: retained, Unlisted: unlisted, ExcludedVolatile: []string{"/run"}}); e != nil {
+	if e := enc.Encode(CompareSummary{Type: "baseline_summary", Mode: mode, Compared: compared, Retained: retained, Unlisted: unlisted, ReusedParentChanges: reusedParentChanges, ParentViolations: parentViolations, ExcludedVolatile: []string{"/run"}}); e != nil {
 		return stopped("COMPARE_OUTPUT", e)
 	}
-	if _, e := fmt.Fprintf(summary, "g2-ledger: FINAL_BASELINE_COMPARE mode=%s retained=%d unlisted=%d excluded_volatile=/run\n", mode, retained, unlisted); e != nil {
+	if _, e := fmt.Fprintf(summary, "g2-ledger: FINAL_BASELINE_COMPARE mode=%s compared=%d retained=%d unlisted=%d reused_parent_changes=%d parent_violations=%d excluded_volatile=/run\n", mode, compared, retained, unlisted, reusedParentChanges, parentViolations); e != nil {
 		return stopped("COMPARE_SUMMARY", e)
 	}
 	if unlisted > 0 {
@@ -219,4 +243,11 @@ func liveIdentityEqual(a, b Identity) bool {
 		b.Role = ""
 	}
 	return identityEqual(a, b)
+}
+
+func comparisonMetadataEqual(a, b *BaselineMetadata) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Size == b.Size && a.MtimeNS == b.MtimeNS && a.CtimeNS == b.CtimeNS
 }

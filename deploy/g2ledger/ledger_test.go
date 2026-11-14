@@ -38,7 +38,7 @@ func setupWith(t *testing.T, purpose string, prepare func(*fixture)) *fixture {
 	f := &fixture{root: root, dir: dir, src: filepath.Join(root, "source"), sys: newSystem()}
 	f.sys.unitRoot = t.TempDir()
 	must(t, os.WriteFile(filepath.Join(f.sys.unitRoot, "demo.service"), []byte("[Unit]\nDescription=fixture\n[Install]\nWantedBy=multi-user.target\n"), 0600))
-	f.scope = Scope{Users: []string{"demo", "foreign"}, Groups: []string{"demo", "foreign", "primary", "access"}, Units: []string{"demo.service"}}
+	f.scope = Scope{Reused: []string{root}, Users: []string{"demo", "foreign"}, Groups: []string{"demo", "foreign", "primary", "access"}, Units: []string{"demo.service"}}
 	f.sys.units["demo.service"] = "disabled"
 	for _, name := range []string{"older", "newer", "own", "foreign", "public", "pre-existing", "valid", "never-created", "full-write", "not-created", "target", "ordinary", "owned", "orphan", "normal", "old.key", "wallet.json", "service.json", "probe", "config", "cli-file", "file", "parent/file", "parent/newer", "remove"} {
 		f.declare(name, "file")
@@ -52,6 +52,24 @@ func setupWith(t *testing.T, purpose string, prepare func(*fixture)) *fixture {
 	must(t, os.WriteFile(f.src, []byte("fixture public bytes\n"), 0600))
 	if prepare != nil {
 		prepare(f)
+	}
+	// Existing fixture parents are deliberately reused; absent created directories are not.
+	for _, p := range f.scope.Paths {
+		name := filepath.Dir(p.Path)
+		if name == root {
+			continue
+		}
+		if st, e := os.Stat(name); e == nil && st.IsDir() {
+			found := false
+			for _, old := range f.scope.Reused {
+				if old == name {
+					found = true
+				}
+			}
+			if !found {
+				f.scope.Reused = append(f.scope.Reused, name)
+			}
+		}
 	}
 	must(t, Init(dir, manifest, base, InitOptions{Purpose: purpose, Scope: f.scope, System: f.sys}))
 	f.l, e = Open(dir, f.sys)
@@ -496,7 +514,7 @@ func TestLedgerFilesystemDriftAndNoFollow(t *testing.T) {
 }
 
 // Claim: an EACCES lookup at the newest entry stops immediately, leaving older
-// objects intact; a valid lookup removes the same-shaped owned objects.
+// objects intact; a valid lookup removes them, then the unrecorded chmod cycle fails the parent comparison.
 func TestLedgerLookupEACCESStopsD9_4(t *testing.T) {
 	f := setupWith(t, "station", func(f *fixture) { must(t, os.Mkdir(filepath.Join(f.root, "parent"), 0700)) })
 	older := f.create(t, "older", "file", "remove")
@@ -509,7 +527,11 @@ func TestLedgerLookupEACCESStopsD9_4(t *testing.T) {
 	exists(t, older)
 	must(t, os.Chmod(parentPath, 0700))
 	exists(t, p)
-	must(t, f.l.Replay("station"))
+	err := f.l.Replay("station")
+	code(t, err, 1)
+	if !strings.Contains(err.Error(), "UNLISTED_DIFFERENCE path:"+parentPath+" unrecorded-parent-transition") {
+		t.Fatal(err)
+	}
 	absent(t, older)
 	absent(t, p)
 }

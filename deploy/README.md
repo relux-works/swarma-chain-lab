@@ -48,12 +48,21 @@ for Linux installation orchestration. See [G2-LEDGER.md](G2-LEDGER.md) for all
 subcommands, the canonical schema, retention, exit codes and install call sites.
 Run `deploy-kit g2-ledger init -dir /root/g2/ledger -manifest /root/g2/release/manifest.json -baseline /root/g2/baseline -purpose station -scope /root/g2/scope.json`
 after verifying the release, then `deploy-kit g2-ledger verify -dir /root/g2/ledger`.
-Declare intended paths/accounts/units in the scope file before init; genesis
+Declare intended paths/accounts/units and a required `reused` array of existing
+parent directories (`[]` for none) in the scope file before init; genesis
 records their S0 state and attempt purpose. Replay emits JSONL differences and
 a summary on stdout, with a human summary on stderr. The single retention table
 and comparison limits (including unconditional station account/key protection) are in [G2-LEDGER.md](G2-LEDGER.md#replay-and-retention).
 Artifacts are private `records.jsonl`, `HEAD` and `LOCK` inside the supplied directory;
 saved local validation output belongs in `.temp/`.
+The final summary includes `reused_parent_changes` and `parent_violations`;
+allowed parent metadata changes name every causing ledger object. See the
+[comparison contract](G2-LEDGER.md#final-baseline-comparison).
+Run `gofmt -l g2ledger`, `go vet ./...`, and
+`go test -race ./g2ledger ./cmd/deploy-kit -count=1` from `deploy/`.
+The focused controls use
+`go test -race ./g2ledger -run '^TestLedger(Reused|ForeignFileCtime|Atime)' -count=1`;
+they use real temporary directories without privileged account/systemd mutations.
 `create-user` requires `-role tree-owner|service` (choose one); the ledger
 commits the role and verifies it during replay. `create-tree` requires a
 committed `tree-owner` account that has no other recorded role. It is reserved

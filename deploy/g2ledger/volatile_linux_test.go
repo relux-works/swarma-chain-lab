@@ -32,7 +32,7 @@ func TestLedgerVolatileScopeRefused(t *testing.T) {
 			t.Run(kind+path, func(t *testing.T) {
 				f := setup(t)
 				target := filepath.Join(f.root, "refused-ledger")
-				err := Init(target, filepath.Join(f.root, "manifest.json"), filepath.Join(f.root, "baseline"), InitOptions{Purpose: "station", Scope: Scope{Paths: []ScopePath{{Path: path, Kind: kind}}}, System: f.sys})
+				err := Init(target, filepath.Join(f.root, "manifest.json"), filepath.Join(f.root, "baseline"), InitOptions{Purpose: "station", Scope: Scope{Reused: []string{}, Paths: []ScopePath{{Path: path, Kind: kind}}}, System: f.sys})
 				code(t, err, 1)
 				if !strings.Contains(err.Error(), volatileRuntimeReason) {
 					t.Fatal(err)
@@ -43,7 +43,7 @@ func TestLedgerVolatileScopeRefused(t *testing.T) {
 	}
 	for _, path := range []string{"/var/lib/swarma-wallet", "/var/lib/g2-ledger-test/missing", "/runtime/g2", "/var/runner/g2"} {
 		must(t, targetPathPolicy(path))
-		must(t, validateScope(Scope{Paths: []ScopePath{{Path: path, Kind: "dir"}}}))
+		must(t, validateScope(Scope{Reused: []string{}, Paths: []ScopePath{{Path: path, Kind: "dir"}}}))
 	}
 }
 

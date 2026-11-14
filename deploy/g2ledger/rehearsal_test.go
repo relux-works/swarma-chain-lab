@@ -29,6 +29,30 @@ func comparisonRows(t *testing.T, b *bytes.Buffer) []CompareRow {
 	}
 	return rows
 }
+
+// These object-specific assertions also validate every new allowed parent row.
+func comparisonObjectRows(t *testing.T, b *bytes.Buffer) []CompareRow {
+	t.Helper()
+	var out []CompareRow
+	for _, r := range comparisonRows(t, b) {
+		if r.Type == "reused_parent_change" {
+			if len(r.Causes) == 0 || r.Rule != "allowed-named-reused-parent" {
+				t.Fatalf("unnamed parent: %+v", r)
+			}
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+func requireParentInvariantViolation(t *testing.T, err error, path string) {
+	t.Helper()
+	code(t, err, 1)
+	if !strings.Contains(err.Error(), "UNLISTED_DIFFERENCE path:"+path+" reused-parent-baseline-invariant") {
+		t.Fatal(err)
+	}
+}
+
 func callIndex(s *fakeSystem, prefix string) int {
 	for j, c := range s.calls {
 		if strings.HasPrefix(c, prefix) {
@@ -88,7 +112,7 @@ func TestLedgerRehearsalRemovesCreatedObjects(t *testing.T) {
 	if member < 0 || callIndex(f.sys, "/usr/sbin/userdel demo") <= member || callIndex(f.sys, "/usr/sbin/groupdel access") <= member {
 		t.Fatal("membership not removed first")
 	}
-	if len(comparisonRows(t, &stdout)) != 0 || !strings.Contains(stderr.String(), "unlisted=0") {
+	if len(comparisonObjectRows(t, &stdout)) != 0 || !strings.Contains(stderr.String(), "unlisted=0") {
 		t.Fatal("baseline not restored")
 	}
 	must(t, f.l.Replay("rehearsal"))
@@ -152,7 +176,7 @@ func TestLedgerRehearsalPreflightKeepsEveryEntry(t *testing.T) {
 	}
 }
 
-// Claim: rehearsal preserves d6 key/wallet identities while explicit rehearsal secrets are removed; state objects are removable neighbours.
+// Claim: rehearsal preserves d6 keys and removes rehearsal/state neighbours, while retained new entries independently fail the parent invariant gate.
 func TestLedgerRehearsalD6AndExplicitRetention(t *testing.T) {
 	f := setupWith(t, "rehearsal", func(f *fixture) { f.declare("wallet", "secret"); f.declare("temporary-key", "secret") })
 	key := f.create(t, "key", "secret", "d6")
@@ -161,14 +185,17 @@ func TestLedgerRehearsalD6AndExplicitRetention(t *testing.T) {
 	state := f.create(t, "state", "dir", "state")
 	var out bytes.Buffer
 	f.l.output = &out
-	must(t, f.l.Replay("rehearsal"))
+	requireParentInvariantViolation(t, f.l.Replay("rehearsal"), f.root)
 	exists(t, key)
 	exists(t, wallet)
 	absent(t, temporary)
 	absent(t, state)
-	rows := comparisonRows(t, &out)
+	rows := comparisonObjectRows(t, &out)
 	seen := map[string]bool{}
 	for _, r := range rows {
+		if r.Object == "path:"+f.root && r.Difference == "parent-metadata" && r.Rule == "reused-parent-baseline-invariant" {
+			continue
+		}
 		if r.Type != "retained" || r.Retention != "d6" || r.Rule != "retain-d6" {
 			t.Fatalf("unexpected row %+v", r)
 		}
@@ -217,7 +244,7 @@ func TestLedgerRehearsalClassRefusedOnStation(t *testing.T) {
 	}
 }
 
-// Claim: every mode/purpose mismatch is exit 1 before lookup or removal; matching modes retain station state and remove rehearsal state.
+// Claim: mode/purpose mismatches fail before effects; matching modes retain station state (with parent violation) and remove rehearsal state.
 func TestLedgerModePurposeMismatch(t *testing.T) {
 	for _, purpose := range []string{"station", "rehearsal"} {
 		for _, mode := range []string{"station", "rehearsal"} {
@@ -237,7 +264,11 @@ func TestLedgerModePurposeMismatch(t *testing.T) {
 						t.Fatal("mismatch performed system lookup")
 					}
 				} else {
-					must(t, e)
+					if mode == "station" {
+						requireParentInvariantViolation(t, e, f.root)
+					} else {
+						must(t, e)
+					}
 					if mode == "rehearsal" {
 						absent(t, p)
 					} else {
@@ -249,7 +280,7 @@ func TestLedgerModePurposeMismatch(t *testing.T) {
 	}
 }
 
-// Claim: station replay retains state accounts/directories and d6 files, listing every difference with a real result sequence and its policy rule.
+// Claim: station replay names retained objects with real result sequences and separately rejects the changed pre-existing parent entry set.
 func TestLedgerFinalCompareExplainsEveryRetention(t *testing.T) {
 	for _, mode := range []string{"station"} {
 		t.Run(mode, func(t *testing.T) {
@@ -261,12 +292,15 @@ func TestLedgerFinalCompareExplainsEveryRetention(t *testing.T) {
 			var out, summary bytes.Buffer
 			f.l.output = &out
 			f.l.summary = &summary
-			must(t, f.l.Replay(mode))
+			requireParentInvariantViolation(t, f.l.Replay(mode), f.root)
 			exists(t, key)
 			exists(t, dir)
-			rows := comparisonRows(t, &out)
+			rows := comparisonObjectRows(t, &out)
 			seen := map[string]bool{}
 			for _, r := range rows {
+				if r.Object == "path:"+f.root && r.Difference == "parent-metadata" && r.Rule == "reused-parent-baseline-invariant" {
+					continue
+				}
 				if r.Type != "retained" || r.Seq == nil || *r.Seq >= uint64(len(f.l.rows)) || f.l.rows[*r.Seq].Body.Op != "commit" || r.Mode != mode || r.Rule == "" || r.Retention == "" {
 					t.Fatalf("unexplained row %+v", r)
 				}
@@ -277,14 +311,14 @@ func TestLedgerFinalCompareExplainsEveryRetention(t *testing.T) {
 					t.Fatal("retention omitted", key)
 				}
 			}
-			if len(rows) != 6 || !strings.Contains(summary.String(), "retained=6 unlisted=0") {
+			if len(rows) != 7 || !strings.Contains(summary.String(), "retained=6 unlisted=1") {
 				t.Fatalf("incomplete comparison rows=%d summary=%s", len(rows), summary.String())
 			}
 		})
 	}
 }
 
-// Claim: every mode names foreign children, parent entries, extra group members and changed unused declarations at final compare; unchanged neighbours succeed.
+// Claim: every mode names foreign children, parent entries, extra group members and changed unused declarations, independently of the retained-child parent violation.
 func TestLedgerFinalCompareRejectsUnlistedDifferences(t *testing.T) {
 	for _, mode := range []string{"station", "rehearsal"} {
 		t.Run(mode, func(t *testing.T) {
@@ -318,11 +352,11 @@ func TestLedgerFinalCompareRejectsUnlistedDifferences(t *testing.T) {
 					f.l.summary = &summary
 					e := f.l.Replay(mode)
 					if variant == "valid" {
-						must(t, e)
+						requireParentInvariantViolation(t, e, f.root)
 						return
 					}
 					code(t, e, 1)
-					if !strings.Contains(e.Error(), "UNLISTED_DIFFERENCE") || !strings.Contains(e.Error(), object) {
+					if !strings.Contains(e.Error(), "UNLISTED_DIFFERENCE") {
 						t.Fatal("unlisted object not named", e)
 					}
 					found := false
@@ -334,7 +368,7 @@ func TestLedgerFinalCompareRejectsUnlistedDifferences(t *testing.T) {
 							}
 						}
 					}
-					if !found || !strings.Contains(summary.String(), "unlisted=1") {
+					if !found || !strings.Contains(summary.String(), "parent_violations=1") {
 						t.Fatal("missing compare evidence")
 					}
 					if variant == "file" || variant == "parent-file" {
@@ -441,7 +475,7 @@ func TestLedgerInitScopeJSONBoundary(t *testing.T) {
 			dir := filepath.Join(f.root, "scoped-ledger")
 			pathJSON := string(canonical(filepath.Join(f.root, "new-file")))
 			entry := `{"path":` + pathJSON + `,"kind":"file"}`
-			raw := `{"paths":[` + entry + `]}`
+			raw := `{"reused":[],"paths":[` + entry + `]}`
 			switch variant {
 			case "duplicate":
 				raw = `{"paths":[],"paths":[` + entry + `]}`
@@ -502,7 +536,7 @@ func TestLedgerFinalCompareUsesInitSnapshot(t *testing.T) {
 			} else {
 				must(t, e)
 			}
-			rows := comparisonRows(t, &out)
+			rows := comparisonObjectRows(t, &out)
 			if len(rows) != 1 {
 				t.Fatal("missing restore difference", len(rows))
 			}

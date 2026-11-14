@@ -71,7 +71,7 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 		t.Fatal(e)
 	}
 	scopeFile := filepath.Join(root, "scope.json")
-	scopeRaw, e := json.Marshal(map[string]any{"paths": []map[string]string{{"path": filepath.Join(outputs, "key"), "kind": "secret"}, {"path": filepath.Join(outputs, "closed-key"), "kind": "secret"}, {"path": filepath.Join(outputs, "rehearsal-key"), "kind": "secret"}}})
+	scopeRaw, e := json.Marshal(map[string]any{"reused": []string{outputs}, "paths": []map[string]string{{"path": filepath.Join(outputs, "key"), "kind": "secret"}, {"path": filepath.Join(outputs, "closed-key"), "kind": "secret"}, {"path": filepath.Join(outputs, "rehearsal-key"), "kind": "secret"}}})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -117,13 +117,19 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 		t.Fatal("committed identity differs from generator output")
 	}
 	invoke(0, "g2-ledger", "verify", "-dir", dir)
-	invoke(0, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
+	// Claim: keeping a new secret names both its retention and the independent parent entry-set violation.
+	initialCompare := invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
+	if !bytes.Contains(initialCompare, []byte(`"rule":"reused-parent-baseline-invariant"`)) || !bytes.Contains(initialCompare, []byte(`"parent_violations":1`)) {
+		t.Fatal("missing parent violation", string(initialCompare))
+	}
 	// A post-creation metadata change must be refused; restoring the approved
 	// mode below is a bounded fixture intervention, not an installation step.
 	if err = os.Chmod(key, 0600); err != nil {
 		t.Fatal(err)
 	}
-	invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
+	if rejected := invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "station"); len(rejected) != 0 {
+		t.Fatal("changed retained identity reached final comparison")
+	}
 	if err = os.Chmod(key, 0640); err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +144,7 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 	invoke(1, "g2-ledger", "exec-create", "-dir", dir, "-kind", "secret", "-ret", "d6", "-path", key, "--", kit, "g2-keygen", "-out", key)
 	invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "rehearsal")
 	invoke(0, "g2-ledger", "verify", "-dir", dir)
-	compareOut := invoke(0, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
+	compareOut := invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
 	if !bytes.Contains(compareOut, []byte(`"type":"retained"`)) || !bytes.Contains(compareOut, []byte(`"rule":"retain-d6"`)) {
 		t.Fatal("missing machine-readable retention")
 	}
@@ -189,8 +195,14 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 		t.Fatal(e)
 	}
 	lines := bytes.Split(bytes.TrimSuffix(raw, []byte{'\n'}), []byte{'\n'})
-	if len(lines) != 3 {
+	if len(lines) < 3 {
 		t.Fatal("unexpected record shape")
+	}
+	for _, line := range lines[3:] {
+		var row g2ledger.Record
+		if e := json.Unmarshal(line, &row); e != nil || row.Body.Op != "parent-replay" {
+			t.Fatal("unexpected extra record", e)
+		}
 	}
 	var intent struct {
 		Hash string `json:"hash"`

@@ -80,7 +80,11 @@ func TestLedgerStationProtectedCreation(t *testing.T) {
 					protectedPresent(t, f, kind, false)
 				} else {
 					must(t, err)
-					must(t, f.l.Replay(purpose))
+					if purpose == "station" && (kind == "secret" || kind == "exec-secret") {
+						requireParentInvariantViolation(t, f.l.Replay(purpose), f.root)
+					} else {
+						must(t, f.l.Replay(purpose))
+					}
 					protectedPresent(t, f, kind, purpose == "station" || ret == "d6")
 				}
 			})
@@ -120,7 +124,11 @@ func TestLedgerStationProtectedReplay(t *testing.T) {
 						}
 						exists(t, newer)
 					} else {
-						must(t, err)
+						if op == "replay" && (kind == "secret" || kind == "exec-secret") {
+							requireParentInvariantViolation(t, err, f.root)
+						} else {
+							must(t, err)
+						}
 					}
 					protectedPresent(t, f, kind, true)
 				}

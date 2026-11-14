@@ -87,6 +87,7 @@ type Identity struct {
 // Scope declares targets before any mutation. Parents are inventory scope only;
 // declaring a directory never grants authority over arbitrary descendants.
 type Scope struct {
+	Reused []string    `json:"reused"`
 	Paths  []ScopePath `json:"paths"`
 	Users  []string    `json:"users"`
 	Groups []string    `json:"groups"`
@@ -100,12 +101,34 @@ type DirectoryEntry struct {
 	Name string `json:"name"`
 	Type uint32 `json:"type"`
 }
+
+// BaselineMetadata is comparison evidence, separate from rollback identity. Atime is excluded.
+type BaselineMetadata struct {
+	Size    int64 `json:"size"`
+	MtimeNS int64 `json:"mtime_ns"`
+	CtimeNS int64 `json:"ctime_ns"`
+}
+type ParentEvent struct {
+	Path string `json:"path"`
+	Mask uint32 `json:"mask"`
+}
+type ParentReceipt struct {
+	Before    BaselineObject `json:"before"`
+	After     BaselineObject `json:"after"`
+	Events    []ParentEvent  `json:"events"`
+	Temporary []string       `json:"temporary,omitempty"`
+}
+type ParentReplay struct {
+	Commit  uint64          `json:"commit"`
+	Parents []ParentReceipt `json:"parents"`
+}
 type BaselineObject struct {
-	Kind     string           `json:"kind"`
-	Name     string           `json:"name"`
-	Identity *Identity        `json:"identity"`
-	Children []DirectoryEntry `json:"children,omitempty"`
-	Members  []string         `json:"members,omitempty"`
+	Metadata *BaselineMetadata `json:"metadata,omitempty"`
+	Kind     string            `json:"kind"`
+	Name     string            `json:"name"`
+	Identity *Identity         `json:"identity"`
+	Children []DirectoryEntry  `json:"children,omitempty"`
+	Members  []string          `json:"members,omitempty"`
 }
 
 type Genesis struct {
@@ -143,15 +166,17 @@ type Action struct {
 	Description  string     `json:"description,omitempty"`
 }
 type Result struct {
-	Intent     uint64     `json:"intent"`
-	Identities []Identity `json:"identities,omitempty"`
-	Reason     string     `json:"reason,omitempty"`
+	Parents    []ParentReceipt `json:"parents,omitempty"`
+	Intent     uint64          `json:"intent"`
+	Identities []Identity      `json:"identities,omitempty"`
+	Reason     string          `json:"reason,omitempty"`
 }
 type Body struct {
-	Op      string   `json:"op"`
-	Genesis *Genesis `json:"genesis,omitempty"`
-	Action  *Action  `json:"action,omitempty"`
-	Result  *Result  `json:"result,omitempty"`
+	ParentReplay *ParentReplay `json:"parent_replay,omitempty"`
+	Op           string        `json:"op"`
+	Genesis      *Genesis      `json:"genesis,omitempty"`
+	Action       *Action       `json:"action,omitempty"`
+	Result       *Result       `json:"result,omitempty"`
 }
 type Record struct {
 	Seq  uint64 `json:"seq"`

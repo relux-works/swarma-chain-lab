@@ -69,11 +69,26 @@ func requirePairStop(t *testing.T, f *fixture, reason string) {
 
 func requireCleanPairBaseline(t *testing.T, out string) {
 	t.Helper()
-	var summary CompareSummary
 	dec := json.NewDecoder(strings.NewReader(out))
-	must(t, dec.Decode(&summary))
-	if summary.Type != "baseline_summary" || summary.Mode != "rehearsal" || summary.Compared == 0 || summary.Retained != 0 || summary.Unlisted != 0 {
-		t.Fatalf("baseline not clean: %s", out)
+	parents := 0
+	for {
+		var raw json.RawMessage
+		must(t, dec.Decode(&raw))
+		var row CompareRow
+		must(t, json.Unmarshal(raw, &row))
+		if row.Type == "reused_parent_change" {
+			if len(row.Causes) == 0 || row.Rule != "allowed-named-reused-parent" {
+				t.Fatalf("unnamed parent: %s", raw)
+			}
+			parents++
+			continue
+		}
+		var summary CompareSummary
+		must(t, json.Unmarshal(raw, &summary))
+		if summary.Type != "baseline_summary" || summary.Mode != "rehearsal" || summary.Compared == 0 || summary.Retained != 0 || summary.Unlisted != 0 || summary.ParentViolations != 0 || summary.ReusedParentChanges != parents {
+			t.Fatalf("baseline not clean: %s", out)
+		}
+		break
 	}
 	var extra any
 	if dec.Decode(&extra) != io.EOF {

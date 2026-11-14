@@ -571,6 +571,9 @@ func (l *Ledger) atomicReplace(path string, want Identity, data []byte, uid, gid
 	}
 	defer d.Close()
 	temp := ".g2-ledger-" + randomID()
+	if l.parentWatch != nil {
+		l.parentWatch.temporary = append(l.parentWatch.temporary, filepath.Join(filepath.Dir(path), temp))
+	}
 	f, e := at(d, temp, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL, 0600)
 	if e != nil {
 		return nil, e
