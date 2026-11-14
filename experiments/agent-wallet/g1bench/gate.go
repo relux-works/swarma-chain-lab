@@ -5,12 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"sync"
 	"time"
 
 	cg "github.com/relux-works/swarma-chain-lab/experiments/grantcheck"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
+	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 // Event's routing fields come from the trusted carrier adapter. MatrixSender
@@ -35,20 +35,20 @@ type Gate struct {
 	now           func() time.Time
 	mu            sync.Mutex
 	seen          map[string]bool
+	bindings      map[string]string
 }
 
-func New(checker *cg.Checker, executor string, node su.Node, minimumHeight int64, now func() time.Time) *Gate {
+func New(checker *cg.Checker, executor string, node su.Node, minimumHeight int64, now func() time.Time, bindings map[string]string) *Gate {
 	if now == nil {
 		now = time.Now
 	}
-	return &Gate{checker: checker, executor: executor, node: node, minimumHeight: minimumHeight, now: now, seen: map[string]bool{}}
+	pins := make(map[string]string, len(bindings))
+	for id, key := range bindings {
+		pins[id] = key
+	}
+	return &Gate{bindings: pins, checker: checker, executor: executor, node: node, minimumHeight: minimumHeight, now: now, seen: map[string]bool{}}
 }
 
-// inbound is the only compatibility seam for the current main API. Its sender
-// argument comes exclusively from verify, never a carrier identity or body field.
-func inbound(ctx context.Context, c *cg.Checker, key string, p *cg.Presentation) cg.Verdict {
-	return c.Inbound(ctx, key, p)
-}
 func (g *Gate) Admit(ctx context.Context, event Event) Result {
 	refuse := func(code string) Result { return Result{Route: "refused", Code: code} }
 	if event.OwnerDM {
@@ -59,11 +59,11 @@ func (g *Gate) Admit(ctx context.Context, event Event) Result {
 	}
 	// Require the exact fixed carriage shape; aliases, duplicate members and
 	// unrelated JSON are outside this small bench profile.
-	var content map[string]string
-	if json.Unmarshal(event.Content, &content) != nil || len(content) != 3 || content["msgtype"] != "m.text" || content["body"] != event.Text {
+	var content map[string]any
+	if json.Unmarshal(event.Content, &content) != nil || (len(content) != 3 && len(content) != 4) || content["msgtype"] != "m.text" || content["body"] != event.Text {
 		return refuse("carriage_invalid")
 	}
-	encoded, ok := content[ContentKey]
+	encoded, ok := content[ContentKey].(string)
 	if !ok || encoded == "" {
 		return refuse("envelope_missing")
 	}
@@ -74,9 +74,18 @@ func (g *Gate) Admit(ctx context.Context, event Event) Result {
 	if err != nil {
 		return refuse("envelope_invalid")
 	}
-	e, key, err := verify(raw, event.Text, event.Room, event.Recipient, g.now())
+	e, _, err := verify(raw, event.Text, event.Room, event.Recipient, g.now())
 	if err != nil {
 		return refuse("envelope_invalid")
+	}
+	// Envelope verification always precedes co-signature verification.
+	co, exists := content[CosignatureContentKey]
+	if !exists {
+		return refuse("cosignature_missing")
+	}
+	key, err := (BIP340{}).Verify(raw, co)
+	if err != nil {
+		return refuse("cosignature_invalid")
 	}
 	proof, err := decode(e.Body.Arguments.Presentation, cg.MaxPresentationBytes)
 	if err != nil {
@@ -104,7 +113,7 @@ func (g *Gate) Admit(ctx context.Context, event Event) Result {
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	replay := key + ":" + e.Body.Nonce
+	replay := e.ID
 	if g.seen[replay] {
 		return refuse("replay")
 	}
@@ -114,15 +123,70 @@ func (g *Gate) Admit(ctx context.Context, event Event) Result {
 	if err := g.fresh(ctx); err != nil {
 		return refuse("node_not_synced")
 	}
-	verdict := inbound(ctx, g.checker, key, &p)
-	if verdict.Decision != cg.Live {
+	verdict := g.checker.InboundFrom(ctx, cg.SenderProof{Transport: cg.SwarmEnvelopeV2, Key: key}, &p)
+	route, _, _ := verdict.A2ADecision()
+	if route != "live" {
 		return Result{Route: "refused", Code: string(verdict.Code), Verdict: verdict}
 	}
 	g.seen[replay] = true
 	return Result{Route: "live", Code: "live", Verdict: verdict}
 }
-func Carry(raw []byte, text string) []byte {
-	return Canonical(map[string]string{"msgtype": "m.text", "body": text, ContentKey: base64.RawURLEncoding.EncodeToString(raw)})
+func Carry(raw []byte, text string, cosignature ...map[string]any) []byte {
+	content := map[string]any{"msgtype": "m.text", "body": text, ContentKey: base64.RawURLEncoding.EncodeToString(raw)}
+	if len(cosignature) == 1 {
+		content[CosignatureContentKey] = cosignature[0]
+	}
+	return Canonical(content)
+}
+
+// Outbound checks exactly one signed recipient per envelope. Bindings are copied
+// from the identity's protected harness config, never read from carrier content.
+func (g *Gate) Outbound(ctx context.Context, event Event) Result {
+	deny := func(code string) Result { return Result{Route: "refused", Code: code} }
+	if len(event.Content) == 0 || len(event.Content) > 60<<10 {
+		return deny("envelope_missing")
+	}
+	var content map[string]any
+	if json.Unmarshal(event.Content, &content) != nil || len(content) != 4 || content["msgtype"] != "m.text" || content["body"] != event.Text || string(Canonical(content)) != string(event.Content) {
+		return deny("carriage_invalid")
+	}
+	encoded, ok := content[ContentKey].(string)
+	if !ok {
+		return deny("envelope_missing")
+	}
+	raw, err := decode(encoded, maxEnvelope)
+	if err != nil {
+		return deny("envelope_invalid")
+	}
+	e, _, err := verify(raw, event.Text, event.Room, event.Recipient, g.now())
+	if err != nil {
+		return deny("envelope_invalid")
+	}
+	if _, err := (BIP340{}).Verify(raw, content[CosignatureContentKey]); err != nil {
+		return deny("cosignature_invalid")
+	}
+	key, ok := g.bindings[e.Body.To]
+	if !ok || key == "" {
+		return deny("recipient_unresolved")
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.seen["out:"+e.ID] {
+		return deny("replay")
+	}
+	if len(g.seen) >= 4096 {
+		return deny("replay_capacity")
+	}
+	if err := g.fresh(ctx); err != nil {
+		return deny("node_not_synced")
+	}
+	verdict := g.checker.OutboundFrom(ctx, cg.RecipientProof{Transport: cg.SwarmEnvelopeV2, Keys: []string{key}})
+	route, _, _ := verdict.A2ADecision()
+	if route != "live" {
+		return Result{Route: "refused", Code: string(verdict.Code), Verdict: verdict}
+	}
+	g.seen["out:"+e.ID] = true
+	return Result{Route: "live", Code: "live", Verdict: verdict}
 }
 
 // fresh adds a conservative bench floor to the existing own-node checks. The

@@ -1,9 +1,10 @@
-// Package g1bench is a regtest-only envelope-shaped admission laboratory.
-// Its BIP-340 fixture profile is NOT the native swarm-envelope/2 key profile.
+// Package g1bench is a regtest-only Track A envelope admission laboratory.
+// Ed25519 envelope mechanics are native-shaped; keys and attestation are fixtures.
 package g1bench
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -22,9 +23,8 @@ import (
 const ContentKey = "works.relux.swarm.envelope"
 const version = "swarm-envelope/2"
 
-// A separate domain prevents the fixture algorithm from masquerading as a
-// registered native message signature. See README.md for the profile mismatch.
-const domain = "g1bench-message/1\n"
+// Native message domain: Ed25519 signs the complete record without prehash.
+const domain = "swarma-msg/2\n"
 const maxEnvelope = 65536
 
 var errEnvelope = errors.New("bench envelope invalid")
@@ -43,11 +43,15 @@ type Body struct {
 	Author            string    `json:"author"`
 	AuthorAttestation string    `json:"author_attestation"`
 	Action            string    `json:"action"`
-	Target            string    `json:"target"`
+	Target            Target    `json:"target"`
 	Arguments         Arguments `json:"arguments"`
 	Room              string    `json:"room"`
 	To                string    `json:"to"`
 	BodySHA256        string    `json:"body_sha256"`
+}
+type Target struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id"`
 }
 type Signature struct {
 	Role string `json:"role"`
@@ -91,16 +95,15 @@ func record(e Envelope) []byte {
 
 // Sign creates only laboratory messages, with a random 128-bit nonce. No
 // attestation trust or platform authority is implied by the synthetic reference.
-func Sign(k *btcec.PrivateKey, body Body) ([]byte, error) {
-	body.Author = "bip340:" + Key(k)
-	e := Envelope{Version: version, Body: body}
-	e.ID = "sha256:" + Hash(append([]byte(domain), Canonical(body)...))
-	digest := sha256.Sum256(record(e))
-	sig, err := schnorr.Sign(k, digest[:])
-	if err != nil {
+func Sign(k ed25519.PrivateKey, body Body) ([]byte, error) {
+	if len(k) != ed25519.PrivateKeySize {
 		return nil, errEnvelope
 	}
-	e.Signatures = []Signature{{Role: "author", Key: body.Author, Sig: base64.RawURLEncoding.EncodeToString(sig.Serialize())}}
+	body.Author = "ed25519:" + base64.RawURLEncoding.EncodeToString(k.Public().(ed25519.PublicKey))
+	e := Envelope{Version: version, Body: body}
+	e.ID = "sha256:" + Hash(append([]byte(domain), Canonical(body)...))
+	sig := ed25519.Sign(k, record(e))
+	e.Signatures = []Signature{{Role: "author", Key: body.Author, Sig: base64.RawURLEncoding.EncodeToString(sig)}}
 	return Canonical(e), nil
 }
 func Message(p cg.Presentation, terms []byte, room, to, text string, now time.Time) (Body, error) {
@@ -108,10 +111,11 @@ func Message(p cg.Presentation, terms []byte, room, to, text string, now time.Ti
 	if _, err := rand.Read(n); err != nil {
 		return Body{}, err
 	}
-	return Body{Type: "message/1", Aud: "regtest.grant-bench", Nonce: base64.RawURLEncoding.EncodeToString(n), Iat: now.UTC().Format(time.RFC3339), Exp: now.Add(120 * time.Second).UTC().Format(time.RFC3339), AuthorAttestation: "sha256:" + strings.Repeat("0", 64), Action: "observe", Target: "regtest.admission", Arguments: Arguments{p.GrantID, base64.RawURLEncoding.EncodeToString(p.Bytes), base64.RawURLEncoding.EncodeToString(terms)}, Room: room, To: to, BodySHA256: Hash([]byte(text))}, nil
+	return Body{Type: "message/1", Aud: "regtest.grant-bench", Nonce: base64.RawURLEncoding.EncodeToString(n), Iat: now.UTC().Format(time.RFC3339), Exp: now.Add(120 * time.Second).UTC().Format(time.RFC3339), AuthorAttestation: "sha256:" + strings.Repeat("0", 64), Action: "observe", Target: Target{Kind: "station", ID: "regtest.admission"}, Arguments: Arguments{p.GrantID, base64.RawURLEncoding.EncodeToString(p.Bytes), base64.RawURLEncoding.EncodeToString(terms)}, Room: room, To: to, BodySHA256: Hash([]byte(text))}, nil
 }
 
-// verify returns a key only after BIP-340 verification of the protected record.
+// verify returns the Ed25519 author only after verification of the protected record.
+// This key is never the grantcheck sender; Track A verifies a separate co-signature.
 // Canonical-only input intentionally narrows the native format's wire grammar.
 func verify(raw []byte, text, room, to string, now time.Time) (Envelope, string, error) {
 	var e Envelope
@@ -124,7 +128,7 @@ func verify(raw []byte, text, room, to string, now time.Time) (Envelope, string,
 		return e, "", errEnvelope
 	}
 	b := e.Body
-	if e.Version != version || b.Type != "message/1" || b.Aud != "regtest.grant-bench" || b.Action != "observe" || b.Target != "regtest.admission" || b.AuthorAttestation != "sha256:"+strings.Repeat("0", 64) || b.Room != room || b.To != to || b.BodySHA256 != Hash([]byte(text)) {
+	if e.Version != version || b.Type != "message/1" || b.Aud != "regtest.grant-bench" || b.Action != "observe" || b.Target != (Target{Kind: "station", ID: "regtest.admission"}) || b.AuthorAttestation != "sha256:"+strings.Repeat("0", 64) || b.Room != room || b.To != to || b.BodySHA256 != Hash([]byte(text)) {
 		return e, "", errEnvelope
 	}
 	nonce, err := decode(b.Nonce, 16)
@@ -136,25 +140,16 @@ func verify(raw []byte, text, room, to string, now time.Time) (Envelope, string,
 	if e1 != nil || e2 != nil || iat.UTC().Format(time.RFC3339) != b.Iat || exp.UTC().Format(time.RFC3339) != b.Exp || !iat.Before(exp) || exp.Sub(iat) > 120*time.Second || now.Before(iat) || !now.Before(exp) {
 		return e, "", errEnvelope
 	}
-	if len(e.Signatures) != 1 || e.Signatures[0].Role != "author" || e.Signatures[0].Key != b.Author || !strings.HasPrefix(b.Author, "bip340:") {
+	if len(e.Signatures) != 1 || e.Signatures[0].Role != "author" || e.Signatures[0].Key != b.Author || !strings.HasPrefix(b.Author, "ed25519:") {
 		return e, "", errEnvelope
 	}
-	key := strings.TrimPrefix(b.Author, "bip340:")
-	kb, err := hex.DecodeString(key)
-	if err != nil || len(kb) != 32 || hex.EncodeToString(kb) != key {
+	key := strings.TrimPrefix(b.Author, "ed25519:")
+	pub, err := decode(key, ed25519.PublicKeySize)
+	if err != nil || len(pub) != ed25519.PublicKeySize {
 		return e, "", errEnvelope
 	}
-	pub, err := schnorr.ParsePubKey(kb)
-	if err != nil {
-		return e, "", errEnvelope
-	}
-	sb, err := decode(e.Signatures[0].Sig, 64)
-	if err != nil {
-		return e, "", errEnvelope
-	}
-	sig, err := schnorr.ParseSignature(sb)
-	digest := sha256.Sum256(record(e))
-	if err != nil || !sig.Verify(digest[:], pub) {
+	sig, err := decode(e.Signatures[0].Sig, ed25519.SignatureSize)
+	if err != nil || len(sig) != ed25519.SignatureSize || !ed25519.Verify(pub, record(e), sig) {
 		return e, "", errEnvelope
 	}
 	if e.ID != "sha256:"+Hash(append([]byte(domain), Canonical(b)...)) {

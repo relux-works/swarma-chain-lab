@@ -2,19 +2,21 @@ package g1bench
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/btcsuite/btcd/btcec/v2"
 	cg "github.com/relux-works/swarma-chain-lab/experiments/grantcheck"
 )
 
 // Claim: the fixture codec verifies its signed record and refuses altered
 // delivery, duplicate/aliased fields, invalid signatures and noncanonical bytes.
-// This is the explicitly separate BIP-340 bench profile, not native conformance.
+// The native-shaped Ed25519 record still uses fixture attestation and policy.
 func TestEnvelopeFixtureProfile(t *testing.T) {
-	key, err := btcec.NewPrivateKey()
+	pub, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +31,7 @@ func TestEnvelopeFixtureProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, got, err := verify(raw, "work text", room, to, now); err != nil || got != Key(key) {
+	if _, got, err := verify(raw, "work text", room, to, now); err != nil || got != base64.RawURLEncoding.EncodeToString(pub) {
 		t.Fatal("positive signature control")
 	}
 	for name, bad := range map[string][]byte{

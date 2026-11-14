@@ -3,6 +3,8 @@ package wallet
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -29,6 +31,7 @@ type benchIdentity struct {
 	fixture       rtFixtureResult
 	issuer, agent *btcec.PrivateKey
 	before        json.RawMessage
+	author        ed25519.PrivateKey
 }
 type benchSigner struct{ key *btcec.PrivateKey }
 
@@ -83,7 +86,11 @@ func newBenchIdentity(t *testing.T, root, bin, executor string) benchIdentity {
 	if bench.Key(issuer) != f.IssuerKey || bench.Key(agent) != f.GranteeKey {
 		t.Fatal("fixture key binding")
 	}
-	return benchIdentity{l, f, issuer, agent, before}
+	_, author, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return benchIdentity{l, f, issuer, agent, before, author}
 }
 
 // reissue reuses the real terms-v2 issuer and Core issuance helper, with the
@@ -214,11 +221,11 @@ func TestG1BenchCore(t *testing.T) {
 			}
 		}
 		clock := func() time.Time { return time.Unix(at, 0) }
-		checker, err := cg.New(cg.Config{ConstructionProfile: "W", Identity: fmt.Sprintf("bench-%d", seq), AgentName: id.fixture.AgentName, LandlordName: id.fixture.LandlordName, IssuerPubkey: issuer, StateDir: state, Node: node, Now: clock})
+		checker, err := cg.NewForTransport(cg.Config{ConstructionProfile: "W", Identity: fmt.Sprintf("bench-%d", seq), AgentName: id.fixture.AgentName, LandlordName: id.fixture.LandlordName, IssuerPubkey: issuer, StateDir: state, Node: node, Now: clock}, cg.SwarmEnvelopeV2)
 		if err != nil {
 			t.Fatal("checker construction", err)
 		}
-		return bench.New(checker, executor, node, info.Blocks, clock), checker, node
+		return bench.New(checker, executor, node, info.Blocks, clock, map[string]string{to: id.fixture.GranteeKey}), checker, node
 	}
 	event := func(t *testing.T, id *benchIdentity, key *btcec.PrivateKey, raw, terms []byte, text string, at int64) bench.Event {
 		t.Helper()
@@ -230,11 +237,15 @@ func TestG1BenchCore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		signed, err := bench.Sign(key, body)
+		signed, err := bench.Sign(id.author, body)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return bench.Event{Content: bench.Carry(signed, text), Text: text, Room: room, Recipient: to, MatrixSender: "@untrusted:example.invalid"}
+		co, err := bench.CoSign(key, signed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return bench.Event{Content: bench.Carry(signed, text, co), Text: text, Room: room, Recipient: to, MatrixSender: "@untrusted:example.invalid"}
 	}
 	good := func(t *testing.T, id *benchIdentity, at int64) bench.Event {
 		return event(t, id, id.agent, id.fixture.Presentation, id.fixture.Terms, "observe only", at)
@@ -280,33 +291,200 @@ func TestG1BenchCore(t *testing.T) {
 		expect(t, g, good(t, &a, now), "live", "live")
 	})
 	t.Run("BadSignature", func(t *testing.T) {
-		// Claim: a correct body/id and cached grant do not rescue a corrupted author signature.
+		// Claim: a correct body/id and cached grant do not rescue a corrupted Ed25519 author signature with a valid co-signature.
 		g, _, node := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
 		expect(t, g, good(t, &a, now), "live", "live")
 		reads := node.reads
 		e := good(t, &a, now)
-		var content map[string]string
+		var content map[string]any
 		_ = json.Unmarshal(e.Content, &content)
-		raw, _ := base64URLDecode(content[bench.ContentKey])
+		raw, _ := base64URLDecode(content[bench.ContentKey].(string))
 		var env bench.Envelope
 		_ = json.Unmarshal(raw, &env)
 		sig, _ := base64URLDecode(env.Signatures[0].Sig)
 		sig[63] ^= 1
-		if _, err := schnorr.ParseSignature(sig); err != nil {
-			t.Fatal("corrupted signature must retain valid encoding")
+		if len(sig) != ed25519.SignatureSize {
+			t.Fatal("corrupted signature length")
 		}
 		env.Signatures[0].Sig = base64URLEncode(sig)
-		e.Content = bench.Carry(bench.Canonical(env), e.Text)
+		badRaw := bench.Canonical(env)
+		co, err := bench.CoSign(a.agent, badRaw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.Content = bench.Carry(badRaw, e.Text, co)
 		expect(t, g, e, "refused", "envelope_invalid")
 		if node.reads != reads {
 			t.Fatal("bad signature reached chain checker")
 		}
 	})
 	t.Run("WrongKey", func(t *testing.T) {
-		// Claim: a genuinely signed envelope by another key cannot use this live grant.
+		// Claim: a genuine co-signature by another key cannot use this live grant.
 		positive(t, &a, now)
 		g, _, _ := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
 		expect(t, g, event(t, &a, b.agent, a.fixture.Presentation, a.fixture.Terms, "observe only", now), "refused", "binding_mismatch")
+	})
+	// Claim: invalid Track A pairs refuse before chain reads beside valid controls; canonical high-s also passes.
+	for _, name := range []string{"CosignatureMissing", "CosignatureDifferentBytes", "Ed25519ValidCosignatureInvalid", "CosignatureLength63", "CosignatureLength65", "CosignatureSAtOrder", "CosignatureRAtPrime", "CosignatureHighS"} {
+		t.Run(name, func(t *testing.T) {
+			g, _, node := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
+			original := good(t, &a, now)
+			var content map[string]any
+			if json.Unmarshal(original.Content, &content) != nil {
+				t.Fatal("cosignature fixture")
+			}
+			raw, _ := base64URLDecode(content[bench.ContentKey].(string))
+			co := content[bench.CosignatureContentKey].(map[string]any)
+			signature, err := hex.DecodeString(co["sig"].(string))
+			if err != nil {
+				t.Fatal(err)
+			}
+			code := "cosignature_invalid"
+			switch name {
+			case "CosignatureMissing":
+				// Claim: A valid Ed25519 envelope without its co-signature refuses.
+				delete(content, bench.CosignatureContentKey)
+				code = "cosignature_missing"
+			case "CosignatureDifferentBytes":
+				// Claim: Signing even a whitespace variant cannot authorize the received bytes.
+				other := append(bytes.Clone(raw), ' ')
+				content[bench.CosignatureContentKey], err = bench.CoSign(a.agent, other)
+			case "Ed25519ValidCosignatureInvalid":
+				// Claim: Valid Ed25519 math cannot rescue invalid co-signature math.
+				signature[63] ^= 1
+				co["sig"] = hex.EncodeToString(signature)
+			case "CosignatureLength63":
+				// Claim: A 63-byte co-signature refuses beside the unchanged valid pair.
+				co["sig"] = hex.EncodeToString(signature[:63])
+			case "CosignatureLength65":
+				// Claim: A 65-byte co-signature refuses beside the unchanged valid pair.
+				co["sig"] = hex.EncodeToString(append(signature, 0))
+			case "CosignatureSAtOrder":
+				// Claim: The noncanonical scalar s = n refuses beside the valid pair.
+				co["sig"] = hex.EncodeToString(signature[:32]) + "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"
+			case "CosignatureRAtPrime":
+				// Claim: The out-of-field coordinate r = p refuses beside the valid pair.
+				co["sig"] = "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f" + hex.EncodeToString(signature[32:])
+			case "CosignatureHighS":
+				// Claim: BIP-340 admits canonical s above n/2; this is not ECDSA's low-S rule.
+				for nonce := byte(0); ; nonce++ {
+					if nonce == 255 {
+						t.Fatal("high-s fixture search exhausted")
+					}
+					var aux [32]byte
+					aux[0] = nonce
+					candidate, e := bench.CoSign(a.agent, raw, schnorr.CustomNonce(aux))
+					if e != nil {
+						t.Fatal(e)
+					}
+					sig, _ := hex.DecodeString(candidate["sig"].(string))
+					if sig[32] >= 0x80 {
+						content[bench.CosignatureContentKey] = candidate
+						break
+					}
+				}
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			e := original
+			e.Content = bench.Canonical(content)
+			if name == "CosignatureHighS" {
+				expect(t, g, e, "live", "live")
+				expect(t, g, good(t, &a, now), "live", "live")
+			} else {
+				expect(t, g, e, "refused", code)
+				if node.reads != 0 {
+					t.Fatal("co-signature rejection reached chain checker")
+				}
+				expect(t, g, original, "live", "live")
+			}
+		})
+	}
+	t.Run("CosignatureIndependentReplay", func(t *testing.T) {
+		// Claim: two valid signatures on identical envelope bytes consume only one replay identity.
+		g, _, node := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
+		e := good(t, &a, now)
+		var content map[string]any
+		_ = json.Unmarshal(e.Content, &content)
+		raw, _ := base64URLDecode(content[bench.ContentKey].(string))
+		var aux [32]byte
+		aux[0] = 1
+		second, err := bench.CoSign(a.agent, raw, schnorr.CustomNonce(aux))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if second["sig"] == content[bench.CosignatureContentKey].(map[string]any)["sig"] {
+			t.Fatal("independent signature fixture")
+		}
+		if key, err := (bench.BIP340{}).Verify(raw, second); err != nil || key != a.fixture.GranteeKey {
+			t.Fatal("second signature must be valid")
+		}
+		expect(t, g, e, "live", "live")
+		reads := node.reads
+		content[bench.CosignatureContentKey] = second
+		e.Content = bench.Canonical(content)
+		expect(t, g, e, "refused", "replay")
+		if node.reads != reads {
+			t.Fatal("replay reached chain checker")
+		}
+		expect(t, g, good(t, &a, now), "live", "live")
+	})
+	t.Run("OutboundRecipientBinding", func(t *testing.T) {
+		// Claim: one signed carrier recipient resolves to one protected key; missing/wrong pins and delivery substitutions deny.
+		g, c, node := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
+		expect(t, g, good(t, &a, now), "live", "live") // Admit proof, not a reusable live verdict.
+		send := func(g *bench.Gate, e bench.Event, route, code string) {
+			t.Helper()
+			got := g.Outbound(ctx, e)
+			if got.Route != route || got.Code != code {
+				t.Fatalf("outbound got %s/%s want %s/%s", got.Route, got.Code, route, code)
+			}
+		}
+		e := good(t, &a, now)
+		send(g, e, "live", "live")
+		send(g, e, "refused", "replay")
+		send(g, good(t, &a, now), "live", "live")
+		for _, pin := range []string{"", b.fixture.GranteeKey} {
+			pins := map[string]string{}
+			if pin != "" {
+				pins[to] = pin
+			}
+			out := bench.New(c, a.fixture.ExecutorKey, node, 0, func() time.Time { return time.Unix(now, 0) }, pins)
+			code := "recipient_unresolved"
+			if pin != "" {
+				code = "no_grant"
+			}
+			send(out, good(t, &a, now), "refused", code)
+		}
+		// A changed protected recipient cannot reuse the original signed to.
+		e = good(t, &a, now)
+		e.Recipient = "@other:example.invalid"
+		send(g, e, "refused", "envelope_invalid")
+		// Two different signed recipients require two different envelopes, even with the same pinned key.
+		pins := map[string]string{to: a.fixture.GranteeKey, "@other:example.invalid": a.fixture.GranteeKey}
+		out := bench.New(c, a.fixture.ExecutorKey, node, 0, func() time.Time { return time.Unix(now, 0) }, pins)
+		pins[to] = b.fixture.GranteeKey // Constructor must retain its private copy.
+		first := good(t, &a, now)
+		send(out, first, "live", "live")
+		var content map[string]any
+		_ = json.Unmarshal(first.Content, &content)
+		raw, _ := base64URLDecode(content[bench.ContentKey].(string))
+		var envelope bench.Envelope
+		_ = json.Unmarshal(raw, &envelope)
+		envelope.Body.To = "@other:example.invalid"
+		raw, err := bench.Sign(a.author, envelope.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		co, err := bench.CoSign(a.agent, raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		second := first
+		second.Recipient = envelope.Body.To
+		second.Content = bench.Carry(raw, second.Text, co)
+		send(out, second, "live", "live")
 	})
 	t.Run("WrongExecutor", func(t *testing.T) {
 		// Claim: grant-bound terms naming a different executor refuse, despite live chain authority.
@@ -319,14 +497,14 @@ func TestG1BenchCore(t *testing.T) {
 		positive(t, &a, now)
 		_, wrong := testKey(91)
 		g, c, node := open(t, &a, now, wrong, a.fixture.ExecutorKey, "")
-		v := c.Inbound(ctx, a.fixture.GranteeKey, &cg.Presentation{GrantID: a.fixture.GrantID, Bytes: a.fixture.Presentation})
-		if v.Code != cg.CodeBindingMismatch || v.Decision != cg.Refused || v.CheckedAt != 0 || v.GrantID != "" || node.reads != 0 {
+		v := c.InboundFrom(ctx, cg.SenderProof{Transport: cg.SwarmEnvelopeV2, Key: a.fixture.GranteeKey}, &cg.Presentation{GrantID: a.fixture.GrantID, Bytes: a.fixture.Presentation})
+		if v.Code != cg.CodeBindingMismatch || benchDecision(v) != "refused" || v.CheckedAt != 0 || v.GrantID != "" || node.reads != 0 {
 			t.Fatal("issuer pin did not reject at the entry boundary", v.Code, v.CheckedAt, node.reads)
 		}
 		// Claim: the verified-envelope adapter preserves that exact checker refusal;
 		// only Gate's sync read precedes the checker's early issuer-pin rejection.
 		r := expect(t, g, good(t, &a, now), "refused", "binding_mismatch")
-		if r.Verdict.Decision != cg.Refused || r.Verdict.Code != cg.CodeBindingMismatch || r.Verdict.CheckedAt != 0 || r.Verdict.GrantID != "" || node.reads != 1 {
+		if benchDecision(r.Verdict) != "refused" || r.Verdict.Code != cg.CodeBindingMismatch || r.Verdict.CheckedAt != 0 || r.Verdict.GrantID != "" || node.reads != 1 {
 			t.Fatal("integrated issuer pin did not preserve early refusal", r.Code, node.reads)
 		}
 	})
@@ -385,8 +563,8 @@ func TestG1BenchCore(t *testing.T) {
 		// Claim: a Matrix id cannot be passed as CG1's sender; valid verified key passes.
 		positive(t, &a, now)
 		_, c, node := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
-		v := c.Inbound(ctx, "@peer:example.invalid", &cg.Presentation{GrantID: a.fixture.GrantID, Bytes: a.fixture.Presentation})
-		if v.Decision != cg.Refused || v.Code != cg.CodeInvalidPeer || node.reads != 0 {
+		v := c.InboundFrom(ctx, cg.SenderProof{Transport: cg.SwarmEnvelopeV2, Key: "@peer:example.invalid"}, &cg.Presentation{GrantID: a.fixture.GrantID, Bytes: a.fixture.Presentation})
+		if benchDecision(v) != "refused" || v.Code != cg.CodeInvalidPeer || node.reads != 0 {
 			t.Fatal("Matrix identity treated as sender", v.Code)
 		}
 	})
@@ -424,7 +602,7 @@ func TestG1BenchCore(t *testing.T) {
 				e := original
 				switch field {
 				case "text":
-					var content map[string]string
+					var content map[string]any
 					if json.Unmarshal(e.Content, &content) != nil {
 						t.Fatal("delivery carriage fixture")
 					}
@@ -454,15 +632,15 @@ func TestG1BenchCore(t *testing.T) {
 		expect(t, warm, good(t, &a, now), "live", "live")
 		// Claim: the retained Gate's exact checker/state already contains the
 		// live proof; a cache-only check succeeds before the real seal spend.
-		v := c.Inbound(ctx, a.fixture.GranteeKey, nil)
-		if v.Decision != cg.Live || v.Code != cg.CodeLive {
+		v := c.InboundFrom(ctx, cg.SenderProof{Transport: cg.SwarmEnvelopeV2, Key: a.fixture.GranteeKey}, nil)
+		if benchDecision(v) != "live" || v.Code != cg.CodeLive {
 			t.Fatal("warm proof cache not live", v.Code)
 		}
 	}
 	expectSpent := func(t *testing.T, g *bench.Gate) {
 		t.Helper()
 		v := expect(t, g, good(t, &a, now), "refused", "seal_spent")
-		if v.Verdict.Decision != cg.Exchange || v.Verdict.Code != cg.CodeSealSpent || !v.Verdict.Closed {
+		if benchDecision(v.Verdict) != "refused" || v.Verdict.Decision != cg.Exchange || v.Verdict.Code != cg.CodeSealSpent || !v.Verdict.Closed {
 			t.Fatal("seal spend did not preserve closed refusal")
 		}
 	}
@@ -545,3 +723,5 @@ func benchNoUTXO(raw []byte) bool {
 	b := bytes.TrimSpace(raw)
 	return bytes.Equal(b, []byte("null")) || bytes.Equal(b, []byte(`""`))
 }
+
+func benchDecision(v cg.Verdict) string { route, _, _ := v.A2ADecision(); return route }
