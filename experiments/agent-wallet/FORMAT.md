@@ -57,8 +57,20 @@ any signed field changes the commitment.
 
 Envelope order: `oneoff_grant`, `signature`. Signature is BIP-340 under the
 landlord's key over SHA256(`swarma-wallet-oneoff-v1` || canonical inner grant).
-There is no separator after the fixed ASCII domain tag. The stable ID hashes
-the complete canonical envelope. Inner field order:
+There is no separator after the fixed ASCII domain tag. The external ID hashes
+the complete canonical envelope and can change when identical content is re-signed.
+
+Private one-off generation state uses version 2 and the domain-separated
+`OneoffDigest(inner grant)` as its key, excluding the outer signature. Equivalent
+valid signatures therefore share sticky key-generation closure, while their
+external envelope IDs and exact request commitments stay unchanged. Legacy
+`oneoff-<envelope-id>.json` generation state refuses with
+`ONEOFF_STATE_MIGRATION_REQUIRED` before any new generation record is written:
+the old record alone cannot recover the content identity for every signature
+variant. Preserve retained history for an explicitly reviewed migration; do not
+delete it to retry a grant.
+
+Inner field order:
 
 `version`, `network`, `genesis`, `agent_name`, `landlord_name`, `issuer_key`,
 `grantee_key`, `recipient`, `amount_sat`, `fee_limit_sat`, `not_before`,

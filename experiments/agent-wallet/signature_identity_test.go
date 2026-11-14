@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -231,6 +232,10 @@ func TestCoreOneoffSecondSignatureCommitment(t *testing.T) {
 	if denied.Status != "refused" || denied.Reason != "REQUEST_COMMITMENT" || !bytes.Equal(before, after) || len(w.state.Records) != 1 || pool != string(l.rpc("", "getrawmempool")) {
 		t.Fatal("oneoff second signature changed effects", denied)
 	}
+	generationFiles, err := filepath.Glob(filepath.Join(c.Policy.StateDir, "oneoff-*.json"))
+	if err != nil || len(generationFiles) != 1 {
+		t.Fatal("oneoff signature variants created separate generation records", generationFiles, err)
+	}
 }
 
 // The G2 wallet's separate journal lookup also deduplicates W1 signatures by
@@ -271,4 +276,98 @@ func TestG2SecondSignatureChargedOnce(t *testing.T) {
 	if denied.Status != "refused" || denied.Reason != "NONCE_CONFLICT" {
 		t.Errorf("SECOND_SIGNATURE_G2_LOGICAL_DEDUP: %+v", denied)
 	}
+}
+
+// The resolver double supplies only a stable authenticated generation; this
+// unit test does not establish chain/payment acceptance.
+type signatureGenerationResolver struct{ key string }
+
+func (r signatureGenerationResolver) Resolve(context.Context, string) (string, rental.Anchor, error) {
+	return r.key, rental.Anchor{TxID: Hash([]byte("generation")), Block: Hash([]byte("block")), Height: 1}, nil
+}
+
+// Equivalent valid signatures must share one durable generation record and
+// its sticky closed verdict. Legacy signature-keyed state cannot silently
+// reset that history or create a new record without an explicit migration.
+func TestOneoffSecondSignatureSharesGenerationState(t *testing.T) {
+	_, issuer := testKey(1)
+	_, grantee := testKey(2)
+	g := OneoffGrant{Version: 1, Network: "regtest", Genesis: su.RegtestGenesis, Agent: "id/test-agent", Landlord: "id/test-landlord", Issuer: issuer, Grantee: grantee, Address: testAddress(3), Amount: 100000, FeeLimit: 100000, NotBefore: 100, NotAfter: 1000, Seal: fakePoint(1)}
+	first := OneoffEnvelope{Grant: g, Signature: signDigest(t, OneoffDigest(g), 1)}
+	second := first
+	second.Signature = freshFixtureSignature(t, OneoffDigest(g), first.Signature, 1)
+	raw, alternate := canonical(first), canonical(second)
+	root := privateDir(t)
+	a := CombinedAuthority{Agent: g.Agent, Landlord: g.Landlord, StateDir: root, Resolver: signatureGenerationResolver{issuer}}
+	original, err := a.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	twin, err := a.Parse(alternate)
+	if err != nil || original.ID == twin.ID {
+		t.Fatal("external envelope identities must remain distinct", err)
+	}
+	if err = a.Check(context.Background(), raw, grantee, 500); err != nil {
+		t.Fatal("original generation", err)
+	}
+	paths, err := filepath.Glob(filepath.Join(root, "oneoff-*.json"))
+	if err != nil || len(paths) != 1 {
+		t.Fatal("original generation record", paths, err)
+	}
+	before, err := os.ReadFile(paths[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = a.Check(context.Background(), alternate, grantee, 500); err != nil {
+		t.Fatal("equivalent signature generation", err)
+	}
+	afterPaths, err := filepath.Glob(filepath.Join(root, "oneoff-*.json"))
+	if err != nil || len(afterPaths) != 1 || afterPaths[0] != paths[0] {
+		t.Fatalf("ONEOFF_SIGNATURE_STATE_DUPLICATE: %v %v", afterPaths, err)
+	}
+	after, err := os.ReadFile(paths[0])
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("equivalent signature rewrote generation identity", err)
+	}
+	var state oneoffState
+	if err = json.Unmarshal(before, &state); err != nil {
+		t.Fatal(err)
+	}
+	state.Closed = true
+	if err = os.WriteFile(paths[0], canonical(state), 0600); err != nil {
+		t.Fatal(err)
+	}
+	closed, err := os.ReadFile(paths[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = a.Check(context.Background(), alternate, grantee, 500); err == nil || err.Error() != "GRANT_KEY_ROTATED" {
+		t.Fatal("equivalent signature bypassed sticky generation closure", err)
+	}
+	after, err = os.ReadFile(paths[0])
+	if err != nil || !bytes.Equal(closed, after) {
+		t.Fatal("refusal changed closed generation", err)
+	}
+	t.Run("legacy-state-refuses-without-writes", func(t *testing.T) {
+		legacyRoot := privateDir(t)
+		legacy := filepath.Join(legacyRoot, "oneoff-"+original.ID+".json")
+		old := oneoffState{Version: 1, GrantID: original.ID, Generation: rental.Anchor{TxID: Hash([]byte("old-generation")), Block: Hash([]byte("old-block")), Height: 1}, Closed: true}
+		preserved := canonical(old)
+		if err := os.WriteFile(legacy, preserved, 0600); err != nil {
+			t.Fatal(err)
+		}
+		b := a
+		b.StateDir = legacyRoot
+		if err := b.Check(context.Background(), alternate, grantee, 500); err == nil || err.Error() != "ONEOFF_STATE_MIGRATION_REQUIRED" {
+			t.Fatal("legacy signature state was silently reset", err)
+		}
+		paths, err := filepath.Glob(filepath.Join(legacyRoot, "oneoff-*.json"))
+		if err != nil || len(paths) != 1 || paths[0] != legacy {
+			t.Fatal("legacy refusal wrote another generation", paths, err)
+		}
+		after, err := os.ReadFile(legacy)
+		if err != nil || !bytes.Equal(preserved, after) {
+			t.Fatal("legacy refusal changed retained history", err)
+		}
+	})
 }
