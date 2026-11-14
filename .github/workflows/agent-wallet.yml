@@ -387,11 +387,11 @@ jobs:
       # post-reservation revocation) is applied to a copy of the tree exactly
       # as TestGuardPlants applies it (its Old text occurs once in its File).
       # Its selector, TestCoreActionFinalCheck, runs on a fresh regtest root in
-      # that copy, and its stream replaces the real one beside the other 22
+      # that copy, and its stream replaces the real one beside the other 24
       # real passing streams: the checker must fail on that test alone
       # (FAILED and REQUIRED_FAILED, no missing or skipped test), the stream
       # must carry the plant's marker, and the unplanted neighbour (the real
-      # 23 streams) must pass.
+      # 25 streams) must pass.
       - name: Planted W2 defect must fail the gate (action-final-authority on a copy of the tree)
         env:
           GOPROXY: 'off'
@@ -453,5 +453,5 @@ jobs:
           python3 -B "$checker" check --manifest "$manifest" "${others[@]}" "$RUNNER_TEMP/w2-gate/$selector.json" > "$RUNNER_TEMP/w2-plant-neighbour.txt"
           neighbour_exit=$?
           tail -1 "$RUNNER_TEMP/w2-plant-neighbour.txt"
-          echo "plant control: files changed $changed (want 1), others ${#others[@]} (want 22), go test exit $test_exit (want 1), gate exit $gate_exit (want 1), FAILED seen $failed_seen (want 0), REQUIRED_FAILED seen $required_seen (want 0), missing or skipped $other (want 0), marker seen $marker_seen (want 0), unplanted neighbour gate exit $neighbour_exit (want 0)"
-          test "$changed" = 1 && test "${#others[@]}" = 22 && test "$test_exit" = 1 && test "$gate_exit" = 1 && test "$failed_seen" = 0 && test "$required_seen" = 0 && test "$other" = 0 && test "$marker_seen" = 0 && test "$neighbour_exit" = 0
+          echo "plant control: files changed $changed (want 1), others ${#others[@]} (want 24), go test exit $test_exit (want 1), gate exit $gate_exit (want 1), FAILED seen $failed_seen (want 0), REQUIRED_FAILED seen $required_seen (want 0), missing or skipped $other (want 0), marker seen $marker_seen (want 0), unplanted neighbour gate exit $neighbour_exit (want 0)"
+          test "$changed" = 1 && test "${#others[@]}" = 24 && test "$test_exit" = 1 && test "$gate_exit" = 1 && test "$failed_seen" = 0 && test "$required_seen" = 0 && test "$other" = 0 && test "$marker_seen" = 0 && test "$neighbour_exit" = 0

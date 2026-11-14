@@ -748,6 +748,19 @@ class W2Gate(unittest.TestCase):
         self.assertNotRegex(out, r"(?m)^REQUIRED_(MISSING|SKIPPED) ")
         self.assertEqual(len(re.findall(r"(?m)^W2-\S+ PASS ", out)), 24)
 
+    # Claim: the hosted planted-control shell requires every unplanted Core
+    # stream, not a stale literal from an older manifest. The old 22-stream
+    # bound is the regression witness; the real 25-test manifest needs 24.
+    def test_w2_plant_neighbour_count_matches_manifest(self):
+        text = "\n".join(job_block(WORKFLOW.read_text(encoding="utf-8"), "w2-core"))
+        pattern = r'test "\$\{#others\[@\]\}" = ([0-9]+)'
+        expected = len(load(W2)["core_tests"]) - 1
+        self.assertEqual([int(n) for n in re.findall(pattern, text)], [expected])
+        old_bound = text.replace(f'test "${{#others[@]}}" = {expected}',
+                                 'test "${#others[@]}" = 22', 1)
+        self.assertNotEqual(old_bound, text)
+        self.assertNotEqual([int(n) for n in re.findall(pattern, old_bound)], [expected])
+
     # Claim: a run without W1_REGTEST (every newCore test skips) fails the
     # gate with SKIPPED and REQUIRED_SKIPPED for each of the 25 tests.
     def test_w2_no_node_skips_all(self):

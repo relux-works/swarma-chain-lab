@@ -37,7 +37,7 @@ func TestFakeManagerRun(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if e = os.Chmod(root, 0750); e != nil {
+	if e = os.Chmod(root, 0700); e != nil {
 		t.Fatal(e)
 	}
 	write := func(name string, b []byte) string {
@@ -159,6 +159,30 @@ func TestFakeManagerRun(t *testing.T) {
 		t.Fatal("invalid fake clock accepted")
 	}
 	write("fake.sock.clock", clock)
+	host, e := newHost(c)
+	if e != nil {
+		t.Fatal(e)
+	}
+	// The fake transport refuses a broad socket parent before dialing; the
+	// unchanged 0700 neighbour reaches the real Unix helper and returns absent.
+	if e = os.Chmod(root, 0750); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = host.Client.Call(context.Background(), slotd.Request{V: 1, Op: "status", Slot: "1"}); e == nil || e.Error() != "SLOTD_UNAVAILABLE" {
+		t.Fatal("broad fake socket parent admitted", e)
+	}
+	mu.Lock()
+	called := len(ops)
+	mu.Unlock()
+	if called != 0 {
+		t.Fatal("broad parent reached helper", called)
+	}
+	if e = os.Chmod(root, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if response, err := host.Client.Call(context.Background(), slotd.Request{V: 1, Op: "status", Slot: "1"}); err != nil || response.State != "absent" {
+		t.Fatal("private fake socket parent refused", response, err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- run(ctx, []string{"run", "--config", path}) }()
