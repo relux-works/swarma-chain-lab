@@ -9,13 +9,13 @@ import (
 )
 
 // Claim: either login.defs setting preserves unrecorded and retained same-name
-// groups by refusing before userdel or any older undo; another primary-group
+// groups in rehearsal by refusing before userdel or any older undo; another primary-group
 // name permits deletion. A separate removable group receipt grants no shortcut.
 func TestLedgerUserRemovalHasNoImplicitGroupEffect(t *testing.T) {
 	for _, origin := range []string{"unrecorded", "d6", "remove", "different-name"} {
 		for _, auto := range []bool{false, true} {
 			t.Run(origin+map[bool]string{false: "/USERGROUPS_ENAB=no", true: "/USERGROUPS_ENAB=yes"}[auto], func(t *testing.T) {
-				f := setupWith(t, "station", func(f *fixture) {
+				f := setupWith(t, "rehearsal", func(f *fixture) {
 					f.sys.usergroups = auto
 					if origin == "unrecorded" {
 						f.sys.groups["demo"] = Account{Name: "demo", GID: 301}
@@ -30,7 +30,7 @@ func TestLedgerUserRemovalHasNoImplicitGroupEffect(t *testing.T) {
 				}
 				must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 				f.l.Close()
-				err := Run([]string{"replay", "-dir", f.dir, "-mode", "station"}, f.sys, io.Discard)
+				err := Run([]string{"replay", "-dir", f.dir, "-mode", "rehearsal"}, f.sys, io.Discard)
 				if origin == "different-name" {
 					must(t, err)
 					absent(t, older)

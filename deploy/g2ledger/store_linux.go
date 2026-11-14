@@ -28,6 +28,7 @@ type Ledger struct {
 	lock        *os.File
 	rows        []Record
 	write       func(io.Writer, []byte) error
+	payloadSync func(*os.File) error // payload-only fsync fault seam, nil in production
 	sync        func(*os.File) error // fsync-only fault seam, nil in production
 	poisoned    bool
 	sys         System
@@ -470,4 +471,12 @@ func (l *Ledger) abort(seq uint64, a Action) error {
 		return e
 	}
 	return namedError("EXCLUSIVE_REFUSED", a)
+}
+
+// syncPayload isolates CreateFS durability from journal sealing checkpoints.
+func (l *Ledger) syncPayload(f *os.File) error {
+	if l.payloadSync != nil {
+		return l.payloadSync(f)
+	}
+	return f.Sync()
 }

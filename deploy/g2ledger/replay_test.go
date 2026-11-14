@@ -18,20 +18,20 @@ import (
 func TestLedgerChangedPrimaryGIDStopsD9_5(t *testing.T) {
 	for _, drift := range []bool{true, false} {
 		t.Run(map[bool]string{true: "changed-gid", false: "matching"}[drift], func(t *testing.T) {
-			f := setupWith(t, "station", func(f *fixture) { f.sys.groups["primary"] = Account{Name: "primary", GID: 301} })
+			f := setupWith(t, "rehearsal", func(f *fixture) { f.sys.groups["primary"] = Account{Name: "primary", GID: 301} })
 			older := f.create(t, "older", "file", "remove")
 			must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 			if drift {
 				a := f.sys.users["demo"]
 				a.GID = 999
 				f.sys.users["demo"] = a
-				code(t, f.l.Replay("station"), 1)
+				code(t, f.l.Replay("rehearsal"), 1)
 				if f.sys.called("/usr/sbin/userdel") {
 					t.Fatal("changed gid deleted")
 				}
 				exists(t, older)
 			} else {
-				must(t, f.l.Replay("station"))
+				must(t, f.l.Replay("rehearsal"))
 				if _, ok := f.sys.users["demo"]; ok {
 					t.Fatal("owned user retained")
 				}
@@ -75,7 +75,7 @@ func TestLedgerUnitLookupErrorStopsD9_4(t *testing.T) {
 // pre-existing account identities cannot be admitted by after-baseline lookup.
 func TestLedgerGetentFailureNeverAbsenceG2(t *testing.T) {
 	for _, reply := range []fakeReply{{"", 1, nil}, {"", 73, nil}, {"", 127, nil}, {"garbage\n", 0, nil}, {"data\n", 2, nil}, {"", -1, syscall.EACCES}, {"demo:x:301:301::/nonexistent:/usr/sbin/nologin\nother:x:302:302::/nonexistent:/usr/sbin/nologin\n", 0, nil}} {
-		f := setup(t)
+		f := setupWith(t, "rehearsal", nil)
 		f.sys.fault = func(cmd string, args []string) (fakeReply, bool) { return reply, cmd == "/usr/bin/getent" }
 		code(t, f.l.CreateAccount("user", "demo", "remove", 301, 301), 1)
 		if f.sys.called("/usr/sbin/useradd") {
@@ -85,9 +85,9 @@ func TestLedgerGetentFailureNeverAbsenceG2(t *testing.T) {
 			t.Fatal("failed inspection entered intent")
 		}
 	}
-	f := setupWith(t, "station", func(f *fixture) { f.sys.groups["primary"] = Account{Name: "primary", GID: 301} })
+	f := setupWith(t, "rehearsal", func(f *fixture) { f.sys.groups["primary"] = Account{Name: "primary", GID: 301} })
 	must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
-	must(t, f.l.Replay("station"))
+	must(t, f.l.Replay("rehearsal"))
 }
 
 // Claim: a group or user created by another actor after baseline or during
@@ -96,7 +96,7 @@ func TestLedgerForeignAccountsNeverAdoptedD9_1(t *testing.T) {
 	for _, kind := range []string{"user", "group"} {
 		for _, when := range []string{"after-baseline", "after-intent"} {
 			t.Run(kind+"/"+when, func(t *testing.T) {
-				f := setupWith(t, "station", func(f *fixture) {
+				f := setupWith(t, "rehearsal", func(f *fixture) {
 					if kind == "user" {
 						f.sys.groups["primary"] = Account{Name: "primary", GID: 301}
 					}
@@ -123,7 +123,7 @@ func TestLedgerForeignAccountsNeverAdoptedD9_1(t *testing.T) {
 				code(t, f.l.CreateAccount(kind, "foreign", "remove", uid, 301), 1)
 				f.l.afterIntent = nil
 				f.reopen(t)
-				code(t, f.l.Replay("station"), 1)
+				code(t, f.l.Replay("rehearsal"), 1)
 				a, _, e := lookup(f.sys, kind, "foreign")
 				must(t, e)
 				if a == nil {
@@ -169,7 +169,7 @@ func TestLedgerLiveWriterSurvivesInspectionFailureG3(t *testing.T) {
 	cmd := exec.Command("/usr/bin/sleep", "120")
 	must(t, cmd.Start())
 	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
-	must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
+	must(t, f.l.CreateAccount("user", "demo", "state", 301, 301))
 	f.sys.fault = func(command string, args []string) (fakeReply, bool) {
 		return fakeReply{"", 73, nil}, command == "/usr/bin/getent"
 	}
@@ -366,7 +366,7 @@ func TestLedgerExecMissingExtraAndToolFailure(t *testing.T) {
 // Claim: a no-op or arbitrary external creator is refused before any intent;
 // supported tools must be this executable and declare their exact output flag.
 func TestLedgerExecRejectsUnauditedOrUndeclaredCreator(t *testing.T) {
-	f := setupWith(t, "station", func(f *fixture) { f.declare("foreign", "secret") })
+	f := setupWith(t, "rehearsal", func(f *fixture) { f.declare("foreign", "secret") })
 	p := filepath.Join(f.root, "foreign")
 	err := f.l.ExecCreate("secret", "remove", []string{p}, []string{"/usr/bin/true", "-out", p})
 	code(t, err, 1)
@@ -502,20 +502,20 @@ func TestLedgerAccountMembershipUnitRoundTrip(t *testing.T) {
 // Claim: EACCES during an account lookup stops before deletion and older
 // effects, whereas an exactly missing account is a harmless absence.
 func TestLedgerAccountLookupErrorStops(t *testing.T) {
-	f := setupWith(t, "station", func(f *fixture) { f.sys.groups["primary"] = Account{Name: "primary", GID: 301} })
+	f := setupWith(t, "rehearsal", func(f *fixture) { f.sys.groups["primary"] = Account{Name: "primary", GID: 301} })
 	older := f.create(t, "older", "file", "remove")
 	must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 	f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 		return fakeReply{"", -1, syscall.EACCES}, cmd == "/usr/bin/getent"
 	}
-	code(t, f.l.Replay("station"), 1)
+	code(t, f.l.Replay("rehearsal"), 1)
 	exists(t, older)
 	if f.sys.called("/usr/sbin/userdel") {
 		t.Fatal("effect after lookup error")
 	}
 	f.sys.fault = nil
 	delete(f.sys.users, "demo")
-	must(t, f.l.Replay("station"))
+	must(t, f.l.Replay("rehearsal"))
 	absent(t, older)
 }
 

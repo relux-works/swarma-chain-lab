@@ -2,8 +2,10 @@ package g2ledger
 
 import (
 	"errors"
-	"golang.org/x/sys/unix"
+	"os"
 	"strings"
+
+	"golang.org/x/sys/unix"
 )
 
 // systemd.unit(5): Also installs/deinstalls additional units. Inspect the unit
@@ -63,33 +65,55 @@ func createdUnitLinks(output string) ([]UnitLink, error) {
 			return nil, errors.New("UNIT_ENABLE_LINK")
 		}
 		seen[path] = true
-		links = append(links, UnitLink{path, target})
+		links = append(links, UnitLink{Path: path, Target: target})
 	}
 	if len(links) == 0 {
 		return nil, errors.New("UNIT_ENABLE_EMPTY")
 	}
 	return links, nil
 }
-func unitLinkPresent(link UnitLink) (bool, error) {
-	d, n, err := parent(link.Path)
-	if errors.Is(err, unix.ENOENT) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	defer d.Close()
+
+// observeUnitLinkAt uses lstat/readlinkat on one pinned parent, never follows
+// the link, and checks that its identity stayed stable while reading its text.
+func observeUnitLinkAt(d *os.File, n string, link UnitLink) (UnitLink, bool, error) {
 	var st unix.Stat_t
-	if err = unix.Fstatat(int(d.Fd()), n, &st, unix.AT_SYMLINK_NOFOLLOW); errors.Is(err, unix.ENOENT) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
+	if err := unix.Fstatat(int(d.Fd()), n, &st, unix.AT_SYMLINK_NOFOLLOW); errors.Is(err, unix.ENOENT) {
+		return UnitLink{}, false, nil
+	} else if err != nil {
+		return UnitLink{}, false, err
 	}
 	b := make([]byte, 4096)
 	count, err := unix.Readlinkat(int(d.Fd()), n, b)
 	if err != nil || count == len(b) || string(b[:count]) != link.Target {
-		return false, errors.New("UNIT_LINK_RETARGETED " + link.Path)
+		return UnitLink{}, false, errors.New("UNIT_LINK_RETARGETED " + link.Path)
+	}
+	var again unix.Stat_t
+	if err := unix.Fstatat(int(d.Fd()), n, &again, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return UnitLink{}, false, err
+	}
+	if st.Dev != again.Dev || st.Ino != again.Ino || st.Uid != again.Uid || st.Gid != again.Gid || st.Mode != again.Mode || st.Mode&unix.S_IFMT != unix.S_IFLNK {
+		return UnitLink{}, false, errors.New("UNIT_LINK_CHANGED " + link.Path)
+	}
+	return UnitLink{Path: link.Path, Target: string(b[:count]), Dev: uint64(st.Dev), Ino: st.Ino, UID: st.Uid, GID: st.Gid, Mode: st.Mode}, true, nil
+}
+func observeUnitLink(link UnitLink) (UnitLink, bool, error) {
+	d, n, err := parent(link.Path)
+	if errors.Is(err, unix.ENOENT) {
+		return UnitLink{}, false, nil
+	}
+	if err != nil {
+		return UnitLink{}, false, err
+	}
+	defer d.Close()
+	return observeUnitLinkAt(d, n, link)
+}
+func unitLinkPresent(link UnitLink) (bool, error) {
+	got, present, err := observeUnitLink(link)
+	if err != nil || !present {
+		return present, err
+	}
+	if got != link {
+		return false, errors.New("UNIT_LINK_REPLACED " + link.Path)
 	}
 	return true, nil
 }
@@ -102,20 +126,22 @@ func checkUnitLinks(links []UnitLink) error {
 	return nil
 }
 func removeUnitLink(link UnitLink) error {
-	present, err := unitLinkPresent(link)
-	if err != nil || !present {
-		return err
-	}
 	d, n, err := parent(link.Path)
+	if errors.Is(err, unix.ENOENT) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 	defer d.Close()
-	// The privileged namespace must remain quiescent, as for all ledger undo.
-	b := make([]byte, 4096)
-	count, err := unix.Readlinkat(int(d.Fd()), n, b)
-	if err != nil || count == len(b) || string(b[:count]) != link.Target {
-		return errors.New("UNIT_LINK_RETARGETED " + link.Path)
+	// Recheck every receipt field on the SAME pinned parent used by unlinkat.
+	// Privileged namespace writers must remain quiescent during replay.
+	got, present, err := observeUnitLinkAt(d, n, link)
+	if err != nil || !present {
+		return err
+	}
+	if got != link {
+		return errors.New("UNIT_LINK_REPLACED " + link.Path)
 	}
 	if err = unix.Unlinkat(int(d.Fd()), n, 0); err != nil {
 		return err

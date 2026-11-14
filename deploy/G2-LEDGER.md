@@ -173,7 +173,7 @@ Only the exact expected fields may appear in each action and identity variant.
 | `user` | Name, uid **and primary gid**, nologin shell |
 | `group` | Name, gid; explicit uid=0 and shell="" are structural fields, not a user identity |
 | `membership` | Full user and group identities plus membership state |
-| `unit` | Unit name, enablement state and exact created symlink path/target set |
+| `unit` | Unit name, enablement state and exact created symlink path/target/dev/ino/uid/gid/mode set |
 
 UID/GID `4294967295` is rejected as a syscall wildcard; UID/GID zero remains
 an explicit valid root identity. Hardlinked regular files, special file types
@@ -219,14 +219,22 @@ identity, including both uid and primary gid for users and gid for groups.
 | Object / retention | `station` | `rehearsal` |
 | --- | --- | --- |
 | Any `d6` creation, including keys/wallet data | Keep (`retain-d6`) | Keep (`retain-d6`) |
-| `state` creation: files, dirs, users, groups | Keep (`retain-station-state`) | Remove (`remove-rehearsal-state`) |
-| `remove` creation | Remove (`remove-exact-identity`) | Remove (`remove-exact-identity`) |
+| `state` user/group/secret creation (including exec-create outputs) | Keep (`retain-station-protected`) | Remove (`remove-rehearsal-state`) |
+| `state` ordinary files/dirs | Keep (`retain-station-state`) | Remove (`remove-rehearsal-state`) |
+| `remove` user/group/secret creation (including exec-create outputs) | Refuse at creation and journal load (`STATION_PROTECTED_RETENTION`, exit 1, named target) | Remove (`remove-exact-identity`) |
+| `remove` ordinary file/dir creation | Remove (`remove-exact-identity`) | Remove (`remove-exact-identity`) |
 | Explicit `rehearsal` creation | Refused at creation and journal validation | Remove (`remove-explicit-rehearsal-object`) |
 | Config modification, own membership addition, own unit enable | Restore (`restore-attempt-transition`) | Restore (`restore-attempt-transition`) |
 
-Station creation retention is unchanged: accounts and state directories marked
-`state` remain, and only matching `remove` creations are removed. Journal and
-S0 evidence are never deletion targets. A rehearsal-only key or wallet artifact
+Station protected kinds are precisely `user`, `group`, and `secret`. All
+exec-create outputs must be `secret`, so they share key protection. Station
+never deletes these created accounts or keys, regardless of retention labels.
+An incompatible `remove` request refuses before any effect or intent; a forged
+or legacy journal containing it stops validation/replay before any undo.
+Membership is a modification rather than account creation: replay removes only
+the attempt-added membership after checking both subjects, preserving both
+accounts. Ordinary state directories remain; exact `remove` files/dirs undo.
+Journal and S0 evidence are never deletion targets. A rehearsal-only key or wallet artifact
 must be explicitly created with `-ret rehearsal`; d6 never becomes deletable
 because of mode. There is no engine mode for deleting d6 data or station keys.
 Removal after an install requires a separate reviewed procedure. There is no
@@ -411,13 +419,17 @@ documents that enable reports the filesystem operations it performs. The
 [systemd v249 implementation](https://github.com/systemd/systemd/blob/v249/src/shared/install.c#L312)
 prints `Created symlink A -> B.` in the C locale. The real seam captures enable's
 stderr along with stdout with `LC_ALL=C`; every reported absolute link and
-absolute target becomes part of the commit receipt only after observation.
+absolute target becomes part of the commit receipt only after no-follow
+observation. Each receipt also stores lstat device, inode, UID, GID and full
+symlink mode. Legacy receipts without these fields refuse validation.
 Unknown output, empty output, duplicate paths, or missing/retargeted links leave
 a named orphan. Other output formats are deliberately unsupported.
 
 Undo checks the entire recorded set before any removal, then rechecks each link
-through its parent descriptor and unlinks only a still-matching link. Absent
-links are retry-safe. A retargeted link or a regular file stops replay, even
+through the same pinned parent descriptor used for `unlinkat`, comparing ALL
+recorded fields and target text without following the symlink. A foreign
+replacement with the same target text, or changed ownership, stops with a named
+exit 1 and survives. Absent links are retry-safe. A retargeted link or a regular file stops replay, even
 when the unit now reports disabled. Foreign symlinks are preserved. Undo never
 calls `systemctl disable`: that command can remove additional links and units.
 It invokes `daemon-reload` through the System seam and verifies the named unit

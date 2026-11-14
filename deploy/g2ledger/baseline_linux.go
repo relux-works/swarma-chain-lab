@@ -238,6 +238,9 @@ func validateBaseline(g *Genesis) error {
 	return nil
 }
 func actionAllowed(g Genesis, a Action) error {
+	if e := stationRetentionAllowed(g, a); e != nil {
+		return e
+	}
 	if a.Ret == "rehearsal" && g.Purpose != "rehearsal" {
 		return namedError("REHEARSAL_RETENTION_REQUIRES_REHEARSAL_PURPOSE", a)
 	}

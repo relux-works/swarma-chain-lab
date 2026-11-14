@@ -51,7 +51,7 @@ after verifying the release, then `deploy-kit g2-ledger verify -dir /root/g2/led
 Declare intended paths/accounts/units in the scope file before init; genesis
 records their S0 state and attempt purpose. Replay emits JSONL differences and
 a summary on stdout, with a human summary on stderr. The single retention table
-and comparison limits are in [G2-LEDGER.md](G2-LEDGER.md#replay-and-retention).
+and comparison limits (including unconditional station account/key protection) are in [G2-LEDGER.md](G2-LEDGER.md#replay-and-retention).
 Artifacts are private `records.jsonl`, `HEAD` and `LOCK` inside the supplied directory;
 saved local validation output belongs in `.temp/`.
 `go test -race ./g2ledger ./cmd/deploy-kit -run '^TestLedger' -count=1` exercises

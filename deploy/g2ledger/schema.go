@@ -62,6 +62,11 @@ type Membership struct {
 type UnitLink struct {
 	Path   string `json:"path"`
 	Target string `json:"target"`
+	Dev    uint64 `json:"dev"`
+	Ino    uint64 `json:"ino"`
+	UID    uint32 `json:"uid"`
+	GID    uint32 `json:"gid"`
+	Mode   uint32 `json:"mode"`
 }
 type Unit struct {
 	Name  string     `json:"name"`
@@ -265,7 +270,7 @@ func validateIdentity(i Identity, kind string) error {
 		}
 		seen := map[string]bool{}
 		for _, link := range i.Unit.Links {
-			if !validPath(link.Path) || !validPath(link.Target) || seen[link.Path] {
+			if !validPath(link.Path) || !validPath(link.Target) || link.Dev == 0 || link.Ino == 0 || link.UID == ^uint32(0) || link.GID == ^uint32(0) || link.Mode != 0120777 || seen[link.Path] {
 				return errors.New("IDENTITY_UNIT_LINK")
 			}
 			seen[link.Path] = true

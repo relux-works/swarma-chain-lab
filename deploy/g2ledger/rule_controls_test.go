@@ -14,7 +14,7 @@ import (
 // Claim: the public adapter rejects an otherwise valid, absent secret target
 // solely at creatorCommand. Positive whitelist binding uses this executable.
 func TestLedgerCreatorWhitelistIsolated(t *testing.T) {
-	f := setupWith(t, "station", func(f *fixture) { f.declare("target", "secret") })
+	f := setupWith(t, "rehearsal", func(f *fixture) { f.declare("target", "secret") })
 	target := filepath.Join(f.root, "target")
 	f.l.Close()
 	f.sys.tool = func(string, []string) (string, int, error) { return "", 0, nil }

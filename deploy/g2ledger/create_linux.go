@@ -22,6 +22,9 @@ func (l *Ledger) CreateFS(path, src, kind, ret string, uid, gid, mode uint32) er
 	if e := validateAction(&a); e != nil {
 		return stopped("ACTION", e)
 	}
+	if e := stationRetentionAllowed(*l.rows[0].Body.Genesis, a); e != nil {
+		return e
+	}
 	var data []byte
 	if kind != "dir" {
 		var e error
@@ -67,11 +70,11 @@ func (l *Ledger) CreateFS(path, src, kind, ret string, uid, gid, mode uint32) er
 			return orphan(a)
 		}
 	}
-	if e = f.Sync(); e != nil {
+	if e = l.syncPayload(f); e != nil {
 		l.poisoned = true
 		return orphan(a)
 	}
-	if e = d.Sync(); e != nil {
+	if e = l.syncPayload(d); e != nil {
 		l.poisoned = true
 		return orphan(a)
 	}
@@ -117,6 +120,9 @@ func (l *Ledger) CreateAccount(kind, name, ret string, uid, gid uint32) error {
 	}
 	if e := validateAction(&a); e != nil {
 		return stopped("ACTION", e)
+	}
+	if e := stationRetentionAllowed(*l.rows[0].Body.Genesis, a); e != nil {
+		return e
 	}
 	old, _, e := lookup(l.sys, kind, name)
 	if e != nil {
@@ -228,12 +234,13 @@ func (l *Ledger) Enable(name string) error {
 		l.poisoned = true
 		return orphan(a)
 	}
-	for _, link := range links {
-		present, err := unitLinkPresent(link)
+	for j := range links {
+		got, present, err := observeUnitLink(links[j])
 		if err != nil || !present {
 			l.poisoned = true
 			return orphan(a)
 		}
+		links[j] = got
 	}
 	got, e := unitState(l.sys, name)
 	if e != nil || got == nil {
@@ -337,6 +344,9 @@ func (l *Ledger) ExecCreate(kind, ret string, paths, argv []string) error {
 	if kind != "secret" {
 		return fail(1, "EXEC_SECRET_KIND_REQUIRED")
 	}
+	if e := stationRetentionAllowed(*l.rows[0].Body.Genesis, Action{Kind: kind, Ret: ret, Paths: paths}); e != nil {
+		return e
+	}
 	if e := creatorCommand(argv, paths); e != nil {
 		return stopped("EXEC_CONTRACT", e)
 	}
@@ -369,6 +379,9 @@ func (l *Ledger) execCreate(kind, ret string, paths, argv []string) error {
 	}
 	if e := validateAction(&a); e != nil {
 		return stopped("ACTION", e)
+	}
+	if e := stationRetentionAllowed(*l.rows[0].Body.Genesis, a); e != nil {
+		return e
 	}
 	snaps := map[string]parentSnapshot{}
 	defer func() {

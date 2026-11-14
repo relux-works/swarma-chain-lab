@@ -168,7 +168,7 @@ func TestLedgerUnitValidatesWholeSetBeforeUnlink(t *testing.T) {
 		t.Run(map[bool]string{false: "valid", true: "second-retargeted"}[retarget], func(t *testing.T) {
 			f := setup(t)
 			older := f.create(t, "older", "file", "remove")
-			links := []UnitLink{{filepath.Join(f.sys.unitRoot, "first"), filepath.Join(f.sys.unitRoot, "demo.service")}, {filepath.Join(f.sys.unitRoot, "second"), filepath.Join(f.sys.unitRoot, "demo.service")}}
+			links := []UnitLink{{Path: filepath.Join(f.sys.unitRoot, "first"), Target: filepath.Join(f.sys.unitRoot, "demo.service")}, {Path: filepath.Join(f.sys.unitRoot, "second"), Target: filepath.Join(f.sys.unitRoot, "demo.service")}}
 			f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 				if cmd != "/usr/bin/systemctl" || args[0] != "enable" {
 					return fakeReply{}, false
