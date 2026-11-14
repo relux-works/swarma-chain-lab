@@ -11,6 +11,14 @@ remain regtest-only. See [M5 test config](../../deploy/templates/m5-test/README.
 
 The following documents the retained **`agent-wallet-legacy`** W1 command.
 
+One-off generation history now uses the signed-content digest rather than the
+signature-bearing external grant ID, so re-signing cannot create another
+generation record or bypass sticky key-rotation closure. Legacy signature-keyed
+state refuses with `ONEOFF_STATE_MIGRATION_REQUIRED`; preserve that state for
+an explicit migration. See [the format and recovery boundary](FORMAT.md#standalone-single-use-grant).
+Run `go test -race -run '^TestOneoffSecondSignatureSharesGenerationState$' .`
+for the state-identity, closure and legacy-refusal regression; output goes to stdout.
+
 **Experimental, regtest only.** A bounded Go CLI checks authority before using
 an agent's hot wallet. It supports ordinary payments, two-stage name registration
 and separate W3 single-use grants. It is not a sandbox or a custody boundary:

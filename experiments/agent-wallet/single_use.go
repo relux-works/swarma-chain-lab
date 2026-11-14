@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 
 	rental "github.com/relux-works/swarma-chain-lab/experiments/rental"
@@ -118,14 +119,35 @@ func (a CombinedAuthority) Check(ctx context.Context, raw []byte, sender string,
 		return e
 	}
 	defer store.Close()
-	name := "oneoff-" + g.ID + ".json"
-	state := oneoffState{Version: 1, GrantID: g.ID}
+	// Generation closure belongs to signed content, not the issuer's choice
+	// of auxiliary signing randomness. External grant IDs remain byte-bound
+	// because the seal-spend request commits to those exact references.
+	env, e := parseOneoff(raw)
+	if e != nil {
+		return e
+	}
+	identity := OneoffDigest(env.Grant)
+	const prefix = "oneoff-content-v2-"
+	entries, e := os.ReadDir(a.StateDir)
+	if e != nil {
+		return fail("ONEOFF_STATE")
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "oneoff-") && !strings.HasPrefix(entry.Name(), prefix) {
+			// Legacy records retain only an envelope ID, not enough information
+			// to recover the content identity for every signature variant. Do
+			// not silently reset a retained generation or terminal closure.
+			return fail("ONEOFF_STATE_MIGRATION_REQUIRED")
+		}
+	}
+	name := prefix + identity + ".json"
+	state := oneoffState{Version: 2, GrantID: identity}
 	saved, e := store.Read(name, 4096)
 	if e != nil {
 		return e
 	}
 	if saved != nil {
-		if strict(saved, &state) != nil || state.Version != 1 || state.GrantID != g.ID || !hexN(state.Generation.TxID, 32) || !hexN(state.Generation.Block, 32) || state.Generation.Height < 1 {
+		if strict(saved, &state) != nil || state.Version != 2 || state.GrantID != identity || !hexN(state.Generation.TxID, 32) || !hexN(state.Generation.Block, 32) || state.Generation.Height < 1 {
 			return fail("ONEOFF_STATE")
 		}
 		if state.Closed {
