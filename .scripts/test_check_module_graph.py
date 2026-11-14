@@ -209,15 +209,23 @@ class SnapshotRegeneration(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="snapshot-regeneration-")
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name) / "snapshot.json"
-        self.original = (REPO / "experiments/module-graph-snapshot.json").read_bytes()
+        # Fixed protocol fixture: future repository snapshot refreshes must
+        # not require editing this generator control's expected timestamp.
+        self.commit = "1" * 40
+        self.snapshot = {
+            "snapshot_commit": self.commit, "snapshot_time": "20200102030405",
+            "modules": {
+                PREFIX + "experiments/rental": "v0.5.1-0.20200102030405-111111111111",
+                PREFIX + "experiments/grantcheck": "v0.1.2-0.20200102030405-111111111111",
+            },
+        }
+        self.original = (json.dumps(self.snapshot, indent=2) + "\n").encode()
         self.path.write_bytes(self.original)
-        self.snapshot = json.loads(self.original)
-        self.commit = self.snapshot["snapshot_commit"]
 
     def resolver(self, wrong_origin=False, failed_module=False):
         def run(argv, **kwargs):
             if argv[0] == "git":
-                return subprocess.CompletedProcess(argv, 0, "1794690587\n", "")
+                return subprocess.CompletedProcess(argv, 0, "1577934245\n", "")
             module, commit = argv[-1].split("@")
             if failed_module and module == sorted(self.snapshot["modules"])[-1]:
                 return subprocess.CompletedProcess(argv, 1, "", "fixture proxy unavailable")
@@ -234,7 +242,7 @@ class SnapshotRegeneration(unittest.TestCase):
         generated = json.loads(self.path.read_text())
         self.assertEqual(generated["modules"], self.snapshot["modules"])
         self.assertEqual(generated["snapshot_commit"], self.commit)
-        self.assertEqual(generated["snapshot_time"], "20261114210947")
+        self.assertEqual(generated["snapshot_time"], "20200102030405")
         self.assertEqual(calls.call_count, len(self.snapshot["modules"]) + 1)
 
     # Claim: wrong proxy origin and resolution failure cannot leave partial
