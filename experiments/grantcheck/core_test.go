@@ -84,7 +84,7 @@ func TestCoreVectors(t *testing.T) {
 	mainConfig := config("primary", (coreEpoch + 500))
 	c := makeChecker(mainConfig)
 	ctx := context.Background()
-	file := vectorFile{Version: 1, Producer: "TestCoreVectors: rental.IssuePayGrantV2 + grantcheck.New on isolated Namecoin Core regtest", DaemonSHA256: coreFileHash(t, l.daemon), CLISHA256: coreFileHash(t, l.cli), AgentName: e2eAgentName, LandlordName: e2eLandlordName, IssuerPubkey: l.issuerPub}
+	file := vectorFile{Version: 1, Producer: "TestCoreVectors: rental.IssuePayGrantV2 + grantcheck.New on isolated Namecoin Core regtest", DaemonSHA256: coreVectorFileHash(t, l.daemon), CLISHA256: coreVectorFileHash(t, l.cli), AgentName: e2eAgentName, LandlordName: e2eLandlordName, IssuerPubkey: l.issuerPub}
 	record := func(name, direction, peer, setup string, proof *Presentation, supplied bool, now int64, v Verdict, decision Decision, code Code, closed, retry bool) {
 		t.Helper()
 		assertVerdict(t, v, decision, code, closed, retry)
@@ -165,7 +165,7 @@ func TestCoreVectors(t *testing.T) {
 	}
 }
 
-func coreFileHash(t *testing.T, path string) string {
+func coreVectorFileHash(t *testing.T, path string) string {
 	t.Helper()
 	b, e := os.ReadFile(path)
 	if e != nil {
