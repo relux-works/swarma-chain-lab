@@ -16,13 +16,17 @@ import (
 	"github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/slotd"
 )
 
-// The fixture explicitly owns its clock: SOCKET.clock holds a canonical
-// CreateFence and must be advanced by the harness. There is no implicit
-// production wall-clock fallback or command-line/environment bypass.
+// The fixture explicitly owns its clock: fake_clock (default SOCKET.clock)
+// holds a canonical CreateFence and must be advanced by the harness. There is
+// no implicit production wall-clock fallback or command-line/environment bypass.
 func newHost(c config) (*slotd.Host, error) {
+	clockPath := c.FakeClock
+	if clockPath == "" {
+		clockPath = c.Socket + ".clock"
+	}
 	clock := func() (lifecycle.CreateFence, error) {
 		var f lifecycle.CreateFence
-		raw, e := readPrivate(c.Socket + ".clock")
+		raw, e := readPrivate(clockPath)
 		if e != nil {
 			return f, fail("SLOTD_FAKE_CLOCK")
 		}

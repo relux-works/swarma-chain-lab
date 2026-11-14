@@ -79,7 +79,7 @@ func TestFakeManagerRun(t *testing.T) {
 	server.TLS = &tls.Config{Certificates: []tls.Certificate{pair}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: roots, MinVersion: tls.VersionTLS13}
 	server.StartTLS()
 	defer server.Close()
-	socket := filepath.Join(root, "fake.sock")
+	socket := filepath.Join(mk("sock"), "s")
 	listener, e := net.Listen("unix", socket)
 	if e != nil {
 		t.Fatal(e)
@@ -90,7 +90,8 @@ func TestFakeManagerRun(t *testing.T) {
 	}
 	fence := lifecycle.CreateFence{BootID: "0f8e1c3a-6b2d-4e7f-9a1b-2c3d4e5f6a7b", IssuedBoottimeNS: "10000000000"}
 	clock, _ := json.Marshal(fence)
-	write("fake.sock.clock", clock)
+	clockPath := filepath.Join(mk("clock"), "clock")
+	writeInstalled(t, clockPath, clock)
 	var mu sync.Mutex
 	records := map[string]slotd.Response{}
 	ops := []string{}
@@ -150,15 +151,15 @@ func TestFakeManagerRun(t *testing.T) {
 		}
 	}()
 	defer func() { listener.Close(); <-helperDone }()
-	c := config{StateDir: mk("manager"), Socket: socket, SlotMin: 1, SlotMax: 8, PayloadID: "fixture", PayloadSHA256: payload, Endpoint: server.URL + lifecycle.PollPath, GatewayCertSHA256: fixtureHash(der), ClientCert: cp, ClientKey: kp, ServerCA: cp}
+	c := config{StateDir: mk("manager"), Socket: socket, FakeClock: clockPath, SlotMin: 1, SlotMax: 8, PayloadID: "fixture", PayloadSHA256: payload, Endpoint: server.URL + lifecycle.PollPath, GatewayCertSHA256: fixtureHash(der), ClientCert: cp, ClientKey: kp, ServerCA: cp}
 	raw, _ := json.Marshal(c)
 	path := write("config", raw)
 	// Missing/invalid clock never constructs a fake host; no wall-clock fallback.
-	write("fake.sock.clock", []byte(`{}`))
+	writeInstalled(t, clockPath, []byte(`{}`))
 	if _, e = newHost(c); e == nil || e.Error() != "SLOTD_FAKE_CLOCK" {
 		t.Fatal("invalid fake clock accepted")
 	}
-	write("fake.sock.clock", clock)
+	writeInstalled(t, clockPath, clock)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- run(ctx, []string{"run", "--config", path}) }()

@@ -58,9 +58,8 @@ func TestPrivateInput(t *testing.T) {
 	}
 }
 
-// A complete private configuration validates without contacting any helper,
-// creating runtime state, or copying the manager key into a station bootstrap.
-func TestCheckConfig(t *testing.T) {
+func checkConfigFixture(t *testing.T) (config, string) {
+	t.Helper()
 	root, e := filepath.EvalSymlinks(t.TempDir())
 	if e != nil {
 		t.Fatal(e)
@@ -92,6 +91,13 @@ func TestCheckConfig(t *testing.T) {
 		t.Fatal(e)
 	}
 	path := write("config.json", raw)
+	return c, path
+}
+
+// A valid config is checked without contacting the helper or creating runtime state.
+func TestCheckConfig(t *testing.T) {
+	c, path := checkConfigFixture(t)
+	var e error
 	if e = run(context.Background(), []string{"check-config", "--config", path}); e != nil {
 		t.Fatal(e)
 	}
@@ -100,5 +106,27 @@ func TestCheckConfig(t *testing.T) {
 	}
 	if _, e = os.Stat(c.Socket); !os.IsNotExist(e) {
 		t.Fatal("check-config touched helper")
+	}
+}
+
+// A valid config loads; an additional unknown field is refused before any runtime effects.
+func TestConfigUnknownField(t *testing.T) {
+	c, path := checkConfigFixture(t)
+	if e := run(context.Background(), []string{"check-config", "--config", path}); e != nil {
+		t.Fatal("valid config", e)
+	}
+	raw, e := json.Marshal(c)
+	if e != nil {
+		t.Fatal(e)
+	}
+	raw = append(raw[:len(raw)-1], []byte(`,"unknown":"fixture"}`)...)
+	writeInstalled(t, path, raw)
+	if e = run(context.Background(), []string{"check-config", "--config", path}); e == nil || e.Error() != "CONFIG" {
+		t.Fatal("unknown field accepted", e)
+	}
+	for _, p := range []string{c.StateDir, c.Socket} {
+		if _, e := os.Lstat(p); !os.IsNotExist(e) {
+			t.Fatal("config check created runtime state", e)
+		}
 	}
 }
