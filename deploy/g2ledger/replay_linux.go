@@ -173,20 +173,27 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 		if e != nil {
 			return stopped("UNIT_LOOKUP "+a.Name, e)
 		}
-		if got == nil || got.Unit.State == "disabled" {
-			return nil
-		}
-		if !identityEqual(*got, want) {
+		if got != nil && got.Unit.Name != want.Unit.Name {
 			return mismatch(a)
 		}
-		if e = commandOK(l.sys, "/usr/bin/systemctl", "disable", a.Name); e != nil {
-			return stopped("UNIT_RESTORE "+a.Name, e)
+		// Check the entire set before any unlink; never call disable, which can
+		// remove foreign links and Install.Also units (systemctl(1)).
+		if e = checkUnitLinks(want.Unit.Links); e != nil {
+			return stopped("UNIT_LINK_IDENTITY "+a.Name, e)
 		}
-		after, e := unitState(l.sys, a.Name)
+		for _, link := range want.Unit.Links {
+			if e = removeUnitLink(link); e != nil {
+				return stopped("UNIT_LINK_REMOVE "+a.Name, e)
+			}
+		}
+		if e = commandOK(l.sys, "/usr/bin/systemctl", "daemon-reload"); e != nil {
+			return stopped("UNIT_RELOAD "+a.Name, e)
+		}
+		after, e := l.replayUnit(a.Name)
 		if e != nil {
 			return stopped("UNIT_LOOKUP "+a.Name, e)
 		}
-		if !identityEqual(*after, a.Before[0]) {
+		if after != nil && !identityEqual(*after, a.Before[0]) {
 			return mismatch(a)
 		}
 		return nil
@@ -286,8 +293,14 @@ func (l *Ledger) preflightRehearsal() error {
 				}
 			case "unit":
 				got, e = l.replayUnit(a.Name)
-				if e == nil && got != nil && identityEqual(*got, a.Before[0]) {
+				if e == nil {
+					e = checkUnitLinks(want.Unit.Links)
+				}
+				if e == nil && (got == nil || identityEqual(*got, a.Before[0])) {
 					continue
+				}
+				if got != nil {
+					got.Unit.Links = want.Unit.Links
 				}
 			}
 			if e != nil {

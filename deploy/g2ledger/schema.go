@@ -59,9 +59,14 @@ type Membership struct {
 	Group   Account `json:"group"`
 	Present bool    `json:"present"`
 }
+type UnitLink struct {
+	Path   string `json:"path"`
+	Target string `json:"target"`
+}
 type Unit struct {
-	Name  string `json:"name"`
-	State string `json:"state"`
+	Name  string     `json:"name"`
+	State string     `json:"state"`
+	Links []UnitLink `json:"links,omitempty"`
 }
 type Identity struct {
 	Path       string      `json:"path,omitempty"`
@@ -258,6 +263,16 @@ func validateIdentity(i Identity, kind string) error {
 		if i.Path != "" || i.Unit == nil || !unitPattern.MatchString(i.Unit.Name) || (i.Unit.State != "enabled" && i.Unit.State != "disabled") {
 			return errors.New("IDENTITY_UNIT")
 		}
+		seen := map[string]bool{}
+		for _, link := range i.Unit.Links {
+			if !validPath(link.Path) || !validPath(link.Target) || seen[link.Path] {
+				return errors.New("IDENTITY_UNIT_LINK")
+			}
+			seen[link.Path] = true
+		}
+		if i.Unit.State == "disabled" && len(i.Unit.Links) != 0 {
+			return errors.New("IDENTITY_DISABLED_LINKS")
+		}
 	default:
 		return errors.New("UNKNOWN_KIND")
 	}
@@ -376,7 +391,7 @@ func validateResult(a Action, ids []Identity) error {
 				return errors.New("RESULT_MEMBER")
 			}
 		case "unit":
-			if i.Unit.Name != a.Name || i.Unit.State != "enabled" {
+			if i.Unit.Name != a.Name || i.Unit.State != "enabled" || len(i.Unit.Links) == 0 {
 				return errors.New("RESULT_UNIT")
 			}
 		}

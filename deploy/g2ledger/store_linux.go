@@ -15,6 +15,7 @@ import (
 )
 
 const recordsName = "records.jsonl"
+const unsealedName = "UNSEALED"
 const maxLedger = 64 << 20
 
 // The lock covers verification, all creating calls and replay, not just append.
@@ -27,6 +28,7 @@ type Ledger struct {
 	lock        *os.File
 	rows        []Record
 	write       func(io.Writer, []byte) error
+	sync        func(*os.File) error // fsync-only fault seam, nil in production
 	poisoned    bool
 	sys         System
 	afterIntent func(Action) error // crash/race injection; never set by the CLI
@@ -189,6 +191,15 @@ func (l *Ledger) read(name string) ([]byte, error) {
 	return b, nil
 }
 func (l *Ledger) load() error {
+	// A durable guard precedes every append. Its presence survives failed
+	// seals and process death even when the new HEAD is already visible.
+	var marker unix.Stat_t
+	if e := unix.Fstatat(int(l.dir.Fd()), unsealedName, &marker, unix.AT_SYMLINK_NOFOLLOW); !errors.Is(e, unix.ENOENT) {
+		if e != nil {
+			return stopped("LEDGER_UNSEALED_LOOKUP", e)
+		}
+		return fail(1, "LEDGER_UNSEALED inspect records and affected intent")
+	}
 	b, e := l.read(recordsName)
 	if e != nil {
 		return stopped("LEDGER_READ", e)
@@ -304,11 +315,34 @@ func creationKeys(a Action) []string {
 	}
 	return nil
 }
+func (l *Ledger) syncFile(f *os.File) error {
+	if l.sync != nil {
+		return l.sync(f)
+	}
+	return f.Sync()
+}
 func (l *Ledger) append(body Body) error {
 	if l.poisoned {
 		return fail(1, "LEDGER_POISONED")
 	}
 	l.poisoned = true
+	// Persist the guard before changing records or invoking a creating effect.
+	// Never remove it on an error path. Reopen refuses while it exists.
+	guard, e := at(l.dir, unsealedName, unix.O_CREAT|unix.O_EXCL|unix.O_WRONLY, 0600)
+	if e != nil {
+		return stopped("UNSEALED_CREATE", e)
+	}
+	e = guard.Chmod(0600)
+	if e == nil {
+		e = l.syncFile(guard)
+	}
+	e = errors.Join(e, guard.Close())
+	if e != nil {
+		return stopped("UNSEALED_SYNC", e)
+	}
+	if e = l.syncFile(l.dir); e != nil {
+		return stopped("UNSEALED_DIRECTORY_SYNC", e)
+	}
 	seq := uint64(len(l.rows))
 	prev := zeroHash
 	if seq > 0 {
@@ -334,14 +368,14 @@ func (l *Ledger) append(body Body) error {
 		e = l.write(f, append(canonical(r), '\n'))
 	}
 	if e == nil {
-		e = f.Sync()
+		e = l.syncFile(f)
 	}
 	e = errors.Join(e, f.Close())
 	if e != nil {
 		return stopped("APPEND_WRITE_SYNC", e)
 	}
 	if seq == 0 {
-		if e = l.dir.Sync(); e != nil {
+		if e = l.syncFile(l.dir); e != nil {
 			return stopped("APPEND_DIRECTORY_SYNC", e)
 		}
 	}
@@ -355,7 +389,7 @@ func (l *Ledger) append(body Body) error {
 		e = l.write(hf, canonical(head{seq + 1, r.Hash}))
 	}
 	if e == nil {
-		e = hf.Sync()
+		e = l.syncFile(hf)
 	}
 	e = errors.Join(e, hf.Close())
 	if e != nil {
@@ -364,8 +398,14 @@ func (l *Ledger) append(body Body) error {
 	if e = unix.Renameat(int(l.dir.Fd()), tmp, int(l.dir.Fd()), "HEAD"); e != nil {
 		return stopped("HEAD_RENAME", e)
 	}
-	if e = l.dir.Sync(); e != nil {
+	if e = l.syncFile(l.dir); e != nil {
 		return stopped("HEAD_DIRECTORY_SYNC", e)
+	}
+	// HEAD and records are now durable. Do not fsync after unlinking the
+	// guard: a crash may conservatively resurrect it, but can never expose an
+	// unsealed HEAD without it. No failing final fsync can erase the guard.
+	if e = unix.Unlinkat(int(l.dir.Fd()), unsealedName, 0); e != nil {
+		return stopped("UNSEALED_REMOVE", e)
 	}
 	l.rows = append(l.rows, r)
 	l.poisoned = false

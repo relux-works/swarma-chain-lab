@@ -101,7 +101,7 @@ target. The JSON scope input is recorded as typed data in genesis and need not
 be reopened at replay.
 
 `init` exclusively creates D with mode 0700. An existing D, including an
-incomplete attempt, refuses. `LOCK`, `records.jsonl` and `HEAD` are private
+incomplete attempt, refuses. `LOCK`, `records.jsonl`, `HEAD` and the temporary `UNSEALED` guard are private
 0600 owner files. Never recreate or edit these to make a failed attempt pass.
 The journal and baseline cannot themselves be mutation targets.
 
@@ -173,7 +173,7 @@ Only the exact expected fields may appear in each action and identity variant.
 | `user` | Name, uid **and primary gid**, nologin shell |
 | `group` | Name, gid; explicit uid=0 and shell="" are structural fields, not a user identity |
 | `membership` | Full user and group identities plus membership state |
-| `unit` | Unit name and enablement state |
+| `unit` | Unit name, enablement state and exact created symlink path/target set |
 
 UID/GID `4294967295` is rejected as a syscall wildcard; UID/GID zero remains
 an explicit valid root identity. Hardlinked regular files, special file types
@@ -237,7 +237,7 @@ a changed gid or replaced directory preserves both older and newer entries.
 Already reversed absence/config/unit/membership states allow retry. It also
 refuses foreign explicit members before deleting a created group. Reverse order
 removes recorded memberships before the created accounts they depend on, and
-disables what the attempt enabled before removing its recorded unit files.
+removes only the recorded enable symlinks before removing its recorded unit files.
 Unit files are ordinary `create-file` records, so they need `state`, `remove`
 or `rehearsal` retention to be removed in rehearsal. Regtest and fixture output
 directories/files likewise require individual `create-dir`/`create-file`
@@ -397,3 +397,45 @@ whenever that group exists, even if separately recorded. It does not change host
 policy. Use a differently named primary group for removable users. Only a
 separate recorded group step, checked against its own identity and retention,
 may invoke `groupdel`. Retained users still retain their identities and policy.
+
+### Unit enable receipts and undo
+
+Before enable, the ledger parses `systemctl cat NAME` (unit and drop-ins) and
+refuses any `[Install] Also=` assignment, including resets. See
+[systemd.unit(5)](https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#Also=).
+It repeats that inspection after intent and before enable. Privileged unit-file
+writers must remain quiescent during the operation.
+
+[systemctl(1)](https://www.freedesktop.org/software/systemd/man/249/systemctl.html)
+documents that enable reports the filesystem operations it performs. The
+[systemd v249 implementation](https://github.com/systemd/systemd/blob/v249/src/shared/install.c#L312)
+prints `Created symlink A -> B.` in the C locale. The real seam captures enable's
+stderr along with stdout with `LC_ALL=C`; every reported absolute link and
+absolute target becomes part of the commit receipt only after observation.
+Unknown output, empty output, duplicate paths, or missing/retargeted links leave
+a named orphan. Other output formats are deliberately unsupported.
+
+Undo checks the entire recorded set before any removal, then rechecks each link
+through its parent descriptor and unlinks only a still-matching link. Absent
+links are retry-safe. A retargeted link or a regular file stops replay, even
+when the unit now reports disabled. Foreign symlinks are preserved. Undo never
+calls `systemctl disable`: that command can remove additional links and units.
+It invokes `daemon-reload` through the System seam and verifies the named unit
+returned to its previous state. A remaining foreign enablement can cause STOP;
+it never grants permission to remove that foreign link.
+
+### Durable uncertain-seal guard
+
+Every append first exclusively creates private `UNSEALED`, fsyncs that file,
+and fsyncs the ledger directory. It then writes/fsyncs records, writes/fsyncs
+the temporary HEAD, renames HEAD, and fsyncs the ledger directory. Only after
+all these operations succeed does it unlink `UNSEALED` and accept the seal.
+Any earlier failure preserves the marker and poisons the handle. A fresh Open
+or replay refuses with `LEDGER_UNSEALED`, even if matching new records and HEAD
+are visible. This also preserves uncertainty after process death at the final
+HEAD-directory checkpoint. The marker is not automatically repaired or adopted.
+
+There is deliberately no further fsync after the guard unlink: HEAD is already
+durable at that point. A crash may resurrect the guard and conservatively
+require inspection; it cannot grant authority to an incomplete seal. These
+restart and injected-fsync tests do not certify storage hardware or power loss.

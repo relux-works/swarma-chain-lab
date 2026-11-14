@@ -41,7 +41,16 @@ func (RealSystem) Run(command string, args ...string) (string, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, command, args...)
-	b, e := cmd.Output()
+	// systemctl enable reports created links on stderr, not stdout. Capture
+	// both only for this non-secret command and force its documented C format.
+	var b []byte
+	var e error
+	if command == "/usr/bin/systemctl" && len(args) > 0 && args[0] == "enable" {
+		cmd.Env = append(os.Environ(), "LC_ALL=C", "SYSTEMD_COLORS=0", "SYSTEMD_URLIFY=0")
+		b, e = cmd.CombinedOutput()
+	} else {
+		b, e = cmd.Output()
+	}
 	if ctx.Err() != nil {
 		return "", -1, errors.New("COMMAND_TIMEOUT")
 	}

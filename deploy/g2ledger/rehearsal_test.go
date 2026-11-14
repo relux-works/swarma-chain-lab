@@ -68,7 +68,7 @@ func TestLedgerRehearsalRemovesCreatedObjects(t *testing.T) {
 	must(t, f.l.Enable("demo.service"))
 	initialFault := f.sys.fault
 	f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
-		if cmd == "/usr/bin/systemctl" && args[0] == "disable" {
+		if cmd == "/usr/bin/systemctl" && args[0] == "daemon-reload" && f.sys.units["demo.service"] == "enabled" {
 			exists(t, unit)
 		}
 		return initialFault(cmd, args)

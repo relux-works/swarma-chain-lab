@@ -201,6 +201,9 @@ func (l *Ledger) Enable(name string) error {
 	if before.Unit.State != "disabled" {
 		return fail(1, "UNIT_ALREADY_ENABLED "+name)
 	}
+	if e = unitInstallSafe(l.sys, name); e != nil {
+		return stopped("UNIT_INSTALL "+name, e)
+	}
 	a := Action{Kind: "unit", Ret: "state", Name: name, Before: []Identity{*before}}
 	seq, e := l.begin(a)
 	if e != nil {
@@ -211,15 +214,33 @@ func (l *Ledger) Enable(name string) error {
 		l.poisoned = true
 		return orphan(a)
 	}
-	if e = commandOK(l.sys, "/usr/bin/systemctl", "enable", name); e != nil {
+	if e = unitInstallSafe(l.sys, name); e != nil {
 		l.poisoned = true
 		return orphan(a)
+	}
+	output, status, e := l.sys.Run("/usr/bin/systemctl", "enable", name)
+	if e != nil || status != 0 {
+		l.poisoned = true
+		return orphan(a)
+	}
+	links, e := createdUnitLinks(output)
+	if e != nil {
+		l.poisoned = true
+		return orphan(a)
+	}
+	for _, link := range links {
+		present, err := unitLinkPresent(link)
+		if err != nil || !present {
+			l.poisoned = true
+			return orphan(a)
+		}
 	}
 	got, e := unitState(l.sys, name)
 	if e != nil || got == nil {
 		l.poisoned = true
 		return orphan(a)
 	}
+	got.Unit.Links = links
 	return l.commit(seq, a, []Identity{*got})
 }
 

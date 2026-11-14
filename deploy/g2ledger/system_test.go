@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -17,6 +18,10 @@ type fakeReply struct {
 	err    error
 }
 type fakeSystem struct {
+	unitRoot   string
+	unitFiles  map[string]string
+	also       map[string][]string
+	unitLinks  map[string][]UnitLink
 	usergroups bool // models login.defs USERGROUPS_ENAB, independent of ledger policy
 	chownError error
 	users      map[string]Account
@@ -30,7 +35,7 @@ type fakeSystem struct {
 }
 
 func newSystem() *fakeSystem {
-	return &fakeSystem{users: map[string]Account{}, groups: map[string]Account{}, members: map[string]map[string]bool{}, units: map[string]string{}, live: map[string]bool{}}
+	return &fakeSystem{unitFiles: map[string]string{}, also: map[string][]string{}, unitLinks: map[string][]UnitLink{}, users: map[string]Account{}, groups: map[string]Account{}, members: map[string]map[string]bool{}, units: map[string]string{}, live: map[string]bool{}}
 }
 func (s *fakeSystem) Chown(f *os.File, u, g uint32) error {
 	if s.chownError != nil {
@@ -192,7 +197,38 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 		delete(s.members[group], user)
 		return "", 0, nil
 	case "/usr/bin/systemctl":
-		verb, name := args[0], args[1]
+		verb := args[0]
+		if verb == "daemon-reload" {
+			for name, links := range s.unitLinks {
+				present := false
+				for _, link := range links {
+					_ = filepath.WalkDir(s.unitRoot, func(path string, entry os.DirEntry, err error) error {
+						if err != nil {
+							return err
+						}
+						if entry.Type()&os.ModeSymlink != 0 {
+							target, _ := os.Readlink(path)
+							present = present || target == link.Target
+						}
+						return nil
+					})
+				}
+				if !present {
+					s.units[name] = "disabled"
+				}
+			}
+			return "", 0, nil
+		}
+		name := args[1]
+		if verb == "cat" {
+			if text, ok := s.unitFiles[name]; ok {
+				return text, 0, nil
+			}
+			if _, ok := s.units[name]; ok {
+				return "[Unit]\nDescription=fixture\n[Install]\nWantedBy=multi-user.target\n", 0, nil
+			}
+			return "", 1, nil
+		}
 		state, ok := s.units[name]
 		if verb == "is-enabled" {
 			if !ok {
@@ -204,17 +240,57 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 			if state == "disabled" {
 				return "disabled\n", 1, nil
 			}
-			return state + "\n", 1, nil
+			status := 1
+			if state == "enabled-runtime" || state == "alias" || state == "static" || state == "indirect" || state == "generated" || state == "transient" {
+				status = 0
+			}
+			return state + "\n", status, nil
 		}
 		if !ok {
 			return "", 1, nil
 		}
 		if verb == "enable" {
-			s.units[name] = "enabled"
-			return "", 0, nil
+			output := ""
+			for _, unit := range append([]string{name}, s.also[name]...) {
+				path := filepath.Join(s.unitRoot, "multi-user.target.wants", unit)
+				target := filepath.Join(s.unitRoot, unit)
+				if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+					return "", -1, err
+				}
+				if _, err := os.Lstat(path); os.IsNotExist(err) {
+					if err = os.Symlink(target, path); err != nil {
+						return "", -1, err
+					}
+					output += fmt.Sprintf("Created symlink %s -> %s.\n", path, target)
+					s.unitLinks[unit] = append(s.unitLinks[unit], UnitLink{path, target})
+				}
+				s.units[unit] = "enabled"
+			}
+			return output, 0, nil
 		}
 		if verb == "disable" {
-			s.units[name] = "disabled"
+			for _, unit := range append([]string{name}, s.also[name]...) {
+				target := filepath.Join(s.unitRoot, unit)
+				err := filepath.WalkDir(s.unitRoot, func(path string, entry os.DirEntry, err error) error {
+					if err != nil {
+						return err
+					}
+					if entry.Type()&os.ModeSymlink != 0 {
+						got, err := os.Readlink(path)
+						if err != nil {
+							return err
+						}
+						if got == target {
+							return os.Remove(path)
+						}
+					}
+					return nil
+				})
+				if err != nil {
+					return "", -1, err
+				}
+				s.units[unit] = "disabled"
+			}
 			return "", 0, nil
 		}
 	}

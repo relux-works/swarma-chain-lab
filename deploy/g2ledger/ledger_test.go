@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -35,6 +36,7 @@ func setupWith(t *testing.T, purpose string, prepare func(*fixture)) *fixture {
 	must(t, e)
 	must(t, os.WriteFile(manifest, manifestRaw, 0600))
 	f := &fixture{root: root, dir: dir, src: filepath.Join(root, "source"), sys: newSystem()}
+	f.sys.unitRoot = t.TempDir()
 	f.scope = Scope{Users: []string{"demo", "foreign"}, Groups: []string{"demo", "foreign", "primary", "access"}, Units: []string{"demo.service"}}
 	f.sys.units["demo.service"] = "disabled"
 	for _, name := range []string{"older", "newer", "own", "foreign", "public", "pre-existing", "valid", "never-created", "full-write", "not-created", "target", "ordinary", "owned", "orphan", "normal", "old.key", "wallet.json", "service.json", "probe", "config", "cli-file", "file", "parent/file", "parent/newer", "remove"} {
@@ -375,8 +377,8 @@ func TestLedgerHeadDetectsValidPrefixTruncation(t *testing.T) {
 }
 
 // Claim: an actual short or zero append write never lets the caller proceed;
-// any partial record is retained and rejected. A zero write can leave the prior
-// valid ledger intact; that does not turn the failed creating call into success.
+// any partial record is retained and rejected. The durable guard refuses even
+// a zero-write failed append after reopen, preserving the uncertain evidence.
 func TestLedgerShortWriteD9_6(t *testing.T) {
 	for _, short := range []bool{false, true} {
 		t.Run(fmt.Sprint(short), func(t *testing.T) {
@@ -396,11 +398,7 @@ func TestLedgerShortWriteD9_6(t *testing.T) {
 			absent(t, p)
 			f.l.Close()
 			_, e = Open(f.dir, f.sys)
-			if short {
-				code(t, e, 1)
-			} else {
-				must(t, e)
-			}
+			code(t, e, 1) // durable guard also refuses a zero-write failed append
 		})
 	}
 	f := setup(t)
@@ -416,21 +414,29 @@ type shortWriter struct {
 
 func (w shortWriter) Write(b []byte) (int, error) { return w.w.Write(b[:w.n]) }
 
-// Claim: an append with a failed fsync is never reported committed. Closing the
-// real record fd inside the writer injects EBADF at the following fsync.
+// Claim: an fsync-only EIO at the record descriptor (which remains open)
+// refuses before creation and survives reopen. Removing record fsync alone
+// makes this control fail; Close still succeeds and cannot mask that rule.
 func TestLedgerAppendSyncFailure(t *testing.T) {
 	f := setup(t)
-	f.l.write = func(w io.Writer, b []byte) error {
-		if e := checkedWrite(w, b); e != nil {
-			return e
+	injected := false
+	f.l.sync = func(file *os.File) error {
+		if file.Name() == recordsName {
+			injected = true
+			return syscall.EIO
 		}
-		return w.(*os.File).Close()
+		return file.Sync()
 	}
 	p := filepath.Join(f.root, "not-created")
-	if ExitCode(f.l.CreateFS(p, f.src, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600)) == 0 {
-		t.Fatal("sync failure succeeded")
+	err := f.l.CreateFS(p, f.src, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600)
+	code(t, err, 1)
+	if !injected || !strings.Contains(err.Error(), "APPEND_WRITE_SYNC") {
+		t.Fatal("record fsync not exercised", err)
 	}
 	absent(t, p)
+	f.l.Close()
+	_, err = Open(f.dir, f.sys)
+	code(t, err, 1)
 }
 
 // Claim: symlinks in parents or targets, replacement inodes, content/mode drift
@@ -449,12 +455,19 @@ func TestLedgerFilesystemDriftAndNoFollow(t *testing.T) {
 				kind = "dir"
 			}
 			p := f.create(t, "target", kind, "remove")
+			info, err := os.Stat(p)
+			must(t, err)
 			switch change {
 			case "content":
-				must(t, os.WriteFile(p, []byte("changed"), 0600))
+				content, err := os.ReadFile(p)
+				must(t, err)
+				content[0] ^= 1
+				must(t, os.WriteFile(p, content, 0600))
+				must(t, os.Chtimes(p, info.ModTime(), info.ModTime()))
 			case "inode":
 				must(t, os.Rename(p, p+".original"))
 				must(t, os.WriteFile(p, []byte("fixture public bytes\n"), 0600))
+				must(t, os.Chtimes(p, info.ModTime(), info.ModTime()))
 			case "mode":
 				must(t, os.Chmod(p, 0644))
 			case "symlink":

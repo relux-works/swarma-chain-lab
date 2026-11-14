@@ -366,14 +366,17 @@ func TestLedgerExecMissingExtraAndToolFailure(t *testing.T) {
 // Claim: a no-op or arbitrary external creator is refused before any intent;
 // supported tools must be this executable and declare their exact output flag.
 func TestLedgerExecRejectsUnauditedOrUndeclaredCreator(t *testing.T) {
-	f := setup(t)
+	f := setupWith(t, "station", func(f *fixture) { f.declare("foreign", "secret") })
 	p := filepath.Join(f.root, "foreign")
-	foreign(t, p, "file")
-	code(t, f.l.ExecCreate("file", "remove", []string{p}, []string{"/usr/bin/true", "-out", p}), 1)
+	err := f.l.ExecCreate("secret", "remove", []string{p}, []string{"/usr/bin/true", "-out", p})
+	code(t, err, 1)
+	if !strings.Contains(err.Error(), "EXEC_CONTRACT") {
+		t.Fatal(err)
+	}
 	if len(f.l.rows) != 1 {
 		t.Fatal("unaudited intent")
 	}
-	exists(t, p)
+	absent(t, p)
 	self, e := os.Executable()
 	must(t, e)
 	must(t, creatorCommand([]string{self, "g2-keygen", "-out", p}, []string{p}))
