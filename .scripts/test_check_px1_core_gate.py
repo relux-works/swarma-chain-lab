@@ -603,13 +603,13 @@ class W2Gate(unittest.TestCase):
     run_checker = Gate.run_checker
 
     # Claim: the valid neighbour passes: every W2 Core test of the manifest
-    # passing once gives exit 0, PX1_GATE PASS with 23 labels and 23 required
+    # passing once gives exit 0, PX1_GATE PASS with 25 labels and 25 required
     # passes, and every label PASS.
     def test_w2_all_pass(self):
         m = load(W2)
         code, out = self.run_checker(stream(m), manifest=W2)
         self.assertEqual(code, 0, out)
-        self.assertIn("PX1_GATE PASS labels=23 required_passed=23", out)
+        self.assertIn("PX1_GATE PASS labels=25 required_passed=25", out)
         for label, n in zip(m["labels"], m["core_tests"]):
             self.assertRegex(out, rf"(?m)^{label} PASS layers=core core: pass {n}$")
 
@@ -621,7 +621,7 @@ class W2Gate(unittest.TestCase):
     def test_w2_manifest_is_newcore_users(self):
         m = load(W2)
         tests, helpers = newcore_users()
-        self.assertEqual(len(tests), 23)
+        self.assertEqual(len(tests), 25)
         self.assertEqual(helpers, [])
         self.assertEqual(sorted(m["core_tests"]), tests)
         self.assertEqual(w2_manifest_errors(m), [])
@@ -723,7 +723,7 @@ class W2Gate(unittest.TestCase):
     # Claim (recorded known-bad stream): the go test -json shape of the
     # action-final-authority plant (TestCoreActionFinalCheck failing at
     # "want refused/GRANT_SEAL_SPENT got executed/EXECUTED", then the package
-    # failing), beside the passing streams of the other 22 tests, fails the
+    # failing), beside the passing streams of the other 24 tests, fails the
     # gate with FAILED, REQUIRED_FAILED and PACKAGE_FAILED and no missing or
     # skipped test, so the plant alone causes the failure. The hosted job
     # repeats this with a genuinely planted tree (agent-wallet.yml w2-core).
@@ -746,10 +746,10 @@ class W2Gate(unittest.TestCase):
         for want in ("FAILED " + name, "REQUIRED_FAILED W2-CoreActionFinalCheck " + name, "PACKAGE_FAILED", "PX1_GATE FAIL"):
             self.assertIn(want, out)
         self.assertNotRegex(out, r"(?m)^REQUIRED_(MISSING|SKIPPED) ")
-        self.assertEqual(len(re.findall(r"(?m)^W2-\S+ PASS ", out)), 22)
+        self.assertEqual(len(re.findall(r"(?m)^W2-\S+ PASS ", out)), 24)
 
     # Claim: a run without W1_REGTEST (every newCore test skips) fails the
-    # gate with SKIPPED and REQUIRED_SKIPPED for each of the 23 tests.
+    # gate with SKIPPED and REQUIRED_SKIPPED for each of the 25 tests.
     def test_w2_no_node_skips_all(self):
         m = load(W2)
         code, out = self.run_checker(stream(m, {n: "skip" for n in m["core_tests"]}), manifest=W2)

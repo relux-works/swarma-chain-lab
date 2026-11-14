@@ -1,7 +1,7 @@
 {
   "v": 1,
   "package": "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet",
-  "labels": ["W2-CoreActionStanding", "W2-CoreActionFinalCheck", "W2-CoreActionCrash", "W2-CoreActionState", "W2-CoreActionStateLimits", "W2-CoreActionTransport", "W2-CoreActionOneoff", "W2-CoreActionSealFunding", "W2-CoreActionRotation", "W2-CoreActionRefusals", "W2-CoreActionOneoffBindings", "W2-CoreActionStartup", "W2-CoreActionClient", "W2-CoreActionWireRefusals", "W2-CoreWalletSpend", "W2-CoreCLI", "W2-CoreWalletControls", "W2-CoreWalletCrash", "W2-CoreNameRegistration", "W2-CoreOneoff", "W2-CorePlanControls", "W2-CoreSealFunding", "W2-CoreRevocation"],
+  "labels": ["W2-CoreActionStanding", "W2-CoreActionFinalCheck", "W2-CoreActionCrash", "W2-CoreActionState", "W2-CoreActionStateLimits", "W2-CoreActionTransport", "W2-CoreActionOneoff", "W2-CoreActionSealFunding", "W2-CoreActionRotation", "W2-CoreActionRefusals", "W2-CoreActionOneoffBindings", "W2-CoreActionStartup", "W2-CoreActionClient", "W2-CoreActionWireRefusals", "W2-CoreWalletSpend", "W2-CoreCLI", "W2-CoreWalletControls", "W2-CoreWalletCrash", "W2-CoreNameRegistration", "W2-CoreOneoff", "W2-CorePlanControls", "W2-CoreSealFunding", "W2-CoreRevocation", "W2-CoreSignatureIdentities", "W2-CoreOneoffSecondSignatureCommitment"],
   "core_tests": [
     "TestCoreActionStanding",
     "TestCoreActionFinalCheck",
@@ -25,7 +25,9 @@
     "TestCoreOneoff",
     "TestCorePlanControls",
     "TestCoreSealFunding",
-    "TestCoreRevocation"
+    "TestCoreRevocation",
+    "TestCoreSignatureIdentities",
+    "TestCoreOneoffSecondSignatureCommitment"
   ],
   "tids": {
     "W2-CoreActionStanding": {"layers": ["core"], "core": ["TestCoreActionStanding"]},
@@ -50,6 +52,8 @@
     "W2-CoreOneoff": {"layers": ["core"], "core": ["TestCoreOneoff"]},
     "W2-CorePlanControls": {"layers": ["core"], "core": ["TestCorePlanControls"]},
     "W2-CoreSealFunding": {"layers": ["core"], "core": ["TestCoreSealFunding"]},
-    "W2-CoreRevocation": {"layers": ["core"], "core": ["TestCoreRevocation"]}
+    "W2-CoreRevocation": {"layers": ["core"], "core": ["TestCoreRevocation"]},
+    "W2-CoreSignatureIdentities": {"layers": ["core"], "core": ["TestCoreSignatureIdentities"]},
+    "W2-CoreOneoffSecondSignatureCommitment": {"layers": ["core"], "core": ["TestCoreOneoffSecondSignatureCommitment"]}
   }
 }
