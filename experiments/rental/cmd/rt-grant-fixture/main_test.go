@@ -41,6 +41,11 @@ func serverOptions(t *testing.T, chain, genesis string) (options, *[]string) {
 			result = map[string]any{"chain": chain}
 		case "getblockhash":
 			result = genesis
+		case "name_show":
+			// Valid absent-name responses let a missing chain guard reach
+			// the first write RPC. The recorder refuses that write safely.
+			json.NewEncoder(w).Encode(map[string]any{"result": nil, "error": map[string]any{"code": -4}})
+			return
 		default:
 			json.NewEncoder(w).Encode(map[string]any{"result": nil, "error": map[string]any{"code": -99}})
 			return
@@ -92,14 +97,14 @@ func TestRegtestGate(t *testing.T) {
 			} else {
 				var out, diag bytes.Buffer
 				if run(arguments(o), &out, &diag) != 1 || out.Len() != 0 || diag.String() != "rt-grant-fixture: "+tc.want+"\n" {
-					t.Fatal("CHAIN_REFUSAL: expected sanitized exit 1 and no stdout")
+					t.Error("CHAIN_REFUSAL: expected sanitized exit 1 and no stdout")
 				}
 			}
 			if !reflect.DeepEqual(*calls, tc.calls) {
-				t.Fatalf("CHAIN_REFUSAL: unexpected RPC sequence %v", *calls)
+				t.Errorf("CHAIN_REFUSAL: unexpected RPC sequence %v", *calls)
 			}
 			if _, err := os.Lstat(o.out); !os.IsNotExist(err) {
-				t.Fatal("chain refusal created output")
+				t.Error("CHAIN_REFUSAL: chain refusal created output")
 			}
 		})
 	}
