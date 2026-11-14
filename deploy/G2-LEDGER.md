@@ -601,6 +601,24 @@ C-style escapes and other values outside the simple unit-name subset refuse
 rather than being decoded. Inline comments are not interpreted as comments.
 See [systemd.syntax(7)](https://www.freedesktop.org/software/systemd/man/259/systemd.syntax.html).
 
+Keys and values trim only ASCII space (`0x20`), tab (`0x09`), line feed
+(`0x0a`) and carriage return (`0x0d`); list separators use that same set.
+Line feeds delimit physical lines and trailing backslashes join logical lines.
+This is systemd v259's
+[`WHITESPACE`](https://github.com/systemd/systemd/blob/v259/src/fundamental/string-util-fundamental.h#L15),
+used by [`strstrip`](https://github.com/systemd/systemd/blob/v259/src/basic/string-util.c#L67)
+on [assignment keys and values](https://github.com/systemd/systemd/blob/v259/src/shared/conf-parser.c#L265)
+and by [default word extraction](https://github.com/systemd/systemd/blob/v259/src/basic/extract-word.c#L27).
+Vertical tab and form feed are outside that set and conservatively refuse as
+`UNIT_INSTALL_TEXT_REFUSED`. After ASCII trimming, any non-ASCII key byte
+refuses as `UNIT_INSTALL_KEY_NON_ASCII`; every other unknown key refuses as
+`UNIT_INSTALL_DIRECTIVE_REFUSED`. Values containing non-ASCII Unicode whitespace
+or U+FEFF refuse as `UNIT_INSTALL_VALUE_WHITESPACE_REFUSED`, including inside
+quotes. In particular, U+00A0, U+2002, U+3000, U+FEFF and U+0085 are never
+trimmed or treated as separators. This is a conservative refusal of unsupported
+values, rather than a claim that systemd recognizes those characters as whitespace.
+These checks run before intent and enable.
+
 Persistent system enable writes to **`/etc/systemd/system`**, called `D` below;
 it does not write to the selected vendor source directory. The expected links
 all target the selected unit file's absolute path `F`:

@@ -69,7 +69,10 @@ real payload/parent EIO; traces stay in Go test temporary directories.
 `go test -race ./g2ledger ./cmd/deploy-kit -run '^TestLedger' -count=1` exercises
 real temporary files and a fake account/systemd boundary without root operations. The
 [unit-enable receipt grammar](G2-LEDGER.md#unit-enable-receipts-and-undo) documents
-the supported versioned output. To replay an external native capture verbatim
+the supported versioned output and ASCII Install whitespace rules.
+`go test -race ./g2ledger -run '^TestInstallWhitespace$' -count=1` checks
+ASCII controls and named Unicode refusals before intent; output goes to the terminal.
+To replay an external native capture verbatim
 without storing machine-specific paths in test fixtures, run from `deploy/`:
 
 ```sh

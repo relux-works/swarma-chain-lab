@@ -8,11 +8,16 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // This deliberately excludes escaped names, templates and instances. Unmodeled
 // syntax refuses rather than borrowing systemd's permissive error recovery.
 var installUnitName = regexp.MustCompile(`^[a-zA-Z0-9_:.-]+\.(service|socket|device|mount|automount|swap|target|path|timer|slice|scope)$`)
+
+// systemd v259: src/fundamental/string-util-fundamental.h WHITESPACE,
+// used by conf-parser.c strstrip() and extract-word.c's default separators.
+const installWhitespace = " \t\n\r"
 
 func installName(name string) error {
 	if strings.Contains(name, "%") {
@@ -33,12 +38,12 @@ func installName(name string) error {
 func installLists(raw string, dropin bool) (map[string][]string, error) {
 	lists := map[string][]string{}
 	section, pending := "", ""
-	if strings.ContainsAny(raw, "\x00\v\f\ufeff") {
+	if strings.ContainsAny(raw, "\x00\v\f") {
 		return nil, errors.New("UNIT_INSTALL_TEXT_REFUSED")
 	}
 	for _, physical := range strings.Split(strings.TrimSuffix(raw, "\n"), "\n") {
 		physical = strings.TrimSuffix(physical, "\r")
-		trimmed := strings.TrimLeft(physical, " \t")
+		trimmed := strings.TrimLeft(physical, installWhitespace)
 		if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, ";") {
 			continue
 		}
@@ -51,7 +56,7 @@ func installLists(raw string, dropin bool) (map[string][]string, error) {
 			continue
 		}
 		pending = ""
-		line = strings.Trim(line, " \t\r")
+		line = strings.Trim(line, installWhitespace)
 		if line == "" {
 			continue
 		}
@@ -75,7 +80,12 @@ func installLists(raw string, dropin bool) (map[string][]string, error) {
 		if section != "Install" {
 			continue
 		}
-		key, value = strings.TrimSpace(key), strings.Trim(value, " \t\r")
+		key, value = strings.Trim(key, installWhitespace), strings.Trim(value, installWhitespace)
+		for i := range len(key) {
+			if key[i] >= 0x80 {
+				return nil, errors.New("UNIT_INSTALL_KEY_NON_ASCII")
+			}
+		}
 		switch key {
 		case "Also":
 			return nil, errors.New("UNIT_ALSO_REFUSED")
@@ -84,6 +94,11 @@ func installLists(raw string, dropin bool) (map[string][]string, error) {
 		case "WantedBy", "RequiredBy", "UpheldBy", "Alias":
 		default:
 			return nil, errors.New("UNIT_INSTALL_DIRECTIVE_REFUSED")
+		}
+		for _, r := range value {
+			if r > 0x7f && (unicode.IsSpace(r) || r == '\ufeff') {
+				return nil, errors.New("UNIT_INSTALL_VALUE_WHITESPACE_REFUSED")
+			}
 		}
 		if strings.Contains(value, "%") {
 			return nil, errors.New("UNIT_SPECIFIER_REFUSED")
@@ -95,7 +110,7 @@ func installLists(raw string, dropin bool) (map[string][]string, error) {
 			lists[key] = nil
 			continue
 		}
-		for _, word := range strings.FieldsFunc(value, func(r rune) bool { return r == ' ' || r == '\t' || r == '\r' }) {
+		for _, word := range strings.FieldsFunc(value, func(r rune) bool { return strings.ContainsRune(installWhitespace, r) }) {
 			if strings.HasPrefix(word, `"`) || strings.HasPrefix(word, "'") {
 				if len(word) < 2 || word[len(word)-1] != word[0] {
 					return nil, errors.New("UNIT_INSTALL_QUOTE_REFUSED")
