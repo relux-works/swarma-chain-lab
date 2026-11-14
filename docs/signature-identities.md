@@ -65,7 +65,8 @@ and unchanged-cache/state checks.
 
 The automatic rental check runs `.scripts/check-detached-v2-consumers.py` and
 its detector controls. It inventories production Go references to detached-v2
-entry points, types and certificate-ID fields across the repository, and pins
+entry points, types, CLI commands and certificate-ID fields across production
+Go, Python, shell and other supported source files in the repository, and pins
 the reviewed consumer files by SHA-256. New references, missing paths or changed
 consumer bytes require a new read-site audit. This is a bounded lexical guard,
 not semantic taint analysis: dynamically constructed field names, arbitrary

@@ -1,4 +1,8 @@
 {
+  "experiments/fullnode-trusts/seal_anchor.py": {
+    "sha256": "af4a38ea89c07ac96fdb901e5cbbde61c63211ed1fbe8c121b051846927df1c2",
+    "reason": "Separate full-node certificate name-value anchors; exact committed certificate hash, not a detached-v2 envelope consumer."
+  },
   "experiments/rental/certificate.go": {
     "sha256": "818922503f204b43fa03e839cb9f68d2e82122e089c866392a0049fb3f555a96",
     "reason": "Shared strict parser only; v1 certificate validation does not consume detached-v2 IDs."
@@ -50,5 +54,9 @@
   "experiments/single-use/policy.go": {
     "sha256": "c3e0edaef530e5ee21fecda1594eeb7938f69a2e6efa7e173516a079816d73a6",
     "reason": "Single-use v1 policy field only; not a detached-v2 consumer."
+  },
+  "experiments/thin-regtest-assembly/actual.py": {
+    "sha256": "aa5e783d19e10d293f6dbad4c90dc3032fe8a2a27c203542d04eb715dbf11299",
+    "reason": "Separate assembly certificate name-value anchors and experiment evidence; not detached-v2 envelopes or cross-observer IDs."
   }
 }
