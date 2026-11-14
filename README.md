@@ -371,8 +371,10 @@ checkout. It creates private HOME/cache/temp and, for each entry point (the
 `single-use` configguard/payloadbootstrap/modelprofile APIs, the `deploy`
 package, the `station-lifecycle/cmd/station-manager` command, and the
 `agent-wallet/g1bench` API), a separate
-external consumer module without replacements. It downloads the declared graph
-online with checksum verification, then resolves imports, vets and builds offline,
+external consumer module without replacements. It warms the transitive metadata
+closure of explicit published requirements and downloads the declared graph
+online with checksum verification, checking that the manifest stays unchanged.
+It then resolves imports, vets and builds offline,
 so a missing package cannot be papered over by an online `@latest` lookup. The
 fixed historical consumers must fail with their specific witness: `288d63e` with
 the missing `sealwatch.ValidateJSON`, and `b516cc2` (standalone `single-use v0.1.0`

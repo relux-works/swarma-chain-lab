@@ -82,8 +82,9 @@ configguard, payloadbootstrap and modelprofile APIs of `single-use`, the
 `tool` directive). Separate modules matter: one shared consumer would let
 minimal version selection take the highest `single-use` and hide a stale edge.
 It resolves each requested full commit through the public Go proxy and checks the
-returned origin SHA. It downloads exactly the declared graph online with checksum
-verification, then resolves imports, vets and builds with GOPROXY=off and
+returned origin SHA. It warms the explicit transitive requirement metadata
+closure, with unchanged consumer manifests, then downloads exactly the declared
+graph online with checksum verification. It resolves imports, vets and builds with GOPROXY=off and
 readonly module metadata, so an online `@latest` lookup cannot mask a missing
 package. The historical base `288d63e` must fail specifically at the missing
 ValidateJSON API; the historical head `b516cc2` must fail for both `deploy` and
