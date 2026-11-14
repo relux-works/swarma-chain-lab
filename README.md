@@ -377,7 +377,7 @@ GOWORK=off GOFLAGS=-mod=mod go build ./...
 
 For later releases, choose new versions for changed modules and update their
 consumers explicitly; validate the complete selected graph before tagging.
-The current cross-module requirements pin the published `27d39435cdc4` snapshot;
+The current cross-module requirements pin the published `e70a35a41dec` snapshot;
 local directory replacements remain development conveniences. In particular,
 `single-use` needs `sealwatch.ValidateJSON`, which is absent from `sealwatch v0.1.0`.
 Published, immutable dependency checksums may be recorded in module sums; this

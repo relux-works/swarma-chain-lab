@@ -1,13 +1,16 @@
 # Published module graph audit
 
-The current floor is signed source `27d39435cdc4939422d1ab09cec0b0821ac4c2fe`, published at
-`20261114202108`. All 101 internal requirements select this compatible branch
+The current floor is signed source `e70a35a41dec5948d5452f1f898f4d26977372d7`, published at
+`20261114210947`. All 101 internal requirements select this compatible branch
 snapshot. It descends from main `66dfd7cf2ed5ece75f0632be188412cea426154b`
 and strict-parser change `28d4b9f1aba4f10e8d57ea486f73b52aeabe46ab`.
-The head is selected uniformly to retain current consumer APIs and every strict
+The manifest-refresh commit is selected uniformly to retain current consumer APIs and every strict
 call site, including the wallet's rental and grantcheck requirements. This also
 retains the source changes in the booking, executor, gateway, shared parser and
-wallet modules. No requirement is lowered; no local replacement changes.
+wallet modules. Its requirements point to `27d39435cdc4`, so transitive selected modules also
+retain the rebased strict change. This two-layer refresh avoids selecting the
+pre-refresh manifests that still contain old sibling pins. No requirement is
+lowered; no local replacement changes.
 
 Semantic-version order establishes an API floor, **not fix containment**. The
 numerically higher rental snapshot `3baa201bafb6` lacks the strict certificate
@@ -46,21 +49,21 @@ before test-only parser instrumentation.
 
 | Dependency under experiments/ | Published requirement |
 | --- | --- |
-| `grant-store` | `v0.1.1-0.20261114202108-27d39435cdc4` |
-| `m5-host-smoke` | `v0.3.1-0.20261114202108-27d39435cdc4` |
-| `model-proxy` | `v0.4.1-0.20261114202108-27d39435cdc4` |
-| `payment-chain` | `v0.2.1-0.20261114202108-27d39435cdc4` |
-| `rental` | `v0.5.1-0.20261114202108-27d39435cdc4` |
-| `rental-booking` | `v0.4.1-0.20261114202108-27d39435cdc4` |
-| `rental-gateway` | `v0.4.1-0.20261114202108-27d39435cdc4` |
-| `rental-gateway/kernelbind` | `v0.1.1-0.20261114202108-27d39435cdc4` |
-| `sealwatch` | `v0.2.1-0.20261114202108-27d39435cdc4` |
-| `signer-service` | `v0.3.1-0.20261114202108-27d39435cdc4` |
-| `single-use` | `v0.3.1-0.20261114202108-27d39435cdc4` |
-| `station-lifecycle` | `v0.2.1-0.20261114202108-27d39435cdc4` |
-| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261114202108-27d39435cdc4` |
-| `station-payload` | `v0.3.1-0.20261114202108-27d39435cdc4` |
-| `grantcheck` | `v0.1.2-0.20261114202108-27d39435cdc4` |
+| `grant-store` | `v0.1.1-0.20261114210947-e70a35a41dec` |
+| `m5-host-smoke` | `v0.3.1-0.20261114210947-e70a35a41dec` |
+| `model-proxy` | `v0.4.1-0.20261114210947-e70a35a41dec` |
+| `payment-chain` | `v0.2.1-0.20261114210947-e70a35a41dec` |
+| `rental` | `v0.5.1-0.20261114210947-e70a35a41dec` |
+| `rental-booking` | `v0.4.1-0.20261114210947-e70a35a41dec` |
+| `rental-gateway` | `v0.4.1-0.20261114210947-e70a35a41dec` |
+| `rental-gateway/kernelbind` | `v0.1.1-0.20261114210947-e70a35a41dec` |
+| `sealwatch` | `v0.2.1-0.20261114210947-e70a35a41dec` |
+| `signer-service` | `v0.3.1-0.20261114210947-e70a35a41dec` |
+| `single-use` | `v0.3.1-0.20261114210947-e70a35a41dec` |
+| `station-lifecycle` | `v0.2.1-0.20261114210947-e70a35a41dec` |
+| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261114210947-e70a35a41dec` |
+| `station-payload` | `v0.3.1-0.20261114210947-e70a35a41dec` |
+| `grantcheck` | `v0.1.2-0.20261114210947-e70a35a41dec` |
 
 The inventory below is generated and checked by
 `python3 .scripts/check-module-graph.py`, which parses every `go.mod` with
@@ -133,7 +136,7 @@ and its two gateway dependencies. The previously unconsumed `grantcheck` module
 now follows the shared strict-parser snapshot floor above.
 
 The bench calls the transport-neutral grantcheck API and terms-v2 rental
-API. Its wallet manifest pins both to `27d39435cdc4`, which contains those APIs
+API. Its wallet manifest pins both to `e70a35a41dec`, which contains those APIs
 and the strict-parser change. The external `grant-bench` consumer at `1b3c321`
 is the known stale-API negative: resolve succeeds, but vet/build must fail with
 missing terms-v2 or transport API symbols. The candidate must resolve, vet and

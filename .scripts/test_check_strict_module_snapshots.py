@@ -1,12 +1,15 @@
 """Controls for ancestry and selected-source checks, using real Git objects."""
 import importlib.util
+import os
 from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("strict_snapshots", ROOT / ".scripts/check-strict-module-snapshots.py")
+CHECKER = Path(os.environ.get("STRICT_MODULE_CHECKER", ROOT / ".scripts/check-strict-module-snapshots.py"))
+spec = importlib.util.spec_from_file_location("strict_snapshots", CHECKER)
 guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guard)
+guard.ROOT = ROOT
 MODULE = guard.PREFIX + "experiments/rental"
 GOOD = "v0.5.1-0.20261114202108-27d39435cdc4"
 BAD = "v0.5.1-0.20261114150118-3baa201bafb6"
