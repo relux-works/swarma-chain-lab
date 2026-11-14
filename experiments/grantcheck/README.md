@@ -101,3 +101,11 @@ still verify signatures, identity bindings and the chain issuance commitment.
 
 Run `go test -run '^TestBIP340InboundBoundary$' .` for the boundary regression
 and `go test -race ./...` for the module suite.
+
+`TestCoreBIP340InboundBoundary` also exercises an issuer-produced grant that
+reaches a real live kernel verdict, then rejects an out-of-range scalar before
+state changes or node calls. Run it with the existing `CG1_REGTEST=1` setup and
+a fresh `CG1_RUN_ROOT`. The fixture pins complete executable pairs: the existing
+macOS Core 28 pair and the official Linux Core 28 release pair already pinned by
+the wallet suite. Mixed or unlisted pairs refuse before node startup. Generated
+vector reports record the hashes of the executables actually used.
