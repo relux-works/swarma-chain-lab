@@ -56,12 +56,16 @@ func TestBIP340CertificateBoundaries(t *testing.T) {
 			btcec.S256().N.FillBytes(b[32:])
 			// Preserve the original canonical field order.
 			bad := []byte(strings.Replace(string(c.raw), sig, hex.EncodeToString(b), 1))
-			if e := c.parse(bad); e == nil {
-				t.Fatal("non-canonical scalar accepted")
+			want := "ISSUER_SIGNATURE"
+			if c.name == "v3" {
+				want = "GRANT_SIGNATURE"
+			}
+			if e := c.parse(bad); e == nil || e.Error() != want {
+				t.Fatalf("want signature refusal %s, got %v", want, e)
 			}
 			dir := filepath.Join(t.TempDir(), "must-not-open")
 			r := c.check(bad, dir)
-			if r.Verdict != "refused" || r.Calls != 0 || r.Reason == "" || (c.name == "v3" && r.GrantID != "") {
+			if r.Verdict != "refused" || r.Calls != 0 || r.Reason != want || (c.name == "v3" && r.GrantID != "") {
 				t.Fatalf("invalid certificate reached authority: %+v", r)
 			}
 			if _, e := os.Stat(dir); !os.IsNotExist(e) {

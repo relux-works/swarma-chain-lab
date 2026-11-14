@@ -50,7 +50,7 @@ func TestBIP340WalletBoundaries(t *testing.T) {
 			t.Fatal(e)
 		}
 		event.Signature = outOfRangeScalar(t, event.Signature)
-		if _, e := ParseAction(canonical(event), WalletServiceID); e == nil {
+		if _, e := ParseAction(canonical(event), WalletServiceID); e == nil || e.Error() != "ACTION_SIGNATURE" {
 			t.Fatal("non-canonical action accepted")
 		}
 		if _, e := ParseAction(raw, WalletServiceID); e != nil {
@@ -75,7 +75,7 @@ func TestBIP340WalletBoundaries(t *testing.T) {
 			t.Fatal(e)
 		}
 		bad := []byte(strings.Replace(string(raw), r.Signature, outOfRangeScalar(t, r.Signature), 1))
-		if e = parse(bad); e == nil {
+		if e = parse(bad); e == nil || e.Error() != "SERVICE_RECEIPT" {
 			t.Fatal("non-canonical receipt accepted")
 		}
 		if e = parse(raw); e != nil {
