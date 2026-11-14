@@ -470,6 +470,18 @@ compilation, not slotd runtime behavior or production installation.
 Logs, consumer fixtures, mirrors and release artifacts belong under task-scoped
 `.temp/` directories and must not contain credentials or private runtime state.
 
+The grantcheck capacity regression runs outside the checkout, with no workspace
+or replacements, and exercises `TestCoreProvisioning/CombinedCapacity` from the
+selected module on genuine pinned Core. Run
+`python3 .scripts/check-published-grantcheck-capacity.py --grantcheck GRANTCHECK_VERSION --single-use BUDGET_VERSION --old-single-use PRE_BUDGET_VERSION --scratch-parent ABSOLUTE_EXTERNAL_SCRATCH`.
+Set `CG1_CORE_DAEMON` and `CG1_CORE_CLI` to the pinned release executables.
+The scratch directory contains separate consumer manifests, module graphs,
+command logs, PIDs and `results.json`. The old dependency must fail specifically
+for the missing bounded-writer API; an unrelated error is rejected. `--proxy`
+can select an exact-commit file proxy for unpublished local delivery; this is
+local artifact evidence and does not attest public proxy availability. Run gate
+controls with `python3 .scripts/test_check_published_grantcheck_capacity.py`.
+
 ## N1 identity and discovery tools
 
 The rental module supports [typed optional N1 identity values](experiments/rental/N1-VALUES.md)
