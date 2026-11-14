@@ -51,14 +51,12 @@ func fundedRuntimeInput(path string) bool {
 // Trace attempts, including unsuccessful ones. No network syscall, extra
 // application pathname, child exec, writable open or non-output write is valid.
 func fundedTraceViolations(trace, binary, params string) []string {
-	var violations []string
+	lines, violations := fundedTraceLines(trace)
 	execs, reads := 0, 0
-	for _, line := range strings.Split(trace, "\n") {
+	for _, line := range lines {
 		m := fundedTraceCall.FindStringSubmatch(line)
 		if m == nil {
-			if strings.TrimSpace(line) != "" && !strings.Contains(line, "--- SIG") && !strings.Contains(line, "+++ exited") {
-				violations = append(violations, "unclassified trace: "+line)
-			}
+			violations = append(violations, "unclassified trace: "+line)
 			continue
 		}
 		call, args := m[1], m[2]
