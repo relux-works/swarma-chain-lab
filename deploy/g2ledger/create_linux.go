@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/relux-works/swarma-chain-lab/deploy/internal/ownerid"
 	"golang.org/x/sys/unix"
 )
 
@@ -270,8 +271,27 @@ func creatorCommand(argv, paths []string) error {
 	if e != nil || !os.SameFile(a, b) {
 		return errors.New("EXEC_NOT_THIS_DEPLOY_KIT")
 	}
+	output, _, _, _, err := creatorMetadata(argv)
+	if err != nil {
+		return err
+	}
+	if output != paths[0] {
+		return errors.New("EXEC_OUTPUT_NOT_DECLARED")
+	}
+	return nil
+}
+
+// creatorMetadata accepts only the audited generators' options. Resolve both
+// identities before intent/creation; never substitute caller IDs on lookup error.
+func creatorMetadata(argv []string) (string, int, int, uint32, error) {
+	if len(argv) < 2 {
+		return "", 0, 0, 0, errors.New("EXEC_UNAUDITED_SUBCOMMAND")
+	}
 	f := flag.NewFlagSet("exclusive-creator", flag.ContinueOnError)
 	f.SetOutput(io.Discard)
+	var owner, group ownerid.Spec
+	f.Var(&owner, "owner", "final owner")
+	f.Var(&group, "group", "final group")
 	output := ""
 	mode := "0600"
 	switch argv[1] {
@@ -283,7 +303,7 @@ func creatorCommand(argv, paths []string) error {
 		f.String("params", "", "parameters")
 		f.String("wallet-public", "", "public wallet input")
 	default:
-		return errors.New("EXEC_UNAUDITED_SUBCOMMAND")
+		return "", 0, 0, 0, errors.New("EXEC_UNAUDITED_SUBCOMMAND")
 	}
 	// Duplicate flags could redirect a later output or disguise the mode.
 	seen := map[string]bool{}
@@ -291,21 +311,29 @@ func creatorCommand(argv, paths []string) error {
 		field := strings.TrimPrefix(strings.TrimPrefix(argv[j], "-"), "-")
 		field, _, inline := strings.Cut(field, "=")
 		if field == "" || seen[field] {
-			return errors.New("EXEC_FLAG_DUPLICATE")
+			return "", 0, 0, 0, errors.New("EXEC_FLAG_DUPLICATE")
 		}
 		seen[field] = true
 		if !inline {
 			j++
 			if j >= len(argv) {
-				return errors.New("EXEC_FLAG_VALUE")
+				return "", 0, 0, 0, errors.New("EXEC_FLAG_VALUE")
 			}
 		}
 	}
-	if f.Parse(argv[2:]) != nil || f.NArg() != 0 || output != paths[0] || mode != "0600" && mode != "0640" {
-		return errors.New("EXEC_OUTPUT_NOT_DECLARED")
+	if f.Parse(argv[2:]) != nil || f.NArg() != 0 || mode != "0600" && mode != "0640" {
+		return "", 0, 0, 0, errors.New("EXEC_OUTPUT_NOT_DECLARED")
 	}
 
-	return nil
+	uid, gid, err := ownerid.System().Resolve(owner, group)
+	if err != nil {
+		return "", 0, 0, 0, err
+	}
+	if argv[1] == "g2-rpcauth" {
+		mode = "0640"
+	}
+	m, err := strconv.ParseUint(mode, 8, 32)
+	return output, uid, gid, uint32(m), err
 }
 
 // Snapshot only the parents of declared outputs. The admitted tools have no
@@ -354,28 +382,17 @@ func (l *Ledger) ExecCreate(kind, ret string, paths, argv []string) error {
 }
 func (l *Ledger) execCreate(kind, ret string, paths, argv []string) error {
 	a := Action{Kind: kind, Ret: ret, Paths: paths}
-	// Audited tools create with caller ownership and a known mode. Read their
-	// mode argument before creation rather than accepting arbitrary post-hoc mode.
-	a.UID = uint32(os.Geteuid())
-	a.GID = uint32(os.Getegid())
-	a.Mode = 0600
-	if len(argv) > 1 && argv[1] == "g2-rpcauth" {
-		a.Mode = 0640
+	// Record the same resolved ownership and final mode the audited tool uses.
+	_, uid, gid, mode, err := creatorMetadata(argv)
+	if err != nil {
+		return stopped("EXEC_METADATA", err)
 	}
-	for j := 2; j < len(argv); j++ {
-		if (argv[j] == "-mode" || argv[j] == "--mode") && j+1 < len(argv) {
-			v, e := strconv.ParseUint(argv[j+1], 8, 32)
-			if e != nil {
-				return fail(2, "EXEC_MODE")
-			}
-			a.Mode = uint32(v)
-		} else if strings.HasPrefix(argv[j], "-mode=") || strings.HasPrefix(argv[j], "--mode=") {
-			v, e := strconv.ParseUint(strings.SplitN(argv[j], "=", 2)[1], 8, 32)
-			if e != nil {
-				return fail(2, "EXEC_MODE")
-			}
-			a.Mode = uint32(v)
-		}
+	a.UID, a.GID, a.Mode = uint32(os.Geteuid()), uint32(os.Getegid()), mode
+	if uid != -1 {
+		a.UID = uint32(uid)
+	}
+	if gid != -1 {
+		a.GID = uint32(gid)
 	}
 	if e := validateAction(&a); e != nil {
 		return stopped("ACTION", e)

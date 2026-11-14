@@ -114,16 +114,33 @@ secret` is required. Their exact output flag must name the sole declared path:
 
 ```sh
 "$KIT" g2-ledger exec-create -dir "$LEDGER" -kind secret -ret d6 -path "$KEY" \
-  -- "$KIT" g2-keygen -out "$KEY"
+  -- "$KIT" g2-keygen -out "$KEY" -owner "$OWNER" -group "$GROUP"
 
 "$KIT" g2-ledger exec-create -dir "$LEDGER" -kind secret -ret d6 -path "$CONFIG" \
   -- "$KIT" g2-rpcauth -params "$PARAMS" -wallet-public "$PUBLIC" \
-  -wallet-config-out "$CONFIG"
+  -wallet-config-out "$CONFIG" -owner "$OWNER" -group "$GROUP"
 ```
 
 `g2-keygen -out` and `g2-rpcauth -wallet-config-out` both reach
-`g2NewSecretFile` in `cmd/deploy-kit/g2_keygen.go`, which opens with
-`O_CREAT|O_EXCL|O_NOFOLLOW`. The RPC command has no `-out` alias.
+`g2NewOwnedSecretFile` in `cmd/deploy-kit/g2_keygen.go`, which opens with
+`O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC` at mode `0600`. Optional `-owner U`
+and `-group G` accept names or canonical decimal IDs (no sign/leading zeroes
+except `0`, no all-ones syscall sentinel). Both specified fields must resolve
+before the open; unknown names and lookup errors refuse without output. On the
+created descriptor, `fchown` precedes `fchmod` to the final mode, then the
+count-checked content write and file/parent sync. Failed metadata calls remove
+only the observed original inode before any secret content is written. Absent
+ownership flags preserve creation ownership. The key mode is `0600` by default
+or `0640` with `-mode`; wallet configuration mode stays `0640`. The RPC command
+has neither an `-out` alias nor a `-mode` option.
+
+The creator audit accepts exactly these two additional ownership flags with
+validated values, including `-flag=value` and `--flag` forms; duplicate flags,
+unknown flags, and invalid owner/group values are refused before intent. The
+intent records resolved uid/gid and final mode; the commit checks and records
+the actual produced identity, and replay compares that identity. **No chown
+after exec-create**: later ownership changes invalidate its committed identity.
+Generate directly into the final path, never into a plaintext staging copy.
 The wrapper snapshots the declared output parent, persists intent, invokes the
 exclusive creator, and checks the exact declared output and the parent inventory
 before committing its observed identity. Missing outputs, new or changed

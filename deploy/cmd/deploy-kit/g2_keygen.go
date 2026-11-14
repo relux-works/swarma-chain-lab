@@ -20,6 +20,7 @@ import (
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/relux-works/swarma-chain-lab/deploy"
+	"github.com/relux-works/swarma-chain-lab/deploy/internal/ownerid"
 )
 
 // errG2KeygenRandom refuses when the random source failed, or gave no
@@ -101,18 +102,26 @@ func g2NewScalar(rnd io.Reader) (*[64]byte, string, error) {
 	return nil, "", errG2KeygenRandom
 }
 
-// g2NewSecretFile creates path exclusively with exactly mode and writes data
-// to it, then syncs the file and its directory. path must be absolute and
-// clean; its parent must be an existing directory reached without any
-// symlink. An existing path (a dangling symlink included) is refused before
-// anything is written. The file is created with mode and set to mode on the
-// open descriptor before any byte is written (umask can only narrow it), so
-// it is never readable more widely than mode. On a failure after creation
-// the new file is removed. Public output is written only after the file and
-// directory have synced; an output error rolls back the new file. Bytes
-// already accepted by out cannot be recalled. A rollback failure is returned
-// alongside the output error, so callers must not assume cleanup succeeded.
+// g2SecretOps supplies per-call metadata seams; production always uses the
+// descriptor methods. No content may be written until both calls succeed.
+type g2SecretOps struct {
+	chown func(*os.File, int, int) error
+	chmod func(*os.File, os.FileMode) error
+}
+
+func g2SecretSystem() g2SecretOps {
+	return g2SecretOps{chown: (*os.File).Chown, chmod: (*os.File).Chmod}
+}
+
+// g2NewSecretFile preserves callers that do not request ownership changes.
 func g2NewSecretFile(path string, data []byte, mode os.FileMode, out io.Writer, public string) error {
+	return g2NewOwnedSecretFile(path, data, mode, -1, -1, out, public, g2SecretSystem())
+}
+
+// g2NewOwnedSecretFile opens exclusively at 0600, applies ownership and final
+// mode on that descriptor, then writes and syncs the file and parent. Rollback
+// verifies the created inode and preserves any observed replacement path.
+func g2NewOwnedSecretFile(path string, data []byte, mode os.FileMode, uid, gid int, out io.Writer, public string, ops g2SecretOps) error {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path || path == "/" {
 		return deploy.ErrInput
 	}
@@ -124,20 +133,49 @@ func g2NewSecretFile(path string, data []byte, mode os.FileMode, out io.Writer, 
 	if resolved, e := filepath.EvalSymlinks(dir); e != nil || resolved != dir {
 		return deploy.ErrInput
 	}
-	f, e := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, mode)
+	f, e := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0600)
 	if e != nil {
 		return deploy.ErrInput
 	}
-	fail := func() error {
+	opened, e := f.Stat()
+	if e != nil {
 		f.Close()
-		os.Remove(path)
-		return deploy.ErrPolicy
+		return deploy.ErrPolicy // No descriptor identity: do not unlink a pathname.
 	}
-	if f.Chmod(mode) != nil {
+	rollback := func(cause error) error {
+		linked, statErr := os.Lstat(path)
+		if errors.Is(statErr, os.ErrNotExist) {
+			return cause
+		}
+		if statErr != nil {
+			return errors.Join(cause, statErr)
+		}
+		if !os.SameFile(opened, linked) {
+			return errors.Join(cause, errors.New("deploy-kit: secret output path changed during publication"))
+		}
+		if err := os.Remove(path); err != nil {
+			return errors.Join(cause, err)
+		}
+		d, err := os.Open(dir)
+		if err != nil {
+			return errors.Join(cause, err)
+		}
+		return errors.Join(cause, d.Sync(), d.Close())
+	}
+	fail := func() error {
+		cleanup := rollback(deploy.ErrPolicy)
+		return errors.Join(cleanup, f.Close())
+	}
+	if uid != -1 || gid != -1 {
+		if ops.chown(f, uid, gid) != nil {
+			return fail()
+		}
+	}
+	if ops.chmod(f, mode) != nil {
 		return fail()
 	}
-	opened, e := f.Stat()
-	if e != nil || !opened.Mode().IsRegular() || opened.Mode().Perm() != mode || opened.Size() != 0 {
+	ready, e := f.Stat()
+	if e != nil || !ready.Mode().IsRegular() || ready.Mode().Perm() != mode || ready.Size() != 0 {
 		return fail()
 	}
 	if linked, e := os.Lstat(path); e != nil || !os.SameFile(opened, linked) {
@@ -150,18 +188,15 @@ func g2NewSecretFile(path string, data []byte, mode os.FileMode, out io.Writer, 
 		return fail()
 	}
 	if f.Close() != nil {
-		os.Remove(path)
-		return deploy.ErrPolicy
+		return rollback(deploy.ErrPolicy)
 	}
 	d, e := os.Open(dir)
 	if e != nil {
-		os.Remove(path)
-		return deploy.ErrPolicy
+		return rollback(deploy.ErrPolicy)
 	}
 	syncErr := d.Sync()
 	if d.Close() != nil || syncErr != nil {
-		os.Remove(path)
-		return deploy.ErrPolicy
+		return rollback(deploy.ErrPolicy)
 	}
 	// The command commits only after public output succeeds. Keep the original
 	// inode identity to refuse rollback of an observed replacement path.
@@ -170,39 +205,23 @@ func g2NewSecretFile(path string, data []byte, mode os.FileMode, out io.Writer, 
 		outputErr = io.ErrShortWrite
 	}
 	if outputErr != nil {
-		linked, statErr := os.Lstat(path)
-		if errors.Is(statErr, os.ErrNotExist) {
-			return outputErr
-		}
-		if statErr != nil {
-			return errors.Join(outputErr, statErr)
-		}
-		if !os.SameFile(opened, linked) {
-			return errors.Join(outputErr, errors.New("deploy-kit: secret output path changed during publication"))
-		}
-		if removeErr := os.Remove(path); removeErr != nil {
-			return errors.Join(outputErr, removeErr)
-		}
-		d, openErr := os.Open(dir)
-		if openErr != nil {
-			return errors.Join(outputErr, openErr)
-		}
-		syncErr := d.Sync()
-		return errors.Join(outputErr, syncErr, d.Close())
+		return rollback(outputErr)
 	}
+
 	return nil
 }
 
 // g2Keygen writes a new random secp256k1 private scalar to -out and prints
 // only its x-only public key:
 //
-//	deploy-kit g2-keygen -out FILE [-mode 0600|0640]
+//	deploy-kit g2-keygen -out FILE [-mode 0600|0640] [-owner U] [-group G]
 //
 // FILE is created exclusively (g2NewSecretFile) and holds exactly 64
 // lowercase hex characters, no newline. -mode is 0600 (default; the agent
 // action key, which agent-wallet LoadActionKey reads only as an owner-only
 // file) or 0640 (the receipt key, installed root:swarma-wallet 0640). The
-// owner and group stay root's; the chown is the operator's step. A trivial
+// optional owner and group are resolved before creation and set before writing.
+// Absent flags preserve creation ownership. A trivial
 // scalar (g2TrivialXOnly) is never written: it is drawn again. Stdout is the
 // single line "G2_KEY_XONLY <64 hex>".
 func g2Keygen(args []string, out io.Writer) error { return g2KeygenFrom(args, out, rand.Reader) }
@@ -210,9 +229,16 @@ func g2Keygen(args []string, out io.Writer) error { return g2KeygenFrom(args, ou
 // g2KeygenFrom is g2Keygen with the random source as a parameter (the test
 // seam); production passes crypto/rand.
 func g2KeygenFrom(args []string, out io.Writer, rnd io.Reader) error {
+	return g2KeygenUsing(args, out, rnd, ownerid.System(), g2SecretSystem())
+}
+
+func g2KeygenUsing(args []string, out io.Writer, rnd io.Reader, resolver ownerid.Resolver, ops g2SecretOps) error {
 	f := flag.NewFlagSet("g2-keygen", flag.ContinueOnError)
 	f.SetOutput(io.Discard)
 	path := f.String("out", "", "new absolute key file")
+	var owner, group ownerid.Spec
+	f.Var(&owner, "owner", "final owner name or canonical decimal uid")
+	f.Var(&group, "group", "final group name or canonical decimal gid")
 	modeFlag := f.String("mode", "0600", "file mode: 0600 or 0640")
 	if f.Parse(args) != nil || f.NArg() != 0 {
 		return deploy.ErrInput
@@ -232,11 +258,15 @@ func g2KeygenFrom(args []string, out io.Writer, rnd io.Reader) error {
 	if _, e := os.Lstat(*path); !errors.Is(e, os.ErrNotExist) {
 		return deploy.ErrInput
 	}
+	uid, gid, e := resolver.Resolve(owner, group)
+	if e != nil {
+		return deploy.ErrInput
+	}
 	scalar, xonly, e := g2NewScalar(rnd)
 	if e != nil {
 		return e
 	}
-	e = g2NewSecretFile(*path, scalar[:], mode, out, "G2_KEY_XONLY "+xonly+"\n")
+	e = g2NewOwnedSecretFile(*path, scalar[:], mode, uid, gid, out, "G2_KEY_XONLY "+xonly+"\n", ops)
 	clear(scalar[:])
 	return e
 }

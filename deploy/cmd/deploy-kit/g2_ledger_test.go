@@ -8,7 +8,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
+
+	"github.com/relux-works/swarma-chain-lab/deploy/g2ledger"
 	"testing"
 )
 
@@ -79,7 +83,50 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 	invoke(1, "g2-ledger", "init", "-dir", dir, "-manifest", manifest, "-baseline", base, "-scope", scopeFile, "-purpose", "station")
 	invoke(2, "g2-ledger", "create-file", "-dir", dir)
 	key := filepath.Join(outputs, "key")
-	out := invoke(0, "g2-ledger", "exec-create", "-dir", dir, "-kind", "secret", "-ret", "d6", "-path", key, "--", kit, "g2-keygen", "-out", key)
+	// Claim: real exec-create commits the requested uid/gid/mode and replay compares that exact identity without a later chown.
+	out := invoke(0, "g2-ledger", "exec-create", "-dir", dir, "-kind", "secret", "-ret", "d6", "-path", key, "--", kit, "g2-keygen", "-out", key, "-owner", strconv.Itoa(os.Geteuid()), "-group", strconv.Itoa(os.Getegid()), "-mode", "0640")
+	recordsRaw, err := os.ReadFile(filepath.Join(dir, "records.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordLines := bytes.Split(bytes.TrimSpace(recordsRaw), []byte{'\n'})
+	var intentRow, commitRow g2ledger.Record
+	if len(recordLines) != 3 {
+		t.Fatal("unexpected record count")
+	}
+	if err = json.Unmarshal(recordLines[1], &intentRow); err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(recordLines[2], &commitRow); err != nil {
+		t.Fatal(err)
+	}
+	action := intentRow.Body.Action
+	if action == nil || action.UID != uint32(os.Geteuid()) || action.GID != uint32(os.Getegid()) || action.Mode != 0640 {
+		t.Fatal("requested ownership not recorded")
+	}
+	if commitRow.Body.Result == nil || len(commitRow.Body.Result.Identities) != 1 {
+		t.Fatal("missing committed identity")
+	}
+	identity := commitRow.Body.Result.Identities[0].FS
+	actual, err := os.Stat(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stat := actual.Sys().(*syscall.Stat_t)
+	if identity == nil || identity.UID != stat.Uid || identity.GID != stat.Gid || identity.Mode != 0640 || identity.Dev != uint64(stat.Dev) || identity.Ino != stat.Ino {
+		t.Fatal("committed identity differs from generator output")
+	}
+	invoke(0, "g2-ledger", "verify", "-dir", dir)
+	invoke(0, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
+	// A post-creation metadata change must be refused; restoring the approved
+	// mode below is a bounded fixture intervention, not an installation step.
+	if err = os.Chmod(key, 0600); err != nil {
+		t.Fatal(err)
+	}
+	invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
+	if err = os.Chmod(key, 0640); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.HasPrefix(string(out), "G2_KEY_XONLY ") {
 		t.Fatal("public output missing")
 	}

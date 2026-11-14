@@ -152,6 +152,30 @@ schemas and [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for deployment in
 
 ## Tools and artifacts
 
+- `deploy-kit g2-keygen -out "$KEY" [-mode 0600|0640] [-owner U] [-group G]`
+  creates one new scalar file; the default mode is `0600`.
+- `deploy-kit g2-rpcauth -params "$PARAMS" -wallet-public "$PUBLIC"
+  -wallet-config-out "$CONFIG" [-owner U] [-group G]` creates one new
+  wallet configuration at fixed mode `0640`; it has no `-mode` flag.
+
+Both generators accept owner/group names or canonical decimal IDs. Each
+specified identity must resolve successfully before exclusive creation; unknown
+names and lookup errors refuse without creating output. Numeric IDs need not
+have an account entry. Decimal IDs have no sign or leading zeroes (except `0`);
+`4294967295`, the syscall sentinel, is refused. Absent ownership flags preserve
+creation ownership. The generators open at `0600`, set the final owner/group
+and mode on the same descriptor, and only then write and sync the file and its
+parent. Metadata failures remove only the observed original inode, without
+writing secret content. Existing outputs remain refused.
+
+For tracked installation, pass final ownership to the generator inside
+[`g2-ledger exec-create`](G2-LEDGER.md#exclusive-external-creators): **no chown
+after exec-create**. A later ownership change invalidates the committed file
+identity. Generate directly at the final path; staging and copying would leave
+another plaintext secret copy. Public stdout contains only a public key or
+RPC authentication hashes, never the generated scalar or passwords.
+
+
 The relay templates are in `templates/relay/` and `templates/systemd/`.
 Caddy must overwrite `X-Real-IP` with the direct client's address; the relay
 trusts only its configured proxy peer. Direct local services without that header

@@ -6,6 +6,32 @@ falls back to an unsigned/default input. Install-key custody belongs to Infra.
 The recommended signer keeps its ephemeral private key in memory; any alternative signer must keep private keys root-only
 and outside every agent-readable path.
 
+## Generator ownership at creation
+
+Generate secrets directly at their final paths with final ownership:
+
+```sh
+deploy-kit g2-keygen -out "$KEY" -mode 0640 -owner "$OWNER" -group "$GROUP"
+deploy-kit g2-rpcauth -params "$PARAMS" -wallet-public "$PUBLIC" \
+  -wallet-config-out "$CONFIG" -owner "$OWNER" -group "$GROUP"
+```
+
+`-owner` and `-group` independently accept names or canonical decimal IDs
+(no sign/leading zeroes except `0`; the all-ones syscall sentinel is refused).
+Both specified identities are resolved before exclusive creation. Unknown names
+or lookup errors refuse without output; absent flags preserve creation
+ownership. The key mode remains `0600` by default or `0640`; wallet configuration
+mode is always `0640` and has no `-mode` option. Creation starts at `0600`, then
+uses `fchown` and `fchmod` on the same descriptor before writing any content.
+Metadata failure removes the original created inode without writing secrets;
+file and parent are synced before successful public output.
+
+When using the [attempt ledger](G2-LEDGER.md#exclusive-external-creators), pass
+these flags to the generator after `--`: **no chown after exec-create**. The
+ledger commits the final uid/gid/mode along with device and inode; changing
+ownership afterwards invalidates that identity. Do not generate a staged copy
+and then copy it into place: that leaves a second plaintext credential file.
+
 ## Provisioning and binding
 
 1. Verify the accepted public release and its existing release signature. Its

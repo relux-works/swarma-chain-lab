@@ -23,6 +23,7 @@ import (
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 
 	"github.com/relux-works/swarma-chain-lab/deploy"
+	"github.com/relux-works/swarma-chain-lab/deploy/internal/ownerid"
 )
 
 // The G2 node routes, in the order of the wallet.json members and of the
@@ -258,8 +259,8 @@ func g2ReadWalletPublic(path string, p deploy.G2PayParameters) (g2WalletPublic, 
 // characters) and a 16-byte random salt (32 hex characters) and computes the
 // Core rpcauth line (g2RPCAuthLine). The passwords go only into FILE, a new
 // wallet.json in the agent-wallet Config schema, created exclusively with
-// mode 0640 (g2NewSecretFile; the chown to root:swarma-wallet is the
-// operator's step), compact JSON with no trailing newline. Its members come
+// mode 0640 with optional -owner U and -group G resolved before creation
+// and set before writing, compact JSON with no trailing newline. Its members come
 // from:
 //   - the parameters (-params, the g2-render parser): network, genesis,
 //     fee_rate_sat_vb, the node port (node_rpc_port) of all three routes and
@@ -278,8 +279,15 @@ func g2RPCAuth(args []string, out io.Writer) error { return g2RPCAuthFrom(args, 
 // g2RPCAuthFrom is g2RPCAuth with the random source as a parameter (the test
 // seam); production passes crypto/rand.
 func g2RPCAuthFrom(args []string, out io.Writer, rnd io.Reader) error {
+	return g2RPCAuthUsing(args, out, rnd, ownerid.System(), g2SecretSystem())
+}
+
+func g2RPCAuthUsing(args []string, out io.Writer, rnd io.Reader, resolver ownerid.Resolver, ops g2SecretOps) error {
 	f := flag.NewFlagSet("g2-rpcauth", flag.ContinueOnError)
 	f.SetOutput(io.Discard)
+	var owner, group ownerid.Spec
+	f.Var(&owner, "owner", "final owner name or canonical decimal uid")
+	f.Var(&group, "group", "final group name or canonical decimal gid")
 	params := f.String("params", "", "canonical G2PayParameters JSON")
 	public := f.String("wallet-public", "", "public wallet.json members: policy, change_address, wallet_dir, memory_zone")
 	path := f.String("wallet-config-out", "", "new absolute wallet.json")
@@ -287,6 +295,10 @@ func g2RPCAuthFrom(args []string, out io.Writer, rnd io.Reader) error {
 		return deploy.ErrInput
 	}
 	if _, e := os.Lstat(*path); !errors.Is(e, os.ErrNotExist) {
+		return deploy.ErrInput
+	}
+	uid, gid, e := resolver.Resolve(owner, group)
+	if e != nil {
 		return deploy.ErrInput
 	}
 	raw, e := readBounded(*params, 1<<16)
@@ -334,7 +346,7 @@ func g2RPCAuthFrom(args []string, out io.Writer, rnd io.Reader) error {
 	if e != nil {
 		return deploy.ErrPolicy
 	}
-	e = g2NewSecretFile(*path, config, 0640, out, lines[0]+"\n"+lines[1]+"\n"+lines[2]+"\n")
+	e = g2NewOwnedSecretFile(*path, config, 0640, uid, gid, out, lines[0]+"\n"+lines[1]+"\n"+lines[2]+"\n", ops)
 	clear(config)
 	return e
 }
