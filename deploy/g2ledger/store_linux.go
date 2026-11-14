@@ -21,18 +21,24 @@ const maxLedger = 64 << 20
 // The lock covers verification, all creating calls and replay, not just append.
 // A failed append poisons the open handle: no subsequent operation may proceed.
 type Ledger struct {
-	output      io.Writer
-	summary     io.Writer
-	root        string
-	dir         *os.File
-	lock        *os.File
-	rows        []Record
-	write       func(io.Writer, []byte) error
-	payloadSync func(*os.File) error // observes successful real payload fsync; may inject a later error
-	sync        func(*os.File) error // observes successful real journal fsync; may inject a later error
-	poisoned    bool
-	sys         System
-	afterIntent func(Action) error // crash/race injection; never set by the CLI
+	output          io.Writer
+	summary         io.Writer
+	root            string
+	dir             *os.File
+	lock            *os.File
+	rows            []Record
+	write           func(io.Writer, []byte) error
+	payloadSync     func(*os.File) error // observes successful real payload fsync; may inject a later error
+	sync            func(*os.File) error // observes successful real journal fsync; may inject a later error
+	poisoned        bool
+	sys             System
+	treeStat        func(*os.File, string) (unix.Stat_t, uint64, error) // real lstat/statx with bounded fault injection
+	procUID         func(uint32) uint32                                 // non-root fixtures map the synthetic owner's process namespace
+	procPIDs        func() ([]string, error)                            // nil in production: enumerate every real /proc PID
+	procRead        func(string) ([]byte, error)                        // defaults to real /proc reads
+	afterTreeVerify func() error                                        // boundary race injection; never set by the CLI
+	treePlans       map[string]*treePlan
+	afterIntent     func(Action) error // crash/race injection; never set by the CLI
 }
 
 func randomID() string {
@@ -242,6 +248,9 @@ func (l *Ledger) load() error {
 			if e = actionAllowed(*rows[0].Body.Genesis, a); e != nil {
 				return e
 			}
+			if e = treeAuthority(a, rows); e != nil {
+				return e
+			}
 			for _, key := range creationKeys(a) {
 				if created[key] {
 					return fail(1, "LEDGER_DUPLICATE "+key)
@@ -305,7 +314,7 @@ func (l *Ledger) load() error {
 }
 func creationKeys(a Action) []string {
 	switch a.Kind {
-	case "dir", "file", "secret":
+	case "dir", "tree", "file", "secret":
 		keys := []string{}
 		for _, p := range a.Paths {
 			keys = append(keys, p+"|"+a.Kind)
@@ -432,6 +441,9 @@ func (l *Ledger) begin(a Action) (uint64, error) {
 		}
 	}
 	if e := actionAllowed(*l.rows[0].Body.Genesis, a); e != nil {
+		return 0, e
+	}
+	if e := treeAuthority(a, l.rows); e != nil {
 		return 0, e
 	}
 	// Reject repeats before a syscall, even within one long-lived API handle.

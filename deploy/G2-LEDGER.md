@@ -16,6 +16,7 @@ fake account/systemd boundary and never invoke those real mutations.
 ```text
 deploy-kit g2-ledger init -dir D -manifest M -baseline S0 -purpose station|rehearsal -scope SCOPE.json
 deploy-kit g2-ledger verify -dir D
+deploy-kit g2-ledger create-tree -dir D -path P -owner NAME -mode 0700 -ret R [-socket RELATIVE_PATH ...]
 deploy-kit g2-ledger create-dir -dir D -path P -owner U -group G -mode 0755 -ret R
 deploy-kit g2-ledger create-file -dir D -path P -src S -owner U -group G -mode 0640 -ret R [-secret]
 deploy-kit g2-ledger exec-create -dir D -kind secret -ret R -path P -- TOOL ARGS
@@ -76,7 +77,7 @@ in-place upgrade or inferred purpose.
 }
 ```
 
-Declare every intended mutation path with its kind (`dir`, `file`, `secret`),
+Declare every intended mutation path with its kind (`dir`, `tree`, `file`, `secret`),
 every created account, both subjects of every membership, and every enabled
 unit **before init**. Config modification requires a `file` scope. Missing
 objects and missing parents are captured as absent. Present objects are
@@ -87,7 +88,9 @@ duplicate scope targets also refuse. Unknown kinds, unsupported identities,
 symlinks in target/parent traversal and operational lookup failures refuse init.
 Mutation targets outside the declared scope refuse with
 `TARGET_OUTSIDE_INIT_SCOPE` before durable intent or effects. Declaring a
-directory grants no authority over unnamed children.
+ordinary `dir` grants no authority over unnamed children. A `tree` scope is
+the explicit exception described below; it cannot overlap any declared child
+target or another tree.
 
 Scopes include immediate parents, with directory mode (including sticky bits),
 uid, gid, device and inode, and a **shallow** inventory of child names and types.
@@ -184,7 +187,7 @@ Only the exact expected fields may appear in each action and identity variant.
 
 | Kind | Required identity |
 | --- | --- |
-| `dir` | Path, device, inode, type, permission mode, uid, gid; zero size/time fields |
+| `dir`, `tree` | Path, device, inode, type, permission mode, uid, gid; zero size/time fields |
 | `file`, `modify` | Path, device, inode, regular-file type, mode, uid, gid, size, nanosecond mtime, SHA-256 |
 | `secret` | Same filesystem metadata, without a content digest; identity reads never read secret content |
 | `user` | Name, uid **and primary gid**, nologin shell |
@@ -213,9 +216,10 @@ authority; it reports the affected path/account as an orphan. A partial record
 or a record/HEAD crash window fails verification and requires inspection.
 There is no automatic truncation, orphan adoption or guessed cleanup.
 
-The envelope separates operation kinds from phases. A later `create-tree` kind
-can add typed action/identity fields within version 1; older engines refuse the
-unknown kind. This PR implements no tree traversal/deletion authority.
+The envelope separates operation kinds from phases. `tree` adds a dedicated
+owner identity and an optional sorted list of named socket paths to its intent.
+The loader requires a matching earlier committed user creation in this same
+ledger. Older engines refuse the new kind.
 
 ## Replay and retention
 
@@ -236,14 +240,14 @@ identity, including both uid and primary gid for users and gid for groups.
 | Object / retention | `station` | `rehearsal` |
 | --- | --- | --- |
 | Any `d6` creation, including keys/wallet data | Keep (`retain-d6`) | Keep (`retain-d6`) |
-| `state` user/group/secret creation (including exec-create outputs) | Keep (`retain-station-protected`) | Remove (`remove-rehearsal-state`) |
+| `state` user/group/secret/tree creation (including exec-create outputs) | Keep (`retain-station-protected`) | Remove (`remove-rehearsal-state`) |
 | `state` ordinary files/dirs | Keep (`retain-station-state`) | Remove (`remove-rehearsal-state`) |
-| `remove` user/group/secret creation (including exec-create outputs) | Refuse at creation and journal load (`STATION_PROTECTED_RETENTION`, exit 1, named target) | Remove (`remove-exact-identity`) |
+| `remove` user/group/secret/tree creation (including exec-create outputs) | Refuse at creation and journal load (`STATION_PROTECTED_RETENTION`, exit 1, named target) | Remove (`remove-exact-identity`) |
 | `remove` ordinary file/dir creation | Remove (`remove-exact-identity`) | Remove (`remove-exact-identity`) |
 | Explicit `rehearsal` creation | Refused at creation and journal validation | Remove (`remove-explicit-rehearsal-object`) |
 | Config modification, own membership addition, own unit enable | Restore (`restore-attempt-transition`) | Restore (`restore-attempt-transition`) |
 
-Station protected kinds are precisely `user`, `group`, and `secret`. All
+Station protected kinds are precisely `user`, `group`, `secret`, and `tree`. All
 exec-create outputs must be `secret`, so they share key protection. Station
 never deletes these created accounts or keys, regardless of retention labels.
 An incompatible `remove` request refuses before any effect or intent; a forged
@@ -264,9 +268,9 @@ refuses foreign explicit members before deleting a created group. Reverse order
 removes recorded memberships before the created accounts they depend on, and
 removes only the recorded enable symlinks before removing its recorded unit files.
 Unit files are ordinary `create-file` records, so they need `state`, `remove`
-or `rehearsal` retention to be removed in rehearsal. Regtest and fixture output
-directories/files likewise require individual `create-dir`/`create-file`
-records. A directory still containing anything after recorded child reversals
+or `rehearsal` retention to be removed in rehearsal. Regtest and fixture process-written output uses the explicit `create-tree`
+contract below; ordinary directories/files require individual
+`create-dir`/`create-file` records. A directory still containing anything after recorded child reversals
 stops with `DIRECTORY_NOT_EMPTY <child-path>`; nothing is recursively deleted.
 Use d6 for a directory that must remain to hold retained d6 children.
 
@@ -331,10 +335,97 @@ additional cleanup or undoes earlier successful reversals.
 Out of scope: recursive contents of unrecorded subdirectories, unrecorded
 siblings' contents/metadata beyond their names and types, secret contents,
 mutable directory size/timestamps, access/change timestamps, account fields
-other than the recorded identity, memberships of unrecorded groups, active/running unit state, processes,
-open descriptors, mounts, ACLs/xattrs, remote services, release verification,
+other than the recorded identity, memberships of unrecorded groups, active/running unit state,
+open descriptors, mounts outside a removable tree, ACLs/xattrs, remote services, release verification,
 and whole-host equivalence. Parent inventories are not recursive traversal.
-`create-tree` and native privileged qualification remain separate work.
+Native privileged qualification remains separate work.
+
+## Process-written rehearsal trees
+
+Use `create-tree` only for an empty regtest datadir or fixture output root
+whose later contents are written by its dedicated workload. Declare the path
+as `kind: "tree"` at init, plus the owner user and its primary group. First
+create the group if needed, then create the dedicated user through this same
+ledger, then create the tree. Start the workload only after `create-tree`
+returns success. A pre-existing account, including a service account, grants
+no tree authority. A Core executable prefix or other binary install tree
+requires **per-file `create-file` records**, never `create-tree`.
+
+For example, with these targets already declared in a rehearsal scope:
+
+```sh
+deploy-kit g2-ledger create-group -dir "$LEDGER" -name rehearsal-data -gid 230302 -ret rehearsal
+deploy-kit g2-ledger create-user -dir "$LEDGER" -name rehearsal-runner -uid 230301 -gid 230302 -ret rehearsal
+deploy-kit g2-ledger create-tree -dir "$LEDGER" -path "$REGTEST_DIR" -owner rehearsal-runner -mode 0700 -ret rehearsal
+deploy-kit g2-ledger create-tree -dir "$LEDGER" -path "$FIXTURE_OUT" -owner rehearsal-runner -mode 0700 -ret rehearsal
+```
+
+The owner and its primary GID may never be 0, 1000, 210001, 210101, or the
+syscall wildcard. Both creator validation and full journal loading enforce
+this. The owner has a nologin shell and must be dedicated to this attempt's
+trees. Recorded ordinary file/directory ownership and supplementary roles
+cannot be mixed with that tree owner, in either order. This checks the
+attempt's records; the operator must keep the account out of unrelated roles
+and directory ownership outside the declared attempt. A pre-existing tree
+root is exclusively refused, never adopted. Intent is durable before mkdir;
+root descriptor identity is committed after ownership, mode and real root and
+parent fsyncs. The ledger writes no workload contents.
+
+A station ledger refuses `remove` retention for trees and refuses rehearsal
+retention. It keeps state/d6 trees, with each immediate content-name difference
+reported under the retained tree's policy reason in the final comparison.
+`d6` stays retained in rehearsal too. Only a rehearsal-purpose ledger in
+rehearsal mode can remove a tree. Its owner cannot be removed while any of its
+recorded trees remains, including a retained tree. Use differently named user
+and primary group for removable owners, because the account-removal safeguard
+against implicit same-name group deletion still applies.
+
+Removal is two phases, under the existing attempt lock:
+
+1. Check the current owner against its creation receipt. Enumerate `/proc`
+   processes and threads and parse all real, effective and saved UIDs. A live
+   owner, unreadable status (including a PID that exits during the scan),
+   unreadable task directory, malformed/missing UID data or any lookup error
+   stops the pass. The caller stops services/processes first; the ledger never
+   kills them. A fresh checked retry is permitted after a transient refusal.
+2. Walk the entire tree with `openat(O_NOFOLLOW|O_DIRECTORY)` and
+   `fstatat(AT_SYMLINK_NOFOLLOW)`. Pin every directory descriptor and record
+   an in-memory postorder deletion list with stat identity, mount ID and exact
+   child names. All entries must have the owner's UID and the root's device
+   and mount ID. `statx` mount IDs also reject same-device bind mounts inside
+   the tree; unavailable mount-ID support refuses. Any setuid/setgid bit,
+   device, FIFO, unlisted socket or regular file with `nlink != 1` stops before
+   deletion. Descriptor/resource exhaustion and all read errors also stop.
+3. Verify every tree's complete list again before **any** replay deletion,
+   then check processes and the full list again immediately before deleting
+   that tree. Delete exactly the planned entries, deepest first, through
+   `unlinkat` on the pinned parents. Recheck each entry's complete stat/mount
+   identity immediately before unlink. After an own child unlink, account for
+   its parent's changed directory timestamps/link count while preserving
+   inode, mode, ownership and exact remaining planned names. Sync each changed
+   parent through the real-sync seam. An observed change stops immediately.
+4. Remove the root last, then the owner only after all its tree roots are gone
+   and its account identity still matches. Run the existing final baseline
+   comparison; a successful removal restores the absent S0 roots and accounts.
+
+An OWNER-owned symlink is **unlinked as a link**, never followed: its target
+has no creation receipt and gets no deletion authority. This permits ordinary
+workload symlinks while preserving outside files/directories. `-socket` may be
+repeated to name exact clean relative socket paths expected from the workload;
+none are expected by default. FIFOs are always forbidden. Socket allowlisting
+never waives ownership, process, mode, device or mount checks.
+
+The deletion list is process-local, not an additional mutable journal record;
+a restart builds and verifies a fresh list. Boundary changes detected before
+phase 2 preserve the entire tree. Phase 2 is not a transaction: an I/O error or
+concurrent change can leave earlier exact-list entries removed. No guessed
+cleanup follows a failure. Rechecking then `unlinkat` is not an atomic kernel
+compare-and-delete: **a concurrent root writer** can race the final check,
+rename ancestors, start an owner process after inspection, or modify a parent
+while its own-delete metadata is observed. Keep privileged writers serialized,
+parents protected, and the trusted `/proc` view complete. No malicious-root,
+mount-namespace isolation, hardware-durability or native privileged qualification
+claim is made.
 
 ## Exit codes
 
@@ -366,10 +457,9 @@ journal records or diagnostics.
 | S9 | `create-user` with explicit IDs; `create-dir` / `create-file` for helper and staging paths; external installer publication still requires a creator-receipt integration |
 | Rollback | `replay -mode ...`; stop the shell on the first nonzero result |
 
-`g2-host-flow -ledger`, `create-tree`, and ephemeral install signing are separate
-integrations. Existing subcommands retain their interfaces and behavior.
-Service stopping, process inspection, node readiness, native ownership and
-installed adoption remain external orchestration/qualification responsibilities.
+Service stopping, node readiness, native
+ownership and installed adoption remain orchestration/qualification
+responsibilities; tree removal performs its own checked process inspection.
 No failed inspection licenses continued shell cleanup.
 
 ## Threat model and validation
@@ -383,6 +473,11 @@ mutation. Descriptor anchoring prevents symlink traversal; it does not make a
 pathname compare-and-unlink or NSS compare-and-delete a kernel transaction.
 Keep privileged mutation serialized, use protected parents, and inspect failures.
 No hardware power-loss test or native root/systemd qualification is claimed.
+
+Tree fixtures select known real process IDs through an unexported census seam
+and read their actual `/proc` status and thread directories; UID mapping permits
+non-root fixtures. The production default enumerates all `/proc` PIDs, with a
+separate real-child census test. No process read error is ignored.
 
 Tests use real temporary files and separate real competing processes. `System`
 fakes only privileged command results and chown behavior, with real EEXIST,

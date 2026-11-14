@@ -54,6 +54,10 @@ a summary on stdout, with a human summary on stderr. The single retention table
 and comparison limits (including unconditional station account/key protection) are in [G2-LEDGER.md](G2-LEDGER.md#replay-and-retention).
 Artifacts are private `records.jsonl`, `HEAD` and `LOCK` inside the supplied directory;
 saved local validation output belongs in `.temp/`.
+`create-tree` is reserved for a dedicated attempt-created owner's process-written
+rehearsal datadir/output, with complete no-follow verification before recursive
+deletion. Station trees are kept. Binary installation uses per-file records.
+See [the tree contract](G2-LEDGER.md#process-written-rehearsal-trees).
 The Linux ledger suite requires `strace` with ptrace and syscall injection support.
 `go test -race ./g2ledger -run '^TestLedgerCreateFSNativeSync$' -count=1`
 observes native payload, parent and journal sync ordering without hooks and injects

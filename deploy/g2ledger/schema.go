@@ -119,8 +119,7 @@ type Genesis struct {
 	BaselineSHA256 string           `json:"baseline_sha256"`
 }
 
-// Action kinds are independent of record phases, leaving room for a later
-// create-tree kind without changing the envelope or interpreting unknown kinds.
+// Action kinds are independent of record phases; unknown kinds fail closed.
 type Action struct {
 	Kind         string     `json:"kind"`
 	Ret          string     `json:"ret"`
@@ -135,6 +134,7 @@ type Action struct {
 	BackupSHA256 string     `json:"backup_sha256,omitempty"`
 	NewSHA256    string     `json:"new_sha256,omitempty"`
 	Before       []Identity `json:"before,omitempty"`
+	Sockets      []string   `json:"sockets,omitempty"`
 }
 type Result struct {
 	Intent     uint64     `json:"intent"`
@@ -229,16 +229,16 @@ func validateIdentity(i Identity, kind string) error {
 		return errors.New("IDENTITY_UNION")
 	}
 	switch kind {
-	case "dir", "file", "secret", "modify":
+	case "dir", "tree", "file", "secret", "modify":
 		f := i.FS
 		maxMode := uint32(0777)
-		if kind == "dir" {
+		if kind == "dir" || kind == "tree" {
 			maxMode = 07777
 		}
 		if f == nil || (!validPath(i.Path) && !(kind == "dir" && i.Path == "/")) || f.Dev == 0 || f.Ino == 0 || f.Mode > maxMode || f.UID == ^uint32(0) || f.GID == ^uint32(0) {
 			return errors.New("IDENTITY_FS")
 		}
-		if kind == "dir" {
+		if kind == "dir" || kind == "tree" {
 			if f.Type != "dir" || f.Size != 0 || f.MtimeNS != 0 || f.SHA256 != "" {
 				return errors.New("IDENTITY_DIR")
 			}
@@ -289,8 +289,8 @@ func validateAction(a *Action) error {
 	}
 	clean := *a
 	switch a.Kind {
-	case "dir", "file", "secret", "modify":
-		if len(a.Paths) == 0 || (a.Kind == "dir" || a.Kind == "modify") && len(a.Paths) != 1 || a.Mode > 0777 {
+	case "dir", "tree", "file", "secret", "modify":
+		if len(a.Paths) == 0 || (a.Kind == "dir" || a.Kind == "tree" || a.Kind == "modify") && len(a.Paths) != 1 || a.Mode > 0777 {
 			return errors.New("ACTION_PATHS")
 		}
 		seen := map[string]bool{}
@@ -304,6 +304,21 @@ func validateAction(a *Action) error {
 		clean.UID = 0
 		clean.GID = 0
 		clean.Mode = 0
+		if a.Kind == "tree" {
+			if len(a.Before) != 1 || validateIdentity(a.Before[0], "user") != nil || a.Before[0].Account.Name != a.User || a.Before[0].Account.UID != a.UID || a.Before[0].Account.GID != a.GID || forbiddenTreeID(a.UID) || forbiddenTreeID(a.GID) {
+				return errors.New("TREE_OWNER_FORBIDDEN_OR_INVALID")
+			}
+			previous := ""
+			for _, name := range a.Sockets {
+				if !validTreeRelative(name) || name <= previous {
+					return errors.New("TREE_SOCKET_PATH")
+				}
+				previous = name
+			}
+			clean.User = ""
+			clean.Before = nil
+			clean.Sockets = nil
+		}
 		if a.Kind == "modify" {
 			if a.Ret != "state" || !validPath(a.Backup) || !isHex(a.BackupSHA256, 32) || !isHex(a.NewSHA256, 32) || len(a.Before) != 1 {
 				return errors.New("ACTION_MODIFY")
@@ -375,7 +390,7 @@ func validateResult(a Action, ids []Identity) error {
 			return e
 		}
 		switch a.Kind {
-		case "dir", "file", "secret", "modify":
+		case "dir", "tree", "file", "secret", "modify":
 			if i.Path != a.Paths[j] {
 				return errors.New("RESULT_PATH")
 			}

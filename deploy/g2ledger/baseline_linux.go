@@ -11,7 +11,7 @@ import (
 )
 
 func objectKey(kind, name string) string {
-	if kind == "dir" || kind == "file" || kind == "secret" || kind == "modify" {
+	if kind == "dir" || kind == "tree" || kind == "file" || kind == "secret" || kind == "modify" {
 		return "path:" + name
 	}
 	return kind + ":" + name
@@ -26,11 +26,21 @@ func validateScope(s Scope) error {
 		return nil
 	}
 	for _, p := range s.Paths {
-		if !validPath(p.Path) || p.Kind != "dir" && p.Kind != "file" && p.Kind != "secret" {
+		if !validPath(p.Path) || p.Kind != "dir" && p.Kind != "tree" && p.Kind != "file" && p.Kind != "secret" {
 			return errors.New("SCOPE_PATH " + p.Path)
 		}
 		if e := add(objectKey(p.Kind, p.Path)); e != nil {
 			return e
+		}
+	}
+	for _, tree := range s.Paths {
+		if tree.Kind != "tree" {
+			continue
+		}
+		for _, other := range s.Paths {
+			if other.Path != tree.Path && (strings.HasPrefix(other.Path, tree.Path+"/") || strings.HasPrefix(tree.Path, other.Path+"/") && other.Kind == "tree") {
+				return errors.New("TREE_SCOPE_OVERLAP " + tree.Path)
+			}
 		}
 	}
 	for kind, names := range map[string][]string{"user": s.Users, "group": s.Groups, "unit": s.Units} {
@@ -57,10 +67,12 @@ func scopeObjects(s Scope) ([]BaselineObject, error) {
 	for _, p := range s.Paths {
 		name := filepath.Dir(p.Path)
 		k := objectKey("dir", name)
-		if old, ok := objects[k]; ok && old.Kind != "dir" {
+		if old, ok := objects[k]; ok && old.Kind != "dir" && old.Kind != "tree" {
 			return nil, errors.New("SCOPE_PARENT_NOT_DIRECTORY " + name)
 		}
-		objects[k] = BaselineObject{Kind: "dir", Name: name}
+		if _, ok := objects[k]; !ok {
+			objects[k] = BaselineObject{Kind: "dir", Name: name}
+		}
 	}
 	for kind, names := range map[string][]string{"user": s.Users, "group": s.Groups, "unit": s.Units} {
 		for _, n := range names {
@@ -84,7 +96,7 @@ func snapshotObject(o BaselineObject, sys System, ledger, baseline string) (Base
 	o.Children = nil
 	o.Members = nil
 	switch o.Kind {
-	case "dir":
+	case "dir", "tree":
 		d, e := openDir(o.Name)
 		if errors.Is(e, unix.ENOENT) {
 			return o, nil
@@ -204,7 +216,7 @@ func validateBaseline(g *Genesis) error {
 			return e
 		}
 		switch got.Kind {
-		case "dir", "file", "secret":
+		case "dir", "tree", "file", "secret":
 			if got.Identity.Path != got.Name {
 				return errors.New("S0_PATH")
 			}
@@ -217,7 +229,7 @@ func validateBaseline(g *Genesis) error {
 				return errors.New("S0_UNIT")
 			}
 		}
-		if got.Kind != "dir" && len(got.Children) > 0 || got.Kind != "group" && len(got.Members) > 0 {
+		if got.Kind != "dir" && got.Kind != "tree" && len(got.Children) > 0 || got.Kind != "group" && len(got.Members) > 0 {
 			return errors.New("S0_EXTRA")
 		}
 		prev := ""

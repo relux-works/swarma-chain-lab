@@ -65,7 +65,7 @@ func fsIdentity(f *os.File, kind string) (*FSIdentity, error) {
 		return nil, e
 	}
 	typ := "file"
-	if kind == "dir" {
+	if kind == "dir" || kind == "tree" {
 		typ = "dir"
 	}
 	if s.Mode&unix.S_IFMT != unix.S_IFREG && typ == "file" || s.Mode&unix.S_IFMT != unix.S_IFDIR && typ == "dir" {
@@ -101,7 +101,7 @@ func fsIdentity(f *os.File, kind string) (*FSIdentity, error) {
 }
 func observeAt(d *os.File, name, path, kind string) (*Identity, error) {
 	flags := unix.O_RDONLY
-	if kind == "dir" {
+	if kind == "dir" || kind == "tree" {
 		flags |= unix.O_DIRECTORY
 	}
 	f, e := at(d, name, flags, 0)

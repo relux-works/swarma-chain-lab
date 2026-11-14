@@ -24,7 +24,7 @@ func (p *pathsFlag) Set(s string) error {
 // Run is the CLI adapter; injected System only changes privileged operations.
 func Run(args []string, sys System, out io.Writer) error {
 	if len(args) == 0 {
-		return fail(2, "usage: g2-ledger init|verify|create-dir|create-file|exec-create|modify-file|create-user|create-group|add-member|enable|replay [flags]")
+		return fail(2, "usage: g2-ledger init|verify|create-tree|create-dir|create-file|exec-create|modify-file|create-user|create-group|add-member|enable|replay [flags]")
 	}
 	op := args[0]
 	f := flag.NewFlagSet("g2-ledger "+op, flag.ContinueOnError)
@@ -33,7 +33,7 @@ func Run(args []string, sys System, out io.Writer) error {
 	var path, src, owner, group, mode, ret, manifest, baseline, backup, newPath, kind, name, user, unit, replayMode, purpose, scopeFile string
 	var uid, gid uint64
 	var secret bool
-	var paths pathsFlag
+	var paths, sockets pathsFlag
 	switch op {
 	case "init":
 		f.StringVar(&manifest, "manifest", "", "verified release manifest")
@@ -41,12 +41,17 @@ func Run(args []string, sys System, out io.Writer) error {
 		f.StringVar(&purpose, "purpose", "station", "station|rehearsal")
 		f.StringVar(&scopeFile, "scope", "", "JSON scope captured at init")
 	case "verify":
-	case "create-dir", "create-file":
+	case "create-dir", "create-tree", "create-file":
 		f.StringVar(&path, "path", "", "new absolute path")
 		f.StringVar(&owner, "owner", "", "owner name or numeric uid")
-		f.StringVar(&group, "group", "", "group name or numeric gid")
+		if op != "create-tree" {
+			f.StringVar(&group, "group", "", "group name or numeric gid")
+		}
 		f.StringVar(&mode, "mode", "", "octal mode")
 		f.StringVar(&ret, "ret", "", "d6|state|remove|rehearsal")
+		if op == "create-tree" {
+			f.Var(&sockets, "socket", "expected relative socket path; repeat")
+		}
 		if op == "create-file" {
 			f.StringVar(&src, "src", "", "source file")
 			f.BoolVar(&secret, "secret", false, "omit content digest")
@@ -97,8 +102,8 @@ func Run(args []string, sys System, out io.Writer) error {
 			return fail(1, "SCOPE_SCHEMA")
 		}
 		return Init(*dir, manifest, baseline, InitOptions{Purpose: purpose, Scope: scope, System: sys})
-	case "create-dir", "create-file":
-		if !validPath(path) || owner == "" || group == "" || mode == "" || !validRet() || op == "create-file" && !validPath(src) {
+	case "create-dir", "create-tree", "create-file":
+		if !validPath(path) || owner == "" || op != "create-tree" && group == "" || mode == "" || op == "create-tree" && !namePattern.MatchString(owner) || !validRet() || op == "create-file" && !validPath(src) {
 			return fail(2, "USAGE_CREATE")
 		}
 	case "exec-create":
@@ -143,10 +148,13 @@ func Run(args []string, sys System, out io.Writer) error {
 		return nil
 	case "replay":
 		return l.Replay(replayMode)
-	case "create-dir", "create-file":
+	case "create-dir", "create-tree", "create-file":
 		m, e := strconv.ParseUint(mode, 8, 32)
 		if e != nil || m > 0777 {
 			return fail(2, "USAGE_MODE")
+		}
+		if op == "create-tree" {
+			return l.CreateTree(path, owner, ret, uint32(m), sockets)
 		}
 		u, e := resolveID(l.sys, "user", owner)
 		if e != nil {

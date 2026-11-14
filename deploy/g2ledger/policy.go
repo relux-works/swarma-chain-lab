@@ -1,10 +1,10 @@
 package g2ledger
 
 // stationProtectedKind covers account creation (user/group) and all key
-// creation (secret, including audited exec-create outputs). Membership is a
+// creation (secret, including audited exec-create outputs), plus tree roots. Membership is a
 // modification: undo removes only the added membership, never either account.
 func stationProtectedKind(kind string) bool {
-	return kind == "user" || kind == "group" || kind == "secret"
+	return kind == "user" || kind == "group" || kind == "secret" || kind == "tree"
 }
 
 func stationRetentionAllowed(g Genesis, a Action) error {

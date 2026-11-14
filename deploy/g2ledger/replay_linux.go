@@ -25,8 +25,12 @@ func (l *Ledger) Replay(mode string) error {
 	if !purposeMatches(g.Purpose, mode) {
 		return fail(1, "MODE_PURPOSE_MISMATCH purpose="+g.Purpose+" mode="+mode)
 	}
+	defer l.closeTreePlans()
 	if mode == "rehearsal" {
 		if e := l.preflightRehearsal(); e != nil {
+			return e
+		}
+		if e := l.prepareTrees(); e != nil {
 			return e
 		}
 	}
@@ -46,6 +50,28 @@ func (l *Ledger) Replay(mode string) error {
 }
 func (l *Ledger) undo(a Action, want Identity, mode string) error {
 	switch a.Kind {
+	case "tree":
+		if effect, _ := retentionPolicy(a.Kind, a.Ret, mode); effect == "keep" {
+			got, e := observe(want.Path, "tree")
+			if e != nil {
+				return stopped("TREE_LOOKUP", e)
+			}
+			if got != nil && !identityEqual(*got, want) {
+				return mismatch(a)
+			}
+			return nil
+		}
+		if plan := l.treePlans[want.Path]; plan != nil {
+			return l.deleteTree(plan)
+		}
+		got, e := observe(want.Path, "tree")
+		if e != nil {
+			return stopped("TREE_LOOKUP", e)
+		}
+		if got != nil {
+			return namedError("TREE_CHANGED", a)
+		}
+		return nil
 	case "dir", "file", "secret":
 		// Check retained identities too; the shared policy chooses keep or remove.
 		// All identities, including retained objects, are checked before proceeding.
@@ -120,6 +146,9 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 			command = "/usr/sbin/groupdel"
 		}
 		if a.Kind == "user" {
+			if e := l.ownerTreesGone(a.Name); e != nil {
+				return e
+			}
 			// shadow-utils userdel(8), login.defs(5): USERGROUPS_ENAB=yes
 			// may delete the same-name group. Installed userdel has no reliable
 			// preserve-group option. Refuse independently of host policy and of
@@ -249,7 +278,7 @@ func (l *Ledger) preflightRehearsal() error {
 			var got *Identity
 			var e error
 			switch a.Kind {
-			case "dir", "file", "secret", "modify":
+			case "dir", "tree", "file", "secret", "modify":
 				got, e = observe(want.Path, a.Kind)
 				if e == nil && a.Kind == "modify" && got != nil && restoredIdentity(*got, a) {
 					continue

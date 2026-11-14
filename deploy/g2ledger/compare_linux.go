@@ -156,6 +156,13 @@ func (l *Ledger) compareBaseline(mode string) error {
 					a, rule = explain(childKey, nil, id)
 				}
 			}
+			if oldEntries[n] == 0 && base.Kind == "tree" {
+				if owner, ok := auth[key]; ok && now.Identity != nil && identityEqual(*now.Identity, owner.identity) {
+					if effect, keepRule := retentionPolicy("tree", owner.action.Ret, mode); effect == "keep" {
+						a, rule = &owner, keepRule+"-tree-content"
+					}
+				}
+			}
 			if e = emit(childKey, "directory-entry", a, rule); e != nil {
 				return e
 			}

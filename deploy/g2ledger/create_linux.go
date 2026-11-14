@@ -20,6 +20,11 @@ func (l *Ledger) CreateFS(path, src, kind, ret string, uid, gid, mode uint32) er
 	if kind != "dir" && kind != "file" && kind != "secret" {
 		return fail(2, "CREATE_KIND")
 	}
+	return l.createFS(a, src)
+}
+
+func (l *Ledger) createFS(a Action, src string) error {
+	path, kind, uid, gid, mode := a.Paths[0], a.Kind, a.UID, a.GID, a.Mode
 	if e := validateAction(&a); e != nil {
 		return stopped("ACTION", e)
 	}
@@ -27,7 +32,7 @@ func (l *Ledger) CreateFS(path, src, kind, ret string, uid, gid, mode uint32) er
 		return e
 	}
 	var data []byte
-	if kind != "dir" {
+	if kind != "dir" && kind != "tree" {
 		var e error
 		data, e = readFile(src, 64<<20)
 		if e != nil {
@@ -45,7 +50,7 @@ func (l *Ledger) CreateFS(path, src, kind, ret string, uid, gid, mode uint32) er
 		return e
 	}
 	var f *os.File
-	if kind == "dir" {
+	if kind == "dir" || kind == "tree" {
 		e = unix.Mkdirat(int(d.Fd()), n, 0700)
 		if e == nil {
 			f, e = at(d, n, unix.O_RDONLY|unix.O_DIRECTORY, 0)
@@ -65,7 +70,7 @@ func (l *Ledger) CreateFS(path, src, kind, ret string, uid, gid, mode uint32) er
 		l.poisoned = true
 		return orphan(a)
 	}
-	if kind != "dir" {
+	if kind != "dir" && kind != "tree" {
 		if e = l.write(f, data); e != nil {
 			l.poisoned = true
 			return orphan(a)
