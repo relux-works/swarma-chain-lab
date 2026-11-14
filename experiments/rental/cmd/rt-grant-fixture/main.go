@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -106,7 +107,8 @@ func (o options) validate() error {
 }
 
 type rpcError struct {
-	Code int `json:"code"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
 }
 
 func (e *rpcError) Error() string { return "RPC_REFUSED" }
@@ -117,13 +119,19 @@ type rpcClient struct {
 }
 
 func newRPC(o options) (*rpcClient, error) {
-	f, err := os.Open(o.cookie)
+	before, err := os.Lstat(o.cookie)
+	if err != nil || !before.Mode().IsRegular() || before.Mode().Perm()&0077 != 0 {
+		return nil, errors.New("COOKIE")
+	}
+	// Nonblocking and no-follow also cover a FIFO/symlink swapped in after
+	// Lstat. Read only the same private regular file we inspected above.
+	f, err := os.OpenFile(o.cookie, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, errors.New("COOKIE")
 	}
 	defer f.Close()
 	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || !os.SameFile(before, info) {
 		return nil, errors.New("COOKIE")
 	}
 	b, err := io.ReadAll(io.LimitReader(f, 4097))
@@ -280,9 +288,11 @@ func provision(ctx context.Context, o options) (string, error) {
 	// Check BOTH names before creating keys or making any write RPC. A rerun is
 	// never a name takeover or renewal, even when these fixed names have expired.
 	for _, name := range []string{agentName, landlordName} {
-		err = r.call(ctx, false, "name_show", nil, name)
+		// Core 28 name_show(name, options) otherwise reports expired names
+		// with the same -4 code as absence. Pin ASCII for the exact error text.
+		err = r.call(ctx, false, "name_show", nil, name, map[string]any{"allowExpired": true, "nameEncoding": "ascii"})
 		var re *rpcError
-		if !errors.As(err, &re) || re.Code != -4 {
+		if !errors.As(err, &re) || re.Code != -4 || re.Message != "name never existed: '"+name+"'" {
 			return "", errors.New("FRESH_NAMES_REQUIRED")
 		}
 	}

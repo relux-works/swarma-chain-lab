@@ -6,9 +6,17 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -223,4 +231,102 @@ func TestRTGrantFixtureCore(t *testing.T) {
 	if e = again.Run(); e == nil || stdout.Len() != 0 || stderr.String() != "rt-grant-fixture: FRESH_NAMES_REQUIRED\n" || l.px1sHeight() != height || l.px1Mempool() != before {
 		t.Fatal("fixed-name rerun wrote")
 	}
+	// Claim: either fixed name alone blocks provisioning while active AND
+	// after actual consensus expiry, before any write RPC or key creation.
+	// The successful never-registered neighbour above uses this same binary.
+	baseRoot := os.Getenv("W1_RUN_ROOT")
+	for _, name := range []string{"id/rt-agent", "id/rt-landlord"} {
+		t.Run("freshness/"+name, func(t *testing.T) {
+			t.Setenv("W1_RUN_ROOT", baseRoot+"-"+strings.TrimPrefix(name, "id/"))
+			node := newPX1Core(t)
+			var reservation []string
+			if json.Unmarshal(node.rpc("issuer", "name_new", name), &reservation) != nil || len(reservation) != 2 {
+				t.Fatal("name reservation")
+			}
+			node.mine(12)
+			node.rpc("issuer", "name_firstupdate", name, reservation[1], reservation[0], "{}")
+			node.mine(1)
+			for _, expired := range []bool{false, true} {
+				var view struct {
+					Expired   bool `json:"expired"`
+					ExpiresIn int  `json:"expires_in"`
+				}
+				if json.Unmarshal(node.rpc("", "name_show", name, map[string]any{"allowExpired": true, "nameEncoding": "ascii"}), &view) != nil {
+					t.Fatal("name view")
+				}
+				if expired {
+					// Core nc28.0 consensus/params.h: RegTestConsensus depth=30;
+					// rpc/names.cpp expires when update height + depth <= tip.
+					if view.ExpiresIn <= 0 || view.ExpiresIn > 30 {
+						t.Fatal("regtest expiry depth")
+					}
+					node.mine(view.ExpiresIn + 1)
+					if json.Unmarshal(node.rpc("", "name_show", name, map[string]any{"allowExpired": true, "nameEncoding": "ascii"}), &view) != nil {
+						t.Fatal("expired name view")
+					}
+				}
+				if view.Expired != expired || (expired && view.ExpiresIn >= 0) {
+					t.Fatal("real expiry precondition")
+				}
+				height, pool := node.px1sHeight(), node.px1Mempool()
+				balance := node.rpc("issuer", "getbalances")
+				target, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", node.routes["w3-observer"].Port))
+				if err != nil {
+					t.Fatal(err)
+				}
+				proxy := httputil.NewSingleHostReverseProxy(target)
+				calls := []string{}
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					body, err := io.ReadAll(r.Body)
+					var req struct {
+						Method string `json:"method"`
+					}
+					if err != nil || json.Unmarshal(body, &req) != nil {
+						t.Error("RPC recorder")
+						http.Error(w, "invalid", 400)
+						return
+					}
+					calls = append(calls, req.Method)
+					r.Body = io.NopCloser(bytes.NewReader(body))
+					proxy.ServeHTTP(w, r)
+				}))
+				_, port, err := net.SplitHostPort(strings.TrimPrefix(srv.URL, "http://"))
+				if err != nil {
+					srv.Close()
+					t.Fatal(err)
+				}
+				if _, err = strconv.Atoi(port); err != nil {
+					srv.Close()
+					t.Fatal(err)
+				}
+				dest := filepath.Join(node.root, fmt.Sprintf("refused-%t", expired))
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				cmd := exec.CommandContext(ctx, bin, "--rpc-host", "127.0.0.1", "--rpc-port", port,
+					"--rpc-cookie", filepath.Join(node.private, "regtest", ".cookie"), "--wallet", "issuer", "--out-dir", dest,
+					"--executor-key", executor, "--recipient", recipient)
+				var out, diag bytes.Buffer
+				cmd.Stdout, cmd.Stderr = &out, &diag
+				err = cmd.Run()
+				cancel()
+				srv.Close()
+				if err == nil || out.Len() != 0 || diag.String() != "rt-grant-fixture: FRESH_NAMES_REQUIRED\n" {
+					t.Fatal("existing fixed name accepted or wrong refusal", expired)
+				}
+				want := []string{"getblockchaininfo", "getblockhash", "name_show"}
+				if name == "id/rt-landlord" {
+					want = append(want, "name_show")
+				}
+				if !reflect.DeepEqual(calls, want) {
+					t.Fatal("existing name made a write RPC", calls)
+				}
+				if _, err := os.Lstat(dest); !os.IsNotExist(err) {
+					t.Fatal("existing name created output/keys")
+				}
+				if node.px1sHeight() != height || node.px1Mempool() != pool || !bytes.Equal(balance, node.rpc("issuer", "getbalances")) {
+					t.Fatal("existing name changed Core state")
+				}
+			}
+		})
+	}
+
 }

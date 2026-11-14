@@ -81,6 +81,17 @@ directory, file or symlink refuses without overwrite. The cookie must be a
 private regular file. RPC bodies, credentials and filesystem paths are never
 included in diagnostics.
 
+Freshness uses Core 28's `name_show(name, options)` with
+`{"allowExpired":true,"nameEncoding":"ascii"}`. Any returned record, including
+an expired one, refuses `FRESH_NAMES_REQUIRED`. Only code `-4` with the exact
+`name never existed: '<queried name>'` message counts as absent; other RPC
+errors refuse. See the pinned upstream
+[RPC signature and error branches](https://github.com/namecoin/namecoin-core/blob/a08218ef2d44b81c53d25c399898e59271f4b642/src/rpc/names.cpp#L501-L570)
+and [ASCII error-name encoding](https://github.com/namecoin/namecoin-core/blob/a08218ef2d44b81c53d25c399898e59271f4b642/src/names/encoding.cpp#L172-L184).
+Cookie symlinks and non-regular files (including FIFOs) refuse `COOKIE` before
+opening. The subsequent nonblocking, no-follow open rechecks permissions,
+regular-file type and identity against the initial `Lstat`.
+
 The tool creates the output directory as `0700`, generates normalized
 throwaway issuer/landlord and grantee keys as `issuer.key` and `grantee.key`
 (`0600`), mines 101 blocks for mature native witness funding, reserves both
@@ -111,7 +122,10 @@ It does not change production issuance or wallet behavior.
 30000 and day-count cap is 10. The one allow-listed P2PKH recipient and the
 installed service's receipt **public** key are required flags: terms bind to
 that exact executor. `--valid-for` defaults to 24h (1m..24h). Regtest names
-expire after 30 blocks: finish before expiry; this tool does not renew names.
+expire when the tip reaches the last update height plus 30: finish before
+expiry; this tool does not renew names. Core 28 pins the
+[regtest expiration depth to 30](https://github.com/namecoin/namecoin-core/blob/a08218ef2d44b81c53d25c399898e59271f4b642/src/consensus/params.h#L79-L87),
+with [expiry at `expires_in <= 0`](https://github.com/namecoin/namecoin-core/blob/a08218ef2d44b81c53d25c399898e59271f4b642/src/rpc/names.cpp#L115-L127).
 
 Exit 0 prints exactly `RT_GRANT_ID <64 lowercase hex>`. Exit 1 emits only a
 fixed refusal code on stderr. `fixture.json` contains the grant/contract IDs,
@@ -138,6 +152,10 @@ W1_REGTEST=1 W1_RUN_ROOT="$FRESH_ABSOLUTE_RUN_ROOT" \
 That test checks KernelAuthority acceptance and spends through the installed
 G2 service, with off-list and over-budget controls. It uses the existing
 labelled root-ownership test seam, not native separate-UID qualification.
+For each fixed name separately, it also registers the name, checks refusal
+while active, mines past its actual expiry and checks refusal again with no
+write RPC, output, key creation or Core state change. The never-registered
+neighbour runs the successful provisioning and spend path on the same binary.
 Hosted `px1-core-gate` runs it with verified Core 28 binaries and rejects
 skipped/missing/failed tests through `.scripts/rt-grant-fixture-core-gate.json`.
 Local logs/builds belong in `.temp/`; private Core roots and keys must be kept
