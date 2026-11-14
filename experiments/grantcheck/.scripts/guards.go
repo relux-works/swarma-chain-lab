@@ -27,7 +27,7 @@ type plant struct {
 
 var plants = []plant{
 	{"foreign_grantee", "checker.go", "g.GranteeKey != peer || ", "", "TestInputBoundary/foreign", "verdict contract", false},
-	{"explicit_invalid_fallback", "checker.go", "g, code = c.parse(p, peer)\n\t\tif code != CodeLive {\n\t\t\tif provision {\n\t\t\t\treturn c.auditRefusal(*supplied, fail(code))\n\t\t\t}\n\t\t\treturn fail(code)", "g, code = c.parse(p, peer)\n\t\tif code != CodeLive {\n\t\t\tif provision {\n\t\t\t\treturn c.auditRefusal(*supplied, fail(code))\n\t\t\t}\n\t\t\treturn c.check(ctx, peer, nil, inbound)", "TestInputBoundary", "verdict contract", false},
+	{"explicit_invalid_fallback", "checker.go", "g, code = c.parse(p, peer)\n\t\tif code != CodeLive {\n\t\t\tif provision {\n\t\t\t\treturn c.auditRefusal(ctx, *supplied, fail(code))\n\t\t\t}\n\t\t\treturn fail(code)", "g, code = c.parse(p, peer)\n\t\tif code != CodeLive {\n\t\t\tif provision {\n\t\t\t\treturn c.auditRefusal(ctx, *supplied, fail(code))\n\t\t\t}\n\t\t\treturn c.check(ctx, peer, nil, inbound)", "TestInputBoundary", "verdict contract", false},
 	{"proof_bound", "checker.go", "const MaxPresentationBytes = 16384", "const MaxPresentationBytes = 32768", "TestInputBoundary/oversize", "verdict contract", false},
 	{"receipt_id", "checker.go", "r.GrantID != p.GrantID || ", "", "TestInconsistentReceipts/grant", "verdict contract", false},
 	{"receipt_agent", "checker.go", "r.AgentName != g.AgentName || ", "", "TestInconsistentReceipts/agent", "verdict contract", false},
