@@ -436,3 +436,47 @@ func TestLedgerAccountLookupErrorStops(t *testing.T) {
 	must(t, f.l.Replay("station-remove"))
 	absent(t, older)
 }
+
+// Claim: journal appends in a sibling ledger directory do not look like tool
+// output drift; undeclared tool-created siblings remain named orphans.
+func TestLedgerExecInventorySeparatesJournalWrites(t *testing.T) {
+	for _, extra := range []bool{false, true} {
+		t.Run(fmt.Sprint(extra), func(t *testing.T) {
+			f := setup(t)
+			p := filepath.Join(f.root, "key")
+			sibling := filepath.Join(f.root, "unexpected")
+			f.sys.tool = func(_ string, _ []string) (string, int, error) {
+				file, e := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+				if e != nil {
+					return "", 1, nil
+				}
+				e = checkedWrite(file, []byte("private fixture"))
+				if e == nil {
+					e = file.Sync()
+				}
+				ce := file.Close()
+				if e != nil || ce != nil {
+					return "", 1, nil
+				}
+				if extra {
+					must(t, os.WriteFile(sibling, []byte("undeclared"), 0600))
+				}
+				return "", 0, nil
+			}
+			e := f.l.execCreate("secret", "d6", []string{p}, []string{"exclusive-fixture", "g2-keygen", "-out", p})
+			if extra {
+				code(t, e, 3)
+				if !strings.Contains(e.Error(), sibling) {
+					t.Fatal("sibling orphan not named")
+				}
+				exists(t, p)
+				exists(t, sibling)
+			} else {
+				must(t, e)
+				f.reopen(t)
+				must(t, f.l.Replay("station"))
+				exists(t, p)
+			}
+		})
+	}
+}

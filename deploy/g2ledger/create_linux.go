@@ -384,6 +384,11 @@ func (l *Ledger) execCreate(kind, ret string, paths, argv []string) error {
 		l.poisoned = true
 		return orphan(a)
 	}
+	var journal unix.Stat_t
+	if e := unix.Fstat(int(l.dir.Fd()), &journal); e != nil {
+		l.poisoned = true
+		return orphan(a)
+	}
 	for dir, s := range snaps {
 		after, e := snapshot(s.dir)
 		if e != nil {
@@ -396,7 +401,12 @@ func (l *Ledger) execCreate(kind, ret string, paths, argv []string) error {
 				continue
 			}
 			old, ok := s.entries[n]
-			if !ok || !stableStat(old, got) {
+			// Appending our intent changes the journal directory's child namespace.
+			// Exempt only that held inode's mutable directory times/size; replacement
+			// or ownership/mode changes still fail. Other siblings keep full checks.
+			ownJournal := ok && old.Dev == journal.Dev && old.Ino == journal.Ino &&
+				got.Dev == journal.Dev && got.Ino == journal.Ino && old.Mode == got.Mode && old.Uid == got.Uid && old.Gid == got.Gid
+			if !ok || !ownJournal && !stableStat(old, got) {
 				l.poisoned = true
 				return fail(3, "ORPHAN extra or changed path "+p)
 			}
