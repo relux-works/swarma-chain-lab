@@ -70,15 +70,43 @@ type Identity struct {
 	Membership *Membership `json:"membership,omitempty"`
 	Unit       *Unit       `json:"unit,omitempty"`
 }
+
+// Scope declares targets before any mutation. Parents are inventory scope only;
+// declaring a directory never grants authority over arbitrary descendants.
+type Scope struct {
+	Paths  []ScopePath `json:"paths"`
+	Users  []string    `json:"users"`
+	Groups []string    `json:"groups"`
+	Units  []string    `json:"units"`
+}
+type ScopePath struct {
+	Path string `json:"path"`
+	Kind string `json:"kind"`
+}
+type DirectoryEntry struct {
+	Name string `json:"name"`
+	Type uint32 `json:"type"`
+}
+type BaselineObject struct {
+	Kind     string           `json:"kind"`
+	Name     string           `json:"name"`
+	Identity *Identity        `json:"identity"`
+	Children []DirectoryEntry `json:"children,omitempty"`
+	Members  []string         `json:"members,omitempty"`
+}
+
 type Genesis struct {
-	Version        int    `json:"version"`
-	Attempt        string `json:"attempt"`
-	ManifestSHA256 string `json:"manifest_sha256"`
-	ReleaseSHA     string `json:"release_sha"`
-	Commit         string `json:"commit"`
-	H12            string `json:"h12"`
-	Baseline       string `json:"baseline"`
-	BaselineSHA256 string `json:"baseline_sha256"`
+	Version        int              `json:"version"`
+	Purpose        string           `json:"purpose"`
+	Scope          Scope            `json:"scope"`
+	S0             []BaselineObject `json:"s0"`
+	Attempt        string           `json:"attempt"`
+	ManifestSHA256 string           `json:"manifest_sha256"`
+	ReleaseSHA     string           `json:"release_sha"`
+	Commit         string           `json:"commit"`
+	H12            string           `json:"h12"`
+	Baseline       string           `json:"baseline"`
+	BaselineSHA256 string           `json:"baseline_sha256"`
 }
 
 // Action kinds are independent of record phases, leaving room for a later
@@ -193,7 +221,11 @@ func validateIdentity(i Identity, kind string) error {
 	switch kind {
 	case "dir", "file", "secret", "modify":
 		f := i.FS
-		if f == nil || !validPath(i.Path) || f.Dev == 0 || f.Ino == 0 || f.Mode > 0777 || f.UID == ^uint32(0) || f.GID == ^uint32(0) {
+		maxMode := uint32(0777)
+		if kind == "dir" {
+			maxMode = 07777
+		}
+		if f == nil || (!validPath(i.Path) && !(kind == "dir" && i.Path == "/")) || f.Dev == 0 || f.Ino == 0 || f.Mode > maxMode || f.UID == ^uint32(0) || f.GID == ^uint32(0) {
 			return errors.New("IDENTITY_FS")
 		}
 		if kind == "dir" {
@@ -232,7 +264,7 @@ func validateIdentity(i Identity, kind string) error {
 	return nil
 }
 func validateAction(a *Action) error {
-	if a == nil || a.UID == ^uint32(0) || a.GID == ^uint32(0) || (a.Ret != "d6" && a.Ret != "state" && a.Ret != "remove") {
+	if a == nil || a.UID == ^uint32(0) || a.GID == ^uint32(0) || (a.Ret != "d6" && a.Ret != "state" && a.Ret != "remove" && a.Ret != "rehearsal") {
 		return errors.New("ACTION_RETENTION")
 	}
 	clean := *a

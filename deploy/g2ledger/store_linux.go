@@ -21,6 +21,7 @@ const maxLedger = 64 << 20
 // A failed append poisons the open handle: no subsequent operation may proceed.
 type Ledger struct {
 	output      io.Writer
+	summary     io.Writer
 	root        string
 	dir         *os.File
 	lock        *os.File
@@ -38,7 +39,31 @@ func randomID() string {
 	}
 	return hex.EncodeToString(b[:])
 }
-func Init(dir, manifest, baseline string) error {
+
+type InitOptions struct {
+	Purpose string
+	Scope   Scope
+	System  System
+}
+
+func Init(dir, manifest, baseline string, options ...InitOptions) error {
+	opts := InitOptions{Purpose: "station", System: RealSystem{}}
+	if len(options) > 1 {
+		return fail(2, "INIT_OPTIONS")
+	}
+	if len(options) == 1 {
+		opts = options[0]
+	}
+	if !validPurpose(opts.Purpose) {
+		return fail(1, "INIT_PURPOSE")
+	}
+	if opts.System == nil {
+		opts.System = RealSystem{}
+	}
+	if e := validateScope(opts.Scope); e != nil {
+		return stopped("INIT_SCOPE", e)
+	}
+
 	raw, e := readFile(manifest, 1<<20)
 	if e != nil {
 		return stopped("MANIFEST_READ", e)
@@ -58,6 +83,10 @@ func Init(dir, manifest, baseline string) error {
 	sum, e := baselineDigest(baseline)
 	if e != nil {
 		return stopped("BASELINE_READ", e)
+	}
+	s0, e := captureBaseline(opts.Scope, opts.System, dir, baseline)
+	if e != nil {
+		return stopped("INIT_S0", e)
 	}
 	d, n, e := parent(dir)
 	if e != nil {
@@ -95,7 +124,7 @@ func Init(dir, manifest, baseline string) error {
 	if e = lock.Sync(); e != nil {
 		return stopped("INIT_LOCK_SYNC", e)
 	}
-	g := &Genesis{Version: 1, Attempt: randomID(), ManifestSHA256: digest(raw), ReleaseSHA: digest(raw), Commit: m.Commit, H12: m.Commit[:12], Baseline: baseline, BaselineSHA256: sum}
+	g := &Genesis{Version: 1, Purpose: opts.Purpose, Scope: opts.Scope, S0: s0, Attempt: randomID(), ManifestSHA256: digest(raw), ReleaseSHA: digest(raw), Commit: m.Commit, H12: m.Commit[:12], Baseline: baseline, BaselineSHA256: sum}
 	if e = l.append(Body{Op: "genesis", Genesis: g}); e != nil {
 		return e
 	}
@@ -184,8 +213,11 @@ func (l *Ledger) load() error {
 		switch body.Op {
 		case "genesis":
 			g := body.Genesis
-			if j != 0 || body.Action != nil || body.Result != nil || g == nil || g.Version != 1 || !isHex(g.Attempt, 16) || !isHex(g.ManifestSHA256, 32) || g.ReleaseSHA != g.ManifestSHA256 || !isHex(g.Commit, 20) || g.H12 != g.Commit[:12] || !validPath(g.Baseline) || !isHex(g.BaselineSHA256, 32) {
+			if j != 0 || body.Action != nil || body.Result != nil || g == nil || g.Version != 1 || !validPurpose(g.Purpose) || !isHex(g.Attempt, 16) || !isHex(g.ManifestSHA256, 32) || g.ReleaseSHA != g.ManifestSHA256 || !isHex(g.Commit, 20) || g.H12 != g.Commit[:12] || !validPath(g.Baseline) || !isHex(g.BaselineSHA256, 32) {
 				return fail(1, "LEDGER_GENESIS")
+			}
+			if e = validateBaseline(g); e != nil {
+				return stopped("LEDGER_S0", e)
 			}
 		case "intent":
 			if j == 0 || body.Genesis != nil || body.Result != nil || len(pending) != 0 {
@@ -195,6 +227,9 @@ func (l *Ledger) load() error {
 				return stopped("LEDGER_ACTION", e)
 			}
 			a := *body.Action
+			if e = actionAllowed(*rows[0].Body.Genesis, a); e != nil {
+				return e
+			}
 			for _, key := range creationKeys(a) {
 				if created[key] {
 					return fail(1, "LEDGER_DUPLICATE "+key)
@@ -351,6 +386,9 @@ func (l *Ledger) begin(a Action) (uint64, error) {
 		if p == l.root || strings.HasPrefix(p, l.root+"/") || strings.HasPrefix(l.root, p+"/") || p == base || strings.HasPrefix(p, base+"/") || strings.HasPrefix(base, p+"/") {
 			return 0, fail(1, "LEDGER_TARGET_OVERLAP "+p)
 		}
+	}
+	if e := actionAllowed(*l.rows[0].Body.Genesis, a); e != nil {
+		return 0, e
 	}
 	// Reject repeats before a syscall, even within one long-lived API handle.
 	for _, r := range l.rows {

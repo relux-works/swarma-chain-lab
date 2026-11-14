@@ -18,9 +18,8 @@ import (
 func TestLedgerChangedPrimaryGIDStopsD9_5(t *testing.T) {
 	for _, drift := range []bool{true, false} {
 		t.Run(map[bool]string{true: "changed-gid", false: "matching"}[drift], func(t *testing.T) {
-			f := setup(t)
+			f := setupWith(t, "station", func(f *fixture) { f.sys.groups["demo"] = Account{Name: "demo", GID: 301} })
 			older := f.create(t, "older", "file", "remove")
-			f.sys.groups["demo"] = Account{Name: "demo", GID: 301}
 			must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 			if drift {
 				a := f.sys.users["demo"]
@@ -86,8 +85,7 @@ func TestLedgerGetentFailureNeverAbsenceG2(t *testing.T) {
 			t.Fatal("failed inspection entered intent")
 		}
 	}
-	f := setup(t)
-	f.sys.groups["demo"] = Account{Name: "demo", GID: 301}
+	f := setupWith(t, "station", func(f *fixture) { f.sys.groups["demo"] = Account{Name: "demo", GID: 301} })
 	must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 	must(t, f.l.Replay("station-remove"))
 }
@@ -98,10 +96,11 @@ func TestLedgerForeignAccountsNeverAdoptedD9_1(t *testing.T) {
 	for _, kind := range []string{"user", "group"} {
 		for _, when := range []string{"after-baseline", "after-intent"} {
 			t.Run(kind+"/"+when, func(t *testing.T) {
-				f := setup(t)
-				if kind == "user" {
-					f.sys.groups["primary"] = Account{Name: "primary", GID: 301}
-				}
+				f := setupWith(t, "station", func(f *fixture) {
+					if kind == "user" {
+						f.sys.groups["primary"] = Account{Name: "primary", GID: 301}
+					}
+				})
 				plant := func() {
 					a := Account{Name: "foreign", GID: 301}
 					if kind == "user" {
@@ -124,7 +123,7 @@ func TestLedgerForeignAccountsNeverAdoptedD9_1(t *testing.T) {
 				code(t, f.l.CreateAccount(kind, "foreign", "remove", uid, 301), 1)
 				f.l.afterIntent = nil
 				f.reopen(t)
-				must(t, f.l.Replay("station-remove"))
+				code(t, f.l.Replay("station-remove"), 1)
 				a, _, e := lookup(f.sys, kind, "foreign")
 				must(t, e)
 				if a == nil {
@@ -138,10 +137,13 @@ func TestLedgerForeignAccountsNeverAdoptedD9_1(t *testing.T) {
 // Claim: station-remove never deletes pre-existing key/config files; adjacent
 // files created and committed by this engine can be removed.
 func TestLedgerPreexistingKeysConfigsSurviveG1(t *testing.T) {
-	f := setup(t)
+	f := setupWith(t, "station", func(f *fixture) {
+		for _, n := range []string{"old.key", "wallet.json", "service.json"} {
+			foreign(t, filepath.Join(f.root, n), "file")
+		}
+	})
 	paths := []string{filepath.Join(f.root, "old.key"), filepath.Join(f.root, "wallet.json"), filepath.Join(f.root, "service.json")}
 	for _, p := range paths {
-		foreign(t, p, "file")
 		code(t, f.l.CreateFS(p, f.src, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600), 1)
 	}
 	own := f.create(t, "own", "file", "remove")
@@ -156,7 +158,10 @@ func TestLedgerPreexistingKeysConfigsSurviveG1(t *testing.T) {
 // the older entered probe also survives. No process cleanup is inferred from
 // a failed account inspection; native process/tree policy is outside this API.
 func TestLedgerLiveWriterSurvivesInspectionFailureG3(t *testing.T) {
-	f := setup(t)
+	f := setupWith(t, "station", func(f *fixture) {
+		must(t, os.WriteFile(filepath.Join(f.root, "IN-PROGRESS"), []byte("fixture writer\n"), 0600))
+		f.sys.groups["demo"] = Account{Name: "demo", GID: 301}
+	})
 	probe := f.create(t, "probe", "file", "remove")
 	key := f.create(t, "writer.key", "secret", "d6")
 	marker := filepath.Join(f.root, "IN-PROGRESS")
@@ -164,7 +169,6 @@ func TestLedgerLiveWriterSurvivesInspectionFailureG3(t *testing.T) {
 	cmd := exec.Command("/usr/bin/sleep", "120")
 	must(t, cmd.Start())
 	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
-	f.sys.groups["demo"] = Account{Name: "demo", GID: 301}
 	must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 	f.sys.fault = func(command string, args []string) (fakeReply, bool) {
 		return fakeReply{"", 73, nil}, command == "/usr/bin/getent"
@@ -187,15 +191,16 @@ func TestLedgerLiveWriterSurvivesInspectionFailureG3(t *testing.T) {
 func TestLedgerModifyFileRestoresExactCommittedNew(t *testing.T) {
 	for _, change := range []string{"none", "content", "inode", "backup", "symlink", "before"} {
 		t.Run(change, func(t *testing.T) {
-			f := setup(t)
+			f := setupWith(t, "station", func(f *fixture) {
+				must(t, os.WriteFile(filepath.Join(f.root, "config"), []byte("old config\n"), 0640))
+				must(t, os.Chmod(filepath.Join(f.root, "config"), 0640))
+				must(t, os.WriteFile(filepath.Join(f.root, "backup"), []byte("old config\n"), 0600))
+				must(t, os.WriteFile(filepath.Join(f.root, "staged"), []byte("new config\n"), 0600))
+			})
 			older := f.create(t, "older", "file", "remove")
 			p := filepath.Join(f.root, "config")
 			backup := filepath.Join(f.root, "backup")
 			staged := filepath.Join(f.root, "staged")
-			must(t, os.WriteFile(p, []byte("old config\n"), 0640))
-			must(t, os.Chmod(p, 0640))
-			must(t, os.WriteFile(backup, []byte("old config\n"), 0600))
-			must(t, os.WriteFile(staged, []byte("new config\n"), 0600))
 			if change == "before" {
 				must(t, os.WriteFile(p, []byte("foreign before edit\n"), 0640))
 				code(t, f.l.ModifyFile(p, backup, staged), 1)
@@ -246,10 +251,11 @@ func TestLedgerModifyFileRestoresExactCommittedNew(t *testing.T) {
 // requires both account identities and removes only the new membership.
 func TestLedgerMembershipIDsAndEnableState(t *testing.T) {
 	for _, drift := range []bool{false, true} {
-		f := setup(t)
-		f.sys.groups["primary"] = Account{Name: "primary", GID: 301}
-		f.sys.groups["access"] = Account{Name: "access", GID: 302}
-		f.sys.users["demo"] = Account{Name: "demo", UID: 301, GID: 301, Shell: "/bin/sh"}
+		f := setupWith(t, "station", func(f *fixture) {
+			f.sys.groups["primary"] = Account{Name: "primary", GID: 301}
+			f.sys.groups["access"] = Account{Name: "access", GID: 302}
+			f.sys.users["demo"] = Account{Name: "demo", UID: 301, GID: 301, Shell: "/bin/sh"}
+		})
 		must(t, f.l.AddMember("demo", "access"))
 		if !f.sys.called("/usr/sbin/usermod -aG access demo") {
 			t.Fatal("usermod not called")
@@ -278,13 +284,21 @@ func TestLedgerMembershipIDsAndEnableState(t *testing.T) {
 func TestLedgerRetentionModes(t *testing.T) {
 	for _, mode := range []string{"station", "station-remove", "rehearsal"} {
 		t.Run(mode, func(t *testing.T) {
-			f := setup(t)
+			purpose := "station"
+			if mode == "rehearsal" {
+				purpose = mode
+			}
+			f := setupWith(t, purpose, nil)
 			key := f.create(t, "key", "secret", "d6")
 			state := f.create(t, "state", "dir", "state")
 			remove := f.create(t, "remove", "file", "remove")
 			must(t, f.l.Replay(mode))
 			exists(t, key)
-			exists(t, state)
+			if mode == "rehearsal" {
+				absent(t, state)
+			} else {
+				exists(t, state)
+			}
 			absent(t, remove)
 			must(t, os.Chmod(key, 0644))
 			code(t, f.l.Replay(mode), 1)
@@ -297,9 +311,8 @@ func TestLedgerRetentionModes(t *testing.T) {
 func TestLedgerExecMissingExtraAndToolFailure(t *testing.T) {
 	for _, scenario := range []string{"missing", "extra", "tool-failure", "foreign-before-tool", "valid"} {
 		t.Run(scenario, func(t *testing.T) {
-			f := setup(t)
+			f := setupWith(t, "station", func(f *fixture) { must(t, os.Mkdir(filepath.Join(f.root, "outputs"), 0700)) })
 			outputs := filepath.Join(f.root, "outputs")
-			must(t, os.Mkdir(outputs, 0700))
 			p := filepath.Join(outputs, "key")
 			extra := filepath.Join(outputs, "extra")
 			f.sys.tool = func(_ string, _ []string) (string, int, error) {
@@ -399,7 +412,7 @@ func stringID(n int) string {
 // Claim: all account/membership/unit transitions compose in reverse dependency
 // order; repeated replay accepts proven absence without touching foreign state.
 func TestLedgerAccountMembershipUnitRoundTrip(t *testing.T) {
-	f := setup(t)
+	f := setupWith(t, "rehearsal", nil)
 	must(t, f.l.CreateAccount("group", "primary", "remove", 0, 301))
 	must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 	must(t, f.l.CreateAccount("group", "access", "remove", 0, 302))
@@ -419,9 +432,8 @@ func TestLedgerAccountMembershipUnitRoundTrip(t *testing.T) {
 // Claim: EACCES during an account lookup stops before deletion and older
 // effects, whereas an exactly missing account is a harmless absence.
 func TestLedgerAccountLookupErrorStops(t *testing.T) {
-	f := setup(t)
+	f := setupWith(t, "station", func(f *fixture) { f.sys.groups["primary"] = Account{Name: "primary", GID: 301} })
 	older := f.create(t, "older", "file", "remove")
-	f.sys.groups["primary"] = Account{Name: "primary", GID: 301}
 	must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 	f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 		return fakeReply{"", -1, syscall.EACCES}, cmd == "/usr/bin/getent"

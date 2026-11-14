@@ -4,7 +4,10 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"os"
 	"strconv"
+
+	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
 
 type pathsFlag []string
@@ -27,7 +30,7 @@ func Run(args []string, sys System, out io.Writer) error {
 	f := flag.NewFlagSet("g2-ledger "+op, flag.ContinueOnError)
 	f.SetOutput(io.Discard)
 	dir := f.String("dir", "", "private ledger directory")
-	var path, src, owner, group, mode, ret, manifest, baseline, backup, newPath, kind, name, user, unit, replayMode string
+	var path, src, owner, group, mode, ret, manifest, baseline, backup, newPath, kind, name, user, unit, replayMode, purpose, scopeFile string
 	var uid, gid uint64
 	var secret bool
 	var paths pathsFlag
@@ -35,20 +38,22 @@ func Run(args []string, sys System, out io.Writer) error {
 	case "init":
 		f.StringVar(&manifest, "manifest", "", "verified release manifest")
 		f.StringVar(&baseline, "baseline", "", "S0 directory")
+		f.StringVar(&purpose, "purpose", "station", "station|rehearsal")
+		f.StringVar(&scopeFile, "scope", "", "JSON scope captured at init")
 	case "verify":
 	case "create-dir", "create-file":
 		f.StringVar(&path, "path", "", "new absolute path")
 		f.StringVar(&owner, "owner", "", "owner name or numeric uid")
 		f.StringVar(&group, "group", "", "group name or numeric gid")
 		f.StringVar(&mode, "mode", "", "octal mode")
-		f.StringVar(&ret, "ret", "", "d6|state|remove")
+		f.StringVar(&ret, "ret", "", "d6|state|remove|rehearsal")
 		if op == "create-file" {
 			f.StringVar(&src, "src", "", "source file")
 			f.BoolVar(&secret, "secret", false, "omit content digest")
 		}
 	case "exec-create":
 		f.StringVar(&kind, "kind", "", "file|secret")
-		f.StringVar(&ret, "ret", "", "d6|state|remove")
+		f.StringVar(&ret, "ret", "", "d6|state|remove|rehearsal")
 		f.Var(&paths, "path", "declared output; repeat for each output")
 	case "modify-file":
 		f.StringVar(&path, "path", "", "existing config")
@@ -56,7 +61,7 @@ func Run(args []string, sys System, out io.Writer) error {
 		f.StringVar(&newPath, "new", "", "staged replacement")
 	case "create-user", "create-group":
 		f.StringVar(&name, "name", "", "account name")
-		f.StringVar(&ret, "ret", "", "d6|state|remove")
+		f.StringVar(&ret, "ret", "", "d6|state|remove|rehearsal")
 		f.Uint64Var(&gid, "gid", 1<<32, "explicit gid")
 		if op == "create-user" {
 			f.Uint64Var(&uid, "uid", 1<<32, "explicit uid")
@@ -74,13 +79,24 @@ func Run(args []string, sys System, out io.Writer) error {
 	if f.Parse(args[1:]) != nil || !validPath(*dir) || op != "exec-create" && f.NArg() != 0 {
 		return fail(2, "USAGE_FLAGS")
 	}
-	validRet := func() bool { return ret == "d6" || ret == "state" || ret == "remove" }
+	validRet := func() bool { return ret == "d6" || ret == "state" || ret == "remove" || ret == "rehearsal" }
 	switch op {
 	case "init":
 		if !validPath(manifest) || !validPath(baseline) {
 			return fail(2, "USAGE_INIT")
 		}
-		return Init(*dir, manifest, baseline)
+		var scope Scope
+		if !validPath(scopeFile) {
+			return fail(2, "USAGE_SCOPE")
+		}
+		raw, e := readFile(scopeFile, 1<<20)
+		if e != nil {
+			return stopped("SCOPE_READ", e)
+		}
+		if singleuse.StrictInput(raw, &scope) != nil {
+			return fail(1, "SCOPE_SCHEMA")
+		}
+		return Init(*dir, manifest, baseline, InitOptions{Purpose: purpose, Scope: scope, System: sys})
 	case "create-dir", "create-file":
 		if !validPath(path) || owner == "" || group == "" || mode == "" || !validRet() || op == "create-file" && !validPath(src) {
 			return fail(2, "USAGE_CREATE")
@@ -121,6 +137,7 @@ func Run(args []string, sys System, out io.Writer) error {
 	}
 	defer l.Close()
 	l.output = out
+	l.summary = os.Stderr
 	switch op {
 	case "verify":
 		return nil

@@ -46,9 +46,14 @@ fixtures; `TestReleaseIntegration` checks the real bundle in the opt-in release 
 `deploy-kit g2-ledger` provides typed attempt records and fail-closed rollback
 for Linux installation orchestration. See [G2-LEDGER.md](G2-LEDGER.md) for all
 subcommands, the canonical schema, retention, exit codes and install call sites.
-Run `deploy-kit g2-ledger init -dir /root/g2/ledger -manifest /root/g2/release/manifest.json -baseline /root/g2/baseline`
+Run `deploy-kit g2-ledger init -dir /root/g2/ledger -manifest /root/g2/release/manifest.json -baseline /root/g2/baseline -purpose station -scope /root/g2/scope.json`
 after verifying the release, then `deploy-kit g2-ledger verify -dir /root/g2/ledger`.
-Artifacts are private `records.jsonl`, `HEAD` and `LOCK` inside the supplied directory.
+Declare intended paths/accounts/units in the scope file before init; genesis
+records their S0 state and attempt purpose. Replay emits JSONL differences and
+a summary on stdout, with a human summary on stderr. The single retention table
+and comparison limits are in [G2-LEDGER.md](G2-LEDGER.md#replay-and-retention).
+Artifacts are private `records.jsonl`, `HEAD` and `LOCK` inside the supplied directory;
+saved local validation output belongs in `.temp/`.
 `go test -race ./g2ledger ./cmd/deploy-kit -run '^TestLedger' -count=1` exercises
 real temporary files and a fake account/systemd boundary without root operations.
 

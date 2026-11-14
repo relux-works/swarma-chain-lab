@@ -62,3 +62,11 @@ installation, real key provisioning or Linux runtime acceptance has occurred.
 DK5b must specify and qualify slotd's dynamic per-slot bootstrap and launch
 boundary before outside testers. The static per-UID payload anchor alone does
 not complete that gate.
+
+## G2 rehearsal retention confirmation
+
+The provisional QA ruling is implemented in the single
+[G2 ledger policy table](G2-LEDGER.md#replay-and-retention), with implementation
+rules in `g2ledger/policy.go`. Plan-owner confirmation is pending. No host
+installation, account/systemd qualification or tree deletion is established by
+local fixture validation.

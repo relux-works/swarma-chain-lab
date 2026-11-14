@@ -18,9 +18,11 @@ type fixture struct {
 	root, dir, src string
 	l              *Ledger
 	sys            *fakeSystem
+	scope          Scope
 }
 
-func setup(t *testing.T) *fixture {
+func setup(t *testing.T) *fixture { return setupWith(t, "station", nil) }
+func setupWith(t *testing.T, purpose string, prepare func(*fixture)) *fixture {
 	t.Helper()
 	root := t.TempDir()
 	dir := filepath.Join(root, "ledger")
@@ -32,15 +34,39 @@ func setup(t *testing.T) *fixture {
 	manifestRaw, e := os.ReadFile("testdata/release-manifest.json")
 	must(t, e)
 	must(t, os.WriteFile(manifest, manifestRaw, 0600))
-	must(t, Init(dir, manifest, base))
-	sys := newSystem()
-	l, e := Open(dir, sys)
-	must(t, e)
-	f := &fixture{root: root, dir: dir, src: filepath.Join(root, "source"), l: l, sys: sys}
+	f := &fixture{root: root, dir: dir, src: filepath.Join(root, "source"), sys: newSystem()}
+	f.scope = Scope{Users: []string{"demo", "foreign"}, Groups: []string{"demo", "foreign", "primary", "access"}, Units: []string{"demo.service"}}
+	f.sys.units["demo.service"] = "disabled"
+	for _, name := range []string{"older", "newer", "own", "foreign", "public", "pre-existing", "valid", "never-created", "full-write", "not-created", "target", "ordinary", "owned", "orphan", "normal", "old.key", "wallet.json", "service.json", "probe", "config", "cli-file", "file", "parent/file", "parent/newer", "remove"} {
+		f.declare(name, "file")
+	}
+	for _, name := range []string{"key", "pending.key", "writer.key", "outputs/key"} {
+		f.declare(name, "secret")
+	}
+	for _, name := range []string{"directory", "state"} {
+		f.declare(name, "dir")
+	}
 	must(t, os.WriteFile(f.src, []byte("fixture public bytes\n"), 0600))
+	if prepare != nil {
+		prepare(f)
+	}
+	must(t, Init(dir, manifest, base, InitOptions{Purpose: purpose, Scope: f.scope, System: f.sys}))
+	f.l, e = Open(dir, f.sys)
+	must(t, e)
 	t.Cleanup(func() { f.l.Close() })
 	return f
 }
+func (f *fixture) declare(name, kind string) {
+	path := filepath.Join(f.root, name)
+	for j, p := range f.scope.Paths {
+		if p.Path == path {
+			f.scope.Paths[j].Kind = kind
+			return
+		}
+	}
+	f.scope.Paths = append(f.scope.Paths, ScopePath{Path: path, Kind: kind})
+}
+
 func must(t *testing.T, e error) {
 	t.Helper()
 	if e != nil {
@@ -144,7 +170,7 @@ func TestLedgerAuthorityForeignCreatorD9_1(t *testing.T) {
 	for _, kind := range []string{"file", "dir"} {
 		for _, when := range []string{"after-baseline", "after-intent"} {
 			t.Run(kind+"/"+when, func(t *testing.T) {
-				f := setup(t)
+				f := setupWith(t, "station", func(f *fixture) { f.declare("foreign", kind); f.declare("own", kind) })
 				p := filepath.Join(f.root, "foreign")
 				if when == "after-baseline" {
 					foreign(t, p, kind)
@@ -158,10 +184,10 @@ func TestLedgerAuthorityForeignCreatorD9_1(t *testing.T) {
 				code(t, f.l.CreateFS(p, f.src, kind, "remove", uint32(os.Geteuid()), uint32(os.Getegid()), mode), 1)
 				f.l.afterIntent = nil
 				f.reopen(t)
-				must(t, f.l.Replay("station-remove"))
+				code(t, f.l.Replay("station-remove"), 1)
 				exists(t, p)
 				good := f.create(t, "own", kind, "remove")
-				must(t, f.l.Replay("station-remove"))
+				code(t, f.l.Replay("station-remove"), 1)
 				absent(t, good)
 				exists(t, p)
 			})
@@ -187,7 +213,7 @@ func TestLedgerCrashAfterIntentD9_3(t *testing.T) {
 	exists(t, p)
 	exists(t, older)
 	// A separate resolved attempt is the valid neighbour.
-	good := setup(t)
+	good := setupWith(t, "rehearsal", nil)
 	own := good.create(t, "own", "file", "remove")
 	must(t, good.l.Replay("rehearsal"))
 	absent(t, own)
@@ -412,7 +438,11 @@ func TestLedgerAppendSyncFailure(t *testing.T) {
 func TestLedgerFilesystemDriftAndNoFollow(t *testing.T) {
 	for _, change := range []string{"content", "inode", "mode", "symlink", "parent-symlink", "foreign-child"} {
 		t.Run(change, func(t *testing.T) {
-			f := setup(t)
+			f := setupWith(t, "station", func(f *fixture) {
+				if change == "foreign-child" {
+					f.declare("target", "dir")
+				}
+			})
 			older := f.create(t, "older", "file", "remove")
 			kind := "file"
 			if change == "foreign-child" {
@@ -445,7 +475,7 @@ func TestLedgerFilesystemDriftAndNoFollow(t *testing.T) {
 			exists(t, p)
 		})
 	}
-	f := setup(t)
+	f := setupWith(t, "rehearsal", nil)
 	p := f.create(t, "ordinary", "file", "remove")
 	must(t, f.l.Replay("rehearsal"))
 	absent(t, p)
@@ -454,10 +484,9 @@ func TestLedgerFilesystemDriftAndNoFollow(t *testing.T) {
 // Claim: an EACCES lookup at the newest entry stops immediately, leaving older
 // objects intact; a valid lookup removes the same-shaped owned objects.
 func TestLedgerLookupEACCESStopsD9_4(t *testing.T) {
-	f := setup(t)
+	f := setupWith(t, "station", func(f *fixture) { must(t, os.Mkdir(filepath.Join(f.root, "parent"), 0700)) })
 	older := f.create(t, "older", "file", "remove")
 	parentPath := filepath.Join(f.root, "parent")
-	must(t, os.Mkdir(parentPath, 0700))
 	p := filepath.Join(parentPath, "newer")
 	must(t, f.l.CreateFS(p, f.src, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600))
 	must(t, os.Chmod(parentPath, 0))

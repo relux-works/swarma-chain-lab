@@ -3,6 +3,7 @@ package g2ledger
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"golang.org/x/sys/unix"
 )
@@ -20,6 +21,15 @@ func (l *Ledger) Replay(mode string) error {
 	if l.poisoned {
 		return fail(1, "LEDGER_POISONED")
 	}
+	g := l.rows[0].Body.Genesis
+	if !purposeMatches(g.Purpose, mode) {
+		return fail(1, "MODE_PURPOSE_MISMATCH purpose="+g.Purpose+" mode="+mode)
+	}
+	if mode == "rehearsal" {
+		if e := l.preflightRehearsal(); e != nil {
+			return e
+		}
+	}
 	for j := len(l.rows) - 1; j >= 1; j-- {
 		r := l.rows[j]
 		if r.Body.Op != "commit" {
@@ -32,12 +42,12 @@ func (l *Ledger) Replay(mode string) error {
 			}
 		}
 	}
-	return nil
+	return l.compareBaseline(mode)
 }
 func (l *Ledger) undo(a Action, want Identity, mode string) error {
 	switch a.Kind {
 	case "dir", "file", "secret":
-		// d6 is never deleted. state directories remain available for retained data.
+		// Check retained identities too; the shared policy chooses keep or remove.
 		// All identities, including retained objects, are checked before proceeding.
 		d, n, e := parent(want.Path)
 		if errors.Is(e, unix.ENOENT) {
@@ -57,12 +67,29 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 		if !identityEqual(*got, want) {
 			return mismatch(a)
 		}
-		if a.Ret == "d6" || a.Ret == "state" {
+		if effect, _ := retentionPolicy(a.Kind, a.Ret, mode); effect == "keep" {
 			return nil
 		}
 		flags := 0
 		if a.Kind == "dir" {
 			flags = unix.AT_REMOVEDIR
+			target, err := at(d, n, unix.O_RDONLY|unix.O_DIRECTORY, 0)
+			if err != nil {
+				return stopped("DIRECTORY_LOOKUP "+want.Path, err)
+			}
+			current, err := fsIdentity(target, "dir")
+			if err != nil || !identityEqual(Identity{Path: want.Path, FS: current}, want) {
+				target.Close()
+				return mismatch(a)
+			}
+			entries, err := target.ReadDir(-1)
+			target.Close()
+			if err != nil {
+				return stopped("DIRECTORY_LOOKUP "+want.Path, err)
+			}
+			if len(entries) > 0 {
+				return fail(1, "DIRECTORY_NOT_EMPTY "+filepath.Join(want.Path, entries[0].Name()))
+			}
 		}
 		if e = unix.Unlinkat(int(d.Fd()), n, flags); e != nil {
 			return stopped("REMOVE "+want.Path, e)
@@ -72,7 +99,7 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 		}
 		return nil
 	case "user", "group":
-		got, _, e := lookup(l.sys, a.Kind, a.Name)
+		got, members, e := lookup(l.sys, a.Kind, a.Name)
 		if e != nil {
 			return stopped("LOOKUP "+a.Name, e)
 		}
@@ -82,11 +109,14 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 		if !accountEqual(*got, *want.Account) {
 			return mismatch(a)
 		}
-		if a.Ret == "d6" || a.Ret == "state" {
+		if effect, _ := retentionPolicy(a.Kind, a.Ret, mode); effect == "keep" {
 			return nil
 		}
 		command := "/usr/sbin/userdel"
 		if a.Kind == "group" {
+			if mode == "rehearsal" && len(members) > 0 {
+				return fail(1, "GROUP_NOT_EMPTY group:"+a.Name+"/member:"+members[0])
+			}
 			command = "/usr/sbin/groupdel"
 		}
 		if e = commandOK(l.sys, command, a.Name); e != nil {
@@ -126,11 +156,11 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 		}
 		return nil
 	case "unit":
-		got, e := unitState(l.sys, a.Name)
+		got, e := l.replayUnit(a.Name)
 		if e != nil {
 			return stopped("UNIT_LOOKUP "+a.Name, e)
 		}
-		if got.Unit.State == "disabled" {
+		if got == nil || got.Unit.State == "disabled" {
 			return nil
 		}
 		if !identityEqual(*got, want) {
@@ -182,4 +212,100 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 	default:
 		return fail(1, fmt.Sprintf("UNKNOWN_KIND %s", a.Kind))
 	}
+}
+
+// Before rehearsal removes anything, all present identities must still match.
+// Reversed absence, disabled units, removed memberships and restored config are
+// accepted for retries; they never authorize a mismatched present object.
+func (l *Ledger) preflightRehearsal() error {
+	for j := len(l.rows) - 1; j >= 1; j-- {
+		r := l.rows[j]
+		if r.Body.Op != "commit" {
+			continue
+		}
+		a := *l.rows[r.Body.Result.Intent].Body.Action
+		effect, _ := retentionPolicy(a.Kind, a.Ret, "rehearsal")
+		for _, want := range r.Body.Result.Identities {
+			var got *Identity
+			var e error
+			switch a.Kind {
+			case "dir", "file", "secret", "modify":
+				got, e = observe(want.Path, a.Kind)
+				if e == nil && a.Kind == "modify" && got != nil && restoredIdentity(*got, a) {
+					continue
+				}
+			case "user", "group":
+				var account *Account
+				var members []string
+				account, members, e = lookup(l.sys, a.Kind, a.Name)
+				if account != nil {
+					got = &Identity{Account: account}
+				}
+				if e == nil && a.Kind == "group" && account != nil && effect == "remove" {
+					allowed := map[string]bool{}
+					for _, o := range l.rows[0].Body.Genesis.S0 {
+						if o.Kind == "group" && o.Name == a.Name {
+							for _, m := range o.Members {
+								allowed[m] = true
+							}
+						}
+					}
+					for _, row := range l.rows {
+						if row.Body.Op == "commit" {
+							action := l.rows[row.Body.Result.Intent].Body.Action
+							if action.Kind == "membership" && action.Group == a.Name {
+								allowed[action.User] = true
+							}
+						}
+					}
+					for _, m := range members {
+						if !allowed[m] {
+							return fail(1, "UNLISTED_DIFFERENCE group:"+a.Name+"/member:"+m)
+						}
+					}
+				}
+			case "membership":
+				got, e = membership(l.sys, a.User, a.Group)
+				if got != nil && !got.Membership.Present {
+					copy := *got.Membership
+					copy.Present = true
+					got = &Identity{Membership: &copy}
+				}
+			case "unit":
+				got, e = l.replayUnit(a.Name)
+				if e == nil && got != nil && identityEqual(*got, a.Before[0]) {
+					continue
+				}
+			}
+			if e != nil {
+				return stopped("PREFLIGHT_LOOKUP "+actionName(a), e)
+			}
+			if got == nil {
+				if a.Kind == "modify" {
+					return namedError("MODIFY_MISSING", a)
+				}
+				continue
+			}
+			matches := identityEqual(*got, want)
+			if got.Account != nil && want.Account != nil {
+				matches = accountEqual(*got.Account, *want.Account)
+			}
+			if !matches {
+				return mismatch(a)
+			}
+		}
+	}
+	return nil
+}
+
+// A unit absent at S0 can already be gone on replay retry after its recorded
+// unit file was removed. Existing S0 units retain the strict lookup contract.
+func (l *Ledger) replayUnit(name string) (*Identity, error) {
+	for _, o := range l.rows[0].Body.Genesis.S0 {
+		if o.Kind == "unit" && o.Name == name && o.Identity == nil {
+			got, e := snapshotObject(o, l.sys, l.root, l.rows[0].Body.Genesis.Baseline)
+			return got.Identity, e
+		}
+	}
+	return unitState(l.sys, name)
 }

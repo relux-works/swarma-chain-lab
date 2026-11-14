@@ -62,14 +62,22 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 		}
 		return out.Bytes()
 	}
-	dir := filepath.Join(root, "ledger")
-	invoke(0, "g2-ledger", "init", "-dir", dir, "-manifest", manifest, "-baseline", base)
-	invoke(1, "g2-ledger", "init", "-dir", dir, "-manifest", manifest, "-baseline", base)
-	invoke(2, "g2-ledger", "create-file", "-dir", dir)
 	outputs := filepath.Join(root, "outputs")
 	if e = os.Mkdir(outputs, 0700); e != nil {
 		t.Fatal(e)
 	}
+	scopeFile := filepath.Join(root, "scope.json")
+	scopeRaw, e := json.Marshal(map[string]any{"paths": []map[string]string{{"path": filepath.Join(outputs, "key"), "kind": "secret"}, {"path": filepath.Join(outputs, "closed-key"), "kind": "secret"}, {"path": filepath.Join(outputs, "rehearsal-key"), "kind": "secret"}}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(scopeFile, scopeRaw, 0600); e != nil {
+		t.Fatal(e)
+	}
+	dir := filepath.Join(root, "ledger")
+	invoke(0, "g2-ledger", "init", "-dir", dir, "-manifest", manifest, "-baseline", base, "-scope", scopeFile, "-purpose", "station")
+	invoke(1, "g2-ledger", "init", "-dir", dir, "-manifest", manifest, "-baseline", base, "-scope", scopeFile, "-purpose", "station")
+	invoke(2, "g2-ledger", "create-file", "-dir", dir)
 	key := filepath.Join(outputs, "key")
 	out := invoke(0, "g2-ledger", "exec-create", "-dir", dir, "-kind", "secret", "-ret", "d6", "-path", key, "--", kit, "g2-keygen", "-out", key)
 	if !strings.HasPrefix(string(out), "G2_KEY_XONLY ") {
@@ -81,8 +89,22 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 	}
 	defer clear(before)
 	invoke(1, "g2-ledger", "exec-create", "-dir", dir, "-kind", "secret", "-ret", "d6", "-path", key, "--", kit, "g2-keygen", "-out", key)
+	invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "rehearsal")
 	invoke(0, "g2-ledger", "verify", "-dir", dir)
-	invoke(0, "g2-ledger", "replay", "-dir", dir, "-mode", "station-remove")
+	compareOut := invoke(0, "g2-ledger", "replay", "-dir", dir, "-mode", "station-remove")
+	if !bytes.Contains(compareOut, []byte(`"type":"retained"`)) || !bytes.Contains(compareOut, []byte(`"rule":"retain-d6"`)) {
+		t.Fatal("missing machine-readable retention")
+	}
+	rehearsalDir := filepath.Join(root, "rehearsal-ledger")
+	invoke(0, "g2-ledger", "init", "-dir", rehearsalDir, "-manifest", manifest, "-baseline", base, "-scope", scopeFile, "-purpose", "rehearsal")
+	rehearsalKey := filepath.Join(outputs, "rehearsal-key")
+	invoke(0, "g2-ledger", "exec-create", "-dir", rehearsalDir, "-kind", "secret", "-ret", "rehearsal", "-path", rehearsalKey, "--", kit, "g2-keygen", "-out", rehearsalKey)
+	invoke(1, "g2-ledger", "replay", "-dir", rehearsalDir, "-mode", "station")
+	invoke(0, "g2-ledger", "replay", "-dir", rehearsalDir, "-mode", "rehearsal")
+	if _, e = os.Lstat(rehearsalKey); !os.IsNotExist(e) {
+		t.Fatal("rehearsal CLI key retained")
+	}
+	invoke(1, "g2-ledger", "exec-create", "-dir", dir, "-kind", "secret", "-ret", "rehearsal", "-path", rehearsalKey, "--", kit, "g2-keygen", "-out", rehearsalKey)
 	after, e := os.ReadFile(key)
 	if e != nil {
 		t.Fatal(e)
@@ -95,7 +117,7 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 	// its already-committed secret remains tracked and preserved.
 	closedKey := filepath.Join(outputs, "closed-key")
 	closedDir := filepath.Join(root, "closed-ledger")
-	invoke(0, "g2-ledger", "init", "-dir", closedDir, "-manifest", manifest, "-baseline", base)
+	invoke(0, "g2-ledger", "init", "-dir", closedDir, "-manifest", manifest, "-baseline", base, "-scope", scopeFile, "-purpose", "station")
 	pipeR, pipeW, e := os.Pipe()
 	if e != nil {
 		t.Fatal(e)

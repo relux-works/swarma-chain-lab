@@ -10,10 +10,11 @@ objects after unrelated creators or implement its own rollback deletion lists.
 All paths must be absolute, clean and free of symlinks in every component.
 The installation runs as root. The library also permits an effective user's
 private fixture directory, allowing real filesystem tests without root.
-Account and systemd mutations in `RealSystem` require root.
+Account and systemd mutations in `RealSystem` require root. Local tests use a
+fake account/systemd boundary and never invoke those real mutations.
 
 ```text
-deploy-kit g2-ledger init -dir D -manifest M -baseline S0
+deploy-kit g2-ledger init -dir D -manifest M -baseline S0 -purpose station|rehearsal -scope SCOPE.json
 deploy-kit g2-ledger verify -dir D
 deploy-kit g2-ledger create-dir -dir D -path P -owner U -group G -mode 0755 -ret R
 deploy-kit g2-ledger create-file -dir D -path P -src S -owner U -group G -mode 0640 -ret R [-secret]
@@ -26,8 +27,8 @@ deploy-kit g2-ledger enable -dir D -unit NAME.service
 deploy-kit g2-ledger replay -dir D -mode station|station-remove|rehearsal
 ```
 
-`U` and `G` are account names or decimal IDs. `R` is exactly `d6`, `state` or
-`remove`. Accounts require explicit numeric IDs. Users are created without a
+`U` and `G` are account names or decimal IDs. `R` is exactly `d6`, `state`, `remove` or
+`rehearsal`. Accounts require explicit numeric IDs. Users are created without a
 home, private group or login shell (`/usr/sbin/nologin`). Membership creation
 executes `usermod -aG` itself. Unit enablement requires an initially disabled
 unit and executes `systemctl enable` itself. Existing objects, accounts,
@@ -41,9 +42,63 @@ first twelve characters come from the manifest, and both `manifest_sha256`
 and `release_sha` are SHA-256 of the exact supplied manifest bytes. It records
 the S0 directory and a sorted digest of its directory metadata and regular-file
 metadata/content digests. S0 must contain a nonempty `taken-at.txt` and an empty
-`errors.txt`; symlinks and special files refuse initialization. The S0 digest
-is a creation-time binding, not a promise to rehash the entire baseline on
+`errors.txt`; symlinks and special files refuse initialization. The S0 evidence
+directory digest is a creation-time binding, not a promise to rehash that evidence directory on
 subsequent verification. Each restore independently checks its backup digest.
+Separately, `init` snapshots the declared live comparison scopes into genesis,
+so final comparison never reconstructs S0 from later observations.
+
+`-purpose` defaults to `station`; pass `-purpose rehearsal` for a rehearsal
+attempt. Genesis binds this purpose. `replay -mode rehearsal` refuses a station
+ledger, and either station mode refuses a rehearsal ledger, with exit 1 and
+`MODE_PURPOSE_MISMATCH` before target lookup or effects. Retention `rehearsal`
+is refused at creation time on a station ledger with
+`REHEARSAL_RETENTION_REQUIRES_REHEARSAL_PURPOSE`; journal validation enforces the
+same constraint before replay. These fields and S0 scopes are required in newly
+written genesis records. Earlier ledgers lacking them fail closed; there is no
+in-place upgrade or inferred purpose.
+
+### Declare S0 comparison scopes
+
+`-scope` is a required absolute path to a JSON object, for example:
+
+```json
+{
+  "paths": [
+    {"path":"/var/lib/swarma-rehearsal/regtest","kind":"dir"},
+    {"path":"/var/lib/swarma-rehearsal/regtest/probe","kind":"file"},
+    {"path":"/var/lib/swarma-rehearsal/key","kind":"secret"},
+    {"path":"/etc/systemd/system/swarma-rehearsal.service","kind":"file"}
+  ],
+  "users": ["swarma_rehearsal"],
+  "groups": ["swarma_rehearsal"],
+  "units": ["swarma-rehearsal.service"]
+}
+```
+
+Declare every intended mutation path with its kind (`dir`, `file`, `secret`),
+every created account, both subjects of every membership, and every enabled
+unit **before init**. Config modification requires a `file` scope. Missing
+objects and missing parents are captured as absent. Present objects are
+observed without adoption; their S0 presence never permits creation over them.
+Initialization reads these objects but makes no account or unit changes.
+The strict JSON decoder refuses duplicate, escaped, aliased and unknown keys;
+duplicate scope targets also refuse. Unknown kinds, unsupported identities,
+symlinks in target/parent traversal and operational lookup failures refuse init.
+Mutation targets outside the declared scope refuse with
+`TARGET_OUTSIDE_INIT_SCOPE` before durable intent or effects. Declaring a
+directory grants no authority over unnamed children.
+
+Scopes include immediate parents, with directory mode (including sticky bits),
+uid, gid, device and inode, and a **shallow** inventory of child names and types.
+Public `file` targets include metadata and content digests; `secret` targets
+include metadata only, never content or digests. Account identities include
+name, uid, primary gid and shell; groups include their full explicit member
+lists. Unit scope includes enablement state, including a proven
+`not-found`/status 4 absence at init. Ledger and S0 evidence directory paths are
+excluded from parent inventories by exact pathname; neither may be a mutation
+target. The JSON scope input is recorded as typed data in genesis and need not
+be reopened at replay.
 
 `init` exclusively creates D with mode 0700. An existing D, including an
 incomplete attempt, refuses. `LOCK`, `records.jsonl` and `HEAD` are private
@@ -97,7 +152,7 @@ previous record hash. The body is a discriminated union:
 
 | `op` | Exact payload | Meaning |
 | --- | --- | --- |
-| `genesis` | `genesis` | Version, random 128-bit attempt ID, manifest/release SHA-256, full commit, H12, S0 path and digest |
+| `genesis` | `genesis` | Version, purpose, declared scope, typed live S0 snapshot, random 128-bit attempt ID, manifest/release SHA-256, full commit, H12, S0 evidence path and digest |
 | `intent` | `action` | Kind, retention, targets, requested IDs/mode, and applicable before identities and backup/new hashes |
 | `commit` | `result` | Intent sequence and the exact ordered observed identities |
 | `abort` | `result` | Intent sequence and `exclusive-refused`; the exclusive call proved it did not create the object |
@@ -154,19 +209,37 @@ older operations. Already completed newer reversals are not rolled back again
 as a transaction. Missing created objects are harmless; operational lookup
 failures never mean absence. Retained objects must still match their identity.
 
-| Retention | `station` | `station-remove` | `rehearsal` |
-| --- | --- | --- | --- |
-| `d6` | Keep | Keep | Keep |
-| `state`, newly created filesystem/accounts | Keep | Keep | Keep |
-| `remove` | Remove matching objects | Remove matching objects | Remove matching objects |
-| Modified file / unit state | Restore | Restore | Restore |
+The following is the single policy table. It reflects the provisional QA
+ruling; plan-owner confirmation remains pending. Implementation rules live in
+`g2ledger/policy.go` (`retentionPolicy`). Every removal still requires exact
+identity, including both uid and primary gid for users and gid for groups.
 
-This implements the explicit “d6 never deleted” requirement. It intentionally
-does not inherit the retired shell plan's deletion of d6 objects in
-`station-remove` or `rehearsal`. There is no key/wallet-data deletion confirmation
-string and no secure-erasure claim. Do not use these modes as authority to
-destroy retained data. Changing this retention policy needs a separately
-reviewed contract.
+| Object / retention | `station` | `station-remove` | `rehearsal` |
+| --- | --- | --- | --- |
+| Any `d6` creation, including keys/wallet data | Keep (`retain-d6`) | Keep (`retain-d6`) | Keep (`retain-d6`) |
+| `state` creation: files, dirs, users, groups | Keep (`retain-station-state`) | Keep (`retain-station-state`) | Remove (`remove-rehearsal-state`) |
+| `remove` creation | Remove (`remove-exact-identity`) | Remove (`remove-exact-identity`) | Remove (`remove-exact-identity`) |
+| Explicit `rehearsal` creation | Refused at creation and journal validation | Refused at creation and journal validation | Remove (`remove-explicit-rehearsal-object`) |
+| Config modification, own membership addition, own unit enable | Restore (`restore-attempt-transition`) | Restore (`restore-attempt-transition`) | Restore (`restore-attempt-transition`) |
+
+Station creation retention is unchanged: accounts and state directories marked
+`state` remain, and only matching `remove` creations are removed. Journal and
+S0 evidence are never deletion targets. A rehearsal-only key or wallet artifact
+must be explicitly created with `-ret rehearsal`; d6 never becomes deletable
+because of mode. There is no secure-erasure claim.
+
+Rehearsal first checks **all** present committed identities before any removal;
+a changed gid or replaced directory preserves both older and newer entries.
+Already reversed absence/config/unit/membership states allow retry. It also
+refuses foreign explicit members before deleting a created group. Reverse order
+removes recorded memberships before the created accounts they depend on, and
+disables what the attempt enabled before removing its recorded unit files.
+Unit files are ordinary `create-file` records, so they need `state`, `remove`
+or `rehearsal` retention to be removed in rehearsal. Regtest and fixture output
+directories/files likewise require individual `create-dir`/`create-file`
+records. A directory still containing anything after recorded child reversals
+stops with `DIRECTORY_NOT_EMPTY <child-path>`; nothing is recursively deleted.
+Use d6 for a directory that must remain to hold retained d6 children.
 
 Directories are removed only by `unlinkat(..., AT_REMOVEDIR)` when empty. A
 foreign child stops replay. Regular files are unlinked only after the full
@@ -182,8 +255,57 @@ old metadata without writing. Foreign edits or replacements stop.
 Unit lookups accept only `enabled`/status 0 and `disabled`/status 1 from
 `systemctl is-enabled`. Empty output, unexpected statuses (including 73/127),
 masked, runtime, static, missing and all other states stop. An enable operation
-undoes only its own disabled-to-enabled transition. Membership reversal requires
+undoes only its own disabled-to-enabled transition. A replay retry accepts a
+missing unit only when init proved it absent; an existing S0 unit still requires
+the strict enabled/disabled lookup contract. Membership reversal requires
 both user and group identities to match before `gpasswd -d`.
+
+### Final baseline comparison
+
+Every replay that reaches the end of reversal compares live state with init's
+S0. It examines every target declared in genesis, the immediate parent of each
+declared filesystem target, and the complete explicit member lists of declared
+groups. This includes unused declared targets and exclusive creation refusals.
+No late scope expansion or post-hoc S0 capture is permitted.
+
+The compared properties are precisely the identities and shallow directory
+inventories described above. Each identity difference, child-name/type delta,
+and explicit group-member delta is a separate JSON line on stdout. A difference
+is accepted only with a real committed record, retention class, and the mode's
+policy rule. A retained directory does not explain foreign children. Missing,
+changed or extra members have no blanket group retention exception. A config
+restore may change inode/mtime because it uses atomic replacement; only exact
+S0 before-identity plus restored S0 content, size, uid/gid and mode authorizes
+that difference. Its rule is
+`restore-attempt-transition-replacement-inode-or-mtime`.
+
+Synthetic output examples (sequence is the **commit** record's sequence):
+
+```jsonl
+{"type":"retained","object":"path:/var/lib/swarma-rehearsal/key","difference":"identity","mode":"rehearsal","seq":2,"retention":"d6","rule":"retain-d6"}
+{"type":"unlisted_difference","object":"group:swarma_rehearsal/member:foreign","difference":"group-member","mode":"station","rule":"unrecorded-group-membership"}
+{"type":"baseline_summary","mode":"station","compared":5,"retained":2,"unlisted":1}
+```
+
+`object` is `path:<absolute-path>`, `user:<name>`, `group:<name>` or
+`unit:<name>`, with `/member:<name>` for a group-member difference.
+`difference` is `identity`, `directory-entry` or `group-member`. A kept file may
+have both an identity row and a parent directory-entry row; counts are
+**differences**, not distinct objects. The summary JSON line is always emitted
+even when no differences exist. Stderr also reports
+`FINAL_BASELINE_COMPARE mode=... retained=N unlisted=N`.
+All unlisted differences are emitted before exit 1 with
+`UNLISTED_DIFFERENCE <first-object>`. Lookup/output failures also stop with a
+named reason and exit 1. Final comparison detects drift; it never authorizes
+additional cleanup or undoes earlier successful reversals.
+
+Out of scope: recursive contents of unrecorded subdirectories, unrecorded
+siblings' contents/metadata beyond their names and types, secret contents,
+mutable directory size/timestamps, access/change timestamps, account fields
+other than the recorded identity, memberships of unrecorded groups, active/running unit state, processes,
+open descriptors, mounts, ACLs/xattrs, remote services, release verification,
+and whole-host equivalence. Parent inventories are not recursive traversal.
+`create-tree` and native privileged qualification remain separate work.
 
 ## Exit codes
 
@@ -204,7 +326,7 @@ journal records or diagnostics.
 
 | Plan stage | Thin-shell engine call |
 | --- | --- |
-| B, after verified release and S0 | `init -manifest ... -baseline ...` |
+| B, after verified release and S0 | `init -manifest ... -baseline ... -purpose station -scope ...` |
 | S1 | Four `create-dir` calls and `create-file` for the probe |
 | S2 | One `exec-create ... -- "$KIT" g2-keygen ...` for each key |
 | S4.3 | `modify-file -path ... -backup ... -new ...` |
@@ -250,9 +372,9 @@ orphan. Fakes never invoke real account/systemd mutations.
 
 ```sh
 cd deploy
-go test -race ./g2ledger ./cmd/deploy-kit -run '^TestLedger' -count=1
-go vet ./...
-go test -race ./...
+GOTOOLCHAIN=local go test -race ./g2ledger ./cmd/deploy-kit -run '^TestLedger' -count=1
+GOTOOLCHAIN=local go vet ./...
+GOTOOLCHAIN=local go test -race ./...
 go build -trimpath -o /tmp/deploy-kit ./cmd/deploy-kit
 ```
 
