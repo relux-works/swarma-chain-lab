@@ -74,7 +74,11 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 		}
 		a := *found
 		if db == "passwd" {
-			return fmt.Sprintf("%s:x:%d:%d::/nonexistent:%s\n", a.Name, a.UID, a.GID, a.Shell), 0, nil
+			home := a.Home
+			if home == "" {
+				home = "/nonexistent"
+			}
+			return fmt.Sprintf("%s:x:%d:%d:%s:%s:%s\n", a.Name, a.UID, a.GID, a.Description, home, a.Shell), 0, nil
 		}
 		ms := []string{}
 		for u, yes := range s.members[a.Name] {
@@ -110,6 +114,10 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 			case "-g":
 				v, _ := strconv.ParseUint(args[i+1], 10, 32)
 				a.GID = uint32(v)
+			case "-d":
+				a.Home = args[i+1]
+			case "-c":
+				a.Description = args[i+1]
 			case "-s":
 				a.Shell = args[i+1]
 			}

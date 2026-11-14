@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	singleuse "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 )
@@ -30,7 +31,7 @@ func Run(args []string, sys System, out io.Writer) error {
 	f := flag.NewFlagSet("g2-ledger "+op, flag.ContinueOnError)
 	f.SetOutput(io.Discard)
 	dir := f.String("dir", "", "private ledger directory")
-	var path, src, owner, group, mode, ret, manifest, baseline, backup, newPath, kind, name, user, unit, replayMode, purpose, scopeFile string
+	var path, src, owner, group, mode, ret, manifest, baseline, backup, newPath, kind, name, user, unit, replayMode, purpose, scopeFile, home, gecos, shell string
 	var uid, gid uint64
 	var secret bool
 	var paths, sockets pathsFlag
@@ -70,6 +71,9 @@ func Run(args []string, sys System, out io.Writer) error {
 		f.Uint64Var(&gid, "gid", 1<<32, "explicit gid")
 		if op == "create-user" {
 			f.Uint64Var(&uid, "uid", 1<<32, "explicit uid")
+			f.StringVar(&home, "home", "/nonexistent", "account home metadata; creates no directory")
+			f.StringVar(&gecos, "gecos", "", "account GECOS description")
+			f.StringVar(&shell, "shell", "/usr/sbin/nologin", "required nologin shell")
 		}
 	case "add-member":
 		f.StringVar(&user, "user", "", "user")
@@ -120,6 +124,9 @@ func Run(args []string, sys System, out io.Writer) error {
 			return fail(2, "USAGE_MODIFY")
 		}
 	case "create-user", "create-group":
+		if op == "create-user" && (home != "/" && !validPath(home) || shell != "/usr/sbin/nologin" || strings.ContainsAny(gecos, ":\x00\r\n")) {
+			return fail(2, "USAGE_USER_PROFILE")
+		}
 		if !namePattern.MatchString(name) || gid >= 1<<32 || uid >= 1<<32 || !validRet() {
 			return fail(2, "USAGE_ACCOUNT")
 		}
@@ -177,7 +184,7 @@ func Run(args []string, sys System, out io.Writer) error {
 	case "modify-file":
 		return l.ModifyFile(path, backup, newPath)
 	case "create-user":
-		return l.CreateAccount("user", name, ret, uint32(uid), uint32(gid))
+		return l.CreateUserProfile(name, ret, uint32(uid), uint32(gid), home, gecos)
 	case "create-group":
 		return l.CreateAccount("group", name, ret, 0, uint32(gid))
 	case "add-member":

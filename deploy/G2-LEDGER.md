@@ -22,7 +22,7 @@ deploy-kit g2-ledger create-file -dir D -path P -src S -owner U -group G -mode 0
 deploy-kit g2-ledger exec-create -dir D -kind secret -ret R -path P -- TOOL ARGS
 deploy-kit g2-ledger modify-file -dir D -path P -backup B -new N
 deploy-kit g2-ledger create-group -dir D -name NAME -gid GID -ret R
-deploy-kit g2-ledger create-user -dir D -name NAME -uid UID -gid GID -ret R
+deploy-kit g2-ledger create-user -dir D -name NAME -uid UID -gid GID -home H -gecos G -shell /usr/sbin/nologin -ret R
 deploy-kit g2-ledger add-member -dir D -user USER -group GROUP
 deploy-kit g2-ledger enable -dir D -unit NAME.service
 deploy-kit g2-ledger replay -dir D -mode station|rehearsal
@@ -96,7 +96,7 @@ Scopes include immediate parents, with directory mode (including sticky bits),
 uid, gid, device and inode, and a **shallow** inventory of child names and types.
 Public `file` targets include metadata and content digests; `secret` targets
 include metadata only, never content or digests. Account identities include
-name, uid, primary gid and shell; groups include their full explicit member
+name, uid, primary gid, shell, home and GECOS; groups include their full explicit member
 lists. Unit scope includes enablement state, including a proven
 `not-found`/status 4 absence at init. Ledger and S0 evidence directory paths are
 excluded from parent inventories by exact pathname; neither may be a mutation
@@ -190,7 +190,7 @@ Only the exact expected fields may appear in each action and identity variant.
 | `dir`, `tree` | Path, device, inode, type, permission mode, uid, gid; zero size/time fields |
 | `file`, `modify` | Path, device, inode, regular-file type, mode, uid, gid, size, nanosecond mtime, SHA-256 |
 | `secret` | Same filesystem metadata, without a content digest; identity reads never read secret content |
-| `user` | Name, uid **and primary gid**, nologin shell |
+| `user` | Name, uid **and primary gid**, nologin shell, home and GECOS description |
 | `group` | Name, gid; explicit uid=0 and shell="" are structural fields, not a user identity |
 | `membership` | Full user and group identities plus membership state |
 | `unit` | Unit name, enablement state and exact created symlink path/target/dev/ino/uid/gid/mode set |
@@ -426,6 +426,40 @@ while its own-delete metadata is observed. Keep privileged writers serialized,
 parents protected, and the trusted `/proc` view complete. No malicious-root,
 mount-namespace isolation, hardware-durability or native privileged qualification
 claim is made.
+
+## Explicit account provisioning for draft 10
+
+Draft 10 creates groups, users and memberships in a separate step using
+`create-group`, `create-user` and `add-member` at the exact rendered IDs/names.
+Create persistent directories separately with `create-dir`. Then run the
+unchanged `g2-host-flow` with the rendered parameters as its verification and
+activation gate. It retains its existing sysusers apply/check behavior; the
+already-created accounts must match. There is no `g2-host-flow -ledger` flag
+or ledger renderer-equivalence parser.
+
+The exact draft 10 user arguments are:
+
+```sh
+"$KIT" g2-ledger create-user -dir "$LEDGER" -name swarma-wallet -uid 210201 -gid 210201 -home /var/lib/swarma-wallet -gecos "Swarma G2 pay executor" -shell /usr/sbin/nologin -ret state
+"$KIT" g2-ledger create-user -dir "$LEDGER" -name g2-agent -uid 210001 -gid 210001 -home / -gecos "" -shell /usr/sbin/nologin -ret state
+```
+
+Create each same-name primary group first with `create-group` and its explicit
+GID, then the user and explicit memberships. The rendered `u g2-agent 210001`
+uses the omitted-field defaults: empty GECOS, home `/`, shell
+`/usr/sbin/nologin`. See [sysusers.d(5), GECOS, Home Directory and Shell](https://www.freedesktop.org/software/systemd/man/latest/sysusers.d.html#GECOS).
+The home field only sets passwd metadata; it creates no directory. Both rendered
+names are lowercase, so uppercase-name support is unnecessary and remains
+rejected. The fixed nologin shell is required; a login shell refuses before
+intent. CLI defaults remain `/nonexistent`, empty GECOS and
+`/usr/sbin/nologin` for older callers; draft 10 must pass the explicit values above.
+
+Each new user receipt records observed home and GECOS in its committed identity.
+Replay stops on either field changing, including retained users. The creator
+also checks the requested profile against the observed passwd record before
+commit. No old receipt is rewritten or profile adopted after creation; an older
+receipt lacking fields can fail the stricter live comparison. Older engines
+reject the new fields.
 
 ## Exit codes
 

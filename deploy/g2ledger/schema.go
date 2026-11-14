@@ -49,10 +49,12 @@ type FSIdentity struct {
 	SHA256  string `json:"sha256,omitempty"`
 }
 type Account struct {
-	Name  string `json:"name"`
-	UID   uint32 `json:"uid"`
-	GID   uint32 `json:"gid"`
-	Shell string `json:"shell"`
+	Name        string `json:"name"`
+	UID         uint32 `json:"uid"`
+	GID         uint32 `json:"gid"`
+	Shell       string `json:"shell"`
+	Home        string `json:"home,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 type Membership struct {
 	User    Account `json:"user"`
@@ -135,6 +137,8 @@ type Action struct {
 	NewSHA256    string     `json:"new_sha256,omitempty"`
 	Before       []Identity `json:"before,omitempty"`
 	Sockets      []string   `json:"sockets,omitempty"`
+	Home         string     `json:"home,omitempty"`
+	Description  string     `json:"description,omitempty"`
 }
 type Result struct {
 	Intent     uint64     `json:"intent"`
@@ -207,9 +211,9 @@ func validAccount(a *Account, kind string) bool {
 		return false
 	}
 	if kind == "group" {
-		return a.UID == 0 && a.Shell == ""
+		return a.UID == 0 && a.Shell == "" && a.Home == "" && a.Description == ""
 	}
-	return a.Shell == "/usr/sbin/nologin" || a.Shell == "/sbin/nologin"
+	return (a.Shell == "/usr/sbin/nologin" || a.Shell == "/sbin/nologin") && (a.Home == "" || a.Home == "/" || validPath(a.Home)) && !strings.ContainsAny(a.Description, ":\x00\r\n")
 }
 func validateIdentity(i Identity, kind string) error {
 	n := 0
@@ -341,6 +345,11 @@ func validateAction(a *Action) error {
 		clean.Name = ""
 		clean.GID = 0
 		if a.Kind == "user" {
+			if a.Home != "" && a.Home != "/" && !validPath(a.Home) || strings.ContainsAny(a.Description, ":\x00\r\n") {
+				return errors.New("ACTION_USER_PROFILE")
+			}
+			clean.Home = ""
+			clean.Description = ""
 			clean.UID = 0
 		}
 	case "membership":
@@ -401,7 +410,13 @@ func validateResult(a Action, ids []Identity) error {
 				return errors.New("RESULT_METADATA")
 			}
 		case "user", "group":
-			if i.Account.Name != a.Name || i.Account.GID != a.GID || a.Kind == "user" && i.Account.UID != a.UID {
+			if a.Kind == "user" && a.Home != "" && i.Account.Shell != "/usr/sbin/nologin" {
+				return errors.New("RESULT_USER_SHELL")
+			}
+			if a.Kind == "user" && a.Home == "" && i.Account.Home != "" && i.Account.Home != "/nonexistent" {
+				return errors.New("RESULT_USER_HOME")
+			}
+			if i.Account.Name != a.Name || i.Account.GID != a.GID || a.Kind == "user" && (i.Account.UID != a.UID || a.Home != "" && i.Account.Home != a.Home || i.Account.Description != a.Description) {
 				return errors.New("RESULT_ACCOUNT")
 			}
 		case "membership":
@@ -429,7 +444,7 @@ func actionName(a Action) string {
 }
 func identityEqual(a, b Identity) bool { return bytes.Equal(canonical(a), canonical(b)) }
 func accountEqual(a, b Account) bool {
-	return a.Name == b.Name && a.UID == b.UID && a.GID == b.GID && a.Shell == b.Shell
+	return a.Name == b.Name && a.UID == b.UID && a.GID == b.GID && a.Shell == b.Shell && a.Home == b.Home && a.Description == b.Description
 }
 func orphan(a Action) error   { return fail(3, "ORPHAN "+actionName(a)) }
 func mismatch(a Action) error { return fail(1, "IDENTITY_MISMATCH "+actionName(a)) }

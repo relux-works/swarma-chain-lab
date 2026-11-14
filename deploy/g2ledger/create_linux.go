@@ -124,6 +124,19 @@ func (l *Ledger) CreateAccount(kind, name, ret string, uid, gid uint32) error {
 	if kind != "user" && kind != "group" {
 		return fail(2, "ACCOUNT_KIND")
 	}
+	return l.createAccount(a)
+}
+
+// CreateUserProfile binds sysusers' home and description to the creating call.
+// It creates no home directory and always uses the non-login shell.
+func (l *Ledger) CreateUserProfile(name, ret string, uid, gid uint32, home, description string) error {
+	if home == "" {
+		return fail(2, "USER_HOME_REQUIRED")
+	}
+	return l.createAccount(Action{Kind: "user", Name: name, Ret: ret, UID: uid, GID: gid, Home: home, Description: description})
+}
+func (l *Ledger) createAccount(a Action) error {
+	kind, name, uid, gid := a.Kind, a.Name, a.UID, a.GID
 	if e := validateAction(&a); e != nil {
 		return stopped("ACTION", e)
 	}
@@ -144,8 +157,12 @@ func (l *Ledger) CreateAccount(kind, name, ret string, uid, gid uint32) error {
 	command := "/usr/sbin/groupadd"
 	args := []string{"-g", strconv.FormatUint(uint64(gid), 10), name}
 	if kind == "user" {
+		home := a.Home
+		if home == "" {
+			home = "/nonexistent"
+		}
 		command = "/usr/sbin/useradd"
-		args = []string{"-r", "-M", "-N", "-l", "-u", strconv.FormatUint(uint64(uid), 10), "-g", strconv.FormatUint(uint64(gid), 10), "-s", "/usr/sbin/nologin", "-d", "/nonexistent", "-K", "CREATE_MAIL_SPOOL=no", name}
+		args = []string{"-r", "-M", "-N", "-l", "-u", strconv.FormatUint(uint64(uid), 10), "-g", strconv.FormatUint(uint64(gid), 10), "-s", "/usr/sbin/nologin", "-d", home, "-c", a.Description, "-K", "CREATE_MAIL_SPOOL=no", name}
 	}
 	_, status, e := l.sys.Run(command, args...)
 	// shadow-utils documents 4 (ID in use) and 9 (name in use). No -o/-f

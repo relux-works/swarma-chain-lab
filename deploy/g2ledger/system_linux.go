@@ -110,6 +110,8 @@ func lookup(sys System, kind, name string) (*Account, []string, error) {
 		a.UID = id
 		a.GID, e = number(p[3])
 		a.Shell = p[6]
+		a.Home = p[5]
+		a.Description = p[4]
 		if e != nil || !strings.HasPrefix(a.Shell, "/") {
 			return nil, nil, errors.New("GETENT_USER")
 		}
