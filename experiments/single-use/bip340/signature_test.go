@@ -84,4 +84,11 @@ func TestParseBIP340Strict(t *testing.T) {
 			t.Fatal("in-range scalar refused", e)
 		}
 	}
+	// The field value immediately below p is an allowed encoding; this does not claim mathematical validity.
+	b := bytes.Clone(base)
+	new(big.Int).Sub(p, big.NewInt(1)).FillBytes(b[:32])
+	if _, e := ParseBIP340Strict(b); e != nil {
+		t.Fatal("in-range r refused", e)
+	}
+
 }

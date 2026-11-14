@@ -83,3 +83,34 @@ func TestBIP340WalletBoundaries(t *testing.T) {
 		}
 	})
 }
+
+// Rejected reconcile signatures cannot append a release or reduce retained debit; the valid signed release remains usable.
+func TestBIP340ReconcileBoundary(t *testing.T) {
+	j := px1jOpenWallet(t, px1jPrivateDir(t), JournalLimitsV2{SpendCapacity: 4})
+	defer j.Close()
+	const now = int64(1794441599)
+	reserve := px1jMust(t, j, px1jReserve(1, 1, now, 50000, 1))
+	rec := px1jFollowRec(reserve, RecordReconcile, "released", now)
+	rec.Reconcile = &ReconcileRecordV2{TargetSeq: reserve.Seq, Evidence: "absent", Height: 100, BlockHash: px1jHex(9), ReleasedSat: 50000, NoteSHA256: px1jHex(5)}
+	good := px1jSignNext(t, j, rec, px1jReceiptKeyN)
+	if e := VerifyReconcileV2(j.Header(), good); e != nil {
+		t.Fatal("valid control", e)
+	}
+	bad := good
+	auth := *good.Reconcile
+	auth.Signature = outOfRangeScalar(t, auth.Signature)
+	bad.Reconcile = &auth
+	seq := j.Usage().LastSeq
+	if _, e := j.Append(bad); e == nil || e.Error() != CodeReconcileAuthorization {
+		t.Fatal("invalid signature released debit", e)
+	}
+	ledger, e := FoldLedgerV2(j)
+	if e != nil || ledger.SpendUsed(reserve.GrantID) != 50000 || j.Usage().LastSeq != seq {
+		t.Fatal("rejected release changed state", e)
+	}
+	px1jMust(t, j, good)
+	ledger, e = FoldLedgerV2(j)
+	if e != nil || ledger.SpendUsed(reserve.GrantID) != 0 {
+		t.Fatal("valid neighbour could not release", e)
+	}
+}
