@@ -198,6 +198,9 @@ post-issuance FLOOR. This long test age keeps its full-lifetime expiry controls
 in scope; the dedicated frozen-view witness uses A = 60 seconds instead.
 The HIDDEN age of an admitted view is at most A + F (not A).
 `trusted_now` is the consumer's configured trusted clock, never node time.
+The allowed F range `[0, 600 seconds]` is a BENCH ceiling, not a production
+value. Consensus allows headers up to two hours ahead; non-bench use revisits
+both F and A through LIP-0022 after the real-node probe.
 This is an INTERIM rule for the v3 TEST BENCH, superseded by LIP-0022 once
 accepted. Production values are NOT set here and need a runtime probe on a real
 Namecoin node before any non-bench use. A live verdict is a

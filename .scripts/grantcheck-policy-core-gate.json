@@ -14,7 +14,13 @@
     "TestCoreProvisioning/UncommittedHash",
     "TestCoreProvisioning/WrongExecutor",
     "TestCoreProvisioning/StaleNode",
-    "TestCoreProvisioning/SpentSeal"
+    "TestCoreProvisioning/SpentSeal",
+    "TestCoreProvisioning/FinalSampleCancellation/Sample0",
+    "TestCoreProvisioning/FinalSampleCancellation/Sample-1",
+    "TestCoreProvisioning/FinalSampleCancellation/Sample1",
+    "TestCoreProvisioning/FinalSampleCancellation/Sample2",
+    "TestCoreProvisioning/FinalSampleCancellation/Sample3",
+    "TestCoreProvisioning/CombinedCapacity"
   ],
   "core_tests": [
     "TestCoreVectors",
@@ -138,6 +144,54 @@
       ],
       "core": [
         "TestCoreProvisioning/SpentSeal"
+      ]
+    },
+    "TestCoreProvisioning/FinalSampleCancellation/Sample0": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/FinalSampleCancellation/Sample0"
+      ]
+    },
+    "TestCoreProvisioning/FinalSampleCancellation/Sample-1": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/FinalSampleCancellation/Sample-1"
+      ]
+    },
+    "TestCoreProvisioning/FinalSampleCancellation/Sample1": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/FinalSampleCancellation/Sample1"
+      ]
+    },
+    "TestCoreProvisioning/FinalSampleCancellation/Sample2": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/FinalSampleCancellation/Sample2"
+      ]
+    },
+    "TestCoreProvisioning/FinalSampleCancellation/Sample3": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/FinalSampleCancellation/Sample3"
+      ]
+    },
+    "TestCoreProvisioning/CombinedCapacity": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreProvisioning/CombinedCapacity"
       ]
     }
   }

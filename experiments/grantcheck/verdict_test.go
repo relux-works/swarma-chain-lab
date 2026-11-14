@@ -27,6 +27,7 @@ func TestRoutingContract(t *testing.T) {
 		{CodeGrantPending, Refused, false, true},
 		{CodeBindingMismatch, Refused, false, false},
 		{CodeInvalidPresentation, Refused, false, false},
+		{CodeCapacityExceeded, Refused, false, false},
 		{CodeOversize, Refused, false, false},
 		{CodeInvalidPeer, Refused, false, false},
 		{CodeVerifierUnavailable, Refused, false, true},
@@ -38,6 +39,11 @@ func TestRoutingContract(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(string(tc.code), func(t *testing.T) {
+			// Every admitted audit code must fit the combined-state calculation.
+			record := ProvisionRecord{strings.Repeat("f", 64), strings.Repeat("f", 64), maxUnix, tc.code}
+			if len(jsonBytes(t, record)) > maxProvisionRecordBytes {
+				t.Fatal("audit code exceeds record budget", tc.code)
+			}
 			for _, inbound := range []bool{true, false} {
 				want := tc.decision
 				if !inbound && want == Exchange {

@@ -153,7 +153,7 @@ func NewForTransport(config Config, transport Transport) (*Checker, error) {
 		return nil, ErrState
 	}
 	defer s.Close()
-	raw, err := s.Read(stateName, maxStateBytes)
+	raw, err := s.Read(stateName, int64(maxStateBytes))
 	if err != nil {
 		return nil, ErrState
 	}
@@ -173,7 +173,7 @@ func NewForTransport(config Config, transport Transport) (*Checker, error) {
 			return nil, ErrConfig
 		}
 		b, _ := json.Marshal(state{Version: 1, Binding: c.binding, High: now})
-		if s.Write(stateName, b) != nil {
+		if s.WriteBounded(stateName, b, maxStateBytes) != nil {
 			return nil, ErrState
 		}
 	} else if _, err = c.load(s); err != nil {
@@ -188,7 +188,7 @@ func canonicalRoot(path string) bool {
 }
 func (c *Checker) load(s *durable.Store) (state, error) {
 	var m state
-	raw, err := s.Read(stateName, maxStateBytes)
+	raw, err := s.Read(stateName, int64(maxStateBytes))
 	if err != nil || raw == nil || json.Unmarshal(raw, &m) != nil {
 		return m, ErrState
 	}
@@ -199,24 +199,43 @@ func (c *Checker) load(s *durable.Store) (state, error) {
 	return m, nil
 }
 
-// stamp persists the clock high-water before any possible live return. A failed
-// fsync poisons this instance; it cannot assume which state became durable.
-func (c *Checker) stamp(s *durable.Store, m *state) (int64, Code) {
+// stamp advances the candidate clock high-water. The operation commits it only
+// after final cancellation and capacity checks, before any possible live return.
+func (c *Checker) stamp(ctx context.Context, m *state) (int64, Code) {
+	if ctx.Err() != nil {
+		return 0, CodeCancelled
+	}
 	sample := c.config.Now()
+	if ctx.Err() != nil {
+		return 0, CodeCancelled
+	}
 	now := sample.Unix()
 	if now < m.High || now < 0 || now > maxUnix {
 		return 0, CodeClockInvalid
 	}
-	if now != m.High {
-		m.High = now
-		b, _ := json.Marshal(m)
-		if s.Write(stateName, b) != nil {
-			c.poisoned = true
-			return 0, CodeStateUnavailable
-		}
-	}
+	m.High = now
 	c.observedTime = sample
 	return now, CodeLive
+}
+
+// commit refuses predictable capacity failures without attempting a write or
+// poisoning the checker. Only uncertain filesystem failures poison the instance.
+func (c *Checker) commit(ctx context.Context, s *durable.Store, m state) Code {
+	if ctx.Err() != nil {
+		return CodeCancelled
+	}
+	raw, code := encodeState(m)
+	if code != CodeLive {
+		return code
+	}
+	if ctx.Err() != nil {
+		return CodeCancelled
+	}
+	if s.WriteBounded(stateName, raw, maxStateBytes) != nil {
+		c.poisoned = true
+		return CodeStateUnavailable
+	}
+	return CodeLive
 }
 
 func (c *Checker) parse(p Presentation, peer string) (rental.Grant, Code) {
@@ -276,9 +295,6 @@ func (c *Checker) check(ctx context.Context, peer string, supplied *Presentation
 func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Presentation, inbound, provision bool) (out Verdict) {
 	fail := func(code Code) Verdict { return route(code, inbound, false) }
 	if ctx == nil || ctx.Err() != nil {
-		if provision && c != nil && c.backend != nil && supplied != nil {
-			return c.auditRefusal(*supplied, fail(CodeCancelled))
-		}
 		return fail(CodeCancelled)
 	}
 	if c == nil || c.backend == nil {
@@ -299,7 +315,7 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 		g, code = c.parse(p, peer)
 		if code != CodeLive {
 			if provision {
-				return c.auditRefusal(*supplied, fail(code))
+				return c.auditRefusal(ctx, *supplied, fail(code))
 			}
 			return fail(code)
 		}
@@ -322,32 +338,34 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 	if err != nil {
 		return fail(CodeStateUnavailable)
 	}
-	// Persistence is deferred until a final live result. A failed check cannot
-	// insert/replace bytes, including expiry or rollback after a live K1 receipt.
+	// Cancellation and predictable capacity refusal commit nothing, including
+	// audit and clock high-water. A successful cache/audit update is atomic.
+	originalHigh := m.High
 	defer func() {
-		changed := false
+		if ctx.Err() != nil {
+			out = fail(CodeCancelled)
+			return
+		}
+		changed := m.High != originalHigh
 		if out.Decision == Live && supplied != nil {
 			if code := putCached(&m, peer, p); code != CodeLive {
 				out = fail(code)
-			} else {
-				changed = true
+				return
 			}
+			changed = true
 		}
 		if provision {
-			// Record the validated observation clock, not an extra unvalidated
-			// sample that could contradict a successful admission on rollback.
 			appendProvision(&m, p, out, m.High)
 			changed = true
 		}
 		if changed {
-			raw, _ := json.Marshal(m)
-			if s.Write(stateName, raw) != nil {
-				c.poisoned = true
-				out = fail(CodeStateUnavailable)
+			if code := c.commit(ctx, s, m); code != CodeLive {
+				out = fail(code)
 			}
 		}
 	}()
-	now, code := c.stamp(s, &m)
+
+	now, code := c.stamp(ctx, &m)
 	if code != CodeLive {
 		return fail(code)
 	}
@@ -399,9 +417,9 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 		return v
 	}
 	// Repeat the clock check after kernel journal writes and before our deferred
-	// proof-cache persistence. Bounded retries cover a second boundary during fsync.
+	// proof-cache persistence. Bounded retries cover a second boundary between samples.
 	for range 3 {
-		end, code := c.stamp(s, &m)
+		end, code := c.stamp(ctx, &m)
 		if code != CodeLive {
 			return fail(code)
 		}
@@ -417,6 +435,9 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 			return fail(CodeCancelled)
 		}
 		lastTime := c.config.Now()
+		if ctx.Err() != nil {
+			return fail(CodeCancelled)
+		}
 		last := lastTime.Unix()
 		if last < end {
 			return fail(CodeClockInvalid)

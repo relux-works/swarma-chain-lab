@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
@@ -52,15 +51,15 @@ func (c *Checker) Provision(ctx context.Context, p Presentation) Verdict {
 		return route(CodeCheckFailed, false, false)
 	}
 	if ctx == nil || ctx.Err() != nil {
-		return c.auditRefusal(p, route(CodeCancelled, false, false))
+		return route(CodeCancelled, false, false)
 	}
 	if len(p.Bytes) > MaxPresentationBytes {
-		return c.auditRefusal(p, route(CodeOversize, false, false))
+		return c.auditRefusal(ctx, p, route(CodeOversize, false, false))
 	}
 	p.Bytes = bytes.Clone(p.Bytes)
 	proof, err := rental.ParseGrantPresentation(p.Bytes)
 	if err != nil {
-		return c.auditRefusal(p, route(CodeInvalidPresentation, false, false))
+		return c.auditRefusal(ctx, p, route(CodeInvalidPresentation, false, false))
 	}
 	return c.checkOperation(ctx, proof.SignedGrant.Grant.GranteeKey, &p, false, true)
 }
@@ -80,8 +79,9 @@ func appendProvision(m *state, p Presentation, v Verdict, at int64) {
 }
 
 // Early malformed/pin refusals still produce an audit when private state is
-// available. Busy or unavailable state cannot promise a durable audit.
-func (c *Checker) auditRefusal(p Presentation, v Verdict) Verdict {
+// available. Cancellation records no audit. Busy or unavailable state cannot
+// promise a durable audit.
+func (c *Checker) auditRefusal(ctx context.Context, p Presentation, v Verdict) Verdict {
 	if !c.mu.TryLock() {
 		return route(CodeBusy, false, false)
 	}
@@ -99,10 +99,8 @@ func (c *Checker) auditRefusal(p Presentation, v Verdict) Verdict {
 		return route(CodeStateUnavailable, false, false)
 	}
 	appendProvision(&m, p, v, c.config.Now().Unix())
-	raw, _ := json.Marshal(m)
-	if s.Write(stateName, raw) != nil {
-		c.poisoned = true
-		return route(CodeStateUnavailable, false, false)
+	if code := c.commit(ctx, s, m); code != CodeLive {
+		return route(code, false, false)
 	}
 	return v
 }

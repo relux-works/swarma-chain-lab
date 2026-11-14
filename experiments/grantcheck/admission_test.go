@@ -24,6 +24,7 @@ func TestA2ADecisionTable(t *testing.T) {
 		{CodeGrantPending, "dependency_unavailable", true, false, false},
 		{CodeBindingMismatch, "denied", false, false, false},
 		{CodeInvalidPresentation, "denied", false, false, false},
+		{CodeCapacityExceeded, "denied", false, false, false},
 		{CodeOversize, "denied", false, false, false},
 		{CodeInvalidPeer, "denied", false, false, false},
 		{CodeVerifierUnavailable, "dependency_unavailable", true, false, false},

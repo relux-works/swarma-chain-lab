@@ -37,6 +37,13 @@ PLANTS = [
     ('provision-hash', 'TestCoreProvisioning/UncommittedHash', GRANT,
      'if returns != 1 || matches != 1 {', 'if false && (returns != 1 || matches != 1) {',
      'a canonical signed grant hash must match its on-chain issuance commitment'),
+    ('combined-budget', 'TestCombinedStateBudget', 'experiments/grantcheck/cache.go',
+     ' || len(raw) > maxStateBytes', '',
+     'complete encoded state must be refused before writer failure can poison the checker',
+     'combined overflow was not a non-poisoning preflight refusal'),
+    ('cancellation', 'TestCoreProvisioning/FinalSampleCancellation/Sample3', CG,
+     'if ctx.Err() != nil {', 'if false && ctx.Err() != nil {',
+     'cancellation during the final clock callback must preserve cache and audit'),
 ]
 
 
@@ -54,15 +61,21 @@ def main():
     if not go:
         parser.error('go unavailable')
     records = []
-    for name, test, relative, old, new, bound in PLANTS:
+    for plant in PLANTS:
+        name, test, relative, old, new, bound, *marker = plant
+        assertion = marker[0] if marker else 'verdict contract want '
+
         source = ROOT / relative
         original = source.read_text()
-        if original.count(old) != 1:
-            raise RuntimeError(f'{name}: guard must match exactly once')
+        matches = original.count(old)
+        # The cancellation control removes the overlapping wrapper checks as a
+        # group; removing just one is deliberately covered by the other guards.
+        if matches != (9 if name == 'cancellation' else 1):
+            raise RuntimeError(f'{name}: unexpected guard count {matches}')
         case = out / name
         case.mkdir(mode=0o700)
         mutant = case / source.name
-        mutant.write_text(original.replace(old, new, 1))
+        mutant.write_text(original.replace(old, new, matches))
         overlay = case / 'overlay.json'
         overlay.write_text(json.dumps({'Replace': {str(source): str(mutant)}}) + '\n')
         record = {'mutant': name, 'test': test, 'bound': bound, 'source': relative,
@@ -90,7 +103,7 @@ def main():
             ok = code == 0 and actions.count('run') == 1 and actions.count('pass') == 1 and not invalid
             if mutated:
                 ok = (code == 1 and actions.count('run') == 1 and actions.count('fail') == 1
-                      and 'verdict contract want ' in output and not invalid and not unrelated)
+                      and assertion in output and not invalid and not unrelated)
             record[label + '_run'] = {'pid': pid, 'command': command, 'exit': code,
                              'actions': actions, 'intended_result': ok}
             print(f'{name} {label}: exit={code} intended={ok} {test}', flush=True)
@@ -102,7 +115,7 @@ def main():
         record['verdict'] = 'KILLED'
         records.append(record)
         (out / 'results.json').write_text(json.dumps(records, indent=2) + '\n')
-    print('GRANTCHECK_POLICY_GUARDS: 6/6 KILLED', flush=True)
+    print(f'GRANTCHECK_POLICY_GUARDS: {len(PLANTS)}/{len(PLANTS)} KILLED', flush=True)
     return 0
 
 

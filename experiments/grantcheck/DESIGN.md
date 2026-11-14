@@ -229,7 +229,7 @@ and serialized observations must never be reused for admission.
 | The same five lifecycle codes / exchange, NostrNIP17Seal (including legacy) provenance | exchange / exchange (inbound only) | false |
 | `no_grant` / exchange | exchange / exchange (inbound Nostr; envelope absence already returns refused) | false |
 | The same lifecycle codes / refused | refused / denied | false |
-| `binding_mismatch`, `invalid_presentation`, `oversize`, `invalid_peer` / refused | refused / denied | false |
+| `binding_mismatch`, `invalid_presentation`, `oversize`, `invalid_peer`, `capacity_exceeded` / refused | refused / denied | false |
 | `verifier_unavailable`, `busy`, `cancelled`, `clock_invalid`, `grant_pending`, `identity_pending` / refused | refused / dependency_unavailable | true |
 | `state_unavailable` / refused | refused / storage_error | true |
 | `check_failed` / refused | refused / policy_error | false |
@@ -273,8 +273,9 @@ inbox/sign/send. Unknown future K1 reasons map to
 | Invalid peer key or missing outbound addressees | refused / invalid_peer | refused / invalid_peer | false |
 | Unknown/zero provenance or different constructor pin | refused / binding_mismatch | refused / binding_mismatch | false |
 | Node read/observation unavailable or unstable | refused / verifier_unavailable | refused / verifier_unavailable | false |
-| Corrupt/private-state/lock/cache-full failure | refused / state_unavailable | refused / state_unavailable | false |
+| Corrupt/private-state/lock failure | refused / state_unavailable | refused / state_unavailable | false |
 | Clock invalid/backwards or expires during wrapper work | refused / clock_invalid or expired | refused / clock_invalid or expired | false |
+| Predictable cache or combined-state capacity overflow | refused / capacity_exceeded | refused / capacity_exceeded | false |
 | Context cancelled/deadline or checker busy | refused / cancelled or busy | refused / cancelled or busy | false |
 | Any unclassified receipt/error/inconsistent live metadata | refused / check_failed | refused / check_failed | false |
 

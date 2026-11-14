@@ -108,10 +108,20 @@ func (s *Store) Read(name string, limit int64) ([]byte, error) {
 	return b, nil
 }
 
+// MaxWriteBytes is the maximum explicitly bounded journal write (128 KiB).
+// Write retains its original 64 KiB limit for existing journal consumers.
+const MaxWriteBytes = 131072
+
 // Write completes file and directory fsync before success. Callers must retain
 // the lock across read/validate/write; failure never authorizes an effect.
 func (s *Store) Write(name string, b []byte) error {
-	if !component(name) || len(b) == 0 || len(b) > 65536 {
+	return s.WriteBounded(name, b, 65536)
+}
+
+// WriteBounded preserves Write's atomicity and permission checks with an explicit
+// caller budget. Invalid budgets and oversized data refuse before filesystem I/O.
+func (s *Store) WriteBounded(name string, b []byte, limit int) error {
+	if limit < 1 || limit > MaxWriteBytes || !component(name) || len(b) == 0 || len(b) > limit {
 		return errors.New("JOURNAL_ENCODING")
 	}
 	path := filepath.Join(s.root, name)

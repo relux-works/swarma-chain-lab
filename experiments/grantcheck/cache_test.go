@@ -23,7 +23,7 @@ func TestCacheBuilderBounds(t *testing.T) {
 		}
 	}
 	before, _ := json.Marshal(m)
-	if code := putCached(&m, "overflow", Presentation{GrantID: "id", Bytes: []byte("{}")}); code != CodeStateUnavailable {
+	if code := putCached(&m, "overflow", Presentation{GrantID: "id", Bytes: []byte("{}")}); code != CodeCapacityExceeded {
 		t.Fatal("capacity overflow", code)
 	}
 	after, _ := json.Marshal(m)
@@ -35,7 +35,7 @@ func TestCacheBuilderBounds(t *testing.T) {
 	}
 	before, _ = json.Marshal(m)
 	large, _ := json.Marshal(string(bytes.Repeat([]byte("x"), maxCacheBytes)))
-	if code := putCached(&m, "0", Presentation{GrantID: "id", Bytes: large}); code != CodeStateUnavailable {
+	if code := putCached(&m, "0", Presentation{GrantID: "id", Bytes: large}); code != CodeCapacityExceeded {
 		t.Fatal("byte overflow", code)
 	}
 	after, _ = json.Marshal(m)

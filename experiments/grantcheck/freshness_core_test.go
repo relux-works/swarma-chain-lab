@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/nostr"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
 // recordedNode captures every public RPC answer from a genuine live check.
@@ -296,6 +298,44 @@ func TestCoreProvisioning(t *testing.T) {
 		}
 		assertVerdict(t, reopened.InboundFrom(ctx, SenderProof{SwarmEnvelopeV2, peer.PubKeyHex()}, nil), Live, CodeLive, false, false)
 	})
+	t.Run("FinalSampleCancellation", func(t *testing.T) {
+		// Claim: real committed replacement grants cannot change checker cache,
+		// audit or high-water when the caller cancels during any clock sample.
+		// A live replacement and early cancellation bound the regression witness.
+		for _, sample := range []int{0, -1, 1, 2, 3} {
+			t.Run(fmt.Sprintf("Sample%d", sample), func(t *testing.T) {
+				c := makeChecker(t, xonly(9))
+				assertVerdict(t, c.Provision(ctx, other), Live, CodeLive, false, false)
+				before := readCheckerState(t, c)
+				request, cancel := context.WithCancel(ctx)
+				defer cancel()
+				if sample == -1 {
+					cancel()
+				}
+				reads := 0
+				c.config.Now = func() time.Time {
+					reads++
+					if reads == sample {
+						cancel()
+					}
+					return time.Unix(now, 0)
+				}
+				v := c.Provision(request, p)
+				if sample == 0 {
+					assertVerdict(t, v, Live, CodeLive, false, false)
+					if !bytes.Equal(cache(t, c), p.Bytes) {
+						t.Fatal("live replacement missing")
+					}
+					logResult(t, c, p, CodeLive)
+				} else {
+					assertVerdict(t, v, Refused, CodeCancelled, false, true)
+					if !bytes.Equal(before, readCheckerState(t, c)) || !bytes.Equal(cache(t, c), other.Bytes) {
+						t.Fatal("cancelled provision changed cache or audit")
+					}
+				}
+			})
+		}
+	})
 	for _, name := range []string{"Tampered", "UncommittedHash", "WrongExecutor", "StaleNode", "SpentSeal"} {
 		t.Run(name, func(t *testing.T) {
 			// Claim: each named refusal leaves the proof cache byte-for-byte unchanged beside live provisioning.
@@ -342,4 +382,68 @@ func TestCoreProvisioning(t *testing.T) {
 			}
 		})
 	}
+	t.Run("CombinedCapacity", func(t *testing.T) {
+		// Claim: genuine Core admission fills the byte-limited cache beside a
+		// full worst-size audit; overflow preserves state and the next valid
+		// cached operation and replacement remain usable, including after reopen.
+		c := makeChecker(t, xonly(9))
+		first := other
+		firstPeer := peer.PubKeyHex()
+		assertVerdict(t, c.Provision(ctx, first), Live, CodeLive, false, false)
+		// Construct the worst-size valid retained records before further public
+		// calls. This tests storage capacity, not historical audit authenticity.
+		var m state
+		if err := json.Unmarshal(readCheckerState(t, c), &m); err != nil {
+			t.Fatal(err)
+		}
+		for len(m.Provisioning) < MaxProvisionRecords {
+			m.Provisioning = append(m.Provisioning, ProvisionRecord{strings.Repeat("f", 64), strings.Repeat("f", 64), maxUnix, CodeInvalidPresentation})
+		}
+		if err := os.WriteFile(filepath.Join(c.config.StateDir, stateName), jsonBytes(t, m), 0600); err != nil {
+			t.Fatal(err)
+		}
+		maxWritten := 0
+		for i := 0; i < MaxRecipients; i++ {
+			// Regtest names expire quickly; renew unchanged bindings before they
+			// expire, preserving the generation and the admission contract.
+			if i%3 == 0 {
+				for _, name := range []string{e2eAgentName, e2eLandlordName} {
+					value := labText(t, labObject(t, l.rpc("", "name_show", name))["value"])
+					l.rpc("issuer", "name_update", name, value, map[string]string{"destAddress": l.address})
+				}
+				l.mine(1)
+			}
+			newPeer, err := nostr.GeneratePrivKey()
+			if err != nil {
+				t.Fatal(err)
+			}
+			next := corePresentation(t, l.grant(newPeer, fmt.Sprintf("capacity-%d", i), l.seal(), true))
+			_, current := coreTip(t, l)
+			c.config.Now = func() time.Time { return time.Unix(current, 0) }
+			before := readCheckerState(t, c)
+			v := c.Provision(ctx, next)
+			if v.Code == CodeCapacityExceeded {
+				assertVerdict(t, v, Refused, CodeCapacityExceeded, false, false)
+				if c.poisoned || !bytes.Equal(before, readCheckerState(t, c)) {
+					t.Fatal("capacity refusal changed state or poisoned checker")
+				}
+				if maxWritten <= 65536 || maxWritten > maxStateBytes {
+					t.Fatal("did not cross the old combined writer boundary", maxWritten)
+				}
+				assertVerdict(t, c.OutboundFrom(ctx, RecipientProof{SwarmEnvelopeV2, []string{firstPeer}}), Live, CodeLive, false, false)
+				assertVerdict(t, c.Provision(ctx, first), Live, CodeLive, false, false)
+				reopened, err := NewForTransport(c.config, SwarmEnvelopeV2)
+				if err != nil {
+					t.Fatal("capacity recovery reopen", err)
+				}
+				assertVerdict(t, reopened.OutboundFrom(ctx, RecipientProof{SwarmEnvelopeV2, []string{firstPeer}}), Live, CodeLive, false, false)
+				t.Logf("combined capacity: admitted=%d max_state_bytes=%d writer=%d", i+1, maxWritten, durable.MaxWriteBytes)
+				return
+			}
+			assertVerdict(t, v, Live, CodeLive, false, false)
+			maxWritten = max(maxWritten, len(readCheckerState(t, c)))
+		}
+		t.Fatal("cache overflow was not refused")
+	})
+
 }

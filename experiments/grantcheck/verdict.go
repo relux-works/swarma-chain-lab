@@ -33,6 +33,7 @@ const (
 	CodeGrantPending        Code = "grant_pending"
 	CodeBindingMismatch     Code = "binding_mismatch"
 	CodeInvalidPresentation Code = "invalid_presentation"
+	CodeCapacityExceeded    Code = "capacity_exceeded"
 	CodeOversize            Code = "oversize"
 	CodeInvalidPeer         Code = "invalid_peer"
 	CodeVerifierUnavailable Code = "verifier_unavailable"
@@ -100,7 +101,7 @@ func route(code Code, inbound, closed bool) Verdict {
 			return route(CodeCheckFailed, inbound, false)
 		}
 		v.Retryable = true
-	case CodeExecutorMismatch, CodeTermsInvalid, CodeTipFuture, CodeIssuanceMismatch, CodeBindingMismatch, CodeInvalidPresentation, CodeOversize, CodeInvalidPeer, CodeCheckFailed:
+	case CodeCapacityExceeded, CodeExecutorMismatch, CodeTermsInvalid, CodeTipFuture, CodeIssuanceMismatch, CodeBindingMismatch, CodeInvalidPresentation, CodeOversize, CodeInvalidPeer, CodeCheckFailed:
 		if closed {
 			return route(CodeCheckFailed, inbound, false)
 		}

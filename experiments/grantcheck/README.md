@@ -14,7 +14,9 @@ to blocks, minimum height, maximum tip age and maximum future skew.
 The HIDDEN age of an admitted view is at most A + F (not A).
 `trusted_now` is the consumer's trusted `Config.Now` clock input (the consumer's
 `time.Now` system clock if omitted), never the node's own time. A must be positive;
-F is explicitly supplied in `[0, 10 minutes]`; FLOOR is explicitly supplied in
+F is explicitly supplied in `[0, 600 seconds]`; this is a BENCH ceiling, not a
+production value. Consensus permits headers up to two hours ahead, so any
+non-bench use revisits both F and A through LIP-0022 after the real-node probe. FLOOR is explicitly supplied in
 `[0, 2147483647]`. No A/F/FLOOR value defaults; subsecond policy values are supported.
 This is an INTERIM rule for the v3 TEST BENCH, superseded by LIP-0022 once
 accepted. Production values are NOT set here and need a runtime probe on a real
@@ -26,7 +28,7 @@ It enables first-message bootstrap without any prior inbound message. The cache
 and successful provision audit are persisted together after all final checks.
 The bench delegates executor and freshness checks to grantcheck.
 See [POLICY.md](POLICY.md) for the required config/API change, exact rule,
-provisioning hash semantics, explicit bench values, tests and six overlay controls.
+provisioning hash semantics, explicit bench values, tests and eight overlay controls.
 
 ## SW1 witness construction
 
@@ -88,7 +90,11 @@ An envelope sender with no cached proof gets `refused/no_grant`; the Nostr
 non-nil invalid proof never falls back. Every cache hit runs the real checker
 again. Only lowercase valid BIP-340 peer keys and proofs of at most 16384 bytes
 are accepted. Grantcheck persists proof only after all checks; limits remain 64 senders /
-60000 aggregate encoded bytes.
+60000 aggregate encoded bytes. The 64-record audit and full cache share a
+calculated 73192-byte maximum state; `capacity_exceeded` refuses predictable
+capacity overflow without changing state or poisoning the checker. Cancelled
+calls return `cancelled` and record no checker audit. See [POLICY.md](POLICY.md)
+for the commit boundary and preservation guarantees.
 
 `Retryable` is true only for `verifier_unavailable`, `state_unavailable`, `busy`,
 `cancelled`, `clock_invalid`, `grant_pending`, `identity_pending`, `node_not_synced`, `tip_stale` and

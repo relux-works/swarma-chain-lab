@@ -32,7 +32,7 @@ func (v Verdict) A2ADecision() (verdict, reason string, retryable bool) {
 		reason, retryable = "storage_error", true
 	case CodeCheckFailed:
 		reason = "policy_error"
-	case CodeExecutorMismatch, CodeTermsInvalid, CodeTipFuture, CodeIssuanceMismatch, CodeBindingMismatch, CodeInvalidPresentation, CodeOversize, CodeInvalidPeer:
+	case CodeCapacityExceeded, CodeExecutorMismatch, CodeTermsInvalid, CodeTipFuture, CodeIssuanceMismatch, CodeBindingMismatch, CodeInvalidPresentation, CodeOversize, CodeInvalidPeer:
 	default:
 		return "refused", "policy_invalid", false
 	}

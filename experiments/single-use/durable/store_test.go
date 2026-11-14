@@ -162,3 +162,39 @@ func TestSyncFailureBoundary(t *testing.T) {
 		t.Fatal("positive recovery")
 	}
 }
+
+// Claim: explicit journal budgets admit their exact bound, reject one byte
+// beyond it before I/O, preserve prior bytes, and keep Write's legacy limit.
+func TestExplicitWriteBudget(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Chmod(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(root, "lock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	large := make([]byte, MaxWriteBytes)
+	if err := s.WriteBounded("state", large, MaxWriteBytes); err != nil {
+		t.Fatal("exact bound refused", err)
+	}
+	for _, limit := range []int{0, MaxWriteBytes - 1, MaxWriteBytes + 1} {
+		if err := s.WriteBounded("state", large, limit); err == nil || err.Error() != "JOURNAL_ENCODING" {
+			t.Fatal("invalid budget accepted", limit, err)
+		}
+	}
+	if err := s.WriteBounded("state", append(large, 0), MaxWriteBytes); err == nil || err.Error() != "JOURNAL_ENCODING" {
+		t.Fatal("over bound accepted", err)
+	}
+	if err := s.Write("state", large); err == nil || err.Error() != "JOURNAL_ENCODING" {
+		t.Fatal("legacy writer limit changed", err)
+	}
+	raw, err := s.Read("state", MaxWriteBytes)
+	if err != nil || len(raw) != MaxWriteBytes {
+		t.Fatal("refusal changed prior state", err)
+	}
+	if err := s.Write("state", []byte("valid")); err != nil {
+		t.Fatal("valid write after refusal", err)
+	}
+}

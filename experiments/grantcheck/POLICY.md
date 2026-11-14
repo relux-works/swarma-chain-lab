@@ -21,7 +21,10 @@ configuration. Neither constructor provides a compatibility path around it.
   occur before state changes. Provisioning records refusals in its audit only.
 - `Freshness`: a required `*FreshnessPolicy`. `MaxTipAge` is A and must be a
   positive duration. `MaxFutureSkew` is a required pointer to F,
-  a duration with `0 <= F <= MaxFutureSkew` (10 minutes).
+  a duration with `0 <= F <= MaxFutureSkew` (600 seconds). This cap is a
+  BENCH ceiling, not a production value. Consensus allows headers up to two
+  hours ahead; any non-bench use must revisit both F and A through LIP-0022
+  after the real-node probe.
   `MinimumHeight` is a required pointer to FLOOR, in `[0, 2147483647]`.
   The pointer fields distinguish explicit zero from missing configuration.
   Missing or invalid values return `ErrConfig`; there are no defaults.
@@ -117,6 +120,29 @@ refusal and leave the cache unchanged. Busy/unavailable private state cannot
 promise an audit; it refuses rather than returning live. An uncertain write
 poisons that instance and reports `state_unavailable`.
 
+Cancellation records no audit (including no refusal audit), changes no checker
+cache or clock high-water, and returns retryable `cancelled`. Checks run after
+trusted-clock callbacks and again immediately before each checker commit. The
+clock high-water is staged with the operation and persisted before returning
+live. Cancellation cannot roll back kernel observations or recipient checks
+already committed before it became observable. A context cancelled during the
+filesystem write is outside the pre-write observation boundary; callers must
+still treat every verdict as an observation, never an atomic future effect.
+
+The cache and audit stay in one atomically replaced file. The exact maximum is
+73192 bytes: 60000 cache bytes, 64 records of at most 203 bytes plus array
+punctuation (13057 bytes), and 135 envelope bytes (including a 64-character
+binding and maximum timestamp). Tests fill both independent capacities and the
+combined maximum. The shared durable store retains its original 65536-byte
+`Write` limit; grantcheck uses `WriteBounded` with the calculated 73192-byte
+budget, below that API's 131072-byte ceiling. No other journal's allowance changes.
+`encodeState` checks the full serialized candidate before calling the writer.
+An entry beyond the cache count/byte limit or the combined bound returns
+non-retryable `capacity_exceeded` (seam reason `denied`) without a write, audit,
+state change or poisoned checker. A subsequent valid cached check or replacement
+still works. The 64-record audit remains a ring: a new retained observation
+replaces its oldest record rather than expanding the ring.
+
 ## Validation and controls
 
 From this module, with Go 1.26 and `GOTOOLCHAIN=local`:
@@ -156,8 +182,24 @@ compile errors and unrelated failures are invalid controls.
 | Max age removed | `TestCoreFreshness/FrozenOldView` | A consistent view with a real newer block elsewhere refuses at A+1 |
 | Future skew removed | `TestCoreFreshness/FutureSkew` | Actual Core headers beyond F refuse non-retryably |
 | Height floor removed | `TestCoreFreshness/HeightFloor` | A view below the independently configured floor refuses |
+| Combined serialized-state bound removed | `TestCombinedStateBudget` | Overflow must refuse before writer failure or poisoning |
+| Wrapper cancellation checks removed together | `TestCoreProvisioning/FinalSampleCancellation/Sample3` | Final-clock cancellation cannot commit live cache/audit |
 | Issuance hash check removed | `TestCoreProvisioning/UncommittedHash` | An issuer-signed but uncommitted hash cannot replace admitted proof |
 
 The hosted Agent wallet workflow runs these witnesses and overlays with its
 verified Core release, a real-skip gate control, and the existing envelope bench
 and its controls. This supplements the existing grantcheck offline/race controls.
+
+Round-two commit witnesses:
+
+- `TestFinalSampleCancellation` covers provision, inbound, cached outbound,
+  aggregate outbound and early refusal auditing, beside live/early-cancel controls.
+- `TestCoreProvisioning/FinalSampleCancellation` retains the final-sample
+  replacement regression against genuine committed Core grants.
+- `TestCombinedStateBudget` fills both encoding budgets, rejects a combined
+  overflow by name and checks unchanged bytes plus subsequent valid writes.
+- `TestCoreProvisioning/CombinedCapacity` fills the cache through public
+  provisioning against Core beside a full audit; byte overflow is non-poisoning,
+  preserves prior state, and permits valid operations and reopening.
+- `durable.TestExplicitWriteBudget` retains the legacy writer limit and checks
+  exact explicit limits, overflow, preservation and recovery.
