@@ -139,6 +139,17 @@ source inside that exact archive at H or a published revision for which
 Directory replacements are resolved relative to the command module, including
 symlink containment checks; external replacements refuse. Pseudo-versions map
 to their commit suffix; tagged versions map to the module's repository tag.
+Every release Git call uses an explicit minimal environment: only the executable
+search path and fixed locale/configuration controls are supplied. Inherited
+repository, object-directory, alternate, graft, replacement-base and Git config
+injection variables are ignored; system and global Git configuration are disabled.
+`GIT_NO_REPLACE_OBJECTS=1` and `GIT_GRAFT_FILE=/dev/null` make ancestry and
+archive queries use original objects.
+The build additionally refuses `refs/replace/*` (including packed refs) with
+`LINKAGE_REPLACE_REFS_REFUSED`, and any default `info/grafts` entry with
+`LINKAGE_GRAFTS_REFUSED`, before checking ancestry. Disabling protects every query;
+refusal identifies a history overlay that must be removed from a release checkout.
+
 A numerically higher version cannot establish ancestry. Invalid linkage emits
 `LINKAGE_STRICT_PARSE_MISSING <binary> <module> <version>` and creates no release
 layout. Missing history never becomes an accepting verdict.
@@ -614,3 +625,12 @@ other dependencies in-tree so MVS cannot mask the stale selection. Assembly's
 other binaries are stand-ins in that refusal control; the full real release
 inventory is exercised by `TestReleaseIntegration`. Logs go to the terminal,
 and temporary source/binary fixtures are removed by the test runner.
+
+`TestLinkageOriginalHistoryRelease` establishes effective replacement and graft
+plants, checks original ancestry independently, then requires named refusal from
+`BuildRelease` without output. `TestLinkageGitEnvironment` checks valid and stale
+history with inherited repository/object/config redirection inputs. The real stale
+wallet test repeats the binary/module/version refusal under both history plants;
+the published strict wallet test supplies the real valid control. These bounded
+controls do not claim protection from a modified Git executable or concurrent
+mutation of the build checkout.

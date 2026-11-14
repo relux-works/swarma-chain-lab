@@ -24,6 +24,107 @@ func linkageRepo(t *testing.T) string {
 	return strings.TrimSpace(string(b))
 }
 
+// A private clone keeps history plants out of the source checkout.
+func linkageHistoryFixture(t *testing.T) (string, string, string) {
+	t.Helper()
+	repo := filepath.Join(directory(t), "history")
+	c := exec.Command("git", "clone", "--quiet", "--no-local", linkageRepo(t), repo)
+	if b, e := c.CombinedOutput(); e != nil {
+		t.Fatalf("clone: %v %s", e, b)
+	}
+	old, e := git(context.Background(), repo, "rev-parse", "3baa201bafb6^{commit}")
+	if e != nil {
+		t.Fatal(e)
+	}
+	head, e := git(context.Background(), repo, "rev-parse", "HEAD")
+	if e != nil {
+		t.Fatal(e)
+	}
+	return repo, strings.TrimSpace(string(old)), strings.TrimSpace(string(head))
+}
+
+func linkageHistoryPlant(t *testing.T, repo, old, head, mode string) {
+	t.Helper()
+	if mode == "replace" {
+		if _, e := git(context.Background(), repo, "update-ref", "refs/replace/"+old, head); e != nil {
+			t.Fatal(e)
+		}
+		t.Cleanup(func() { _, _ = git(context.Background(), repo, "update-ref", "-d", "refs/replace/"+old) })
+	} else {
+		path := filepath.Join(repo, ".git", "info", "grafts")
+		if e := os.WriteFile(path, []byte(old+" "+StrictParseCommit+"\n"), 0600); e != nil {
+			t.Fatal(e)
+		}
+		t.Cleanup(func() { _ = os.Remove(path) })
+	}
+	// Establish the plant actually falsifies ancestry with ordinary Git.
+	c := exec.Command("git", "merge-base", "--is-ancestor", StrictParseCommit, old)
+	c.Dir = repo
+	c.Env = []string{"PATH=" + os.Getenv("PATH"), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null"}
+	if b, e := c.CombinedOutput(); e != nil {
+		t.Fatalf("history plant ineffective: %v %s", e, b)
+	}
+}
+
+// Claim: every Git query ignores effective replacement/graft plants; the public
+// release entry point also names and refuses each plant before compiling or publishing.
+func TestLinkageOriginalHistoryRelease(t *testing.T) {
+	repo, old, head := linkageHistoryFixture(t)
+	if e := linkageHistory(context.Background(), repo, head); e != nil {
+		t.Fatalf("valid history control: %v", e)
+	}
+	for _, mode := range []string{"replace", "graft"} {
+		t.Run(mode, func(t *testing.T) {
+			linkageHistoryPlant(t, repo, old, head, mode)
+			if _, e := git(context.Background(), repo, "merge-base", "--is-ancestor", StrictParseCommit, old); e == nil {
+				t.Fatal("original-history query accepted stale commit")
+			}
+			out := filepath.Join(directory(t), "release")
+			_, e := BuildRelease(context.Background(), ReleaseInput{Repo: repo, Commit: head, Out: out})
+			witness := "LINKAGE_REPLACE_REFS_REFUSED"
+			if mode == "graft" {
+				witness = "LINKAGE_GRAFTS_REFUSED"
+			}
+			if e == nil || !strings.Contains(e.Error(), witness) {
+				t.Fatalf("required named history refusal absent: %v", e)
+			}
+			if _, e := os.Stat(out); !os.IsNotExist(e) {
+				t.Fatal("history refusal wrote release layout")
+			}
+		})
+	}
+}
+
+// Claim: inherited Git repository/object/config/replacement inputs cannot
+// redirect original-history queries; both a valid pin and a stale pin are checked.
+func TestLinkageGitEnvironment(t *testing.T) {
+	repo, old, head := linkageHistoryFixture(t)
+	foreign := directory(t)
+	graft := filepath.Join(foreign, "grafts")
+	if e := os.WriteFile(graft, []byte(old+" "+StrictParseCommit+"\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	for key, value := range map[string]string{
+		"GIT_DIR": foreign, "GIT_COMMON_DIR": foreign, "GIT_WORK_TREE": foreign,
+		"GIT_OBJECT_DIRECTORY": foreign, "GIT_ALTERNATE_OBJECT_DIRECTORIES": foreign,
+		"GIT_REPLACE_REF_BASE": "refs/forged/", "GIT_GRAFT_FILE": graft,
+		"GIT_NO_REPLACE_OBJECTS": "0", "GIT_CONFIG_COUNT": "2",
+		"GIT_CONFIG_KEY_0": "core.worktree", "GIT_CONFIG_VALUE_0": foreign,
+		"GIT_CONFIG_KEY_1": "core.bare", "GIT_CONFIG_VALUE_1": "true",
+		"GIT_CONFIG_PARAMETERS": "'core.bare=true'", "GIT_CONFIG": graft,
+		"GIT_CONFIG_GLOBAL": graft, "GIT_CONFIG_SYSTEM": graft,
+		"HOME": foreign, "XDG_CONFIG_HOME": foreign,
+	} {
+		t.Setenv(key, value)
+	}
+	if e := linkageHistory(context.Background(), repo, head); e != nil {
+		t.Fatalf("environment redirected valid control: %v", e)
+	}
+	if e := linkageHistory(context.Background(), repo, old); e == nil || !strings.Contains(e.Error(), "LINKAGE_STRICT_PARSE_MISSING checkout") {
+		t.Fatalf("environment accepted stale commit: %v", e)
+	}
+}
+
 // Claim: real Git ancestry accepts the pin and rejects stale, higher-looking, missing and unrelated replacements, while ignoring external dependencies.
 func TestLinkageSelections(t *testing.T) {
 	repo := linkageRepo(t)
@@ -159,7 +260,7 @@ func TestLinkagePublishedStaleWallet(t *testing.T) {
 		t.Skip("requires explicit dependency acquisition and real wallet builds")
 	}
 	repo := linkageRepo(t)
-	work, first, second := assembleFixture(t)
+	work := directory(t)
 	archive := filepath.Join(work, "source.tar")
 	head, e := git(context.Background(), repo, "rev-parse", "HEAD")
 	if e != nil {
@@ -190,14 +291,29 @@ func TestLinkagePublishedStaleWallet(t *testing.T) {
 		}
 		return []ModuleLinkage{{Module: internalModulePrefix + a.Module, Replace: a.Module, Commit: commit, Verdict: strictVerdict}}, nil
 	}
-	_, _, e = assembleChecked(context.Background(), work, first, second, commit, build, inspect)
-	witness := "LINKAGE_STRICT_PARSE_MISSING bin/agent-wallet " + rental + " " + oldRentalVersion
-	if e == nil || !strings.Contains(e.Error(), witness) {
-		t.Fatalf("stale wallet not refused by name: %v", e)
-	}
-	t.Log(witness)
-	if _, e = os.Stat(filepath.Join(work, "bundle")); !os.IsNotExist(e) {
-		t.Fatal("stale wallet wrote release layout")
+	fixture, old, fixtureHead := linkageHistoryFixture(t)
+	for _, mode := range []string{"original", "replace", "graft"} {
+		t.Run(mode, func(t *testing.T) {
+			caseWork, caseFirst, caseSecond := assembleFixture(t)
+			if mode != "original" {
+				linkageHistoryPlant(t, fixture, old, fixtureHead, mode)
+			}
+			inspect := func(ctx context.Context, archive string, a Artifact, b []byte) ([]ModuleLinkage, error) {
+				if a.Binary == "bin/agent-wallet" {
+					return inspectLinkage(ctx, fixture, root, commit, a, b)
+				}
+				return inspect(ctx, archive, a, b)
+			}
+			_, _, e := assembleChecked(context.Background(), caseWork, caseFirst, caseSecond, commit, build, inspect)
+			witness := "LINKAGE_STRICT_PARSE_MISSING bin/agent-wallet " + rental + " " + oldRentalVersion
+			if e == nil || !strings.Contains(e.Error(), witness) {
+				t.Fatalf("stale wallet not refused by name: %v", e)
+			}
+			t.Log(witness)
+			if _, e = os.Stat(filepath.Join(caseWork, "bundle")); !os.IsNotExist(e) {
+				t.Fatal("stale wallet wrote release layout")
+			}
+		})
 	}
 }
 

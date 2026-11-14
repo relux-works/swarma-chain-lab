@@ -130,7 +130,11 @@ func command(ctx context.Context, dir string, env []string, name string, args ..
 	return c.Output()
 }
 func git(ctx context.Context, repo string, args ...string) ([]byte, error) {
-	return command(ctx, repo, os.Environ(), "git", args...)
+	// Deliberately do not inherit GIT_DIR, object/alternate directories,
+	// replacement/graft paths, config injection, HOME or XDG configuration.
+	// Every release Git call must see the same original object history.
+	env := []string{"PATH=" + os.Getenv("PATH"), "LC_ALL=C", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_NO_REPLACE_OBJECTS=1", "GIT_GRAFT_FILE=/dev/null", "GIT_TERMINAL_PROMPT=0"}
+	return command(ctx, repo, env, "git", args...)
 }
 func clean(ctx context.Context, repo string) error {
 	b, e := git(ctx, repo, "status", "--porcelain=v1", "--untracked-files=all")

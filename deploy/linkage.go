@@ -5,6 +5,7 @@ import (
 	"context"
 	"debug/buildinfo"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
@@ -43,7 +44,36 @@ func linkageFailure(binary, module, version string) error {
 	return fmt.Errorf("LINKAGE_STRICT_PARSE_MISSING %s %s %s", safe(binary), safe(module), safe(version))
 }
 
+// Refuse local history overlays explicitly as well as disabling them in git().
+// This diagnoses a tainted build checkout before any ancestry decision.
+func linkageOriginalHistory(ctx context.Context, repo string) error {
+	refs, e := git(ctx, repo, "for-each-ref", "--format=%(refname)", "refs/replace/")
+	if e != nil {
+		return fmt.Errorf("LINKAGE_HISTORY_REQUIRED: cannot inspect replacement refs")
+	}
+	if len(bytes.TrimSpace(refs)) != 0 {
+		return fmt.Errorf("LINKAGE_REPLACE_REFS_REFUSED: refs/replace history is not a release input")
+	}
+	grafts, e := git(ctx, repo, "rev-parse", "--git-common-dir")
+	if e != nil {
+		return fmt.Errorf("LINKAGE_HISTORY_REQUIRED: cannot inspect grafts")
+	}
+	path := filepath.Join(strings.TrimSpace(string(grafts)), "info", "grafts")
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(repo, path)
+	}
+	if _, e = os.Lstat(path); e == nil {
+		return fmt.Errorf("LINKAGE_GRAFTS_REFUSED: graft history is not a release input")
+	} else if !os.IsNotExist(e) {
+		return fmt.Errorf("LINKAGE_HISTORY_REQUIRED: cannot inspect grafts")
+	}
+	return nil
+}
+
 func linkageHistory(ctx context.Context, repo, commit string) error {
+	if e := linkageOriginalHistory(ctx, repo); e != nil {
+		return e
+	}
 	shallow, e := git(ctx, repo, "rev-parse", "--is-shallow-repository")
 	if e != nil || strings.TrimSpace(string(shallow)) != "false" {
 		return fmt.Errorf("LINKAGE_HISTORY_REQUIRED: full Git history required; clone without --depth or fetch --unshallow before building")
