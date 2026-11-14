@@ -151,6 +151,20 @@ func TestCoreFreshness(t *testing.T) {
 		}
 		frozen.frozen = true
 		live(t, frozen, now+60, info.Blocks)
+		// Claim: one nanosecond beyond A refuses; Unix-second rounding cannot extend admission.
+		fractional := freshCoreChecker(t, l, frozen, now+60, policy(info.Blocks), xonly(9))
+		fractional.config.Now = func() time.Time { return time.Unix(now+60, 1) }
+		assertVerdict(t, coreInbound(fractional, p), Refused, CodeTipStale, false, true)
+		// Claim: fractional A is supported exactly, with a live equality control and a one-nanosecond refusal.
+		for _, ns := range []int64{500000000, 500000001} {
+			fractional := freshCoreChecker(t, l, frozen, now, testFreshness(500*time.Millisecond, 120*time.Second, info.Blocks), xonly(9))
+			fractional.config.Now = func() time.Time { return time.Unix(now, ns) }
+			decision, code, retry := Live, CodeLive, false
+			if ns > 500000000 {
+				decision, code, retry = Refused, CodeTipStale, true
+			}
+			assertVerdict(t, coreInbound(fractional, p), decision, code, false, retry)
+		}
 		c := freshCoreChecker(t, l, frozen, now+61, policy(info.Blocks), xonly(9))
 		assertVerdict(t, coreInbound(c, p), Refused, CodeTipStale, false, true)
 		// Claim: cached inbound and outbound checks cannot reuse a formerly live stale view.
@@ -195,6 +209,16 @@ func TestCoreFreshness(t *testing.T) {
 				decision = Live
 			}
 			assertVerdict(t, coreInbound(c, p), decision, tc.code, false, false)
+			if tc.skew == 120 {
+				// Claim: an actual header just one nanosecond beyond F refuses beside equality.
+				fractional := freshCoreChecker(t, l, l.observer, now-1, policy(current.Blocks), xonly(9))
+				fractional.config.Now = func() time.Time { return time.Unix(now, -1) }
+				assertVerdict(t, coreInbound(fractional, p), Refused, CodeTipFuture, false, false)
+				// Claim: fractional F admits an actual header within the precise skew bound.
+				fractional = freshCoreChecker(t, l, l.observer, now-1, testFreshness(60*time.Second, 120*time.Second+500*time.Millisecond, current.Blocks), xonly(9))
+				fractional.config.Now = func() time.Time { return time.Unix(now-1, 750000000) }
+				assertVerdict(t, coreInbound(fractional, p), Live, CodeLive, false, false)
+			}
 		}
 	})
 }

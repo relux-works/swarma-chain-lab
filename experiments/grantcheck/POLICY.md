@@ -20,8 +20,8 @@ configuration. Neither constructor provides a compatibility path around it.
   a different executor refuses as `executor_mismatch`. Inbound pin mismatches
   occur before state changes. Provisioning records refusals in its audit only.
 - `Freshness`: a required `*FreshnessPolicy`. `MaxTipAge` is A and must be a
-  positive whole-second duration. `MaxFutureSkew` is a required pointer to F,
-  a whole-second duration with `0 <= F <= MaxFutureSkew` (10 minutes).
+  positive duration. `MaxFutureSkew` is a required pointer to F,
+  a duration with `0 <= F <= MaxFutureSkew` (10 minutes).
   `MinimumHeight` is a required pointer to FLOOR, in `[0, 2147483647]`.
   The pointer fields distinguish explicit zero from missing configuration.
   Missing or invalid values return `ErrConfig`; there are no defaults.
@@ -53,7 +53,9 @@ The tip time comes from the active `getblockheader(bestblockhash)` response,
 with matching hash, height and one confirmation. Missing, malformed or
 inconsistent projections refuse as `verifier_unavailable`. The kernel still
 checks genesis, active-chain membership, transactions, names and stability.
-The final trusted clock sample rechecks age/skew before any proof-cache write.
+The final trusted clock sample rechecks age/skew at full time precision before
+any proof-cache write; neither configured durations nor clock samples are rounded
+to Unix seconds for freshness. Public grant/audit timestamps remain Unix seconds.
 Cache hits and every outbound attempt use the same rules.
 
 The HIDDEN age of an admitted view is at most A + F (not A).

@@ -58,13 +58,14 @@ type backend interface {
 // installs a backend, always the landed kernelbind adapter; no public injection
 // point can substitute a replayed/fake verdict for a chain observation.
 type Checker struct {
-	mu        sync.Mutex
-	config    Config
-	transport Transport
-	binding   string
-	backend   backend
-	poisoned  bool
-	node      *policyNode
+	mu           sync.Mutex
+	config       Config
+	transport    Transport
+	binding      string
+	backend      backend
+	poisoned     bool
+	node         *policyNode
+	observedTime time.Time
 }
 
 type state struct {
@@ -144,7 +145,7 @@ func NewForTransport(config Config, transport Transport) (*Checker, error) {
 		Age, Skew                                                         int64
 		Floor                                                             int64
 	}{
-		config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, "regtest", su.RegtestGenesis, config.ConstructionProfile, transport, config.ExecutorKey, int64(config.Freshness.MaxTipAge / time.Second), int64(*config.Freshness.MaxFutureSkew / time.Second), *config.Freshness.MinimumHeight,
+		config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, "regtest", su.RegtestGenesis, config.ConstructionProfile, transport, config.ExecutorKey, int64(config.Freshness.MaxTipAge), int64(*config.Freshness.MaxFutureSkew), *config.Freshness.MinimumHeight,
 	})
 	c := &Checker{config: config, transport: transport, binding: rental.Hash(pins), backend: a, node: node}
 	s, err := durable.Open(config.StateDir, "grantcheck.lock")
@@ -201,7 +202,8 @@ func (c *Checker) load(s *durable.Store) (state, error) {
 // stamp persists the clock high-water before any possible live return. A failed
 // fsync poisons this instance; it cannot assume which state became durable.
 func (c *Checker) stamp(s *durable.Store, m *state) (int64, Code) {
-	now := c.config.Now().Unix()
+	sample := c.config.Now()
+	now := sample.Unix()
 	if now < m.High || now < 0 || now > maxUnix {
 		return 0, CodeClockInvalid
 	}
@@ -213,6 +215,7 @@ func (c *Checker) stamp(s *durable.Store, m *state) (int64, Code) {
 			return 0, CodeStateUnavailable
 		}
 	}
+	c.observedTime = sample
 	return now, CodeLive
 }
 
@@ -371,7 +374,7 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 			return fail(CodeStateUnavailable)
 		}
 	}
-	c.node.reset(now)
+	c.node.reset(c.observedTime)
 	var r kernel.Receipt
 	r, err = c.backend.Check(ctx, p.Bytes, c.config.AgentName, peer, now)
 	if ctx.Err() != nil {
@@ -413,13 +416,14 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 		if ctx.Err() != nil {
 			return fail(CodeCancelled)
 		}
-		last := c.config.Now().Unix()
+		lastTime := c.config.Now()
+		last := lastTime.Unix()
 		if last < end {
 			return fail(CodeClockInvalid)
 		}
 		if last == end {
 			if c.node.seen {
-				if code := c.node.freshAt(end); code != CodeLive {
+				if code := c.node.freshAt(lastTime); code != CodeLive {
 					return fail(code)
 				}
 			}

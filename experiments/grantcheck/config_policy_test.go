@@ -11,7 +11,7 @@ import (
 )
 
 // Claim: every required executor/freshness input fails construction when absent
-// or invalid, before state opens; explicit F=0 and FLOOR=0 are valid controls.
+// or invalid, before state opens; explicit zeros and fractional positive durations are valid controls.
 func TestRequiredPolicyConfig(t *testing.T) {
 	for _, name := range []string{"pin-missing", "pin-invalid", "policy-missing", "age-missing", "age-negative", "age-fractional", "skew-missing", "skew-negative", "skew-excess", "skew-fractional", "floor-missing", "floor-negative", "floor-excess", "terms-missing"} {
 		t.Run(name, func(t *testing.T) {
@@ -56,6 +56,12 @@ func TestRequiredPolicyConfig(t *testing.T) {
 			case "terms-missing":
 				bad.Terms = nil
 			}
+			if name == "age-fractional" || name == "skew-fractional" {
+				if c, err := New(bad); err != nil || c == nil {
+					t.Fatal("fractional policy refused", err)
+				}
+				return
+			}
 			if c, err := New(bad); c != nil || !errors.Is(err, ErrConfig) {
 				t.Fatal("required config did not refuse", err)
 			}
@@ -91,9 +97,9 @@ func TestPolicyBinding(t *testing.T) {
 			case "executor":
 				bad.ExecutorKey = xonly(8)
 			case "age":
-				bad.Freshness.MaxTipAge += time.Second
+				bad.Freshness.MaxTipAge += time.Nanosecond
 			case "skew":
-				*bad.Freshness.MaxFutureSkew += time.Second
+				*bad.Freshness.MaxFutureSkew += time.Nanosecond
 			case "floor":
 				*bad.Freshness.MinimumHeight++
 			}

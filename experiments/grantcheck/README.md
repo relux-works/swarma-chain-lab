@@ -15,7 +15,7 @@ The HIDDEN age of an admitted view is at most A + F (not A).
 `trusted_now` is the consumer's trusted `Config.Now` clock input (the consumer's
 `time.Now` system clock if omitted), never the node's own time. A must be positive;
 F is explicitly supplied in `[0, 10 minutes]`; FLOOR is explicitly supplied in
-`[0, 2147483647]`. Durations are whole seconds and none of A/F/FLOOR defaults.
+`[0, 2147483647]`. No A/F/FLOOR value defaults; subsecond policy values are supported.
 This is an INTERIM rule for the v3 TEST BENCH, superseded by LIP-0022 once
 accepted. Production values are NOT set here and need a runtime probe on a real
 Namecoin node before any non-bench use.

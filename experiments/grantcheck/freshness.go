@@ -11,7 +11,8 @@ import (
 )
 
 // MaxFutureSkew is an interim test-bench configuration bound, not a production
-// recommendation. All durations are whole seconds; no policy field defaults.
+// recommendation. No policy field defaults; subsecond ages and skews are
+// supported within the same bounds.
 const MaxFutureSkew = 10 * time.Minute
 
 // FreshnessPolicy is the interim v3 test-bench rule, superseded by LIP-0022 once
@@ -24,8 +25,8 @@ type FreshnessPolicy struct {
 }
 
 func validFreshness(p *FreshnessPolicy) bool {
-	return p != nil && p.MaxTipAge > 0 && p.MaxTipAge%time.Second == 0 &&
-		p.MaxFutureSkew != nil && *p.MaxFutureSkew >= 0 && *p.MaxFutureSkew <= MaxFutureSkew && *p.MaxFutureSkew%time.Second == 0 &&
+	return p != nil && p.MaxTipAge > 0 &&
+		p.MaxFutureSkew != nil && *p.MaxFutureSkew >= 0 && *p.MaxFutureSkew <= MaxFutureSkew &&
 		p.MinimumHeight != nil && *p.MinimumHeight >= 0 && *p.MinimumHeight <= 2147483647
 }
 
@@ -41,13 +42,13 @@ func cloneFreshness(p *FreshnessPolicy) *FreshnessPolicy {
 type policyNode struct {
 	su.Node
 	policy  FreshnessPolicy
-	now     int64
+	now     time.Time
 	code    Code
-	tipTime int64
+	tipTime time.Time
 	seen    bool
 }
 
-func (n *policyNode) reset(now int64) { n.now, n.code, n.seen = now, "", false }
+func (n *policyNode) reset(now time.Time) { n.now, n.code, n.seen = now, "", false }
 
 func (n *policyNode) Call(ctx context.Context, method string, args ...any) (json.RawMessage, error) {
 	raw, err := n.Node.Call(ctx, method, args...)
@@ -78,18 +79,18 @@ func (n *policyNode) Call(ctx context.Context, method string, args ...any) (json
 		hash != info.Best || len(hash) != 64 || height != info.Blocks || confirmations != 1 || at < 0 || at > maxUnix {
 		return refuse(CodeVerifierUnavailable)
 	}
-	n.tipTime, n.seen = at, true
+	n.tipTime, n.seen = time.Unix(at, 0), true
 	if code := n.freshAt(n.now); code != CodeLive {
 		return refuse(code)
 	}
 	return raw, nil
 }
 
-func (n *policyNode) freshAt(now int64) Code {
-	if now-n.tipTime > int64(n.policy.MaxTipAge/time.Second) {
+func (n *policyNode) freshAt(now time.Time) Code {
+	if n.tipTime.Before(now.Add(-n.policy.MaxTipAge)) {
 		return CodeTipStale
 	}
-	if n.tipTime > now+int64(*n.policy.MaxFutureSkew/time.Second) {
+	if n.tipTime.After(now.Add(*n.policy.MaxFutureSkew)) {
 		return CodeTipFuture
 	}
 	return CodeLive
