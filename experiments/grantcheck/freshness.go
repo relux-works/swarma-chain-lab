@@ -44,6 +44,7 @@ type policyNode struct {
 	policy  FreshnessPolicy
 	now     time.Time
 	code    Code
+	info    su.ChainInfo
 	tipTime time.Time
 	seen    bool
 }
@@ -63,11 +64,9 @@ func (n *policyNode) Call(ctx context.Context, method string, args ...any) (json
 	if len(raw) > 1<<20 || json.Unmarshal(raw, &info) != nil || info.Chain != "regtest" || info.Blocks < 0 || info.Blocks > 2147483647 || info.Headers < 0 || info.Headers > 2147483647 {
 		return refuse(CodeVerifierUnavailable)
 	}
-	if info.IBD || info.Headers != info.Blocks {
-		return refuse(CodeNodeNotSynced)
-	}
-	if info.Blocks < *n.policy.MinimumHeight {
-		return refuse(CodeTipBelowFloor)
+	n.info = info
+	if code := n.synced(); code != CodeLive {
+		return refuse(code)
 	}
 	header, err := n.Node.Call(ctx, "getblockheader", info.Best)
 	if err != nil {
@@ -86,7 +85,21 @@ func (n *policyNode) Call(ctx context.Context, method string, args ...any) (json
 	return raw, nil
 }
 
+func (n *policyNode) synced() Code {
+	info := n.info
+	if info.IBD || info.Headers != info.Blocks {
+		return CodeNodeNotSynced
+	}
+	if info.Blocks < *n.policy.MinimumHeight {
+		return CodeTipBelowFloor
+	}
+	return CodeLive
+}
+
 func (n *policyNode) freshAt(now time.Time) Code {
+	if code := n.synced(); code != CodeLive {
+		return code
+	}
 	if n.tipTime.Before(now.Add(-n.policy.MaxTipAge)) {
 		return CodeTipStale
 	}
@@ -94,4 +107,11 @@ func (n *policyNode) freshAt(now time.Time) Code {
 		return CodeTipFuture
 	}
 	return CodeLive
+}
+
+// liveCheck retains this decision's own observation, never a subsequent caller's
+// mutable node state. Aggregate checks compare every recipient at one final time.
+type liveCheck struct {
+	node policyNode
+	at   time.Time
 }

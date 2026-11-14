@@ -178,6 +178,8 @@ never queue a live verdict as a reusable permission token.
 
 ## Tools and artifacts
 
+- Final-sample freshness for every live route, including every aggregate recipient,
+  is audited in [POLICY.md](POLICY.md#final-sample-authority-audit).
 - The policy witnesses and overlay controls are documented in
   [POLICY.md](POLICY.md#validation-and-controls); outputs go to the explicitly
   chosen `.temp/` evidence directory and fresh isolated regtest root.

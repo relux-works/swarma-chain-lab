@@ -56,7 +56,7 @@ The tip time comes from the active `getblockheader(bestblockhash)` response,
 with matching hash, height and one confirmation. Missing, malformed or
 inconsistent projections refuse as `verifier_unavailable`. The kernel still
 checks genesis, active-chain membership, transactions, names and stability.
-The final trusted clock sample rechecks age/skew at full time precision before
+The final trusted clock sample rechecks the complete rule above at full time precision before
 any proof-cache write; neither configured durations nor clock samples are rounded
 to Unix seconds for freshness. Public grant/audit timestamps remain Unix seconds.
 Cache hits and every outbound attempt use the same rules.
@@ -77,6 +77,38 @@ frozen-view witness records a complete real Core observation, mines a newer
 block, then replays the old responses: age A is live, age A+1 refuses. The
 headers-ahead witness refuses; equal headers/blocks admits. Actual mined Core
 headers at F admit, while F+1 and two hours ahead refuse non-retryably.
+
+## Final-sample authority audit
+
+| Live-return path | Checks at its final trusted sample |
+| --- | --- |
+| `Inbound` and `InboundFrom`, supplied or cached | Full observation rule, grant start/end, nondecreasing clock, cancellation; deferred cache commit checks cancellation again. |
+| `Outbound` | Same shared operation checks, with no proof-cache replacement or provisioning audit. |
+| `OutboundFrom`, one or multiple recipients | Shared checks for every recipient, then full observation rule on **each retained recipient observation** at the aggregate final sample; earliest grant end, clock order against every recipient, and cancellation. |
+| `Provision` | Same shared operation checks before cache/audit commit; cancellation is checked again immediately before persistence. Late freshness refusal commits neither cache nor audit nor clock high-water. |
+
+Grant timestamps are integral Unix seconds; the shared operation checks the
+window at the stamp and requires its final sample to remain in that same second.
+Clock ordering and tip age/skew retain nanosecond precision. Aggregate clock
+ordering preserves every already-checked grant start; its minimum end bounds
+all recipients. The retained observations are private, immutable copies, so a
+later recipient or concurrent call cannot overwrite an earlier decision's tip.
+
+Executor and terms are hash-bound immutable configuration/proof checks, not
+clock-dependent conditions. Seal, issuance, names and chain stability are checked
+by the real kernel on each call's node observation; advancing the trusted clock
+does not reinterpret those facts. No final-sample check claims another RPC read,
+a globally latest tip, or atomicity with a future chain spend or message send.
+A live verdict remains one bounded observation and must be rechecked after delay.
+
+`TestCoreFinalSampleFreshness` crosses A only at the final sample for every
+public live route and both transports where supported, with exact-A positive
+controls and A+1 ns/A+1 s retryable refusals that preserve checker state.
+`TestCoreAggregateEveryObservation` gives only the first recipient a recorded
+old Core view while the last sees a genuine newer tip. Exact A admits and A+1 ns
+refuses. The policy overlay controls remove aggregate final freshness, retain
+only the last observation, and remove shared final freshness; each must fail its
+named regression. They supplement all earlier policy and provenance controls.
 
 ## Protected first-message bootstrap
 
@@ -157,8 +189,9 @@ go mod verify
 
 Enable genuine Core with `CG1_REGTEST=1`, `CG1_CORE_DAEMON=<pinned-namecoind>`,
 `CG1_CORE_CLI=<pinned-namecoin-cli>` and a fresh absolute `CG1_RUN_ROOT`.
-`TestCoreVectors`, `TestCoreFreshness` and `TestCoreProvisioning` each create an
-isolated subdirectory and stop only their recorded node PID. Release pairs are
+`TestCoreVectors`, `TestCoreFreshness`, `TestCoreProvisioning`,
+`TestCoreFinalSampleFreshness` and `TestCoreAggregateEveryObservation` each
+create an isolated subdirectory and stop only their recorded node PID. Release pairs are
 hash-pinned; no mixed or unlisted pair starts. Generated vectors record the
 actual executable hashes. Never publish their private datadirs or RPC config.
 
@@ -177,6 +210,9 @@ compile errors and unrelated failures are invalid controls.
 
 | Mutant | Named failing test | What the kill establishes |
 | --- | --- | --- |
+| Aggregate final freshness removed | `TestCoreFinalSampleFreshness/Transport2/OutboundFromAggregate/OverA1ns` | Earlier recipient checks cannot authorize a stale final sample |
+| Only last aggregate observation retained | `TestCoreAggregateEveryObservation/Transport2/OverA1ns` | A fresh last observation cannot cover an earlier stale one |
+| Shared final freshness removed | `TestCoreFinalSampleFreshness/Transport2/Provision/OverA1ns` | Late staleness refuses before proof-cache or audit commit |
 | Executor pin removed | `TestCoreFreshness/ExecutorPin` | Canonical terms must name this consumer's executor |
 | Headers equality removed | `TestCoreFreshness/HeadersEqualBlocks` | Both directions of inequality are retryably not-synced |
 | Max age removed | `TestCoreFreshness/FrozenOldView` | A consistent view with a real newer block elsewhere refuses at A+1 |

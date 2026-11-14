@@ -18,6 +18,18 @@ CG = 'experiments/grantcheck/checker.go'
 FRESH = 'experiments/grantcheck/freshness.go'
 GRANT = 'experiments/rental/grant_kernel.go'
 PLANTS = [
+    ('aggregate-final-freshness', 'TestCoreFinalSampleFreshness/Transport2/OutboundFromAggregate/OverA1ns', 'experiments/grantcheck/sender.go',
+     'if code := observation.node.freshAt(sample); code != CodeLive {',
+     'if code := observation.node.freshAt(sample); false {',
+     'every aggregate observation must satisfy the complete freshness rule at the final precise sample'),
+    ('aggregate-last-only', 'TestCoreAggregateEveryObservation/Transport2/OverA1ns', 'experiments/grantcheck/sender.go',
+     'for _, observation := range observations {',
+     'for _, observation := range observations[len(observations)-1:] {',
+     'checking only the newest recipient cannot cover an earlier stale observation'),
+    ('single-final-freshness', 'TestCoreFinalSampleFreshness/Transport2/Provision/OverA1ns', CG,
+     'if code := c.node.freshAt(lastTime); code != CodeLive {',
+     'if code := c.node.freshAt(lastTime); false {',
+     'the common inbound/outbound/provision final sample must refuse stale state before cache or audit persistence'),
     ('executor', 'TestCoreFreshness/ExecutorPin', CG,
      'if pay.ExecutorKey != c.config.ExecutorKey {',
      'if false && pay.ExecutorKey != c.config.ExecutorKey {',

@@ -58,6 +58,7 @@ type Verdict struct {
 	// transport is set only from the validated inbound checker pin. It is not
 	// serialized: decoded verdicts are observations, never admission authority.
 	transport Transport
+	checked   *liveCheck
 
 	Decision  Decision `json:"decision"`
 	Code      Code     `json:"code"`

@@ -341,7 +341,11 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 	// Cancellation and predictable capacity refusal commit nothing, including
 	// audit and clock high-water. A successful cache/audit update is atomic.
 	originalHigh := m.High
+	discard := false
 	defer func() {
+		if discard {
+			return
+		}
 		if ctx.Err() != nil {
 			out = fail(CodeCancelled)
 			return
@@ -439,15 +443,17 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 			return fail(CodeCancelled)
 		}
 		last := lastTime.Unix()
-		if last < end {
+		if last < end || lastTime.Before(c.observedTime) {
 			return fail(CodeClockInvalid)
 		}
 		if last == end {
 			if c.node.seen {
 				if code := c.node.freshAt(lastTime); code != CodeLive {
+					discard = true
 					return fail(code)
 				}
 			}
+			v.checked = &liveCheck{node: *c.node, at: lastTime}
 			v.CheckedAt = end
 			v.Scope = slices.Clone(g.Scope)
 			return v

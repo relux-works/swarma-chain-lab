@@ -65,13 +65,17 @@ func coreTip(t *testing.T, l *coreLab) (su.ChainInfo, int64) {
 	}
 	return info, h.Time
 }
-func freshCoreChecker(t *testing.T, l *coreLab, node su.Node, now int64, policy *FreshnessPolicy, executor string) *Checker {
+func freshCoreChecker(t *testing.T, l *coreLab, node su.Node, now int64, policy *FreshnessPolicy, executor string, transports ...Transport) *Checker {
 	t.Helper()
 	root, err := os.MkdirTemp(l.private, "checker-")
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := NewForTransport(Config{ConstructionProfile: "W", Identity: "fresh-test", AgentName: e2eAgentName, LandlordName: e2eLandlordName, IssuerPubkey: l.issuerPub, ExecutorKey: executor, Terms: unitTermsLookup, Freshness: policy, StateDir: root, Node: node, Now: func() time.Time { return time.Unix(now, 0) }}, SwarmEnvelopeV2)
+	transport := SwarmEnvelopeV2
+	if len(transports) != 0 {
+		transport = transports[0]
+	}
+	c, err := NewForTransport(Config{ConstructionProfile: "W", Identity: "fresh-test", AgentName: e2eAgentName, LandlordName: e2eLandlordName, IssuerPubkey: l.issuerPub, ExecutorKey: executor, Terms: unitTermsLookup, Freshness: policy, StateDir: root, Node: node, Now: func() time.Time { return time.Unix(now, 0) }}, transport)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -95,21 +95,37 @@ func (c *Checker) OutboundFrom(ctx context.Context, proof RecipientProof) Verdic
 	ctx, cancel := context.WithTimeout(ctx, c.config.CheckTimeout)
 	defer cancel()
 	end, checked := int64(maxUnix), int64(0)
+	observations := make([]*liveCheck, 0, len(proof.Keys))
 	for _, key := range proof.Keys {
 		v := c.check(ctx, key, nil, false)
 		if v.Decision != Live {
 			return v
 		}
+		observations = append(observations, v.checked)
 		end = min(end, v.NotAfter)
 		checked = max(checked, v.CheckedAt)
 	}
 	// An earlier addressee's grant may expire while later recipients are checked.
-	now := c.config.Now().Unix()
+	sample := c.config.Now()
+	now := sample.Unix()
 	if now < checked || now > maxUnix {
 		return fail(CodeClockInvalid)
 	}
 	if now >= end {
 		return fail(CodeExpired)
+	}
+	for _, observation := range observations {
+		if observation == nil {
+			return fail(CodeCheckFailed)
+		}
+		if sample.Before(observation.at) {
+			return fail(CodeClockInvalid)
+		}
+		if observation.node.seen {
+			if code := observation.node.freshAt(sample); code != CodeLive {
+				return fail(code)
+			}
+		}
 	}
 	if ctx.Err() != nil {
 		return fail(CodeCancelled)
