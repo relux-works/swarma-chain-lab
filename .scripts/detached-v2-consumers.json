@@ -1,0 +1,54 @@
+{
+  "experiments/rental/certificate.go": {
+    "sha256": "818922503f204b43fa03e839cb9f68d2e82122e089c866392a0049fb3f555a96",
+    "reason": "Shared strict parser only; v1 certificate validation does not consume detached-v2 IDs."
+  },
+  "experiments/rental/cmd/rental-issue/main.go": {
+    "sha256": "e30c2423a1bbc141658b843f4888872c2c7f5f594207093c998ae04ef2cc32b5",
+    "reason": "CLI serializes IssueDetached result including exact-envelope ID; no cross-observer lookup, audit or payment key."
+  },
+  "experiments/rental/cmd/rental-kernel/main.go": {
+    "sha256": "f3bad278642ce0bff0dc3893e2807b3dda58b60283f6f0db4d39c73cb8767d48",
+    "reason": "CLI exact inline ID argument to PresentV2 and JSON Receipt output for one observer invocation; no aggregation or payment/journal key."
+  },
+  "experiments/rental/detached_certificate.go": {
+    "sha256": "2bd3d60b1a38be2591e740384afff342c37381e9745eb8f2dfb078d6d63cc927",
+    "reason": "Detached schema/parser declarations; canonical signed content contains no envelope ID."
+  },
+  "experiments/rental/detached_issuer.go": {
+    "sha256": "92c4afcf95f567c527d7b9918445cb7567d8cc040d455eb51bb8259679b8feb5",
+    "reason": "Exact-envelope issuer record integrity/replay and IssueResult export; booking ID and reserved seal key issuance, never envelope ID."
+  },
+  "experiments/rental/detached_kernel.go": {
+    "sha256": "caa376f25dc8d2e90bee7c9e98d629ac7d67dddfbfe63d73a43b1842cc0c929a",
+    "reason": "Observer-local receipt correlation, detached state filename/integrity and first-admitted seal index; StateDir scopes all durable reads."
+  },
+  "experiments/rental/grant_kernel.go": {
+    "sha256": "6e04acd8c47031379d6518aead1e5e16c9d7333a70163b8a0ee8773503db5ed4",
+    "reason": "Shared Receipt clearing for committed v3 grants; never reads a detached-v2 envelope ID."
+  },
+  "experiments/rental/kernel.go": {
+    "sha256": "8ff9d9d2b6d1224243b1245b4d92a739fdabcfc2f0c8864ab1757901ee5b6731",
+    "reason": "Shared Receipt field/JSON serialization; other reads are v1 committed-certificate state, never detached-v2 cross-observer identity."
+  },
+  "experiments/rental/planner.go": {
+    "sha256": "8f7fb6b57c0a168b3855ba88669af2026d32c2dab512aed994f16d930ddd5ac3",
+    "reason": "V1 name/OP_RETURN certificate commitment only; not a detached-v2 consumer."
+  },
+  "experiments/rental/presentation.go": {
+    "sha256": "d049ac09b4db0566913e5c28c6a505d0dfc3417bff185040c32e48594b9eb041",
+    "reason": "Observer-local exact-envelope validation, per-sender cache replacement and CachedCertificateV2 return; sender is the cache key, with fresh CheckV2 required."
+  },
+  "experiments/single-use/executor.go": {
+    "sha256": "c91ac7034509c5b37144f7a8853a82bba24ee2dd42b6e33bcafac68484f07e08",
+    "reason": "Single-use v1 certificate commitment only; no detached-v2 receipt or envelope is consumed."
+  },
+  "experiments/single-use/planner.go": {
+    "sha256": "b8c407f08da7f7b34848d30f21cb623621d58ca30f7bf1df73b26e0b9f310321",
+    "reason": "Single-use v1 certificate commitment only; not a detached-v2 consumer."
+  },
+  "experiments/single-use/policy.go": {
+    "sha256": "c3e0edaef530e5ee21fecda1594eeb7938f69a2e6efa7e173516a079816d73a6",
+    "reason": "Single-use v1 policy field only; not a detached-v2 consumer."
+  }
+}

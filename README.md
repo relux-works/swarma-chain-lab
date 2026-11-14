@@ -44,6 +44,13 @@ Licensed under [Apache-2.0](LICENSE); see [NOTICE](NOTICE) and experiment notice
 See the [signature-bearing identifier audit](docs/signature-identities.md) for
 exact-byte identities, independent replay bindings and signature-variant tests.
 
+The automatic rental checks enforce the detached-v2 observer-local ID audit
+with `python3 -B .scripts/check-detached-v2-consumers.py` and detector controls
+via `python3 -B -m unittest discover -s .scripts -p 'test_check_detached_v2_consumers.py' -v`.
+The reviewed file hashes and locality reasons live in
+`.scripts/detached-v2-consumers.json`; changed consumers require a fresh audit.
+Output goes to stdout; retain local validation logs under `.temp/`.
+
 The wallet Core-test inventory is `.scripts/w2-core-gate.json`. Run
 `python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v`
 to check that every Core-fixture test is registered and that missing, skipped

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
@@ -199,6 +200,7 @@ func TestCoreDetachedSecondSignatureSealBinding(t *testing.T) {
 	if admitted.Verdict != "live" {
 		t.Fatal("original detached presentation", admitted)
 	}
+	before := detachedObserverFiles(t, p.StateDir)
 	denied := PresentV2(context.Background(), l.observer, p, second, Hash(second), p.AgentName, c.GranteeKey, 500)
 	if denied.Verdict != "refused" || denied.Reason != "SEAL_ALREADY_SEEN" {
 		t.Fatal("alternate detached presentation", denied)
@@ -210,7 +212,87 @@ func TestCoreDetachedSecondSignatureSealBinding(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(p.StateDir, "detached-"+Hash(second)+".json")); !os.IsNotExist(err) {
 		t.Fatal("second state record written", err)
 	}
+	if !reflect.DeepEqual(before, detachedObserverFiles(t, p.StateDir)) {
+		t.Fatal("refusal changed observer state")
+	}
 	fresh := p
 	fresh.StateDir = l.policy("fresh-detached-observer").StateDir
 	l.checkDetached("second-first-observation", fresh, c, second, 500, "live", "LIVE", false)
+}
+
+func detachedObserverFiles(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{}
+	for _, entry := range entries {
+		raw, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[entry.Name()] = string(raw)
+	}
+	return files
+}
+
+// Genuine Core: two fresh observers bind identical content, grant key, funded seal and name generation, but record different envelope IDs.
+func TestCoreDetachedFreshObserversRecordSignatureTwins(t *testing.T) {
+	l := newCore(t)
+	l.agentValue(1, 3, true)
+	p, c, raw := l.detached("fresh-twin-a", l.detachedPool(1, true), 2)
+	a, err := ParseDetachedEnvelope(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := c.Canonical()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := a
+	b.Signature = secondFixtureSignature(t, Hash(payload), a.Signature, 1)
+	second, err := json.Marshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err = ParseDetachedEnvelope(second)
+	if err != nil || !reflect.DeepEqual(a.Certificate, b.Certificate) || Hash(raw) == Hash(second) {
+		t.Fatal("twins must differ only in valid signature and envelope ID", err)
+	}
+	other := p
+	other.StateDir = l.policy("fresh-twin-b").StateDir
+	var states [2]detachedState
+	for i, observer := range []struct {
+		policy Policy
+		raw    []byte
+	}{{p, raw}, {other, second}} {
+		if len(detachedObserverFiles(t, observer.policy.StateDir)) != 0 {
+			t.Fatal("observer must be fresh")
+		}
+		r := PresentV2(context.Background(), l.observer, observer.policy, observer.raw, Hash(observer.raw), p.AgentName, c.GranteeKey, 500)
+		if r.Verdict != "live" || r.CertificateSHA256 != Hash(observer.raw) {
+			t.Fatal("fresh observer admission", r)
+		}
+		stored, err := os.ReadFile(filepath.Join(observer.policy.StateDir, "detached-"+r.CertificateSHA256+".json"))
+		if err != nil || json.Unmarshal(stored, &states[i]) != nil {
+			t.Fatal("read admitted generation", err)
+		}
+		cached, id, err := CachedCertificateV2(observer.policy, c.GranteeKey)
+		if err != nil || id != r.CertificateSHA256 || !bytes.Equal(cached, observer.raw) {
+			t.Fatal("observer-local cache", err)
+		}
+		var seen seenSeal
+		stored, err = os.ReadFile(filepath.Join(observer.policy.StateDir, sealIndexName(observer.policy, c.Seal)))
+		if err != nil || json.Unmarshal(stored, &seen) != nil || seen.Seal != c.Seal || seen.CertificateSHA256 != id {
+			t.Fatal("observer-local funded seal binding", err)
+		}
+	}
+	if states[0].Generation != states[1].Generation || states[0].Generation.Height < 1 || states[0].Binding != states[1].Binding || a.Certificate.IssuerKey != b.Certificate.IssuerKey || a.Certificate.Seal != b.Certificate.Seal || states[0].CertificateSHA256 == states[1].CertificateSHA256 {
+		t.Fatal("same bound tuple must permit different observer-local IDs", states)
+	}
+	states[1].CertificateSHA256 = states[0].CertificateSHA256
+	if states[0] != states[1] {
+		t.Fatal("only the recorded envelope ID may differ", states)
+	}
 }

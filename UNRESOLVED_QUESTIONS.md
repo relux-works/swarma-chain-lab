@@ -1,13 +1,17 @@
 # Unresolved questions
 
-Should detached v2 retain its existing observer-local first-admitted seal/ID
-binding, or migrate to a versioned per-certificate chain issuance commitment?
+## Resolved: detached-v2 observer-local identity
 
-V2 has no issuance locator or per-certificate commitment. Two valid signatures
-over identical content can each be admitted first by different fresh observers;
-one observer refuses the second ID after admitting the first. V1 and v3 bind
-exact signed IDs to confirmed commitments. The [identifier audit](docs/signature-identities.md)
-and `TestCoreDetachedSecondSignatureSealBinding` retain this distinction.
+Detached v2 retains its first-admitted seal/ID binding as an explicit v2
+exception. Only the grant-key holder can produce valid signature twins; both
+bind the same grant key, funded seal and name generation. Each observer admits
+the seal at most once; a twin is refused as `SEAL_ALREADY_SEEN` without changing
+cache or state. Two fresh observers may record different envelope IDs, so that
+ID must never key payment, deduplication, journals or audits across observers.
+A new detached profile with a per-certificate commitment is the fix, outside
+this change; grants v4's content-only stable object IDs remove the issue.
+See the [identifier audit](docs/signature-identities.md) and the genuine-Core
+same-observer and two-fresh-observer signature tests.
 
 The Darwin `slotdfake` clock also needs a directory-contract decision.
 `SOCKET.clock` is read as installed input (immediate parent exactly `0750`),
