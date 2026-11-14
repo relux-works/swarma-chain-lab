@@ -106,8 +106,9 @@ must not be deleted. A positively persisted closure can refuse without another
 node read because it can never grant authority.
 
 Provision attempts record `{grant_id, hash, at, result}` in `grantcheck.json`.
-`hash` is SHA-256 of the supplied presentation bytes; `at` uses the consumer's
-trusted clock. The newest 64 records survive restart. Export audit observations
+`hash` is SHA-256 of the supplied presentation bytes; `at` records the
+operation's validated trusted clock sample. Early refusals use the available
+consumer clock sample; an invalid sample falls back to its durable high-water. The newest 64 records survive restart. Export audit observations
 if longer retention is required. Successful cache insertion and its audit
 record share one durable state write. Malformed or mismatched proofs record the
 refusal and leave the cache unchanged. Busy/unavailable private state cannot

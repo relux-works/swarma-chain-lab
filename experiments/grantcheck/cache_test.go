@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
 )
@@ -107,5 +108,37 @@ func TestProvisionAuditRing(t *testing.T) {
 	}
 	if _, err := c.cachedGrant(xonly(3)); err != kernel.ErrNoPresentation {
 		t.Fatal("audit introduced peer", err)
+	}
+}
+
+// Claim: a successful provision audit records its validated clock sample;
+// a subsequent rollback is refused by a fresh check rather than altering that audit.
+func TestProvisionClockSnapshot(t *testing.T) {
+	c, _, p := unitChecker(t)
+	reads := 0
+	c.config.Now = func() time.Time {
+		reads++
+		if reads > 3 {
+			return time.Unix(499, 0)
+		}
+		return time.Unix(500, 0)
+	}
+	v := c.Provision(context.Background(), p)
+	assertVerdict(t, v, Live, CodeLive, false, false)
+	raw, err := os.ReadFile(filepath.Join(c.config.StateDir, stateName))
+	var m state
+	if err != nil || json.Unmarshal(raw, &m) != nil || len(m.Provisioning) != 1 {
+		t.Fatal("clock audit missing", err)
+	}
+	if m.Provisioning[0].At != v.CheckedAt || m.Provisioning[0].At != 500 {
+		t.Fatal("audit contradicted validated clock", m.Provisioning[0].At, v.CheckedAt)
+	}
+	assertVerdict(t, c.Inbound(context.Background(), xonly(2), nil), Refused, CodeClockInvalid, false, true)
+	after, err := os.ReadFile(filepath.Join(c.config.StateDir, stateName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(raw, after) {
+		t.Fatal("rollback changed audited cache")
 	}
 }

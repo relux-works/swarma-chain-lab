@@ -331,7 +331,9 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 			}
 		}
 		if provision {
-			appendProvision(&m, p, out, c.config.Now().Unix())
+			// Record the validated observation clock, not an extra unvalidated
+			// sample that could contradict a successful admission on rollback.
+			appendProvision(&m, p, out, m.High)
 			changed = true
 		}
 		if changed {
