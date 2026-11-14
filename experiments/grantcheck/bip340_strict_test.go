@@ -61,7 +61,7 @@ func TestBIP340InboundBoundary(t *testing.T) {
 			bad := bytes.Replace(p.Bytes, []byte(proof.SignedGrant.Signature), []byte(hex.EncodeToString(sig)), 1)
 			v := c.Inbound(context.Background(), peer, &Presentation{Bytes: bad, GrantID: proof.SignedGrant.ID()})
 			assertVerdict(t, v, Refused, CodeInvalidPresentation, false, false)
-			if backend.PresentCalls != calls || !bytes.Equal(backend.Cached[peer], p.Bytes) {
+			if backend.PresentCalls != calls || !bytes.Equal(cachedBytes(t, c, peer), p.Bytes) {
 				t.Fatal("invalid proof reached backend or replaced cache")
 			}
 			after := snapshot()
@@ -105,7 +105,8 @@ func TestCoreBIP340InboundBoundary(t *testing.T) {
 	if err = os.Mkdir(dir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	c, err := New(Config{ConstructionProfile: "W", Identity: "canonical-boundary", AgentName: e2eAgentName, LandlordName: e2eLandlordName, IssuerPubkey: l.issuerPub, StateDir: dir, Node: l.observer, Now: func() time.Time { return time.Unix(500, 0) }})
+	info, now := coreTip(t, l)
+	c, err := New(Config{ExecutorKey: xonly(9), Terms: unitTermsLookup, Freshness: testFreshness(60*time.Second, 120*time.Second, info.Blocks), ConstructionProfile: "W", Identity: "canonical-boundary", AgentName: e2eAgentName, LandlordName: e2eLandlordName, IssuerPubkey: l.issuerPub, StateDir: dir, Node: l.observer, Now: func() time.Time { return time.Unix(now, 0) }})
 	if err != nil {
 		t.Fatal(err)
 	}
