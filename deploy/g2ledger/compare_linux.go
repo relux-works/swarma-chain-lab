@@ -96,10 +96,10 @@ func (l *Ledger) compareBaseline(mode string) error {
 			return nil, "no-retention-authority"
 		}
 		effect, rule := retentionPolicy(a.action.Kind, a.action.Ret, mode)
-		if effect == "keep" && before == nil && identityEqual(*now, a.identity) {
+		if effect == "keep" && before == nil && liveIdentityEqual(*now, a.identity) {
 			return &a, rule
 		}
-		if a.action.Kind == "modify" && before != nil && identityEqual(*before, a.action.Before[0]) && restoredIdentity(*now, a.action) {
+		if a.action.Kind == "modify" && before != nil && liveIdentityEqual(*before, a.action.Before[0]) && restoredIdentity(*now, a.action) {
 			return &a, rule + "-replacement-inode-or-mtime"
 		}
 		return nil, "no-retention-authority"
@@ -158,7 +158,7 @@ func (l *Ledger) compareBaseline(mode string) error {
 				}
 			}
 			if oldEntries[n] == 0 && base.Kind == "tree" {
-				if owner, ok := auth[key]; ok && now.Identity != nil && identityEqual(*now.Identity, owner.identity) {
+				if owner, ok := auth[key]; ok && now.Identity != nil && liveIdentityEqual(*now.Identity, owner.identity) {
 					if effect, keepRule := retentionPolicy("tree", owner.action.Ret, mode); effect == "keep" {
 						a, rule = &owner, keepRule+"-tree-content"
 					}
@@ -209,4 +209,14 @@ func (l *Ledger) compareBaseline(mode string) error {
 }
 func restoredIdentity(id Identity, a Action) bool {
 	return id.FS != nil && id.FS.SHA256 == a.BackupSHA256 && id.FS.UID == a.UID && id.FS.GID == a.GID && id.FS.Mode == a.Mode && id.FS.Size == a.Before[0].FS.Size
+}
+
+// Role is ledger metadata, checked by validateResult before replay effects.
+// Live baseline observations contain only OS identity fields.
+func liveIdentityEqual(a, b Identity) bool {
+	if a.Account != nil && b.Account != nil {
+		a.Role = ""
+		b.Role = ""
+	}
+	return identityEqual(a, b)
 }

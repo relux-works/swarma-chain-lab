@@ -21,7 +21,7 @@ func profileFixtureFor(t *testing.T, home, gecos, purpose string) *fixture {
 	}
 	must(t, f.l.CreateAccount("group", "primary", ret, 0, 230302))
 	f.l.Close()
-	must(t, Run([]string{"create-user", "-dir", f.dir, "-name", "demo", "-uid", "230301", "-gid", "230302", "-home", home, "-gecos", gecos, "-shell", "/usr/sbin/nologin", "-ret", ret}, f.sys, &bytes.Buffer{}))
+	must(t, Run([]string{"create-user", "-role", "service", "-dir", f.dir, "-name", "demo", "-uid", "230301", "-gid", "230302", "-home", home, "-gecos", gecos, "-shell", "/usr/sbin/nologin", "-ret", ret}, f.sys, &bytes.Buffer{}))
 	var err error
 	f.l, err = Open(f.dir, f.sys)
 	must(t, err)
@@ -99,7 +99,7 @@ func TestLedgerUserProfileInvalidFlags(t *testing.T) {
 			f := setup(t)
 			before := len(f.l.rows)
 			calls := len(f.sys.calls)
-			args := []string{"create-user", "-dir", f.dir, "-name", "demo", "-uid", "230301", "-gid", "230302", "-home", "/", "-gecos", "", "-shell", "/usr/sbin/nologin", "-ret", "state", tc.flag, tc.value}
+			args := []string{"create-user", "-role", "service", "-dir", f.dir, "-name", "demo", "-uid", "230301", "-gid", "230302", "-home", "/", "-gecos", "", "-shell", "/usr/sbin/nologin", "-ret", "state", tc.flag, tc.value}
 			code(t, Run(args, f.sys, &bytes.Buffer{}), 2)
 			if len(f.l.rows) != before || len(f.sys.calls) != calls {
 				t.Fatal("invalid flags accessed ledger/system")

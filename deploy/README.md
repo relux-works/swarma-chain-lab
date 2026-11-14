@@ -54,7 +54,10 @@ a summary on stdout, with a human summary on stderr. The single retention table
 and comparison limits (including unconditional station account/key protection) are in [G2-LEDGER.md](G2-LEDGER.md#replay-and-retention).
 Artifacts are private `records.jsonl`, `HEAD` and `LOCK` inside the supplied directory;
 saved local validation output belongs in `.temp/`.
-`create-tree` is reserved for a dedicated attempt-created owner's process-written
+`create-user` requires `-role tree-owner|service` (choose one); the ledger
+commits the role and verifies it during replay. `create-tree` requires a
+committed `tree-owner` account that has no other recorded role. It is reserved
+for a dedicated attempt-created owner's process-written
 rehearsal datadir/output, with complete no-follow verification before recursive
 deletion. Station trees are kept. Binary installation uses per-file records.
 See [the tree contract](G2-LEDGER.md#process-written-rehearsal-trees).

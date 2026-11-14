@@ -22,7 +22,7 @@ deploy-kit g2-ledger create-file -dir D -path P -src S -owner U -group G -mode 0
 deploy-kit g2-ledger exec-create -dir D -kind secret -ret R -path P -- TOOL ARGS
 deploy-kit g2-ledger modify-file -dir D -path P -backup B -new N
 deploy-kit g2-ledger create-group -dir D -name NAME -gid GID -ret R
-deploy-kit g2-ledger create-user -dir D -name NAME -uid UID -gid GID -home H -gecos G -shell /usr/sbin/nologin -ret R
+deploy-kit g2-ledger create-user -role ROLE -dir D -name NAME -uid UID -gid GID -home H -gecos G -shell /usr/sbin/nologin -ret R
 deploy-kit g2-ledger add-member -dir D -user USER -group GROUP
 deploy-kit g2-ledger enable -dir D -unit NAME.service
 deploy-kit g2-ledger replay -dir D -mode station|rehearsal
@@ -374,12 +374,12 @@ For example, with these targets already declared in a rehearsal scope:
 
 ```sh
 deploy-kit g2-ledger create-group -dir "$LEDGER" -name rehearsal-data -gid 230302 -ret rehearsal
-deploy-kit g2-ledger create-user -dir "$LEDGER" -name rehearsal-runner -uid 230301 -gid 230302 -ret rehearsal
+deploy-kit g2-ledger create-user -role tree-owner -dir "$LEDGER" -name rehearsal-runner -uid 230301 -gid 230302 -ret rehearsal
 deploy-kit g2-ledger create-tree -dir "$LEDGER" -path "$REGTEST_DIR" -owner rehearsal-runner -mode 0700 -ret rehearsal
 deploy-kit g2-ledger create-tree -dir "$LEDGER" -path "$FIXTURE_OUT" -owner rehearsal-runner -mode 0700 -ret rehearsal
 ```
 
-The owner and its primary GID may never be 0, 1000, 210001, 210101, or the
+The owner and its primary GID may never be 0, 1000, 210001, 210101, 210201, 210301, or the
 syscall wildcard. Both creator validation and full journal loading enforce
 this. The owner has a nologin shell and must be dedicated to this attempt's
 trees. Recorded ordinary file/directory ownership and supplementary roles
@@ -459,8 +459,8 @@ or ledger renderer-equivalence parser.
 The exact draft 10 user arguments are:
 
 ```sh
-"$KIT" g2-ledger create-user -dir "$LEDGER" -name swarma-wallet -uid 210201 -gid 210201 -home /var/lib/swarma-wallet -gecos "Swarma G2 pay executor" -shell /usr/sbin/nologin -ret state
-"$KIT" g2-ledger create-user -dir "$LEDGER" -name g2-agent -uid 210001 -gid 210001 -home / -gecos "" -shell /usr/sbin/nologin -ret state
+"$KIT" g2-ledger create-user -role service -dir "$LEDGER" -name swarma-wallet -uid 210201 -gid 210201 -home /var/lib/swarma-wallet -gecos "Swarma G2 pay executor" -shell /usr/sbin/nologin -ret state
+"$KIT" g2-ledger create-user -role service -dir "$LEDGER" -name g2-agent -uid 210001 -gid 210001 -home / -gecos "" -shell /usr/sbin/nologin -ret state
 ```
 
 Create each same-name primary group first with `create-group` and its explicit
@@ -616,3 +616,29 @@ There is deliberately no further fsync after the guard unlink: HEAD is already
 durable at that point. A crash may resurrect the guard and conservatively
 require inspection; it cannot grant authority to an incomplete seal. These
 restart and injected-fsync tests do not certify storage hardware or power loss.
+
+### Required ledger user role
+
+Every `create-user` call requires exactly `-role tree-owner` or `-role service`
+(the interface spelling is `-role tree-owner|service`; select one value). Missing
+or unknown roles are usage refusals before ledger access. The role is a ledger
+relation, recorded in both the creating intent and committed user identity,
+and compared while replay validates the entire chain before effects. It is
+not inferred from the UID, account name, shell, files or memberships. Existing
+receipts without this required role are refused; no receipt is migrated.
+
+Only a committed `tree-owner` user in this ledger can own a tree. From that
+user's creation onward, even before its first tree, it cannot receive a
+membership or own a separately recorded directory, file, modified file, or
+exec-create output. A `service` user can never own a tree, even if it has no
+files or memberships and has an otherwise allowed UID. Existing behavioral
+dedication, ownership and replay checks remain in force; the forbidden UID/GID
+list is additional defense. Draft-10 swarma-wallet and g2-agent are `service`.
+
+Volatile-target classification walks symlink components with `readlinkat`
+before applying subsequent `..`, restarting at `/` for absolute link targets.
+More than 40 expansions refuses with ELOOP. A not-yet-created suffix can be
+walked lexically because its absent components contain no symlinks; inspection
+resumes if `..` returns to an existing ancestor. The same resolver classifies
+baseline exclusions. Protected parents and serialized privileged writers are
+still required.

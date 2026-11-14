@@ -3,6 +3,9 @@ package g2ledger
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
 	"slices"
@@ -133,5 +136,51 @@ func TestLedgerVolatileBaselineExclusion(t *testing.T) {
 	}
 	if !excludedPath("/run", f.dir, "") || !excludedPath("/var/run", f.dir, "") {
 		t.Fatal("runtime root not excluded")
+	}
+}
+
+// Claim: link expansion precedes dot-dot, for relative/absolute and nested
+// targets; dangling /run suffixes refuse and persistent /var/lib neighbours
+// pass. A loop returns ELOOP and exactly 40 expansions are allowed.
+func TestLedgerVolatileComponentWalk(t *testing.T) {
+	root := t.TempDir()
+	links := map[string]string{
+		"bridge": "/run/lock", "absolute": root + "/bridge/..", "relative": "bridge/..",
+		"nested": "relative", "missing-run": "/run/g2-ledger-missing-r2/..",
+		"persistent": "/var/lib", "persistent-dotdot": "/var/lib/../lib",
+		"escape-run": "bridge/../../var/lib", "loop": "loop",
+		"missing-back": "missing/../relative", "root-parent": "/../../var/lib",
+	}
+	for name, target := range links {
+		must(t, os.Symlink(target, filepath.Join(root, name)))
+	}
+	for _, name := range []string{"absolute", "relative", "nested", "missing-run", "missing-back"} {
+		t.Run(name, func(t *testing.T) {
+			err := targetPathPolicy(filepath.Join(root, name))
+			if !errors.Is(err, errVolatileRuntime) {
+				t.Fatalf("missing runtime refusal: %v", err)
+			}
+		})
+	}
+	for _, name := range []string{"persistent", "persistent-dotdot", "escape-run", "root-parent"} {
+		t.Run(name, func(t *testing.T) { must(t, targetPathPolicy(filepath.Join(root, name))) })
+	}
+	t.Run("loop", func(t *testing.T) {
+		err := targetPathPolicy(filepath.Join(root, "loop"))
+		if !errors.Is(err, unix.ELOOP) {
+			t.Fatalf("want ELOOP: %v", err)
+		}
+	})
+	for i := 40; i >= 1; i-- {
+		target := "/var/lib"
+		if i < 40 {
+			target = fmt.Sprintf("hop%d", i+1)
+		}
+		must(t, os.Symlink(target, filepath.Join(root, fmt.Sprintf("hop%d", i))))
+	}
+	must(t, targetPathPolicy(filepath.Join(root, "hop1")))
+	must(t, os.Symlink("hop1", filepath.Join(root, "hop0")))
+	if err := targetPathPolicy(filepath.Join(root, "hop0")); !errors.Is(err, unix.ELOOP) {
+		t.Fatalf("41 hops accepted: %v", err)
 	}
 }

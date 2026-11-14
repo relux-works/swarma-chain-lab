@@ -58,7 +58,7 @@ func treeFixture(t *testing.T, purpose string) (*fixture, string) {
 	t.Helper()
 	f := setupWith(t, purpose, func(f *fixture) { f.declare("tree", "tree"); f.declare("tree2", "tree") })
 	must(t, f.l.CreateAccount("group", "primary", "state", 0, uint32(os.Getegid())))
-	must(t, f.l.CreateAccount("user", "demo", "state", uint32(os.Geteuid()), uint32(os.Getegid())))
+	must(t, f.l.CreateAccount("user", "demo", "state", uint32(os.Geteuid()), uint32(os.Getegid()), "tree-owner"))
 	// Real filesystem UID is the test runner's; the synthetic account has no
 	// processes in the test process namespace. Every scan still reads real /proc.
 	f.l.procUID = func(uint32) uint32 { return 4000000000 }
@@ -151,7 +151,7 @@ func TestLedgerTreePreexistingOwnerRefused(t *testing.T) {
 
 // Claim: forbidden UID and primary GID values refuse both creation and a correctly rehashed replay before any tree deletion; ordinary owners pass.
 func TestLedgerTreeForbiddenOwnersCreateAndReplay(t *testing.T) {
-	for _, id := range []uint32{0, 1000, 210001, 210101} {
+	for _, id := range []uint32{0, 1000, 210001, 210101, 210201, 210301} {
 		for _, field := range []string{"uid", "gid"} {
 			t.Run(fmt.Sprintf("%s-%d", field, id), func(t *testing.T) {
 				f, p := treeFixture(t, "rehearsal")
@@ -632,6 +632,11 @@ func TestLedgerTreeOwnerRoleBeforeTreeRefused(t *testing.T) {
 	for _, role := range []string{"file", "dir", "membership"} {
 		t.Run(role, func(t *testing.T) {
 			f, p := treeFixture(t, "rehearsal")
+			rows := append([]Record(nil), f.l.rows...)
+			rows[3].Body.Action.Role = "service"
+			rows[4].Body.Result.Identities[0].Role = "service"
+			writeRows(t, f, rows, true)
+			f.reopen(t)
 			if role == "membership" {
 				must(t, f.l.CreateAccount("group", "access", "state", 0, 32003))
 				must(t, f.l.AddMember("demo", "access"))
@@ -644,6 +649,10 @@ func TestLedgerTreeOwnerRoleBeforeTreeRefused(t *testing.T) {
 				}
 				must(t, f.l.CreateFS(filepath.Join(f.root, name), f.src, role, "state", uint32(os.Geteuid()), uint32(os.Getegid()), mode))
 			}
+			// Corrupt only in-memory role metadata after the service's valid uses to
+			// isolate the older behavioral guard from the stronger role/replay gate.
+			f.l.rows[3].Body.Action.Role = "tree-owner"
+			f.l.rows[4].Body.Result.Identities[0].Role = "tree-owner"
 			n := len(f.l.rows)
 			e := f.l.CreateTree(p, "demo", "rehearsal", 0700, nil)
 			code(t, e, 1)

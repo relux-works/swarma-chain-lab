@@ -119,21 +119,37 @@ func (l *Ledger) createFS(a Action, src string) error {
 	return l.commit(seq, a, []Identity{id})
 }
 
-func (l *Ledger) CreateAccount(kind, name, ret string, uid, gid uint32) error {
+func (l *Ledger) CreateAccount(kind, name, ret string, uid, gid uint32, roles ...string) error {
 	a := Action{Kind: kind, Name: name, Ret: ret, UID: uid, GID: gid}
 	if kind != "user" && kind != "group" {
 		return fail(2, "ACCOUNT_KIND")
+	}
+	if kind == "user" {
+		a.Role = "service"
+		if len(roles) == 1 {
+			a.Role = roles[0]
+		}
+	}
+	if len(roles) > 1 || kind == "group" && len(roles) > 0 {
+		return fail(2, "ACCOUNT_ROLE")
 	}
 	return l.createAccount(a)
 }
 
 // CreateUserProfile binds sysusers' home and description to the creating call.
 // It creates no home directory and always uses the non-login shell.
-func (l *Ledger) CreateUserProfile(name, ret string, uid, gid uint32, home, description string) error {
+func (l *Ledger) CreateUserProfile(name, ret string, uid, gid uint32, home, description string, roles ...string) error {
 	if home == "" {
 		return fail(2, "USER_HOME_REQUIRED")
 	}
-	return l.createAccount(Action{Kind: "user", Name: name, Ret: ret, UID: uid, GID: gid, Home: home, Description: description})
+	role := "service"
+	if len(roles) == 1 {
+		role = roles[0]
+	}
+	if len(roles) > 1 || !validUserRole(role) {
+		return fail(2, "USER_ROLE_REQUIRED")
+	}
+	return l.createAccount(Action{Role: role, Kind: "user", Name: name, Ret: ret, UID: uid, GID: gid, Home: home, Description: description})
 }
 func (l *Ledger) createAccount(a Action) error {
 	kind, name, uid, gid := a.Kind, a.Name, a.UID, a.GID
@@ -179,7 +195,7 @@ func (l *Ledger) createAccount(a Action) error {
 		l.poisoned = true
 		return orphan(a)
 	}
-	return l.commit(seq, a, []Identity{{Account: got}})
+	return l.commit(seq, a, []Identity{{Account: got, Role: a.Role}})
 }
 func (l *Ledger) AddMember(user, group string) error {
 	if !namePattern.MatchString(user) || !namePattern.MatchString(group) {

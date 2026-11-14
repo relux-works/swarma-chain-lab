@@ -76,6 +76,7 @@ type Unit struct {
 	Links []UnitLink `json:"links,omitempty"`
 }
 type Identity struct {
+	Role       string      `json:"role,omitempty"` // Ledger relation, never inferred from passwd.
 	Path       string      `json:"path,omitempty"`
 	FS         *FSIdentity `json:"fs,omitempty"`
 	Account    *Account    `json:"account,omitempty"`
@@ -123,6 +124,7 @@ type Genesis struct {
 
 // Action kinds are independent of record phases; unknown kinds fail closed.
 type Action struct {
+	Role         string     `json:"role,omitempty"`
 	Kind         string     `json:"kind"`
 	Ret          string     `json:"ret"`
 	Paths        []string   `json:"paths,omitempty"`
@@ -215,7 +217,12 @@ func validAccount(a *Account, kind string) bool {
 	}
 	return (a.Shell == "/usr/sbin/nologin" || a.Shell == "/sbin/nologin") && (a.Home == "" || a.Home == "/" || validPath(a.Home)) && !strings.ContainsAny(a.Description, ":\x00\r\n")
 }
+func validUserRole(role string) bool { return role == "tree-owner" || role == "service" }
+
 func validateIdentity(i Identity, kind string) error {
+	if i.Role != "" && (kind != "user" || !validUserRole(i.Role)) {
+		return errors.New("IDENTITY_ROLE")
+	}
 	n := 0
 	if i.FS != nil {
 		n++
@@ -348,6 +355,10 @@ func validateAction(a *Action) error {
 		clean.Name = ""
 		clean.GID = 0
 		if a.Kind == "user" {
+			if !validUserRole(a.Role) {
+				return errors.New("ACTION_USER_ROLE")
+			}
+			clean.Role = ""
 			if a.Home != "" && a.Home != "/" && !validPath(a.Home) || strings.ContainsAny(a.Description, ":\x00\r\n") {
 				return errors.New("ACTION_USER_PROFILE")
 			}
@@ -413,6 +424,9 @@ func validateResult(a Action, ids []Identity) error {
 				return errors.New("RESULT_METADATA")
 			}
 		case "user", "group":
+			if i.Role != a.Role {
+				return errors.New("RESULT_USER_ROLE")
+			}
 			if a.Kind == "user" && a.Home != "" && i.Account.Shell != "/usr/sbin/nologin" {
 				return errors.New("RESULT_USER_SHELL")
 			}
