@@ -29,6 +29,61 @@ uses this binding-aware entry point. Every refused reader returns no object;
 `ParseSignature` returns no signature on a length/range refusal. Returned byte
 slices are copies. An id, digest or signature does not establish replay safety.
 
+## Return ownership and snapshot regression
+
+The ownership audit found no exposed internal-memory alias. The second slice
+strengthens executable evidence without changing protocol behavior or adding
+an API. Opaque returned objects have private fields and newly owned trees;
+callers can replace their own object, but cannot mutate another read's tree.
+
+| Returning API | Ownership | Regression coverage |
+| --- | --- | --- |
+| `ParseDocument` | Fresh parsed tree; input bytes copied into immutable strings | `TestV4ParsedObjectIsolation`, `TestV4InputOwnership` |
+| `Document.Bytes` | Fresh encoding | `TestV4ReturnedBytesIsolation` |
+| `EncodeDocument` | Fresh encoding; nested input maps/slices are not retained | `TestV4ReturnedBytesIsolation`, `TestV4InputOwnership` |
+| `ReadSigned`, `ReadAssent` | Fresh opaque object; wrapper and payload privately share one read's tree | `TestV4ParsedObjectIsolation`, `TestV4InputOwnership` |
+| `SignedObject.Bytes`, `SignedObject.Payload` | Fresh encoding | `TestV4ReturnedBytesIsolation` |
+| `SignedObject.ID`, `ContentAddress`, `Signature` | Immutable string values | `TestV4ScalarReturnIsolation` |
+| `SignedObject.Digest` | Array by value | `TestV4ReturnedHashIsolation` |
+| `EncodeAssentPayload`, `EncodeSignedAssent` | Fresh encoding | `TestV4ReturnedBytesIsolation` |
+| `ReadConsent` | Fresh opaque tree; context/evidence not retained | `TestV4ParsedObjectIsolation`, `TestV4InputOwnership` |
+| `Consent.Bytes`, `EncodeConsentEvent` | Fresh encoding, including nested tags | `TestV4ReturnedBytesIsolation` |
+| `Consent.ID`, `Signature`, `PublicKey`, `CreatedAt` | Immutable strings and integer by value | `TestV4ScalarReturnIsolation` |
+| `ReadUnsigned`, `BuildPreparation`, `CheckIssuanceAnchor` | Fresh opaque preparation; outpoint/frame not retained | `TestV4ParsedObjectIsolation`, `TestV4InputOwnership` |
+| `Preparation.Bytes`, `EncodeIssuanceFrame` | Fresh encoding | `TestV4ReturnedBytesIsolation` |
+| `Preparation.Commitment`, `TaggedHash`, `TypedDigest` | Array by value | `TestV4ReturnedHashIsolation` |
+| `Read` | Delegates to a fresh reader in each supported class | `TestV4ParsedObjectIsolation` |
+| `ParseSignature` | New object holding a copied fixed array | `TestV4ParsedObjectIsolation`, `TestV4InputOwnership` |
+| `Signature.Bytes` | Explicit byte copy | `TestV4ReturnedBytesIsolation` |
+| `PayloadID`, `ParseInteger`, `Code.Error` | Immutable string/integer values | `TestV4ScalarReturnIsolation` |
+| `CheckIssuerConditions` | Error only; snapshot is caller input, not a returned value | Fixed live-input assertion in the vector suite; `TestV4ConsentSnapshotPostReturn`, `TestV4SnapshotValueCopyIsolation` |
+
+Private construction helpers (`parseDocument`, parser `read`, `fromGo`,
+`numberValue`, `parseConsent`, `decodeSignature`) allocate owned trees/arrays;
+parser string/number conversions copy input bytes. `value.get` aliases a private
+child within the owning tree; the assent payload has the same private alias.
+Neither alias escapes through an exported mutable field. `serialize`,
+`eventBytes` and `eventPreimage` allocate output; `appendString` and `appendValue`
+may reuse only the explicitly supplied output buffer. Other helpers return
+scalar values or errors; there are no returned maps or retained parser buffers.
+
+Every returned byte and hash-array element is mutated beside an unchanged valid
+control. Tests compare subsequent output, retained canonical bytes, stable
+payload/event ids, wrapper content addresses and typed digests. Opaque pointer
+replacement uses another valid object with different encoding and identity.
+Nested encoder maps/slices and copied snapshot fields are exercised separately.
+A changed byte's content hash must differ even when those bytes are no longer a
+valid wire object. A signature-only wrapper change preserves the payload id
+and changes the content address, as required by `TestV4StableObjectID`.
+Signature bytes, frame bytes and snapshots have no standalone protocol object
+id: their mutation controls use content fingerprints, without inventing one.
+
+The issuer regression captures the actual decoded context, snapshot, consumed
+ids and event bytes before and after the call. The former raw-fixture comparison
+could not see a write through `snapshot.Name.Height`. Success and refusal cases,
+a second call, and a copied `Name.Height++` are covered after deferred work has
+run; original event encodings and ids remain unchanged.
+
 ## Source pin and vector scope
 
 `testdata/wire-vectors.json` is an unmodified copy of the public specification
@@ -69,7 +124,8 @@ Use `GOPROXY=off` for the validation commands after downloading. Python 3
 standard-library tooling reuses the repository's existing orchestration language;
 all protocol implementation and tests are Go. The mutant runner leaves complete
 JSON test streams, input hashes, commands, exits and verdicts in its scratch
-directory, and removes only its own freshly created writable module copies.
+directory, and retains source replacements plus Go overlay mappings in its scratch directory.
+It never changes the candidate source files.
 The dedicated workflow runs race tests, vet, build and these control plants;
 its test and mutation evidence is uploaded as an artifact. The public-hygiene
 check covers tracked identifiers, not arbitrary secrets or commit history.
@@ -80,10 +136,14 @@ check covers tracked identifiers, not arbitrary secrets or commit history.
 | Route a parsed integer through binary64 | Exact string-form integer at 9007199254740993 | `TestV4CanonicalVectors/int-v-05` |
 | Remove the explicit s < n preflight | No out-of-range scalar admitted by the signature parser | `TestV4StrictBIP340/s=n` |
 | Permit unlisted object members | Closed assent member set even with an otherwise valid signature | `TestV4CanonicalVectors/assent-i-01` |
+| Relax canonical member order | Noncanonical object order cannot be admitted | `TestV4CanonicalVectors/canon-i-01` |
+| Increase vout bound by one | Reject 4294967296 beside the valid bound | `TestV4CanonicalVectors/issuance-s-03` |
+| Defer `snapshot.Name.Height++` at successful return | Observe the actual caller snapshot after deferred mutation | `TestV4ConsentSnapshotPostReturn/issuer-c-07` |
+| Return the signature's internal byte slice | Returned bytes cannot alter retained signature state | `TestV4ReturnedBytesIsolation/Signature.Bytes` |
 
 Each plant must produce exit 1, the exact named failing subtest and its intended
 diagnostic. A compile/setup error or missing witness fails the runner. There
-are no accepted survivors. These four controls establish these bounds, not
+are no accepted survivors. These eight controls establish these bounds, not
 exhaustive mutation coverage of the module.
 
 ## Remaining scope and deliberate exclusions

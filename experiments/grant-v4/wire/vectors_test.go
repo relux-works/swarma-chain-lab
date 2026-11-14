@@ -244,11 +244,16 @@ func (s vectorSet) run(t *testing.T, v vector) {
 		}
 	case strings.HasPrefix(id, "issuer-"):
 		ctx, snapshot, consumed := s.issuerContext(t, v)
-		before, _ := json.Marshal(v)
-		err := CheckIssuerConditions(v.octets(t, "event_hex"), ctx, snapshot, consumed)
+		b := v.octets(t, "event_hex")
+		// Capture decoded call arguments: the raw fixture cannot reveal mutations through pointers.
+		inputs := []any{ctx, snapshot, consumed, b}
+		before, err := json.Marshal(inputs)
+		wantCode(t, err, "")
+		err = CheckIssuerConditions(b, ctx, snapshot, consumed)
 		wantCode(t, err, want)
-		after, _ := json.Marshal(v)
-		equalBytes(t, after, before) // The wire check has no consumption or closure side effects.
+		after, err := json.Marshal(inputs)
+		wantCode(t, err, "")
+		equalBytes(t, after, before) // Success and refusal preserve live inputs, including nested snapshot fields.
 	case strings.HasPrefix(id, "issuance-s-"), strings.HasPrefix(id, "issuance-c-"):
 		b := v.octets(t, "preparation_hex")
 		p, err := ReadUnsigned(b, Issuance)

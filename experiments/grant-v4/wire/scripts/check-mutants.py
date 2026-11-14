@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Run four wire-layer control plants in isolated module copies.
+"""Run eight wire-layer control plants through isolated Go overlays.
 
 Requires a green candidate first. A plant is killed only by its named failing
 subtest and diagnostic; compiler/setup failures and surviving plants fail this
-runner. Copies are removed; complete JSON streams and an evidence index remain.
+runner. Overlays never edit source; complete JSON streams and an evidence index remain.
 """
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 
 
@@ -24,6 +23,17 @@ PLANTS = (
      "TestV4StrictBIP340", "TestV4StrictBIP340/s=n", 'refusal = "", want "WIRE_SIGNATURE"'),
     ("unknown-member", "objects.go", "if !allowed[m.name] {", "if false && !allowed[m.name] {", 1,
      "TestV4CanonicalVectors", "TestV4CanonicalVectors/assent-i-01", 'refusal = "", want "WIRE_MEMBER"'),
+    ("key-order-relaxed", "canonical.go", "if !bytes.Equal(b, serialize(v)) {", "if false && !bytes.Equal(b, serialize(v)) {", 1,
+     "TestV4CanonicalVectors", "TestV4CanonicalVectors/canon-i-01", 'refusal = "", want "WIRE_NOT_CANONICAL"'),
+    ("vout-bound-plus-one", "objects.go", "ParseInteger(x.text, 4294967295)", "ParseInteger(x.text, 4294967296)", 1,
+     "TestV4CanonicalVectors", "TestV4CanonicalVectors/issuance-s-03", 'refusal = "", want "WIRE_INTEGER"'),
+    ("snapshot-post-return", "consent.go", "\treturn nil\n}\n",
+     "\tdefer func() { if snapshot != nil { snapshot.Name.Height++ } }()\n\treturn nil\n}\n", 1,
+     "TestV4ConsentSnapshotPostReturn", "TestV4ConsentSnapshotPostReturn/issuer-c-07",
+     "issuer check mutated live snapshot or context after return"),
+    ("signature-byte-alias", "crypto.go", "return bytes.Clone(s.raw[:])", "return s.raw[:]", 1,
+     "TestV4ReturnedBytesIsolation", "TestV4ReturnedBytesIsolation/Signature.Bytes",
+     "returned bytes alias retained state"),
 )
 
 
@@ -57,36 +67,30 @@ def main():
     failed = False
     for name, file, old, new, count, test, witness, diagnostic in PLANTS:
         target = scratch / name
-        shutil.copytree(module, target, ignore=shutil.ignore_patterns("__pycache__"))
-        try:
-            path = target / file
-            text = path.read_text()
-            if text.count(old) != count:
-                raise ValueError(f"{name}: expected exactly {count} plant sites")
-            path.write_text(text.replace(old, new))
-            command = [args.go, "test", "-json", "-count=1", "-run", "^" + test + "$", "./..."]
-            log = scratch / (name + ".json")
-            code = run(command, target, log)
-            events = []
-            for line in log.read_text().splitlines():
-                try:
-                    events.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass  # Non-JSON setup diagnostics cannot supply a kill.
-            killed = code == 1 and any(e.get("Action") == "fail" and e.get("Test") == witness for e in events)
-            killed = killed and any(e.get("Test") == witness and diagnostic in e.get("Output", "") for e in events)
-            evidence["plants"].append({"name": name, "file": file, "before": old, "after": new,
-                                       "command": command, "exit": code, "witness": witness,
-                                       "diagnostic": diagnostic, "killed": killed})
-            print(f"{name}: {'killed by ' + witness if killed else 'SURVIVED or unrelated failure'} (exit {code})")
-            failed |= not killed
-        finally:
-            # Remove only this invocation's freshly created copy, after making
-            # its own files writable. Evidence streams are outside the copy.
-            for entry in target.rglob("*"):
-                entry.chmod(entry.stat().st_mode | 0o200)
-            target.chmod(target.stat().st_mode | 0o200)
-            shutil.rmtree(target)
+        target.mkdir()  # Refuse reuse of a previous invocation's plant directory.
+        text = (module / file).read_text()
+        if text.count(old) != count:
+            raise ValueError(f"{name}: expected exactly {count} plant sites")
+        replacement = target / file
+        replacement.write_text(text.replace(old, new))
+        overlay = target / "overlay.json"
+        overlay.write_text(json.dumps({"Replace": {str(module / file): str(replacement)}}) + "\n")
+        command = [args.go, "test", "-overlay", str(overlay), "-json", "-count=1", "-run", "^" + test + "$", "./..."]
+        log = scratch / (name + ".json")
+        code = run(command, module, log)
+        events = []
+        for line in log.read_text().splitlines():
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass  # Non-JSON setup diagnostics cannot supply a kill.
+        killed = code == 1 and any(e.get("Action") == "fail" and e.get("Test") == witness for e in events)
+        killed = killed and any(e.get("Test") == witness and diagnostic in e.get("Output", "") for e in events)
+        evidence["plants"].append({"name": name, "file": file, "before": old, "after": new,
+                                   "command": command, "exit": code, "witness": witness,
+                                   "diagnostic": diagnostic, "killed": killed})
+        print(f"{name}: {'killed by ' + witness if killed else 'SURVIVED or unrelated failure'} (exit {code})")
+        failed |= not killed
     (scratch / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
     return int(failed)
 
