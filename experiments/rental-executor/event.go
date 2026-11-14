@@ -12,6 +12,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/bip340"
 )
 
 const RequestKind = 8183
@@ -123,7 +124,7 @@ func ParseRequest(b []byte) (Request, error) {
 	pk, _ := hex.DecodeString(e.Pubkey)
 	p, err := schnorr.ParsePubKey(pk)
 	sb, _ := hex.DecodeString(e.Sig)
-	sig, se := schnorr.ParseSignature(sb)
+	sig, se := bip340.ParseBIP340Strict(sb)
 	id, _ := hex.DecodeString(e.ID)
 	if err != nil || se != nil || !sig.Verify(id, p) {
 		return r, fail("EVENT_SIGNATURE")

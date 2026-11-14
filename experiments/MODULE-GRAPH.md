@@ -98,3 +98,12 @@ executed. Existing repository checks remain required. Future cross-module API
 changes must refresh the affected published requirements, raise the floors in
 `module-graph-snapshot.json`, and extend consumer fixtures where their public
 contracts change.
+
+## Shared BIP-340 parser placement
+
+`single-use/bip340` holds the strict signature encoding parser. Every current
+BIP-340 verification module already depends on `single-use`, so this placement
+adds no internal require edge and no new dependency cycle. The subpackage
+depends only on the existing `btcec/v2 v2.3.5` library; it imports no parent
+`single-use` package or higher-level grant, gateway or wallet package. The
+module graph inventory remains unchanged.

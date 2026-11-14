@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/bip340"
 )
 
 // PresentationID checks v3 transport framing and returns the hash of the
@@ -47,6 +48,10 @@ func PresentationID(raw []byte) (string, error) {
 		if err != nil || len(b) != size || hex.EncodeToString(b) != value {
 			return "", malformed
 		}
+	}
+	signature, _ := hex.DecodeString(p.SignedGrant.Signature)
+	if _, err := bip340.ParseBIP340Strict(signature); err != nil {
+		return "", malformed
 	}
 	signed, err := json.Marshal(p.SignedGrant)
 	if err != nil {

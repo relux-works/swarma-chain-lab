@@ -14,6 +14,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/bip340"
 )
 
 const MaxMoney int64 = 21000000 * 100000000
@@ -129,7 +130,7 @@ func ParseRequest(raw []byte) (SignedRequest, error) {
 	pb, _ := hex.DecodeString(e.Pubkey)
 	pk, pe := schnorr.ParsePubKey(pb)
 	sb, _ := hex.DecodeString(e.Sig)
-	sig, se := schnorr.ParseSignature(sb)
+	sig, se := bip340.ParseBIP340Strict(sb)
 	id, _ := hex.DecodeString(e.ID)
 	if pe != nil || se != nil || !sig.Verify(id, pk) {
 		return s, fail("REQUEST_SIGNATURE")
