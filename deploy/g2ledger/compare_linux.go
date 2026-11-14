@@ -21,11 +21,12 @@ type CompareRow struct {
 	Rule       string  `json:"rule"`
 }
 type CompareSummary struct {
-	Type     string `json:"type"`
-	Mode     string `json:"mode"`
-	Compared int    `json:"compared"`
-	Retained int    `json:"retained"`
-	Unlisted int    `json:"unlisted"`
+	ExcludedVolatile []string `json:"excluded_volatile"`
+	Type             string   `json:"type"`
+	Mode             string   `json:"mode"`
+	Compared         int      `json:"compared"`
+	Retained         int      `json:"retained"`
+	Unlisted         int      `json:"unlisted"`
 }
 
 type authority struct {
@@ -195,10 +196,10 @@ func (l *Ledger) compareBaseline(mode string) error {
 			}
 		}
 	}
-	if e := enc.Encode(CompareSummary{Type: "baseline_summary", Mode: mode, Compared: compared, Retained: retained, Unlisted: unlisted}); e != nil {
+	if e := enc.Encode(CompareSummary{Type: "baseline_summary", Mode: mode, Compared: compared, Retained: retained, Unlisted: unlisted, ExcludedVolatile: []string{"/run"}}); e != nil {
 		return stopped("COMPARE_OUTPUT", e)
 	}
-	if _, e := fmt.Fprintf(summary, "g2-ledger: FINAL_BASELINE_COMPARE mode=%s retained=%d unlisted=%d\n", mode, retained, unlisted); e != nil {
+	if _, e := fmt.Fprintf(summary, "g2-ledger: FINAL_BASELINE_COMPARE mode=%s retained=%d unlisted=%d excluded_volatile=/run\n", mode, retained, unlisted); e != nil {
 		return stopped("COMPARE_SUMMARY", e)
 	}
 	if unlisted > 0 {

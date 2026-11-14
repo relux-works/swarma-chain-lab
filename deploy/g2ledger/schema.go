@@ -302,6 +302,9 @@ func validateAction(a *Action) error {
 			if !validPath(p) || seen[p] {
 				return errors.New("ACTION_PATH")
 			}
+			if e := targetPathPolicy(p); e != nil {
+				return e
+			}
 			seen[p] = true
 		}
 		clean.Paths = nil

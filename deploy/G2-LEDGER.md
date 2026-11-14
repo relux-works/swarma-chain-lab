@@ -108,6 +108,25 @@ incomplete attempt, refuses. `LOCK`, `records.jsonl`, `HEAD` and the temporary `
 0600 owner files. Never recreate or edit these to make a failed attempt pass.
 The journal and baseline cannot themselves be mutation targets.
 
+### Volatile runtime objects belong to tmpfiles
+
+`/run`, every `/run/...` target, `/var/run` and its descendants, and any path
+resolving under `/run` are forbidden in `init -scope` and every filesystem
+`create-*` call (including `create-tree` and `exec-create`). The named refusal
+is `VOLATILE_RUNTIME_OBJECT_TMPFILES`: this is a volatile runtime object owned
+by tmpfiles. Existing symlink aliases and dangling links into `/run` also
+refuse before intent or creation. Protected parents and serialized privileged
+writers remain required to prevent namespace races.
+
+Record the persistent tmpfiles configuration **file** with `create-file`, then
+let tmpfiles own creation/lifetime of the runtime directories and sockets.
+Persistent `/var/lib/...` targets remain eligible. Account `-home` is passwd
+metadata only and creates no directory. No runtime socket/directory is adopted
+into the ledger. Baseline parent inventories exclude runtime paths and aliases;
+the baseline comparison summary explicitly lists `"excluded_volatile":["/run"]`
+and stderr includes `excluded_volatile=/run`. This exclusion is not a claim to
+compare volatile contents or whole-host equivalence.
+
 ### Exclusive external creators
 
 A process exiting zero does not establish that it created a particular file.
@@ -317,7 +336,7 @@ Synthetic output examples (sequence is the **commit** record's sequence):
 ```jsonl
 {"type":"retained","object":"path:/var/lib/swarma-rehearsal/key","difference":"identity","mode":"rehearsal","seq":2,"retention":"d6","rule":"retain-d6"}
 {"type":"unlisted_difference","object":"group:swarma_rehearsal/member:foreign","difference":"group-member","mode":"station","rule":"unrecorded-group-membership"}
-{"type":"baseline_summary","mode":"station","compared":5,"retained":2,"unlisted":1}
+{"excluded_volatile":["/run"],"type":"baseline_summary","mode":"station","compared":5,"retained":2,"unlisted":1}
 ```
 
 `object` is `path:<absolute-path>`, `user:<name>`, `group:<name>` or
@@ -486,7 +505,7 @@ journal records or diagnostics.
 | S4.3 | `modify-file -path ... -backup ... -new ...` |
 | S5 | `exec-create ... -- "$KIT" g2-rpcauth ... -wallet-config-out ...` |
 | S7 | `create-file` for tmpfiles config, service config, manifest, signature, install drop-in, binary, unit and status drop-in; `create-dir` for drop-in and executable directories |
-| Accounts and private runtime directories | `create-group`, `create-user`, `add-member`, `create-dir`; no post-hoc registration of sysusers/tmpfiles outputs |
+| Accounts and persistent directories | `create-group`, `create-user`, `add-member`, `create-dir`; no post-hoc registration of sysusers/tmpfiles outputs |
 | S8 | `enable -unit ...` |
 | S9 | `create-user` with explicit IDs; `create-dir` / `create-file` for helper and staging paths; external installer publication still requires a creator-receipt integration |
 | Rollback | `replay -mode ...`; stop the shell on the first nonzero result |

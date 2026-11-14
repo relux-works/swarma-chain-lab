@@ -29,6 +29,9 @@ func validateScope(s Scope) error {
 		if !validPath(p.Path) || p.Kind != "dir" && p.Kind != "tree" && p.Kind != "file" && p.Kind != "secret" {
 			return errors.New("SCOPE_PATH " + p.Path)
 		}
+		if e := targetPathPolicy(p.Path); e != nil {
+			return e
+		}
 		if e := add(objectKey(p.Kind, p.Path)); e != nil {
 			return e
 		}
@@ -90,7 +93,13 @@ func scopeObjects(s Scope) ([]BaselineObject, error) {
 	}
 	return out, nil
 }
-func excludedPath(path, ledger, baseline string) bool { return path == ledger || path == baseline }
+func excludedPath(path, ledger, baseline string) bool {
+	if path == ledger || path == baseline {
+		return true
+	}
+	err := targetPathPolicy(path)
+	return errors.Is(err, errVolatileRuntime)
+}
 func snapshotObject(o BaselineObject, sys System, ledger, baseline string) (BaselineObject, error) {
 	o.Identity = nil
 	o.Children = nil
