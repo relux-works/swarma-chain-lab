@@ -580,13 +580,20 @@ logical operation** only when all of these conditions hold before `userdel`:
   account lookup boundary proves no other entry uses that gid as primary.
   Lookup/enumeration errors, unsupported enumeration, malformed or duplicate
   entries, or a missing/changed expected user stop; they never prove emptiness.
+- Full group enumeration after those recorded membership reversals proves the
+  user has no supplementary membership outside its same-name group, including
+  groups outside the declared scope. Any remaining foreign membership stops
+  with `PAIRED_USER_GROUPS <user>: USER_OTHER_SUPPLEMENTARY_GROUP <group>`
+  before `userdel`. Enumeration errors and malformed or duplicate records stop;
+  foreign memberships are never recorded, adopted or restored.
 - Both retention decisions permit removal in rehearsal. Station never removes
   either account; a retained group cannot be paired with a removable user.
 
 Rehearsal preflight checks pair authority, identities, policy and primary users
 before any reversal, and rejects foreign supplementary members. Replay repeats
 these checks at the user step after reversing recorded memberships, and
-rechecks the group after passwd enumeration immediately before the effect.
+rechecks the group after passwd and supplementary-group enumeration immediately
+before the effect.
 A missing recorded same-name group while its user remains stops with
 `PAIRED_GROUP_MISSING`. An unrecorded/pre-existing same-name group still refuses
 with `USER_SAME_NAME_GROUP`, under either policy value, without deleting either

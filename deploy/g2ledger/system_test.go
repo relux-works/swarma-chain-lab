@@ -53,15 +53,23 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 	}
 	switch cmd {
 	case "/usr/bin/getent":
-		if len(args) == 1 && args[0] == "passwd" {
+		if len(args) == 1 && (args[0] == "passwd" || args[0] == "group") {
 			names := make([]string, 0, len(s.users))
-			for name := range s.users {
+			table := s.users
+			if args[0] == "group" {
+				table = s.groups
+			}
+			for name := range table {
 				names = append(names, name)
 			}
 			sort.Strings(names)
 			var out strings.Builder
 			for _, name := range names {
-				out.WriteString(fakePasswd(s.users[name]))
+				if args[0] == "group" {
+					out.WriteString(fakeGroup(s, table[name]))
+				} else {
+					out.WriteString(fakePasswd(table[name]))
+				}
 			}
 			return out.String(), 0, nil
 		}
@@ -89,13 +97,7 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 		if db == "passwd" {
 			return fakePasswd(a), 0, nil
 		}
-		ms := []string{}
-		for u, yes := range s.members[a.Name] {
-			if yes {
-				ms = append(ms, u)
-			}
-		}
-		return fmt.Sprintf("%s:x:%d:%s\n", a.Name, a.GID, strings.Join(ms, ",")), 0, nil
+		return fakeGroup(s, a), 0, nil
 	case "/usr/sbin/groupadd":
 		name := args[len(args)-1]
 		n, _ := strconv.ParseUint(args[1], 10, 32)
@@ -373,4 +375,15 @@ func fakePasswd(a Account) string {
 		home = "/nonexistent"
 	}
 	return fmt.Sprintf("%s:x:%d:%d:%s:%s:%s\n", a.Name, a.UID, a.GID, a.Description, home, a.Shell)
+}
+
+func fakeGroup(s *fakeSystem, a Account) string {
+	ms := []string{}
+	for u, yes := range s.members[a.Name] {
+		if yes {
+			ms = append(ms, u)
+		}
+	}
+	sort.Strings(ms)
+	return fmt.Sprintf("%s:x:%d:%s\n", a.Name, a.GID, strings.Join(ms, ","))
 }

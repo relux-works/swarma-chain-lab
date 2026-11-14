@@ -4,7 +4,6 @@ package g2ledger
 
 import (
 	"io"
-	"strings"
 	"testing"
 )
 
@@ -44,9 +43,7 @@ func TestLedgerUserRemovalHasNoImplicitGroupEffect(t *testing.T) {
 					}
 				} else {
 					code(t, err, 1)
-					if !strings.Contains(err.Error(), "USER_SAME_NAME_GROUP demo") {
-						t.Fatal(err)
-					}
+					requirePairReason(t, err, "USER_SAME_NAME_GROUP demo")
 					if f.sys.called("/usr/sbin/userdel") || f.sys.called("/usr/sbin/groupdel") {
 						t.Fatal("effect before refusal")
 					}

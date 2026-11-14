@@ -35,6 +35,14 @@ func replayPair(t *testing.T, f *fixture, mode string) (string, error) {
 	return out.String(), err
 }
 
+func requirePairReason(t *testing.T, err error, want string) {
+	t.Helper()
+	var failure *Failure
+	if !errors.As(err, &failure) || failure.Reason != want {
+		t.Fatalf("want exact Failure.Reason %q, got %v", want, err)
+	}
+}
+
 func requirePairStop(t *testing.T, f *fixture, reason string) {
 	t.Helper()
 	f.sys.calls = nil
@@ -53,7 +61,8 @@ func requirePairStop(t *testing.T, f *fixture, reason string) {
 	if !bytes.Equal(before, state()) {
 		t.Fatal("refusal changed account state")
 	}
-	if !strings.Contains(err.Error(), reason) || out != "" {
+	requirePairReason(t, err, reason)
+	if out != "" {
 		t.Fatalf("want %s without final compare, got %v, %q", reason, err, out)
 	}
 }
@@ -128,7 +137,7 @@ func TestLedgerUserGroupPreexistingRefuses(t *testing.T) {
 			})
 			older := f.create(t, "older", "file", "remove")
 			must(t, f.l.CreateUserProfile("swarma-wallet-peer", "state", 210101, 210101, "/", ""))
-			requirePairStop(t, f, "USER_SAME_NAME_GROUP")
+			requirePairStop(t, f, "USER_SAME_NAME_GROUP swarma-wallet-peer")
 			exists(t, older)
 			if f.sys.groups["swarma-wallet-peer"].GID != 210101 || f.sys.users["swarma-wallet-peer"].UID != 210101 {
 				t.Fatal("unrecorded group or user changed")
@@ -142,7 +151,7 @@ func TestLedgerUserGroupForeignSupplementaryStops(t *testing.T) {
 	f := userGroupFixture(t, "rehearsal", true)
 	newer := f.create(t, "newer", "file", "remove")
 	f.sys.members[pairName] = map[string]bool{"foreign": true}
-	requirePairStop(t, f, "UNLISTED_DIFFERENCE")
+	requirePairStop(t, f, "UNLISTED_DIFFERENCE group:"+pairName+"/member:foreign")
 	exists(t, newer)
 	if !f.sys.members[pairName]["foreign"] {
 		t.Fatal("foreign membership removed")
@@ -161,7 +170,7 @@ func TestLedgerUserGroupOtherPrimaryStops(t *testing.T) {
 			newer := f.create(t, "newer", "file", "remove")
 			foreign := Account{Name: "unscoped", UID: 240001, GID: 210201, Home: "/", Shell: "/bin/sh"}
 			f.sys.users[foreign.Name] = foreign
-			requirePairStop(t, f, "PAIRED_GROUP_OTHER_PRIMARY_USER")
+			requirePairStop(t, f, "PAIRED_GROUP_PASSWD "+pairName+": PAIRED_GROUP_OTHER_PRIMARY_USER")
 			exists(t, newer)
 			if f.sys.users[foreign.Name] != foreign {
 				t.Fatal("foreign primary user changed")
@@ -207,19 +216,19 @@ func TestLedgerUserGroupIdentityAndRetentionStops(t *testing.T) {
 				f = setupWith(t, "rehearsal", nil)
 				must(t, f.l.CreateAccount("group", "demo", "d6", 0, 301))
 				must(t, f.l.CreateAccount("user", "demo", "state", 301, 301))
-				requirePairStop(t, f, "USER_SAME_NAME_GROUP")
+				requirePairStop(t, f, "USER_SAME_NAME_GROUP demo")
 				return
 			case "non-primary-group":
 				f = setupWith(t, "rehearsal", nil)
 				must(t, f.l.CreateAccount("group", "primary", "state", 0, 301))
 				must(t, f.l.CreateAccount("group", "demo", "state", 0, 302))
 				must(t, f.l.CreateAccount("user", "demo", "state", 301, 301))
-				requirePairStop(t, f, "PAIRED_GROUP_PRIMARY_GID")
+				requirePairStop(t, f, "PAIRED_GROUP_PRIMARY_GID demo")
 				return
 			}
 			f.sys.users[pairName] = changed
 			newer := f.create(t, "newer", "file", "remove")
-			requirePairStop(t, f, reason)
+			requirePairStop(t, f, reason+" "+pairName)
 			exists(t, newer)
 			f.sys.users[pairName], f.sys.groups[pairName] = user, group
 			out, err := replayPair(t, f, "rehearsal")
@@ -238,7 +247,8 @@ func TestLedgerUserGroupStationRetains(t *testing.T) {
 		must(t, err)
 		_, err = replayPair(t, f, "rehearsal")
 		code(t, err, 1)
-		if !strings.Contains(err.Error(), "MODE_PURPOSE_MISMATCH") || f.sys.users[pairName] != user || f.sys.groups[pairName] != group || f.sys.called("/usr/sbin/userdel") || f.sys.called("/usr/sbin/groupdel") {
+		requirePairReason(t, err, "MODE_PURPOSE_MISMATCH purpose=station mode=rehearsal")
+		if f.sys.users[pairName] != user || f.sys.groups[pairName] != group || f.sys.called("/usr/sbin/userdel") || f.sys.called("/usr/sbin/groupdel") {
 			t.Fatal("station account protection changed", err)
 		}
 	}
@@ -246,7 +256,7 @@ func TestLedgerUserGroupStationRetains(t *testing.T) {
 
 // Claim: passwd enumeration errors, unsupported enumeration, malformed/duplicate rows, and missing/changed allowed users stop before effects; the unfaulted neighbour rolls back.
 func TestLedgerUserGroupPasswdLookupStops(t *testing.T) {
-	for _, variant := range []string{"error", "status", "unsupported", "malformed", "duplicate", "missing", "changed", "bad-id", "late-error"} {
+	for _, variant := range []string{"error", "status", "unsupported", "malformed", "duplicate", "carriage-return", "missing", "changed", "bad-id", "late-error"} {
 		t.Run(variant, func(t *testing.T) {
 			f := userGroupFixture(t, "rehearsal", true)
 			calls := 0
@@ -270,6 +280,8 @@ func TestLedgerUserGroupPasswdLookupStops(t *testing.T) {
 					return fakeReply{out: line + "invalid\n"}, true
 				case "duplicate":
 					return fakeReply{out: line + line}, true
+				case "carriage-return":
+					return fakeReply{out: strings.Replace(line, "\n", "\r\n", 1)}, true
 				case "missing":
 					return fakeReply{}, true
 				case "changed":
@@ -278,7 +290,13 @@ func TestLedgerUserGroupPasswdLookupStops(t *testing.T) {
 					return fakeReply{out: strings.Replace(line, ":210201:", ":invalid:", 1)}, true
 				}
 			}
-			requirePairStop(t, f, "PAIRED_GROUP_PASSWD")
+			reason := map[string]string{
+				"error": "injected lookup failure", "late-error": "injected lookup failure",
+				"status": "PASSWD_STATUS_2", "unsupported": "PASSWD_STATUS_3",
+				"malformed": "PASSWD_SCHEMA", "duplicate": "PASSWD_SCHEMA", "carriage-return": "PASSWD_SCHEMA",
+				"missing": "PASSWD_USER_MISSING", "changed": "PASSWD_USER_CHANGED", "bad-id": "PASSWD_IDENTITY",
+			}[variant]
+			requirePairStop(t, f, "PAIRED_GROUP_PASSWD "+pairName+": "+reason)
 			f.sys.fault = nil
 			out, err := replayPair(t, f, "rehearsal")
 			must(t, err)
@@ -351,14 +369,21 @@ func TestLedgerUserGroupOutcomeStops(t *testing.T) {
 			exists(t, older)
 			code(t, err, 1)
 			reason := map[string]string{
-				"userdel-error": "REMOVE_ACCOUNT", "userdel-noop": "ACCOUNT_STILL_PRESENT",
-				"user-lookup-error": "REMOVE_ACCOUNT_LOOKUP", "implicit-group-lookup-error": "PAIRED_GROUP_LOOKUP",
-				"surviving-group-lookup-error": "PAIRED_GROUP_LOOKUP", "group-changed": "PAIRED_GROUP_IDENTITY",
-				"foreign-member": "PAIRED_GROUP_NOT_EMPTY", "foreign-primary": "PAIRED_GROUP_OTHER_PRIMARY_USER",
-				"groupdel-error": "REMOVE_ACCOUNT", "groupdel-noop": "PAIRED_GROUP_STILL_PRESENT", "groupdel-lookup-error": "PAIRED_GROUP_LOOKUP",
+				"userdel-error":                "REMOVE_ACCOUNT " + pairName + ": COMMAND_STATUS_8",
+				"userdel-noop":                 "ACCOUNT_STILL_PRESENT " + pairName,
+				"user-lookup-error":            "REMOVE_ACCOUNT_LOOKUP " + pairName + ": injected outcome lookup failure",
+				"implicit-group-lookup-error":  "PAIRED_GROUP_LOOKUP " + pairName + ": injected outcome lookup failure",
+				"surviving-group-lookup-error": "PAIRED_GROUP_LOOKUP " + pairName + ": injected outcome lookup failure",
+				"group-changed":                "PAIRED_GROUP_IDENTITY " + pairName,
+				"foreign-member":               "PAIRED_GROUP_NOT_EMPTY " + pairName,
+				"foreign-primary":              "PAIRED_GROUP_PASSWD " + pairName + ": PAIRED_GROUP_OTHER_PRIMARY_USER",
+				"groupdel-error":               "REMOVE_ACCOUNT " + pairName + ": COMMAND_STATUS_10",
+				"groupdel-noop":                "PAIRED_GROUP_STILL_PRESENT " + pairName,
+				"groupdel-lookup-error":        "PAIRED_GROUP_LOOKUP " + pairName + ": injected outcome lookup failure",
 			}[variant]
-			if !strings.Contains(err.Error(), reason) || out != "" {
-				t.Fatalf("want %s without final compare, got %v %q", reason, err, out)
+			requirePairReason(t, err, reason)
+			if out != "" {
+				t.Fatalf("want refusal without final compare, got %v %q", err, out)
 			}
 			if strings.HasPrefix(variant, "userdel-") {
 				if len(f.sys.users) != 1 || len(f.sys.groups) != 1 {
@@ -405,9 +430,13 @@ func TestLedgerUserGroupScanBoundaryStops(t *testing.T) {
 				code(t, err, 1)
 				reason := map[string]string{"gid": "PAIRED_GROUP_IDENTITY", "member": "PAIRED_GROUP_NOT_EMPTY", "gone": "PAIRED_GROUP_MISSING"}[drift]
 				if phase == "preflight" && drift == "member" {
-					reason = "UNLISTED_DIFFERENCE"
+					reason = "UNLISTED_DIFFERENCE group:" + pairName + "/member:foreign"
 				}
-				if !strings.Contains(err.Error(), reason) || out != "" || f.sys.called("/usr/sbin/groupdel") || phase != "group" && f.sys.called("/usr/sbin/userdel") {
+				if !(phase == "preflight" && drift == "member") {
+					reason += " " + pairName
+				}
+				requirePairReason(t, err, reason)
+				if out != "" || f.sys.called("/usr/sbin/groupdel") || phase != "group" && f.sys.called("/usr/sbin/userdel") {
 					t.Fatalf("scan-boundary refusal failed: %v %q", err, out)
 				}
 			})
@@ -433,7 +462,8 @@ func TestLedgerUserGroupReappearanceStops(t *testing.T) {
 			}
 			out, err := replayPair(t, f, "rehearsal")
 			code(t, err, 1)
-			if !strings.Contains(err.Error(), "PAIRED_GROUP_REAPPEARED") || out != "" || len(f.sys.groups) != 1 {
+			requirePairReason(t, err, "PAIRED_GROUP_REAPPEARED "+pairName)
+			if out != "" || len(f.sys.groups) != 1 {
 				t.Fatalf("reappearing group not preserved: %v %q", err, out)
 			}
 			deletions := 0
@@ -459,7 +489,8 @@ func TestLedgerUserGroupInterruptedRetry(t *testing.T) {
 			}
 			out, err := replayPair(t, f, "rehearsal")
 			code(t, err, 1)
-			if !strings.Contains(err.Error(), "REMOVE_ACCOUNT") || out != "" || len(f.sys.users) != 0 || len(f.sys.groups) != 1 {
+			requirePairReason(t, err, "REMOVE_ACCOUNT "+pairName+": COMMAND_STATUS_10")
+			if out != "" || len(f.sys.users) != 0 || len(f.sys.groups) != 1 {
 				t.Fatal("wrong interrupted pair state", err, out)
 			}
 			f.sys.fault = nil
@@ -472,7 +503,8 @@ func TestLedgerUserGroupInterruptedRetry(t *testing.T) {
 				}
 			}
 			if fault != "valid" {
-				requirePairStop(t, f, "PAIRED_GROUP_PASSWD")
+				reason := map[string]string{"primary-user": "PAIRED_GROUP_OTHER_PRIMARY_USER", "lookup-error": "injected retry lookup failure"}[fault]
+				requirePairStop(t, f, "PAIRED_GROUP_PASSWD "+pairName+": "+reason)
 			}
 			delete(f.sys.users, "foreign")
 			f.sys.fault = nil
@@ -508,10 +540,158 @@ func TestLedgerUserGroupRoleReceiptStops(t *testing.T) {
 				var out bytes.Buffer
 				err := Run([]string{"replay", "-dir", f.dir, "-mode", "rehearsal"}, f.sys, &out)
 				code(t, err, 1)
-				if !strings.Contains(err.Error(), "RESULT_USER_ROLE") || len(f.sys.calls) != 0 || out.Len() != 0 || len(f.sys.users) != 1 || len(f.sys.groups) != 1 {
+				requirePairReason(t, err, "LEDGER_IDENTITY: RESULT_USER_ROLE")
+				if len(f.sys.calls) != 0 || out.Len() != 0 || len(f.sys.users) != 1 || len(f.sys.groups) != 1 {
 					t.Fatal("role mismatch granted pair authority", err, out.String())
 				}
 			})
 		}
+	}
+}
+
+// Claim: an unrecorded supplementary membership in an unrelated pre-existing,
+// unscoped group refuses before paired deletion under either policy; clean and
+// same-attempt recorded membership neighbours restore S0 without adopting it.
+func TestLedgerUserGroupUnrecordedSupplementaryStops(t *testing.T) {
+	for _, auto := range []bool{false, true} {
+		for _, variant := range []string{"unrecorded", "clean", "recorded"} {
+			t.Run(strconv.FormatBool(auto)+"/"+variant, func(t *testing.T) {
+				f := setupWith(t, "rehearsal", func(f *fixture) {
+					f.sys.usergroups = auto
+					f.scope.Users = append(f.scope.Users, pairName)
+					f.scope.Groups = append(f.scope.Groups, pairName)
+					if variant == "recorded" {
+						f.scope.Groups = append(f.scope.Groups, "unrelated")
+					}
+					f.sys.groups["unrelated"] = Account{Name: "unrelated", GID: 240002}
+					f.sys.members["unrelated"] = map[string]bool{"outsider": true}
+				})
+				must(t, f.l.CreateAccount("group", pairName, "state", 0, 210201))
+				older := f.create(t, "older", "file", "remove")
+				must(t, f.l.CreateUserProfile(pairName, "state", 210201, 210201, "/var/lib/swarma-wallet", "Swarma G2 pay executor"))
+				group := f.sys.groups["unrelated"]
+				switch variant {
+				case "unrecorded":
+					f.sys.members["unrelated"][pairName] = true
+					requirePairStop(t, f, "PAIRED_USER_GROUPS "+pairName+": USER_OTHER_SUPPLEMENTARY_GROUP unrelated")
+					exists(t, older)
+					if !f.sys.members["unrelated"][pairName] {
+						t.Fatal("foreign membership changed")
+					}
+					// Repair only the unrecorded change; the exact clean layout must pass.
+					delete(f.sys.members["unrelated"], pairName)
+				case "recorded":
+					must(t, f.l.AddMember(pairName, "unrelated"))
+				}
+				out, err := replayPair(t, f, "rehearsal")
+				must(t, err)
+				requireCleanPairBaseline(t, out)
+				absent(t, older)
+				if len(f.sys.users) != 0 || len(f.sys.groups) != 1 || f.sys.groups["unrelated"] != group ||
+					len(f.sys.members["unrelated"]) != 1 || !f.sys.members["unrelated"]["outsider"] {
+					t.Fatal("rollback changed foreign group/membership or retained pair")
+				}
+				if variant == "recorded" {
+					undo := callIndex(f.sys, "/usr/bin/gpasswd -d "+pairName+" unrelated")
+					scan := -1
+					for i, call := range f.sys.calls {
+						if call == "/usr/bin/getent group" {
+							scan = i
+						}
+					}
+					userdel := callIndex(f.sys, "/usr/sbin/userdel "+pairName)
+					if undo < 0 || scan <= undo || userdel <= scan {
+						t.Fatal("supplementary scan did not follow recorded membership reversal before userdel")
+					}
+				}
+			})
+		}
+	}
+}
+
+// Claim: complete group enumeration errors and malformed records refuse with
+// their exact classifier before any paired effect; each repaired control passes.
+func TestLedgerUserGroupSupplementaryLookupStops(t *testing.T) {
+	for _, variant := range []string{"error", "status", "unsupported", "malformed", "duplicate", "carriage-return", "bad-id", "invalid-member", "duplicate-member", "trailing-member"} {
+		t.Run(variant, func(t *testing.T) {
+			f := userGroupFixture(t, "rehearsal", true)
+			f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
+				if cmd != "/usr/bin/getent" || len(args) != 1 || args[0] != "group" {
+					return fakeReply{}, false
+				}
+				line := fakeGroup(f.sys, f.sys.groups[pairName])
+				switch variant {
+				case "error":
+					return fakeReply{err: errors.New("injected group enumeration failure")}, true
+				case "status":
+					return fakeReply{status: 2}, true
+				case "unsupported":
+					return fakeReply{status: 3}, true
+				case "malformed":
+					return fakeReply{out: line + "invalid\n"}, true
+				case "duplicate":
+					return fakeReply{out: line + line}, true
+				case "carriage-return":
+					return fakeReply{out: strings.Replace(line, "\n", "\r\n", 1)}, true
+				case "bad-id":
+					return fakeReply{out: line + "unrelated:x:invalid:\n"}, true
+				case "invalid-member":
+					return fakeReply{out: line + "unrelated:x:240002:invalid member\n"}, true
+				case "duplicate-member":
+					return fakeReply{out: line + "unrelated:x:240002:outsider,outsider\n"}, true
+				default:
+					return fakeReply{out: line + "unrelated:x:240002:outsider,\n"}, true
+				}
+			}
+			reason := map[string]string{
+				"error": "injected group enumeration failure", "status": "GROUP_STATUS_2", "unsupported": "GROUP_STATUS_3",
+				"malformed": "GROUP_SCHEMA", "duplicate": "GROUP_SCHEMA", "carriage-return": "GROUP_SCHEMA",
+				"bad-id": "GROUP_IDENTITY", "invalid-member": "GROUP_MEMBERS", "duplicate-member": "GROUP_MEMBERS", "trailing-member": "GROUP_MEMBERS",
+			}[variant]
+			requirePairStop(t, f, "PAIRED_USER_GROUPS "+pairName+": "+reason)
+			f.sys.fault = nil
+			out, err := replayPair(t, f, "rehearsal")
+			must(t, err)
+			requireCleanPairBaseline(t, out)
+		})
+	}
+}
+
+// Claim: supplementary enumeration cannot invalidate the last paired-group
+// observation and still permit userdel; repaired group controls roll back.
+func TestLedgerUserGroupSupplementaryScanBoundaryStops(t *testing.T) {
+	for _, drift := range []string{"gid", "member", "gone"} {
+		t.Run(drift, func(t *testing.T) {
+			f := userGroupFixture(t, "rehearsal", true)
+			group := f.sys.groups[pairName]
+			f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
+				if cmd == "/usr/bin/getent" && len(args) == 1 && args[0] == "group" {
+					switch drift {
+					case "gid":
+						changed := group
+						changed.GID++
+						f.sys.groups[pairName] = changed
+					case "member":
+						f.sys.members[pairName] = map[string]bool{"foreign": true}
+					case "gone":
+						delete(f.sys.groups, pairName)
+					}
+				}
+				return fakeReply{}, false
+			}
+			out, err := replayPair(t, f, "rehearsal")
+			code(t, err, 1)
+			reason := map[string]string{"gid": "PAIRED_GROUP_IDENTITY", "member": "PAIRED_GROUP_NOT_EMPTY", "gone": "PAIRED_GROUP_MISSING"}[drift]
+			requirePairReason(t, err, reason+" "+pairName)
+			if out != "" || f.sys.called("/usr/sbin/userdel") || f.sys.called("/usr/sbin/groupdel") {
+				t.Fatal("supplementary scan drift permitted deletion", err, out)
+			}
+			f.sys.groups[pairName] = group
+			delete(f.sys.members, pairName)
+			f.sys.fault = nil
+			out, err = replayPair(t, f, "rehearsal")
+			must(t, err)
+			requireCleanPairBaseline(t, out)
+		})
 	}
 }

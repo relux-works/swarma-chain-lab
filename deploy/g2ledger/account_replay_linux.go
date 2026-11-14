@@ -90,11 +90,60 @@ func checkPairPrimary(sys System, gid uint32, allowed *Account) error {
 	return nil
 }
 
+// checkPairSupplementary enumerates the complete group database, rather than
+// the declared scope. No receipt authorizes userdel to consume a remaining
+// membership outside the user's same-name group; foreign state is never adopted.
+func checkPairSupplementary(sys System, user string) error {
+	out, status, e := sys.Run("/usr/bin/getent", "group")
+	if e != nil {
+		return e
+	}
+	if status != 0 {
+		return fmt.Errorf("GROUP_STATUS_%d", status)
+	}
+	seen := map[string]bool{}
+	if out != "" {
+		for _, line := range strings.Split(strings.TrimSuffix(out, "\n"), "\n") {
+			p := strings.Split(line, ":")
+			if len(p) != 4 || !namePattern.MatchString(p[0]) || seen[p[0]] || strings.ContainsRune(line, '\r') {
+				return errors.New("GROUP_SCHEMA")
+			}
+			seen[p[0]] = true
+			gid, e := number(p[2])
+			if e != nil || gid == ^uint32(0) {
+				return errors.New("GROUP_IDENTITY")
+			}
+			if p[3] == "" {
+				continue
+			}
+			members := map[string]bool{}
+			for _, member := range strings.Split(p[3], ",") {
+				if !namePattern.MatchString(member) || members[member] {
+					return errors.New("GROUP_MEMBERS")
+				}
+				members[member] = true
+				if member == user && p[0] != user {
+					return fmt.Errorf("USER_OTHER_SUPPLEMENTARY_GROUP %s", p[0])
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // shadow-utils userdel(8) and login.defs(5), USERGROUPS_ENAB, document both
 // implicit same-name group deletion and survival. Observe the outcome instead
 // of reading/changing host policy. The caller records the verified removal so
 // the older group receipt cannot remove a subsequently reappearing group.
 func (l *Ledger) removePairedAccounts(user Action, group authority) (string, error) {
+	// Recorded add-member reversals have already run. userdel also removes
+	// supplementary memberships in unrelated, potentially unscoped groups.
+	if e := checkPairSupplementary(l.sys, user.Name); e != nil {
+		return "", stopped("PAIRED_USER_GROUPS "+user.Name, e)
+	}
+	if e := l.recheckPairedGroup(group, true); e != nil {
+		return "", e
+	}
 	if e := commandOK(l.sys, "/usr/sbin/userdel", user.Name); e != nil {
 		return "", stopped("REMOVE_ACCOUNT "+user.Name, e)
 	}

@@ -69,8 +69,9 @@ real payload/parent EIO; traces stay in Go test temporary directories.
 `go test -race ./g2ledger ./cmd/deploy-kit -run '^TestLedger' -count=1` exercises
 real temporary files and a fake account/systemd boundary without root operations.
 `go test -race ./g2ledger -run '^TestLedgerUserGroup' -count=1` checks paired
-same-name account removal under both `USERGROUPS_ENAB` settings, its refusal
-boundaries, and clean rehearsal baseline JSONL. See the
+same-name account removal under both `USERGROUPS_ENAB` settings, unrecorded
+foreign supplementary-membership refusals, exact refusal reasons, and clean
+rehearsal baseline JSONL. See the
 [paired removal contract](G2-LEDGER.md#account-removal-effect-boundary).
 
 ## Build contract
