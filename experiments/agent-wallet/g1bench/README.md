@@ -71,6 +71,11 @@ Canonical terms must hash to the signed grant's contract and name the locally
 pinned executor. Trusted owner-DM routing returns `outside_admission` before any
 checker, node or replay-cache call; this is not an admission bypass returning live.
 
+The wallet module's declared rental and grantcheck versions include the
+terms-v2 and transport APIs used here. The published-consumer graph gate also
+compiles this package without local replacements, beside a known stale-version
+negative control. Local replace directives remain development conveniences.
+
 ## Run and artifacts
 
 Use Go 1.26 with `GOTOOLCHAIN=local`. Set `W1_CORE_DAEMON` and `W1_CORE_CLI` to

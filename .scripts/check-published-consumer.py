@@ -47,6 +47,15 @@ var _ = deploy.RenderInstallAnchor
 func main() {}
 '''
 
+BENCH_CONSUMER = '''package main
+
+import bench "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet/g1bench"
+
+var _ = bench.New
+
+func main() {}
+'''
+
 
 @dataclass(frozen=True)
 class Case:
@@ -66,6 +75,12 @@ class Case:
 # Each case is its own consumer module: a shared module would let MVS take the
 # highest single-use across cases and hide a stale edge in deploy/station-lifecycle.
 CASES = (
+    # Claim: the bench's published graph supplies both terms-v2 and transport APIs;
+    # its known stale graph fails compilation beside the candidate positive control.
+    Case("grant-bench", PREFIX + "experiments/agent-wallet",
+         "1b3c321ebacd48f388b7abac6fc23582f45584ca",
+         r"(?:undefined:\s+rental\.PayTermsV2|g\.checker\.InboundFrom undefined)",
+         ("vet", "build"), source=BENCH_CONSUMER),
     Case("single-use-api", SINGLE_USE, SNAPSHOT_BASE, r"undefined:?\s+sealwatch\.ValidateJSON",
          ("vet", "build"), source=SINGLE_USE_CONSUMER),
     Case("deploy", PREFIX + "deploy", STANDALONE_STALE, MISSING_CONFIGGUARD,
