@@ -1,7 +1,8 @@
 package g2ledger
 
-// retentionPolicy is the single provisional QA policy table. Keep mode rules
-// here so the pending plan-owner decision has one implementation edit point.
+// retentionPolicy is the single CONFIRMED v1 policy table. The plan owner
+// confirmed station and rehearsal replay; post-install removal is a separate
+// reviewed procedure and never grants this engine authority to delete d6 data.
 func retentionPolicy(kind, ret, mode string) (effect, rule string) {
 	if kind == "modify" || kind == "unit" || kind == "membership" {
 		return "restore", "restore-attempt-transition"
@@ -26,5 +27,5 @@ func retentionPolicy(kind, ret, mode string) (effect, rule string) {
 
 func validPurpose(purpose string) bool { return purpose == "station" || purpose == "rehearsal" }
 func purposeMatches(purpose, mode string) bool {
-	return purpose == "rehearsal" && mode == "rehearsal" || purpose == "station" && (mode == "station" || mode == "station-remove")
+	return purpose == "rehearsal" && mode == "rehearsal" || purpose == "station" && mode == "station"
 }

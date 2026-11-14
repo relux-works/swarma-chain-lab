@@ -72,7 +72,7 @@ func Run(args []string, sys System, out io.Writer) error {
 	case "enable":
 		f.StringVar(&unit, "unit", "", "unit name")
 	case "replay":
-		f.StringVar(&replayMode, "mode", "", "station|station-remove|rehearsal")
+		f.StringVar(&replayMode, "mode", "", "station|rehearsal")
 	default:
 		return fail(2, "UNKNOWN_SUBCOMMAND")
 	}
@@ -127,7 +127,7 @@ func Run(args []string, sys System, out io.Writer) error {
 			return fail(2, "USAGE_UNIT")
 		}
 	case "replay":
-		if replayMode != "station" && replayMode != "station-remove" && replayMode != "rehearsal" {
+		if replayMode != "station" && replayMode != "rehearsal" {
 			return fail(2, "USAGE_REPLAY")
 		}
 	}

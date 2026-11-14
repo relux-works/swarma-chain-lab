@@ -184,10 +184,10 @@ func TestLedgerAuthorityForeignCreatorD9_1(t *testing.T) {
 				code(t, f.l.CreateFS(p, f.src, kind, "remove", uint32(os.Geteuid()), uint32(os.Getegid()), mode), 1)
 				f.l.afterIntent = nil
 				f.reopen(t)
-				code(t, f.l.Replay("station-remove"), 1)
+				code(t, f.l.Replay("station"), 1)
 				exists(t, p)
 				good := f.create(t, "own", kind, "remove")
-				code(t, f.l.Replay("station-remove"), 1)
+				code(t, f.l.Replay("station"), 1)
 				absent(t, good)
 				exists(t, p)
 			})
@@ -277,7 +277,7 @@ func rejectedWithoutEffects(t *testing.T, f *fixture, paths ...string) {
 	f.l.Close()
 	l, e := Open(f.dir, f.sys)
 	if e == nil {
-		e = l.Replay("station-remove")
+		e = l.Replay("station")
 		l.Close()
 	}
 	code(t, e, 1)
@@ -358,7 +358,7 @@ func TestLedgerTamperingD9_2(t *testing.T) {
 	f := setup(t)
 	p := f.create(t, "valid", "file", "remove")
 	f.reopen(t)
-	must(t, f.l.Replay("station-remove"))
+	must(t, f.l.Replay("station"))
 	absent(t, p)
 }
 
@@ -470,7 +470,7 @@ func TestLedgerFilesystemDriftAndNoFollow(t *testing.T) {
 			case "foreign-child":
 				foreign(t, filepath.Join(p, "child"), "file")
 			}
-			code(t, f.l.Replay("station-remove"), 1)
+			code(t, f.l.Replay("station"), 1)
 			exists(t, older)
 			exists(t, p)
 		})
@@ -491,11 +491,11 @@ func TestLedgerLookupEACCESStopsD9_4(t *testing.T) {
 	must(t, f.l.CreateFS(p, f.src, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600))
 	must(t, os.Chmod(parentPath, 0))
 	t.Cleanup(func() { os.Chmod(parentPath, 0700) })
-	code(t, f.l.Replay("station-remove"), 1)
+	code(t, f.l.Replay("station"), 1)
 	exists(t, older)
 	must(t, os.Chmod(parentPath, 0700))
 	exists(t, p)
-	must(t, f.l.Replay("station-remove"))
+	must(t, f.l.Replay("station"))
 	absent(t, older)
 	absent(t, p)
 }

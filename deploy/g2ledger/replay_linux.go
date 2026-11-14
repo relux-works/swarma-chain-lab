@@ -12,7 +12,7 @@ import (
 // effect. It stops immediately on the first error; effects already completed
 // earlier in reverse order are not a transaction and are not undone.
 func (l *Ledger) Replay(mode string) error {
-	if mode != "station" && mode != "station-remove" && mode != "rehearsal" {
+	if mode != "station" && mode != "rehearsal" {
 		return fail(2, "REPLAY_MODE")
 	}
 	if e := l.load(); e != nil {

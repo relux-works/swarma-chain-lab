@@ -91,7 +91,7 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 	invoke(1, "g2-ledger", "exec-create", "-dir", dir, "-kind", "secret", "-ret", "d6", "-path", key, "--", kit, "g2-keygen", "-out", key)
 	invoke(1, "g2-ledger", "replay", "-dir", dir, "-mode", "rehearsal")
 	invoke(0, "g2-ledger", "verify", "-dir", dir)
-	compareOut := invoke(0, "g2-ledger", "replay", "-dir", dir, "-mode", "station-remove")
+	compareOut := invoke(0, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
 	if !bytes.Contains(compareOut, []byte(`"type":"retained"`)) || !bytes.Contains(compareOut, []byte(`"rule":"retain-d6"`)) {
 		t.Fatal("missing machine-readable retention")
 	}
@@ -165,8 +165,52 @@ func TestLedgerCLIRealExclusiveCreatorAndExitCodes(t *testing.T) {
 		t.Fatal(e)
 	}
 	invoke(3, "g2-ledger", "verify", "-dir", dir)
-	invoke(3, "g2-ledger", "replay", "-dir", dir, "-mode", "station-remove")
+	invoke(3, "g2-ledger", "replay", "-dir", dir, "-mode", "station")
 	if _, e = os.Stat(key); e != nil {
 		t.Fatal("orphan removed")
 	}
+	// Claim: the real CLI rejects removed/unknown modes with exit 2 before
+	// reading even an orphaned ledger, preserving journal, HEAD and key bytes.
+	// Valid station and rehearsal subprocess neighbours are exercised above.
+	t.Run("unknown-replay-modes-before-ledger-read", func(t *testing.T) {
+		paths := []string{records, filepath.Join(dir, "HEAD"), key}
+		before := make(map[string][]byte)
+		stats := make(map[string]os.FileInfo)
+		for _, path := range paths {
+			var err error
+			before[path], err = os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer clear(before[path])
+			stats[path], err = os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, mode := range []string{"station-remove", "unknown", ""} {
+			cmd := exec.Command(kit, "g2-ledger", "replay", "-dir", dir, "-mode", mode)
+			var out, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &out, &stderr
+			result := cmd.Run()
+			status, ok := result.(*exec.ExitError)
+			if !ok || status.ExitCode() != 2 || strings.TrimSpace(stderr.String()) != "g2-ledger: USAGE_REPLAY" || out.Len() != 0 {
+				t.Fatalf("mode %q: missing named usage exit 2: %v stderr=%s", mode, result, stderr.String())
+			}
+		}
+		for _, path := range paths {
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer clear(after)
+			stat, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(before[path], after) || !os.SameFile(stats[path], stat) || stats[path].Mode() != stat.Mode() || !stats[path].ModTime().Equal(stat.ModTime()) {
+				t.Fatal("usage refusal changed ledger or key")
+			}
+		}
+	})
 }

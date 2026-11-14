@@ -210,7 +210,7 @@ func TestLedgerRehearsalClassRefusedOnStation(t *testing.T) {
 			}
 		})
 	}
-	for _, mode := range []string{"station", "station-remove"} {
+	for _, mode := range []string{"station"} {
 		if effect, _ := retentionPolicy("secret", "rehearsal", mode); effect == "remove" {
 			t.Fatal("rehearsal class deletable in", mode)
 		}
@@ -220,7 +220,7 @@ func TestLedgerRehearsalClassRefusedOnStation(t *testing.T) {
 // Claim: every mode/purpose mismatch is exit 1 before lookup or removal; matching modes retain station state and remove rehearsal state.
 func TestLedgerModePurposeMismatch(t *testing.T) {
 	for _, purpose := range []string{"station", "rehearsal"} {
-		for _, mode := range []string{"station", "station-remove", "rehearsal"} {
+		for _, mode := range []string{"station", "rehearsal"} {
 			t.Run(purpose+"/"+mode, func(t *testing.T) {
 				f := setupWith(t, purpose, nil)
 				p := f.create(t, "state", "dir", "state")
@@ -249,9 +249,9 @@ func TestLedgerModePurposeMismatch(t *testing.T) {
 	}
 }
 
-// Claim: both station modes retain state accounts/directories and d6 files, listing every difference with a real result sequence and its policy rule.
+// Claim: station replay retains state accounts/directories and d6 files, listing every difference with a real result sequence and its policy rule.
 func TestLedgerFinalCompareExplainsEveryRetention(t *testing.T) {
-	for _, mode := range []string{"station", "station-remove"} {
+	for _, mode := range []string{"station"} {
 		t.Run(mode, func(t *testing.T) {
 			f := setup(t)
 			key := f.create(t, "key", "secret", "d6")
@@ -286,7 +286,7 @@ func TestLedgerFinalCompareExplainsEveryRetention(t *testing.T) {
 
 // Claim: every mode names foreign children, parent entries, extra group members and changed unused declarations at final compare; unchanged neighbours succeed.
 func TestLedgerFinalCompareRejectsUnlistedDifferences(t *testing.T) {
-	for _, mode := range []string{"station", "station-remove", "rehearsal"} {
+	for _, mode := range []string{"station", "rehearsal"} {
 		t.Run(mode, func(t *testing.T) {
 			for _, variant := range []string{"file", "member", "parent-file", "unused-unit", "valid"} {
 				t.Run(variant, func(t *testing.T) {

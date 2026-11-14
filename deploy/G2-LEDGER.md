@@ -24,7 +24,7 @@ deploy-kit g2-ledger create-group -dir D -name NAME -gid GID -ret R
 deploy-kit g2-ledger create-user -dir D -name NAME -uid UID -gid GID -ret R
 deploy-kit g2-ledger add-member -dir D -user USER -group GROUP
 deploy-kit g2-ledger enable -dir D -unit NAME.service
-deploy-kit g2-ledger replay -dir D -mode station|station-remove|rehearsal
+deploy-kit g2-ledger replay -dir D -mode station|rehearsal
 ```
 
 `U` and `G` are account names or decimal IDs. `R` is exactly `d6`, `state`, `remove` or
@@ -209,24 +209,28 @@ older operations. Already completed newer reversals are not rolled back again
 as a transaction. Missing created objects are harmless; operational lookup
 failures never mean absence. Retained objects must still match their identity.
 
-The following is the single policy table. It reflects the provisional QA
-ruling; plan-owner confirmation remains pending. Implementation rules live in
+The following is the single CONFIRMED v1 policy table, approved by the plan
+owner. The only replay modes are `station` and `rehearsal`. Any other mode is
+rejected with `USAGE_REPLAY` (exit 2) before opening or reading the ledger.
+Implementation rules live in
 `g2ledger/policy.go` (`retentionPolicy`). Every removal still requires exact
 identity, including both uid and primary gid for users and gid for groups.
 
-| Object / retention | `station` | `station-remove` | `rehearsal` |
-| --- | --- | --- | --- |
-| Any `d6` creation, including keys/wallet data | Keep (`retain-d6`) | Keep (`retain-d6`) | Keep (`retain-d6`) |
-| `state` creation: files, dirs, users, groups | Keep (`retain-station-state`) | Keep (`retain-station-state`) | Remove (`remove-rehearsal-state`) |
-| `remove` creation | Remove (`remove-exact-identity`) | Remove (`remove-exact-identity`) | Remove (`remove-exact-identity`) |
-| Explicit `rehearsal` creation | Refused at creation and journal validation | Refused at creation and journal validation | Remove (`remove-explicit-rehearsal-object`) |
-| Config modification, own membership addition, own unit enable | Restore (`restore-attempt-transition`) | Restore (`restore-attempt-transition`) | Restore (`restore-attempt-transition`) |
+| Object / retention | `station` | `rehearsal` |
+| --- | --- | --- |
+| Any `d6` creation, including keys/wallet data | Keep (`retain-d6`) | Keep (`retain-d6`) |
+| `state` creation: files, dirs, users, groups | Keep (`retain-station-state`) | Remove (`remove-rehearsal-state`) |
+| `remove` creation | Remove (`remove-exact-identity`) | Remove (`remove-exact-identity`) |
+| Explicit `rehearsal` creation | Refused at creation and journal validation | Remove (`remove-explicit-rehearsal-object`) |
+| Config modification, own membership addition, own unit enable | Restore (`restore-attempt-transition`) | Restore (`restore-attempt-transition`) |
 
 Station creation retention is unchanged: accounts and state directories marked
 `state` remain, and only matching `remove` creations are removed. Journal and
 S0 evidence are never deletion targets. A rehearsal-only key or wallet artifact
 must be explicitly created with `-ret rehearsal`; d6 never becomes deletable
-because of mode. There is no secure-erasure claim.
+because of mode. There is no engine mode for deleting d6 data or station keys.
+Removal after an install requires a separate reviewed procedure. There is no
+secure-erasure claim.
 
 Rehearsal first checks **all** present committed identities before any removal;
 a changed gid or replaced directory preserves both older and newer entries.

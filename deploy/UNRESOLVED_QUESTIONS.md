@@ -63,10 +63,12 @@ DK5b must specify and qualify slotd's dynamic per-slot bootstrap and launch
 boundary before outside testers. The static per-UID payload anchor alone does
 not complete that gate.
 
-## G2 rehearsal retention confirmation
+## G2 rehearsal retention confirmation — resolved
 
-The provisional QA ruling is implemented in the single
+The plan owner CONFIRMED the v1 retention policy in the single
 [G2 ledger policy table](G2-LEDGER.md#replay-and-retention), with implementation
-rules in `g2ledger/policy.go`. Plan-owner confirmation is pending. No host
+rules in `g2ledger/policy.go`. Only `station` and `rehearsal` replay are supported;
+there is no engine mode for deleting d6 data or station keys. Removal after an
+install requires a separate reviewed procedure. No host
 installation, account/systemd qualification or tree deletion is established by
 local fixture validation.

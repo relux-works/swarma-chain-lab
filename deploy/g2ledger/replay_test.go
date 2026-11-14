@@ -25,13 +25,13 @@ func TestLedgerChangedPrimaryGIDStopsD9_5(t *testing.T) {
 				a := f.sys.users["demo"]
 				a.GID = 999
 				f.sys.users["demo"] = a
-				code(t, f.l.Replay("station-remove"), 1)
+				code(t, f.l.Replay("station"), 1)
 				if f.sys.called("/usr/sbin/userdel") {
 					t.Fatal("changed gid deleted")
 				}
 				exists(t, older)
 			} else {
-				must(t, f.l.Replay("station-remove"))
+				must(t, f.l.Replay("station"))
 				if _, ok := f.sys.users["demo"]; ok {
 					t.Fatal("owned user retained")
 				}
@@ -53,7 +53,7 @@ func TestLedgerUnitLookupErrorStopsD9_4(t *testing.T) {
 			f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 				return reply, cmd == "/usr/bin/systemctl" && args[0] == "is-enabled"
 			}
-			code(t, f.l.Replay("station-remove"), 1)
+			code(t, f.l.Replay("station"), 1)
 			exists(t, older)
 			if f.sys.called("/usr/bin/systemctl disable") {
 				t.Fatal("effect after inspection failure")
@@ -87,7 +87,7 @@ func TestLedgerGetentFailureNeverAbsenceG2(t *testing.T) {
 	}
 	f := setupWith(t, "station", func(f *fixture) { f.sys.groups["demo"] = Account{Name: "demo", GID: 301} })
 	must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
-	must(t, f.l.Replay("station-remove"))
+	must(t, f.l.Replay("station"))
 }
 
 // Claim: a group or user created by another actor after baseline or during
@@ -123,7 +123,7 @@ func TestLedgerForeignAccountsNeverAdoptedD9_1(t *testing.T) {
 				code(t, f.l.CreateAccount(kind, "foreign", "remove", uid, 301), 1)
 				f.l.afterIntent = nil
 				f.reopen(t)
-				code(t, f.l.Replay("station-remove"), 1)
+				code(t, f.l.Replay("station"), 1)
 				a, _, e := lookup(f.sys, kind, "foreign")
 				must(t, e)
 				if a == nil {
@@ -134,7 +134,7 @@ func TestLedgerForeignAccountsNeverAdoptedD9_1(t *testing.T) {
 	}
 }
 
-// Claim: station-remove never deletes pre-existing key/config files; adjacent
+// Claim: station never deletes pre-existing key/config files; adjacent
 // files created and committed by this engine can be removed.
 func TestLedgerPreexistingKeysConfigsSurviveG1(t *testing.T) {
 	f := setupWith(t, "station", func(f *fixture) {
@@ -147,7 +147,7 @@ func TestLedgerPreexistingKeysConfigsSurviveG1(t *testing.T) {
 		code(t, f.l.CreateFS(p, f.src, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600), 1)
 	}
 	own := f.create(t, "own", "file", "remove")
-	must(t, f.l.Replay("station-remove"))
+	must(t, f.l.Replay("station"))
 	absent(t, own)
 	for _, p := range paths {
 		exists(t, p)
@@ -173,13 +173,13 @@ func TestLedgerLiveWriterSurvivesInspectionFailureG3(t *testing.T) {
 	f.sys.fault = func(command string, args []string) (fakeReply, bool) {
 		return fakeReply{"", 73, nil}, command == "/usr/bin/getent"
 	}
-	code(t, f.l.Replay("station-remove"), 1)
+	code(t, f.l.Replay("station"), 1)
 	must(t, syscall.Kill(cmd.Process.Pid, 0))
 	exists(t, key)
 	exists(t, marker)
 	exists(t, probe)
 	f.sys.fault = nil
-	must(t, f.l.Replay("station-remove"))
+	must(t, f.l.Replay("station"))
 	absent(t, probe)
 	exists(t, key)
 	must(t, syscall.Kill(cmd.Process.Pid, 0))
@@ -226,11 +226,11 @@ func TestLedgerModifyFileRestoresExactCommittedNew(t *testing.T) {
 				must(t, os.Symlink(staged, p))
 			}
 			if change != "none" {
-				code(t, f.l.Replay("station-remove"), 1)
+				code(t, f.l.Replay("station"), 1)
 				exists(t, older)
 				return
 			}
-			must(t, f.l.Replay("station-remove"))
+			must(t, f.l.Replay("station"))
 			got, e = os.ReadFile(p)
 			must(t, e)
 			if !bytes.Equal(got, []byte("old config\n")) {
@@ -242,7 +242,7 @@ func TestLedgerModifyFileRestoresExactCommittedNew(t *testing.T) {
 				t.Fatal("mode lost")
 			}
 			absent(t, older)
-			must(t, f.l.Replay("station-remove"))
+			must(t, f.l.Replay("station"))
 		})
 	}
 }
@@ -265,16 +265,16 @@ func TestLedgerMembershipIDsAndEnableState(t *testing.T) {
 			g := f.sys.groups["access"]
 			g.GID = 999
 			f.sys.groups["access"] = g
-			code(t, f.l.Replay("station-remove"), 1)
+			code(t, f.l.Replay("station"), 1)
 			if !f.sys.members["access"]["demo"] {
 				t.Fatal("changed membership removed")
 			}
 		} else {
-			must(t, f.l.Replay("station-remove"))
+			must(t, f.l.Replay("station"))
 			if f.sys.members["access"]["demo"] {
 				t.Fatal("membership retained")
 			}
-			must(t, f.l.Replay("station-remove"))
+			must(t, f.l.Replay("station"))
 		}
 	}
 }
@@ -282,7 +282,7 @@ func TestLedgerMembershipIDsAndEnableState(t *testing.T) {
 // Claim: retained objects still require matching identities; d6 keys/data are
 // kept in every mode, while remove objects are undone and state is restored.
 func TestLedgerRetentionModes(t *testing.T) {
-	for _, mode := range []string{"station", "station-remove", "rehearsal"} {
+	for _, mode := range []string{"station", "rehearsal"} {
 		t.Run(mode, func(t *testing.T) {
 			purpose := "station"
 			if mode == "rehearsal" {
@@ -345,7 +345,7 @@ func TestLedgerExecMissingExtraAndToolFailure(t *testing.T) {
 			if scenario == "valid" {
 				must(t, e)
 				f.reopen(t)
-				must(t, f.l.Replay("station-remove"))
+				must(t, f.l.Replay("station"))
 				exists(t, p)
 			} else {
 				code(t, e, 3)
@@ -393,9 +393,76 @@ func TestLedgerCLIUsageAndValidNeighbour(t *testing.T) {
 	code(t, Run([]string{"verify", "-dir", f.dir}, f.sys, &bytes.Buffer{}), 0)
 	p := filepath.Join(f.root, "cli-file")
 	code(t, Run([]string{"create-file", "-dir", f.dir, "-path", p, "-src", f.src, "-owner", stringID(os.Geteuid()), "-group", stringID(os.Getegid()), "-mode", "0600", "-ret", "remove"}, f.sys, &bytes.Buffer{}), 0)
-	code(t, Run([]string{"replay", "-dir", f.dir, "-mode", "station-remove"}, f.sys, &bytes.Buffer{}), 0)
+	code(t, Run([]string{"replay", "-dir", f.dir, "-mode", "station"}, f.sys, &bytes.Buffer{}), 0)
 	absent(t, p)
 }
+
+// Claim: unknown replay modes return named usage errors before opening a
+// locked, unreadable or missing ledger, without output, system calls or writes.
+// A nil receiver also proves the engine rejects them before loading its ledger;
+// valid station/rehearsal neighbours remove only the recorded remove object.
+func TestLedgerReplayRejectsUnknownModesBeforeOpen(t *testing.T) {
+	for _, purpose := range []string{"station", "rehearsal"} {
+		t.Run(purpose, func(t *testing.T) {
+			f := setupWith(t, purpose, nil)
+			own := f.create(t, "own", "file", "remove")
+			key := f.create(t, "key", "secret", "d6")
+			paths := []string{own, key, filepath.Join(f.dir, recordsName), filepath.Join(f.dir, "HEAD"), filepath.Join(f.dir, "LOCK")}
+			before := make(map[string][]byte)
+			stats := make(map[string]os.FileInfo)
+			for _, path := range paths {
+				var e error
+				before[path], e = os.ReadFile(path)
+				must(t, e)
+				stats[path], e = os.Stat(path)
+				must(t, e)
+			}
+			calls := len(f.sys.calls)
+			for _, state := range []string{"locked", "unreadable", "missing"} {
+				t.Run(state, func(t *testing.T) {
+					dir := f.dir
+					if state == "unreadable" {
+						f.l.Close()
+						must(t, os.Chmod(dir, 0))
+						defer func() { must(t, os.Chmod(dir, 0700)) }()
+					} else if state == "missing" {
+						dir = filepath.Join(f.root, "missing-ledger")
+					}
+					for _, mode := range []string{"station-remove", "unknown", ""} {
+						var out bytes.Buffer
+						e := Run([]string{"replay", "-dir", dir, "-mode", mode}, f.sys, &out)
+						code(t, e, 2)
+						if e.Error() != "g2-ledger: USAGE_REPLAY" || out.Len() != 0 || len(f.sys.calls) != calls {
+							t.Fatalf("mode %q: missing usage refusal or unexpected effects: %v", mode, e)
+						}
+						var unopened *Ledger
+						e = unopened.Replay(mode)
+						code(t, e, 2)
+						if e.Error() != "g2-ledger: REPLAY_MODE" {
+							t.Fatal(e)
+						}
+					}
+					if state == "missing" {
+						absent(t, dir)
+					}
+				})
+			}
+			for _, path := range paths {
+				after, e := os.ReadFile(path)
+				must(t, e)
+				stat, e := os.Stat(path)
+				must(t, e)
+				if !bytes.Equal(before[path], after) || !os.SameFile(stats[path], stat) || stats[path].Mode() != stat.Mode() || !stats[path].ModTime().Equal(stat.ModTime()) {
+					t.Fatal("usage refusal changed", path)
+				}
+			}
+			must(t, Run([]string{"replay", "-dir", f.dir, "-mode", purpose}, f.sys, &bytes.Buffer{}))
+			absent(t, own)
+			exists(t, key)
+		})
+	}
+}
+
 func stringID(n int) string {
 	if n == 0 {
 		return "0"
@@ -438,14 +505,14 @@ func TestLedgerAccountLookupErrorStops(t *testing.T) {
 	f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 		return fakeReply{"", -1, syscall.EACCES}, cmd == "/usr/bin/getent"
 	}
-	code(t, f.l.Replay("station-remove"), 1)
+	code(t, f.l.Replay("station"), 1)
 	exists(t, older)
 	if f.sys.called("/usr/sbin/userdel") {
 		t.Fatal("effect after lookup error")
 	}
 	f.sys.fault = nil
 	delete(f.sys.users, "demo")
-	must(t, f.l.Replay("station-remove"))
+	must(t, f.l.Replay("station"))
 	absent(t, older)
 }
 
