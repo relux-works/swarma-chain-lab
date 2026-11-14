@@ -75,6 +75,18 @@ listings, preflight refusal before newer-file removal, strict user-step rechecks
 exact refusal reasons, and clean rehearsal baseline JSONL. See the
 [paired removal contract](G2-LEDGER.md#account-removal-effect-boundary).
 
+The [unit-enable receipt grammar](G2-LEDGER.md#unit-enable-receipts-and-undo) documents
+the supported versioned output. To replay an external native capture verbatim
+without storing machine-specific paths in test fixtures, run from `deploy/`:
+
+```sh
+G2LEDGER_NATIVE_ENABLE_OUTPUT=/path/to/enable.log go test -race ./g2ledger -run '^TestUnitReceiptNativeQuoted$' -count=1
+```
+
+The fixture unit is `xcheck-fixture.service`. The test checks its first receipt
+line and refuses any following diagnostic. Test output goes to the invoking
+terminal; keep private captures and saved logs outside published source.
+
 ## Build contract
 
 Use Go1.26.8 and pre-download the landed modules' dependencies into the local

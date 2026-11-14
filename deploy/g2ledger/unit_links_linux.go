@@ -51,24 +51,52 @@ func unitInstallSafe(sys System, name string) error {
 	return nil
 }
 
-// systemctl enable emits: Created symlink A -> B. Only that exact C-locale
-// output grants a receipt. Unknown diagnostics, duplicates and empty sets orphan.
+// systemd v249-v255 emit unquoted paths; v256-v259 emit single-quoted
+// paths. Both use the ASCII arrow in the C locale. See G2-LEDGER.md for sources
+// and deliberately refused ambiguous path text. No shell unescaping is applied.
 func createdUnitLinks(output string) ([]UnitLink, error) {
+	if output == "" {
+		return nil, errors.New("UNIT_ENABLE_EMPTY")
+	}
 	var links []UnitLink
 	seen := map[string]bool{}
 	for _, line := range strings.Split(strings.TrimSuffix(output, "\n"), "\n") {
 		if !strings.HasPrefix(line, "Created symlink ") || !strings.HasSuffix(line, ".") {
 			return nil, errors.New("UNIT_ENABLE_OUTPUT")
 		}
-		path, target, ok := strings.Cut(strings.TrimSuffix(strings.TrimPrefix(line, "Created symlink "), "."), " -> ")
-		if !ok || !validPath(path) || !validPath(target) || seen[path] {
+		body := strings.TrimSuffix(strings.TrimPrefix(line, "Created symlink "), ".")
+		if strings.Count(body, "->") != 1 || strings.Contains(body, "→") {
+			return nil, errors.New("UNIT_ENABLE_ARROW")
+		}
+		path, target, ok := strings.Cut(body, " -> ")
+		if !ok {
+			return nil, errors.New("UNIT_ENABLE_ARROW")
+		}
+		if strings.HasPrefix(path, "'") {
+			if len(path) < 2 || !strings.HasSuffix(path, "'") || len(target) < 2 || !strings.HasPrefix(target, "'") || !strings.HasSuffix(target, "'") {
+				return nil, errors.New("UNIT_ENABLE_QUOTE")
+			}
+			path, target = path[1:len(path)-1], target[1:len(target)-1]
+		} else {
+			// Legacy output cannot distinguish period + whitespace in a
+			// path from a completed receipt followed by a diagnostic.
+			for _, suffix := range strings.Split(body, ".")[1:] {
+				if suffix != "" && strings.ContainsRune(" \t\r\v\f", rune(suffix[0])) {
+					return nil, errors.New("UNIT_ENABLE_OUTPUT")
+				}
+			}
+		}
+		if strings.ContainsAny(path, "'\"") || strings.ContainsAny(target, "'\"") {
+			return nil, errors.New("UNIT_ENABLE_QUOTE")
+		}
+		if !validPath(path) || !validPath(target) {
 			return nil, errors.New("UNIT_ENABLE_LINK")
+		}
+		if seen[path] {
+			return nil, errors.New("UNIT_ENABLE_DUPLICATE")
 		}
 		seen[path] = true
 		links = append(links, UnitLink{Path: path, Target: target})
-	}
-	if len(links) == 0 {
-		return nil, errors.New("UNIT_ENABLE_EMPTY")
 	}
 	return links, nil
 }
