@@ -67,6 +67,7 @@ class Case:
     fails_at: tuple     # operations that must fail at the baseline
     source: str = ""    # consumer main.go, for library entry points
     tool: str = ""      # `tool` directive, for command entry points
+    strict_test: bool = False
 
     def targets(self):
         return [self.tool] if self.tool else ["./..."]
@@ -75,6 +76,13 @@ class Case:
 # Each case is its own consumer module: a shared module would let MVS take the
 # highest single-use across cases and hide a stale edge in deploy/station-lifecycle.
 CASES = (
+    # Claim: the previously green published wallet graph must fail the parser-
+    # entry regression, while the candidate retains both current bench APIs
+    # and pre-parse refusal through the real public rental certificate verifier.
+    Case("published-rental-strict", PREFIX + "experiments/agent-wallet",
+         "27d39435cdc4939422d1ab09cec0b0821ac4c2fe",
+         r"PUBLISHED_RENTAL_STRICT_GATE_MISSING: NONCANONICAL_REACHED_LIB_PARSER",
+         ("strict-test",), source=BENCH_CONSUMER, strict_test=True),
     # Claim: the bench's published graph supplies both terms-v2 and transport APIs;
     # its known stale graph fails compilation beside the candidate positive control.
     Case("grant-bench", PREFIX + "experiments/agent-wallet",
@@ -125,7 +133,7 @@ def main():
         "TMPDIR": str(root / "tmp"), "TMP": str(root / "tmp"), "TEMP": str(root / "tmp"),
         "GOENV": "off", "GOTOOLCHAIN": "local", "GOWORK": "off",
         "GOPROXY": "https://proxy.golang.org", "GOSUMDB": "sum.golang.org",
-        "CGO_ENABLED": "0", "GOMAXPROCS": "4", "GOFLAGS": "-p=2",
+        "CGO_ENABLED": "1", "GOMAXPROCS": "4", "GOFLAGS": "-p=2",
     }
     offline = dict(env, GOPROXY="off", GOSUMDB="off")
     print(f"evidence: {root}", flush=True)
@@ -234,14 +242,66 @@ def main():
                                      ["list", "-mod=readonly", "-m", "-json", "all"], offline)))
             if any(m.get("Replace") for m in graph):
                 raise RuntimeError(f"{case.name} {label}: replaced module in selected graph")
+            if label == "candidate":
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("strict_snapshots", repo / ".scripts/check-strict-module-snapshots.py")
+                strict = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(strict)
+                errors = [error for module in graph for error in strict.check_selection(
+                    repo, module["Path"], module.get("Version", ""))]
+                if errors:
+                    raise RuntimeError("published MVS graph loses strict parser: " + "; ".join(errors))
             run(cwd, f"{case.name}-{label}-verify", ["mod", "verify"], offline)
             step(case, label, cwd, "vet", ["vet", "-mod=readonly", *case.targets()], offline)
             step(case, label, cwd, "build", ["build", "-mod=readonly", "-o", str(cwd / "bin") + os.sep,
                                              *case.targets()], offline)
+            if case.strict_test:
+                # Resolve/checksum-verify first, then vendor the selected bytes.
+                # Only the library parser is instrumented; no candidate source
+                # or module replacement is introduced, and no workspace is used.
+                selected_rental = next(m for m in graph if m["Path"] == PREFIX + "experiments/rental")
+                if label == "baseline" and not selected_rental["Version"].endswith("-3baa201bafb6"):
+                    raise RuntimeError("bad-selection witness no longer selects rental 3baa201b")
+                run(cwd, f"{case.name}-{label}-vendor", ["mod", "vendor"], offline)
+                library = cwd / "vendor/github.com/btcsuite/btcd/btcec/v2/schnorr/signature.go"
+                original = library.read_text()
+                entry = "func ParseSignature(sig []byte) (*Signature, error) {"
+                if original.count(entry) != 1:
+                    raise RuntimeError("upstream parser entry changed; sentinel not applied")
+                order = bytes.fromhex("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141")
+                bound = ", ".join(f"0x{b:02x}" for b in order)
+                sentinel = (entry + "\n\tif len(sig) == 64 && string(sig[32:]) >= string([]byte{" + bound
+                            + '}) { panic("NONCANONICAL_REACHED_LIB_PARSER") }')
+                import hashlib
+                before_vendor = {str(p.relative_to(cwd)): hashlib.sha256(p.read_bytes()).hexdigest()
+                                 for p in (cwd / "vendor").rglob("*") if p.is_file()}
+                library.write_text(original.replace(entry, sentinel))
+                changed = [str(p.relative_to(cwd)) for p in (cwd / "vendor").rglob("*")
+                           if p.is_file() and hashlib.sha256(p.read_bytes()).hexdigest()
+                           != before_vendor[str(p.relative_to(cwd))]]
+                if changed != [str(library.relative_to(cwd))]:
+                    raise RuntimeError("sentinel changed unexpected vendored source")
+                (root / f"{case.name}-{label}-sentinel.json").write_text(json.dumps({
+                    "rental": selected_rental, "changed_files": changed,
+                    "verified_vendor_sha256": before_vendor,
+                }, indent=2) + "\n")
+                fixture = repo / ".scripts/testdata/published_rental_strict_test.go"
+                (cwd / "published_rental_strict_test.go").write_bytes(fixture.read_bytes())
+                # Run positive/calibration controls separately: a setup failure
+                # or blanket rejection cannot satisfy the negative witness.
+                run(cwd, f"{case.name}-{label}-strict-controls",
+                    ["test", "-mod=vendor", "-race", "-count=1", "-v", "-run",
+                     "^(TestPublishedRentalValidHighS|TestPublishedParserSentinelControl)$", "."], offline)
+                step(case, label, cwd, "strict-test",
+                     ["test", "-mod=vendor", "-race", "-count=1", "-v", "-run",
+                      "^TestPublishedRentalRejectsBeforeLibraryParse$", "."], offline)
             summary.append(f"{case.name} {label} {version}: "
-                           + ("vet/build refused (witness)" if label == "baseline" else "resolve/vet/build PASS"))
+                           + ("strict pre-parse bypass witnessed" if case.strict_test and label == "baseline"
+                              else "vet/build refused (witness)" if label == "baseline"
+                              else "resolve/vet/build and strict pre-parse PASS" if case.strict_test
+                              else "resolve/vet/build PASS"))
     print("\n".join(summary), flush=True)
-    print("Scope: published API graph and static compilation only; no runtime/custody qualification.", flush=True)
+    print("Scope: published API compilation plus bounded rental pre-parse regression; no chain/custody qualification.", flush=True)
 
 
 if __name__ == "__main__":

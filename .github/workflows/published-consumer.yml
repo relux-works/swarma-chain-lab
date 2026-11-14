@@ -14,6 +14,9 @@ on:
       - '.scripts/check-module-graph.py'
       - '.scripts/test_check_module_graph.py'
       - '.scripts/check-published-consumer.py'
+      - '.scripts/testdata/published_rental_strict_test.go'
+      - '.scripts/check-strict-module-snapshots.py'
+      - '.scripts/test_check_strict_module_snapshots.py'
       - '.github/workflows/published-consumer.yml'
   push:
     branches: [main]
@@ -30,6 +33,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version: '1.26.8'
@@ -41,6 +45,14 @@ jobs:
           GOWORK: 'off'
           GOPROXY: 'off'
         run: python3 -B .scripts/check-module-graph.py
+      - name: Strict snapshots contain the parser change and selected call sites
+        env:
+          GOTOOLCHAIN: local
+          GOWORK: 'off'
+          GOPROXY: 'off'
+        run: |
+          python3 -B .scripts/check-strict-module-snapshots.py
+          python3 -B -m unittest discover -s .scripts -p 'test_check_strict_module_snapshots.py' -v
       - name: Standalone-require regression and mutant controls
         env:
           GOTOOLCHAIN: local
@@ -56,6 +68,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version: '1.26.8'
@@ -80,3 +93,4 @@ jobs:
             ${{ runner.temp }}/published-consumer-*/*-candidate/go.mod
             ${{ runner.temp }}/published-consumer-*/*-candidate/go.sum
             ${{ runner.temp }}/published-consumer-*/*-candidate/main.go
+            ${{ runner.temp }}/published-consumer-*/*/published_rental_strict_test.go

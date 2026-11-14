@@ -1,10 +1,24 @@
 # Published module graph audit
 
-The current floor is signed source `ffefc6d423aeed245faa38d47de1ce1874ef3c3d`, published at
-`20261114144010`. All 101 internal requirements select this snapshot or a later version so
-external consumers can resolve the shared strict BIP-340 parser and the
-verification sites that use it. No local replacement or internal graph edge
-changes. The earlier audit below records why coherent snapshot floors matter.
+The current floor is signed source `27d39435cdc4939422d1ab09cec0b0821ac4c2fe`, published at
+`20261114202108`. All 101 internal requirements select this compatible branch
+snapshot. It descends from main `66dfd7cf2ed5ece75f0632be188412cea426154b`
+and strict-parser change `28d4b9f1aba4f10e8d57ea486f73b52aeabe46ab`.
+The head is selected uniformly to retain current consumer APIs and every strict
+call site, including the wallet's rental and grantcheck requirements. This also
+retains the source changes in the booking, executor, gateway, shared parser and
+wallet modules. No requirement is lowered; no local replacement changes.
+
+Semantic-version order establishes an API floor, **not fix containment**. The
+numerically higher rental snapshot `3baa201bafb6` lacks the strict certificate
+parser. `.scripts/check-strict-module-snapshots.py` separately resolves every
+protected internal requirement (and versioned replacement) to its Git commit,
+runs `git merge-base --is-ancestor` against the strict change, and reads the
+selected commit's parser call sites and shared bounds. Unknown/missing commits
+fail closed; CI fetches full history. The source-marker check is bounded and
+is not a semantic proof against arbitrary future source rewrites. A later
+snapshot must pass both ancestry and source checks; version order never waives
+them. The earlier audit below records why coherent snapshot floors matter.
 
 The current inventory covers all 21 `go.mod` files and all 101 internal require edges.
 The initial audit covered 20 manifests across 19 consumer modules at base
@@ -25,28 +39,28 @@ standalone `single-use` requires in `deploy/go.mod` and
 This avoids mixing current consumer source with stale sibling APIs. It is a
 coherent snapshot refresh, not a claim that every old edge individually fails.
 No third-party requirement, product source, or local replacement changes.
-All 14 dependency module ZIPs (624 files including inherited licenses) were
-compared byte-for-byte with that signed source; Go 1.26.10 downloaded them with
-normal checksum verification. The earlier default Go 1.25.14 metadata command
-refused the Go 1.26 requirement; its failure was retained, not treated as a pass.
+The earlier snapshot audit compared its dependency module ZIPs with signed
+source and used normal checksum verification. Current external consumer checks
+resolve the selected versions through the public proxy and verify checksums
+before test-only parser instrumentation.
 
 | Dependency under experiments/ | Published requirement |
 | --- | --- |
-| `grant-store` | `v0.1.1-0.20261114144010-ffefc6d423ae` |
-| `m5-host-smoke` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
-| `model-proxy` | `v0.4.1-0.20261114144010-ffefc6d423ae` |
-| `payment-chain` | `v0.2.1-0.20261114144010-ffefc6d423ae` |
-| `rental` | `v0.5.1-0.20261114144010-ffefc6d423ae` |
-| `rental-booking` | `v0.4.1-0.20261114144010-ffefc6d423ae` |
-| `rental-gateway` | `v0.4.1-0.20261114144010-ffefc6d423ae` |
-| `rental-gateway/kernelbind` | `v0.1.1-0.20261114144010-ffefc6d423ae` |
-| `sealwatch` | `v0.2.1-0.20261114144010-ffefc6d423ae` |
-| `signer-service` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
-| `single-use` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
-| `station-lifecycle` | `v0.2.1-0.20261114144010-ffefc6d423ae` |
-| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261114144010-ffefc6d423ae` |
-| `station-payload` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
-| `grantcheck` | `v0.1.2-0.20261114144010-ffefc6d423ae` |
+| `grant-store` | `v0.1.1-0.20261114202108-27d39435cdc4` |
+| `m5-host-smoke` | `v0.3.1-0.20261114202108-27d39435cdc4` |
+| `model-proxy` | `v0.4.1-0.20261114202108-27d39435cdc4` |
+| `payment-chain` | `v0.2.1-0.20261114202108-27d39435cdc4` |
+| `rental` | `v0.5.1-0.20261114202108-27d39435cdc4` |
+| `rental-booking` | `v0.4.1-0.20261114202108-27d39435cdc4` |
+| `rental-gateway` | `v0.4.1-0.20261114202108-27d39435cdc4` |
+| `rental-gateway/kernelbind` | `v0.1.1-0.20261114202108-27d39435cdc4` |
+| `sealwatch` | `v0.2.1-0.20261114202108-27d39435cdc4` |
+| `signer-service` | `v0.3.1-0.20261114202108-27d39435cdc4` |
+| `single-use` | `v0.3.1-0.20261114202108-27d39435cdc4` |
+| `station-lifecycle` | `v0.2.1-0.20261114202108-27d39435cdc4` |
+| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261114202108-27d39435cdc4` |
+| `station-payload` | `v0.3.1-0.20261114202108-27d39435cdc4` |
+| `grantcheck` | `v0.1.2-0.20261114202108-27d39435cdc4` |
 
 The inventory below is generated and checked by
 `python3 .scripts/check-module-graph.py`, which parses every `go.mod` with
@@ -106,7 +120,8 @@ The candidate must pass every case. CI preserves exact versions, selected graphs
 source, commands, PIDs, exits and logs.
 
 The inventory check covers every internal require edge; the external compile
-fixtures qualify these four public entry points. They do not claim that every
+fixtures qualify these four public entry points and the bounded rental
+pre-parse regression. They do not claim that every
 other exported module/package or downstream slotd runtime was independently
 executed. Existing repository checks remain required. Future cross-module API
 changes must refresh the affected published requirements, raise the floors in
@@ -117,13 +132,27 @@ The envelope admission bench adds the first wallet consumer edge to `grantcheck`
 and its two gateway dependencies. The previously unconsumed `grantcheck` module
 now follows the shared strict-parser snapshot floor above.
 
-The bench now calls the transport-neutral grantcheck API and terms-v2 rental
-API. Its wallet manifest pins both to the already-published `3baa201b` source;
-both are above the shared strict-parser snapshot floor. The external `grant-bench`
-consumer at `1b3c321` is the known stale-graph negative: resolve succeeds, but
-vet/build must fail with missing terms-v2 or transport API symbols. The candidate
-must resolve, vet and build offline without replacements. This supplements the
-floor inventory with an executable API-compatibility check for the bench.
+The bench calls the transport-neutral grantcheck API and terms-v2 rental
+API. Its wallet manifest pins both to `27d39435cdc4`, which contains those APIs
+and the strict-parser change. The external `grant-bench` consumer at `1b3c321`
+is the known stale-API negative: resolve succeeds, but vet/build must fail with
+missing terms-v2 or transport API symbols. The candidate must resolve, vet and
+build offline without replacements.
+
+`TestPublishedRentalRejectsBeforeLibraryParse` adds a runtime regression in a
+fresh external wallet consumer. It resolves the real bench and rental APIs
+through `https://proxy.golang.org`, with no replace directives or workspace,
+then vendors the verified graph. Only the vendored library's parser entry is
+instrumented to signal `s >= n`; all application bytes are unchanged. The test
+requires `s = n` to be refused before reaching that entry through public
+`rental.VerifySignature`, the certificate verifier. Official high-s vector 1
+must still verify, and a direct library call calibrates the sentinel. All three
+checks run with `-race`. The historical wallet at `27d39435` must select rental
+`3baa201b` and fail the named regression with
+`PUBLISHED_RENTAL_STRICT_GATE_MISSING: NONCANONICAL_REACHED_LIB_PARSER`;
+both controls must pass. The candidate must pass the same regression and
+controls. This detects loss of pre-parse refusal, not a demonstrated forgery:
+the old uninstrumented verifier also rejects this signature mathematically.
 
 ## Shared BIP-340 parser placement
 

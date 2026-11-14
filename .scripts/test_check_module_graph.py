@@ -23,7 +23,7 @@ PREFIX = "github.com/relux-works/swarma-chain-lab/"
 SINGLE_USE = PREFIX + "experiments/single-use"
 SNAPSHOT_FLOORS = json.loads((REPO / "experiments/module-graph-snapshot.json").read_text())["modules"]
 SNAPSHOT_SINGLE_USE = SNAPSHOT_FLOORS[SINGLE_USE]
-WALLET_SINGLE_USE = "v0.3.1-0.20261114144010-ffefc6d423ae"
+WALLET_SINGLE_USE = SNAPSHOT_SINGLE_USE
 STANDALONE = ("deploy/go.mod", "experiments/station-lifecycle/go.mod")
 
 

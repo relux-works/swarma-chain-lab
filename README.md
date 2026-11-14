@@ -377,7 +377,7 @@ GOWORK=off GOFLAGS=-mod=mod go build ./...
 
 For later releases, choose new versions for changed modules and update their
 consumers explicitly; validate the complete selected graph before tagging.
-The current cross-module requirements pin the published `288d63e191fe` snapshot;
+The current cross-module requirements pin the published `27d39435cdc4` snapshot;
 local directory replacements remain development conveniences. In particular,
 `single-use` needs `sealwatch.ValidateJSON`, which is absent from `sealwatch v0.1.0`.
 Published, immutable dependency checksums may be recorded in module sums; this
@@ -393,6 +393,14 @@ exits 1 when any internal require edge is older than its floor in
 `python3 -m unittest discover -s .scripts -p 'test_check_module_graph.py' -v`,
 hold the standalone-require regression and the narrowing mutant controls; both
 need only `go` on `PATH` and write nothing outside a temporary directory.
+
+The same inventory job runs `python3 .scripts/check-strict-module-snapshots.py`
+and `python3 -m unittest discover -s .scripts -p 'test_check_strict_module_snapshots.py' -v`.
+These require full Git history, check that selected protected snapshots descend
+from the strict-parser commit, and inspect the selected source call sites.
+Semantic-version order alone does not preserve a fix. Controls reject the bad
+rental selection, an unrelated higher pseudo-version, unavailable commits and
+missing source sites; outputs go to stdout and fixture scratch.
 
 `published-consumer` runs
 `python3 .scripts/check-published-consumer.py --candidate FULL_COMMIT_SHA --scratch-parent ABSOLUTE_EXTERNAL_SCRATCH`
@@ -411,8 +419,14 @@ the missing `sealwatch.ValidateJSON`, and `b516cc2` (standalone `single-use v0.1
 requires) with `cannot find module providing package .../single-use/configguard`
 for both `deploy` and `station-manager`. The bench consumer at `1b3c321`
 must fail at its declared pre-terms-v2/pre-transport API dependencies; its
-candidate pins the already-published API versions and must compile without
-replacements. The candidate must pass every case. Logs,
+candidate pins compatible strict-parser snapshots and must compile without
+replacements. `TestPublishedRentalRejectsBeforeLibraryParse` runs in another
+fresh external wallet consumer: it vendors the checksum-verified graph and
+instruments only the library parser entry, then requires `s = n` to be refused
+before that entry through the public rental certificate verifier. A valid
+high-s vector and a direct sentinel calibration must pass beside it. The bad
+wallet snapshot `27d39435` selecting rental `3baa201b` must fail with the exact
+parser-entry witness. This checks pre-parse refusal rather than a forgery. The candidate must pass every case. Logs,
 commands/PIDs/exits, manifests and consumer inputs stay in the printed scratch
 directory; CI uploads those small files without caches. This proves public graph
 compilation, not slotd runtime behavior or production installation.
