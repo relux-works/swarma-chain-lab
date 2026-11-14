@@ -18,8 +18,30 @@ import (
 type System interface {
 	Run(command string, args ...string) (string, int, error)
 	Chown(file *os.File, uid, gid uint32) error
+	// UnitPaths returns the system unit search order and persistent install directory.
+	UnitPaths() ([]string, string, error)
 }
 type RealSystem struct{}
+
+func (s RealSystem) UnitPaths() ([]string, string, error) {
+	// Both systemd-analyze unit-paths and enable use lookup_paths_init(..., 0).
+	// Persistent system enablement uses SYSTEM_CONFIG_UNIT_DIR, not a search
+	// directory chosen from the receipt. See the pinned sources in G2-LEDGER.md.
+	out, status, err := s.Run("/usr/bin/systemd-analyze", "--system", "unit-paths")
+	if err != nil {
+		return nil, "", err
+	}
+	if status != 0 || out == "" {
+		return nil, "", errors.New("UNIT_SEARCH_PATH")
+	}
+	paths := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	for _, path := range paths {
+		if !validPath(path) {
+			return nil, "", errors.New("UNIT_SEARCH_PATH")
+		}
+	}
+	return paths, "/etc/systemd/system", nil
+}
 
 func (RealSystem) Chown(f *os.File, uid, gid uint32) error {
 	// Avoid requiring privilege for an already-correct descriptor in fixtures.

@@ -170,6 +170,13 @@ schemas and [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for deployment in
 
 ## Tools and artifacts
 
+- `/usr/bin/systemd-analyze --system unit-paths` supplies the unit search order
+  for `g2-ledger enable`; `systemd-analyze --version` bounds `UpheldBy=` support.
+  Their stdout is consumed internally; no artifact is
+  written. The selected regular unit's supported `[Install]` lists determine
+  the exact authorised receipt set. See the
+  [expected-set and no-adoption rules](G2-LEDGER.md#unit-enable-receipts-and-undo).
+
 - `deploy-kit g2-keygen -out "$KEY" [-mode 0600|0640] [-owner U] [-group G]`
   creates one new scalar file; the default mode is `0600`.
 - `deploy-kit g2-rpcauth -params "$PARAMS" -wallet-public "$PUBLIC"

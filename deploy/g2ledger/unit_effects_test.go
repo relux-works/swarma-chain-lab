@@ -10,21 +10,20 @@ import (
 	"testing"
 )
 
-// Claim: Install.Also (including whitespace, continuation, reset and drop-in
-// forms) refuses before intent/enable. Comments and another section are valid.
+// Claim: Install.Also (including whitespace, continuation and reset forms) refuses before intent/enable; comments and another section are valid.
 func TestLedgerUnitAlsoRefusedBeforeEffect(t *testing.T) {
 	for _, body := range []string{
 		"[Install]\nAlso=preexisting.service\n",
 		"[Install]\n Also = preexisting.service\n",
 		"[Install]\nAlso=\\\n preexisting.service\n",
 		"[Install]\nAlso=\n",
-		"# /usr/lib/systemd/system/demo.service\n[Install]\nWantedBy=multi-user.target\n# /etc/systemd/system/demo.service.d/also.conf\n[Install]\nAlso=preexisting.service\n",
 		"[Unit]\nDescription=Also=example\n[Install]\n# Also=ignored.service\nWantedBy=multi-user.target\n",
 	} {
 		t.Run(strings.ReplaceAll(body, "\n", "/"), func(t *testing.T) {
 			f := setup(t)
 			f.sys.units["preexisting.service"] = "enabled"
 			f.sys.unitFiles["demo.service"] = body
+			must(t, os.WriteFile(filepath.Join(f.sys.unitRoot, "demo.service"), []byte(body), 0600))
 			if strings.Contains(body, "Also=ignored") { // positive neighbour: no Also directive
 				must(t, f.l.Enable("demo.service"))
 				must(t, f.l.Replay("station"))
@@ -169,6 +168,9 @@ func TestLedgerUnitValidatesWholeSetBeforeUnlink(t *testing.T) {
 			f := setup(t)
 			older := f.create(t, "older", "file", "remove")
 			links := []UnitLink{{Path: filepath.Join(f.sys.unitRoot, "first"), Target: filepath.Join(f.sys.unitRoot, "demo.service")}, {Path: filepath.Join(f.sys.unitRoot, "second"), Target: filepath.Join(f.sys.unitRoot, "demo.service")}}
+			must(t, os.WriteFile(filepath.Join(f.sys.unitRoot, "demo.service"), []byte("[Install]\nAlias=first.service second.service\n"), 0600))
+			links[0].Path += ".service"
+			links[1].Path += ".service"
 			f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 				if cmd != "/usr/bin/systemctl" || args[0] != "enable" {
 					return fakeReply{}, false

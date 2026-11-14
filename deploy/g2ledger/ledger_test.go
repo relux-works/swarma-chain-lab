@@ -37,6 +37,7 @@ func setupWith(t *testing.T, purpose string, prepare func(*fixture)) *fixture {
 	must(t, os.WriteFile(manifest, manifestRaw, 0600))
 	f := &fixture{root: root, dir: dir, src: filepath.Join(root, "source"), sys: newSystem()}
 	f.sys.unitRoot = t.TempDir()
+	must(t, os.WriteFile(filepath.Join(f.sys.unitRoot, "demo.service"), []byte("[Unit]\nDescription=fixture\n[Install]\nWantedBy=multi-user.target\n"), 0600))
 	f.scope = Scope{Users: []string{"demo", "foreign"}, Groups: []string{"demo", "foreign", "primary", "access"}, Units: []string{"demo.service"}}
 	f.sys.units["demo.service"] = "disabled"
 	for _, name := range []string{"older", "newer", "own", "foreign", "public", "pre-existing", "valid", "never-created", "full-write", "not-created", "target", "ordinary", "owned", "orphan", "normal", "old.key", "wallet.json", "service.json", "probe", "config", "cli-file", "file", "parent/file", "parent/newer", "remove"} {

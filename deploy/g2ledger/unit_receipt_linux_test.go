@@ -110,7 +110,10 @@ func TestLedgerQuotedReceiptUndo(t *testing.T) {
 		t.Run(fmt.Sprint(retarget), func(t *testing.T) {
 			f := setup(t)
 			older := f.create(t, "older", "file", "remove")
-			link := UnitLink{Path: filepath.Join(f.sys.unitRoot, "a link"), Target: filepath.Join(f.sys.unitRoot, "a target")}
+			f.sys.unitRoot = filepath.Join(f.sys.unitRoot, "a directory")
+			must(t, os.Mkdir(f.sys.unitRoot, 0700))
+			must(t, os.WriteFile(filepath.Join(f.sys.unitRoot, "demo.service"), []byte("[Install]\nAlias=alias.service\n"), 0600))
+			link := UnitLink{Path: filepath.Join(f.sys.unitRoot, "alias.service"), Target: filepath.Join(f.sys.unitRoot, "demo.service")}
 			f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 				if cmd != "/usr/bin/systemctl" || args[0] != "enable" {
 					return fakeReply{}, false
