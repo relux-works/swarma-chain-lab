@@ -10,12 +10,85 @@ import (
 var fundedTracePID = regexp.MustCompile(`^\s*([0-9]+)\s+(.*)$`)
 var fundedTraceResume = regexp.MustCompile(`^<\.\.\. ([a-zA-Z0-9_]+) resumed>(.*)$`)
 
-// syscall_exiting_trace() in the cited syscall.c versions prints a numeric
-// result, an errno with its parenthesized description, or ? ERESTART* with a
-// restart explanation. Support those suffixes for our trace flags; other
-// annotations (e.g. -y/-T output) fail closed rather than imply completion.
-var fundedTraceComplete = regexp.MustCompile(`\)\s+=\s+(?:(?:0x[0-9a-fA-F]+|-?[0-9]+)(?: [A-Z][A-Z0-9_]*(?: \([^()\r\n]*\))?)?|\? [A-Z][A-Z0-9_]*(?: \([^()\r\n]*\))?)\s*$`)
+// syscall_exiting_trace(), print_err_ret() and print_erestart() print the
+// return token after the argument list: numeric, errno with optional text,
+// or ? with optional restart text / <unavailable>. Validate that entire tail
+// only AFTER finding the call's own close, never a suffix inside arguments.
+// https://github.com/strace/strace/blob/v6.19/src/syscall.c#L779-L1021
+// https://github.com/strace/strace/blob/v6.19/src/syscall.c#L432-L451
+// https://github.com/strace/strace/blob/v6.19/src/print_fields.h#L309-L341
+// Our flags enable neither -y descriptor decorations nor -T <time> suffixes;
+// both remain unsupported and fail closed. No result annotations are stripped.
+var fundedTraceResult = regexp.MustCompile(`^[ \t]+=[ \t]+(?:(?:0x[0-9a-fA-F]+|-?[0-9]+)(?: [A-Z][A-Z0-9_]*)?(?: \([^()\r\n]*\))?|\?(?: [A-Z][A-Z0-9_]*(?: \([^()\r\n]*\))?| <unavailable>)?)[ \t]*$`)
 var fundedTraceEvent = regexp.MustCompile(`^(?:--- SIG(?:[A-Z0-9]+|RT_[0-9]+)(?: \{.*\})? ---|\+\+\+ exited with [0-9]+ \+\+\+|\+\+\+ killed by SIG(?:[A-Z0-9]+|RT_[0-9]+)(?: \(core dumped\))? \+\+\+)$`)
+
+// string_quote() escapes quotes/backslashes, control characters, hex and octal
+// bytes. printstr_ex() emits the abbreviation marker AFTER the closing quote:
+// https://github.com/strace/strace/blob/v6.19/src/util.c#L1126-L1269
+// https://github.com/strace/strace/blob/v6.19/src/util.c#L1479-L1489
+// Scan the joined record from the actual opening parenthesis. A stack keeps
+// structured arguments' {} [] () separate from the outer call boundary.
+func fundedTraceComplete(line string) bool {
+	call := fundedTraceCall.FindStringSubmatchIndex(line)
+	if call == nil {
+		return false
+	}
+	stack := []byte{')'}
+	quoted := false
+	for i := call[4]; i < len(line); i++ {
+		c := line[i]
+		if quoted {
+			switch c {
+			case '\\':
+				i++
+				if i == len(line) {
+					return false
+				}
+				c = line[i]
+				switch {
+				case strings.ContainsRune(`"\fnrtv`, rune(c)):
+				case c == 'x':
+					for n := 0; n < 2; n++ {
+						i++
+						if i == len(line) || !strings.ContainsRune("0123456789abcdefABCDEF", rune(line[i])) {
+							return false
+						}
+					}
+				case c >= '0' && c <= '7':
+					for n := 1; n < 3 && i+1 < len(line) && line[i+1] >= '0' && line[i+1] <= '7'; n++ {
+						i++
+					}
+				default:
+					return false
+				}
+			case '"':
+				quoted = false
+			case '\n', '\r':
+				return false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			quoted = true
+		case '(':
+			stack = append(stack, ')')
+		case '[':
+			stack = append(stack, ']')
+		case '{':
+			stack = append(stack, '}')
+		case ')', ']', '}':
+			if c != stack[len(stack)-1] {
+				return false
+			}
+			stack = stack[:len(stack)-1]
+			if len(stack) == 0 {
+				return fundedTraceResult.MatchString(line[i+1:])
+			}
+		}
+	}
+	return false
+}
 
 // strace(1), DESCRIPTION, documents per-thread unfinished/resumed pairs:
 // https://man7.org/linux/man-pages/man1/strace.1.html
@@ -59,7 +132,7 @@ func fundedTraceLines(trace string) (lines, violations []string) {
 			}
 			// A resume tag alone is not completion. Retain the pending entry
 			// and never send partial arguments to the effect classifier.
-			if !fundedTraceComplete.MatchString(start + resumed[2]) {
+			if !fundedTraceComplete(start + resumed[2]) {
 				violations = append(violations, "incomplete resume: "+line)
 				continue
 			}
@@ -75,6 +148,15 @@ func fundedTraceLines(trace string) (lines, violations []string) {
 				violations = append(violations, "unclassified trace: "+line)
 			}
 			continue
+		}
+		if fundedTraceCall.MatchString(line) && !fundedTraceComplete(line) {
+			// An unsplit EOF is just as incomplete as a resumed EOF. Keep
+			// it pending; preserve existing effect diagnostics below, but
+			// it can never produce a violation-free observer verdict.
+			violations = append(violations, "incomplete syscall: "+line)
+			if _, ok := pending[pid]; !ok {
+				pending[pid] = line
+			}
 		}
 		lines = append(lines, line)
 	}
