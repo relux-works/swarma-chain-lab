@@ -85,7 +85,7 @@ class ModuleGraphCheck(unittest.TestCase):
     def test_repository_graph_is_at_snapshot(self):
         code, violations, output = self.fixture.run()
         self.assertEqual((code, violations), (0, []), output)
-        self.assertIn("20 manifests, 19 consumers, 101 internal require edges, 0 violations", output)
+        self.assertIn("21 manifests, 19 consumers, 101 internal require edges, 0 violations", output)
 
     # Claim (standalone-require regression, F1 at b516cc21): both standalone
     # single-use requires at v0.1.0 with every block edge current fail with
