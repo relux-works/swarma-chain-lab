@@ -8,6 +8,7 @@ on:
       - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
+      - '.scripts/*detached*v2*'
       - '.github/workflows/rental.yml'
   push:
     branches: [main]
@@ -17,6 +18,7 @@ on:
       - 'experiments/payment-chain/**'
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
+      - '.scripts/*detached*v2*'
       - '.github/workflows/rental.yml'
   workflow_dispatch:
 
@@ -48,6 +50,12 @@ jobs:
         run: |
           go mod download
           go mod verify
+      - name: Detached-v2 observer-local consumer guard and detector controls
+        if: matrix.module == 'rental'
+        working-directory: .
+        run: |
+          python3 -B .scripts/check-detached-v2-consumers.py
+          python3 -B -m unittest discover -s .scripts -p 'test_check_detached_v2_consumers.py' -v
       # Genuine Core tests require separately provisioned, pinned binaries.
       # They skip on this unit/race lane and retain their regtest evidence lane.
       - name: Vet, race tests and build

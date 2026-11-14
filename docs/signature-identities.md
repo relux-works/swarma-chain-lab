@@ -43,6 +43,37 @@ logical-operation uniqueness.
 
 ## Regression evidence and limits
 
+### Accepted detached-v2 exception
+
+Only the grant-key holder can make two valid signature twins over identical
+detached-v2 content. Both twins bind the same grant key, funded seal and name
+generation. Each observer admits a seal at most once: after one twin is admitted,
+the other is refused as `SEAL_ALREADY_SEEN`, with cache and state unchanged.
+Two **fresh** observers may record **different envelope IDs**. The detached-v2
+envelope ID is **not a cross-observer identity**; nothing may key payment,
+deduplication, journals or audit across observers on it. Exact-envelope replay
+within one observer remains supported.
+
+A new detached profile with a per-certificate commitment is the fix, out of
+scope here (grants v4's content-only stable object IDs remove the issue).
+
+`TestCoreDetachedFreshObserversRecordSignatureTwins` admits one twin in each
+of two empty observer states against genuine Core and compares their grant
+keys, funded seals, name generations and recorded IDs.
+`TestCoreDetachedSecondSignatureSealBinding` retains the same-observer refusal
+and unchanged-cache/state checks.
+
+The automatic rental check runs `.scripts/check-detached-v2-consumers.py` and
+its detector controls. It inventories production Go references to detached-v2
+entry points, types and certificate-ID fields across the repository, and pins
+the reviewed consumer files by SHA-256. New references, missing paths or changed
+consumer bytes require a new read-site audit. This is a bounded lexical guard,
+not semantic taint analysis: dynamically constructed field names, arbitrary
+aliases and external consumers are outside its claim. Planted cross-observer
+payment uses in every real inventoried file must be detected; an ignored-path
+mutant must fail that control. The inventory records the observer-local reason
+for each file, including shared fields whose other callers use v1/v3.
+
 `rental/signature_identity_test.go`, `agent-wallet/signature_identity_test.go`
 and `rental-gateway/kernelbind/signature_identity_test.go` use fixture keys and
 fresh auxiliary randomness, assert different signatures and verify both over
