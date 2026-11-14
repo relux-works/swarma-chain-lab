@@ -34,10 +34,13 @@ class StrictModuleSnapshots(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("does not contain strict change", errors[0])
 
-    # Claim: source-equivalent pre-rebase history cannot stand in for the pinned
-    # strict ancestor. This isolates ancestry from the source-marker predicate.
-    def test_strict_source_on_unrelated_history_fails(self):
-        errors = guard.check_selection(ROOT, MODULE, "v0.5.1-0.20261114144010-ffefc6d423ae")
+    # Claim: ancestry independently rejects the reachable bad main snapshot
+    # even without a source-site predicate. No unreachable pre-rebase Git
+    # objects are required by a clean CI fetch.
+    def test_ancestry_without_source_predicate_fails(self):
+        policy = {"experiments/rental": {}}
+        self.assertEqual(guard.check_selection(ROOT, MODULE, GOOD, policy), [])
+        errors = guard.check_selection(ROOT, MODULE, BAD, policy)
         self.assertEqual(len(errors), 1)
         self.assertIn("does not contain strict change", errors[0])
 
