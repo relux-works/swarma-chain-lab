@@ -369,14 +369,18 @@ need only `go` on `PATH` and write nothing outside a temporary directory.
 against actual proxy-published module versions. The parent must exist outside this
 checkout. It creates private HOME/cache/temp and, for each entry point (the
 `single-use` configguard/payloadbootstrap/modelprofile APIs, the `deploy`
-package and the `station-lifecycle/cmd/station-manager` command), a separate
+package, the `station-lifecycle/cmd/station-manager` command, and the
+`agent-wallet/g1bench` API), a separate
 external consumer module without replacements. It downloads the declared graph
 online with checksum verification, then resolves imports, vets and builds offline,
 so a missing package cannot be papered over by an online `@latest` lookup. The
 fixed historical consumers must fail with their specific witness: `288d63e` with
 the missing `sealwatch.ValidateJSON`, and `b516cc2` (standalone `single-use v0.1.0`
 requires) with `cannot find module providing package .../single-use/configguard`
-for both `deploy` and `station-manager`. The candidate must pass every case. Logs,
+for both `deploy` and `station-manager`. The bench consumer at `1b3c321`
+must fail at its declared pre-terms-v2/pre-transport API dependencies; its
+candidate pins the already-published API versions and must compile without
+replacements. The candidate must pass every case. Logs,
 commands/PIDs/exits, manifests and consumer inputs stay in the printed scratch
 directory; CI uploads those small files without caches. This proves public graph
 compilation, not slotd runtime behavior or production installation.
