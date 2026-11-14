@@ -8,10 +8,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-// Claim: non-ASCII keys and Unicode whitespace values refuse before intent or enable; ASCII whitespace controls enable and undo.
+// Claim: non-ASCII keys and Unicode whitespace values refuse before intent or enable; SP/HT controls enable and undo; bare CR refuses.
 func TestInstallWhitespace(t *testing.T) {
 	chars := []struct{ name, text string }{
 		{"NBSP", "\u00a0"}, {"EN_SPACE", "\u2002"}, {"IDEOGRAPHIC_SPACE", "\u3000"},
@@ -56,7 +57,11 @@ func TestInstallWhitespace(t *testing.T) {
 			}
 			for _, ws := range []string{" ", "\t", "\r", " \t\r"} {
 				t.Run(fmt.Sprintf("ASCII-%q", ws), func(t *testing.T) {
-					run(t, ws+key+ws+"="+ws+name+ws, "")
+					reason := ""
+					if strings.Contains(ws, "\r") {
+						reason = "UNIT_INSTALL_CR_REFUSED"
+					}
+					run(t, ws+key+ws+"="+ws+name+ws, reason)
 				})
 			}
 			for _, ch := range chars {

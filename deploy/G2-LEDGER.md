@@ -601,10 +601,32 @@ C-style escapes and other values outside the simple unit-name subset refuse
 rather than being decoded. Inline comments are not interpreted as comments.
 See [systemd.syntax(7)](https://www.freedesktop.org/software/systemd/man/259/systemd.syntax.html).
 
-Keys and values trim only ASCII space (`0x20`), tab (`0x09`), line feed
-(`0x0a`) and carriage return (`0x0d`); list separators use that same set.
-Line feeds delimit physical lines and trailing backslashes join logical lines.
-This is systemd v259's
+Physical lines support LF and CRLF. Any CR not immediately followed by LF,
+including a lone CR at EOF or in a comment, refuses before intent as
+`UNIT_INSTALL_CR_REFUSED`. This conservative subset avoids interpreting a native
+line boundary as assignment whitespace or a list separator. NUL continues to
+refuse as `UNIT_INSTALL_TEXT_REFUSED`. In systemd v259,
+[`src/basic/fileio.c:1443-1453`](https://github.com/systemd/systemd/blob/v259/src/basic/fileio.c#L1443-L1453)
+classifies CR, LF and NUL as EOL markers;
+[`read_line_full`, lines 1467-1484 and 1511-1560](https://github.com/systemd/systemd/blob/v259/src/basic/fileio.c#L1467-L1560)
+consumes CRLF as one ending, also supports LFCR and NUL combinations, and treats
+EOF as EOL. The ledger requires every CR to be immediately followed by LF and
+rejects NUL rather than modeling the full native delimiter grammar.
+
+Supported CRLF endings are removed before comments or continuation processing,
+just like LF. In
+[`src/shared/conf-parser.c:336-356`](https://github.com/systemd/systemd/blob/v259/src/shared/conf-parser.c#L336-L356),
+the physical line is read before full-line `#`/`;` comments are skipped, even
+inside a continuation. Then
+[lines 369-405](https://github.com/systemd/systemd/blob/v259/src/shared/conf-parser.c#L369-L405)
+join any pending line and replace an unescaped final backslash with a space.
+Thus a backslash immediately before CRLF continues, while a bare CR on either
+side of a backslash refuses before parsing. LF and CRLF files with the same
+supported content predict identical link sets.
+
+After physical-line processing, keys and values trim ASCII space (`0x20`), tab
+(`0x09`), line feed (`0x0a`) and carriage return (`0x0d`); list separators use that
+same set, with CR/LF already consumed as physical endings. This is systemd v259's
 [`WHITESPACE`](https://github.com/systemd/systemd/blob/v259/src/fundamental/string-util-fundamental.h#L15),
 used by [`strstrip`](https://github.com/systemd/systemd/blob/v259/src/basic/string-util.c#L67)
 on [assignment keys and values](https://github.com/systemd/systemd/blob/v259/src/shared/conf-parser.c#L265)
