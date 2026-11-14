@@ -1,0 +1,371 @@
+// Package g2ledger implements a durable attempt journal and conservative undo.
+package g2ledger
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
+// Failure carries the CLI contract without conflating refusal with usage.
+type Failure struct {
+	Code   int
+	Reason string
+}
+
+func (e *Failure) Error() string         { return "g2-ledger: " + e.Reason }
+func fail(code int, reason string) error { return &Failure{code, reason} }
+func ExitCode(e error) int {
+	if e == nil {
+		return 0
+	}
+	var f *Failure
+	if errors.As(e, &f) {
+		return f.Code
+	}
+	return 2
+}
+func stopped(what string, e error) error { return fail(1, what+": "+e.Error()) }
+
+// FSIdentity has explicit zero-valued ownership fields: omitted fields are not
+// equivalent to root ownership in the canonical wire format. Secret files have
+// size/mtime but no content digest. Directory identity excludes mutable times.
+type FSIdentity struct {
+	Dev     uint64 `json:"dev"`
+	Ino     uint64 `json:"ino"`
+	Type    string `json:"type"`
+	Mode    uint32 `json:"mode"`
+	UID     uint32 `json:"uid"`
+	GID     uint32 `json:"gid"`
+	Size    int64  `json:"size"`
+	MtimeNS int64  `json:"mtime_ns"`
+	SHA256  string `json:"sha256,omitempty"`
+}
+type Account struct {
+	Name  string `json:"name"`
+	UID   uint32 `json:"uid"`
+	GID   uint32 `json:"gid"`
+	Shell string `json:"shell"`
+}
+type Membership struct {
+	User    Account `json:"user"`
+	Group   Account `json:"group"`
+	Present bool    `json:"present"`
+}
+type Unit struct {
+	Name  string `json:"name"`
+	State string `json:"state"`
+}
+type Identity struct {
+	Path       string      `json:"path,omitempty"`
+	FS         *FSIdentity `json:"fs,omitempty"`
+	Account    *Account    `json:"account,omitempty"`
+	Membership *Membership `json:"membership,omitempty"`
+	Unit       *Unit       `json:"unit,omitempty"`
+}
+type Genesis struct {
+	Version        int    `json:"version"`
+	Attempt        string `json:"attempt"`
+	ManifestSHA256 string `json:"manifest_sha256"`
+	ReleaseSHA     string `json:"release_sha"`
+	Commit         string `json:"commit"`
+	H12            string `json:"h12"`
+	Baseline       string `json:"baseline"`
+	BaselineSHA256 string `json:"baseline_sha256"`
+}
+
+// Action kinds are independent of record phases, leaving room for a later
+// create-tree kind without changing the envelope or interpreting unknown kinds.
+type Action struct {
+	Kind         string     `json:"kind"`
+	Ret          string     `json:"ret"`
+	Paths        []string   `json:"paths,omitempty"`
+	UID          uint32     `json:"uid"`
+	GID          uint32     `json:"gid"`
+	Mode         uint32     `json:"mode"`
+	Name         string     `json:"name,omitempty"`
+	User         string     `json:"user,omitempty"`
+	Group        string     `json:"group,omitempty"`
+	Backup       string     `json:"backup,omitempty"`
+	BackupSHA256 string     `json:"backup_sha256,omitempty"`
+	NewSHA256    string     `json:"new_sha256,omitempty"`
+	Before       []Identity `json:"before,omitempty"`
+}
+type Result struct {
+	Intent     uint64     `json:"intent"`
+	Identities []Identity `json:"identities,omitempty"`
+	Reason     string     `json:"reason,omitempty"`
+}
+type Body struct {
+	Op      string   `json:"op"`
+	Genesis *Genesis `json:"genesis,omitempty"`
+	Action  *Action  `json:"action,omitempty"`
+	Result  *Result  `json:"result,omitempty"`
+}
+type Record struct {
+	Seq  uint64 `json:"seq"`
+	Prev string `json:"prev"`
+	Body Body   `json:"body"`
+	Hash string `json:"hash"`
+}
+type head struct {
+	Count uint64 `json:"count"`
+	Hash  string `json:"hash"`
+}
+
+const zeroHash = "0000000000000000000000000000000000000000000000000000000000000000"
+
+var namePattern = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
+var unitPattern = regexp.MustCompile(`^[a-zA-Z0-9_@.:-]+\.(service|socket|timer|target)$`)
+
+func validPath(p string) bool {
+	return filepath.IsAbs(p) && p != "/" && filepath.Clean(p) == p && !strings.ContainsAny(p, "\x00\r\n")
+}
+func isHex(s string, n int) bool {
+	b, e := hex.DecodeString(s)
+	return e == nil && len(b) == n && hex.EncodeToString(b) == s
+}
+func digest(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
+func canonical(v any) []byte {
+	b, e := json.Marshal(v)
+	if e != nil {
+		panic(e)
+	}
+	return b
+}
+
+// Requiring our canonical encoding also rejects duplicate/aliased JSON keys,
+// omitted required zero fields, nulls, trailing values and alternate numbers.
+func strict(raw []byte, v any) error {
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.DisallowUnknownFields()
+	if e := d.Decode(v); e != nil {
+		return errors.New("SCHEMA_DECODE")
+	}
+	if e := d.Decode(new(any)); e != io.EOF {
+		return errors.New("SCHEMA_TRAILING")
+	}
+	if !bytes.Equal(raw, canonical(v)) {
+		return errors.New("SCHEMA_NONCANONICAL")
+	}
+	return nil
+}
+func recordHash(r Record) string {
+	return digest(canonical(struct {
+		Seq  uint64 `json:"seq"`
+		Prev string `json:"prev"`
+		Body Body   `json:"body"`
+	}{r.Seq, r.Prev, r.Body}))
+}
+func validAccount(a *Account, kind string) bool {
+	if a == nil || !namePattern.MatchString(a.Name) || a.UID == ^uint32(0) || a.GID == ^uint32(0) {
+		return false
+	}
+	if kind == "group" {
+		return a.UID == 0 && a.Shell == ""
+	}
+	return a.Shell == "/usr/sbin/nologin" || a.Shell == "/sbin/nologin"
+}
+func validateIdentity(i Identity, kind string) error {
+	n := 0
+	if i.FS != nil {
+		n++
+	}
+	if i.Account != nil {
+		n++
+	}
+	if i.Membership != nil {
+		n++
+	}
+	if i.Unit != nil {
+		n++
+	}
+	if n != 1 {
+		return errors.New("IDENTITY_UNION")
+	}
+	switch kind {
+	case "dir", "file", "secret", "modify":
+		f := i.FS
+		if f == nil || !validPath(i.Path) || f.Dev == 0 || f.Ino == 0 || f.Mode > 0777 || f.UID == ^uint32(0) || f.GID == ^uint32(0) {
+			return errors.New("IDENTITY_FS")
+		}
+		if kind == "dir" {
+			if f.Type != "dir" || f.Size != 0 || f.MtimeNS != 0 || f.SHA256 != "" {
+				return errors.New("IDENTITY_DIR")
+			}
+		} else {
+			if f.Type != "file" || f.Size < 0 {
+				return errors.New("IDENTITY_FILE")
+			}
+			if kind == "secret" {
+				if f.SHA256 != "" {
+					return errors.New("SECRET_DIGEST_FORBIDDEN")
+				}
+			} else if !isHex(f.SHA256, 32) {
+				return errors.New("IDENTITY_DIGEST")
+			}
+		}
+	case "user", "group":
+		if i.Path != "" || !validAccount(i.Account, kind) {
+			return errors.New("IDENTITY_ACCOUNT")
+		}
+	case "membership":
+		m := i.Membership
+		// Existing membership subjects may have login shells; creation requires nologin.
+		if i.Path != "" || m == nil || !namePattern.MatchString(m.User.Name) || m.User.Shell == "" || m.User.UID == ^uint32(0) || m.User.GID == ^uint32(0) || !validAccount(&m.Group, "group") {
+			return errors.New("IDENTITY_MEMBERSHIP")
+		}
+	case "unit":
+		if i.Path != "" || i.Unit == nil || !unitPattern.MatchString(i.Unit.Name) || (i.Unit.State != "enabled" && i.Unit.State != "disabled") {
+			return errors.New("IDENTITY_UNIT")
+		}
+	default:
+		return errors.New("UNKNOWN_KIND")
+	}
+	return nil
+}
+func validateAction(a *Action) error {
+	if a == nil || a.UID == ^uint32(0) || a.GID == ^uint32(0) || (a.Ret != "d6" && a.Ret != "state" && a.Ret != "remove") {
+		return errors.New("ACTION_RETENTION")
+	}
+	clean := *a
+	switch a.Kind {
+	case "dir", "file", "secret", "modify":
+		if len(a.Paths) == 0 || (a.Kind == "dir" || a.Kind == "modify") && len(a.Paths) != 1 || a.Mode > 0777 {
+			return errors.New("ACTION_PATHS")
+		}
+		seen := map[string]bool{}
+		for _, p := range a.Paths {
+			if !validPath(p) || seen[p] {
+				return errors.New("ACTION_PATH")
+			}
+			seen[p] = true
+		}
+		clean.Paths = nil
+		clean.UID = 0
+		clean.GID = 0
+		clean.Mode = 0
+		if a.Kind == "modify" {
+			if a.Ret != "state" || !validPath(a.Backup) || !isHex(a.BackupSHA256, 32) || !isHex(a.NewSHA256, 32) || len(a.Before) != 1 {
+				return errors.New("ACTION_MODIFY")
+			}
+			if e := validateIdentity(a.Before[0], "modify"); e != nil {
+				return e
+			}
+			if a.Before[0].Path != a.Paths[0] || a.Before[0].FS.SHA256 != a.BackupSHA256 {
+				return errors.New("ACTION_BACKUP")
+			}
+			clean.Backup = ""
+			clean.BackupSHA256 = ""
+			clean.NewSHA256 = ""
+			clean.Before = nil
+		}
+	case "user", "group":
+		if !namePattern.MatchString(a.Name) {
+			return errors.New("ACTION_ACCOUNT")
+		}
+		clean.Name = ""
+		clean.GID = 0
+		if a.Kind == "user" {
+			clean.UID = 0
+		}
+	case "membership":
+		if a.Ret != "remove" || !namePattern.MatchString(a.User) || !namePattern.MatchString(a.Group) || len(a.Before) != 1 {
+			return errors.New("ACTION_MEMBER")
+		}
+		if e := validateIdentity(a.Before[0], "membership"); e != nil {
+			return e
+		}
+		m := a.Before[0].Membership
+		if m.Present || m.User.Name != a.User || m.Group.Name != a.Group {
+			return errors.New("ACTION_MEMBER_BEFORE")
+		}
+		clean.User = ""
+		clean.Group = ""
+		clean.Before = nil
+	case "unit":
+		if a.Ret != "state" || !unitPattern.MatchString(a.Name) || len(a.Before) != 1 {
+			return errors.New("ACTION_UNIT")
+		}
+		if e := validateIdentity(a.Before[0], "unit"); e != nil {
+			return e
+		}
+		if a.Before[0].Unit.Name != a.Name || a.Before[0].Unit.State != "disabled" {
+			return errors.New("ACTION_UNIT_BEFORE")
+		}
+		clean.Name = ""
+		clean.Before = nil
+	default:
+		return errors.New("UNKNOWN_KIND")
+	}
+	if !bytes.Equal(canonical(clean), canonical(Action{Kind: a.Kind, Ret: a.Ret})) {
+		return errors.New("ACTION_EXTRA_FIELDS")
+	}
+	return nil
+}
+func validateResult(a Action, ids []Identity) error {
+	n := 1
+	if len(a.Paths) > 0 {
+		n = len(a.Paths)
+	}
+	if len(ids) != n {
+		return errors.New("RESULT_COUNT")
+	}
+	for j, i := range ids {
+		if e := validateIdentity(i, a.Kind); e != nil {
+			return e
+		}
+		switch a.Kind {
+		case "dir", "file", "secret", "modify":
+			if i.Path != a.Paths[j] {
+				return errors.New("RESULT_PATH")
+			}
+			if a.Kind == "modify" && i.FS.SHA256 != a.NewSHA256 {
+				return errors.New("RESULT_NEW_HASH")
+			}
+			if i.FS.UID != a.UID || i.FS.GID != a.GID || i.FS.Mode != a.Mode {
+				return errors.New("RESULT_METADATA")
+			}
+		case "user", "group":
+			if i.Account.Name != a.Name || i.Account.GID != a.GID || a.Kind == "user" && i.Account.UID != a.UID {
+				return errors.New("RESULT_ACCOUNT")
+			}
+		case "membership":
+			m := *i.Membership
+			m.Present = false
+			if !i.Membership.Present || !bytes.Equal(canonical(m), canonical(*a.Before[0].Membership)) {
+				return errors.New("RESULT_MEMBER")
+			}
+		case "unit":
+			if i.Unit.Name != a.Name || i.Unit.State != "enabled" {
+				return errors.New("RESULT_UNIT")
+			}
+		}
+	}
+	return nil
+}
+func actionName(a Action) string {
+	if len(a.Paths) > 0 {
+		return strings.Join(a.Paths, ", ")
+	}
+	if a.Name != "" {
+		return a.Name
+	}
+	return a.User + ":" + a.Group
+}
+func identityEqual(a, b Identity) bool { return bytes.Equal(canonical(a), canonical(b)) }
+func accountEqual(a, b Account) bool {
+	return a.Name == b.Name && a.UID == b.UID && a.GID == b.GID && a.Shell == b.Shell
+}
+func orphan(a Action) error   { return fail(3, "ORPHAN "+actionName(a)) }
+func mismatch(a Action) error { return fail(1, "IDENTITY_MISMATCH "+actionName(a)) }
+func namedError(reason string, a Action) error {
+	return fail(1, fmt.Sprintf("%s %s", reason, actionName(a)))
+}

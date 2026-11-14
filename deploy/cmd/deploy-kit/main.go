@@ -12,11 +12,15 @@ import (
 	"syscall"
 
 	"github.com/relux-works/swarma-chain-lab/deploy"
+	"github.com/relux-works/swarma-chain-lab/deploy/g2ledger"
 )
 
 func main() {
 	if e := run(os.Args[1:]); e != nil {
 		fmt.Fprintln(os.Stderr, e)
+		if len(os.Args) > 1 && os.Args[1] == "g2-ledger" {
+			os.Exit(g2ledger.ExitCode(e))
+		}
 		os.Exit(1)
 	}
 }
@@ -24,15 +28,17 @@ func run(args []string) error {
 	if len(args) == 0 {
 		return errors.New("usage: deploy-kit build|validate|check-coins|check-model-terms|render-install-anchor|g2-install-sign|g2-render|g2-host-flow|g2-agent-groups|g2-custody-probe|g2-custody-verify|g2-funded-preflight|g2-custody-hash [flags]")
 	}
-	if args[0] == "g2-keygen" || args[0] == "g2-rpcauth" {
-		// A closed stdout pipe must return EPIPE to secret-file rollback,
-		// rather than terminate this command before cleanup can run.
+	if args[0] == "g2-keygen" || args[0] == "g2-rpcauth" || args[0] == "g2-ledger" {
+		// A closed stdout pipe must return EPIPE to the creator or ledger
+		// error path rather than terminate before it can report failure.
 		signal.Ignore(syscall.SIGPIPE)
 	}
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	switch args[0] {
 	case "g2-install-sign":
 		return g2InstallSign(args[1:])
+	case "g2-ledger":
+		return g2ledger.Run(args[1:], nil, os.Stdout)
 	case "g2-render":
 		return g2Render(args[1:], os.Stdout)
 	case "g2-host-flow":

@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "go_version": "go1.26.8",
+  "goos": "linux",
+  "goarch": "amd64",
+  "cgo_enabled": "0",
+  "build_flags": [
+    "-trimpath",
+    "-buildvcs=false",
+    "-mod=readonly"
+  ],
+  "artifacts": [
+    {
+      "service": "gateway",
+      "module": "experiments/rental-gateway",
+      "package": "./cmd/gateway",
+      "binary": "bin/gateway",
+      "status": "configuration-preparation",
+      "screening": "off",
+      "reason": "operator-pinned payload and remote manager required; host execution is a separate gate",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "service": "booking",
+      "module": "experiments/rental-booking",
+      "package": "./cmd/rental-booking",
+      "binary": "bin/rental-booking",
+      "status": "configuration-preparation",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "service": "store",
+      "module": "experiments/grant-store",
+      "package": "./cmd/grant-store",
+      "binary": "bin/grant-store",
+      "status": "configuration-preparation",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "service": "relay",
+      "module": "experiments/relay",
+      "package": "./cmd/swarma-relay",
+      "binary": "bin/swarma-relay",
+      "status": "configuration-preparation",
+      "reason": "loopback behind explicit trusted reverse proxy; gift-wrap read AUTH awaits gateway client integration",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "service": "issuer",
+      "module": "experiments/signer-service",
+      "package": "./cmd/swarma-signer",
+      "binary": "bin/swarma-signer",
+      "status": "configuration-preparation",
+      "reason": "owner-provisioned custody and private intake required; no signer activation implied",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "service": "model",
+      "module": "experiments/model-proxy",
+      "package": "./cmd/model-proxy",
+      "binary": "bin/model-proxy",
+      "status": "configuration-preparation",
+      "reason": "owner-approved model prices, caps and API credential required; Linux peer-credential administration",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "service": "stations",
+      "module": "experiments/station-lifecycle",
+      "package": "./cmd/station-manager",
+      "binary": "bin/station-manager",
+      "status": "configuration-preparation",
+      "reason": "ordinary Linux transport; independently installed root helper and policy required",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "service": "payload",
+      "module": "experiments/station-payload",
+      "package": "./cmd/station-payload",
+      "binary": "bin/station-payload",
+      "status": "configuration-preparation",
+      "reason": "scripted consumer only; per-slot launch belongs to the root helper policy, no standalone unit",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "service": "wallet",
+      "module": "experiments/agent-wallet",
+      "package": "./cmd/agent-walletd",
+      "binary": "bin/agent-walletd",
+      "status": "configuration-preparation",
+      "reason": "separate service UID, per-agent socket group, receipt key and private wallet RPC configuration required; host custody smoke remains separate",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ],
+  "tools": [
+    {
+      "tool": "deploy-kit",
+      "module": "deploy",
+      "package": "./cmd/deploy-kit",
+      "binary": "bin/deploy-kit",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "tool": "agent-wallet-reconcile",
+      "module": "experiments/agent-wallet",
+      "package": "./cmd/agent-wallet-reconcile",
+      "binary": "bin/agent-wallet-reconcile",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "tool": "agent-wallet",
+      "module": "experiments/agent-wallet",
+      "package": "./cmd/agent-wallet",
+      "binary": "bin/agent-wallet",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "tool": "agent-wallet-alert-forwarder",
+      "module": "experiments/agent-wallet",
+      "package": "./cmd/agent-wallet-alert-forwarder",
+      "binary": "bin/agent-wallet-alert-forwarder",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ],
+  "pending": [
+    {
+      "service": "a2ad",
+      "status": "pending",
+      "reason": "a2a daemon deployment integration not included in this kit"
+    }
+  ]
+}

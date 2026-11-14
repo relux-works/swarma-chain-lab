@@ -41,6 +41,17 @@ in [SERVICE.md](../experiments/agent-wallet/SERVICE.md#status-socket-access-g2).
 checks substitution, documentation and release checksum coverage using temporary
 fixtures; `TestReleaseIntegration` checks the real bundle in the opt-in release run.
 
+## Attempt ledger tool
+
+`deploy-kit g2-ledger` provides typed attempt records and fail-closed rollback
+for Linux installation orchestration. See [G2-LEDGER.md](G2-LEDGER.md) for all
+subcommands, the canonical schema, retention, exit codes and install call sites.
+Run `deploy-kit g2-ledger init -dir /root/g2/ledger -manifest /root/g2/release/manifest.json -baseline /root/g2/baseline`
+after verifying the release, then `deploy-kit g2-ledger verify -dir /root/g2/ledger`.
+Artifacts are private `records.jsonl`, `HEAD` and `LOCK` inside the supplied directory.
+`go test -race ./g2ledger ./cmd/deploy-kit -run '^TestLedger' -count=1` exercises
+real temporary files and a fake account/systemd boundary without root operations.
+
 ## Build contract
 
 Use Go1.26.8 and pre-download the landed modules' dependencies into the local
