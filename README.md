@@ -467,7 +467,8 @@ experiments/rental-gateway test ./...` for the fmt, slog, generic JSON and priva
 wire regressions; use the same module paths with `vet ./...` for static checks.
 
 The [regtest envelope grant-admission bench](experiments/agent-wallet/g1bench/README.md)
-reuses the wallet Core harness, verifies fixture BIP-340 envelopes and checks
-live v3 grants with exact refusal assertions, warm-gate revocation and 19
-overlay controls. Its explicit laboratory profile does not claim native
-envelope attestation conformance.
+reuses the wallet Core harness, verifies native-shaped Ed25519 envelopes plus
+Track A BIP-340 co-signatures, and checks live v3 grants through the
+transport-neutral API. It retains exact refusal assertions, warm-gate revocation
+and 22 overlay controls. Keys and envelope attestation remain synthetic;
+Track B is a separate future change.

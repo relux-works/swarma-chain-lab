@@ -1,7 +1,8 @@
 # Regtest envelope grant-admission bench
 
-This laboratory verifies BIP-340 envelope-shaped fixtures before checking real
-v3 standing grants through `grantcheck`. It returns routing observations and
+This laboratory verifies native-shaped Ed25519 `swarm-envelope/2` fixtures, then
+Track A BIP-340 co-signatures, before checking real v3 standing grants through
+the transport-neutral `grantcheck` API. It returns routing observations and
 has no effect callback. Text is integrity-bound, never effect authority.
 
 The existing `agent-wallet` module is the narrowest home: `TestG1BenchCore`
@@ -19,22 +20,37 @@ container and protected `{body,key,role,version}` record follow the
 [envelope specification](https://github.com/relux-works/swarma-envelope/blob/e38510c503d266d36a275a5976f933e10fae4060/spec/swarm-envelope-2.md)
 sections 2.1–2.4.
 
-**The native specification has no BIP-340 message profile.** It permits Ed25519
-authors and P-256 approvers, with attestation verification. This bench therefore
-uses an explicitly separate fixture profile: `bip340:<lowercase x-only hex>`
-keys, SHA-256 of `g1bench-message/1\n` plus the protected canonical record,
-and a synthetic zero attestation reference. It is envelope-shaped, not native
-`swarm-envelope/2` conformance or attestation evidence. Native deployment needs
-a separately reviewed algorithm/profile or key-binding decision; see
-[UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md).
+The Ed25519 envelope is unchanged by Track A: `ed25519:` plus canonical
+unpadded base64url public bytes, the `swarma-msg/2` domain plus LF and the
+canonical protected record, signed directly with ordinary Ed25519. The content
+id hashes that domain plus LF and canonical body. The target is a station
+object. The closed `observe` handler and proof/terms arguments are bench policy.
+Keys are generated fixtures and `author_attestation` is a synthetic zero
+reference, without root, generation or revocation attestation verification.
+This establishes native-shaped envelope mechanics, not native trust conformance.
+The BIP-340 author profile (Track B) is a separate future change; it is not
+needed for Track A. See [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md).
+
+Track A uses the following exact co-signature construction.
+The separate content key `works.relux.cg1.cosignature` holds exactly
+`{version:"a2a-link-cg1-cosignature/1",key:"bip340:<lowercase x-only hex>",sig:"<128 lowercase hex>"}`.
+Let `tag = SHA256("a2a-link cg1 cosignature/1")`; the signed digest is
+`SHA256(tag || tag || uint64_be(len(envelope)) || exact_envelope_bytes)`.
+It neither reserializes nor changes the Ed25519 envelope. Parsing requires
+exactly 64 signature bytes, `r < p` and `s < n` before the library parser;
+canonical high-s BIP-340 signatures are accepted. The strict helper is local
+with a TODO to reuse the shared helper after it lands on main.
 
 Each message signs exactly one `to`: the exact recipient carrier id, never a
-key or an addressee list. A multi-recipient delivery needs one envelope per
-recipient. The delivery fixtures compare that signed id with protected carrier
-context. The fixture adapter's local executor pin supplies the counterpart key;
-no recipient key is derived from text, room membership or an envelope field.
-A native adapter must resolve `to` through a protected pinned id-to-key binding;
-this bench does not implement native RecipientProof or attestation resolution.
+key or an addressee list. `Gate.Outbound` resolves that signed id through a
+per-identity protected binding copied at construction to exactly one BIP-340
+key, then calls `OutboundFrom` with one `RecipientProof` key. Missing bindings
+refuse `recipient_unresolved`; a wrong binding without live proof refuses
+`no_grant`. Forwarding with a mismatched protected recipient refuses
+`envelope_invalid`. A multi-recipient delivery requires separately signed
+envelopes. No key comes from text, room membership or a message claim. This
+bench supplies bindings from protected harness configuration, not a production
+attestation registry or installed per-identity config.
 
 The codec accepts only canonical JSON from its closed, all-string message
 schema. It rejects duplicate/aliased/unknown members, altered delivered text,
@@ -43,9 +59,12 @@ carriage to 60 KiB, envelopes to 64 KiB and proof/terms individually to 16384
 bytes. It uses a random 16-byte nonce. The signing helper is laboratory tooling.
 
 `Gate.Admit` takes protected carrier routing separately from message content.
-Only the verified BIP-340 key reaches the small `inbound` compatibility adapter,
-which currently calls `Checker.Inbound(ctx, key, presentation)` from main. That
-single function is the switch point for a later transport-neutral checker API.
+Envelope verification precedes the independent co-signature check. Only the
+verified BIP-340 co-signer reaches
+`InboundFrom(ctx, SenderProof{SwarmEnvelopeV2, key}, presentation)` on a checker
+constructed with `NewForTransport(cfg, SwarmEnvelopeV2)`. The legacy compatibility
+function is removed. Admission routes use `Verdict.A2ADecision()`; exact original
+checker codes remain separately observable in results and assertions.
 Neither a Matrix id nor a claimed message sender supplies authority. Every live
 result requires a new node/checker observation; no live verdict is cached.
 Canonical terms must hash to the signed grant's contract and name the locally
@@ -101,11 +120,11 @@ where applicable. Every test has an adjacent one-line claim in source.
 | --- | --- | --- |
 | Two fixture identities | `TwoIdentities` | Both genuine grants live; cross-bound executor keys |
 | No envelope | `NoEnvelope` | A cached grant cannot rescue absent carriage |
-| Bad envelope signature | `BadSignature` | Correct body/id cannot rescue corrupted BIP-340 signature |
-| Wrong envelope key | `WrongKey` | Verified signer must equal the grantee |
+| Bad envelope signature | `BadSignature` | Correct body/id and valid co-signature cannot rescue corrupted Ed25519 signature |
+| Wrong co-signer key | `WrongKey` | Verified co-signer must equal the grant-named key |
 | Wrong executor | `WrongExecutor` | Hash-bound terms must name the protected executor |
 | Unknown issuer | `UnknownIssuer` | Direct CG1 early pin and full Gate refusal propagation; known issuer passes |
-| Before grant window | `BeforeWindow` | Re-signed, Core-anchored grant live at start, exchange before start |
+| Before grant window | `BeforeWindow` | Re-signed, Core-anchored grant live at start, refuses `not_yet` before start |
 | After grant window | `AfterWindow` | Inside-window control; exclusive end refuses before chain work |
 | Unsynced node | `StaleNode-ibd` | IBD RPC semantics refuse at the bench boundary |
 | Old node height | `StaleNode-height` | Actual older RPC snapshot below protected floor refuses |
@@ -117,9 +136,25 @@ where applicable. Every test has an adjacent one-line claim in source.
 | Delivery binding | `DeliveryBinding/{text,room,to}` | Exactly `refused/envelope_invalid`, no checker reads; text keeps outer carriage equal; unchanged envelope passes |
 | Mempool seal spend | `SealMempool` | Same warm Gate/checker/state and cold neighbour refuse with `seal_spent`/Closed; counterpart stays live |
 | Confirmed seal spend | `SealConfirmed` | Retained warm Gate and fresh checker refuse after confirmation; independent selection warms before spending |
+| Missing co-signature | `CosignatureMissing` | Valid Ed25519 envelope alone refuses `cosignature_missing`; unchanged valid pair passes |
+| Other signed bytes | `CosignatureDifferentBytes` | Even a whitespace change to co-signed bytes refuses `cosignature_invalid` |
+| Valid envelope, invalid co-signature | `Ed25519ValidCosignatureInvalid` | Envelope verification cannot rescue invalid co-signature math |
+| Malformed co-signature lengths | `CosignatureLength63`, `CosignatureLength65` | Non-64-byte encodings refuse beside valid pair |
+| Scalar at group order | `CosignatureSAtOrder` | `s = n` refuses beside valid pair |
+| Coordinate at field prime | `CosignatureRAtPrime` | `r = p` refuses beside valid pair |
+| Valid high-s | `CosignatureHighS` | Real verifying `n/2 < s < n` co-signature passes |
+| Co-signature-independent replay | `CosignatureIndependentReplay` | Two valid co-signatures on identical envelope bytes still admit only once, without new chain reads |
+| Protected outbound binding | `OutboundRecipientBinding` | One signed recipient per envelope; missing/wrong pins and forwarding refuse, pinned sends pass and bindings are copied |
+
 
 `TestEnvelopeFixtureProfile` adds offline codec negatives with a real signing
 positive control. Every codec negative requires the exact `errEnvelope` sentinel.
+`TestCoSignatureStrictBounds` checks pre-parser len/r/s bounds beside a fully
+verifying high-s control. `TestCoSignatureMalleatedScalar` shows that the pinned
+library normalizes a synthetic `s=1`/`s+n` pair, while the strict wrapper rejects
+the alias. That pair proves encoding behavior, not valid signature math; the
+adjacent high-s control verifies fully. `TestCoSignatureDigestVector` binds the
+exact framing to an independently computed SHA-256 vector.
 Expiry uses an unchanged valid lifetime observed at its exclusive end, so the
 window-order predicate remains valid. All Core negatives assert exact route/code
 pairs; height faults also prove no other sync predicate fails. The warm revocation
@@ -139,6 +174,7 @@ consent is retained, `not_before` moves later, the fixture issuer re-signs it,
 and the existing Core helper broadcasts/confirms the new issuance commitment.
 This isolates the time guard from the pay-grant helper's earlier-consent rule.
 
+All 19 original overlays remain, with three added Track A overlays.
 Overlay control commands, exact named tests and the limits of each kill are
 listed in [CONTROLS.md](CONTROLS.md). The script records source/mutant hashes,
 process exits and intended assertion witnesses; unrelated failures are invalid.
@@ -149,7 +185,7 @@ Regtest only. Fixture keys only. No mainnet contact or broadcast, no real issuer
 key, no installed consumers, transport registration, native envelope trust or
 cross-user custody qualification. The two identities use separate chains because
 the existing fixture has fixed names. The gate's replay set lasts one instance,
-is bounded to 4096 accepted key/nonce pairs, and fails closed at capacity; it
+is bounded to 4096 accepted directional envelope ids, and fails closed at capacity; it
 provides no replay continuity across restart. The height floor and explicit sync
 flags do not prove wall-clock freshness of a connected node. A live verdict is a
 bounded observation, never a permission to execute text or a token for later use.
