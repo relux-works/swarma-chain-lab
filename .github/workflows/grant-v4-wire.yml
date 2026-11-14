@@ -1,0 +1,72 @@
+name: Grant v4 wire checks
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/grant-v4/wire/**'
+      - '.github/workflows/grant-v4-wire.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/grant-v4/wire/**'
+      - '.github/workflows/grant-v4-wire.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wire:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: 'off'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
+        with:
+          go-version: '1.26.10'
+          check-latest: false
+          cache: false
+      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
+        with:
+          python-version: '3.14.4'
+          check-latest: false
+      - name: Download and verify pinned public dependencies
+        run: |
+          go -C experiments/grant-v4/wire mod download
+          go -C experiments/grant-v4/wire mod verify
+      - name: Record candidate identity
+        run: git rev-parse HEAD > "$RUNNER_TEMP/wire-head.txt"
+      - name: Formatting
+        run: test -z "$(gofmt -l experiments/grant-v4/wire/*.go)"
+      - name: Vet
+        env:
+          GOPROXY: 'off'
+        run: go -C experiments/grant-v4/wire vet ./...
+      - name: Race tests and all pinned vectors
+        env:
+          GOPROXY: 'off'
+        run: go -C experiments/grant-v4/wire test -race -count=1 -json ./... > "$RUNNER_TEMP/wire-tests.json"
+      - name: Build
+        env:
+          GOPROXY: 'off'
+        run: go -C experiments/grant-v4/wire build ./...
+      - name: Four narrowing control plants
+        env:
+          GOPROXY: 'off'
+        run: python3 -B experiments/grant-v4/wire/scripts/check-mutants.py --scratch "$RUNNER_TEMP/wire-mutants"
+      - name: Preserve exact test and control evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wire-evidence
+          path: |
+            ${{ runner.temp }}/wire-tests.json
+            ${{ runner.temp }}/wire-head.txt
+            ${{ runner.temp }}/wire-mutants/*.json
+          if-no-files-found: error

@@ -8,6 +8,10 @@ service, grant format, wallet, consensus implementation or deployment.
 
 Experiments live in `experiments/<name>/`:
 
+- [Grant v4 wire primitives](experiments/grant-v4/wire/README.md): the proposed
+  LIP-0020 canonical bytes, typed hashes, strict signatures and defined objects;
+  all 205 pinned vectors, with no chain reads or whole-grant admission.
+
 - [Rental Nostr relay](experiments/relay/README.md): bounded durable gift-wrap,
   consent and package transport, NIP-42, relay-side IP limits and deployment
   templates; AUTH client integration remains a separate follow-up.
@@ -471,3 +475,11 @@ reuses the wallet Core harness, verifies fixture BIP-340 envelopes and checks
 live v3 grants with exact refusal assertions, warm-gate revocation and 19
 overlay controls. Its explicit laboratory profile does not claim native
 envelope attestation conformance.
+
+## Grant v4 wire tools
+
+The isolated wire module uses Go 1.26.10 for `go test -race`, `go vet`,
+`go build` and `gofmt`, and Python 3 for its bounded mutation controls. Exact
+commands, the public fixture pin and `.temp/` evidence locations are documented
+in the [module README](experiments/grant-v4/wire/README.md#tools-and-commands).
+The existing module-graph and public-hygiene scripts cover its registration.
