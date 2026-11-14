@@ -13,6 +13,7 @@ on:
       - '.scripts/test_check_px1_core_gate.py'
       - '.scripts/px1-core-gate.json'
       - '.scripts/w2-core-gate.json'
+      - '.scripts/rt-grant-fixture-core-gate.json'
       - '.scripts/w2-newcore-users.go'
       - '.scripts/px1-s5-consumer-gate.json'
       - 'deploy/**'
@@ -30,6 +31,7 @@ on:
       - '.scripts/test_check_px1_core_gate.py'
       - '.scripts/px1-core-gate.json'
       - '.scripts/w2-core-gate.json'
+      - '.scripts/rt-grant-fixture-core-gate.json'
       - '.scripts/w2-newcore-users.go'
       - '.scripts/px1-s5-consumer-gate.json'
       - 'deploy/**'
@@ -132,6 +134,28 @@ jobs:
           echo "$NMC_CLI_SHA256  x/namecoin-28.0/bin/namecoin-cli" | sha256sum -c -
           echo "W1_CORE_DAEMON=$PWD/x/namecoin-28.0/bin/namecoind" >> "$GITHUB_ENV"
           echo "W1_CORE_CLI=$PWD/x/namecoin-28.0/bin/namecoin-cli" >> "$GITHUB_ENV"
+      - name: Regtest standing-grant fixture through the installed G2 service (must run, no skip)
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          set +e
+          name=TestRTGrantFixtureCore
+          manifest=../../.scripts/rt-grant-fixture-core-gate.json
+          checker=../../.scripts/check-px1-core-gate.py
+          env -u W1_REGTEST go test -count=1 -json -run "^${name}$" . > "$RUNNER_TEMP/rt-fixture-control.json"
+          control_test=$?
+          python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/rt-fixture-control.json" > "$RUNNER_TEMP/rt-fixture-control.txt"
+          control_gate=$?
+          grep -qx "SKIPPED $name" "$RUNNER_TEMP/rt-fixture-control.txt"
+          skip_seen=$?
+          W1_REGTEST=1 W1_RUN_ROOT="$RUNNER_TEMP/rt-grant-fixture-core" go test -count=1 -timeout 20m -json -run "^${name}$" . > "$RUNNER_TEMP/rt-fixture-core.json"
+          code=$?
+          python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/rt-fixture-core.json"
+          gate=$?
+          echo "RT_GRANT_FIXTURE: skip control test=$control_test gate=$control_gate skip=$skip_seen; real Core test=$code gate=$gate"
+          test "$control_test" = 0 && test "$control_gate" = 1 && test "$skip_seen" = 0 && test "$code" = 0 && test "$gate" = 0
       - name: Gate control on a real skip (without W1_REGTEST the Core test skips and the gate must fail)
         env:
           GOPROXY: 'off'

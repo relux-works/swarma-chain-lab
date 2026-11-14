@@ -9,8 +9,10 @@ See [the W boundary/reason inventory](../WITNESS-PROFILE.md). This first deliver
 This implementation prepares landlord-signed v3 grants,
 checks two Namecoin identities and a confirmed per-grant consent commitment,
 and plans unsigned issuance/pool transactions. The agent name points to its
-landlord; only the landlord name carries the grant key. No command signs or
-broadcasts a chain transaction. Opt-in Core tests use isolated throwaway wallets.
+landlord; only the landlord name carries the grant key. Production ceremony
+commands prepare offline artifacts. The explicitly rehearsal-only
+`rt-grant-fixture` below signs and broadcasts only on loopback regtest. Opt-in
+Core tests use isolated throwaway wallets.
 
 The renter's unchanged M3 Nostr consent event and the landlord's contract
 countersignature are embedded in each grant. A separate issuance locator lets
@@ -44,6 +46,102 @@ these laboratory profiles do not publish or amend the public specifications.
 Optional N1 social metadata and the separate local d/ discovery sync tool are
 defined in [N1 name values](N1-VALUES.md), with exact publisher fixtures and the
 required consumer-upgrade-before-name-update procedure.
+
+## Rehearsal-only standing grant fixture
+
+`cmd/rt-grant-fixture` provisions one G2 standing grant on an operator-owned,
+fresh private Namecoin Core regtest node. It belongs in this module because
+`rental.IssuePayGrantV2`, the name value encoders and all required crypto and
+chain packages are already in this module graph. No dependency is added to
+`deploy`. It is excluded from the signed release: Infra builds it separately
+from the **same pinned source head** and records its binary SHA-256 alongside
+the rehearsal evidence. See the
+[installed rehearsal procedure](../agent-wallet/RECONCILE-RUNBOOK.md#regtest-standing-grant-provisioning).
+
+From `experiments/rental` (the node and its existing disposable funding/name
+wallet must already be running):
+
+```sh
+mkdir -p .temp/bin
+go build -trimpath -o .temp/bin/rt-grant-fixture ./cmd/rt-grant-fixture
+.temp/bin/rt-grant-fixture --rpc-host 127.0.0.1 --rpc-port "$RPC_PORT" \
+  --rpc-cookie "$PRIVATE_DATADIR/regtest/.cookie" --wallet "$FIXTURE_WALLET" \
+  --out-dir "$FIXTURE_OUT" --executor-key "$RECEIPT_PUBKEY" \
+  --recipient "$RECIPIENT" --allowance-sat 20000 --fee-limit-sat 30000
+```
+
+Only numeric loopback IPs are accepted (including `::1`); DNS, proxies and
+redirects cannot move an RPC elsewhere. Before any output creation or write
+RPC, the tool requires `getblockchaininfo.chain == regtest` and
+`getblockhash(0) == single-use.RegtestGenesis` (Core's blockchain-info response
+has no genesis member). Main/test chains and a mismatched genesis refuse.
+`--agent-name` and `--landlord-name` can only be `id/rt-agent` and
+`id/rt-landlord`; both must be absent on this fresh node. An existing output
+directory, file or symlink refuses without overwrite. The cookie must be a
+private regular file. RPC bodies, credentials and filesystem paths are never
+included in diagnostics.
+
+The tool creates the output directory as `0700`, generates normalized
+throwaway issuer/landlord and grantee keys as `issuer.key` and `grantee.key`
+(`0600`), mines 101 blocks for mature native witness funding, reserves both
+names with `name_new`, mines 12 blocks, calls `name_firstupdate` for both and
+confirms them. Name values use `AgentBindingValue` and `LandlordValue`
+([landlord_value.go:25](landlord_value.go#L25),
+[landlord_value.go:75](landlord_value.go#L75)); the agent's `swarma.agent`
+contains `nostr` (the throwaway grantee public key) and `landlord`, while the
+landlord's `swarma.landlord.grant` contains the issuer public key. These are
+the same encoders used by the tested fixture
+([px1_fixture_test.go:459](../agent-wallet/px1_fixture_test.go#L459)).
+The kernel resolves names with
+[`currentName`, kernel.go:287](kernel.go#L287).
+
+The seal is a confirmed 1,000,000-sat P2PKH output to the even-y issuer key,
+locked with `lockunspent`. Seal and issuance transactions are funded only
+from confirmed native P2WPKH inputs, with native witness change. Signatures
+come from `IssuePayGrantV2`; the confirmed issuance uses the same
+`IssuanceCommitment`/Core funding/signing/broadcast recipe as
+[coreLab.issueProof, core_test.go:370](../agent-wallet/core_test.go#L370),
+which the standing-grant fixtures use. This intentionally regtest-only
+recipe uses the historical bare issuance commitment accepted on regtest.
+It does not change production issuance or wallet behavior.
+
+`--allowance-sat` is payment principal (minimum 20000), default 20000;
+`--fee-limit-sat` defaults to 30000. All caps and the grant budget are
+**fee-inclusive**, so their defaults are 50000 sat, not 20000. The fee cap is
+30000 and day-count cap is 10. The one allow-listed P2PKH recipient and the
+installed service's receipt **public** key are required flags: terms bind to
+that exact executor. `--valid-for` defaults to 24h (1m..24h). Regtest names
+expire after 30 blocks: finish before expiry; this tool does not renew names.
+
+Exit 0 prints exactly `RT_GRANT_ID <64 lowercase hex>`. Exit 1 emits only a
+fixed refusal code on stderr. `fixture.json` contains the grant/contract IDs,
+public keys, seal, names, `seal_script`, W profile, parameters, canonical terms
+and presentation. The two hash-addressed `.json` files are the exact canonical
+objects for the installed wallet's object directory. **Never print or publish
+the key files or node cookie.** Transfer the grantee key only through the
+rehearsal's private provisioning process; the issuer key controls revocation.
+Partial output is retained after failure: preserve it for diagnosis, stop and
+discard that private rehearsal node through its owner, and use a fresh node
+and output directory. Do not rerun against its names or erase keys to retry.
+The command starts no node and stops no process.
+
+Safety tests: `go test -race ./cmd/rt-grant-fixture`. The genuine built-command
+integration test lives in the existing wallet Core harness:
+
+```sh
+cd ../agent-wallet
+W1_REGTEST=1 W1_RUN_ROOT="$FRESH_ABSOLUTE_RUN_ROOT" \
+  W1_CORE_DAEMON="$NAMECOIND" W1_CORE_CLI="$NMC" \
+  go test -count=1 -v -run '^TestRTGrantFixtureCore$' .
+```
+
+That test checks KernelAuthority acceptance and spends through the installed
+G2 service, with off-list and over-budget controls. It uses the existing
+labelled root-ownership test seam, not native separate-UID qualification.
+Hosted `px1-core-gate` runs it with verified Core 28 binaries and rejects
+skipped/missing/failed tests through `.scripts/rt-grant-fixture-core-gate.json`.
+Local logs/builds belong in `.temp/`; private Core roots and keys must be kept
+outside source publication and removed after stopping the exact owned PID.
 
 ## Tools and exact entry points
 

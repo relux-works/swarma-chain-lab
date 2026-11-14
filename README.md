@@ -93,6 +93,13 @@ From `experiments/rental`, run `go test -race ./...`,
 separate opt-in Core runs, private state, public evidence and remaining M4/M5
 integration. Shared storage and fee primitives remain used by single-use too.
 
+The rehearsal-only standing grant helper is built from the same pinned head
+with `go build -trimpath -o .temp/rt-grant-fixture ./cmd/rt-grant-fixture`
+from `experiments/rental`. It is excluded from signed releases; Infra records
+its SHA-256 separately. Its strict regtest/loopback refusals, private output
+files, required flags and Core test command are documented in the
+[rental fixture tool contract](experiments/rental/README.md#rehearsal-only-standing-grant-fixture).
+
 ## Rental executor and contest endpoints
 
 [Rental executor](experiments/rental-executor/README.md) adds strict renter-signed

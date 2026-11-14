@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "package": "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet",
+  "labels": ["RT-GRANT-FIXTURE"],
+  "core_tests": ["TestRTGrantFixtureCore"],
+  "tids": {
+    "RT-GRANT-FIXTURE": {"layers": ["core"], "core": ["TestRTGrantFixtureCore"]}
+  }
+}

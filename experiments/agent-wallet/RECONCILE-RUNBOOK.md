@@ -308,6 +308,65 @@ also records separate-UID T18 denied-read checks against the installed journal
 and receipt-key **paths**, without printing their contents. If unavailable,
 record `T18_NOT_QUALIFIED` and the missing environment capability.
 
+### Regtest standing grant provisioning
+
+Provision the grant on the same fresh private node before starting the wallet
+unit and before admitting its signed fixture configuration. Infra builds the
+rehearsal-only `rt-grant-fixture` separately from **the same pinned source
+head as the installed release**, records that head and its binary SHA-256 in
+the private installation evidence, and does not add the helper to the signed
+release or release manifest. From the pinned source root:
+
+```bash
+test "$(git rev-parse HEAD)" = "$PINNED_HEAD"
+(cd experiments/rental && go build -trimpath -o "$CAP/rt-grant-fixture" ./cmd/rt-grant-fixture)
+sha256sum "$CAP/rt-grant-fixture" > "$CAP/rt-grant-fixture.sha256"
+cap grant-fixture "$CAP/rt-grant-fixture" \
+  --rpc-host 127.0.0.1 --rpc-port "$RPC_PORT" \
+  --rpc-cookie "$PRIVATE_DATADIR/regtest/.cookie" --wallet "$FIXTURE_WALLET" \
+  --out-dir "$FIXTURE_OUT" --executor-key "$RECEIPT_PUBKEY" \
+  --recipient "$RECIPIENT" --allowance-sat 20000 --fee-limit-sat 30000
+test "$(cat "$CAP/grant-fixture.exit")" = 0
+GRANT_ID=$(awk '/^RT_GRANT_ID [0-9a-f]+$/ {print $2}' "$CAP/grant-fixture.stdout")
+test "${#GRANT_ID}" = 64
+export GRANT_ID
+```
+
+`FIXTURE_WALLET` is an existing disposable wallet on that node for funding and
+name custody, distinct from `HOT_WALLET`. The operator starts the private
+node with normal routes for provisioning, stops that exact owned node PID,
+then restarts it with the fault-injection routes below. The helper starts no
+node and changes no service configuration. `RECEIPT_PUBKEY` must be the public
+key of this installation's receipt signer; `RECIPIENT` must match the
+rehearsal allow-list. `FIXTURE_OUT` must not exist. The helper refuses every
+non-loopback endpoint, every chain/genesis except regtest, other names and
+existing output. It registers exactly `id/rt-agent` and `id/rt-landlord`,
+creates private throwaway keys, funds and locks a W-profile seal, signs with
+`rental.IssuePayGrantV2` and confirms the issuance.
+
+Use `fixture.json` to populate the admitted fixture's public `GRANTEE`,
+`agent_name`, `landlord_name`, `seal_script` and construction profile `W`.
+Install its two hash-addressed JSON objects in the configured service-owned
+objects directory through the existing installation process. Provision
+`grantee.key` privately to the rehearsal agent signer; retain `issuer.key`
+privately for seal custody. Both are `0600` and must never enter the release,
+transcript, PR or evidence transfer. `fixture.json` contains public data only;
+never capture key or cookie contents. Do not repoint a running signed service
+or copy an entire fixture directory into its public evidence.
+
+The default principal is 20000 sat and fee limit 30000 sat. Because wallet
+limits include fees, the grant budget and spend/transfer/day caps are 50000
+sat. Operator ceilings must permit those values and the configured receipt
+key. The hot wallet still needs its own confirmed spendable input and clean
+journals; this tool only funds the grant fixture wallet. Both names expire
+after 30 further regtest blocks; perform the rehearsal before expiry. A
+failed provisioning attempt retains partial state and must not be retried on
+that node. Preserve private diagnosis, stop its owned PID, and start afresh.
+See [the command contract and exact name-value references](../rental/README.md#rehearsal-only-standing-grant-fixture).
+The hosted Core test proves product acceptance and one installed-service spend
+using the existing synthetic ownership seam; distinct real UIDs, installed
+custody and the fault drill remain this native rehearsal's separate gates.
+
 ### Produce an uncertain spend through the installed service
 
 The node operator starts only its own fresh fixture node, before the dedicated
