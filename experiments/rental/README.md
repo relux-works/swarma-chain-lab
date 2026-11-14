@@ -374,8 +374,14 @@ requires exactly 64 bytes, `r < p`, and `s < n`, as specified by
 Scalars at or above the curve order are refused before the upstream parser can
 reduce them. Valid `s > n/2` signatures remain accepted; BIP-340 has no low-S rule.
 The kernel refuses invalid signatures before opening certificate or grant state.
-Grant IDs hash canonical signed-grant bytes, while legacy certificate IDs hash
-the complete envelope; chain commitment checks remain required for admission.
+Grant IDs hash canonical signed-grant bytes; v1 and v2 certificate IDs hash
+the complete signed envelope. Fresh auxiliary signing randomness can therefore
+change these IDs without changing the signed content. V1/v3 admission binds the
+exact ID to a confirmed chain commitment. Detached v2 has no per-certificate
+issuance commitment: its durable first-admitted seal index prevents another ID
+in the same observer state. See the [per-site identifier audit](../../docs/signature-identities.md)
+for every signature-bearing hash, its consumers, independent uniqueness binding,
+and the limits of the second-signature regressions.
 
 Run `go test -run '^TestBIP340CertificateBoundaries$' .` for the certificate
 encoding regression and `go test -race ./...` for the module suite.
