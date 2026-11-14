@@ -8,6 +8,8 @@ checker CLI exactly as CI does. MODULE_GRAPH_CHECKER may point at a mutated
 copy of the checker for gate-mutation runs.
 """
 import json
+import importlib.util
+from unittest import mock
 import os
 from pathlib import Path
 import re
@@ -197,6 +199,55 @@ class ModuleGraphCheck(unittest.TestCase):
         self.assertEqual((edges, stale), (99, 0))
         code, violations, _ = self.fixture.run()
         self.assertEqual((code, len(violations)), (1, 2))
+
+
+class SnapshotRegeneration(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("snapshot_graph", CHECKER)
+        self.graph = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.graph)
+        self.temp = tempfile.TemporaryDirectory(prefix="snapshot-regeneration-")
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "snapshot.json"
+        self.original = (REPO / "experiments/module-graph-snapshot.json").read_bytes()
+        self.path.write_bytes(self.original)
+        self.snapshot = json.loads(self.original)
+        self.commit = self.snapshot["snapshot_commit"]
+
+    def resolver(self, wrong_origin=False, failed_module=False):
+        def run(argv, **kwargs):
+            if argv[0] == "git":
+                return subprocess.CompletedProcess(argv, 0, "1794690587\n", "")
+            module, commit = argv[-1].split("@")
+            if failed_module and module == sorted(self.snapshot["modules"])[-1]:
+                return subprocess.CompletedProcess(argv, 1, "", "fixture proxy unavailable")
+            info = {"Path": module, "Version": self.snapshot["modules"][module],
+                    "Origin": {"Hash": "0" * 40 if wrong_origin else self.commit}}
+            return subprocess.CompletedProcess(argv, 0, json.dumps(info), "")
+        return run
+
+    # Claim: generation records canonical module versions only after every
+    # proxy response identifies the requested published Git commit.
+    def test_proxy_verified_snapshot_regeneration(self):
+        with mock.patch.object(self.graph.subprocess, "run", side_effect=self.resolver()) as calls:
+            self.graph.refresh_snapshot(REPO, self.path, "go", self.commit)
+        generated = json.loads(self.path.read_text())
+        self.assertEqual(generated["modules"], self.snapshot["modules"])
+        self.assertEqual(generated["snapshot_commit"], self.commit)
+        self.assertEqual(generated["snapshot_time"], "20261114210947")
+        self.assertEqual(calls.call_count, len(self.snapshot["modules"]) + 1)
+
+    # Claim: wrong proxy origin and resolution failure cannot leave partial
+    # snapshot writes, beside the successful generation control above.
+    def test_failed_resolution_preserves_snapshot(self):
+        for origin, unavailable, witness in [(True, False, "origin mismatch"),
+                                              (False, True, "cannot resolve published snapshot")]:
+            with self.subTest(witness=witness):
+                with mock.patch.object(self.graph.subprocess, "run",
+                                       side_effect=self.resolver(origin, unavailable)):
+                    with self.assertRaisesRegex(self.graph.SetupError, witness):
+                        self.graph.refresh_snapshot(REPO, self.path, "go", self.commit)
+                self.assertEqual(self.path.read_bytes(), self.original)
 
 
 if __name__ == "__main__":

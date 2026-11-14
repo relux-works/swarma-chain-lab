@@ -389,7 +389,11 @@ runs `python3 .scripts/check-module-graph.py`: it parses every `go.mod` with
 `go mod edit -json`, so standalone, block and indirect requires count alike, and
 exits 1 when any internal require edge is older than its floor in
 `experiments/module-graph-snapshot.json`, or when the generated inventory in
-`experiments/MODULE-GRAPH.md` drifts (refresh it with `--write-doc`). Its tests,
+`experiments/MODULE-GRAPH.md` drifts (refresh it with `--write-doc`). Regenerate
+snapshot floors and inventory together with
+`python3 .scripts/check-module-graph.py --snapshot-commit FULL_PUBLISHED_SHA --write-doc`;
+this resolves canonical versions through the public proxy, verifies every origin
+SHA before writing, and stores the floors in the snapshot JSON. Its tests,
 `python3 -m unittest discover -s .scripts -p 'test_check_module_graph.py' -v`,
 hold the standalone-require regression and the narrowing mutant controls; both
 need only `go` on `PATH` and write nothing outside a temporary directory.

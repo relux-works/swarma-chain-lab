@@ -9,6 +9,7 @@ filter: that class of parser missed two standalone requires (PR 72, F1).
 Exit status: 0 clean, 1 violations, 2 usage or tool failure.
 """
 import argparse
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -121,6 +122,39 @@ def inventory(root, snapshot_path, go):
             "total": sum(r[1] for r in rows), "consumers": sum(1 for r in rows if r[1])}
 
 
+def refresh_snapshot(root, snapshot_path, go, commit):
+    """Generate canonical proxy versions; never infer a fix from version order."""
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise SetupError("snapshot commit must be a full SHA")
+    stamp = subprocess.run(["git", "-C", str(root), "show", "-s", "--format=%ct", commit],
+                           capture_output=True, text=True)
+    if stamp.returncode:
+        raise SetupError("snapshot commit is unavailable")
+    snapshot = json.loads(snapshot_path.read_text())
+    modules = {}
+    timestamp = datetime.fromtimestamp(int(stamp.stdout), timezone.utc).strftime("%Y%m%d%H%M%S")
+    env = dict(os.environ, GOTOOLCHAIN="local", GOWORK="off", GOFLAGS="",
+               GOPROXY="https://proxy.golang.org", GOSUMDB="sum.golang.org")
+    for module in sorted(snapshot["modules"]):
+        proc = subprocess.run([go, "list", "-m", "-json", module + "@" + commit],
+                              cwd=root, capture_output=True, text=True, env=env)
+        if proc.returncode:
+            raise SetupError(f"cannot resolve published snapshot for {module}: {proc.stderr.strip()}")
+        info = json.loads(proc.stdout)
+        if info.get("Path") != module or info.get("Origin", {}).get("Hash") != commit:
+            raise SetupError(f"published snapshot origin mismatch for {module}")
+        version = info["Version"]
+        if not SEMVER.fullmatch(version) or not re.search(
+                r"[.-]" + timestamp + "-" + commit[:12] + "$", version):
+            raise SetupError(f"published snapshot version mismatch for {module}")
+        modules[module] = version
+    # Gather/verify every module before writing; failures leave the old file intact.
+    snapshot["snapshot_commit"] = commit
+    snapshot["snapshot_time"] = timestamp
+    snapshot["modules"] = modules
+    snapshot_path.write_text(json.dumps(snapshot, indent=2) + "\n")
+
+
 def render(result):
     # Edge counts only: version currency is enforced by the floor check itself.
     lines = [DOC_BEGIN, "| Consumer manifest | Internal require edges |", "| --- | ---: |"]
@@ -157,6 +191,7 @@ def main():
     parser.add_argument("--root", type=Path, default=default_root)
     parser.add_argument("--snapshot", type=Path, help="default: ROOT/experiments/module-graph-snapshot.json")
     parser.add_argument("--doc", type=Path, help="default: ROOT/experiments/MODULE-GRAPH.md")
+    parser.add_argument("--snapshot-commit", help="regenerate floors from this full published Git SHA via the public proxy")
     parser.add_argument("--write-doc", action="store_true", help="regenerate the inventory table")
     parser.add_argument("--json", type=Path, help="write the full inventory as JSON evidence")
     parser.add_argument("--go", default=os.environ.get("GO") or shutil.which("go"))
@@ -165,7 +200,10 @@ def main():
     try:
         if not args.go:
             raise SetupError("go is unavailable")
-        result = inventory(root, args.snapshot or root / "experiments/module-graph-snapshot.json", args.go)
+        snapshot_path = args.snapshot or root / "experiments/module-graph-snapshot.json"
+        if args.snapshot_commit:
+            refresh_snapshot(root, snapshot_path, args.go, args.snapshot_commit)
+        result = inventory(root, snapshot_path, args.go)
         doc = args.doc or root / "experiments/MODULE-GRAPH.md"
         result["violations"] += check_doc(doc, result, args.write_doc)
     except (SetupError, OSError, KeyError, json.JSONDecodeError) as error:

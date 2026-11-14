@@ -69,7 +69,10 @@ The inventory below is generated and checked by
 `python3 .scripts/check-module-graph.py`, which parses every `go.mod` with
 `go mod edit -json` (never a line filter) and fails when any internal require
 edge is older than its floor in
-[`module-graph-snapshot.json`](module-graph-snapshot.json).
+[`module-graph-snapshot.json`](module-graph-snapshot.json). Regenerate both with
+`python3 .scripts/check-module-graph.py --snapshot-commit FULL_PUBLISHED_SHA --write-doc`.
+The generator queries canonical versions through the public proxy and verifies
+all origin SHAs before writing the snapshot; a failed resolution leaves it intact.
 
 The separate `grant-v4/wire` module has no internal require edges or local
 replacements. It does not import any earlier grant module.
