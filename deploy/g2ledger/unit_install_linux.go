@@ -38,11 +38,19 @@ func installName(name string) error {
 func installLists(raw string, dropin bool) (map[string][]string, error) {
 	lists := map[string][]string{}
 	section, pending := "", ""
+	// systemd v259 fileio.c:1443-1453,1517-1560 consumes CR as an EOL,
+	// before conf-parser.c:354-405 handles comments and continuations.
+	// Support LF/CRLF; refuse every other CR placement before interpreting it.
+	for i := range len(raw) {
+		if raw[i] == '\r' && (i+1 == len(raw) || raw[i+1] != '\n') {
+			return nil, errors.New("UNIT_INSTALL_CR_REFUSED")
+		}
+	}
 	if strings.ContainsAny(raw, "\x00\v\f") {
 		return nil, errors.New("UNIT_INSTALL_TEXT_REFUSED")
 	}
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
 	for _, physical := range strings.Split(strings.TrimSuffix(raw, "\n"), "\n") {
-		physical = strings.TrimSuffix(physical, "\r")
 		trimmed := strings.TrimLeft(physical, installWhitespace)
 		if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, ";") {
 			continue
