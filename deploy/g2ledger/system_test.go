@@ -269,7 +269,7 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 					if err = os.Symlink(target, path); err != nil {
 						return "", -1, err
 					}
-					output += fmt.Sprintf("Created symlink %s -> %s.\n", path, target)
+					output += fmt.Sprintf("Created symlink '%s' -> '%s'.\n", path, target)
 					s.unitLinks[unit] = append(s.unitLinks[unit], UnitLink{Path: path, Target: target})
 				}
 				s.units[unit] = "enabled"
