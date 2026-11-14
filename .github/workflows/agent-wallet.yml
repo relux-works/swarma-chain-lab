@@ -179,6 +179,20 @@ jobs:
           GOTOOLCHAIN: local
         run: |
           set +e
+          bench_marker() {
+            python3 - "$1" <<'PYMARKER'
+          import json, sys
+          try:
+              events = [json.loads(line) for line in open(sys.argv[1])]
+          except (OSError, ValueError):
+              sys.exit(2)
+          found = [e["Output"].strip() for e in events if e.get("Test") == "TestG1BenchCore" and "G1_BENCH RAN_AND_PASSED:" in e.get("Output", "")]
+          if len(found) != 1:
+              print("G1_BENCH_MARKER_MISSING", file=sys.stderr)
+              sys.exit(1)
+          print(found[0])
+          PYMARKER
+          }
           manifest=../../.scripts/g1-bench-core-gate.json
           checker=../../.scripts/check-px1-core-gate.py
           env -u W1_REGTEST go test -count=1 -json -run '^TestG1BenchCore$' . > "$RUNNER_TEMP/g1-bench-control.json"
@@ -187,12 +201,16 @@ jobs:
           control_gate=$?
           grep -qx 'SKIPPED TestG1BenchCore' "$RUNNER_TEMP/g1-bench-control.txt"
           skip_seen=$?
+          bench_marker "$RUNNER_TEMP/g1-bench-control.json" > "$RUNNER_TEMP/g1-bench-marker-control.txt" 2>&1
+          control_marker=$?
           W1_REGTEST=1 W1_RUN_ROOT="$RUNNER_TEMP/g1-bench-core" go test -race -count=1 -timeout 20m -json -run '^TestG1BenchCore$' . > "$RUNNER_TEMP/g1-bench-core.json"
           code=$?
           python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/g1-bench-core.json"
           gate=$?
-          echo "G1_BENCH: skip test=$control_test gate=$control_gate seen=$skip_seen; Core test=$code gate=$gate"
-          test "$control_test" = 0 && test "$control_gate" = 1 && test "$skip_seen" = 0 && test "$code" = 0 && test "$gate" = 0
+          bench_marker "$RUNNER_TEMP/g1-bench-core.json"
+          marker=$?
+          echo "G1_BENCH: skip test=$control_test gate=$control_gate seen=$skip_seen marker=$control_marker; Core test=$code gate=$gate marker=$marker"
+          test "$control_test" = 0 && test "$control_gate" = 1 && test "$skip_seen" = 0 && test "$control_marker" = 1 && test "$code" = 0 && test "$gate" = 0 && test "$marker" = 0
       - name: Grantcheck policy on Core (required witnesses and real skip control)
         working-directory: experiments/grantcheck
         env:
