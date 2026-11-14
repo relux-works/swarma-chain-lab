@@ -4,6 +4,7 @@ package g2ledger
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -108,6 +109,258 @@ func TestLedgerReusedParentAllowedNamed(t *testing.T) {
 			t.Fatalf("wrong named allowance: %+v %+v", r, total)
 		}
 		absent(t, f.child)
+	}
+}
+
+// Claim: the same sealed snapshot/intent chain yields the same named allowance with every event removed; events supply no authority.
+func TestLedgerReusedParentSnapshotsAloneAllow(t *testing.T) {
+	f := newParentFixture(t, true, false)
+	f.create(t)
+	rows, _, e := f.compare(t)
+	must(t, e)
+	want := parentRow(t, rows, f.parent)
+	for i := range f.l.rows {
+		row := &f.l.rows[i]
+		if row.Body.Op == "commit" {
+			for j := range row.Body.Result.Parents {
+				row.Body.Result.Parents[j].Events = []ParentEvent{}
+			}
+		}
+		if row.Body.Op == "parent-replay" {
+			for j := range row.Body.ParentReplay.Parents {
+				row.Body.ParentReplay.Parents[j].Events = []ParentEvent{}
+			}
+		}
+	}
+	var out bytes.Buffer
+	f.l.output = &out
+	must(t, f.l.compareBaseline("rehearsal"))
+	got := parentRow(t, comparisonRows(t, &out), f.parent)
+	if !bytes.Equal(canonical(got), canonical(want)) {
+		t.Fatalf("event-dependent allowance: got %+v want %+v", got, want)
+	}
+}
+
+// Claim: real armed intervals with empty event receipts still allow their sealed snapshot/intent chain after reopening the ledger.
+func TestLedgerReusedParentEmptyEventsAllowedNamed(t *testing.T) {
+	f := newParentFixture(t, true, false)
+	f.l.parentWatchRead = func(int, []byte) (int, error) { return -1, unix.EAGAIN }
+	f.create(t)
+	f.l.Close()
+	var e error
+	f.l, e = Open(f.l.root, newSystem())
+	must(t, e)
+	defer f.l.Close()
+	f.l.parentWatchRead = func(int, []byte) (int, error) { return -1, unix.EAGAIN }
+	rows, total, e := f.compare(t)
+	must(t, e)
+	r := parentRow(t, rows, f.parent)
+	if r.Verdict != "ALLOWED-NAMED" || len(r.Causes) != 1 || r.Causes[0].Object != f.child || total.ReusedParentChanges != 1 || total.ParentViolations != 0 {
+		t.Fatalf("empty events denied: %+v %+v", r, total)
+	}
+}
+
+func plantedParentEvent(wd int, mask uint32, name []byte) []byte {
+	raw := make([]byte, unix.SizeofInotifyEvent+len(name))
+	binary.NativeEndian.PutUint32(raw, uint32(wd))
+	binary.NativeEndian.PutUint32(raw[4:], mask)
+	binary.NativeEndian.PutUint32(raw[12:], uint32(len(name)))
+	copy(raw[unix.SizeofInotifyEvent:], name)
+	return raw
+}
+func injectParentEvent(f *parentFixture, mask uint32) {
+	injected := false
+	f.l.parentWatchRead = func(fd int, buf []byte) (int, error) {
+		if injected {
+			return unix.Read(fd, buf)
+		}
+		injected = true
+		wd := -1
+		if mask != unix.IN_Q_OVERFLOW {
+			for key := range f.l.parentWatch.dirs {
+				wd = key
+				break
+			}
+		}
+		return copy(buf, plantedParentEvent(wd, mask, nil)), nil
+	}
+}
+func assertParentFailure(t *testing.T, f *parentFixture, reason string) {
+	t.Helper()
+	rows, total, e := f.compare(t)
+	code(t, e, 1)
+	r := parentRow(t, rows, f.parent)
+	if r.Verdict != "VIOLATION" || r.Type != "unlisted_difference" || !strings.Contains(r.Rule, reason) || !strings.Contains(e.Error(), reason) || total.ParentViolations != 1 || total.Unlisted != 1 || total.ReusedParentChanges != 0 {
+		t.Fatalf("want named %s violation: row=%+v total=%+v err=%v", reason, r, total, e)
+	}
+	for _, row := range rows {
+		if row.Verdict == "ALLOWED-NAMED" {
+			t.Fatalf("allowed row after watch failure: %+v", row)
+		}
+	}
+}
+
+// Claim: a test-seam IN_Q_OVERFLOW record aborts replay with a named parent violation, never an allowance.
+func TestLedgerReusedParentOverflowViolation(t *testing.T) {
+	f := newParentFixture(t, true, false)
+	f.create(t)
+	injectParentEvent(f, unix.IN_Q_OVERFLOW)
+	assertParentFailure(t, f, "PARENT_EVENTS_OVERFLOW")
+	absent(t, f.child) // The effect preceded the read failure; no successful compare or receipt is claimed.
+	if len(f.l.rows) != 3 {
+		t.Fatalf("failed evidence was sealed: rows=%d", len(f.l.rows))
+	}
+	f.l.parentWatchRead = nil
+	assertParentFailure(t, f, "unrecorded-parent-transition")
+}
+
+// Claim: real watch removal and injected watched-parent lifecycle events each abort with their specific named violation.
+func TestLedgerReusedParentLostWatchViolation(t *testing.T) {
+	for _, variant := range []string{"removed-watch", "ignored", "deleted", "moved", "unmounted"} {
+		t.Run(variant, func(t *testing.T) {
+			f := newParentFixture(t, true, false)
+			f.create(t)
+			reason := "PARENT_WATCH_IGNORED"
+			if variant == "removed-watch" {
+				removed := false
+				f.l.parentWatchRead = func(fd int, buf []byte) (int, error) {
+					if !removed {
+						removed = true
+						for wd := range f.l.parentWatch.dirs {
+							_, e := unix.InotifyRmWatch(fd, uint32(wd))
+							must(t, e)
+						}
+					}
+					return unix.Read(fd, buf)
+				}
+			} else {
+				masks := map[string]uint32{"ignored": unix.IN_IGNORED, "deleted": unix.IN_DELETE_SELF, "moved": unix.IN_MOVE_SELF, "unmounted": unix.IN_UNMOUNT}
+				reason = map[string]string{"ignored": "PARENT_WATCH_IGNORED", "deleted": "PARENT_WATCH_DELETE_SELF", "moved": "PARENT_WATCH_MOVE_SELF", "unmounted": "PARENT_WATCH_UNMOUNT"}[variant]
+				injectParentEvent(f, masks[variant])
+			}
+			assertParentFailure(t, f, reason)
+		})
+	}
+}
+
+// Claim: EMFILE at init or ENOSPC when adding a watch fails retry comparison despite an otherwise allowed snapshot chain.
+func TestLedgerReusedParentUnarmedViolation(t *testing.T) {
+	for _, variant := range []string{"init-emfile", "add-enospc"} {
+		t.Run(variant, func(t *testing.T) {
+			f := newParentFixture(t, true, false)
+			f.create(t)
+			_, _, e := f.compare(t)
+			must(t, e)
+			if variant == "init-emfile" {
+				f.l.parentWatchInit = func(int) (int, error) { return -1, unix.EMFILE }
+			} else {
+				f.l.parentWatchAdd = func(int, string, uint32) (int, error) { return -1, unix.ENOSPC }
+			}
+			assertParentFailure(t, f, "PARENT_WATCH_UNARMED")
+			absent(t, f.child)
+		})
+	}
+}
+
+// Claim: failed arming during creation stops before the intent hook and first filesystem effect, so there is no late-armed interval.
+func TestLedgerReusedParentArmedBeforeFirstEffect(t *testing.T) {
+	f := newParentFixture(t, true, false)
+	called := false
+	f.l.afterIntent = func(Action) error { called = true; return nil }
+	f.l.parentWatchAdd = func(int, string, uint32) (int, error) { return -1, unix.ENOSPC }
+	e := f.l.CreateFS(f.child, f.foreign, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600)
+	code(t, e, 1)
+	if !strings.Contains(e.Error(), "PARENT_WATCH_UNARMED") || called || len(f.l.rows) != 1 {
+		t.Fatalf("effect before arming: called=%v rows=%d err=%v", called, len(f.l.rows), e)
+	}
+	absent(t, f.child)
+}
+
+// Claim: fd errors, EOF, short headers/payloads and malformed names fail replay with named violations; EINTR retries the real fd.
+func TestLedgerReusedParentEventReadViolation(t *testing.T) {
+	for _, variant := range []string{"eio", "ebadf", "eof", "short-header", "short-name", "bad-name", "nul-padding", "unknown-watch", "zero-mask", "eintr-control"} {
+		t.Run(variant, func(t *testing.T) {
+			f := newParentFixture(t, true, false)
+			f.create(t)
+			injected := false
+			f.l.parentWatchRead = func(fd int, buf []byte) (int, error) {
+				if injected {
+					return unix.Read(fd, buf)
+				}
+				injected = true
+				wd := 0
+				for key := range f.l.parentWatch.dirs {
+					wd = key
+					break
+				}
+				switch variant {
+				case "eio":
+					return -1, unix.EIO
+				case "ebadf":
+					return -1, unix.EBADF
+				case "eof":
+					return 0, nil
+				case "eintr-control":
+					return -1, unix.EINTR
+				case "short-header":
+					return copy(buf, []byte{1}), nil
+				case "short-name":
+					raw := plantedParentEvent(wd, unix.IN_CREATE, nil)
+					binary.NativeEndian.PutUint32(raw[12:], 8)
+					return copy(buf, raw), nil
+				case "bad-name":
+					return copy(buf, plantedParentEvent(wd, unix.IN_CREATE, []byte("../x\x00"))), nil
+				case "nul-padding":
+					return copy(buf, plantedParentEvent(wd, unix.IN_CREATE, []byte("x\x00y\x00"))), nil
+				case "unknown-watch":
+					return copy(buf, plantedParentEvent(-2, unix.IN_CREATE, nil)), nil
+				default:
+					return copy(buf, plantedParentEvent(wd, 0, nil)), nil
+				}
+			}
+			if variant == "eintr-control" {
+				_, _, e := f.compare(t)
+				must(t, e)
+				return
+			}
+			reasons := map[string]string{"eio": "PARENT_EVENTS:", "ebadf": "PARENT_EVENTS:", "eof": "PARENT_EVENTS_EOF", "short-header": "PARENT_EVENTS_TRUNCATED", "short-name": "PARENT_EVENTS_TRUNCATED", "bad-name": "PARENT_EVENTS_MALFORMED", "nul-padding": "PARENT_EVENTS_MALFORMED", "unknown-watch": "PARENT_EVENTS_UNKNOWN_WATCH", "zero-mask": "PARENT_EVENTS_MALFORMED"}
+			assertParentFailure(t, f, reasons[variant])
+		})
+	}
+}
+
+// Claim: named allowed-path events cannot bridge a real timestamp gap between sealed snapshots.
+func TestLedgerReusedParentEventsCannotBridgeSnapshotGap(t *testing.T) {
+	f := newParentFixture(t, true, false)
+	f.create(t)
+	p := filepath.Join(f.parent, "gap")
+	must(t, os.WriteFile(p, nil, 0600))
+	must(t, os.Remove(p))
+	assertParentFailure(t, f, "unrecorded-parent-transition")
+}
+
+// Claim: even allowed-path events cannot authorize timestamp changes when the sealed snapshots show no corresponding entry transition.
+func TestLedgerReusedParentEventsCannotInventCause(t *testing.T) {
+	f := newParentFixture(t, true, false)
+	f.create(t)
+	_, _, e := f.compare(t)
+	must(t, e)
+	for _, row := range f.l.rows {
+		if row.Body.Op == "commit" {
+			for j := range row.Body.Result.Parents {
+				r := &row.Body.Result.Parents[j]
+				r.After.Children = append([]DirectoryEntry(nil), r.Before.Children...)
+				r.Events = []ParentEvent{{Path: f.child, Mask: unix.IN_CREATE}}
+			}
+		}
+	}
+	var out bytes.Buffer
+	f.l.output = &out
+	e = f.l.compareBaseline("rehearsal")
+	code(t, e, 1)
+	r := parentRow(t, comparisonRows(t, &out), f.parent)
+	if r.Verdict != "VIOLATION" || r.Rule != "parent-snapshot-intent-mismatch" {
+		t.Fatalf("events invented cause: %+v", r)
 	}
 }
 

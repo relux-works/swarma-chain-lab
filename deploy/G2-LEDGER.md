@@ -362,18 +362,34 @@ four conditions hold:
 4. The compare emits one `reused_parent_change` JSON line naming that parent
    and the causing ledger intent sequences and absolute object paths.
 
-Each creator/reversal watches its existing baseline parents using Linux
-inotify. Its sealed receipt records the before/after snapshots and entry events.
-The final compare requires an unbroken chain from S0 through those receipts to
-the final snapshot. An unrecorded create/delete cycle inside a command remains
-visible in the entry events; timestamp gaps between commands also refuse,
-even when the entry set is restored. Audited atomic replacement temporary
-objects are explicitly named in the receipt and in the causing-object list.
-Recorded unit-link paths can explain their own parent entry events. Queue
-overflow, watch/read failures and unstable snapshots fail closed. No daemon
-or privileged monitor is required. Protected parents and serialized privileged
-writers remain required; event names do not authenticate another writer using
-the exact same path during an engine syscall interval.
+Each creator/reversal arms Linux inotify watches on its existing baseline
+parents before its first effect. Its sealed receipt records before/after
+snapshots and entry events. The final compare requires an unbroken snapshot
+chain from S0 to the final snapshot. Named causes come only from snapshot entry
+deltas matching the ledger operation, including recorded unit links; atomic
+modify explicitly authorizes replacement of its named existing file. Events
+never supply causes or authorize timestamp drift. Removing events cannot turn
+an independently rejected snapshot chain into an allowance. Events only add
+rejection of transient unrecorded entries, including create/delete cycles that
+restore the original entry set. Audited atomic replacement temporary objects
+are named in the receipt for event checking, without becoming allowance causes.
+
+Queue overflow (`PARENT_EVENTS_OVERFLOW`), lost watches (`PARENT_WATCH_IGNORED`,
+`PARENT_WATCH_DELETE_SELF`, `PARENT_WATCH_MOVE_SELF`, `PARENT_WATCH_UNMOUNT`),
+unarmed watches (`PARENT_WATCH_UNARMED`), fd errors (`PARENT_EVENTS`), EOF,
+truncated or malformed records, unknown watches and unstable snapshots fail
+closed. Replay emits named `VIOLATION` rows for affected parents and a nonzero
+summary, then aborts without a successful full baseline comparison. Its text
+summary is `BASELINE_COMPARE_ABORTED`; the JSON summary counts only affected
+parents. No allowance is emitted on that path. Arming failure stops before the
+first reversal effect. A later read failure can follow an effect, but no replay
+receipt is sealed; retry cannot invent the missing snapshot transition.
+Creator-side evidence failure retains the existing named orphan/refusal error
+contract and never commits a successful result.
+
+No daemon or privileged monitor is required. Protected parents and serialized
+privileged writers remain required; event names do not authenticate another
+writer using the exact same path during an engine syscall interval.
 
 A missing reuse declaration, unknown entry event, unexplained timestamp gap,
 missing receipt, changed invariant or absent ledger cause is a **VIOLATION**:

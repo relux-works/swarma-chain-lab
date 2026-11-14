@@ -42,7 +42,7 @@ func (l *Ledger) Replay(mode string) error {
 		}
 		a := *l.rows[r.Body.Result.Intent].Body.Action
 		if e := l.startParentWatch(a, r.Body.Result.Identities); e != nil {
-			return e
+			return l.reportParentFailure(e, mode)
 		}
 		for k := len(r.Body.Result.Identities) - 1; k >= 0; k-- {
 			if e := l.undo(a, r.Body.Result.Identities[k], mode, removedGroups); e != nil {
@@ -51,7 +51,7 @@ func (l *Ledger) Replay(mode string) error {
 		}
 		parents, e := l.finishParentWatch()
 		if e != nil {
-			return e
+			return l.reportParentFailure(e, mode)
 		}
 		if len(parents) > 0 {
 			if e := l.append(Body{Op: "parent-replay", ParentReplay: &ParentReplay{Commit: r.Seq, Parents: parents}}); e != nil {

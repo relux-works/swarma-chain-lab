@@ -56,7 +56,9 @@ and comparison limits (including unconditional station account/key protection) a
 Artifacts are private `records.jsonl`, `HEAD` and `LOCK` inside the supplied directory;
 saved local validation output belongs in `.temp/`.
 The final summary includes `reused_parent_changes` and `parent_violations`;
-allowed parent metadata changes name every causing ledger object. See the
+allowed parent metadata changes name causes derived from sealed snapshots and
+ledger operations alone. Inotify events can only add rejection; watch-health
+failures abort with named parent violations. See the
 [comparison contract](G2-LEDGER.md#final-baseline-comparison).
 Run `gofmt -l g2ledger`, `go vet ./...`, and
 `go test -race ./g2ledger ./cmd/deploy-kit -count=1` from `deploy/`.

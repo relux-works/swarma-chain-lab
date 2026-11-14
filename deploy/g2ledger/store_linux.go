@@ -22,6 +22,9 @@ const maxLedger = 64 << 20
 // A failed append poisons the open handle: no subsequent operation may proceed.
 type Ledger struct {
 	parentWatch     *parentWatch
+	parentWatchInit func(int) (int, error) // test-only fault injection; never set by CLI
+	parentWatchAdd  func(int, string, uint32) (int, error)
+	parentWatchRead func(int, []byte) (int, error)
 	output          io.Writer
 	summary         io.Writer
 	root            string
