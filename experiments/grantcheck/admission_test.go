@@ -2,7 +2,8 @@ package grantcheck
 
 import "testing"
 
-// Every current code has a fixed seam reason/retry classification; caller-supplied Retryable cannot widen it.
+// Every code has a closed seam classification per provenance; only the five
+// envelope lifecycle codes lose exchange. Caller Retryable cannot widen it.
 func TestA2ADecisionTable(t *testing.T) {
 	tests := []struct {
 		code                    Code
@@ -30,25 +31,36 @@ func TestA2ADecisionTable(t *testing.T) {
 		{CodeCheckFailed, "policy_error", false, false, false},
 	}
 	allowed := map[string]bool{"allowed": true, "exchange": true, "denied": true, "dependency_unavailable": true, "policy_invalid": true, "policy_error": true, "exchange_outbound": true, "held_age": true, "held_count": true, "exchange_capacity": true, "storage_error": true}
-	for _, tc := range tests {
-		t.Run(string(tc.code), func(t *testing.T) {
-			d := Refused
-			if tc.code == CodeLive {
-				d = Live
-			}
-			for _, inputRetry := range []bool{false, true} {
-				v := Verdict{Decision: d, Code: tc.code, Closed: tc.closed, Retryable: inputRetry}
-				verdict, reason, retry := v.A2ADecision()
-				if verdict != string(d) || reason != tc.reason || retry != tc.retry || !allowed[reason] {
-					t.Fatalf("seam mapping: %s %s %v", verdict, reason, retry)
-				}
-				if tc.exchange {
-					v.Decision = Exchange
-					verdict, reason, retry = v.A2ADecision()
-					if verdict != "exchange" || reason != "exchange" || retry || !allowed[reason] {
-						t.Fatal("lifecycle exchange mapping")
+	for _, transport := range []struct {
+		name string
+		pin  Transport
+	}{{"legacy", 0}, {"nostr", NostrNIP17Seal}, {"envelope", SwarmEnvelopeV2}} {
+		t.Run(transport.name, func(t *testing.T) {
+			for _, tc := range tests {
+				t.Run(string(tc.code), func(t *testing.T) {
+					d := Refused
+					if tc.code == CodeLive {
+						d = Live
 					}
-				}
+					for _, inputRetry := range []bool{false, true} {
+						v := Verdict{transport: transport.pin, Decision: d, Code: tc.code, Closed: tc.closed, Retryable: inputRetry}
+						verdict, reason, retry := v.A2ADecision()
+						if verdict != string(d) || reason != tc.reason || retry != tc.retry || !allowed[reason] {
+							t.Fatalf("seam mapping: %s %s %v", verdict, reason, retry)
+						}
+						if tc.exchange {
+							v.Decision = Exchange
+							verdict, reason, retry = v.A2ADecision()
+							wantVerdict, wantReason := "exchange", "exchange"
+							if transport.pin == SwarmEnvelopeV2 && tc.code != CodeNoGrant {
+								wantVerdict, wantReason = "refused", "denied"
+							}
+							if verdict != wantVerdict || reason != wantReason || retry || !allowed[reason] {
+								t.Fatalf("lifecycle exchange mapping: want %s/%s/false; got %s/%s/%v", wantVerdict, wantReason, verdict, reason, retry)
+							}
+						}
+					}
+				})
 			}
 		})
 	}

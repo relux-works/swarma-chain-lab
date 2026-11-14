@@ -30,6 +30,15 @@ cross-transport reopening fail unchanged with `ErrState`. No adoption, relabel,
 or state deletion is provided; any migration must preserve prior closure history
 and be specified and reviewed separately.
 
+## Resolved: inbound envelope lifecycle seam mapping
+
+The keeper's 2026-11-14 11:39:01Z decision maps `not_yet`, `expired`,
+`seal_spent`, `landlord_rotated` and `landlord_changed` to
+refused/denied/false for SwarmEnvelopeV2 inbound. NostrNIP17Seal keeps
+exchange/exchange/false. `A2ADecision` uses the inbound verdict's validated
+checker provenance; all other rows are unchanged. This resolves mapping only:
+signed-envelope addressee extraction remains open with the a2a-link producer.
+
 ## Resolved: Go version
 
 The integration owner initially requested a tagged CG1 module usable by Go 1.25.x.

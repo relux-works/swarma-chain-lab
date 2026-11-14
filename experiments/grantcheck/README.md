@@ -95,6 +95,19 @@ Unknown/zero provenance or a different supported provenance returns
 and more than 64 returns `oversize`. These reuse the documented closed code set.
 No new reason is introduced. `A2ADecision` provides the pure closed mapping in
 [DESIGN.md](DESIGN.md#4-closed-routing-and-refusal-codes).
+The keeper's 2026-11-14 11:39:01Z decision resolves the lifecycle mapping:
+
+| Inbound code | SwarmEnvelopeV2 seam verdict / reason / retryable | NostrNIP17Seal seam verdict / reason / retryable |
+| --- | --- | --- |
+| `not_yet`, `expired`, `seal_spent`, `landlord_rotated`, `landlord_changed` | refused / denied / false | exchange / exchange / false |
+
+The inbound verdict carries the validated checker's transport pin privately;
+`A2ADecision` applies this table to that in-memory result. Grantcheck's underlying
+lifecycle `Decision`/`Code` observations and all other seam rows are unchanged.
+Serialized verdicts do not retain this provenance and must never be reused for
+admission; perform a fresh check instead. The signed-envelope addressee field
+remains an open downstream question; this decision adds no wire field.
+
 a2a daemon v1 supplies a full presentation and does not resolve S1. These
 integration responsibilities are specified here, not implemented in a2a by CG1.
 
@@ -126,9 +139,11 @@ never queue a live verdict as a reusable permission token.
   only offline plants run. Logs, source hashes and intended-failure verdicts go
   under a fresh run directory in the requested output path. Never publish nested
   Core state directories, including wallet and RPC configuration.
-- `go run .scripts/sender-guards.go -out .temp/sender-guards` runs the three
+- `go run .scripts/sender-guards.go -out .temp/sender-guards` runs the four
   provenance controls using Go overlays: accept any transport, skip key-format
-  validation, and ignore the transport pin. Each baseline must exit 0 and the
+  validation, ignore the transport pin, and fall back to Nostr exchange for the
+  five envelope lifecycle codes. The last is killed by `TestA2ADecisionTable`.
+  Each baseline must exit 0 and the
   named assertion must kill its mutant with exit 1. Overlays and logs go under
   a fresh output directory; checked-out source is never mutated.
 - `gofmt -l *.go .scripts/*.go` and `git diff --check` check formatting.

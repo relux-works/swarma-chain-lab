@@ -5,6 +5,8 @@ package grantcheck
 // It recomputes Retryable and rejects contradictory decisions or closure rather
 // than trusting mutable verdict fields. The adapter still enforces direction:
 // Exchange is inbound-only. Aggregate outbound Live has no per-grant metadata.
+// Inbound envelope lifecycle verdicts retain the validated checker provenance;
+// their five non-absence lifecycle codes deny instead of requesting exchange.
 func (v Verdict) A2ADecision() (verdict, reason string, retryable bool) {
 	reason = "denied"
 	switch v.Code {
@@ -19,6 +21,9 @@ func (v Verdict) A2ADecision() (verdict, reason string, retryable bool) {
 			return "refused", "policy_invalid", false
 		}
 		if v.Decision == Exchange {
+			if v.transport == SwarmEnvelopeV2 && v.Code != CodeNoGrant {
+				return "refused", "denied", false
+			}
 			return "exchange", "exchange", false
 		}
 	case CodeIdentityPending, CodeGrantPending, CodeVerifierUnavailable, CodeClockInvalid, CodeCancelled, CodeBusy:

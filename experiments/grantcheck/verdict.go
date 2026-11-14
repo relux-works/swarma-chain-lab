@@ -47,6 +47,10 @@ type Presentation struct {
 // Retryable is a fixed classification, not authority or a promise of success.
 // The a2a daemon (a2ad) holds retryable events in its bounded queue and checks them again.
 type Verdict struct {
+	// transport is set only from the validated inbound checker pin. It is not
+	// serialized: decoded verdicts are observations, never admission authority.
+	transport Transport
+
 	Decision  Decision `json:"decision"`
 	Code      Code     `json:"code"`
 	GrantID   string   `json:"grant_id,omitempty"`

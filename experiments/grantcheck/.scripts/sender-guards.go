@@ -43,6 +43,7 @@ func run() error {
 		return err
 	}
 	plants := []plant{
+		{"envelope_lifecycle_nostr_fallback", "admission.go", "if v.transport == SwarmEnvelopeV2 && v.Code != CodeNoGrant {", "if false {", "TestA2ADecisionTable", "lifecycle exchange mapping", 1},
 		{"accept_any_transport", "sender.go", "if !proof.Transport.valid() || proof.Transport != c.transport {", "if false {", "TestSenderUnknownTransport", "verdict contract", 2},
 		{"skip_key_format", "checker.go", "if !validKey(peer) {", "if false {", "TestSenderKeyFormat", "verdict contract", 1},
 		{"ignore_transport_pin", "sender.go", "if !proof.Transport.valid() || proof.Transport != c.transport {", "if !proof.Transport.valid() {", "TestSenderTransportPin", "verdict contract", 2},

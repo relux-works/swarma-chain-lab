@@ -188,12 +188,18 @@ ID. The wrapper adds no independent chain or revocation judgment.
 
 `A2ADecision` maps public verdicts to the a2a admission seam's closed vocabulary,
 without depending on its internal package. The adapter enforces inbound-only
-exchange and converts these strings to the seam's named types:
+exchange and converts these strings to the seam's named types. The keeper's
+2026-11-14 11:39:01Z decision resolves the envelope lifecycle mapping. Inbound
+results privately retain the validated checker pin; this is local provenance,
+not a wire field. Map the fresh in-memory verdict; serialization omits provenance
+and serialized observations must never be reused for admission.
 
 | Grantcheck code / decision | Seam verdict / reason | Retryable |
 | --- | --- | --- |
 | `live` / live | live / allowed | false |
-| `no_grant`, `not_yet`, `expired`, `seal_spent`, `landlord_rotated`, `landlord_changed` / exchange | exchange / exchange (inbound only) | false |
+| `not_yet`, `expired`, `seal_spent`, `landlord_rotated`, `landlord_changed` / exchange, SwarmEnvelopeV2 provenance | refused / denied | false |
+| The same five lifecycle codes / exchange, NostrNIP17Seal (including legacy) provenance | exchange / exchange (inbound only) | false |
+| `no_grant` / exchange | exchange / exchange (inbound Nostr; envelope absence already returns refused) | false |
 | The same lifecycle codes / refused | refused / denied | false |
 | `binding_mismatch`, `invalid_presentation`, `oversize`, `invalid_peer` / refused | refused / denied | false |
 | `verifier_unavailable`, `busy`, `cancelled`, `clock_invalid`, `grant_pending`, `identity_pending` / refused | refused / dependency_unavailable | true |
@@ -207,7 +213,12 @@ wrong sender/issuer pins use `binding_mismatch`. Stale/unavailable node observat
 use `verifier_unavailable`. Envelope replay checks remain the adapter's duty.
 No grantcheck code is passed through as a seam reason.
 
-The following is the accepted integration table. All non-live rows deny
+The following is the accepted grantcheck observation table, before
+`A2ADecision`: its five lifecycle exchange observations map to refused/denied/false
+for envelope inbound and exchange/exchange/false for Nostr inbound, as above.
+All other rows remain unchanged. Signed-envelope addressee extraction remains
+open with the a2a-link producer; no addressee wire field is defined here.
+All non-live rows deny
 inbox/sign/send. Unknown future K1 reasons map to
 `check_failed` (refused), never to live or an inferred absence of a grant.
 

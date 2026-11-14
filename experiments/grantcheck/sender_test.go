@@ -26,6 +26,47 @@ func senderChecker(t *testing.T, transport Transport) (*Checker, *kernel.Stub, P
 	return c, b, p
 }
 
+// Actual inbound results carry the validated pin into seam mapping for each
+// lifecycle reason; stub receipts test wrapper routing, not chain liveness.
+func TestInboundLifecycleDecisionProvenance(t *testing.T) {
+	for _, transport := range []struct {
+		name string
+		pin  Transport
+	}{{"nostr", NostrNIP17Seal}, {"envelope", SwarmEnvelopeV2}} {
+		for _, tc := range []struct {
+			code   Code
+			reason string
+			closed bool
+		}{
+			{CodeNotYet, "NOT_YET_VALID", false},
+			{CodeExpired, "EXPIRED", false},
+			{CodeSealSpent, "SEAL_SPENT", true},
+			{CodeLandlordRotated, "LANDLORD_KEY_ROTATED", true},
+			{CodeLandlordChanged, "AGENT_LANDLORD_CHANGED", true},
+		} {
+			t.Run(transport.name+"/"+string(tc.code), func(t *testing.T) {
+				c, b, p := senderChecker(t, transport.pin)
+				old := b.Handler
+				b.Handler = func(ctx context.Context, raw []byte, a, s string, n int64) (kernel.Receipt, error) {
+					r, err := old(ctx, raw, a, s, n)
+					r.Verdict, r.Reason, r.Closed = "refused", tc.reason, tc.closed
+					return r, err
+				}
+				v := c.InboundFrom(context.Background(), SenderProof{transport.pin, xonly(2)}, &p)
+				assertVerdict(t, v, Exchange, tc.code, tc.closed, false)
+				wantVerdict, wantReason := "exchange", "exchange"
+				if transport.pin == SwarmEnvelopeV2 {
+					wantVerdict, wantReason = "refused", "denied"
+				}
+				d, reason, retry := v.A2ADecision()
+				if d != wantVerdict || reason != wantReason || retry {
+					t.Fatalf("inbound provenance mapping: want %s/%s/false; got %s/%s/%v", wantVerdict, wantReason, d, reason, retry)
+				}
+			})
+		}
+	}
+}
+
 // Both supported pins construct; unsupported pins fail before publishing state.
 func TestTransportConfig(t *testing.T) {
 	for _, transport := range []Transport{0, 3, 255} {

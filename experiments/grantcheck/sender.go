@@ -39,6 +39,7 @@ func (c *Checker) InboundFrom(ctx context.Context, proof SenderProof, p *Present
 		return route(CodeBindingMismatch, true, false)
 	}
 	v := c.check(ctx, proof.Key, p, true)
+	v.transport = c.transport
 	if proof.Transport == SwarmEnvelopeV2 && v.Code == CodeNoGrant {
 		v.Decision = Refused
 	}
