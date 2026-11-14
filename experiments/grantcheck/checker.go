@@ -54,11 +54,12 @@ type backend interface {
 // installs a backend, always the landed kernelbind adapter; no public injection
 // point can substitute a replayed/fake verdict for a chain observation.
 type Checker struct {
-	mu       sync.Mutex
-	config   Config
-	binding  string
-	backend  backend
-	poisoned bool
+	mu        sync.Mutex
+	config    Config
+	transport Transport
+	binding   string
+	backend   backend
+	poisoned  bool
 }
 
 type state struct {
@@ -94,6 +95,15 @@ func validKey(s string) bool {
 }
 
 func New(config Config) (*Checker, error) {
+	return NewForTransport(config, NostrNIP17Seal)
+}
+
+// NewForTransport requires a supported, authenticated provenance pin. It never
+// infers transport from message fields or adopts differently bound state.
+func NewForTransport(config Config, transport Transport) (*Checker, error) {
+	if !transport.valid() {
+		return nil, ErrConfig
+	}
 	if e := su.RequireWitnessProfile(config.ConstructionProfile); e != nil {
 		return nil, e
 	}
@@ -115,10 +125,13 @@ func New(config Config) (*Checker, error) {
 	if err != nil {
 		return nil, ErrConfig
 	}
-	pins, _ := json.Marshal(struct{ Identity, Agent, Landlord, Issuer, Network, Genesis, Construction string }{
-		config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, "regtest", su.RegtestGenesis, config.ConstructionProfile,
+	pins, _ := json.Marshal(struct {
+		Identity, Agent, Landlord, Issuer, Network, Genesis, Construction string
+		Transport                                                         Transport
+	}{
+		config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, "regtest", su.RegtestGenesis, config.ConstructionProfile, transport,
 	})
-	c := &Checker{config: config, binding: rental.Hash(pins), backend: a}
+	c := &Checker{config: config, transport: transport, binding: rental.Hash(pins), backend: a}
 	s, err := durable.Open(config.StateDir, "grantcheck.lock")
 	if err != nil {
 		return nil, ErrState
@@ -212,12 +225,15 @@ func (c *Checker) parse(p Presentation, peer string) (rental.Grant, Code) {
 // Inbound requires the authenticated NIP-17 inner seal signer. nil presentation
 // uses previously admitted proof; explicit invalid proof never falls back.
 func (c *Checker) Inbound(ctx context.Context, sender string, p *Presentation) Verdict {
-	return c.check(ctx, sender, p, true)
+	return c.InboundFrom(ctx, SenderProof{Transport: NostrNIP17Seal, Key: sender}, p)
 }
 
 // Outbound freshly checks the exact recipient using this identity's admitted
 // public proof cache. It never routes agent replies through the exchange.
 func (c *Checker) Outbound(ctx context.Context, recipient string) Verdict {
+	if c != nil && c.backend != nil && c.transport != NostrNIP17Seal {
+		return route(CodeBindingMismatch, false, false)
+	}
 	return c.check(ctx, recipient, nil, false)
 }
 

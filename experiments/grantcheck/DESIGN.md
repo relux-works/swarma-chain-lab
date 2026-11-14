@@ -16,11 +16,15 @@ assertions checked by a2a daemon, never selectors supplied to the checker. No gl
 node route/state directory is permitted.
 
 The trusted engine constructor pins the a2a daemon identity, rented agent Namecoin
-name, landlord Namecoin name, issuer grant key, canonical private state directory,
+name, landlord Namecoin name, issuer grant key, sender provenance, canonical private state directory,
 verifier clock and read-only node. The library copies that configuration, builds
 the landed `kernelbind.Adapter`, and does not expose mutable policy. Identity and
 policy binding are persisted separately from K1's own records. Opening the same
 state root with a different identity or pins fails; it never relabels a cache.
+The transport provenance is included in the binding hash. A pre-provenance state
+hash is deliberately incompatible, even for Nostr: guessing or adopting a
+previous cache would hide its missing provenance. Refusal leaves state unchanged;
+this change supplies no migration and does not authorize discarding closure history.
 Separate engine identities require separate private state roots. Binding these
 roots to the authenticated station is a2a daemon's responsibility, tested at its
 integration boundary; a string passed by an untrusted station is not proof.
@@ -46,11 +50,16 @@ does not own a queue or turn a retryable refusal into admission.
 
 Upstream a2a defines an `admission` interface with no policy by default. The
 a2a-link fork registers CG1 at build time; upstream never imports chain-lab.
-Only Nostr identities configured with a grant policy call this checker, using the
-transport-verified inner seal key. A grant policy on a Matrix identity refuses
-at startup. The existing Matrix owner DM remains outside grant admission; v1
-has no owner bypass on Nostr. Transport selection and startup validation belong
-to a2a daemon, not to an extra caller-controlled checker argument.
+The owner's decision T23 of 2026-11-14 states that transports only carry and
+authority always comes from a signed envelope inside the message, on every
+transport. Matrix grant policy is allowed for the v3 test bench only when the
+sender key is the BIP-340 key that verified the `swarm-envelope/2` signature,
+never a Matrix user ID, display name or message field. The grant ID and canonical
+v3 proof of at most 16384 bytes must be in the envelope or already cached.
+Owner DM stays outside admission. Nostr remains the target transport; this does
+not replace it, and v1 has no owner bypass on Nostr. The trusted adapter verifies
+the signature before constructing the typed sender assertion. A caller-selected
+provenance cannot override the immutable constructor pin.
 
 Outbound means agent-originated replies, not the exchange's fixed protocol
 responses. The exchange is separately trusted and rate-limited; routing a normal
@@ -78,9 +87,17 @@ type Verdict struct {
     Retryable bool // fixed closed classification, never received/backend text
 }
 
-func New(Config) (*Checker, error)
-func (*Checker) Inbound(context.Context, string, *Presentation) Verdict
-func (*Checker) Outbound(context.Context, string) Verdict
+type Transport uint8 // closed: NostrNIP17Seal = 1, SwarmEnvelopeV2 = 2
+type SenderProof struct { Transport Transport; Key string }
+type RecipientProof struct { Transport Transport; Keys []string }
+
+func New(Config) (*Checker, error) // fixed Nostr pin, existing API unchanged
+func NewForTransport(Config, Transport) (*Checker, error) // required explicit pin
+func (*Checker) Inbound(context.Context, string, *Presentation) Verdict // Nostr only
+func (*Checker) InboundFrom(context.Context, SenderProof, *Presentation) Verdict
+func (*Checker) Outbound(context.Context, string) Verdict // Nostr only
+func (*Checker) OutboundFrom(context.Context, RecipientProof) Verdict
+func (Verdict) A2ADecision() (verdict string, reason string, retryable bool)
 ```
 
 The string parameter is a verified sender key inbound, an exact recipient key
@@ -89,10 +106,18 @@ BIP-340 key. In NIP-17 it is the verified inner seal signer, with the rumor key
 required to agree; it is never the gift-wrap's ephemeral signer, a body field,
 claimed display name, `p` tag sender, transport IP or supplied signature string.
 The library cannot authenticate a transport by inspecting this string; the
-transport adapter must establish that fact before calling it.
+transport adapter must establish that fact before calling it. `InboundFrom`
+asserts either NIP-17 inner-seal verification or swarm-envelope/2 signature
+verification, with exactly the key that verified the signature. Zero/unknown
+provenance and pin mismatches refuse with `binding_mismatch`; invalid keys use
+`invalid_peer`. `NewForTransport` refuses unsupported pins with `ErrConfig`.
+The separate constructor is the required explicit pin for new integrations;
+`New` is the fixed Nostr constructor so existing Nostr call sites and tests need
+no edits. Legacy `Inbound` and `Outbound` refuse on envelope-pinned checkers.
 
 Inbound `nil` means no presentation was supplied: consult only this identity's
-cached proof for this sender. A non-nil malformed/empty presentation is refused,
+cached proof for this sender. With no cached proof, envelope provenance returns
+`refused/no_grant`; legacy Nostr keeps `exchange/no_grant`. A non-nil malformed/empty presentation is refused,
 never converted to absence and never replaced by a cached valid grant. Outbound
 has no presentation parameter: the agent cannot plant authority by attaching a
 new proof to its reply. It uses proof admitted by prior live inbound presentation.
@@ -113,6 +138,18 @@ for live decisions and copied before return. Grant ID/window are reported only
 from successfully parsed, policy/sender-bound proof; they never confer authority
 on an exchange/refused result. Closed means K1 established durable closure, not
 "this call failed".
+
+Envelope `OutboundFrom` takes all addressee keys from the authenticated outgoing
+envelope, with no room or membership fallback. Missing addressees refuse with
+`invalid_peer`; more than `MaxRecipients` (64) refuse with `oversize`. Invalid
+keys refuse before backend access. Every recipient needs a previously admitted
+proof and a fresh live K1 verdict on every send or retry; one failing recipient
+denies the whole send. The aggregate success carries no per-grant scope or ID.
+After the final recipient check, the earliest grant end and latest checked time
+are compared with verifier time to reject expiry or rollback during the batch.
+This remains a sequence of bounded observations, not an atomic chain/send step.
+A signed-envelope addressee extraction contract belongs to the downstream adapter;
+this library neither invents a wire field nor infers keys from room membership.
 
 ## 3. Proof acquisition and validation
 
@@ -149,6 +186,27 @@ ID. The wrapper adds no independent chain or revocation judgment.
 
 ## 4. Closed routing and refusal codes
 
+`A2ADecision` maps public verdicts to the a2a admission seam's closed vocabulary,
+without depending on its internal package. The adapter enforces inbound-only
+exchange and converts these strings to the seam's named types:
+
+| Grantcheck code / decision | Seam verdict / reason | Retryable |
+| --- | --- | --- |
+| `live` / live | live / allowed | false |
+| `no_grant`, `not_yet`, `expired`, `seal_spent`, `landlord_rotated`, `landlord_changed` / exchange | exchange / exchange (inbound only) | false |
+| The same lifecycle codes / refused | refused / denied | false |
+| `binding_mismatch`, `invalid_presentation`, `oversize`, `invalid_peer` / refused | refused / denied | false |
+| `verifier_unavailable`, `busy`, `cancelled`, `clock_invalid`, `grant_pending`, `identity_pending` / refused | refused / dependency_unavailable | true |
+| `state_unavailable` / refused | refused / storage_error | true |
+| `check_failed` / refused | refused / policy_error | false |
+| Unknown code, decision, or contradictory decision/closure | refused / policy_invalid | false |
+
+Retryability is recomputed from this table, never taken from a mutable verdict's
+`Retryable` field. Bad signatures and malformed proof use `invalid_presentation`;
+wrong sender/issuer pins use `binding_mismatch`. Stale/unavailable node observations
+use `verifier_unavailable`. Envelope replay checks remain the adapter's duty.
+No grantcheck code is passed through as a seam reason.
+
 The following is the accepted integration table. All non-live rows deny
 inbox/sign/send. Unknown future K1 reasons map to
 `check_failed` (refused), never to live or an inferred absence of a grant.
@@ -156,7 +214,7 @@ inbox/sign/send. Unknown future K1 reasons map to
 | Condition | Inbound decision/code | Outbound decision/code | Durable closed |
 | --- | --- | --- | --- |
 | Fresh K1 live, correct bindings and current window | live / live | live / live | false |
-| No supplied proof and cache genuinely absent | exchange / no_grant | refused / no_grant | false |
+| No supplied proof and cache genuinely absent | Nostr exchange / no_grant; envelope refused / no_grant | refused / no_grant | false |
 | Well-formed owned grant before start | exchange / not_yet | refused / not_yet | false |
 | Owned grant at/after end | exchange / expired | refused / expired | false |
 | Proven seal spend (including mempool) | exchange / seal_spent | refused / seal_spent | true |
@@ -167,7 +225,8 @@ inbox/sign/send. Unknown future K1 reasons map to
 | Other grantee / wrong agent or landlord pin | refused / binding_mismatch | refused / binding_mismatch | false |
 | Malformed/legacy/bad signature/hash or missing locator | refused / invalid_presentation | refused / invalid_presentation | false |
 | Oversized decoded presentation | refused / oversize | refused / oversize | false |
-| Invalid peer key | refused / invalid_peer | refused / invalid_peer | false |
+| Invalid peer key or missing outbound addressees | refused / invalid_peer | refused / invalid_peer | false |
+| Unknown/zero provenance or different constructor pin | refused / binding_mismatch | refused / binding_mismatch | false |
 | Node read/observation unavailable or unstable | refused / verifier_unavailable | refused / verifier_unavailable | false |
 | Corrupt/private-state/lock/cache-full failure | refused / state_unavailable | refused / state_unavailable | false |
 | Clock invalid/backwards or expires during wrapper work | refused / clock_invalid or expired | refused / clock_invalid or expired | false |

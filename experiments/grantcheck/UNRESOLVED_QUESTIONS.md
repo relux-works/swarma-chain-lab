@@ -3,7 +3,32 @@
 The routing table and per-identity boundary are accepted. Integration corrections
 are recorded in DESIGN.md: closed Retryable classification, a2a daemon (a2ad)-owned bounded
 held/exchange queues, full grant-cert only in v1, build-time fork registration,
-and Nostr-only grant policies. Matrix owner DM remains outside this path.
+and transport-pinned grant policies. Under the owner's decision T23 of
+2026-11-14, Matrix is allowed for the v3 test bench only with the BIP-340 key
+that verified the swarm-envelope/2 signature, never a Matrix user ID, display
+name or message field. The grant ID and canonical v3 proof (at most 16384 bytes)
+are in the envelope or already cached. Owner DM remains outside admission.
+Nostr remains the target transport; the allowance does not replace it.
+
+## Open: downstream interface agreement
+
+The proposed API adds `NewForTransport`, `SenderProof`/`InboundFrom`,
+`RecipientProof`/`OutboundFrom` and the pure `Verdict.A2ADecision` mapping.
+`New`/`Inbound`/`Outbound` retain the Nostr API and a fixed Nostr pin. Envelope
+outbound requires every signed-envelope addressee key and fresh live grants for
+all of them. Missing addressees refuse; there is no room-pin or membership
+fallback. The inspected Matrix carrier passes opaque envelope bytes and supplies
+no addressee extraction contract. The downstream adapter must confirm that
+contract and agree exact signatures before integration is claimed. If the
+signed-envelope format cannot name addressees, that is a downstream blocker,
+not permission to invent a message field or derive authority from the room.
+
+## Open: explicit state migration
+
+Transport is now included in the durable binding hash. Pre-provenance state and
+cross-transport reopening fail unchanged with `ErrState`. No adoption, relabel,
+or state deletion is provided; any migration must preserve prior closure history
+and be specified and reviewed separately.
 
 ## Resolved: Go version
 
