@@ -633,7 +633,9 @@ membership or own a separately recorded directory, file, modified file, or
 exec-create output. A `service` user can never own a tree, even if it has no
 files or memberships and has an otherwise allowed UID. Existing behavioral
 dedication, ownership and replay checks remain in force; the forbidden UID/GID
-list is additional defense. Draft-10 swarma-wallet and g2-agent are `service`.
+list is additional defense. Creating a tree-owner also refuses a UID that
+already owns a non-tree recorded object; dedication cannot relabel earlier
+ownership. Draft-10 swarma-wallet and g2-agent are `service`.
 
 Volatile-target classification walks symlink components with `readlinkat`
 before applying subsequent `..`, restarting at `/` for absolute link targets.

@@ -44,6 +44,10 @@ func treeAuthority(a Action, rows []Record) error {
 			continue
 		}
 		old := rows[row.Body.Result.Intent].Body.Action
+		// Creating the dedicated role cannot relabel earlier ordinary ownership.
+		if a.Kind == "user" && a.Role == "tree-owner" && (old.Kind == "membership" && old.User == a.Name || len(old.Paths) > 0 && old.Kind != "tree" && old.UID == a.UID) {
+			return namedError("TREE_OWNER_NOT_DEDICATED", a)
+		}
 		if old.Kind == "user" && old.Role == "tree-owner" && (a.Kind == "membership" && a.User == old.Name || len(a.Paths) > 0 && a.Kind != "tree" && a.UID == old.UID) {
 			return namedError("TREE_OWNER_NOT_DEDICATED", a)
 		}

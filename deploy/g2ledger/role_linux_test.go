@@ -291,3 +291,38 @@ func TestLedgerTreeOwnerStructuralReplayRefused(t *testing.T) {
 		})
 	}
 }
+
+// Claim: creating a tree-owner cannot retrospectively claim a UID already
+// owning a recorded ordinary file; the service role permits that same history.
+func TestLedgerTreeOwnerPriorOwnershipRefused(t *testing.T) {
+	for _, role := range []string{"tree-owner", "service"} {
+		t.Run(role, func(t *testing.T) {
+			f := setup(t)
+			p := f.create(t, "owned", "file", "state")
+			must(t, f.l.CreateAccount("group", "primary", "state", 0, uint32(os.Getegid())))
+			before, e := os.ReadFile(filepath.Join(f.dir, recordsName))
+			must(t, e)
+			calls := len(f.sys.calls)
+			err := f.l.CreateAccount("user", "demo", "state", uint32(os.Geteuid()), uint32(os.Getegid()), role)
+			if role == "service" {
+				must(t, err)
+				return
+			}
+			code(t, err, 1)
+			if !strings.Contains(err.Error(), "TREE_OWNER_NOT_DEDICATED") {
+				t.Fatal(err)
+			}
+			after, e := os.ReadFile(filepath.Join(f.dir, recordsName))
+			must(t, e)
+			if !bytes.Equal(before, after) || len(f.sys.users) != 0 {
+				t.Fatal("role creation changed state")
+			}
+			for _, call := range f.sys.calls[calls:] {
+				if strings.HasPrefix(call, "/usr/sbin/useradd ") {
+					t.Fatal("role rejection invoked creator")
+				}
+			}
+			exists(t, p)
+		})
+	}
+}
