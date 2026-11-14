@@ -203,7 +203,7 @@ func TestLedgerUnitLinkReceiptIdentity(t *testing.T) {
 	}
 }
 
-// Claim: injecting EIO only at CreateFS's payload-file or parent-directory
+// Claim: injecting EIO after CreateFS's real payload-file or parent-directory
 // fsync leaves a named orphan (exit 3), poisons this handle, and fresh verify
 // and replay also refuse with exit 3 while preserving target and older work.
 // The identical no-fault neighbour seals and reverses both creations.
@@ -214,22 +214,24 @@ func TestLedgerCreateFSSyncOnlyFailures(t *testing.T) {
 			older := f.create(t, "older", "file", "remove")
 			target := filepath.Join(f.root, "target")
 			calls, applied := 0, 0
-			f.l.payloadSync = func(file *os.File) error {
-				calls++
-				info, err := file.Stat()
-				if err != nil {
-					return err
+			if checkpoint != "control" {
+				f.l.payloadSync = func(file *os.File) error {
+					calls++
+					info, err := file.Stat()
+					if err != nil {
+						return err
+					}
+					if checkpoint == "payload" && !info.IsDir() || checkpoint == "parent" && info.IsDir() {
+						applied++
+						return syscall.EIO
+					}
+					return nil
 				}
-				if checkpoint == "payload" && !info.IsDir() || checkpoint == "parent" && info.IsDir() {
-					applied++
-					return syscall.EIO
-				}
-				return file.Sync()
 			}
 			err := f.l.CreateFS(target, f.src, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600)
 			if checkpoint == "control" {
 				must(t, err)
-				if calls != 2 || applied != 0 {
+				if calls != 0 || applied != 0 {
 					t.Fatal("missing successful sync neighbour")
 				}
 			} else {

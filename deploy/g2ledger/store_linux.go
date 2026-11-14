@@ -28,8 +28,8 @@ type Ledger struct {
 	lock        *os.File
 	rows        []Record
 	write       func(io.Writer, []byte) error
-	payloadSync func(*os.File) error // payload-only fsync fault seam, nil in production
-	sync        func(*os.File) error // fsync-only fault seam, nil in production
+	payloadSync func(*os.File) error // observes successful real payload fsync; may inject a later error
+	sync        func(*os.File) error // observes successful real journal fsync; may inject a later error
 	poisoned    bool
 	sys         System
 	afterIntent func(Action) error // crash/race injection; never set by the CLI
@@ -317,10 +317,13 @@ func creationKeys(a Action) []string {
 	return nil
 }
 func (l *Ledger) syncFile(f *os.File) error {
+	if err := f.Sync(); err != nil {
+		return err
+	}
 	if l.sync != nil {
 		return l.sync(f)
 	}
-	return f.Sync()
+	return nil
 }
 func (l *Ledger) append(body Body) error {
 	if l.poisoned {
@@ -475,8 +478,11 @@ func (l *Ledger) abort(seq uint64, a Action) error {
 
 // syncPayload isolates CreateFS durability from journal sealing checkpoints.
 func (l *Ledger) syncPayload(f *os.File) error {
+	if err := f.Sync(); err != nil {
+		return err
+	}
 	if l.payloadSync != nil {
 		return l.payloadSync(f)
 	}
-	return f.Sync()
+	return nil
 }

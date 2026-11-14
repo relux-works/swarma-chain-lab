@@ -414,7 +414,7 @@ type shortWriter struct {
 
 func (w shortWriter) Write(b []byte) (int, error) { return w.w.Write(b[:w.n]) }
 
-// Claim: an fsync-only EIO at the record descriptor (which remains open)
+// Claim: injected EIO after the real record fsync (descriptor still open)
 // refuses before creation and survives reopen. Removing record fsync alone
 // makes this control fail; Close still succeeds and cannot mask that rule.
 func TestLedgerAppendSyncFailure(t *testing.T) {
@@ -425,7 +425,7 @@ func TestLedgerAppendSyncFailure(t *testing.T) {
 			injected = true
 			return syscall.EIO
 		}
-		return file.Sync()
+		return nil
 	}
 	p := filepath.Join(f.root, "not-created")
 	err := f.l.CreateFS(p, f.src, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600)

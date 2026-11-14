@@ -14,8 +14,8 @@ import (
 	"testing"
 )
 
-// Claim: each append fsync checkpoint fails closed after a new Open, for both
-// intent and commit. Only the selected fsync faults; all writes/closes work.
+// Claim: an injected error after each real append fsync fails closed after a
+// new Open, for both intent and commit. All writes/closes work.
 // This is restart/process evidence on this filesystem, not power-loss emulation.
 func TestLedgerFailedSealSurvivesReopen(t *testing.T) {
 	for _, phase := range []string{"intent", "commit"} {
@@ -52,7 +52,7 @@ func TestLedgerFailedSealSurvivesReopen(t *testing.T) {
 						injected = true
 						return syscall.EIO
 					}
-					return file.Sync()
+					return nil
 				}
 				err := f.l.CreateFS(target, f.src, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600)
 				want := 1
@@ -89,7 +89,7 @@ func TestLedgerFailedSealSurvivesReopen(t *testing.T) {
 
 // Claim: a separate producer process killed or returning EIO at the final HEAD
 // directory fsync cannot confer deletion authority to a new CLI-adapter process.
-// SIGKILL occurs immediately before that fsync, after the real HEAD rename.
+// SIGKILL occurs immediately after that real fsync, before guard removal.
 func TestLedgerSealCheckpointSubprocess(t *testing.T) {
 	if mode := os.Getenv("G2_TEST_SEAL_CHILD"); mode != "" {
 		dir := os.Getenv("G2_TEST_SEAL_DIR")
@@ -110,7 +110,7 @@ func TestLedgerSealCheckpointSubprocess(t *testing.T) {
 					return syscall.EIO
 				}
 			}
-			return file.Sync()
+			return nil
 		}
 		err = l.CreateFS(os.Getenv("G2_TEST_SEAL_TARGET"), os.Getenv("G2_TEST_SEAL_SOURCE"), "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600)
 		if mode == "eio" && (ExitCode(err) != 3 || !strings.Contains(err.Error(), "HEAD_DIRECTORY_SYNC")) {
