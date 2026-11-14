@@ -53,13 +53,33 @@ a2a-link fork registers CG1 at build time; upstream never imports chain-lab.
 The owner's decision T23 of 2026-11-14 states that transports only carry and
 authority always comes from a signed envelope inside the message, on every
 transport. Matrix grant policy is allowed for the v3 test bench only when the
-sender key is the BIP-340 key that verified the `swarm-envelope/2` signature,
-never a Matrix user ID, display name or message field. The grant ID and canonical
-v3 proof of at most 16384 bytes must be in the envelope or already cached.
-Owner DM stays outside admission. Nostr remains the target transport; this does
-not replace it, and v1 has no owner bypass on Nostr. The trusted adapter verifies
-the signature before constructing the typed sender assertion. A caller-selected
-provenance cannot override the immutable constructor pin.
+sender key satisfies the contract below. The grant ID and canonical v3 proof of
+at most 16384 bytes must be in the envelope or already cached. Owner DM stays
+outside admission. Nostr remains the target transport; this does not replace
+it, and v1 has no owner bypass on Nostr. A caller-selected provenance cannot
+override the immutable constructor pin.
+
+The `SwarmEnvelopeV2` sender is the grant-named BIP-340 key, verified by the caller
+from a per-message BIP-340 co-signature over the exact swarm-envelope/2 bytes
+(slice 1), or from a BIP-340 author profile of swarm-envelope/2 once one exists
+(target); never the envelope's Ed25519 author key, a carrier id, a display name
+or a message field. grantcheck does not verify the envelope or the co-signature
+itself; it trusts the caller's verified key and checks the grant.
+
+Track A (slice 1) changes only the downstream fork: it keeps the unchanged
+Ed25519 `swarm-envelope/2` and carries a domain-separated, per-message BIP-340
+co-signature by the grant-named key beside the envelope in the same message,
+under its own content key. The adapter verifies the envelope first, then the
+co-signature over those exact envelope bytes, and passes that BIP-340 key as
+`SenderProof{Transport: SwarmEnvelopeV2, Key: verifiedCosignerKey}`. A missing,
+invalid or mismatched co-signature is denied, not retryable, by the adapter
+before calling grantcheck. The downstream adapter defines the byte construction
+of the co-signature; this library does not.
+
+Track B (target) proposes a proper BIP-340 author profile inside
+`swarm-envelope/2` to its owner. If agreed, the co-signature can fold into that
+profile later; slice 1 does not change the envelope format owned elsewhere.
+`SwarmEnvelopeV2` names the carriage, not the signature scheme.
 
 Outbound means agent-originated replies, not the exchange's fixed protocol
 responses. The exchange is separately trusted and rate-limited; routing a normal
@@ -107,8 +127,9 @@ required to agree; it is never the gift-wrap's ephemeral signer, a body field,
 claimed display name, `p` tag sender, transport IP or supplied signature string.
 The library cannot authenticate a transport by inspecting this string; the
 transport adapter must establish that fact before calling it. `InboundFrom`
-asserts either NIP-17 inner-seal verification or swarm-envelope/2 signature
-verification, with exactly the key that verified the signature. Zero/unknown
+asserts either NIP-17 inner-seal verification with its verified signer key, or
+the caller-verified BIP-340 sender key under Track A/B above. Envelope verification
+alone does not establish the grant-named BIP-340 key in slice 1. Zero/unknown
 provenance and pin mismatches refuse with `binding_mismatch`; invalid keys use
 `invalid_peer`. `NewForTransport` refuses unsupported pins with `ErrConfig`.
 The separate constructor is the required explicit pin for new integrations;
@@ -139,9 +160,10 @@ from successfully parsed, policy/sender-bound proof; they never confer authority
 on an exchange/refused result. Closed means K1 established durable closure, not
 "this call failed".
 
-Envelope `OutboundFrom` takes all addressee keys from the authenticated outgoing
-envelope, with no room or membership fallback. Missing addressees refuse with
-`invalid_peer`; more than `MaxRecipients` (64) refuse with `oversize`. Invalid
+Envelope `OutboundFrom` takes the key resolved by the adapter from the one signed
+`to` carrier id per message through a pinned binding, with no room or membership
+fallback. This settles the addressee contract; grantcheck defines no wire field.
+Missing addressees refuse with `invalid_peer`; more than `MaxRecipients` (64) refuse with `oversize`. Invalid
 keys refuse before backend access. Every recipient needs a previously admitted
 proof and a fresh live K1 verdict on every send or retry; one failing recipient
 denies the whole send. The aggregate success carries no per-grant scope or ID.
@@ -216,8 +238,9 @@ No grantcheck code is passed through as a seam reason.
 The following is the accepted grantcheck observation table, before
 `A2ADecision`: its five lifecycle exchange observations map to refused/denied/false
 for envelope inbound and exchange/exchange/false for Nostr inbound, as above.
-All other rows remain unchanged. Signed-envelope addressee extraction remains
-open with the a2a-link producer; no addressee wire field is defined here.
+All other rows remain unchanged. The addressee contract is settled as one signed
+`to` carrier id per message, resolved by the adapter through a pinned binding;
+no addressee wire field is defined here.
 All non-live rows deny
 inbox/sign/send. Unknown future K1 reasons map to
 `check_failed` (refused), never to live or an inferred absence of a grant.

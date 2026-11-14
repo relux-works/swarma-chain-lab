@@ -39,13 +39,13 @@ v := checker.Inbound(ctx, verifiedSender, presentation)
 // Later, immediately before sending to this exact recipient:
 replyVerdict := checker.Outbound(ctx, recipient)
 
-// Envelope API: caller verifies swarm-envelope/2 first, then passes its BIP-340 key.
+// Envelope API: caller verifies the envelope, then its BIP-340 co-signature (slice 1).
 envelopeChecker, err := grantcheck.NewForTransport(config, grantcheck.SwarmEnvelopeV2)
 // Handle err before use.
 v = envelopeChecker.InboundFrom(ctx, grantcheck.SenderProof{
-    Transport: grantcheck.SwarmEnvelopeV2, Key: verifiedEnvelopeKey,
+    Transport: grantcheck.SwarmEnvelopeV2, Key: verifiedCosignerKey,
 }, presentation)
-// Extract EVERY addressee key from the authenticated outgoing envelope.
+// Resolve the signed `to` carrier id through the adapter's pinned binding.
 replyVerdict = envelopeChecker.OutboundFrom(ctx, grantcheck.RecipientProof{
     Transport: grantcheck.SwarmEnvelopeV2, Keys: verifiedAddresseeKeys,
 })
@@ -72,18 +72,38 @@ The fork a2a-link registers CG1 at build time and uses Go 1.26. Upstream a2a sta
 on Go 1.25 and has no chain-lab dependency. Under the owner's decision T23 of
 2026-11-14, transports only carry; authority comes from a signed envelope inside
 the message on every transport. For the v3 test bench, Matrix grant policy is
-allowed only when the sender is the BIP-340 key that verified the
-`swarm-envelope/2` signature: never a Matrix user ID, display name or message
-field. The grant ID and canonical v3 presentation (at most 16384 bytes) travel
-inside the envelope or are already in the admitted proof cache. The adapter
-verifies the envelope before calling CG1; `SenderProof` is an assertion of that
+allowed only with the verified sender key defined below. The grant ID and
+canonical v3 presentation (at most 16384 bytes) travel inside the envelope or
+are already in the admitted proof cache. `SenderProof` is an assertion of caller
 verification, not a signature verifier or an unforgeable token. Nostr remains
 the target transport; this test-bench allowance does not replace it. Owner DM
 stays outside admission, with no owner bypass on Nostr v1.
 
-For envelope outbound, `RecipientProof.Keys` names every addressee from the
-authenticated outgoing envelope. All must pass a fresh K1 check on every send
-and retry. Empty lists, Matrix room IDs and invalid keys refuse; room membership
+The `SwarmEnvelopeV2` sender is the grant-named BIP-340 key, verified by the caller
+from a per-message BIP-340 co-signature over the exact swarm-envelope/2 bytes
+(slice 1), or from a BIP-340 author profile of swarm-envelope/2 once one exists
+(target); never the envelope's Ed25519 author key, a carrier id, a display name
+or a message field. grantcheck does not verify the envelope or the co-signature
+itself; it trusts the caller's verified key and checks the grant.
+
+Track A (slice 1) changes only the downstream fork: it keeps the unchanged
+Ed25519 `swarm-envelope/2` and carries a domain-separated, per-message BIP-340
+co-signature by the grant-named key beside the envelope in the same message,
+under its own content key. The adapter verifies the envelope first, then the
+co-signature over those exact envelope bytes, and passes that BIP-340 key as
+`SenderProof{Transport: SwarmEnvelopeV2, Key: verifiedCosignerKey}`. A missing,
+invalid or mismatched co-signature is denied, not retryable, by the adapter
+before calling grantcheck. The downstream adapter defines the byte construction
+of the co-signature; this library does not.
+
+Track B (target) proposes a proper BIP-340 author profile inside
+`swarm-envelope/2` to its owner. If agreed, the co-signature can fold into that
+profile later; slice 1 does not change the envelope format owned elsewhere.
+`SwarmEnvelopeV2` names the carriage, not the signature scheme.
+
+For envelope outbound, `RecipientProof.Keys` contains the key resolved by the
+adapter from the one signed `to` carrier id per message through a pinned binding.
+The resolved key must pass a fresh K1 check on every send and retry. Empty lists, Matrix room IDs and invalid keys refuse; room membership
 and room pins never supply authority. There is no recipient-discovery fallback.
 `MaxRecipients` is 64, matching the admitted sender-cache capacity. Success is an
 aggregate verdict with no per-grant scope or identity metadata. Legacy string
@@ -105,8 +125,9 @@ The inbound verdict carries the validated checker's transport pin privately;
 `A2ADecision` applies this table to that in-memory result. Grantcheck's underlying
 lifecycle `Decision`/`Code` observations and all other seam rows are unchanged.
 Serialized verdicts do not retain this provenance and must never be reused for
-admission; perform a fresh check instead. The signed-envelope addressee field
-remains an open downstream question; this decision adds no wire field.
+admission; perform a fresh check instead. The addressee contract is settled as
+one signed `to` carrier id per message, resolved by the adapter through a pinned
+binding; grantcheck defines no new wire field.
 
 a2a daemon v1 supplies a full presentation and does not resolve S1. These
 integration responsibilities are specified here, not implemented in a2a by CG1.
