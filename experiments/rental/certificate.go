@@ -13,6 +13,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/bip340"
 )
 
 const MaxMoney int64 = 21000000 * 100000000
@@ -166,7 +167,7 @@ func VerifySignature(key, hash, signature string) bool {
 	if e != nil || hex.EncodeToString(sb) != signature {
 		return false
 	}
-	sig, e := schnorr.ParseSignature(sb)
+	sig, e := bip340.ParseBIP340Strict(sb)
 	if e != nil {
 		return false
 	}

@@ -364,3 +364,18 @@ their separate contracts. No production mode fallback exists. Full signed
 admission tests live in `single-use/configguard`; local ownership seams are
 synthetic and do not qualify Linux deployment. See the deploy runbook for
 same-binary preflight and the separate DK5b payload launch gate.
+
+## Canonical BIP-340 signatures
+
+All certificate, grant, consent and event signature verification uses
+`single-use/bip340.ParseBIP340Strict` before cryptographic verification. It
+requires exactly 64 bytes, `r < p`, and `s < n`, as specified by
+[BIP-340 Verification](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki#verification).
+Scalars at or above the curve order are refused before the upstream parser can
+reduce them. Valid `s > n/2` signatures remain accepted; BIP-340 has no low-S rule.
+The kernel refuses invalid signatures before opening certificate or grant state.
+Grant IDs hash canonical signed-grant bytes, while legacy certificate IDs hash
+the complete envelope; chain commitment checks remain required for admission.
+
+Run `go test -run '^TestBIP340CertificateBoundaries$' .` for the certificate
+encoding regression and `go test -race ./...` for the module suite.

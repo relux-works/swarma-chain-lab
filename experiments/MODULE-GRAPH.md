@@ -118,3 +118,12 @@ consumer at `1b3c321` is the known stale-graph negative: resolve succeeds, but
 vet/build must fail with missing terms-v2 or transport API symbols. The candidate
 must resolve, vet and build offline without replacements. This supplements the
 floor inventory with an executable API-compatibility check for the bench.
+
+## Shared BIP-340 parser placement
+
+`single-use/bip340` holds the strict signature encoding parser. Every current
+BIP-340 verification module already depends on `single-use`, so this placement
+adds no internal require edge and no new dependency cycle. The subpackage
+depends only on the existing `btcec/v2 v2.3.5` library; it imports no parent
+`single-use` package or higher-level grant, gateway or wallet package. The
+module graph inventory remains unchanged.

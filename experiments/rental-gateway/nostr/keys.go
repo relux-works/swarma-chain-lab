@@ -7,6 +7,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/bip340"
 )
 
 // PrivKey is a Nostr private key (secp256k1 scalar, BIP-340).
@@ -117,7 +118,7 @@ func VerifySignature(e *Event) error {
 	if err != nil {
 		return fmt.Errorf("sig hex: %w", err)
 	}
-	sig, err := schnorr.ParseSignature(sigBytes)
+	sig, err := bip340.ParseBIP340Strict(sigBytes)
 	if err != nil {
 		return fmt.Errorf("signature: %w", err)
 	}
