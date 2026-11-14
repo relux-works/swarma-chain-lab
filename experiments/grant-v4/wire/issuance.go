@@ -14,7 +14,7 @@ type Outpoint struct {
 
 // PreparationParts supplies the values of separately checked parts. This is
 // an arithmetic input, deliberately not a representation of a verified grant.
-// No grant schema or composed-issuance admission is supplied by LIP-0020.
+// No grant schema is supplied by LIP-0020.
 type PreparationParts struct {
 	Mode                                                      RecipientMode
 	Genesis, Contract, GrantID, GrantSignature                string
@@ -58,8 +58,8 @@ func EncodeIssuanceFrame(commitment [32]byte, contentAddress string) ([]byte, er
 }
 
 // CheckIssuanceAnchor evaluates W8.4-W8.6 after independently checked parts.
-// It does NOT implement W9.1's composed pipeline or choose a first refusal
-// between invalid parts. In particular it cannot admit the stand-in grants
+// CheckIssuance supplies the ordered checks of the assent and consent.
+// This arithmetic helper cannot admit the stand-in grants
 // used for arithmetic in the public vectors as real grants.
 func CheckIssuanceAnchor(p PreparationParts, contentAddress string, frame Frame) (*Preparation, error) {
 	prep, err := BuildPreparation(p)
@@ -96,11 +96,12 @@ type ReadContext struct {
 	Expected Type
 	Assent   AssentContext
 	Consent  ConsentContext
+	Issuance *IssuanceInput
 }
 
-// Read dispatches wire documents to their class pipeline. The issuance class
-// fails closed: its grant still has no schema, so no presentation is admitted.
-// CheckIssuanceAnchor is separately exposed as arithmetic on stated inputs.
+// Read dispatches inputs to their place-selected pipeline. Issuance uses the
+// typed context and requires nil octets: no presentation wire schema exists.
+// Non-nil octets at that place refuse, including all raw grant stand-ins.
 func Read(class Class, b []byte, ctx ReadContext) (any, error) {
 	switch class {
 	case SignedClass:
@@ -125,7 +126,14 @@ func Read(class Class, b []byte, ctx ReadContext) (any, error) {
 		}
 		return o, nil
 	case IssuanceClass:
-		return nil, WireType
+		if b != nil || ctx.Issuance == nil {
+			return nil, WireType
+		}
+		o, err := CheckIssuance(*ctx.Issuance)
+		if err != nil {
+			return nil, err
+		}
+		return o, nil
 	default:
 		return nil, WireType
 	}

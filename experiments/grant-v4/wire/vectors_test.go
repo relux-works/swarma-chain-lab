@@ -37,13 +37,15 @@ type vectorSet struct {
 	byID map[string]vector
 }
 
+// Exact public fixture from swarma-link-spec adae6e7669601f271f7d0d9cdd91ecee7d19bf02,
+// blob bf107e5fbed5946e8ce168aaa056bb661ef664dd (384615 octets); no rewriting.
 func loadVectors(t *testing.T) vectorSet {
 	t.Helper()
 	b, err := os.ReadFile("testdata/wire-vectors.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fmt.Sprintf("%x", sha256.Sum256(b)) != "0e610d1528cb07375b00459618c3f33d79b58adc3dcd9e8bbf4b41c8bdb9a636" {
+	if fmt.Sprintf("%x", sha256.Sum256(b)) != "0d14f471e4a0a39c99455fab663bdce5c05f2c97fe2383ecbe95717721d53ae0" {
 		t.Fatal("pinned vector blob changed")
 	}
 	var root vector
@@ -71,6 +73,13 @@ func loadVectors(t *testing.T) vectorSet {
 			}
 		}
 	}
+	var issuance map[string]json.RawMessage
+	decode(t, root["issuance"], &issuance)
+	var composed map[string][]vector
+	decode(t, issuance["composed"], &composed)
+	for _, group := range []string{"valid", "invalid", "compound"} {
+		add(composed[group])
+	}
 	for _, g := range []string{"identifiers", "issuer_checks"} {
 		var rows []vector
 		decode(t, root[g], &rows)
@@ -88,8 +97,8 @@ func loadVectors(t *testing.T) vectorSet {
 		decode(t, prim[g], &v)
 		add([]vector{v})
 	}
-	if len(s.all) != 205 {
-		t.Fatalf("inventory has %d, want all 205", len(s.all))
+	if len(s.all) != 219 {
+		t.Fatalf("inventory has %d, want all 219", len(s.all))
 	}
 	return s
 }
@@ -254,6 +263,21 @@ func (s vectorSet) run(t *testing.T, v vector) {
 		after, err := json.Marshal(inputs)
 		wantCode(t, err, "")
 		equalBytes(t, after, before) // Success and refusal preserve live inputs, including nested snapshot fields.
+	case strings.HasPrefix(id, "composed-"):
+		in := s.composed(t, v)
+		p, err := CheckIssuance(in)
+		wantCode(t, err, want)
+		requireNoObject(t, p, err)
+		o, dispatchErr := Read(IssuanceClass, nil, ReadContext{Issuance: &in})
+		wantCode(t, dispatchErr, want)
+		if err != nil && o != nil {
+			t.Fatal("dispatcher admitted refused issuance")
+		}
+		if err == nil {
+			equalBytes(t, o.(*Preparation).Bytes(), p.Bytes())
+			commitment := p.Commitment()
+			equalBytes(t, in.Frame.Script[7:39], commitment[:])
+		}
 	case strings.HasPrefix(id, "issuance-s-"), strings.HasPrefix(id, "issuance-c-"):
 		b := v.octets(t, "preparation_hex")
 		p, err := ReadUnsigned(b, Issuance)

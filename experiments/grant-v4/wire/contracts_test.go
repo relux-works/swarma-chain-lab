@@ -175,7 +175,7 @@ func TestV4CanonicalEncoder(t *testing.T) {
 }
 
 // Each place selects its own pipeline, never based on input type. The
-// unsupported composed issuance place admits no grant stand-in or object.
+// octet-based issuance place admits no grant stand-in or serialized object.
 func TestV4EntryPointDispatch(t *testing.T) {
 	s := loadVectors(t)
 	assent := s.byID["assent-v-01"].octets(t, "signed_form_hex")
