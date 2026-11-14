@@ -194,13 +194,16 @@ func newCoreLab(t *testing.T, agentNostrPub string) *coreLab {
 	if e := os.Mkdir(l.private, 0700); e != nil {
 		t.Fatal(e)
 	}
-	for path, want := range map[string]string{
-		l.daemon: "86b85483da23c83f7de134a5bf28bad8e3c6a8dbfe2af71a5e889a7b1547787f",
-		l.cli:    "5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d"} {
-		b, e := os.ReadFile(path)
-		if e != nil || rental.Hash(b) != want {
-			t.Fatalf("Core binary pin mismatch for %s", path)
-		}
+	// Pin complete release pairs; mixed, unlisted or modified executables never start.
+	daemonBytes, daemonErr := os.ReadFile(l.daemon)
+	cliBytes, cliErr := os.ReadFile(l.cli)
+	pair := [2]string{rental.Hash(daemonBytes), rental.Hash(cliBytes)}
+	accepted := map[[2]string]bool{
+		{"86b85483da23c83f7de134a5bf28bad8e3c6a8dbfe2af71a5e889a7b1547787f", "5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d"}: true,
+		{"dc7430676e445af3992430e036f7c1a17bea44f757e9cf25b69205e39625f2f7", "318b6c881c8071abbafd984550172369c3498b4c65c389797350f2d458f085b1"}: true,
+	}
+	if daemonErr != nil || cliErr != nil || !accepted[pair] {
+		t.Fatal("Core binary pair pin mismatch")
 	}
 	listener, e := net.Listen("tcp4", "127.0.0.1:0")
 	if e != nil {
