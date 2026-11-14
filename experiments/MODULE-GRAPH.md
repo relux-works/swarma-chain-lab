@@ -77,12 +77,14 @@ edge is older than its floor in
 The published-consumer CI harness creates one fresh module per entry point
 outside the checkout, with no replacements or workspace: the actual
 configguard, payloadbootstrap and modelprofile APIs of `single-use`, the
-`deploy` package, and the `station-lifecycle/cmd/station-manager` command (as a
+`deploy` package, the `agent-wallet/g1bench` API, and the
+`station-lifecycle/cmd/station-manager` command (as a
 `tool` directive). Separate modules matter: one shared consumer would let
 minimal version selection take the highest `single-use` and hide a stale edge.
 It resolves each requested full commit through the public Go proxy and checks the
-returned origin SHA. It downloads exactly the declared graph online with checksum
-verification, then resolves imports, vets and builds with GOPROXY=off and
+returned origin SHA. It warms the explicit transitive requirement metadata
+closure, with unchanged consumer manifests, then downloads exactly the declared
+graph online with checksum verification. It resolves imports, vets and builds with GOPROXY=off and
 readonly module metadata, so an online `@latest` lookup cannot mask a missing
 package. The historical base `288d63e` must fail specifically at the missing
 ValidateJSON API; the historical head `b516cc2` must fail for both `deploy` and
@@ -92,7 +94,7 @@ The candidate must pass every case. CI preserves exact versions, selected graphs
 source, commands, PIDs, exits and logs.
 
 The inventory check covers every internal require edge; the external compile
-fixtures qualify these three public entry points. They do not claim that every
+fixtures qualify these four public entry points. They do not claim that every
 other exported module/package or downstream slotd runtime was independently
 executed. Existing repository checks remain required. Future cross-module API
 changes must refresh the affected published requirements, raise the floors in
@@ -103,3 +105,11 @@ The envelope admission bench adds the first wallet consumer edge to `grantcheck`
 and its two gateway dependencies. The previously unconsumed `grantcheck` module
 now has a floor at the same historical snapshot, resolved by Go as
 `v0.1.2-0.20261111181054-288d63e191fe`; the snapshot commit is unchanged.
+
+The bench now calls the transport-neutral grantcheck API and terms-v2 rental
+API. Its wallet manifest pins both to the already-published `3baa201b` source;
+the historical snapshot floor remains unchanged. The external `grant-bench`
+consumer at `1b3c321` is the known stale-graph negative: resolve succeeds, but
+vet/build must fail with missing terms-v2 or transport API symbols. The candidate
+must resolve, vet and build offline without replacements. This supplements the
+floor inventory with an executable API-compatibility check for the bench.

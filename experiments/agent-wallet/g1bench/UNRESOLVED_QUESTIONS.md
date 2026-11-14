@@ -1,13 +1,16 @@
-# Native envelope integration decision
+# Remaining native trust integration
 
-The native message profile permits Ed25519 authors and P-256 approvers, with
-verified attestations. This BIP-340-only laboratory cannot establish native
-`swarm-envelope/2` conformance. Before a real carrier consumes these grants,
-a separately reviewed change must define either an admitted BIP-340 profile or
-an authenticated binding from the native envelope author to the v3 grant key.
-The benchmark deliberately chooses neither production architecture.
+Track A now preserves native-shaped Ed25519 swarm-envelope/2 messages and adds
+the accepted BIP-340 co-signature over exact bytes. It uses the transport-neutral
+checker API and protected per-identity recipient bindings. Those follow-ups are
+resolved in the bench.
 
-The checker compatibility adapter still targets main's `Inbound(ctx, key,
-presentation)` API. Switching to a transport-neutral API belongs to the separate
-checker change after its interface is accepted. No checker or K1 source is
-changed by this benchmark.
+Fixture keys and the synthetic zero attestation reference do not implement
+root-signed attestation, generation/revocation evidence, production binding
+storage, or installed-consumer qualification. Those remain deployment work.
+The closed bench handler is not a general message payload grammar.
+
+A BIP-340 envelope author profile (Track B) remains a separately reviewed future
+change. Track A does not relabel the Ed25519 author as the grant key. Its local
+strict BIP-340 parser should switch to the shared helper once that helper lands
+on main; the current base has no such helper.

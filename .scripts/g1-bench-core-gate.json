@@ -19,7 +19,17 @@
     "TextAuthority",
     "DeliveryBinding",
     "SealMempool",
-    "SealConfirmed"
+    "SealConfirmed",
+    "CosignatureMissing",
+    "CosignatureDifferentBytes",
+    "Ed25519ValidCosignatureInvalid",
+    "CosignatureLength63",
+    "CosignatureLength65",
+    "CosignatureSAtOrder",
+    "CosignatureRAtPrime",
+    "CosignatureHighS",
+    "CosignatureIndependentReplay",
+    "OutboundRecipientBinding"
   ],
   "core_tests": [
     "TestG1BenchCore"
@@ -176,6 +186,86 @@
       ],
       "core": [
         "TestG1BenchCore/SealConfirmed"
+      ]
+    },
+    "CosignatureMissing": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/CosignatureMissing"
+      ]
+    },
+    "CosignatureDifferentBytes": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/CosignatureDifferentBytes"
+      ]
+    },
+    "Ed25519ValidCosignatureInvalid": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/Ed25519ValidCosignatureInvalid"
+      ]
+    },
+    "CosignatureLength63": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/CosignatureLength63"
+      ]
+    },
+    "CosignatureLength65": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/CosignatureLength65"
+      ]
+    },
+    "CosignatureSAtOrder": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/CosignatureSAtOrder"
+      ]
+    },
+    "CosignatureRAtPrime": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/CosignatureRAtPrime"
+      ]
+    },
+    "CosignatureHighS": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/CosignatureHighS"
+      ]
+    },
+    "CosignatureIndependentReplay": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/CosignatureIndependentReplay"
+      ]
+    },
+    "OutboundRecipientBinding": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/OutboundRecipientBinding"
       ]
     }
   }

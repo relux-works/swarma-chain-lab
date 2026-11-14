@@ -347,5 +347,6 @@ same-binary preflight and the separate DK5b payload launch gate.
 
 The [regtest bench](g1bench/README.md) reuses this module's Core harness and the
 existing standing-grant fixture for two independently keyed identities, paired
-admission negatives and named guard-removal overlays. It is a BIP-340 fixture
-profile, not native envelope conformance or production transport integration.
+admission negatives and 22 named guard-removal overlays. Track A preserves
+native-shaped Ed25519 envelopes and verifies a separate BIP-340 co-signature
+before transport-neutral grant checks; keys and attestation remain fixtures.
