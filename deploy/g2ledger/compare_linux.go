@@ -125,13 +125,6 @@ func (l *Ledger) compareBaseline(mode string) error {
 	for _, path := range g.Scope.Reused {
 		reused[path] = true
 	}
-	for _, path := range g.Scope.Reused {
-		if !touched[path] {
-			if e := emit("path:"+path, "unused-reuse-declaration", nil, "reused-parent-not-touched"); e != nil {
-				return e
-			}
-		}
-	}
 	for _, base := range objects {
 		key := objectKey(base.Kind, base.Name)
 		compared++

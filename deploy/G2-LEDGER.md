@@ -399,8 +399,22 @@ missing receipt, changed invariant or absent ledger cause is a **VIOLATION**:
 a named `unlisted_difference` row, `parent_violations` increment and exit 1.
 A crash after removal but before sealing its replay receipt leaves unexplained
 evidence; retry never fabricates that receipt. An untouched parent outside the
-reuse set emits no parent line. A declared reused directory that no recorded
-entry operation wrote into is refused by name as `reused-parent-not-touched`.
+reuse set emits no parent line. Declaration use is validated at **init**, in
+`captureBaseline` via `validateProspectiveReused`, against the declared
+prospective entry inventory, rather than at final compare against executed
+operations. Each reused directory must be the immediate parent of a declared
+scope path, an engine-derived install link for a declared unit, or an absent
+install directory that the engine may create. Atomic-replacement/rename
+temporaries of declared modify-files share the declared file's immediate
+parent; they do not authorize other ancestors. A truly unused declaration is
+refused by name as `REUSED_PARENT_NOT_PROSPECTIVE` before journal creation.
+When a reused parent relies on unit-derived entries alone, the unit's install
+definition must be available to the engine at init; an unreadable or unsupported
+plan refuses as `REUSED_PROSPECTIVE_UNIT_PLAN` rather than guessing its links.
+An interrupted attempt may never reach a declared entry: an unchanged parent
+then emits no row and no violation, including after S0 or S1. A changed parent
+still requires the full sealed-snapshot, restored-invariant and named-cause
+rules above; the prospective inventory itself grants no change allowance.
 Station retention explains both the exact retained child and its named parent
 entry-set delta; it grants no authority for an extra name or changed parent
 identity. Rehearsal still requires the parent's entry set and size to return

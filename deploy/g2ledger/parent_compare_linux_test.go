@@ -507,12 +507,12 @@ func TestLedgerReusedParentRejectsOwnerAndSize(t *testing.T) {
 	}
 }
 
-// Claim: an unused reuse declaration is refused by its exact name without inventing a parent change.
+// Claim: a declared prospective parent with no executed child operation is unchanged, with no row or violation.
 func TestLedgerReusedParentUntouched(t *testing.T) {
 	f := newParentFixture(t, true, false)
 	rows, total, e := f.compare(t)
-	code(t, e, 1)
-	if len(rows) != 1 || rows[0].Object != "path:"+f.parent || rows[0].Rule != "reused-parent-not-touched" || total.ReusedParentChanges != 0 || total.ParentViolations != 0 || total.Unlisted != 1 {
+	must(t, e)
+	if len(rows) != 0 || total.ReusedParentChanges != 0 || total.ParentViolations != 0 || total.Unlisted != 0 {
 		t.Fatalf("untouched changed: %+v %+v", rows, total)
 	}
 }

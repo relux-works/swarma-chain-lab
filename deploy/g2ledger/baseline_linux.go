@@ -3,6 +3,7 @@ package g2ledger
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -232,7 +233,57 @@ func captureBaseline(s Scope, sys System, ledger, baseline string) ([]BaselineOb
 	if e := validateReused(s, objects); e != nil {
 		return nil, e
 	}
+	if e := validateProspectiveReused(s, sys); e != nil {
+		return nil, e
+	}
 	return objects, nil
+}
+
+// Declaration use is checked at init, before any effect. File replacement
+// temporaries share the declared file's immediate parent; they add no ancestor
+// authority. Unit links and absent install directories come from the engine's
+// install plan, never from the operations an interrupted attempt reached.
+func validateProspectiveReused(s Scope, sys System) error {
+	parents := map[string]bool{}
+	for _, path := range s.Paths {
+		parents[filepath.Dir(path.Path)] = true
+	}
+	needsUnitPlan := false
+	for _, path := range s.Reused {
+		needsUnitPlan = needsUnitPlan || !parents[path]
+	}
+	if needsUnitPlan {
+		for _, name := range s.Units {
+			plan, err := expectedUnitInstall(sys, name)
+			if err != nil {
+				return fmt.Errorf("REUSED_PROSPECTIVE_UNIT_PLAN %s: %w", name, err)
+			}
+			for _, link := range plan.Expected {
+				dir := filepath.Dir(link.Path)
+				for {
+					parents[dir] = true
+					st, err := os.Lstat(dir)
+					if err == nil {
+						if !st.IsDir() {
+							return errors.New("UNIT_LINK_PARENT_NOT_DIRECTORY " + dir)
+						}
+						break
+					}
+					if !errors.Is(err, os.ErrNotExist) {
+						return err
+					}
+					// Creating this absent directory is itself a prospective entry.
+					dir = filepath.Dir(dir)
+				}
+			}
+		}
+	}
+	for _, path := range s.Reused {
+		if !parents[path] {
+			return errors.New("REUSED_PARENT_NOT_PROSPECTIVE " + path)
+		}
+	}
+	return nil
 }
 func baselineMetadata(st unix.Stat_t) *BaselineMetadata {
 	return &BaselineMetadata{Size: st.Size, MtimeNS: st.Mtim.Sec*1e9 + st.Mtim.Nsec, CtimeNS: st.Ctim.Sec*1e9 + st.Ctim.Nsec}
