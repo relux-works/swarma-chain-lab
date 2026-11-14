@@ -18,7 +18,7 @@ import (
 func TestLedgerChangedPrimaryGIDStopsD9_5(t *testing.T) {
 	for _, drift := range []bool{true, false} {
 		t.Run(map[bool]string{true: "changed-gid", false: "matching"}[drift], func(t *testing.T) {
-			f := setupWith(t, "station", func(f *fixture) { f.sys.groups["demo"] = Account{Name: "demo", GID: 301} })
+			f := setupWith(t, "station", func(f *fixture) { f.sys.groups["primary"] = Account{Name: "primary", GID: 301} })
 			older := f.create(t, "older", "file", "remove")
 			must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 			if drift {
@@ -85,7 +85,7 @@ func TestLedgerGetentFailureNeverAbsenceG2(t *testing.T) {
 			t.Fatal("failed inspection entered intent")
 		}
 	}
-	f := setupWith(t, "station", func(f *fixture) { f.sys.groups["demo"] = Account{Name: "demo", GID: 301} })
+	f := setupWith(t, "station", func(f *fixture) { f.sys.groups["primary"] = Account{Name: "primary", GID: 301} })
 	must(t, f.l.CreateAccount("user", "demo", "remove", 301, 301))
 	must(t, f.l.Replay("station"))
 }
@@ -160,7 +160,7 @@ func TestLedgerPreexistingKeysConfigsSurviveG1(t *testing.T) {
 func TestLedgerLiveWriterSurvivesInspectionFailureG3(t *testing.T) {
 	f := setupWith(t, "station", func(f *fixture) {
 		must(t, os.WriteFile(filepath.Join(f.root, "IN-PROGRESS"), []byte("fixture writer\n"), 0600))
-		f.sys.groups["demo"] = Account{Name: "demo", GID: 301}
+		f.sys.groups["primary"] = Account{Name: "primary", GID: 301}
 	})
 	probe := f.create(t, "probe", "file", "remove")
 	key := f.create(t, "writer.key", "secret", "d6")

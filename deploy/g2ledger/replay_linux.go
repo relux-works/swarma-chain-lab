@@ -119,6 +119,19 @@ func (l *Ledger) undo(a Action, want Identity, mode string) error {
 			}
 			command = "/usr/sbin/groupdel"
 		}
+		if a.Kind == "user" {
+			// shadow-utils userdel(8), login.defs(5): USERGROUPS_ENAB=yes
+			// may delete the same-name group. Installed userdel has no reliable
+			// preserve-group option. Refuse independently of host policy and of
+			// any separate group receipt; only groupdel may remove a group.
+			group, _, err := lookup(l.sys, "group", a.Name)
+			if err != nil {
+				return stopped("USER_GROUP_LOOKUP "+a.Name, err)
+			}
+			if group != nil {
+				return namedError("USER_SAME_NAME_GROUP", a)
+			}
+		}
 		if e = commandOK(l.sys, command, a.Name); e != nil {
 			return stopped("REMOVE_ACCOUNT "+a.Name, e)
 		}

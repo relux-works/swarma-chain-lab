@@ -385,3 +385,15 @@ go build -trimpath -o /tmp/deploy-kit ./cmd/deploy-kit
 `testdata/release-manifest.json` is a public schema fixture with synthetic hashes,
 not a signed or deployable release. The tests' one-line claim comments specify
 the scope and limits of the cross-check witnesses and positive neighbours.
+
+### Account removal effect boundary
+
+On the installed shadow-utils, `userdel` has no reliable preserve-group option.
+As documented by [userdel(8)](https://man7.org/linux/man-pages/man8/userdel.8.html)
+and [login.defs(5)](https://man7.org/linux/man-pages/man5/login.defs.5.html),
+`USERGROUPS_ENAB=yes` permits implicit deletion of the same-name group.
+Replay therefore refuses with `USER_SAME_NAME_GROUP` before invoking `userdel`
+whenever that group exists, even if separately recorded. It does not change host
+policy. Use a differently named primary group for removable users. Only a
+separate recorded group step, checked against its own identity and retention,
+may invoke `groupdel`. Retained users still retain their identities and policy.

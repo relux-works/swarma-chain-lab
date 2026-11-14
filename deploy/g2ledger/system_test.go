@@ -17,6 +17,7 @@ type fakeReply struct {
 	err    error
 }
 type fakeSystem struct {
+	usergroups bool // models login.defs USERGROUPS_ENAB, independent of ledger policy
 	chownError error
 	users      map[string]Account
 	groups     map[string]Account
@@ -152,6 +153,19 @@ func (s *fakeSystem) Run(cmd string, args ...string) (string, int, error) {
 			return "", 8, nil
 		}
 		delete(s.users, name)
+		if group, ok := s.groups[name]; ok && s.usergroups {
+			used := false
+			for _, user := range s.users {
+				used = used || user.GID == group.GID
+			}
+			for user, present := range s.members[name] {
+				used = used || user != name && present
+			}
+			if !used {
+				delete(s.groups, name)
+				delete(s.members, name)
+			}
+		}
 		for _, m := range s.members {
 			delete(m, name)
 		}
