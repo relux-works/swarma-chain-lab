@@ -580,18 +580,29 @@ logical operation** only when all of these conditions hold before `userdel`:
   account lookup boundary proves no other entry uses that gid as primary.
   Lookup/enumeration errors, unsupported enumeration, malformed or duplicate
   entries, or a missing/changed expected user stop; they never prove emptiness.
+  Every other known-present baseline or committed user must also appear with its
+  exact identity, or the scan stops with `PASSWD_INCOMPLETE <name>`.
 - Full group enumeration after those recorded membership reversals proves the
   user has no supplementary membership outside its same-name group, including
   groups outside the declared scope. Any remaining foreign membership stops
   with `PAIRED_USER_GROUPS <user>: USER_OTHER_SUPPLEMENTARY_GROUP <group>`
   before `userdel`. Enumeration errors and malformed or duplicate records stop;
-  foreign memberships are never recorded, adopted or restored.
+  foreign memberships are never recorded, adopted or restored. A status-0 group
+  listing must include the paired group with its exact gid, plus every other
+  known-present baseline or committed group with its exact gid. A missing or
+  inconsistent known row stops with `PAIRED_USER_GROUPS <user>:
+  GROUP_INCOMPLETE <group>`. These consistency checks detect demonstrably partial
+  responses; they do not prove the absence of every possible external omission.
 - Both retention decisions permit removal in rehearsal. Station never removes
   either account; a retained group cannot be paired with a removable user.
 
 Rehearsal preflight checks pair authority, identities, policy and primary users
-before any reversal, and rejects foreign supplementary members. Replay repeats
-these checks at the user step after reversing recorded memberships, and
+before any reversal, including the full group/passwd scans and their known-record
+consistency checks. It rejects foreign supplementary members anywhere in the
+listing while allowing exact committed additions that will reverse before the
+paired user. A pre-existing refusal preserves newer recorded files as well as
+older objects. Replay repeats these checks at the user step after reversing
+recorded memberships, with no allowance for remaining supplementary additions, and
 rechecks the group after passwd and supplementary-group enumeration immediately
 before the effect.
 A missing recorded same-name group while its user remains stops with

@@ -374,9 +374,18 @@ func (l *Ledger) preflightRehearsal() error {
 			}
 			if a.Kind == "user" && effect == "remove" {
 				// Own supplementary additions may still be present in preflight;
-				// the group pass checks them against committed membership receipts.
-				if _, e := l.userGroupPair(a, want, "rehearsal", false); e != nil {
+				// the database scan permits only exact committed membership receipts.
+				pair, e := l.userGroupPair(a, want, "rehearsal", false)
+				if e != nil {
 					return e
+				}
+				if pair != nil {
+					if e := l.checkPairSupplementary(a.Name, *pair, true); e != nil {
+						return stopped("PAIRED_USER_GROUPS "+a.Name, e)
+					}
+					if e := l.recheckPairedGroup(*pair, false); e != nil {
+						return e
+					}
 				}
 			}
 		}

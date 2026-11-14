@@ -681,8 +681,12 @@ func TestLedgerUserGroupSupplementaryScanBoundaryStops(t *testing.T) {
 			}
 			out, err := replayPair(t, f, "rehearsal")
 			code(t, err, 1)
-			reason := map[string]string{"gid": "PAIRED_GROUP_IDENTITY", "member": "PAIRED_GROUP_NOT_EMPTY", "gone": "PAIRED_GROUP_MISSING"}[drift]
-			requirePairReason(t, err, reason+" "+pairName)
+			// The preflight scan now observes this drift before the undo step.
+			reason := "PAIRED_USER_GROUPS " + pairName + ": GROUP_INCOMPLETE " + pairName
+			if drift == "member" {
+				reason = "UNLISTED_DIFFERENCE group:" + pairName + "/member:foreign"
+			}
+			requirePairReason(t, err, reason)
 			if out != "" || f.sys.called("/usr/sbin/userdel") || f.sys.called("/usr/sbin/groupdel") {
 				t.Fatal("supplementary scan drift permitted deletion", err, out)
 			}
