@@ -263,9 +263,15 @@ func TestG1BenchCore(t *testing.T) {
 		e := good(t, &a, now)
 		e.Content = bench.Canonical(map[string]string{"msgtype": "m.text", "body": e.Text, bench.ContentKey: ""})
 		expect(t, g, e, "refused", "envelope_missing")
+		// Plain carrier content with the envelope field omitted also refuses.
+		e.Content = bench.Canonical(map[string]string{"msgtype": "m.text", "body": e.Text})
+		expect(t, g, e, "refused", "carriage_invalid")
+		e.Content = nil
+		expect(t, g, e, "refused", "envelope_missing")
 		if node.reads != reads {
 			t.Fatal("missing envelope reached chain checker")
 		}
+		expect(t, g, good(t, &a, now), "live", "live")
 	})
 	t.Run("BadSignature", func(t *testing.T) {
 		// Claim: a correct body/id and cached grant do not rescue a corrupted author signature.
