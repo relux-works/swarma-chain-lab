@@ -1,6 +1,6 @@
 # Published module graph audit
 
-The audit covers all 20 `go.mod` files and all 98 internal require edges across
+The audit covers all 20 `go.mod` files and all 101 internal require edges across
 19 consumer modules at base `288d63e191fefac885d6a39aa65f0a5fbb6ed7ee`.
 Every edge previously named `v0.1.0`; directory replacements supplied current
 source during repository tests. That does not establish published compatibility.
@@ -8,9 +8,9 @@ A concrete external consumer of `single-use/configguard` fails because
 `single-use/policy.go` calls `sealwatch.ValidateJSON`, absent from `sealwatch v0.1.0`.
 The new bootstrap/model packages are also absent from `single-use v0.1.0`.
 
-All 98 internal require edges, in standalone `require` lines, `require (...)`
-blocks and `// indirect` entries alike, now select the same already-published
-base snapshot. The first revision of this audit counted 96: it missed the two
+All 101 internal require edges, in standalone `require` lines, `require (...)`
+blocks and `// indirect` entries alike, now select versions at or above the
+already-published base snapshot. The first revision of this audit counted 96: it missed the two
 standalone `single-use` requires in `deploy/go.mod` and
 `experiments/station-lifecycle/go.mod`, which left `deploy` and
 `station-lifecycle/cmd/station-manager` unbuildable for external consumers
@@ -50,7 +50,7 @@ edge is older than its floor in
 | Consumer manifest | Internal require edges |
 | --- | ---: |
 | `deploy/go.mod` | 2 |
-| `experiments/agent-wallet/go.mod` | 4 |
+| `experiments/agent-wallet/go.mod` | 7 |
 | `experiments/grant-store/go.mod` | 5 |
 | `experiments/grantcheck/go.mod` | 6 |
 | `experiments/m5-host-smoke/go.mod` | 6 |
@@ -69,7 +69,7 @@ edge is older than its floor in
 | `experiments/station-lifecycle/gatewaybind/go.mod` | 7 |
 | `experiments/station-lifecycle/go.mod` | 2 |
 | `experiments/station-payload/go.mod` | 8 |
-| **Total: 20 manifests / 19 consumers** | **98** |
+| **Total: 20 manifests / 19 consumers** | **101** |
 <!-- /module-graph-inventory -->
 
 ## Qualification boundary
@@ -98,3 +98,8 @@ executed. Existing repository checks remain required. Future cross-module API
 changes must refresh the affected published requirements, raise the floors in
 `module-graph-snapshot.json`, and extend consumer fixtures where their public
 contracts change.
+
+The envelope admission bench adds the first wallet consumer edge to `grantcheck`
+and its two gateway dependencies. The previously unconsumed `grantcheck` module
+now has a floor at the same historical snapshot, resolved by Go as
+`v0.1.2-0.20261111181054-288d63e191fe`; the snapshot commit is unchanged.

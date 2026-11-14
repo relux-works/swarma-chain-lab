@@ -16,6 +16,7 @@
     "github.com/relux-works/swarma-chain-lab/experiments/single-use": "v0.3.1-0.20261111181054-288d63e191fe",
     "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle": "v0.2.1-0.20261111181054-288d63e191fe",
     "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind": "v0.1.1-0.20261111181054-288d63e191fe",
-    "github.com/relux-works/swarma-chain-lab/experiments/station-payload": "v0.3.1-0.20261111181054-288d63e191fe"
+    "github.com/relux-works/swarma-chain-lab/experiments/station-payload": "v0.3.1-0.20261111181054-288d63e191fe",
+    "github.com/relux-works/swarma-chain-lab/experiments/grantcheck": "v0.1.2-0.20261111181054-288d63e191fe"
   }
 }

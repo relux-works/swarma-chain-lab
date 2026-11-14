@@ -22,6 +22,7 @@ CHECKER = Path(os.environ.get("MODULE_GRAPH_CHECKER", REPO / ".scripts" / "check
 PREFIX = "github.com/relux-works/swarma-chain-lab/"
 SINGLE_USE = PREFIX + "experiments/single-use"
 SNAPSHOT_SINGLE_USE = "v0.3.1-0.20261111181054-288d63e191fe"
+WALLET_SINGLE_USE = "v0.3.1-0.20261113084500-b55fa5151e75"
 STANDALONE = ("deploy/go.mod", "experiments/station-lifecycle/go.mod")
 
 
@@ -84,7 +85,7 @@ class ModuleGraphCheck(unittest.TestCase):
     def test_repository_graph_is_at_snapshot(self):
         code, violations, output = self.fixture.run()
         self.assertEqual((code, violations), (0, []), output)
-        self.assertIn("20 manifests, 19 consumers, 98 internal require edges, 0 violations", output)
+        self.assertIn("20 manifests, 19 consumers, 101 internal require edges, 0 violations", output)
 
     # Claim (standalone-require regression, F1 at b516cc21): both standalone
     # single-use requires at v0.1.0 with every block edge current fail with
@@ -116,7 +117,7 @@ class ModuleGraphCheck(unittest.TestCase):
         sealwatch = PREFIX + "experiments/sealwatch"
         floor = "v0.2.1-0.20261111181054-288d63e191fe"
         self.fixture.substitute("experiments/agent-wallet/go.mod",
-                                f"\t{SINGLE_USE} {SNAPSHOT_SINGLE_USE}\n", f"\t{SINGLE_USE} v0.1.0\n")
+                                f"\t{SINGLE_USE} {WALLET_SINGLE_USE}\n", f"\t{SINGLE_USE} v0.1.0\n")
         self.fixture.substitute("deploy/go.mod", f"\t{sealwatch} {floor} // indirect\n",
                                 f"\t{sealwatch} v0.1.0 // indirect\n")
         code, violations, output = self.fixture.run()
@@ -137,7 +138,7 @@ class ModuleGraphCheck(unittest.TestCase):
             with self.subTest(version=version):
                 fixture = Fixture()
                 try:
-                    fixture.substitute(manifest, f"\t{SINGLE_USE} {SNAPSHOT_SINGLE_USE}\n",
+                    fixture.substitute(manifest, f"\t{SINGLE_USE} {WALLET_SINGLE_USE}\n",
                                        f"\t{SINGLE_USE} {version}\n")
                     code, violations, output = fixture.run()
                     self.assertEqual((code, violations), (1 if expected else 0, expected), output)
@@ -158,13 +159,13 @@ class ModuleGraphCheck(unittest.TestCase):
                             for v in violations), output)
 
     # Claim: the audit document cannot overclaim again; the old 96-edge prose
-    # count fails against the 98-edge inventory.
+    # count fails against the current 101-edge inventory.
     def test_doc_edge_count_drift_fails(self):
-        self.fixture.substitute("experiments/MODULE-GRAPH.md", "all 98 internal require edges",
+        self.fixture.substitute("experiments/MODULE-GRAPH.md", "all 101 internal require edges",
                                 "all 96 internal require edges")
         code, violations, output = self.fixture.run()
         self.assertEqual((code, violations),
-                         (1, ["MODULE-GRAPH.md: claims 96 internal require edges; inventory has 98"]), output)
+                         (1, ["MODULE-GRAPH.md: claims 96 internal require edges; inventory has 101"]), output)
 
     # Claim: the generated per-manifest table cannot drift either; the old
     # `deploy/go.mod | 1` row (MODULE-GRAPH.md:39 at b516) fails.
@@ -176,7 +177,7 @@ class ModuleGraphCheck(unittest.TestCase):
                          (1, ["MODULE-GRAPH.md: inventory table is stale; rerun with --write-doc"]), output)
 
     # Control: a whitespace/block-only line filter, the parser class behind F1,
-    # does not see the standalone edges in the b516 fixture (96 edges, 0 stale),
+    # does not see the two standalone edges (99 block edges, 0 stale),
     # so the regression above discriminates syntax-aware parsing from it.
     def test_line_filter_misses_standalone_edges(self):
         for manifest in STANDALONE:
@@ -192,7 +193,7 @@ class ModuleGraphCheck(unittest.TestCase):
                 elif in_block and line.startswith("\t" + PREFIX):
                     edges += 1
                     stale += " v0.1.0" in line
-        self.assertEqual((edges, stale), (96, 0))
+        self.assertEqual((edges, stale), (99, 0))
         code, violations, _ = self.fixture.run()
         self.assertEqual((code, len(violations)), (1, 2))
 

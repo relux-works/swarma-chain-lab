@@ -342,3 +342,10 @@ their separate contracts. No production mode fallback exists. Full signed
 admission tests live in `single-use/configguard`; local ownership seams are
 synthetic and do not qualify Linux deployment. See the deploy runbook for
 same-binary preflight and the separate DK5b payload launch gate.
+
+## Envelope grant-admission laboratory
+
+The [regtest bench](g1bench/README.md) reuses this module's Core harness and the
+existing standing-grant fixture for two independently keyed identities, paired
+admission negatives and named guard-removal overlays. It is a BIP-340 fixture
+profile, not native envelope conformance or production transport integration.

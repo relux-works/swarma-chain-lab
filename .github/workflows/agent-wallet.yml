@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'experiments/agent-wallet/**'
+      - 'experiments/grantcheck/**'
+      - 'experiments/rental-gateway/**'
+      - 'experiments/model-proxy/**'
+      - 'experiments/station-lifecycle/**'
       - 'experiments/rental/**'
       - 'experiments/rental-booking/**'
       - 'experiments/payment-chain/**'
@@ -14,6 +18,8 @@ on:
       - '.scripts/px1-core-gate.json'
       - '.scripts/w2-core-gate.json'
       - '.scripts/rt-grant-fixture-core-gate.json'
+      - '.scripts/g1-bench-core-gate.json'
+      - '.scripts/g1-bench-guards.py'
       - '.scripts/w2-newcore-users.go'
       - '.scripts/px1-s5-consumer-gate.json'
       - 'deploy/**'
@@ -21,6 +27,10 @@ on:
     branches: [main]
     paths:
       - 'experiments/agent-wallet/**'
+      - 'experiments/grantcheck/**'
+      - 'experiments/rental-gateway/**'
+      - 'experiments/model-proxy/**'
+      - 'experiments/station-lifecycle/**'
       - 'experiments/rental/**'
       - 'experiments/rental-booking/**'
       - 'experiments/payment-chain/**'
@@ -32,6 +42,8 @@ on:
       - '.scripts/px1-core-gate.json'
       - '.scripts/w2-core-gate.json'
       - '.scripts/rt-grant-fixture-core-gate.json'
+      - '.scripts/g1-bench-core-gate.json'
+      - '.scripts/g1-bench-guards.py'
       - '.scripts/w2-newcore-users.go'
       - '.scripts/px1-s5-consumer-gate.json'
       - 'deploy/**'
@@ -156,6 +168,33 @@ jobs:
           gate=$?
           echo "RT_GRANT_FIXTURE: skip control test=$control_test gate=$control_gate skip=$skip_seen; real Core test=$code gate=$gate"
           test "$control_test" = 0 && test "$control_gate" = 1 && test "$skip_seen" = 0 && test "$code" = 0 && test "$gate" = 0
+      - name: Envelope grant bench on Core (must run and pass; skip control first)
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          set +e
+          manifest=../../.scripts/g1-bench-core-gate.json
+          checker=../../.scripts/check-px1-core-gate.py
+          env -u W1_REGTEST go test -count=1 -json -run '^TestG1BenchCore$' . > "$RUNNER_TEMP/g1-bench-control.json"
+          control_test=$?
+          python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/g1-bench-control.json" > "$RUNNER_TEMP/g1-bench-control.txt"
+          control_gate=$?
+          grep -qx 'SKIPPED TestG1BenchCore' "$RUNNER_TEMP/g1-bench-control.txt"
+          skip_seen=$?
+          W1_REGTEST=1 W1_RUN_ROOT="$RUNNER_TEMP/g1-bench-core" go test -race -count=1 -timeout 20m -json -run '^TestG1BenchCore$' . > "$RUNNER_TEMP/g1-bench-core.json"
+          code=$?
+          python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/g1-bench-core.json"
+          gate=$?
+          echo "G1_BENCH: skip test=$control_test gate=$control_gate seen=$skip_seen; Core test=$code gate=$gate"
+          test "$control_test" = 0 && test "$control_gate" = 1 && test "$skip_seen" = 0 && test "$code" = 0 && test "$gate" = 0
+      - name: Envelope grant bench guard-removal controls
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: python3 -B ../../.scripts/g1-bench-guards.py --out "$RUNNER_TEMP/g1-bench-guards" --private-root "$RUNNER_TEMP/g1-bench-private"
       - name: Gate control on a real skip (without W1_REGTEST the Core test skips and the gate must fail)
         env:
           GOPROXY: 'off'

@@ -465,3 +465,8 @@ bounded JSON inventory under `.temp/`. Run `go -C experiments/model-proxy test
 ./...`, `go -C experiments/rental-executor test ./...` and `go -C
 experiments/rental-gateway test ./...` for the fmt, slog, generic JSON and private
 wire regressions; use the same module paths with `vet ./...` for static checks.
+
+The [regtest envelope grant-admission bench](experiments/agent-wallet/g1bench/README.md)
+reuses the wallet Core harness, verifies fixture BIP-340 envelopes and checks
+live v3 grants with paired negatives and overlay controls. Its explicit
+laboratory profile does not claim native envelope attestation conformance.

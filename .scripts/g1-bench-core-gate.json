@@ -1,0 +1,179 @@
+{
+  "v": 1,
+  "package": "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet",
+  "labels": [
+    "TwoIdentities",
+    "NoEnvelope",
+    "BadSignature",
+    "WrongKey",
+    "WrongExecutor",
+    "UnknownIssuer",
+    "BeforeWindow",
+    "AfterWindow",
+    "StaleNode-ibd",
+    "StaleNode-height",
+    "StaleNode-headers",
+    "Replay",
+    "MatrixSender",
+    "OwnerDM",
+    "TextAuthority",
+    "DeliveryBinding",
+    "SealMempool",
+    "SealConfirmed"
+  ],
+  "core_tests": [
+    "TestG1BenchCore"
+  ],
+  "core_runs": {
+    "TestG1BenchCore": {
+      "count": 1,
+      "race": true
+    }
+  },
+  "tids": {
+    "TwoIdentities": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/TwoIdentities"
+      ]
+    },
+    "NoEnvelope": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/NoEnvelope"
+      ]
+    },
+    "BadSignature": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/BadSignature"
+      ]
+    },
+    "WrongKey": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/WrongKey"
+      ]
+    },
+    "WrongExecutor": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/WrongExecutor"
+      ]
+    },
+    "UnknownIssuer": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/UnknownIssuer"
+      ]
+    },
+    "BeforeWindow": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/BeforeWindow"
+      ]
+    },
+    "AfterWindow": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/AfterWindow"
+      ]
+    },
+    "StaleNode-ibd": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/StaleNode-ibd"
+      ]
+    },
+    "StaleNode-height": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/StaleNode-height"
+      ]
+    },
+    "StaleNode-headers": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/StaleNode-headers"
+      ]
+    },
+    "Replay": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/Replay"
+      ]
+    },
+    "MatrixSender": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/MatrixSender"
+      ]
+    },
+    "OwnerDM": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/OwnerDM"
+      ]
+    },
+    "TextAuthority": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/TextAuthority"
+      ]
+    },
+    "DeliveryBinding": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/DeliveryBinding"
+      ]
+    },
+    "SealMempool": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/SealMempool"
+      ]
+    },
+    "SealConfirmed": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestG1BenchCore/SealConfirmed"
+      ]
+    }
+  }
+}
