@@ -9,7 +9,13 @@ import (
 
 var fundedTracePID = regexp.MustCompile(`^\s*([0-9]+)\s+(.*)$`)
 var fundedTraceResume = regexp.MustCompile(`^<\.\.\. ([a-zA-Z0-9_]+) resumed>(.*)$`)
-var fundedTraceEvent = regexp.MustCompile(`^(?:--- SIG[A-Z0-9]+(?: \{.*\})? ---|\+\+\+ exited with [0-9]+ \+\+\+|\+\+\+ killed by SIG[A-Z0-9]+(?: \(core dumped\))? \+\+\+)$`)
+
+// syscall_exiting_trace() in the cited syscall.c versions prints a numeric
+// result, an errno with its parenthesized description, or ? ERESTART* with a
+// restart explanation. Support those suffixes for our trace flags; other
+// annotations (e.g. -y/-T output) fail closed rather than imply completion.
+var fundedTraceComplete = regexp.MustCompile(`\)\s+=\s+(?:(?:0x[0-9a-fA-F]+|-?[0-9]+)(?: [A-Z][A-Z0-9_]*(?: \([^()\r\n]*\))?)?|\? [A-Z][A-Z0-9_]*(?: \([^()\r\n]*\))?)\s*$`)
+var fundedTraceEvent = regexp.MustCompile(`^(?:--- SIG(?:[A-Z0-9]+|RT_[0-9]+)(?: \{.*\})? ---|\+\+\+ exited with [0-9]+ \+\+\+|\+\+\+ killed by SIG(?:[A-Z0-9]+|RT_[0-9]+)(?: \(core dumped\))? \+\+\+)$`)
 
 // strace(1), DESCRIPTION, documents per-thread unfinished/resumed pairs:
 // https://man7.org/linux/man-pages/man1/strace.1.html
@@ -17,6 +23,13 @@ var fundedTraceEvent = regexp.MustCompile(`^(?:--- SIG[A-Z0-9]+(?: \{.*\})? ---|
 // and detached suffixes; src/syscall.c print_syscall_resume() names the call:
 // https://github.com/strace/strace/blob/v6.1/src/strace.c
 // https://github.com/strace/strace/blob/v6.1/src/syscall.c
+// stub_sysent in v5.16 spells the empty unknown name "????"; v6.1 and v6.19
+// use "???". Only the empty detached stub is an event, never call arguments:
+// https://github.com/strace/strace/blob/v5.16/src/syscall.c
+// https://github.com/strace/strace/blob/v6.19/src/syscall.c
+// signame() emits SIGRT_<number> for realtime signals in both event forms:
+// https://github.com/strace/strace/blob/v6.1/src/signal.c
+// https://github.com/strace/strace/blob/v6.19/src/signal.c
 // Normalize only these -f -o forms. Never discard a line merely because it
 // contains '<': its arguments may describe a forbidden attempt. Unpaired or
 // mismatched fragments fail closed, including when a thread exits mid-call.
@@ -34,7 +47,7 @@ func fundedTraceLines(trace string) (lines, violations []string) {
 		pid, body := pidLine[1], pidLine[2]
 		// The empty unknown-name prefix plus the exact detached suffix is
 		// a teardown event, not an unknown real call with arguments/result.
-		if strings.TrimSpace(body) == "????( <detached ...>" || fundedTraceEvent.MatchString(body) {
+		if stub := strings.TrimSpace(body); stub == "???( <detached ...>" || stub == "????( <detached ...>" || fundedTraceEvent.MatchString(body) {
 			continue
 		}
 		if resumed := fundedTraceResume.FindStringSubmatch(body); resumed != nil {
@@ -42,6 +55,12 @@ func fundedTraceLines(trace string) (lines, violations []string) {
 			call := fundedTraceCall.FindStringSubmatch(start)
 			if !ok || call == nil || call[1] != resumed[1] {
 				violations = append(violations, "unmatched resume: "+line)
+				continue
+			}
+			// A resume tag alone is not completion. Retain the pending entry
+			// and never send partial arguments to the effect classifier.
+			if !fundedTraceComplete.MatchString(start + resumed[2]) {
+				violations = append(violations, "incomplete resume: "+line)
 				continue
 			}
 			line = start + resumed[2]
@@ -80,8 +99,11 @@ func TestG2FundedPreflightTraceFragments(t *testing.T) {
 	}{
 		// Claim: Ordinary input and stdout calls remain allowed.
 		{"normal", input + `1 write(1, "ok", 2) = 2`, ""},
-		// Claim: The exact observed unknown-name teardown event is allowed.
+		// Claim: The v5.16 empty unknown-name teardown stub is allowed.
 		{"detached-unknown", input + `12794 ????( <detached ...>`, ""},
+		// Claim: Both cited v6 versions' exact empty teardown stub is allowed.
+		{"detached-v6-1", input + `12794 ???( <detached ...>`, ""},
+		{"detached-v6-19", input + `12794 ???( <detached ...>`, ""},
 		// Claim: A process exit record is an event, not a syscall.
 		{"exited", input + `1 +++ exited with 1 +++`, ""},
 		// Claim: A signal termination record is an event, not a syscall.
@@ -114,6 +136,19 @@ func TestG2FundedPreflightTraceFragments(t *testing.T) {
 		{"detached-real", input + `2 connect(3, {sa_family=AF_INET}, 16 <detached ...>`, "forbidden syscall:"},
 		// Claim: A detached suffix cannot hide unknown call arguments.
 		{"unknown-detached-arguments", input + `2 ????(3, 0 <detached ...>`, "unclassified trace:"},
+		{"unknown-three-detached-arguments", input + `2 ???(3, 0 <detached ...>`, "unclassified trace:"},
+		// Claim: Uncited unknown-name lengths remain unclassified.
+		{"unknown-two-detached", input + `2 ??( <detached ...>`, "unclassified trace:"},
+		{"unknown-five-detached", input + `2 ?????( <detached ...>`, "unclassified trace:"},
+		// Claim: Realtime termination is allowed, but event substrings cannot hide calls.
+		{"killed-realtime", input + `2 +++ killed by SIGRT_2 +++`, ""},
+		{"killed-realtime-core", input + `2 +++ killed by SIGRT_2 (core dumped) +++`, ""},
+		{"realtime-prefix-injection", input + `2 --- SIGRT_2 --- connect(3, NULL, 0) = 0`, "unclassified trace:"},
+		{"realtime-suffix-injection", input + `2 connect(3, NULL, 0) = 0 --- SIGRT_2 ---`, "forbidden syscall:"},
+		{"realtime-killed-injection", input + `2 +++ killed by SIGRT_2 +++ connect(3, NULL, 0) = 0`, "unclassified trace:"},
+		{"realtime-in-argument", input + `2 ????("--- SIGRT_2 ---") = 0`, "unclassified trace:"},
+		{"realtime-missing-number", input + `2 --- SIGRT_ ---`, "unclassified trace:"},
+		{"realtime-nonnumeric", input + `2 +++ killed by SIGRT_bad +++`, "unclassified trace:"},
 		// Claim: A resumed fragment without an entry fails closed.
 		{"orphan-resume", input + `2 <... openat resumed>O_RDONLY) = 3`, "unmatched resume:"},
 		// Claim: Fragments from different threads cannot pair.
@@ -138,6 +173,74 @@ func TestG2FundedPreflightTraceFragments(t *testing.T) {
 				}
 			} else if !strings.Contains(strings.Join(got, "\n"), tc.want) {
 				t.Fatalf("want %q violation, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+// Claim: EOF after a resume tag cannot satisfy the required read or clear its
+// pending entry. Complete reads and writes still reach the effect classifier.
+func TestG2FundedPreflightTraceResumeCompletion(t *testing.T) {
+	const start = "1 execve(\"/binary\", [], 0) = 0\n1 openat(AT_FDCWD, \"/params\", <unfinished ...>\n1 <... openat resumed>"
+	cases := []struct{ name, tail, want string }{
+		{"completed-read", "O_RDONLY) = 3", ""},
+		{"completed-write", "O_WRONLY|O_TRUNC) = 3", "file write:"},
+		{"completed-error", "O_RDONLY) = -1 ENOENT (No such file or directory)", ""},
+		{"completed-restart", "O_RDONLY) = ? ERESTARTSYS (To be restarted if SA_RESTART is set)", ""},
+		{"completed-hex", "O_RDONLY) = 0x3", ""},
+		{"empty-resume-at-eof", "", "incomplete resume:"},
+		{"partial-write-flag-at-eof", "O_W", "incomplete resume:"},
+		{"missing-result-at-eof", "O_RDONLY)", "incomplete resume:"},
+		{"empty-result-at-eof", "O_RDONLY) = ", "incomplete resume:"},
+		{"partial-errno-at-eof", "O_RDONLY) = -1 ENOENT (No such file", "incomplete resume:"},
+		{"result-suffix-injection", "O_RDONLY) = 3 extra", "incomplete resume:"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			trace := start + tc.tail
+			got := strings.Join(fundedTraceViolations(trace, "/binary", "/params"), "\n")
+			if tc.want == "" {
+				if got != "" {
+					t.Fatal(got)
+				}
+			} else if !strings.Contains(got, tc.want) {
+				t.Fatalf("want %q, got %s", tc.want, got)
+			}
+			if tc.want == "incomplete resume:" {
+				if !strings.Contains(got, "unfinished syscall:") || !strings.Contains(got, "parameter opens=0") {
+					t.Fatalf("partial call cleared pending state or counted as input: %s", got)
+				}
+			}
+		})
+	}
+}
+
+// Claim: both real strace 6.19 handled-signal captures are accepted. Only the
+// captured executable/input path prefix is replaced with a public fixture path;
+// signal spelling, payload, calls, results, and record boundaries are retained.
+func TestG2FundedPreflightTraceCapturedSignals(t *testing.T) {
+	cases := []struct{ name, trace string }{
+		{"standard", `4012521 execve("/trace-fixture/signal-probe", ["/trace-fixture/signal-probe", "/trace-fixture/params.json", "standard"], 0x7fff65c3cfb0 /* 32 vars */) = 0
+4012521 access("/etc/ld.so.preload", R_OK) = -1 ENOENT (No such file or directory)
+4012521 openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+4012521 openat(AT_FDCWD, "/usr/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+4012521 openat(AT_FDCWD, "/trace-fixture/params.json", O_RDONLY) = 3
+4012521 --- SIGURG {si_signo=SIGURG, si_code=SI_TKILL, si_pid=4012521, si_uid=1001} ---
+4012521 write(1, "ok\n", 3)             = 3
+`},
+		{"realtime", `4012525 execve("/trace-fixture/signal-probe", ["/trace-fixture/signal-probe", "/trace-fixture/params.json", "realtime"], 0x7fff7cebe250 /* 32 vars */) = 0
+4012525 access("/etc/ld.so.preload", R_OK) = -1 ENOENT (No such file or directory)
+4012525 openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+4012525 openat(AT_FDCWD, "/usr/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+4012525 openat(AT_FDCWD, "/trace-fixture/params.json", O_RDONLY) = 3
+4012525 --- SIGRT_2 {si_signo=SIGRT_2, si_code=SI_TKILL, si_pid=4012525, si_uid=1001} ---
+4012525 write(1, "ok\n", 3)             = 3
+`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := fundedTraceViolations(tc.trace, "/trace-fixture/signal-probe", "/trace-fixture/params.json"); len(got) != 0 {
+				t.Fatalf("captured trace rejected: %v", got)
 			}
 		})
 	}
