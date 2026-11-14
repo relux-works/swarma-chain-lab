@@ -100,11 +100,12 @@ deploy-kit g2-funded-preflight -params "$PARAMS"
 
 It parses the file with the `g2-render` parser (which already refuses
 `grantee == receipt_pubkey` and an all-zero canary txid). Parser refusals
-preserve the parser's error class and add safe schema member names for
-missing/null/mistyped members, placeholders, equal keys and an all-zero
-canary; network failures name both chain pins. Other canonical or semantic
-failures name `parameters`. Supplied values and unknown member names are
-never echoed. It then refuses, one named stderr line each and exit 1:
+carry typed field errors that preserve the parser's error class and name
+the failing schema member, including malformed string contents, missing/null/
+mistyped members and placeholders. Equal keys name both key members. Network
+failures name `network` for an unsupported network or `genesis` for a mismatched
+pin. Document-level canonical errors name `parameters`. Supplied values and
+unknown member names are never echoed. It then refuses, one named stderr line each and exit 1:
 a `grantee` or `receipt_pubkey` that is `x(k·G)` for `1 ≤ k ≤ 1024`
 (`SMALL_SCALAR_KEY`), a published-secret BIP-340 test-vector key #0–#3 or #15–#18
 (`BIP340_VECTOR_KEY`; rows 15–18 share one key)

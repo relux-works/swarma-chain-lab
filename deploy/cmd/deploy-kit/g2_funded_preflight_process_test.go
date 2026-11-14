@@ -165,6 +165,11 @@ func TestG2FundedPreflightPublicEntry(t *testing.T) {
 		{"funded-refusal", rehearsal, 1, "SMALL_SCALAR_KEY grantee"},
 		{"parser-refusal", bytes.Replace(good, []byte(p.G2.Canary.Outpoint.TxID), []byte("PLACEHOLDER_CANARY"), 1), 1, "g2.canary.outpoint.txid"},
 		{"missing-false-member", omitG2Member(t, good, []string{"g2", "allow_single_use"}), 1, "g2.allow_single_use"},
+		{"zero-grantee", bytes.Replace(good, []byte(p.Grantee), []byte(strings.Repeat("0", 64)), 1), 1, "grantee"},
+		{"empty-receipt", bytes.Replace(good, []byte(p.ReceiptPubkey), nil, 1), 1, "receipt_pubkey"},
+		{"change-me-canary", bytes.Replace(good, []byte(p.G2.Canary.Outpoint.TxID), []byte("CHANGE_ME"), 1), 1, "g2.canary.outpoint.txid"},
+		{"token-canary", bytes.Replace(good, []byte(p.G2.Canary.Outpoint.TxID), []byte("@TXID@"), 1), 1, "g2.canary.outpoint.txid"},
+		{"short-canary", bytes.Replace(good, []byte(p.G2.Canary.Outpoint.TxID), []byte(strings.Repeat("1", 63)), 1), 1, "g2.canary.outpoint.txid"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

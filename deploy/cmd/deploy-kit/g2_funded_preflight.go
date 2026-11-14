@@ -8,12 +8,9 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -135,8 +132,9 @@ func g2FundedCheck(p deploy.G2PayParameters) g2FundedRefusals {
 }
 
 // g2FundedPreflight is the funded-station guard. It reads the parameters file
-// through the g2-render parser (deploy.ParseG2PayParameters) and annotates its
-// refusal with safe schema field names, preserving its sentinel; it then refuses a grantee or receipt_pubkey that
+// through the g2-render parser (deploy.ParseG2PayParameters), which returns
+// typed field errors with safe schema names and preserved sentinels. It then
+// refuses a grantee or receipt_pubkey that
 // is a small-scalar key, a BIP-340 test-vector key or a G2 fixture key, and a
 // canary txid of 32 equal bytes, one named line per refusal. Only when nothing
 // is refused it prints G2_FUNDED_PREFLIGHT_OK. It is read-only: no network,
@@ -156,66 +154,11 @@ func g2FundedPreflight(args []string, out io.Writer) error {
 	}
 	p, e := deploy.ParseG2PayParameters(bytes.TrimSuffix(raw, []byte("\n")))
 	if e != nil {
-		return g2FundedParserError(raw, e)
+		return e
 	}
 	if refused := g2FundedCheck(p); len(refused) != 0 {
 		return refused
 	}
 	_, e = fmt.Fprintln(out, "G2_FUNDED_PREFLIGHT_OK")
 	return e
-}
-
-// g2FundedParserError annotates a refusal, never decides acceptance. The shared
-// canonical parser remains authoritative. Walk only declared JSON names, never
-// echo supplied names, values, paths or decoder errors. Presence/type/null and
-// placeholder diagnostics follow the frozen type, including false and zero.
-// Funded key/canary invariants get their member names even when the parser
-// refuses first. Other canonical/semantic failures retain the parameters scope.
-func g2FundedParserError(raw []byte, cause error) error {
-	var fields []string
-	var walk func(json.RawMessage, reflect.Type, string)
-	walk = func(value json.RawMessage, typ reflect.Type, path string) {
-		if len(value) == 0 || bytes.Equal(value, []byte("null")) {
-			fields = append(fields, path)
-			return
-		}
-		if typ.Kind() == reflect.Struct {
-			var members map[string]json.RawMessage
-			if json.Unmarshal(value, &members) != nil || members == nil {
-				fields = append(fields, path)
-				return
-			}
-			for i := 0; i < typ.NumField(); i++ {
-				member := typ.Field(i)
-				name := member.Tag.Get("json")
-				child := name
-				if path != "parameters" {
-					child = path + "." + name
-				}
-				walk(members[name], member.Type, child)
-			}
-			return
-		}
-		if json.Unmarshal(value, reflect.New(typ).Interface()) != nil || bytes.Contains(value, []byte("PLACEHOLDER")) {
-			fields = append(fields, path)
-		}
-	}
-	walk(raw, reflect.TypeFor[deploy.G2PayParameters](), "parameters")
-	if len(fields) == 0 {
-		var p deploy.G2PayParameters
-		if json.Unmarshal(raw, &p) == nil {
-			switch {
-			case errors.Is(cause, deploy.ErrNetwork):
-				fields = []string{"network", "genesis"}
-			case p.Grantee == p.ReceiptPubkey:
-				fields = []string{"grantee", "receipt_pubkey"}
-			case p.G2.Canary.Outpoint.TxID == strings.Repeat("0", 64):
-				fields = []string{"g2.canary.outpoint.txid"}
-			}
-		}
-	}
-	if len(fields) == 0 {
-		fields = []string{"parameters"}
-	}
-	return fmt.Errorf("%w: %s", cause, strings.Join(fields, ", "))
 }

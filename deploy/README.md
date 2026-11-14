@@ -111,6 +111,11 @@ off; E1 still checks inner work. Recipient privacy requires configured gateway
 AUTH and the exact URL binding below before restricted gift-wrap reads are enabled. See the
 [relay contract](../experiments/relay/README.md).
 
+- `ParseG2PayParameters` reports safe schema paths through `FieldError`;
+  `errors.Is` retains the existing refusal classes. From `deploy/`, run
+  `go test -run 'TestG2PayFieldValidatorParity|TestG2FundedPreflightStringMemberSweep' ./...`
+  for validator equivalence and malformed string diagnostics. Test fixtures
+  use temporary directories and leave no installed output.
 - From `deploy/`: `go test -race ./...`, `go vet ./...`,
   `go build -trimpath -o ../.temp/deploy-kit ./cmd/deploy-kit`, and
   `go mod tidy -diff`. Use `GOTOOLCHAIN=go1.26.8` when selecting the installed

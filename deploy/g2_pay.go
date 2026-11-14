@@ -256,18 +256,19 @@ func RenderG2PayTemplates(p G2PayParameters) (map[string][]byte, error) {
 
 // ParseG2PayParameters decodes the canonical parameters file (exact
 // json.Marshal bytes, unique keys, no unknown members) and validates it.
+// Refusals carry a FieldError with safe schema paths and the original sentinel.
 func ParseG2PayParameters(raw []byte) (G2PayParameters, error) {
 	var p G2PayParameters
 	if len(raw) == 0 || len(raw) > 1<<16 {
-		return p, ErrPolicy
+		return p, &FieldError{"parameters", ErrPolicy}
 	}
 	if bytes.Contains(raw, []byte("PLACEHOLDER")) {
-		return p, ErrPlaceholder
+		return p, g2PayShapeError(raw, ErrPlaceholder)
 	}
 	if e := serviceDecode(raw, &p, true); e != nil {
-		return G2PayParameters{}, e
+		return G2PayParameters{}, g2PayShapeError(raw, e)
 	}
-	if e := ValidateG2PayParameters(p); e != nil {
+	if e := validateG2PayFields(p); e != nil {
 		return G2PayParameters{}, e
 	}
 	return p, nil

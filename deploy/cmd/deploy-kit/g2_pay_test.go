@@ -64,7 +64,7 @@ func TestG2RenderCommand(t *testing.T) {
 	raw, _ = json.Marshal(bad)
 	os.WriteFile(params, raw, 0600)
 	other := filepath.Join(root, "other")
-	if e := g2Render([]string{"-params", params, "-out", other}, io.Discard); e != deploy.ErrPolicy {
+	if e := g2Render([]string{"-params", params, "-out", other}, io.Discard); !errors.Is(e, deploy.ErrPolicy) {
 		t.Fatal("G2_CLI_RENDER invalid parameters accepted", e)
 	}
 	if _, e := os.Stat(other); !os.IsNotExist(e) {

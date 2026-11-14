@@ -1042,7 +1042,7 @@ func TestPX1S5ParametersTemplate(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e := ParseG2PayParameters(bytes.TrimSuffix(raw, []byte("\n"))); e != ErrPlaceholder {
+	if _, e := ParseG2PayParameters(bytes.TrimSuffix(raw, []byte("\n"))); !errors.Is(e, ErrPlaceholder) {
 		t.Fatal("G2_TEMPLATE unresolved template accepted", e)
 	}
 	resolved := g2ResolveTemplate(raw)
