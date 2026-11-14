@@ -47,14 +47,14 @@ func requirePairStop(t *testing.T, f *fixture, reason string) {
 	before := state()
 	out, err := replayPair(t, f, "rehearsal")
 	code(t, err, 1)
-	if !strings.Contains(err.Error(), reason) || out != "" {
-		t.Fatalf("want %s without final compare, got %v, %q", reason, err, out)
-	}
 	if f.sys.called("/usr/sbin/userdel") || f.sys.called("/usr/sbin/groupdel") || f.sys.called("/usr/bin/gpasswd") {
 		t.Fatal("refusal performed an account effect")
 	}
 	if !bytes.Equal(before, state()) {
 		t.Fatal("refusal changed account state")
+	}
+	if !strings.Contains(err.Error(), reason) || out != "" {
+		t.Fatalf("want %s without final compare, got %v, %q", reason, err, out)
 	}
 }
 
@@ -297,8 +297,9 @@ func TestLedgerUserGroupOutcomeStops(t *testing.T) {
 				f.scope.Users = append(f.scope.Users, pairName)
 				f.scope.Groups = append(f.scope.Groups, pairName)
 			})
-			older := f.create(t, "older", "file", "remove")
 			must(t, f.l.CreateAccount("group", pairName, "state", 0, 210201))
+			// This reversal is older than the user but newer than the group receipt.
+			older := f.create(t, "older", "file", "remove")
 			must(t, f.l.CreateUserProfile(pairName, "state", 210201, 210201, "/var/lib/swarma-wallet", "Swarma G2 pay executor"))
 			deletedUser, deletedGroup := false, false
 			var fault func(string, []string) (fakeReply, bool)
@@ -347,6 +348,7 @@ func TestLedgerUserGroupOutcomeStops(t *testing.T) {
 			}
 			f.sys.fault = fault
 			out, err := replayPair(t, f, "rehearsal")
+			exists(t, older)
 			code(t, err, 1)
 			reason := map[string]string{
 				"userdel-error": "REMOVE_ACCOUNT", "userdel-noop": "ACCOUNT_STILL_PRESENT",
@@ -358,7 +360,6 @@ func TestLedgerUserGroupOutcomeStops(t *testing.T) {
 			if !strings.Contains(err.Error(), reason) || out != "" {
 				t.Fatalf("want %s without final compare, got %v %q", reason, err, out)
 			}
-			exists(t, older)
 			if strings.HasPrefix(variant, "userdel-") {
 				if len(f.sys.users) != 1 || len(f.sys.groups) != 1 {
 					t.Fatal("failed userdel lost accounts")
