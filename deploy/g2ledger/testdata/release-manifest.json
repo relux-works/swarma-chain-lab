@@ -128,5 +128,163 @@
       "status": "pending",
       "reason": "a2a daemon deployment integration not included in this kit"
     }
+  ],
+  "linkage": [
+    {
+      "binary": "bin/gateway",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/rental-gateway",
+          "version": "(devel)",
+          "replace": "experiments/rental-gateway",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/rental-booking",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/rental-booking",
+          "version": "(devel)",
+          "replace": "experiments/rental-booking",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/grant-store",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/grant-store",
+          "version": "(devel)",
+          "replace": "experiments/grant-store",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/swarma-relay",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/relay",
+          "version": "(devel)",
+          "replace": "experiments/relay",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/swarma-signer",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/signer-service",
+          "version": "(devel)",
+          "replace": "experiments/signer-service",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/model-proxy",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/model-proxy",
+          "version": "(devel)",
+          "replace": "experiments/model-proxy",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/station-manager",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle",
+          "version": "(devel)",
+          "replace": "experiments/station-lifecycle",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/station-payload",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/station-payload",
+          "version": "(devel)",
+          "replace": "experiments/station-payload",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/agent-walletd",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet",
+          "version": "(devel)",
+          "replace": "experiments/agent-wallet",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/deploy-kit",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/deploy",
+          "version": "(devel)",
+          "replace": "deploy",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/agent-wallet-reconcile",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet",
+          "version": "(devel)",
+          "replace": "experiments/agent-wallet",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/agent-wallet",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet",
+          "version": "(devel)",
+          "replace": "experiments/agent-wallet",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    },
+    {
+      "binary": "bin/agent-wallet-alert-forwarder",
+      "modules": [
+        {
+          "module": "github.com/relux-works/swarma-chain-lab/experiments/agent-wallet",
+          "version": "(devel)",
+          "replace": "experiments/agent-wallet",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verdict": "contains e70a35a41dec5948d5452f1f898f4d26977372d7"
+        }
+      ]
+    }
   ]
 }

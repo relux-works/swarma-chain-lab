@@ -56,16 +56,17 @@ type Tool struct {
 	SHA256  string `json:"sha256"`
 }
 type Manifest struct {
-	Version    int        `json:"version"`
-	Commit     string     `json:"commit"`
-	GoVersion  string     `json:"go_version"`
-	GOOS       string     `json:"goos"`
-	GOARCH     string     `json:"goarch"`
-	CGOEnabled string     `json:"cgo_enabled"`
-	BuildFlags []string   `json:"build_flags"`
-	Artifacts  []Artifact `json:"artifacts"`
-	Tools      []Tool     `json:"tools"`
-	Pending    []Artifact `json:"pending"`
+	Version    int             `json:"version"`
+	Commit     string          `json:"commit"`
+	GoVersion  string          `json:"go_version"`
+	GOOS       string          `json:"goos"`
+	GOARCH     string          `json:"goarch"`
+	CGOEnabled string          `json:"cgo_enabled"`
+	BuildFlags []string        `json:"build_flags"`
+	Artifacts  []Artifact      `json:"artifacts"`
+	Tools      []Tool          `json:"tools"`
+	Pending    []Artifact      `json:"pending"`
+	Linkage    []BinaryLinkage `json:"linkage"`
 }
 
 // ReleaseInput accepts an exact full commit SHA, not a mutable branch/ref. Out
@@ -172,6 +173,9 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 	if e != nil || strings.TrimSpace(string(head)) != in.Commit {
 		return empty, ErrSource
 	}
+	if e = linkageHistory(ctx, in.Repo, in.Commit); e != nil {
+		return empty, e
+	}
 	version, e := command(ctx, in.Repo, goEnv(""), "go", "env", "GOVERSION")
 	if e != nil || strings.TrimSpace(string(version)) != GoVersion {
 		return empty, ErrToolchain
@@ -191,7 +195,10 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 			return empty, ErrSource
 		}
 	}
-	m, stage, e := assemble(ctx, work, first, second, in.Commit, build)
+	m, stage, e := assembleChecked(ctx, work, first, second, in.Commit, build,
+		func(ctx context.Context, root string, a Artifact, binary []byte) ([]ModuleLinkage, error) {
+			return inspectLinkage(ctx, in.Repo, root, in.Commit, a, binary)
+		})
 	if e != nil {
 		return empty, e
 	}
@@ -212,39 +219,55 @@ func buildRelease(ctx context.Context, in ReleaseInput, build buildFunc) (Manife
 	return m, nil
 }
 
-// assemble builds every service and tool binary as a compared pair, then writes
+// assembleChecked builds every service and tool binary as a compared pair, then writes
 // the bundle, its manifest and SHA256SUMS under work. It publishes nothing.
-func assemble(ctx context.Context, work, first, second, commit string, build buildFunc) (Manifest, string, error) {
+func assembleChecked(ctx context.Context, work, first, second, commit string, build buildFunc, inspect linkageFunc) (Manifest, string, error) {
 	m := Manifest{Version: 1, Commit: commit, GoVersion: GoVersion, GOOS: "linux", GOARCH: "amd64", CGOEnabled: "0", BuildFlags: append([]string(nil), releaseBuildFlags...), Artifacts: append([]Artifact(nil), releaseArtifacts...), Tools: append([]Tool(nil), releaseTools...), Pending: append([]Artifact(nil), releasePending...)}
+	inventory := append([]Artifact(nil), m.Artifacts...)
+	for _, t := range m.Tools {
+		inventory = append(inventory, Artifact{Module: t.Module, Package: t.Package, Binary: t.Binary})
+	}
+	binaries := make([][]byte, len(inventory))
+	for i, a := range inventory {
+		one, e := buildPair(ctx, work, first, second, a, build)
+		if e != nil {
+			return Manifest{}, "", e
+		}
+		binaries[i] = one
+	}
+	// Equal bytes imply equal embedded build info, but resolve directory
+	// replacements independently against each extracted checkout. No layout
+	// is created until every binary in both trees has passed containment.
+	for i, a := range inventory {
+		modules, e := inspect(ctx, first, a, binaries[i])
+		if e != nil {
+			return Manifest{}, "", e
+		}
+		other, e := inspect(ctx, second, a, binaries[i])
+		if e != nil {
+			return Manifest{}, "", e
+		}
+		if !reflect.DeepEqual(modules, other) {
+			return Manifest{}, "", ErrDifferent
+		}
+		m.Linkage = append(m.Linkage, BinaryLinkage{Binary: a.Binary, Modules: modules})
+	}
+	if !validLinkage(m) {
+		return Manifest{}, "", ErrManifest
+	}
 	stage := filepath.Join(work, "bundle")
 	if e := os.MkdirAll(filepath.Join(stage, "bin"), 0700); e != nil {
 		return Manifest{}, "", ErrOutput
 	}
-	stageBinary := func(a Artifact) (string, error) {
-		one, e := buildPair(ctx, work, first, second, a, build)
-		if e != nil {
-			return "", e
+	for i, a := range inventory {
+		if e := os.WriteFile(filepath.Join(stage, a.Binary), binaries[i], 0755); e != nil {
+			return Manifest{}, "", ErrOutput
 		}
-		if e = os.WriteFile(filepath.Join(stage, a.Binary), one, 0755); e != nil {
-			return "", ErrOutput
+		if i < len(m.Artifacts) {
+			m.Artifacts[i].SHA256 = digest(binaries[i])
+		} else {
+			m.Tools[i-len(m.Artifacts)].SHA256 = digest(binaries[i])
 		}
-		return digest(one), nil
-	}
-	for i, a := range m.Artifacts {
-		h, e := stageBinary(a)
-		if e != nil {
-			return Manifest{}, "", e
-		}
-		m.Artifacts[i].SHA256 = h
-	}
-	// A tool takes the same twice-built comparison; only its module, package
-	// and binary path reach the builder.
-	for i, t := range m.Tools {
-		h, e := stageBinary(Artifact{Module: t.Module, Package: t.Package, Binary: t.Binary})
-		if e != nil {
-			return Manifest{}, "", e
-		}
-		m.Tools[i].SHA256 = h
 	}
 	// Deploy templates are exact committed public source, never an operator's
 	// substituted configuration or credential files from the working checkout.
@@ -314,6 +337,9 @@ func ValidateManifest(raw []byte) (Manifest, error) {
 			return Manifest{}, ErrManifest
 		}
 	}
+	if !validLinkage(m) {
+		return Manifest{}, ErrManifest
+	}
 	return m, nil
 }
 
@@ -333,7 +359,7 @@ func manifestMemberNames(raw []byte) bool {
 		return true
 	}
 	var root map[string]json.RawMessage
-	if json.Unmarshal(raw, &root) != nil || !only(root, []string{"version", "commit", "go_version", "goos", "goarch", "cgo_enabled", "build_flags", "artifacts", "tools", "pending"}) {
+	if json.Unmarshal(raw, &root) != nil || !only(root, []string{"version", "commit", "go_version", "goos", "goarch", "cgo_enabled", "build_flags", "artifacts", "tools", "pending", "linkage"}) {
 		return false
 	}
 	artifactNames := []string{"service", "module", "package", "binary", "sha256", "status", "reason", "screening"}
@@ -351,6 +377,24 @@ func manifestMemberNames(raw []byte) bool {
 		}
 		for _, row := range rows {
 			if !only(row, inventory.names) {
+				return false
+			}
+		}
+	}
+	var linkage []map[string]json.RawMessage
+	if json.Unmarshal(root["linkage"], &linkage) != nil {
+		return false
+	}
+	for _, row := range linkage {
+		if !only(row, []string{"binary", "modules"}) {
+			return false
+		}
+		var modules []map[string]json.RawMessage
+		if json.Unmarshal(row["modules"], &modules) != nil {
+			return false
+		}
+		for _, module := range modules {
+			if !only(module, []string{"module", "version", "replace", "commit", "verdict"}) {
 				return false
 			}
 		}

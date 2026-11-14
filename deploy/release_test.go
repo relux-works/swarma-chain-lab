@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"debug/buildinfo"
 	"debug/elf"
 	"encoding/json"
 	"errors"
@@ -252,6 +253,47 @@ func TestReleaseIntegration(t *testing.T) {
 		}
 		f.Close()
 	}
+	// Claim: every real released binary has an embedded-info-derived contains
+	// verdict for every internal module; neither a missing binary nor a
+	// missing dependency row can satisfy the release linkage evidence.
+	if len(m.Linkage) != len(binaries) {
+		t.Fatal("incomplete binary linkage inventory")
+	}
+	for i, a := range binaries {
+		info, e := buildinfo.ReadFile(filepath.Join(in.Out, a.Binary))
+		if e != nil {
+			t.Fatal(e)
+		}
+		row := m.Linkage[i]
+		if row.Binary != a.Binary || len(row.Modules) == 0 {
+			t.Fatal("missing binary linkage")
+		}
+		for _, module := range row.Modules {
+			if module.Verdict != strictVerdict || !exactHex(module.Commit, 20) {
+				t.Fatal("missing contains evidence")
+			}
+		}
+		selected := map[string]bool{info.Main.Path: true}
+		for _, dep := range info.Deps {
+			if internalModule(dep.Path) {
+				selected[dep.Path] = true
+			}
+		}
+		if len(row.Modules) != len(selected) {
+			t.Fatal("embedded module count differs from manifest")
+		}
+		for _, module := range row.Modules {
+			if !selected[module.Module] {
+				t.Fatal("manifest module absent from executable")
+			}
+			delete(selected, module.Module)
+		}
+		if len(selected) != 0 {
+			t.Fatal("embedded module missing from manifest")
+		}
+
+	}
+
 	if _, e = BuildRelease(ctx, in); e != ErrOutput {
 		t.Fatal("existing release was replaceable")
 	}
@@ -650,4 +692,13 @@ func TestValidateManifest(t *testing.T) {
 			}
 		})
 	}
+}
+
+// assemble uses a simulated linkage checker only for layout unit fixtures;
+// BuildRelease and the integration tests use the executable build-info checker.
+func assemble(ctx context.Context, work, first, second, commit string, build buildFunc) (Manifest, string, error) {
+	return assembleChecked(ctx, work, first, second, commit, build,
+		func(_ context.Context, _ string, a Artifact, _ []byte) ([]ModuleLinkage, error) {
+			return []ModuleLinkage{{Module: internalModulePrefix + a.Module, Replace: a.Module, Commit: commit, Verdict: strictVerdict}}, nil
+		})
 }

@@ -152,7 +152,8 @@ func TestLedgerNonuniformManifestPinIsolated(t *testing.T) {
 	manifest := filepath.Join(f.root, "manifest.json")
 	raw, err := os.ReadFile(manifest)
 	must(t, err)
-	raw = bytes.Replace(raw, bytes.Repeat([]byte("a"), 40), []byte("0123456789abcdef0123456789abcdef01234567"), 1)
+	// Keep the synthetic in-tree linkage commits bound to the new release H.
+	raw = bytes.ReplaceAll(raw, bytes.Repeat([]byte("a"), 40), []byte("0123456789abcdef0123456789abcdef01234567"))
 	must(t, os.WriteFile(manifest, raw, 0600))
 	dir := filepath.Join(f.root, "pin-ledger")
 	must(t, Init(dir, manifest, filepath.Join(f.root, "baseline"), InitOptions{Purpose: "station", Scope: f.scope, System: f.sys}))

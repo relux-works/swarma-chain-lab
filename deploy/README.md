@@ -123,6 +123,27 @@ renamed into a new output directory only after all thirteen binary pairs (nine
 services and four tools) match.
 Temporary source/build trees are removed, including on refusal.
 
+The builder requires full Git history in the input checkout and pins strict
+signature parse commit `e70a35a41dec5948d5452f1f898f4d26977372d7` in
+`StrictParseCommit`. Obtain history with a normal clone (no `--depth`) or run
+`git fetch --unshallow origin` on an existing shallow clone before building.
+The Deploy kit workflow uses `fetch-depth: 0`. The builder does not fetch or
+repair history silently: it uses the input checkout's Git object database for
+both independent archive builds and refuses shallow history or missing objects.
+
+Before creating the release layout, the builder reads each executable's embedded
+Go build info (the same dependency data exposed by `go version -m`). Every
+internal module, including the command's main module, must resolve to either
+source inside that exact archive at H or a published revision for which
+`git merge-base --is-ancestor <strict-commit> <resolved-commit>` succeeds.
+Directory replacements are resolved relative to the command module, including
+symlink containment checks; external replacements refuse. Pseudo-versions map
+to their commit suffix; tagged versions map to the module's repository tag.
+A numerically higher version cannot establish ancestry. Invalid linkage emits
+`LINKAGE_STRICT_PARSE_MISSING <binary> <module> <version>` and creates no release
+layout. Missing history never becomes an accepting verdict.
+
+
 Outputs: `bin/`, `templates/`, `README.md`, `SMOKE.md`, `SMOKE-DK2.md`, `INSTALL-CONFIG.md`, `manifest.json`,
 `SHA256SUMS`. Checksums cover every output file except the checksum file itself;
 the release signer signs that file separately with namespace `swarma-release`.
@@ -140,7 +161,19 @@ A tool row has no service, status or unit member, and the release activates
 nothing. These commands use the existing tool inventory because they run under
 operator/agent control rather than adding wallet daemon service rows.
 Run all four from the verified release's `bin/`; `SHA256SUMS` covers each.
-The schema stays at version 1; the exact inventory now requires all four tools.
+The schema stays at version 1; the exact inventory now requires all four tools
+and the required top-level `linkage` inventory. Each `linkage` row contains
+`binary` and `modules`. Each module row records `module`, the effective resolved
+`version` (when present), optional `replace` (a checkout-relative in-tree path),
+`commit` (full Git object ID; H for in-tree source), and `verdict` exactly
+`contains e70a35a41dec5948d5452f1f898f4d26977372d7`. For a version replacement,
+`version` is the replacement's version. For the main module, `(devel)` plus
+`replace` identifies its archived source. Both builds must produce identical
+linkage rows. Plan B.2 must require every binary/module verdict to read
+`contains` with this pinned commit; source on the default branch alone is not
+deployed linkage evidence. The manifest validator requires every binary's main
+module, unique sorted internal module rows and the exact pinned verdict.
+Older manifests without linkage are refused by this kit.
 
 The reconciler is an owner-run one-shot as the wallet service UID, with no
 listener, unit or separate install drop-in. Its `--check-installed` and config
@@ -562,3 +595,22 @@ default. Operators must keep this value at or below the deployed relay
 `max_event_bytes`; the gateway cannot attest the remote config. Native startup
 validates the usable range and pending immutable outbox. Large replies become a
 fixed terminal size notice; this field does not enable chunking.
+
+
+## Strict linkage validation tools
+
+From `deploy/`, `go test -count=1 -run 'TestLinkage|TestManifestLinkage' .`
+runs ancestry, missing-object, non-internal dependency, archive-boundary and
+manifest controls. For real wallet compiler and published-graph signature
+controls, run `DK1_LINKAGE_TEST=1 go test -v -count=1 -timeout 10m -run
+'^TestLinkage(PublishedStaleWallet|StationPublishedSignature)$' .` as one command
+with dependency acquisition enabled. These tests use temporary archives,
+checksum-verified published dependencies and the existing
+`.scripts/testdata/published_rental_strict_test.go` controls. Only the vendored
+library parser is instrumented, after the station command has built; candidate
+application source stays unchanged. The stale fixture selects rental
+`v0.5.1-0.20261114150118-3baa201bafb6` through a version replacement, keeping
+other dependencies in-tree so MVS cannot mask the stale selection. Assembly's
+other binaries are stand-ins in that refusal control; the full real release
+inventory is exercised by `TestReleaseIntegration`. Logs go to the terminal,
+and temporary source/binary fixtures are removed by the test runner.

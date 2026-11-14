@@ -217,7 +217,9 @@ or executor authority is included. CI runs Go vet/race/build and non-Core guards
 
 [DK1 deploy kit](deploy/README.md) builds the existing service binaries and the
 deploy-kit tool twice from a clean exact commit into an unsigned linux/amd64
-bundle, with manifest and SHA256SUMS. From `deploy/`, run `go test -race ./...`, `go vet ./...` and
+bundle, with manifest and SHA256SUMS. Its required per-binary `linkage` evidence
+checks embedded internal module selections against the pinned strict signature
+parse commit by Git ancestry before any release layout is written. From `deploy/`, run `go test -race ./...`, `go vet ./...` and
 `go run ./cmd/deploy-kit build -repo "$SOURCE_ROOT" -commit "$REVIEWED_COMMIT" -out "$RELEASE_DIR"`.
 Its public validator, gateway/booking/store unit templates and Infra smoke plan
 are documented there. Gateway uses real grant/exchange/manager wiring with
