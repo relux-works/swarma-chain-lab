@@ -1,5 +1,11 @@
 # Published module graph audit
 
+The current floor is signed source `ffefc6d423aeed245faa38d47de1ce1874ef3c3d`, published at
+`20261114144010`. All 98 internal requirements select this snapshot so
+external consumers can resolve the shared strict BIP-340 parser and the
+verification sites that use it. No local replacement or internal graph edge
+changes. The earlier audit below records why coherent snapshot floors matter.
+
 The audit covers all 20 `go.mod` files and all 98 internal require edges across
 19 consumer modules at base `288d63e191fefac885d6a39aa65f0a5fbb6ed7ee`.
 Every edge previously named `v0.1.0`; directory replacements supplied current
@@ -9,8 +15,8 @@ A concrete external consumer of `single-use/configguard` fails because
 The new bootstrap/model packages are also absent from `single-use v0.1.0`.
 
 All 98 internal require edges, in standalone `require` lines, `require (...)`
-blocks and `// indirect` entries alike, now select the same already-published
-base snapshot. The first revision of this audit counted 96: it missed the two
+blocks and `// indirect` entries alike, now select the same published
+source snapshot. The first revision of this audit counted 96: it missed the two
 standalone `single-use` requires in `deploy/go.mod` and
 `experiments/station-lifecycle/go.mod`, which left `deploy` and
 `station-lifecycle/cmd/station-manager` unbuildable for external consumers
@@ -25,20 +31,20 @@ refused the Go 1.26 requirement; its failure was retained, not treated as a pass
 
 | Dependency under experiments/ | Published requirement |
 | --- | --- |
-| `grant-store` | `v0.1.1-0.20261111181054-288d63e191fe` |
-| `m5-host-smoke` | `v0.3.1-0.20261111181054-288d63e191fe` |
-| `model-proxy` | `v0.4.1-0.20261111181054-288d63e191fe` |
-| `payment-chain` | `v0.2.1-0.20261111181054-288d63e191fe` |
-| `rental` | `v0.5.1-0.20261111181054-288d63e191fe` |
-| `rental-booking` | `v0.4.1-0.20261111181054-288d63e191fe` |
-| `rental-gateway` | `v0.4.1-0.20261111181054-288d63e191fe` |
-| `rental-gateway/kernelbind` | `v0.1.1-0.20261111181054-288d63e191fe` |
-| `sealwatch` | `v0.2.1-0.20261111181054-288d63e191fe` |
-| `signer-service` | `v0.3.1-0.20261111181054-288d63e191fe` |
-| `single-use` | `v0.3.1-0.20261111181054-288d63e191fe` |
-| `station-lifecycle` | `v0.2.1-0.20261111181054-288d63e191fe` |
-| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261111181054-288d63e191fe` |
-| `station-payload` | `v0.3.1-0.20261111181054-288d63e191fe` |
+| `grant-store` | `v0.1.1-0.20261114144010-ffefc6d423ae` |
+| `m5-host-smoke` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
+| `model-proxy` | `v0.4.1-0.20261114144010-ffefc6d423ae` |
+| `payment-chain` | `v0.2.1-0.20261114144010-ffefc6d423ae` |
+| `rental` | `v0.5.1-0.20261114144010-ffefc6d423ae` |
+| `rental-booking` | `v0.4.1-0.20261114144010-ffefc6d423ae` |
+| `rental-gateway` | `v0.4.1-0.20261114144010-ffefc6d423ae` |
+| `rental-gateway/kernelbind` | `v0.1.1-0.20261114144010-ffefc6d423ae` |
+| `sealwatch` | `v0.2.1-0.20261114144010-ffefc6d423ae` |
+| `signer-service` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
+| `single-use` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
+| `station-lifecycle` | `v0.2.1-0.20261114144010-ffefc6d423ae` |
+| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261114144010-ffefc6d423ae` |
+| `station-payload` | `v0.3.1-0.20261114144010-ffefc6d423ae` |
 
 The inventory below is generated and checked by
 `python3 .scripts/check-module-graph.py`, which parses every `go.mod` with
@@ -98,3 +104,12 @@ executed. Existing repository checks remain required. Future cross-module API
 changes must refresh the affected published requirements, raise the floors in
 `module-graph-snapshot.json`, and extend consumer fixtures where their public
 contracts change.
+
+## Shared BIP-340 parser placement
+
+`single-use/bip340` holds the strict signature encoding parser. Every current
+BIP-340 verification module already depends on `single-use`, so this placement
+adds no internal require edge and no new dependency cycle. The subpackage
+depends only on the existing `btcec/v2 v2.3.5` library; it imports no parent
+`single-use` package or higher-level grant, gateway or wallet package. The
+module graph inventory remains unchanged.

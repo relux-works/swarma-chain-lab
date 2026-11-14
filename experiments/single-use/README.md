@@ -280,3 +280,16 @@ are in each package's `testdata/golden.json` and are also exercised by
 calibrates shared predicates and consumer delegation using Go overlays; output
 contains baseline/mutant logs, exact source hashes, PIDs and result JSON. The
 import-boundary scanner has its own isolated source-file control in the tests.
+
+## BIP-340 encoding parser
+
+The `bip340` subpackage exposes `ParseBIP340Strict([]byte)` for callers that
+verify Schnorr signatures. It checks the 64-byte encoding and unsigned
+big-endian `r < p`, `s < n` bounds before calling the pinned upstream parser.
+Callers must still verify the returned signature against the message and key.
+High `s` below `n` is allowed. ECDSA DER transaction and witness verification
+continues to use its existing DER and low-S checks.
+
+Run `go test ./bip340` for official valid vectors and encoding boundaries, or
+`go test -race ./...` for the module suite. Test output is written to stdout;
+local diagnostic logs belong under `.temp/`.

@@ -7,13 +7,13 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.5
 	github.com/btcsuite/btcd/btcutil v1.1.5
 	github.com/gorilla/websocket v1.5.3
-	github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke v0.3.1-0.20261111181054-288d63e191fe
-	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261113121921-ca6af92d7337
-	github.com/relux-works/swarma-chain-lab/experiments/rental v0.5.1-0.20261111181054-288d63e191fe
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261113084500-b55fa5151e75
-	github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle v0.2.1-0.20261113084500-b55fa5151e75
-	github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind v0.1.1-0.20261113084500-b55fa5151e75
-	github.com/relux-works/swarma-chain-lab/experiments/station-payload v0.3.1-0.20261113084500-b55fa5151e75
+	github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke v0.3.1-0.20261114144010-ffefc6d423ae
+	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261114144010-ffefc6d423ae
+	github.com/relux-works/swarma-chain-lab/experiments/rental v0.5.1-0.20261114144010-ffefc6d423ae
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261114144010-ffefc6d423ae
+	github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle v0.2.1-0.20261114144010-ffefc6d423ae
+	github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind v0.1.1-0.20261114144010-ffefc6d423ae
+	github.com/relux-works/swarma-chain-lab/experiments/station-payload v0.3.1-0.20261114144010-ffefc6d423ae
 )
 
 require golang.org/x/sys v0.47.0 // indirect
@@ -22,12 +22,12 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/grant-store v0.1.1-0.20261111181054-288d63e191fe
-	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261111181054-288d63e191fe
-	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.4.1-0.20261111181054-288d63e191fe
-	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261113121921-ca6af92d7337
-	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261111181054-288d63e191fe // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/signer-service v0.3.1-0.20261111181054-288d63e191fe
+	github.com/relux-works/swarma-chain-lab/experiments/grant-store v0.1.1-0.20261114144010-ffefc6d423ae
+	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261114144010-ffefc6d423ae
+	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.4.1-0.20261114144010-ffefc6d423ae
+	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261114144010-ffefc6d423ae
+	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261114144010-ffefc6d423ae // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/signer-service v0.3.1-0.20261114144010-ffefc6d423ae
 	golang.org/x/crypto v0.55.0 // indirect
 )
 

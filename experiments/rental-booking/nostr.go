@@ -8,6 +8,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/bip340"
 )
 
 const ConsentKind = 8181
@@ -60,7 +61,7 @@ func verifySignature(key, digest, signature string) bool {
 	p, _ := schnorr.ParsePubKey(k)
 	h, _ := hex.DecodeString(digest)
 	s, _ := hex.DecodeString(signature)
-	sig, e := schnorr.ParseSignature(s)
+	sig, e := bip340.ParseBIP340Strict(s)
 	return e == nil && sig.Verify(h, p)
 }
 func signHash(key *btcec.PrivateKey, digest string) (string, error) {

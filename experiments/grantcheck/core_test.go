@@ -84,7 +84,7 @@ func TestCoreVectors(t *testing.T) {
 	mainConfig := config("primary", 500)
 	c := makeChecker(mainConfig)
 	ctx := context.Background()
-	file := vectorFile{Version: 1, Producer: "TestCoreVectors: rental.IssueGrant + grantcheck.New on isolated Namecoin Core regtest", DaemonSHA256: "86b85483da23c83f7de134a5bf28bad8e3c6a8dbfe2af71a5e889a7b1547787f", CLISHA256: "5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d", AgentName: e2eAgentName, LandlordName: e2eLandlordName, IssuerPubkey: l.issuerPub}
+	file := vectorFile{Version: 1, Producer: "TestCoreVectors: rental.IssueGrant + grantcheck.New on isolated Namecoin Core regtest", DaemonSHA256: coreFileHash(t, l.daemon), CLISHA256: coreFileHash(t, l.cli), AgentName: e2eAgentName, LandlordName: e2eLandlordName, IssuerPubkey: l.issuerPub}
 	record := func(name, direction, peer, setup string, proof *Presentation, supplied bool, now int64, v Verdict, decision Decision, code Code, closed, retry bool) {
 		t.Helper()
 		assertVerdict(t, v, decision, code, closed, retry)

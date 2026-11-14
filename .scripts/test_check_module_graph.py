@@ -21,7 +21,8 @@ REPO = Path(__file__).resolve().parents[1]
 CHECKER = Path(os.environ.get("MODULE_GRAPH_CHECKER", REPO / ".scripts" / "check-module-graph.py"))
 PREFIX = "github.com/relux-works/swarma-chain-lab/"
 SINGLE_USE = PREFIX + "experiments/single-use"
-SNAPSHOT_SINGLE_USE = "v0.3.1-0.20261111181054-288d63e191fe"
+SNAPSHOT_FLOORS = json.loads((REPO / "experiments/module-graph-snapshot.json").read_text())["modules"]
+SNAPSHOT_SINGLE_USE = SNAPSHOT_FLOORS[SINGLE_USE]
 STANDALONE = ("deploy/go.mod", "experiments/station-lifecycle/go.mod")
 
 
@@ -114,7 +115,7 @@ class ModuleGraphCheck(unittest.TestCase):
     # `// indirect` block entry each fail too.
     def test_stale_block_and_indirect_edges_fail(self):
         sealwatch = PREFIX + "experiments/sealwatch"
-        floor = "v0.2.1-0.20261111181054-288d63e191fe"
+        floor = SNAPSHOT_FLOORS[sealwatch]
         self.fixture.substitute("experiments/agent-wallet/go.mod",
                                 f"\t{SINGLE_USE} {SNAPSHOT_SINGLE_USE}\n", f"\t{SINGLE_USE} v0.1.0\n")
         self.fixture.substitute("deploy/go.mod", f"\t{sealwatch} {floor} // indirect\n",
