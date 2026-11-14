@@ -23,13 +23,29 @@ directory outside the source repository. From `deploy/`:
 go run ./cmd/deploy-kit build -repo "$SOURCE_ROOT" -commit "$REVIEWED_COMMIT" -out "$RELEASE_DIR"
 ```
 
-The program builds every service binary and the `deploy-kit` tool twice with separate source
+The program builds every service binary and all four tools twice with separate source
 trees and build caches. It emits bin/, native public config/unit templates,
 README, this plan, manifest.json and SHA256SUMS, but never signs. Gateway's
 regtest-preparation row explicitly records screening off. The manifest's Go version, commit,
-target and every binary hash, including the `tools` row for `bin/deploy-kit`,
+target and every binary hash, including all `tools` rows for `bin/deploy-kit`, `bin/agent-wallet-reconcile`,
+`bin/agent-wallet` and `bin/agent-wallet-alert-forwarder`,
 must match the approved handoff. `bin/deploy-kit` is an operator tool: it has
 no unit and is never started as a service.
+
+Obtain the reconciler, agent client and alert forwarder from this release's
+`bin/` after verifying the signature and `sha256sum -c SHA256SUMS` below.
+The reconciler is an owner-run one-shot as the wallet service UID, reading the
+daemon's installed signed config through its existing root-owned
+`swarma-wallet.service.d/10-install.conf` DK5 anchor (not process environment);
+it needs no unit or separate drop-in. The client runs as the distinct agent UID.
+The continuous journal forwarder has the separately provisioned
+`templates/systemd/swarma-wallet-alert-forwarder.service.in`: substitute
+`@VERSION@` and refuse unresolved placeholders before installation. Provision
+its separate `swarma-wallet-alerts` identity, journal access, private config/state
+and messaging audiences as in the [F6 runbook](../experiments/agent-wallet/RECONCILE-RUNBOOK.md#alert-delivery).
+It has no wallet config/key access or DK5 drop-in. Keep `Restart=no` and resolve
+unknown delivery with the operator before retrying. Enabling it is an explicit
+owner installation step, separate from producing the bundle.
 
 The release signer uses the approved signing environment/key and namespace;
 replace `SIGNING_KEY` with that configured public signing-key reference:

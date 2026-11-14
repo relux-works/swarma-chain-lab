@@ -121,7 +121,7 @@ func TestG2StatusDocumentationMatchesTemplate(t *testing.T) {
 	}
 }
 
-// Every shipped daemon unit uses its own executable's preflight and exclusive
+// Every DK5 daemon unit uses its own executable's preflight and exclusive
 // config group. Bounded missing/wrong-executable counterexamples calibrate this
 // inventory checker. This does not claim an actual systemd start on Linux.
 func TestInstalledUnitPreflight(t *testing.T) {
@@ -130,6 +130,10 @@ func TestInstalledUnitPreflight(t *testing.T) {
 		t.Fatal("missing unit inventory", e)
 	}
 	for _, path := range paths {
+		// The separately provisioned journal forwarder has no wallet DK5 inputs; its unit contract is checked by TestInstalledWalletAlertForwarderUnit.
+		if filepath.Base(path) == "swarma-wallet-alert-forwarder.service.in" {
+			continue
+		}
 		service := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(path), "swarma-"), ".service.in")
 		t.Run(service, func(t *testing.T) {
 			raw, e := os.ReadFile(path)
@@ -152,5 +156,74 @@ func TestInstalledUnitPreflight(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "/etc/swarma/wallet 0750 root swarma-wallet ") {
 		t.Fatal("wallet config shared with peer group")
+	}
+}
+
+func resolvedForwarderValid(raw, version string) bool {
+	if strings.Contains(raw, "@") {
+		return false
+	}
+	fields := map[string][]string{}
+	for _, line := range strings.Split(raw, "\n") {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		if key, value, ok := strings.Cut(line, "="); ok {
+			fields[key] = append(fields[key], value)
+		}
+	}
+	want := map[string]string{
+		"Type": "simple", "User": "swarma-wallet-alerts", "Group": "swarma-wallet-alerts",
+		"SupplementaryGroups": "systemd-journal", "Restart": "no", "UMask": "0077",
+		"StateDirectory": "swarma-wallet-alerts", "StateDirectoryMode": "0700",
+		"WorkingDirectory":  "/var/lib/swarma-wallet-alerts",
+		"ExecStart":         "/opt/swarma/wallet/" + version + "/bin/agent-wallet-alert-forwarder --config /etc/swarma/wallet-alerts/forwarder.json",
+		"ReadWritePaths":    "/var/lib/swarma-wallet-alerts",
+		"InaccessiblePaths": "/etc/swarma/wallet /var/lib/swarma-wallet",
+		"NoNewPrivileges":   "true", "ProtectSystem": "strict", "ProtectHome": "true",
+	}
+	for key, value := range want {
+		if len(fields[key]) != 1 || fields[key][0] != value {
+			return false
+		}
+	}
+	// The forwarder has its own config admission and cannot consume wallet DK5 files or run the reconciler.
+	return len(fields["ExecStartPre"]) == 0 && len(fields["Environment"]) == 0 && len(fields["EnvironmentFile"]) == 0
+}
+
+// Claim: the shipped F6 follower resolves @VERSION@ to its release binary with a separate journal identity and no restart or wallet access; bounded defects refuse without starting systemd.
+func TestInstalledWalletAlertForwarderUnit(t *testing.T) {
+	raw, err := os.ReadFile(forwarderTemplate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := os.ReadFile("../experiments/agent-wallet/operator/swarma-wallet-alert-forwarder.service.in")
+	if err != nil || !bytes.Equal(raw, original) {
+		t.Fatal("release unit differs from the F6 design", err)
+	}
+	if strings.Count(string(raw), "@VERSION@") != 1 {
+		t.Fatal("expected one release placeholder")
+	}
+	version := "release-test-0123456789ab"
+	resolved := strings.ReplaceAll(string(raw), "@VERSION@", version)
+	if !resolvedForwarderValid(resolved, version) {
+		t.Fatal("resolved forwarder refused")
+	}
+	for name, bad := range map[string]string{
+		"unresolved-version": string(raw),
+		"wrong-version":      strings.ReplaceAll(resolved, version, "other-release"),
+		"wrong-binary":       strings.ReplaceAll(resolved, "/bin/agent-wallet-alert-forwarder", "/bin/agent-wallet-reconcile"),
+		"wallet-identity":    strings.ReplaceAll(resolved, "User=swarma-wallet-alerts", "User=swarma-wallet"),
+		"wallet-group":       strings.ReplaceAll(resolved, "SupplementaryGroups=systemd-journal", "SupplementaryGroups=systemd-journal swarma-wallet"),
+		"automatic-retry":    strings.ReplaceAll(resolved, "Restart=no", "Restart=on-failure"),
+		"wallet-access":      strings.ReplaceAll(resolved, "InaccessiblePaths=", "DisabledInaccessiblePaths="),
+		"dk5-environment":    resolved + "Environment=SWARMA_INSTALL_MANIFEST=/etc/swarma/wallet/install-manifest.json\n",
+		"duplicate-start":    resolved + "ExecStart=/bin/false\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if resolvedForwarderValid(bad, version) {
+				t.Fatal("forwarder checker missed planted defect")
+			}
+		})
 	}
 }

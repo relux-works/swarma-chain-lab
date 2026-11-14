@@ -1,0 +1,35 @@
+[Unit]
+Description=Wallet typed-alert delivery to operator and owner
+After=network-online.target
+
+[Service]
+Type=simple
+User=swarma-wallet-alerts
+Group=swarma-wallet-alerts
+SupplementaryGroups=systemd-journal
+UMask=0077
+StateDirectory=swarma-wallet-alerts
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/swarma-wallet-alerts
+ExecStart=/opt/swarma/wallet/@VERSION@/bin/agent-wallet-alert-forwarder --config /etc/swarma/wallet-alerts/forwarder.json
+# UNKNOWN delivery requires operator investigation; never restart and repost.
+Restart=no
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/swarma-wallet-alerts
+InaccessiblePaths=/etc/swarma/wallet /var/lib/swarma-wallet
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=128M
+TasksMax=32
+LimitNOFILE=128
+
+[Install]
+WantedBy=multi-user.target

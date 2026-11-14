@@ -19,12 +19,22 @@ service-UID access is an existing operator entitlement, not a capability given
 to the agent. Never supply a raw key, RPC URL/password, alternative state root,
 clock override or unsigned release to the CLI.
 
-Build from the repository root:
+Obtain all three tools from the owner's signed deploy-kit release, not a
+separate local build. After verifying the `SHA256SUMS.sig` release signature
+as described in [deploy/SMOKE.md](../../deploy/SMOKE.md#2-infra-verify-the-unopened-release-before-installation):
 
 ```sh
-go -C experiments/agent-wallet build -trimpath -o ../../.temp/agent-wallet-reconcile ./cmd/agent-wallet-reconcile
-go -C experiments/agent-wallet build -trimpath -o ../../.temp/agent-wallet-alert-forwarder ./cmd/agent-wallet-alert-forwarder
+(cd "$RELEASE_DIR" && sha256sum -c SHA256SUMS)
+RECONCILE="$RELEASE_DIR/bin/agent-wallet-reconcile"
+CLIENT="$RELEASE_DIR/bin/agent-wallet"
+FORWARDER="$RELEASE_DIR/bin/agent-wallet-alert-forwarder"
 ```
+
+All three appear in `manifest.json`'s `tools` inventory and `SHA256SUMS`.
+The reconciler is an owner-run one-shot, with no unit or separate drop-in.
+Configguard reads the daemon's existing root-owned
+`/etc/systemd/system/swarma-wallet.service.d/10-install.conf` directly under
+the wallet service identity; process environment cannot substitute its pins.
 
 Install through the owner's signed release/config process. The reconciler uses
 the same DK5 signed installed-config admission as the daemon; standalone private
@@ -72,16 +82,19 @@ The separate `agent-wallet-alert-forwarder` unit follows that journal and sends
 only sanitized typed alerts through the supported a2a CLI to **both** configured
 operator-room and owner-DM topic roots. It uses a separately provisioned
 infrastructure identity, with no wallet credentials or receipt-key access.
-The separate [unit template](operator/swarma-wallet-alert-forwarder.service.in)
-and [non-secret config example](operator/forwarder.example.json) require
-operator substitution and provisioning; they are not automatically deployed.
+The release ships the [unit template](../../deploy/templates/systemd/swarma-wallet-alert-forwarder.service.in),
+matching the [F6 source template](operator/swarma-wallet-alert-forwarder.service.in).
+Substitute `@VERSION@` with the verified installed release version and refuse
+remaining placeholders. It needs no wallet DK5 drop-in. The
+[non-secret config example](operator/forwarder.example.json) requires
+operator substitution and provisioning; the unit is not automatically deployed.
 Use the Curator-admitted a2a command and this unit's own identity/config root.
 Do not reuse another session's credentials, join/create rooms or bind an owner DM
 from this service. The operator preprovisions and verifies both audiences.
 
 Its config is a single-link owner-only `0600` regular file. State is an
 owner-only `0700` directory. Pin the two exact room IDs and existing topic event
-IDs, the identity, absolute installed commands, a2a config root and explicit
+IDs, the identity, absolute installed journal/a2a commands, a2a config root and explicit
 RFC3339 initial `start_since`. Neither tokens nor passwords belong in this
 config, command lines, source or logs. a2a credentials stay in its private store.
 
@@ -243,7 +256,10 @@ absolute installed binaries `NAMECOIND`, `NMC`, `RECONCILE`, `CLIENT`, the fresh
 `SERVICE_CONFIG`, `CLIENT_CONFIG`, `WALLET_STATE`, `SERVICE_STATE`, dedicated
 `WALLET_UNIT`, action `SOCKET`, numerical `SERVICE_UID`/`AGENT_UID`, hot-wallet
 name `HOT_WALLET`, funded/mined `MINER_ADDRESS`, allow-listed `RECIPIENT`,
-standing `GRANT_ID`, operator `STATUS_SOCKET` and public `GRANTEE`. Paths and ports must match the signed
+standing `GRANT_ID`, operator `STATUS_SOCKET` and public `GRANTEE`.
+`RECONCILE` and `CLIENT` must resolve to the verified release
+`bin/agent-wallet-reconcile` and `bin/agent-wallet` above, with hashes in
+`manifest.json` and `SHA256SUMS`. Paths and ports must match the signed
 installed config. Do not repoint an existing installation or use shared nodes.
 Record manifest/release hashes and public pins; never print a config, cookie,
 key or wallet file. The fixture needs one confirmed spendable input, fresh

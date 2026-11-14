@@ -2,7 +2,9 @@
 
 Go release tooling and public templates for regtest preparation. It builds
 gateway, rental-booking, grant-store, swarma-relay, swarma-signer, model-proxy,
-station-manager, station-payload and agent-walletd, plus the deploy-kit tool itself, from an exact clean HEAD twice, refuses
+station-manager, station-payload and agent-walletd, plus deploy-kit,
+agent-wallet-reconcile, agent-wallet and agent-wallet-alert-forwarder,
+from an exact clean HEAD twice, refuses
 any byte difference, then emits an unsigned bundle with SHA256SUMS and a manifest.
 No source product changes, key creation, signing, installation or host deployment
 occur inside the tool. [SMOKE.md](SMOKE.md) is the separate Infra handoff plan.
@@ -53,8 +55,8 @@ Two `git archive` extractions and separate build caches prevent a working-tree
 file or previous compiled output from standing in for the second build.
 Archive traversal/link entries refuse. Source cleanliness/HEAD are checked again
 before publication; existing output is preserved. The complete candidate is
-renamed into a new output directory only after all ten binary pairs (nine
-services and deploy-kit) match.
+renamed into a new output directory only after all thirteen binary pairs (nine
+services and four tools) match.
 Temporary source/build trees are removed, including on refusal.
 
 Outputs: `bin/`, `templates/`, `README.md`, `SMOKE.md`, `SMOKE-DK2.md`, `INSTALL-CONFIG.md`, `manifest.json`,
@@ -66,10 +68,39 @@ embedded in the manifest. A successful build is not a deployment acceptance.
 
 `artifacts` holds the nine service rows (`service`, `status`, optional `reason`
 and `screening`). `tools` holds operator commands shipped in the same signed
-inventory; today one row, `{"tool":"deploy-kit","module":"deploy","package":"./cmd/deploy-kit","binary":"bin/deploy-kit","sha256":...}`.
-A tool row has no service, status or unit member: no unit, service policy or
-readiness status exists for it and nothing in the release activates it. A host
-runs `bin/deploy-kit` from the verified release instead of a source checkout.
+inventory: `deploy-kit` (`deploy`, `./cmd/deploy-kit`) and
+`agent-wallet-reconcile`, `agent-wallet`, `agent-wallet-alert-forwarder`
+(each in `experiments/agent-wallet`, package `./cmd/<tool>`). Each row records
+`tool`, `module`, `package`, `binary` (`bin/<tool>`) and `sha256`.
+A tool row has no service, status or unit member, and the release activates
+nothing. These commands use the existing tool inventory because they run under
+operator/agent control rather than adding wallet daemon service rows.
+Run all four from the verified release's `bin/`; `SHA256SUMS` covers each.
+The schema stays at version 1; the exact inventory now requires all four tools.
+
+The reconciler is an owner-run one-shot as the wallet service UID, with no
+listener, unit or separate install drop-in. Its `--check-installed` and config
+loaders use the daemon's existing DK5 signed installed-config admission.
+Configguard reads the existing root-owned
+`/etc/systemd/system/swarma-wallet.service.d/10-install.conf` directly, with
+the wallet service group's identity checks; it never selects pins from process
+environment. Do not create a second admission set or substitute unsigned files.
+
+The alert forwarder continuously follows journald (`journalctl --follow`), so
+an optional separately provisioned unit is shipped at
+[`templates/systemd/swarma-wallet-alert-forwarder.service.in`](templates/systemd/swarma-wallet-alert-forwarder.service.in),
+matching the F6 operator template. Resolve `@VERSION@` as for the wallet unit
+and refuse remaining `@`. It runs as `swarma-wallet-alerts` with journal access,
+separate owner-only config/state and a provisioned messaging identity; wallet
+config/state remain inaccessible. It uses its own config loader, has no wallet
+DK5 drop-in and must keep `Restart=no`: unknown delivery requires operator
+investigation before any repost. The operator provisions its user/group,
+private config, identity and both existing audiences before explicitly enabling
+it; the release does not install or start it. See the
+[F6 runbook](../experiments/agent-wallet/RECONCILE-RUNBOOK.md#alert-delivery).
+`TestInstalledWalletAlertForwarderUnit` checks resolution and refusal controls;
+`TestReleaseIntegration` checks the template and three tool hashes in the bundle.
+
 `pending` keeps the a2ad row. `ValidateManifest` (package `deploy`) strictly
 decodes a manifest and accepts only this kit's target, flags and exact
 inventory with lowercase SHA-256 hashes; unknown, duplicate or missing members
@@ -134,7 +165,7 @@ AUTH and the exact URL binding below before restricted gift-wrap reads are enabl
 - `DK1_RELEASE_TEST=1 DK1_RELEASE_REPO="$CLEAN_SOURCE_ROOT"
   DK1_RELEASE_OUT="$NEW_EVIDENCE_PARENT" go test -count=1 -timeout 20m
   -run '^TestReleaseIntegration$' -v .` runs actual double Linux builds and
-  second-tree source nondeterminism plants in a service and in deploy-kit. Set all variables in one command.
+  second-tree source nondeterminism plants in a service and each of the four tools. Set all variables in one command.
   The evidence parent must already exist and be empty. It retains the successful
   release and release-control.json; the refused release must remain absent.
 - `gofmt -l *.go cmd/deploy-kit/*.go` checks Go formatting.
@@ -350,8 +381,8 @@ UID/GID/key placeholders with approved per-agent pins; add only that agent to
 `swarma-wallet-peer`, never `swarma-wallet`. `/run/swarma-wallet` is service-owned0750, socket0660;
 wallet/service/kernel/object roots remain private0700. The client receives only
 its own action key and public service UID/receipt-key/socket pins, never the
-private wallet configuration. Build `cmd/agent-wallet` separately from the same
-reviewed head for the agent; it is not an additional daemon in the release.
+private wallet configuration. Obtain `bin/agent-wallet` from the verified signed
+release for the agent; it is not an additional daemon.
 Run `deploy-kit validate -config WALLET_DEPLOY_JSON -public WALLET_SERVICE_JSON`
 before native startup. This is structural validation and opens no private files.
 The daemon requires a different peer UID, exact file modes and regtest authority.

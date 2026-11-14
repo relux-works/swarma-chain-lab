@@ -184,10 +184,10 @@ func TestSums(t *testing.T) {
 	}
 }
 
-// Claim: the real release includes the exact G2 status template and checksum alongside reproducible binaries and refusal controls.
+// Claim: the real release includes all three wallet tools, exact G2/forwarder templates and checksums alongside reproducible binaries and refusal controls.
 // Opt-in actual release: real Linux ELF builds twice from a clean signed HEAD,
-// nine services and the deploy-kit tool. The controls plant unequal source in
-// the isolated second tree, once in the first service and once in deploy-kit;
+// nine services and four tools. The controls plant unequal source in
+// the isolated second tree, once in the first service and once in every tool;
 // the actual compiler runs, mismatch must refuse, and no candidate bundle may appear.
 func TestReleaseIntegration(t *testing.T) {
 	if os.Getenv("DK1_RELEASE_TEST") != "1" {
@@ -212,7 +212,7 @@ func TestReleaseIntegration(t *testing.T) {
 	if len(m.Artifacts) != 9 || len(m.Pending) != 1 || m.Pending[0].Service != "a2ad" || m.Artifacts[0].Status != "configuration-preparation" || m.Artifacts[0].Screening != "off" || m.Artifacts[3].Service != "relay" {
 		t.Fatal("manifest service readiness mismatch")
 	}
-	if len(m.Tools) != 1 || m.Tools[0].Tool != "deploy-kit" || m.Tools[0].Module != "deploy" || m.Tools[0].Package != "./cmd/deploy-kit" || m.Tools[0].Binary != "bin/deploy-kit" {
+	if len(m.Tools) != 4 || m.Tools[0].Tool != "deploy-kit" || m.Tools[0].Module != "deploy" || m.Tools[0].Package != "./cmd/deploy-kit" || m.Tools[0].Binary != "bin/deploy-kit" {
 		t.Fatal("manifest deploy-kit tool row mismatch")
 	}
 	raw, e := os.ReadFile(filepath.Join(in.Out, "manifest.json"))
@@ -227,8 +227,12 @@ func TestReleaseIntegration(t *testing.T) {
 		t.Fatal("SHA256SUMS does not list bin/deploy-kit")
 	}
 	assertReleasedG2StatusTemplate(t, repo, in.Out)
+	assertReleasedForwarderTemplate(t, repo, in.Out)
+	assertReleasedWalletTools(t, m, in.Out)
 	binaries := append([]Artifact(nil), m.Artifacts...)
-	binaries = append(binaries, Artifact{Binary: m.Tools[0].Binary, SHA256: m.Tools[0].SHA256})
+	for _, tool := range m.Tools {
+		binaries = append(binaries, Artifact{Binary: tool.Binary, SHA256: tool.SHA256})
+	}
 	for _, a := range binaries {
 		b, e := os.ReadFile(filepath.Join(in.Out, a.Binary))
 		if e != nil || digest(b) != a.SHA256 {
@@ -295,6 +299,25 @@ func TestReleaseIntegration(t *testing.T) {
 	if _, e = os.Stat(toolMutant.Out); !os.IsNotExist(e) {
 		t.Fatal("nonreproducible deploy-kit published partial output")
 	}
+	// Claim: real second-tree source differences in each wallet tool refuse publication; other pairs are equal stand-ins.
+	for _, name := range []string{"agent-wallet-reconcile", "agent-wallet", "agent-wallet-alert-forwarder"} {
+		t.Run(name+"-compiler-mismatch", func(t *testing.T) {
+			toolInput := in
+			toolInput.Out = filepath.Join(out, "must-not-exist-"+name)
+			plant := func(ctx context.Context, root, cache, output string, a Artifact) ([]byte, error) {
+				if a.Package != "./cmd/"+name {
+					return fixtureBinary(a.Package), nil
+				}
+				return build(ctx, root, cache, output, a)
+			}
+			if _, e := buildRelease(ctx, toolInput, plant); e != ErrDifferent {
+				t.Fatalf("wallet tool source mismatch not refused: %v", e)
+			}
+			if _, e := os.Stat(toolInput.Out); !os.IsNotExist(e) {
+				t.Fatal("wallet tool mismatch published output")
+			}
+		})
+	}
 	after, e := os.ReadFile(filepath.Join(in.Out, "manifest.json"))
 	if e != nil || !bytes.Equal(before, after) {
 		t.Fatal("failed attempt altered previous release")
@@ -305,7 +328,7 @@ func TestReleaseIntegration(t *testing.T) {
 	result := struct {
 		Commit             string
 		Positive, Negative string
-	}{commit, "nine service and one deploy-kit tool independent Linux/amd64 ELF pairs match", "real source nondeterminism refused for a service and for deploy-kit; no output; previous release unchanged"}
+	}{commit, "nine service and four tool independent Linux/amd64 ELF pairs match", "real source nondeterminism refused for a service and each tool; no output; previous release unchanged"}
 	b, _ := json.MarshalIndent(result, "", "  ")
 	if e = os.WriteFile(filepath.Join(out, "release-control.json"), b, 0600); e != nil {
 		t.Fatal(e)
@@ -330,6 +353,13 @@ func assembleFixture(t *testing.T) (work, first, second string) {
 			t.Fatal(e)
 		}
 		if e = os.WriteFile(filepath.Join(root, "deploy", g2StatusTemplate), raw, 0600); e != nil {
+			t.Fatal(e)
+		}
+		raw, e = os.ReadFile(forwarderTemplate)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = os.WriteFile(filepath.Join(root, "deploy", forwarderTemplate), raw, 0600); e != nil {
 			t.Fatal(e)
 		}
 		for _, name := range []string{"SMOKE.md", "SMOKE-DK2.md", "README.md", "INSTALL-CONFIG.md"} {
@@ -404,7 +434,7 @@ func TestAssembleShipsDeployKit(t *testing.T) {
 		t.Fatalf("clean fixture refused: %v", e)
 	}
 	want := Tool{Tool: "deploy-kit", Module: "deploy", Package: "./cmd/deploy-kit", Binary: "bin/deploy-kit", SHA256: digest(fixtureBinary("./cmd/deploy-kit"))}
-	if len(m.Tools) != 1 || m.Tools[0] != want {
+	if len(m.Tools) != 4 || m.Tools[0] != want {
 		t.Fatalf("deploy-kit tool row missing or wrong: %+v", m.Tools)
 	}
 	if len(deployKitRoots) != 2 || deployKitRoots[0] != first || deployKitRoots[1] != second {
@@ -426,11 +456,11 @@ func TestAssembleShipsDeployKit(t *testing.T) {
 		t.Fatal(e)
 	}
 	got, e := ValidateManifest(raw)
-	if e != nil || len(got.Tools) != 1 || got.Tools[0] != want {
+	if e != nil || len(got.Tools) != 4 || got.Tools[0] != want {
 		t.Fatalf("manifest.json lacks the validated deploy-kit row: %v", e)
 	}
 	var members struct{ Tools []map[string]json.RawMessage }
-	if e = json.Unmarshal(raw, &members); e != nil || len(members.Tools) != 1 {
+	if e = json.Unmarshal(raw, &members); e != nil || len(members.Tools) != 4 {
 		t.Fatal("manifest.json tools member missing")
 	}
 	for _, k := range []string{"service", "status", "reason", "screening", "unit"} {
@@ -510,7 +540,7 @@ func TestValidateManifest(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if m, e := ValidateManifest(valid); e != nil || len(m.Tools) != 1 || m.Tools[0].Tool != "deploy-kit" {
+	if m, e := ValidateManifest(valid); e != nil || len(m.Tools) != 4 || m.Tools[0].Tool != "deploy-kit" {
 		t.Fatalf("built manifest lacks a validated deploy-kit tool row: %v", e)
 	}
 	edit := func(f func(m map[string]any)) []byte {
@@ -573,7 +603,7 @@ func TestValidateManifest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m, e := ValidateManifest(tc.raw)
 			if tc.ok {
-				if e != nil || len(m.Tools) != 1 || m.Tools[0].Tool != "deploy-kit" {
+				if e != nil || len(m.Tools) != 4 || m.Tools[0].Tool != "deploy-kit" {
 					t.Fatalf("valid manifest refused: %v", e)
 				}
 				return

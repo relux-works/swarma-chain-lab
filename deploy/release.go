@@ -45,8 +45,9 @@ type Artifact struct {
 }
 
 // Tool is an operator command shipped in the release. It is not a service: it
-// has no unit, no service policy and no readiness status, and nothing in the
-// release activates it. Its binary is built twice and compared like a service.
+// has no service policy or readiness status in the manifest, and nothing in
+// the release activates it. An operator may provision a separate unit for a
+// continuous tool. Its binary is built twice and compared like a service.
 type Tool struct {
 	Tool    string `json:"tool"`
 	Module  string `json:"module"`
@@ -87,6 +88,9 @@ var releaseArtifacts = []Artifact{
 // rather than from a source checkout.
 var releaseTools = []Tool{
 	{Tool: "deploy-kit", Module: "deploy", Package: "./cmd/deploy-kit", Binary: "bin/deploy-kit"},
+	{Tool: "agent-wallet-reconcile", Module: "experiments/agent-wallet", Package: "./cmd/agent-wallet-reconcile", Binary: "bin/agent-wallet-reconcile"},
+	{Tool: "agent-wallet", Module: "experiments/agent-wallet", Package: "./cmd/agent-wallet", Binary: "bin/agent-wallet"},
+	{Tool: "agent-wallet-alert-forwarder", Module: "experiments/agent-wallet", Package: "./cmd/agent-wallet-alert-forwarder", Binary: "bin/agent-wallet-alert-forwarder"},
 }
 
 var (
