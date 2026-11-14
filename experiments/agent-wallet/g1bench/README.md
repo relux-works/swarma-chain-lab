@@ -28,6 +28,14 @@ and a synthetic zero attestation reference. It is envelope-shaped, not native
 a separately reviewed algorithm/profile or key-binding decision; see
 [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md).
 
+Each message signs exactly one `to`: the exact recipient carrier id, never a
+key or an addressee list. A multi-recipient delivery needs one envelope per
+recipient. The delivery fixtures compare that signed id with protected carrier
+context. The fixture adapter's local executor pin supplies the counterpart key;
+no recipient key is derived from text, room membership or an envelope field.
+A native adapter must resolve `to` through a protected pinned id-to-key binding;
+this bench does not implement native RecipientProof or attestation resolution.
+
 The codec accepts only canonical JSON from its closed, all-string message
 schema. It rejects duplicate/aliased/unknown members, altered delivered text,
 room or recipient, bad signatures and invalid message lifetime/nonce. It bounds
@@ -96,7 +104,7 @@ where applicable. Every test has an adjacent one-line claim in source.
 | Bad envelope signature | `BadSignature` | Correct body/id cannot rescue corrupted BIP-340 signature |
 | Wrong envelope key | `WrongKey` | Verified signer must equal the grantee |
 | Wrong executor | `WrongExecutor` | Hash-bound terms must name the protected executor |
-| Unknown issuer | `UnknownIssuer` | CG1 pin refuses before reads or result metadata |
+| Unknown issuer | `UnknownIssuer` | Direct CG1 early pin and full Gate refusal propagation; known issuer passes |
 | Before grant window | `BeforeWindow` | Re-signed, Core-anchored grant live at start, exchange before start |
 | After grant window | `AfterWindow` | Inside-window control; exclusive end refuses before chain work |
 | Unsynced node | `StaleNode-ibd` | IBD RPC semantics refuse at the bench boundary |
@@ -106,12 +114,20 @@ where applicable. Every test has an adjacent one-line claim in source.
 | Matrix id as sender | `MatrixSender` | Direct CG1 call refuses a carrier id as a key |
 | Owner DM | `OwnerDM` | Outside admission, no checker reads or nonce consumption |
 | Text claiming authority | `TextAuthority` | Same text cannot rescue wrong key; no chain effect even when live |
-| Delivery binding | `DeliveryBinding` | Carrier cannot substitute text, room or recipient |
-| Mempool seal spend | `SealMempool` | Real unconfirmed spend closes grant; other identity remains live |
-| Confirmed seal spend | `SealConfirmed` | Same real spend confirmed; fresh checker still refuses |
+| Delivery binding | `DeliveryBinding/{text,room,to}` | Exactly `refused/envelope_invalid`, no checker reads; text keeps outer carriage equal; unchanged envelope passes |
+| Mempool seal spend | `SealMempool` | Same warm Gate/checker/state and cold neighbour refuse with `seal_spent`/Closed; counterpart stays live |
+| Confirmed seal spend | `SealConfirmed` | Retained warm Gate and fresh checker refuse after confirmation; independent selection warms before spending |
 
 `TestEnvelopeFixtureProfile` adds offline codec negatives with a real signing
-positive control. The sync seam always calls the real read-only RPC observer.
+positive control. Every codec negative requires the exact `errEnvelope` sentinel.
+Expiry uses an unchanged valid lifetime observed at its exclusive end, so the
+window-order predicate remains valid. All Core negatives assert exact route/code
+pairs; height faults also prove no other sync predicate fails. The warm revocation
+cases explicitly check the same checker's cached proof is live before spending,
+then send a fresh nonce through the retained Gate after the real spend. No live
+verdict is accepted in place of the new check.
+
+The sync seam always calls the real read-only RPC observer.
 It changes only `initialblockdownload`, or `headers=blocks+1`, or returns an
 actual earlier `getblockchaininfo` response captured before fixture issuance.
 All other RPCs remain real. The protected height floor is captured independently

@@ -88,6 +88,17 @@ PLANTS = [
   'if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {\n\t\treturn true, nil\n\t}',
   'if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {\n\t\treturn false, nil\n\t}',
   'an absent confirmed seal UTXO is spent, never live'),
+ ('signed-text-removal', 'DeliveryBinding/text', ENVELOPE,
+  ' || b.BodySHA256 != Hash([]byte(text))', '',
+  'signed text hash independent of equal outer carriage body and delivered text'),
+ ('warm-live-authority', 'SealConfirmed', GATE,
+  'verdict := inbound(ctx, g.checker, key, &p)',
+  'var verdict cg.Verdict\n  if g.seen["warm:"+key] {\n   verdict = cg.Verdict{Decision: cg.Live, Code: cg.CodeLive}\n  } else {\n   verdict = inbound(ctx, g.checker, key, &p)\n   if verdict.Decision == cg.Live { g.seen["warm:"+key] = true }\n  }',
+  'warm Gate cannot reuse earlier live authority after real confirmed seal spend; signature/replay/fresh-sync guards remain'),
+ ('gate-drops-issuer-refusal', 'UnknownIssuer', GATE,
+  'verdict := inbound(ctx, g.checker, key, &p)',
+  'verdict := inbound(ctx, g.checker, key, &p)\n  if verdict.Code == cg.CodeBindingMismatch && key == parsed.SignedGrant.Grant.GranteeKey {\n   verdict = cg.Verdict{Decision: cg.Live, Code: cg.CodeLive}\n  }',
+  'Gate must preserve checker issuer-pin refusal when the verified signer is the real grantee'),
 ]
 
 

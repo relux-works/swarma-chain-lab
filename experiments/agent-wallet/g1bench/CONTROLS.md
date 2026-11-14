@@ -24,7 +24,17 @@ failures are invalid. No published source or test is replaced by the script.
 | `text-authority` | `TextAuthority` | No prose-based early live return |
 | `seal-mempool` | `SealMempool` | `gettxout(..., true)` includes mempool spends |
 | `seal-confirmed` | `SealConfirmed` | Null UTXO is spent |
+| `signed-text-removal` | `DeliveryBinding/text` | Signed hash binds text despite equal outer carriage |
+| `warm-live-authority` | `SealConfirmed` | Earlier live admission on the same Gate cannot replace a post-spend grant check; signature, replay and fresh sync checks remain |
+| `gate-drops-issuer-refusal` | `UnknownIssuer` | Gate preserves issuer refusal even when verified signer equals the real grantee |
 
 Some kills observe changed refusal routing or new reads rather than a live
 admission. Those bounds are explicit above: they do not prove that removing a
 single early guard defeats the stack's independent deeper defences.
+
+The 19 plants include all 16 original controls and the three review-5904336676
+controls. `SealConfirmed` can run alone: it warms a Gate and its exact checker
+cache before creating and confirming the spend. In a complete run the same Gate
+is retained from `SealMempool` through confirmation, with cold-Gate neighbours
+at both stages. The signed-text plant removes only the hash comparison, keeping
+room, `to`, outer carriage, signature, nonce and lifetime checks intact.

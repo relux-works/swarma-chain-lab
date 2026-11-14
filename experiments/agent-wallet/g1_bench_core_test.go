@@ -207,6 +207,12 @@ func TestG1BenchCore(t *testing.T) {
 		if json.Unmarshal(id.lab.rpc("", "getblockchaininfo"), &info) != nil {
 			t.Fatal("tip")
 		}
+		if mode == "height" {
+			var old su.ChainInfo
+			if json.Unmarshal(id.before, &old) != nil || old.Chain != "regtest" || old.IBD || old.Headers > old.Blocks || old.Blocks >= info.Blocks {
+				t.Fatal("height fixture must fail only the protected height floor")
+			}
+		}
 		clock := func() time.Time { return time.Unix(at, 0) }
 		checker, err := cg.New(cg.Config{ConstructionProfile: "W", Identity: fmt.Sprintf("bench-%d", seq), AgentName: id.fixture.AgentName, LandlordName: id.fixture.LandlordName, IssuerPubkey: issuer, StateDir: state, Node: node, Now: clock})
 		if err != nil {
@@ -286,6 +292,9 @@ func TestG1BenchCore(t *testing.T) {
 		_ = json.Unmarshal(raw, &env)
 		sig, _ := base64URLDecode(env.Signatures[0].Sig)
 		sig[63] ^= 1
+		if _, err := schnorr.ParseSignature(sig); err != nil {
+			t.Fatal("corrupted signature must retain valid encoding")
+		}
 		env.Signatures[0].Sig = base64URLEncode(sig)
 		e.Content = bench.Carry(bench.Canonical(env), e.Text)
 		expect(t, g, e, "refused", "envelope_invalid")
@@ -309,10 +318,16 @@ func TestG1BenchCore(t *testing.T) {
 		// Claim: an unpinned issuer is rejected by CG1 before any chain read or result metadata.
 		positive(t, &a, now)
 		_, wrong := testKey(91)
-		_, c, node := open(t, &a, now, wrong, a.fixture.ExecutorKey, "")
+		g, c, node := open(t, &a, now, wrong, a.fixture.ExecutorKey, "")
 		v := c.Inbound(ctx, a.fixture.GranteeKey, &cg.Presentation{GrantID: a.fixture.GrantID, Bytes: a.fixture.Presentation})
 		if v.Code != cg.CodeBindingMismatch || v.Decision != cg.Refused || v.CheckedAt != 0 || v.GrantID != "" || node.reads != 0 {
 			t.Fatal("issuer pin did not reject at the entry boundary", v.Code, v.CheckedAt, node.reads)
+		}
+		// Claim: the verified-envelope adapter preserves that exact checker refusal;
+		// only Gate's sync read precedes the checker's early issuer-pin rejection.
+		r := expect(t, g, good(t, &a, now), "refused", "binding_mismatch")
+		if r.Verdict.Decision != cg.Refused || r.Verdict.Code != cg.CodeBindingMismatch || r.Verdict.CheckedAt != 0 || r.Verdict.GrantID != "" || node.reads != 1 {
+			t.Fatal("integrated issuer pin did not preserve early refusal", r.Code, node.reads)
 		}
 	})
 	t.Run("BeforeWindow", func(t *testing.T) {
@@ -399,22 +414,62 @@ func TestG1BenchCore(t *testing.T) {
 		}
 	})
 	t.Run("DeliveryBinding", func(t *testing.T) {
-		// Claim: signed text, room and recipient cannot be substituted by the carrier.
-		positive(t, &a, now)
-		for _, edit := range []func(*bench.Event){func(e *bench.Event) { e.Text += "!" }, func(e *bench.Event) { e.Room = "!other:example.invalid" }, func(e *bench.Event) { e.Recipient = "@other:example.invalid" }} {
-			g, _, _ := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
-			e := good(t, &a, now)
-			edit(&e)
-			v := g.Admit(ctx, e)
-			if v.Route == "live" {
-				t.Fatal("substituted delivery admitted")
-			}
+		// Claim: each carrier substitution fails only its signed binding, with
+		// exact envelope_invalid routing and no node/checker reads. The same
+		// unchanged envelope then passes, proving refusal consumed no nonce.
+		for _, field := range []string{"text", "room", "to"} {
+			t.Run(field, func(t *testing.T) {
+				g, _, node := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
+				original := good(t, &a, now)
+				e := original
+				switch field {
+				case "text":
+					var content map[string]string
+					if json.Unmarshal(e.Content, &content) != nil {
+						t.Fatal("delivery carriage fixture")
+					}
+					e.Text += "!"
+					content["body"] = e.Text // Keep outer equality; signed hash alone differs.
+					e.Content = bench.Canonical(content)
+				case "room":
+					e.Room = "!other:example.invalid"
+				case "to":
+					// One signed carrier id, never an addressee key or list.
+					e.Recipient = "@other:example.invalid"
+				}
+				expect(t, g, e, "refused", "envelope_invalid")
+				if node.reads != 0 {
+					t.Fatal("delivery substitution reached chain checker")
+				}
+				expect(t, g, original, "live", "live")
+			})
 		}
 	})
+	var warm *bench.Gate
+	var warmNode *benchNode
+	warmLive := func(t *testing.T) {
+		t.Helper()
+		var c *cg.Checker
+		warm, c, warmNode = open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
+		expect(t, warm, good(t, &a, now), "live", "live")
+		// Claim: the retained Gate's exact checker/state already contains the
+		// live proof; a cache-only check succeeds before the real seal spend.
+		v := c.Inbound(ctx, a.fixture.GranteeKey, nil)
+		if v.Decision != cg.Live || v.Code != cg.CodeLive {
+			t.Fatal("warm proof cache not live", v.Code)
+		}
+	}
+	expectSpent := func(t *testing.T, g *bench.Gate) {
+		t.Helper()
+		v := expect(t, g, good(t, &a, now), "refused", "seal_spent")
+		if v.Verdict.Decision != cg.Exchange || v.Verdict.Code != cg.CodeSealSpent || !v.Verdict.Closed {
+			t.Fatal("seal spend did not preserve closed refusal")
+		}
+	}
 	t.Run("SealMempool", func(t *testing.T) {
-		// Claim: a real unconfirmed issuer seal spend revokes a previously live grant;
-		// the other fixture remains live. Core's include_mempool flag is essential.
-		positive(t, &a, now)
+		// Claim: a real mempool spend revokes authority on the SAME warm Gate,
+		// checker and state; a fresh Gate also refuses and the counterpart stays live.
+		warmLive(t)
 		positive(t, &b, now)
 		wif, err := btcutil.NewWIF(a.issuer, &chaincfg.RegressionNetParams, true)
 		if err != nil {
@@ -437,19 +492,20 @@ func TestG1BenchCore(t *testing.T) {
 		if !benchNoUTXO(a.lab.rpc("", "gettxout", a.fixture.Seal.TxID, a.fixture.Seal.Vout, true)) || benchNoUTXO(a.lab.rpc("", "gettxout", a.fixture.Seal.TxID, a.fixture.Seal.Vout, false)) {
 			t.Fatal("mempool witness")
 		}
-		g, _, _ := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
-		v := expect(t, g, good(t, &a, now), "refused", "seal_spent")
-		if !v.Verdict.Closed {
-			t.Fatal("mempool spend did not close grant")
+		reads := warmNode.reads
+		expectSpent(t, warm) // Fresh nonce; cached live authority must be rechecked.
+		if warmNode.reads <= reads {
+			t.Fatal("warm revocation made no fresh node observation")
 		}
+		g, _, _ := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
+		expectSpent(t, g)
 		positive(t, &b, now)
 	})
 	t.Run("SealConfirmed", func(t *testing.T) {
-		// Claim: after confirming the real seal spend, a fresh checker refuses and
-		// the distinct live counterpart is the adjacent positive control.
-		// This case can be selected independently by preparing its own spend above.
-		if a.lab.px1Mempool() == 0 {
-			positive(t, &a, now)
+		// Claim: the Gate warmed before spending still refuses after confirmation;
+		// a cold Gate agrees. Independent selection warms before its own spend.
+		if warm == nil {
+			warmLive(t)
 			wif, _ := btcutil.NewWIF(a.issuer, &chaincfg.RegressionNetParams, true)
 			a.lab.rpc("issuer", "importprivkey", wif.String(), "", false)
 			raw := text(t, a.lab.rpc("", "createrawtransaction", []rental.Point{a.fixture.Seal}, []map[string]any{{a.lab.address: su.Coins(900000)}}))
@@ -468,10 +524,12 @@ func TestG1BenchCore(t *testing.T) {
 		}
 		positive(t, &b, now)
 		g, _, _ := open(t, &a, now, a.fixture.IssuerKey, a.fixture.ExecutorKey, "")
-		v := expect(t, g, good(t, &a, now), "refused", "seal_spent")
-		if !v.Verdict.Closed {
-			t.Fatal("confirmed spend did not close grant")
+		reads := warmNode.reads
+		expectSpent(t, warm)
+		if warmNode.reads <= reads {
+			t.Fatal("confirmed warm revocation made no fresh node observation")
 		}
+		expectSpent(t, g)
 	})
 	if !t.Failed() {
 		t.Log("G1_BENCH RAN_AND_PASSED: live fixture grants, paired admission negatives; regtest only")

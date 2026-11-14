@@ -42,7 +42,7 @@ func TestEnvelopeFixtureProfile(t *testing.T) {
 		"id":         bytes.Replace(raw, []byte(`"id":"sha256:`), []byte(`"id":"sha256:0`), 1),
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, _, err := verify(bad, "work text", room, to, now); err == nil {
+			if _, _, err := verify(bad, "work text", room, to, now); err != errEnvelope {
 				t.Fatal("invalid envelope admitted")
 			}
 		})
@@ -55,7 +55,6 @@ func TestEnvelopeFixtureProfile(t *testing.T) {
 		"audience":  func(b *Body) { b.Aud = "other" },
 		"action":    func(b *Body) { b.Action = "execute" },
 		"future":    func(b *Body) { b.Iat = now.Add(time.Second).Format(time.RFC3339) },
-		"expired":   func(b *Body) { b.Exp = now.Format(time.RFC3339) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			copy := body
@@ -64,9 +63,16 @@ func TestEnvelopeFixtureProfile(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, _, err := verify(signed, "work text", room, to, now); err == nil {
+			if _, _, err := verify(signed, "work text", room, to, now); err != errEnvelope {
 				t.Fatal("invalid signed body admitted")
 			}
 		})
 	}
+	// Claim: the unchanged valid lifetime refuses exactly at its exclusive end;
+	// iat < exp and the 120-second duration remain valid.
+	t.Run("expired", func(t *testing.T) {
+		if _, _, err := verify(raw, "work text", room, to, now.Add(120*time.Second)); err != errEnvelope {
+			t.Fatal("expired envelope did not return envelope-invalid")
+		}
+	})
 }

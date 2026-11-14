@@ -156,7 +156,10 @@
         "core"
       ],
       "core": [
-        "TestG1BenchCore/DeliveryBinding"
+        "TestG1BenchCore/DeliveryBinding",
+        "TestG1BenchCore/DeliveryBinding/text",
+        "TestG1BenchCore/DeliveryBinding/room",
+        "TestG1BenchCore/DeliveryBinding/to"
       ]
     },
     "SealMempool": {
