@@ -15,6 +15,11 @@ func (v Verdict) A2ADecision() (verdict, reason string, retryable bool) {
 			return "live", "allowed", false
 		}
 		return "refused", "policy_invalid", false
+	case CodeIdentityExpired:
+		if v.Decision != Refused || !v.Closed {
+			return "refused", "policy_invalid", false
+		}
+		return "refused", "identity_expired", false
 	case CodeNoGrant, CodeNotYet, CodeExpired, CodeSealSpent, CodeLandlordRotated, CodeLandlordChanged:
 		closed := v.Code == CodeSealSpent || v.Code == CodeLandlordRotated || v.Code == CodeLandlordChanged
 		if v.Closed != closed {

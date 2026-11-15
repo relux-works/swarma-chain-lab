@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
@@ -22,6 +23,21 @@ const MainGenesis = "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a
 // NetworkPinned has no implicit/default network or genesis.
 func NetworkPinned(network, genesis string) bool {
 	return (network == "regtest" && genesis == RegtestGenesis) || (network == "main" && genesis == MainGenesis)
+}
+
+// RPCError is a valid JSON-RPC application answer, including HTTP 500 answers.
+// Message is retained for typed callers; Error exposes only a bounded category.
+type RPCError struct {
+	Code    int
+	Message string
+}
+
+func (e *RPCError) Error() string { return "RPC_APPLICATION_ERROR" }
+
+// NameExpired recognizes Core's exact expired-name application error.
+func (e *RPCError) NameExpired() bool {
+	return e.Code == -4 && (e.Message == "name expired" ||
+		(strings.HasPrefix(e.Message, "name expired: '") && strings.HasSuffix(e.Message, "'") && len(e.Message) > len("name expired: ''")))
 }
 
 var errNodeProjection = errors.New("NODE_PROJECTION")
@@ -72,16 +88,23 @@ func (n *RPC) Call(ctx context.Context, method string, args ...any) (json.RawMes
 	}
 	defer res.Body.Close()
 	b, e = io.ReadAll(io.LimitReader(res.Body, 8<<20+1))
-	if e != nil || len(b) > 8<<20 || res.StatusCode != 200 {
+	if e != nil || len(b) > 8<<20 {
 		return nil, fail("RPC_RESPONSE")
 	}
 	var id int
 	var result, rpcError json.RawMessage
-	if e = sealwatch.ProjectJSON(b, map[string]any{"id": &id}, map[string]any{"result": &result, "error": &rpcError}); e != nil || id != 1 || len(result) == 0 || len(rpcError) == 0 {
-		return nil, errNodeProjection
+	e = sealwatch.ProjectJSON(b, map[string]any{"id": &id}, map[string]any{"result": &result, "error": &rpcError})
+	if e == nil && id == 1 && len(rpcError) > 0 && string(bytes.TrimSpace(rpcError)) != "null" {
+		var application RPCError
+		if sealwatch.ProjectJSON(rpcError, map[string]any{"code": &application.Code, "message": &application.Message}, nil) == nil {
+			return nil, &application
+		}
 	}
-	if string(bytes.TrimSpace(rpcError)) != "null" {
-		return nil, fail("RPC_REMOTE_ERROR")
+	if res.StatusCode != http.StatusOK {
+		return nil, fail("RPC_RESPONSE")
+	}
+	if e != nil || id != 1 || len(result) == 0 || len(rpcError) == 0 || string(bytes.TrimSpace(rpcError)) != "null" {
+		return nil, errNodeProjection
 	}
 	return result, nil
 }
@@ -223,6 +246,10 @@ func (o *observation) call(method string, out any, args ...any) error {
 	if e != nil {
 		if errors.Is(e, errNodeProjection) {
 			return errNodeProjection
+		}
+		var application *RPCError
+		if errors.As(e, &application) {
+			return application
 		}
 		return fail("NODE_UNAVAILABLE")
 	}

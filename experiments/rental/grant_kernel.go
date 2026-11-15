@@ -60,7 +60,13 @@ func validGeneration(a Anchor) bool { return digest(a.TxID) && digest(a.Block) &
 func Check(ctx context.Context, node su.Node, p Policy, raw []byte, agentName, sender string, now int64) (r Receipt) {
 	started := time.Now()
 	r = Receipt{Version: 3, Verdict: "refused", AgentName: agentName, LandlordName: p.LandlordName, CheckedAt: now}
-	refuse := func(e error) Receipt { r.Reason = e.Error(); return r }
+	refuse := func(e error) Receipt {
+		r.Reason = e.Error()
+		if e == IdentityExpired {
+			r.Closed = true
+		}
+		return r
+	}
 	if e := p.validateGrant(); e != nil {
 		return refuse(e)
 	}

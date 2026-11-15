@@ -145,9 +145,9 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 	if !hasReplacement {
 		t.Fatal("replacement absent")
 	}
-	check("original-payment-replaced", memReq, memEvent, 500, "refused", "NODE_UNAVAILABLE")
+	check("original-payment-replaced", memReq, memEvent, 500, "refused", "RPC_APPLICATION_ERROR")
 	l.mine(1)
-	check("replacement-does-not-reissue", memReq, memEvent, 500, "refused", "NODE_UNAVAILABLE")
+	check("replacement-does-not-reissue", memReq, memEvent, 500, "refused", "RPC_APPLICATION_ERROR")
 	check("replacement-neighbor", req, event, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
 	for _, mode := range []string{"foreign-pool", "unconfirmed-pool", "reuse-pool"} {
 		p := l.policy(mode)
@@ -216,7 +216,7 @@ func TestCoreIssuanceAndPool(t *testing.T) {
 	if bytes.Contains(rawPool, []byte(dropped)) {
 		t.Fatal("payment did not drop")
 	}
-	check("dropped-payment", dropReq, dropEvent, 500, "refused", "NODE_UNAVAILABLE")
+	check("dropped-payment", dropReq, dropEvent, 500, "refused", "RPC_APPLICATION_ERROR")
 	check("drop-valid-neighbor", req, event, 500, "admit", "PAYMENT_AND_PACKAGE_CURRENT")
 	l.save("admission-result.json", map[string]any{"status": "PASS", "cases": passed, "replacement_signalled_rbf": false, "replacement_txid": replacement})
 }

@@ -15,6 +15,7 @@ func TestRoutingContract(t *testing.T) {
 		closed, retry bool
 	}{
 		{CodeLive, Live, false, false},
+		{CodeIdentityExpired, Refused, true, false},
 		{CodeExecutorMismatch, Refused, false, false}, {CodeTermsInvalid, Refused, false, false}, {CodeNodeNotSynced, Refused, false, true},
 		{CodeTipStale, Refused, false, true}, {CodeTipBelowFloor, Refused, false, true}, {CodeTipFuture, Refused, false, false}, {CodeIssuanceMismatch, Refused, false, false},
 		{CodeNoGrant, Exchange, false, false},

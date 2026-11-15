@@ -86,7 +86,13 @@ func p2pkh(s string) bool {
 func CheckLegacy(ctx context.Context, node su.Node, p Policy, raw []byte, stationName, senderPubkey string, nowUnix int64) (r Receipt) {
 	started := time.Now()
 	r = Receipt{Version: 1, Verdict: "refused", CertificateSHA256: Hash(raw), StationName: stationName, CheckedAt: nowUnix}
-	refuse := func(e error) Receipt { r.Reason = e.Error(); return r }
+	refuse := func(e error) Receipt {
+		r.Reason = e.Error()
+		if e == IdentityExpired {
+			r.Closed = true
+		}
+		return r
+	}
 	if e := p.validate(); e != nil {
 		return refuse(e)
 	}
@@ -284,10 +290,16 @@ func CheckLegacy(ctx context.Context, node su.Node, p Policy, raw []byte, statio
 }
 func currentName(o *su.ReadObservation, name string) (su.NameView, error) {
 	var n su.NameView
-	if e := o.Call("name_show", &n, name, map[string]string{"nameEncoding": "ascii", "valueEncoding": "ascii"}); e != nil {
+	if e := o.Call("name_show", &n, name, map[string]any{"nameEncoding": "ascii", "valueEncoding": "ascii", "allowExpired": true}); e != nil {
 		return n, e
 	}
-	if n.Name != name || !digest(n.TxID) || n.Expired || n.ExpiresIn <= 0 || n.NameEncoding != "ascii" || n.ValueEncoding != "ascii" || len(n.NameError) > 0 || len(n.ValueError) > 0 || len(n.Value) > 520 {
+	if n.Name != name || !digest(n.TxID) || n.NameEncoding != "ascii" || n.ValueEncoding != "ascii" || len(n.NameError) > 0 || len(n.ValueError) > 0 || len(n.Value) > 520 {
+		return n, bad("CURRENT_NAME")
+	}
+	if n.Expired {
+		return n, IdentityExpired
+	}
+	if n.ExpiresIn <= 0 {
 		return n, bad("CURRENT_NAME")
 	}
 	for _, b := range []byte(n.Value) {

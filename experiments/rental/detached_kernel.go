@@ -56,7 +56,13 @@ func sealIndexName(p Policy, point Point) string {
 func CheckV2(ctx context.Context, node su.Node, p Policy, raw []byte, agentName, sender string, nowUnix int64) (r Receipt) {
 	started := time.Now()
 	r = Receipt{Version: 2, Verdict: "refused", CertificateSHA256: Hash(raw), StationName: agentName, CheckedAt: nowUnix}
-	refuse := func(e error) Receipt { r.Reason = e.Error(); return r }
+	refuse := func(e error) Receipt {
+		r.Reason = e.Error()
+		if e == IdentityExpired {
+			r.Closed = true
+		}
+		return r
+	}
 	if e := p.validateDetached(); e != nil {
 		return refuse(e)
 	}

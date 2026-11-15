@@ -148,7 +148,7 @@ func TestCoreGrantPresentation(t *testing.T) {
 	}
 	present(proof, Hash(proof), "refused", "PRESENTATION_ID")
 	bad, _ := PresentIssuedGrant(raw, Hash([]byte("missing")))
-	present(bad, id, "refused", "NODE_UNAVAILABLE")
+	present(bad, id, "refused", "RPC_APPLICATION_ERROR")
 	b, e := os.ReadFile(path)
 	if e != nil || !bytes.Equal(b, original) {
 		t.Fatal("denial changed cache")

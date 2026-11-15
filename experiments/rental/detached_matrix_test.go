@@ -14,7 +14,7 @@ import (
 
 // This table uses actual confirmed Core name/seal fixtures; authentication and
 // time failures happen before RPC by design. Transport faults are labelled.
-// Every denial keeps closure false and is followed by the unchanged live case.
+// Expiry closes the current-chain observation; other denials retain the live neighbor.
 func TestCoreDetachedMatrix(t *testing.T) {
 	l := newCore(t)
 	l.agentValue(1, 3, true)
@@ -205,10 +205,8 @@ func TestCoreDetachedMatrix(t *testing.T) {
 		}
 		l.mine(int(n.ExpiresIn))
 		tip := text(l.t, l.rpc("", "getbestblockhash"))
-		// Core's default name_show refuses the expired lookup. The read boundary
-		// reports NODE_UNAVAILABLE rather than inventing an expiry verdict from
-		// an RPC error; the chain-height transition is controlled by this test.
-		l.checkDetached("name-expired", p, c, raw, 500, "refused", "NODE_UNAVAILABLE", false)
+		// Claim: allowExpired exposes expiry as a terminal identity observation; a reorg can restore the live generation.
+		l.checkDetached("name-expired", p, c, raw, 500, "refused", "IDENTITY_EXPIRED", true)
 		l.rpc("", "invalidateblock", tip)
 		l.checkDetached("name-expiry-reorg-valid", p, c, raw, 500, "live", "LIVE", false)
 	})

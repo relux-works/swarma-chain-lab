@@ -18,6 +18,17 @@ CG = 'experiments/grantcheck/checker.go'
 FRESH = 'experiments/grantcheck/freshness.go'
 GRANT = 'experiments/rental/grant_kernel.go'
 PLANTS = [
+    ('identity-allow-expired', 'TestCoreIdentityExpired/id/swarma-agent-e2e', 'experiments/rental/kernel.go',
+     ', "allowExpired": true', '',
+     'expired current names must be returned by Core and refused by name instead of as an outage'),
+    ('identity-retryable', 'TestCoreIdentityExpired/id/swarma-agent-e2e', 'experiments/grantcheck/verdict.go',
+     'case CodeIdentityExpired:\n\t\tif !closed {\n\t\t\treturn route(CodeCheckFailed, inbound, false)\n\t\t}\n\t\tv.Closed = true',
+     'case CodeIdentityExpired:\n\t\tif !closed {\n\t\t\treturn route(CodeCheckFailed, inbound, false)\n\t\t}\n\t\tv.Closed = true\n\t\tv.Retryable = true',
+     'expired identity is a closed non-retryable refusal, never a transient verifier failure'),
+    ('rpc-blanket-unavailable', 'TestCoreIdentityExpired/id/swarma-agent-e2e', 'experiments/single-use/node.go',
+     'return application', 'return fail("NODE_UNAVAILABLE")',
+     'a genuine Core expired-name application answer keeps its typed code and message',
+     'missing Core RPC error: NODE_UNAVAILABLE'),
     ('aggregate-per-recipient-commit', 'TestCoreAggregateFinalDecisionAtomic/Transport2/StaleNanosecond', 'experiments/grantcheck/sender.go',
      'v := c.checkStaged(ctx, key, nil, false, false, &pending)',
      'v := c.checkStaged(ctx, key, nil, false, false, &pending)\n\t\tif code := c.commit(ctx, s, pending.m); code != CodeLive { return fail(code) }',

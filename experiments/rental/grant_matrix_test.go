@@ -100,7 +100,7 @@ func TestCoreGrantMatrix(t *testing.T) {
 				want = "SEAL_KEY_BINDING"
 			case "missing-commitment":
 				locator = Hash([]byte("not-present"))
-				want = "NODE_UNAVAILABLE"
+				want = "RPC_APPLICATION_ERROR"
 			}
 			signedRaw := signGrantTest(l.t, cg, signer)
 			var sg SignedGrant
@@ -213,7 +213,7 @@ func TestCoreGrantMatrix(t *testing.T) {
 		_ = json.Unmarshal(sr, &s)
 		pr, _ := json.Marshal(GrantPresentation{s, presentation.Issuance})
 		l.agentPointer(p.LandlordName, 3, true)
-		l.checkGrant("landlord-absent", p, cg, pr, 500, "refused", "NODE_UNAVAILABLE", false)
+		l.checkGrant("landlord-absent", p, cg, pr, 500, "refused", "RPC_APPLICATION_ERROR", false)
 		l.agentPointer(labLandlord, 3, true)
 		p.LandlordName = labLandlord
 		l.checkGrant("landlord-absent-neighbor", p, g, proof, 500, "live", "LIVE", false)
@@ -265,7 +265,7 @@ func TestCoreGrantMatrix(t *testing.T) {
 			}
 			l.mine(int(n.ExpiresIn))
 			first := text(l.t, l.rpc("", "getblockhash", height+1))
-			l.checkGrant(role+"-expiry-denied", p, g, proof, 500, "refused", "NODE_UNAVAILABLE", false)
+			l.checkGrant(role+"-expiry-denied", p, g, proof, 500, "refused", "IDENTITY_EXPIRED", true)
 			// Restore the entire empty-block interval, so renewal is not attempted
 			// in the very block where the name expires again.
 			l.rpc("", "invalidateblock", first)

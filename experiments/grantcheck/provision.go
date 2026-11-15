@@ -33,7 +33,7 @@ func validProvisioning(records []ProvisionRecord) bool {
 		return false
 	}
 	for _, r := range records {
-		if !validDigest(r.Hash) || r.At < 0 || r.At > maxUnix || (r.GrantID != "" && !validDigest(r.GrantID)) || route(r.Result, false, r.Result == CodeSealSpent || r.Result == CodeLandlordRotated || r.Result == CodeLandlordChanged).Code != r.Result {
+		if !validDigest(r.Hash) || r.At < 0 || r.At > maxUnix || (r.GrantID != "" && !validDigest(r.GrantID)) || route(r.Result, false, r.Result == CodeIdentityExpired || r.Result == CodeSealSpent || r.Result == CodeLandlordRotated || r.Result == CodeLandlordChanged).Code != r.Result {
 			return false
 		}
 	}

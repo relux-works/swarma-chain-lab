@@ -14,6 +14,8 @@ func mapReceipt(r kernel.Receipt, inbound bool) Verdict {
 		switch r.Reason {
 		case "NOT_YET_VALID":
 			code = CodeNotYet
+		case "IDENTITY_EXPIRED":
+			code = CodeIdentityExpired
 		case "EXPIRED":
 			code = CodeExpired
 		case "SEAL_SPENT":

@@ -23,7 +23,8 @@
     "TestCoreProvisioning/CombinedCapacity",
     "TestCoreFinalSampleFreshness",
     "TestCoreAggregateEveryObservation",
-    "TestCoreAggregateFinalDecisionAtomic"
+    "TestCoreAggregateFinalDecisionAtomic",
+    "TestCoreIdentityExpired"
   ],
   "core_tests": [
     "TestCoreVectors",
@@ -31,7 +32,8 @@
     "TestCoreProvisioning",
     "TestCoreFinalSampleFreshness",
     "TestCoreAggregateEveryObservation",
-    "TestCoreAggregateFinalDecisionAtomic"
+    "TestCoreAggregateFinalDecisionAtomic",
+    "TestCoreIdentityExpired"
   ],
   "core_runs": {
     "TestCoreVectors": {
@@ -55,6 +57,10 @@
       "race": true
     },
     "TestCoreAggregateFinalDecisionAtomic": {
+      "count": 1,
+      "race": true
+    },
+    "TestCoreIdentityExpired": {
       "count": 1,
       "race": true
     }
@@ -234,6 +240,14 @@
       ],
       "core": [
         "TestCoreAggregateFinalDecisionAtomic"
+      ]
+    },
+    "TestCoreIdentityExpired": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreIdentityExpired"
       ]
     }
   }

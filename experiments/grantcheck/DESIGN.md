@@ -160,8 +160,9 @@ configuration/state error class rather than embedding paths, input bytes, keys o
 credentials. Verdict fields are bounded public metadata. Scope is returned only
 for live decisions and copied before return. Grant ID/window are reported only
 from successfully parsed, policy/sender-bound proof; they never confer authority
-on an exchange/refused result. Closed means K1 established durable closure, not
-"this call failed".
+on an exchange/refused result. Closed means K1 established a terminal lifecycle condition, not
+"this call failed". Identity expiry is a current-chain observation; unlike seal
+spends and confirmed rotations it does not append an irreversible tombstone.
 
 Envelope `OutboundFrom` takes the key resolved by the adapter from the one signed
 `to` carrier id per message through a pinned binding, with no room or membership
@@ -225,6 +226,7 @@ and serialized observations must never be reused for admission.
 | Grantcheck code / decision | Seam verdict / reason | Retryable |
 | --- | --- | --- |
 | `live` / live | live / allowed | false |
+| `identity_expired` / refused, closed=true | refused / identity_expired | false |
 | `not_yet`, `expired`, `seal_spent`, `landlord_rotated`, `landlord_changed` / exchange, SwarmEnvelopeV2 provenance | refused / denied | false |
 | The same five lifecycle codes / exchange, NostrNIP17Seal (including legacy) provenance | exchange / exchange (inbound only) | false |
 | `no_grant` / exchange | exchange / exchange (inbound Nostr; envelope absence already returns refused) | false |
@@ -239,7 +241,7 @@ Retryability is recomputed from this table, never taken from a mutable verdict's
 `Retryable` field. Bad signatures and malformed proof use `invalid_presentation`;
 wrong sender/issuer pins use `binding_mismatch`. Stale/unavailable node observations
 use `verifier_unavailable`. Envelope replay checks remain the adapter's duty.
-No grantcheck code is passed through as a seam reason.
+Only the explicitly named `identity_expired` refusal shares its code spelling with the seam reason.
 
 The following is the accepted grantcheck observation table, before
 `A2ADecision`: its five lifecycle exchange observations map to refused/denied/false
@@ -251,7 +253,7 @@ All non-live rows deny
 inbox/sign/send. Unknown future K1 reasons map to
 `check_failed` (refused), never to live or an inferred absence of a grant.
 
-| Condition | Inbound decision/code | Outbound decision/code | Durable closed |
+| Condition | Inbound decision/code | Outbound decision/code | Closed |
 | --- | --- | --- | --- |
 | Wrong executor / invalid canonical terms | refused / executor_mismatch or terms_invalid | refused / executor_mismatch or terms_invalid | false |
 | IBD or headers unequal to blocks | refused / node_not_synced | refused / node_not_synced | false |
@@ -262,6 +264,7 @@ inbox/sign/send. Unknown future K1 reasons map to
 | No supplied proof and cache genuinely absent | Nostr exchange / no_grant; envelope refused / no_grant | refused / no_grant | false |
 | Well-formed owned grant before start | exchange / not_yet | refused / not_yet | false |
 | Owned grant at/after end | exchange / expired | refused / expired | false |
+| Current agent or landlord name expired | refused / identity_expired | refused / identity_expired | true (current-chain observation) |
 | Proven seal spend (including mempool) | exchange / seal_spent | refused / seal_spent | true |
 | Confirmed forward landlord-key rotation | exchange / landlord_rotated | refused / landlord_rotated | true |
 | Confirmed forward agent-landlord pointer change | exchange / landlord_changed | refused / landlord_changed | true |

@@ -49,7 +49,7 @@ func TestCoreGrantIssuer(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	l.checkGrant("before-broadcast", p, signed.Grant, missing, 500, "refused", "NODE_UNAVAILABLE", false)
+	l.checkGrant("before-broadcast", p, signed.Grant, missing, 500, "refused", "RPC_APPLICATION_ERROR", false)
 	id := l.sendPlan(*r.Plan, false)
 	proof, e := PresentIssuedGrant(r.SignedGrant, id)
 	if e != nil {

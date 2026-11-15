@@ -11,6 +11,7 @@ func TestA2ADecisionTable(t *testing.T) {
 		retry, closed, exchange bool
 	}{
 		{CodeLive, "allowed", false, false, false},
+		{CodeIdentityExpired, "identity_expired", false, true, false},
 		{CodeExecutorMismatch, "denied", false, false, false}, {CodeTermsInvalid, "denied", false, false, false},
 		{CodeNodeNotSynced, "dependency_unavailable", true, false, false}, {CodeTipStale, "dependency_unavailable", true, false, false},
 		{CodeTipBelowFloor, "dependency_unavailable", true, false, false}, {CodeTipFuture, "denied", false, false, false}, {CodeIssuanceMismatch, "denied", false, false, false},
@@ -34,7 +35,7 @@ func TestA2ADecisionTable(t *testing.T) {
 		{CodeBusy, "dependency_unavailable", true, false, false},
 		{CodeCheckFailed, "policy_error", false, false, false},
 	}
-	allowed := map[string]bool{"allowed": true, "exchange": true, "denied": true, "dependency_unavailable": true, "policy_invalid": true, "policy_error": true, "exchange_outbound": true, "held_age": true, "held_count": true, "exchange_capacity": true, "storage_error": true}
+	allowed := map[string]bool{"identity_expired": true, "allowed": true, "exchange": true, "denied": true, "dependency_unavailable": true, "policy_invalid": true, "policy_error": true, "exchange_outbound": true, "held_age": true, "held_count": true, "exchange_capacity": true, "storage_error": true}
 	for _, transport := range []struct {
 		name string
 		pin  Transport
@@ -73,6 +74,7 @@ func TestA2ADecisionTable(t *testing.T) {
 // Unknown codes, invalid decisions and contradictory closure cannot map to allowed or escape the seam's closed set.
 func TestA2ADecisionFailClosed(t *testing.T) {
 	for _, v := range []Verdict{
+		{Decision: Refused, Code: CodeIdentityExpired}, {Decision: Exchange, Code: CodeIdentityExpired, Closed: true},
 		{}, {Decision: Live, Code: "future", Retryable: true},
 		{Decision: Live, Code: CodeInvalidPeer}, {Decision: Exchange, Code: CodeInvalidPresentation},
 		{Decision: Refused, Code: CodeLive}, {Decision: Live, Code: CodeLive, Closed: true},

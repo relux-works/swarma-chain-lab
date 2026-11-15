@@ -29,6 +29,7 @@ const (
 	CodeSealSpent           Code = "seal_spent"
 	CodeLandlordRotated     Code = "landlord_rotated"
 	CodeLandlordChanged     Code = "landlord_changed"
+	CodeIdentityExpired     Code = "identity_expired"
 	CodeIdentityPending     Code = "identity_pending"
 	CodeGrantPending        Code = "grant_pending"
 	CodeBindingMismatch     Code = "binding_mismatch"
@@ -72,7 +73,7 @@ type Verdict struct {
 }
 
 // route is the only constructor for public routing/Retryable classification.
-// Closure must accompany one of K1's three positively established close reasons.
+// Closure must accompany a positively established terminal lifecycle reason.
 func route(code Code, inbound, closed bool) Verdict {
 	v := Verdict{Decision: Refused, Code: code}
 	switch code {
@@ -88,6 +89,11 @@ func route(code Code, inbound, closed bool) Verdict {
 		if inbound {
 			v.Decision = Exchange
 		}
+	case CodeIdentityExpired:
+		if !closed {
+			return route(CodeCheckFailed, inbound, false)
+		}
+		v.Closed = true
 	case CodeSealSpent, CodeLandlordRotated, CodeLandlordChanged:
 		if !closed {
 			return route(CodeCheckFailed, inbound, false)

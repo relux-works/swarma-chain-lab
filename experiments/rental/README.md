@@ -385,3 +385,13 @@ and the limits of the second-signature regressions.
 
 Run `go test -run '^TestBIP340CertificateBoundaries$' .` for the certificate
 encoding regression and `go test -race ./...` for the module suite.
+
+### Expired current identity names
+
+Current agent and landlord generation reads request `name_show` with
+`allowExpired=true`. An expired current name returns the typed
+`IdentityExpired` reason (`IDENTITY_EXPIRED`) and a refused receipt with
+`closed=true`; it is never treated as live or as node unavailability. This is a
+current-chain observation, so a reorg restoring the name is checked afresh.
+Pre-expiry same-value renewals preserve live grants. Legacy station and detached
+identity checks share this name reader and the same expiry refusal.

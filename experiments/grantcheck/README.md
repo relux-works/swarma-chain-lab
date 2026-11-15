@@ -30,6 +30,28 @@ The bench delegates executor and freshness checks to grantcheck.
 See [POLICY.md](POLICY.md) for the required config/API change, exact rule,
 provisioning hash semantics, explicit bench values, tests and eight overlay controls.
 
+## Expired current identities
+
+`identity_expired` is a named refusal with `closed=true` and `retryable=false`
+on outbound, supplied inbound and cached re-checks. It maps to A2A
+`refused/identity_expired/false`, never `dependency_unavailable` or exchange.
+The rental kernel requests Core `name_show` with `allowExpired=true` for both
+current identity roles and returns `IDENTITY_EXPIRED` when `expired=true`.
+Expiry is a terminal observation of that current generation, not a cached
+permission or an irreversible journal tombstone: a chain reorg is checked afresh.
+A same-value renewal confirmed before expiry remains live.
+
+The read-only RPC client preserves a valid JSON-RPC error as typed
+`singleuse.RPCError` (code/message), including HTTP 500 responses. `NameExpired`
+recognizes Core code -4 with its expired-name message. Raw messages are not
+copied to public receipts. Transport failures and 5xx responses without a valid
+RPC error remain `verifier_unavailable`, retryable.
+
+`TestCoreIdentityExpired` uses the existing pinned Core harness, real name
+registration, same-value renewal, block-height expiry of each identity role,
+and stopped-node controls. Run with the same `CG1_*` environment below:
+`go test -race -count=1 -run '^TestCoreIdentityExpired$' .`.
+
 ## SW1 witness construction
 
 `Config.ConstructionProfile` is required and must equal `"W"`; it is supplied by the authenticated daemon configuration, never by a peer message. It is included in the durable identity binding. Missing/unknown/L pins refuse before state opens.

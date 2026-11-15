@@ -593,3 +593,8 @@ The isolated wire module uses Go 1.26.10 for `go test -race`, `go vet`,
 commands, the public fixture pin and `.temp/` evidence locations are documented
 in the [module README](experiments/grant-v4/wire/README.md#tools-and-commands).
 The existing module-graph and public-hygiene scripts cover its registration.
+
+Grant identity expiry is reported by name as non-retryable
+`identity_expired` (`closed=true`), including cached re-checks. See
+[grantcheck identity expiry](experiments/grantcheck/README.md#expired-current-identities)
+for Core regtest controls and the RPC application/transport distinction.

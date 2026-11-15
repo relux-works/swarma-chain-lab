@@ -160,9 +160,8 @@ func TestCoreDetachedIssuerDenials(t *testing.T) {
 				_ = json.Unmarshal(req, &r)
 				r.PaymentTxID = Hash([]byte("missing"))
 				badRequest, _ = json.Marshal(r)
-				// The shared own-node boundary deliberately maps RPC errors to
-				// NODE_UNAVAILABLE; this is not proof that a payment never existed.
-				want = "NODE_UNAVAILABLE"
+				// Claim: a node application refusal stays distinct from transport failure; it does not prove a payment never existed.
+				want = "RPC_APPLICATION_ERROR"
 			case "unconfirmed-pool":
 				want = "POOL_UNCONFIRMED"
 			}
