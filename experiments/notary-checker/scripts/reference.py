@@ -268,8 +268,8 @@ def row_fit(pc, cc):
     need(pc['not_before'] <= cc['not_before'] < cc['not_after'] <= pc['not_after'], 'CHILD_WINDOW_NOT_NESTED')
 
 
-def notary_key(raw):
-    code = 'NOTARY_KEY'
+def notary_key(raw, grant=False):
+    code = "MVP_NAME_VALUE" if grant else "NOTARY_KEY"
     need(len(raw) <= 520, code)
     try:
         text = raw.decode('utf-8')
@@ -307,6 +307,9 @@ def notary_key(raw):
                 continue
             break
         binding = load(authority, 520, code)
+        if grant:
+            need(shape(binding, ['landlord']) and shape(binding['landlord'], ['grant']) and key(binding['landlord']['grant']), code)
+            return binding['landlord']['grant']
         need(shape(binding, ['notary']) and shape(binding['notary'], ['attest']) and key(binding['notary']['attest']), code)
         return binding['notary']['attest']
     except (ValueError, UnicodeError, IndexError, TypeError):
@@ -343,7 +346,7 @@ def check(v):
     fields += (['mode'] if 'mode' in pol else []) + (['mode_approvals'] if 'mode_approvals' in pol else [])
     need(shape(pol, fields) and ('mode' not in pol or isinstance(pol['mode'], str) and pol['mode'] != '')
          and ('mode_approvals' not in pol or isinstance(pol['mode_approvals'], list) and len(pol['mode_approvals']) > 0)
-         and all(shape(a, ['owner', 'signature']) and isinstance(a['owner'], str) and isinstance(a['signature'], str) for a in pol.get('mode_approvals', []))
+         and all(shape(a, ['owner', 'name', 'registration', 'signature']) and isinstance(a['owner'], str) and isinstance(a['signature'], str) for a in pol.get('mode_approvals', []))
          and pol['parent_grant_id'] == pid and pol['child_grant_id'] == cid and all(owner(pol[k]) for k in ['issuer_owner', 'delegator_owner', 'notary_owner'])
          and ordered(pol['agreed_by']) and all(map(owner, pol['agreed_by'])), 'OWNER_EVIDENCE_REQUIRED')
     mode = pol.get('mode', '')
@@ -354,12 +357,25 @@ def check(v):
     need(designated['owner'] == pol['notary_owner'], 'NOTARY_NAME_CHANGED')
     if mode:
         need(pol['issuer_owner'][2:] != pol['delegator_owner'][2:], 'MVP_MODE_PAIR_REQUIRED')
+        need('names' in v, 'MVP_CHAIN_READ_REQUIRED')
         approvals = pol.get('mode_approvals', [])
-        need(len(approvals) == 2 and all(shape(a, ['owner', 'signature']) for a in approvals), 'MVP_MODE_APPROVAL_REQUIRED')
+        need(len(approvals) == 2, 'MVP_MODE_APPROVAL_REQUIRED')
         need([a['owner'] for a in approvals] == sorted([pol['issuer_owner'], pol['delegator_owner']]), 'MVP_MODE_APPROVAL_REQUIRED')
+        need(approvals[0]['name'] != approvals[1]['name'], 'MVP_OWNER_NAME_REUSED')
+        need(approvals[0]['registration'] != approvals[1]['registration'], 'MVP_OWNER_REGISTRATION_REUSED')
+        st = load(v['statement'].encode(), 8192, 'STATEMENT_FIELD')
+        need(shape(st, ['notary_seal', 'tip_height', 'tip_hash']) and type(st['tip_height']) is int and st['tip_height'] >= 0 and hx(st['tip_hash'],64), 'STATEMENT_FIELD')
         signed = {k: pol[k] for k in fields if k != 'mode_approvals'}
-        digest = sha(b'swarma-notary-local-policy-v1' + octets(signed))
-        need(all(verify(a['owner'][2:], digest, a['signature']) for a in approvals), 'MVP_MODE_APPROVAL_REQUIRED')
+        identities = [{k:a[k] for k in ['owner','name','registration']} for a in approvals]
+        digest = sha(b'swarma-notary-local-policy-v1' + octets(signed) + octets(identities))
+        for a in approvals:
+            need(owner(a['owner']) and name(a['name']) and shape(a['registration'], ['txid','vout']) and hx(a['registration']['txid'],64) and type(a['registration']['vout']) is int and 0 <= a['registration']['vout'] <= 2**32-1, 'MVP_MODE_APPROVAL_REQUIRED')
+            observed = next((n for n in v['names'] if n['name'] == a['name']), None)
+            need(observed is not None and not observed.get('unreadable',False), 'MVP_NAME_UNREADABLE')
+            need(observed['height'] == st['tip_height'] and observed['blockhash'] == st['tip_hash'], 'MVP_NAME_VIEW_MISMATCH')
+            need(observed['registration'] == a['registration'], 'MVP_NAME_REGISTRATION_MISMATCH')
+            k = notary_key(observed['value'].encode(), grant=True)
+            need(k == a['owner'][2:] and verify(k, digest, a['signature']), 'MVP_MODE_APPROVAL_REQUIRED')
     if pol['issuer_owner'] == pol['delegator_owner']:
         need(pol['notary_owner'] == pol['issuer_owner'], 'NOTARY_OWNER_RELATION')
     else:

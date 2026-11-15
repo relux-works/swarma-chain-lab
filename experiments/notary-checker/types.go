@@ -97,7 +97,8 @@ type Notary struct {
 
 // Policy is trusted local configuration, NOT a protocol object or chain proof.
 // The caller must authenticate affiliations and default-mode consent out of band.
-// The explicit MVP mode additionally verifies both owners' policy signatures.
+// The explicit MVP mode resolves named registrations/current grant keys through
+// NameSource and additionally verifies both owners' policy signatures.
 // Binding both IDs prevents accidental use of a policy for a different bundle.
 type Policy struct {
 	ParentGrantID  string         `json:"parent_grant_id"`
@@ -113,8 +114,10 @@ type Policy struct {
 
 // ModeApproval is a local deployment-policy signature, never a protocol object.
 type ModeApproval struct {
-	Owner     string `json:"owner"`
-	Signature string `json:"signature"`
+	Owner        string `json:"owner"`
+	Name         string `json:"name"`
+	Registration Point  `json:"registration"`
+	Signature    string `json:"signature"`
 }
 type Seal struct {
 	TxID   string `json:"txid"`
@@ -155,6 +158,7 @@ type Input struct {
 	Request, Policy, NotaryValue, Statement []byte
 	ParentText, ChildText                   []byte
 	At                                      int64
+	Names                                   NameSource // explicit chain-view dependency; nil refuses MVP
 }
 type Result struct {
 	Attestation []byte

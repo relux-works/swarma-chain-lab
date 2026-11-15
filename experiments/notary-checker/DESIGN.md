@@ -17,7 +17,8 @@ No key enters the production API, and nothing is signed by this module.
 ## Exact inputs
 
 Every file is read as bytes, without trimming, normalization or fetching.
-The library accepts the same bytes in `Input`; it performs no I/O.
+The library accepts the same bytes in `Input`; it performs no direct I/O.
+MVP checking also calls the explicit `NameSource` dependency described below.
 
 | Input | Exact octets / meaning | Source |
 | --- | --- | --- |
@@ -233,9 +234,9 @@ local policy must bind the exact pair, identify all owners, match the
 selected notary's signed owner pin, require its issuer affiliation within
 one owner, and require a distinct third owner plus both approvals across
 owners. A compressed key here is a configured owner identifier, not a
-claim that unequal keys prove unequal people. Multiple-key affiliations
-need an authenticated mapping before provisioning this policy; the checker
-will not infer them. A policy file supplied by an adversary can lie. The
+claim that unequal keys prove unequal people. The strict default retains its
+authenticated provisioning boundary; MVP approvals additionally resolve owner
+names and registrations through the chain dependency below. A policy file supplied by an adversary can lie. The
 production evidence/provisioning contract remains an open service decision.
 
 ## MVP deployment policy (not protocol)
@@ -247,29 +248,70 @@ rule, including a distinct third owner for cross-owner certification. No
 approval, owner relation or other input infers the mode; unknown strings refuse
 `POLICY_MODE_UNSUPPORTED` (an explicitly empty mode is noncanonical).
 
-For two distinct configured owners, this mode permits the selected notary's
-owner to equal either owner only when the same policy carries both owners'
-valid `mode_approvals`. They are exactly two `{"owner":...,"signature":...}`
-members sorted by distinct compressed owner identifier. Each is BIP-340 over
-`SHA-256("swarma-notary-local-policy-v1" || canonical policy without mode_approvals)`.
-Policy order is the existing seven fields followed by `mode`, then
-`mode_approvals`. Thus both signatures cover the mode, both recomputed grant
-IDs, both owner identifiers in their roles, exact notary name and owner pin,
-and `agreed_by`. Verification uses each compressed owner's x coordinate; the
-two owners must have different x coordinates, so opposite compressed parities
-of one signing key cannot supply both approvals.
-These are local policy approvals, never grant or attestation signatures.
+Each MVP approval has exactly `owner,name,registration,signature`, in that
+order. `owner` matches one configured role identifier; `name` is an `id/`
+name, and `registration` is its `{txid,vout}` registration identity, following
+the registration pinning used by J3 (LIP-0014 section 7.1). Approvals are sorted
+by their distinct compressed owner identifiers. The existing opposite-parity
+alias guard also remains. Neither unequal keys nor operator policy establishes
+two owner identities: the two names and their registrations must both differ.
+This is the deployment identity boundary, not proof of distinct natural persons
+behind independently registered names.
 
-Missing, unilateral, duplicate, unrelated, invalid or replayed approvals refuse
-`MVP_MODE_APPROVAL_REQUIRED`; a one-owner pair refuses `MVP_MODE_PAIR_REQUIRED`.
+`Check` calls `NameSource.Lookup(name, statement.tip_height, statement.tip_hash)`
+for each approval. The result supplies the registration, current raw value,
+observed height and hash. Both reads must match that one explicit statement
+view; mismatch refuses `MVP_NAME_VIEW_MISMATCH`, and a changed registration
+refuses `MVP_NAME_REGISTRATION_MISMATCH`. A failed lookup refuses
+`MVP_NAME_UNREADABLE`. Reused names and registrations refuse
+`MVP_OWNER_NAME_REUSED` and `MVP_OWNER_REGISTRATION_REUSED` respectively.
+
+The current value is parsed with LIP-0010 sections 2 and 3: valid UTF-8, at most
+520 bytes, unambiguous `swarma`/`nostr`, top-level extensions skipped, and an
+exact canonical `{"landlord":{"grant":"<x-only key>"}}` authority span.
+No missing, malformed, aliased, additional or noncanonical authority member
+is tolerated (`MVP_NAME_VALUE`). The resolved grant key must match the owner
+role's x coordinate and verify the approval. The chain provides this mapping
+because an operator-supplied mapping is self-asserted: the notary operator may
+be one of the two owners. Policy keys, signatures alone, and a mapping file
+cannot establish the required current name-to-key relation.
+
+The approval digest is exactly
+`SHA-256("swarma-notary-local-policy-v1" || canonical_policy_without_mode_approvals || canonical_identity_array)`.
+The identity array contains ordered `{owner,name,registration}` objects from
+both approvals. This binds mode, grant pair, owner roles, notary name/pin,
+`agreed_by`, and both name/registration claims. A change of name with the same
+key still requires new signatures. These local signatures are never grant or
+attestation signatures. Wrong signatures or noncurrent keys refuse
+`MVP_MODE_APPROVAL_REQUIRED`; one-owner pairs refuse `MVP_MODE_PAIR_REQUIRED`.
+
+**OFFLINE VECTOR PRECONDITION:** all supplied observations are assumed to be
+an accurate, complete snapshot of the pinned synthetic chain view. They are
+fabricated test inputs, not authenticated chain evidence. The LAB's observation
+is supplied input; no node read is implemented in this unit. The reproducible
+`testdata/mvp-names.json` is the pinned positive fixture, while each negative
+vector pins its own deliberate counterexample. A file is permitted only under
+this offline precondition, never as running-mode evidence.
+
+The CLI requires `-offline-name-fixture FILE` to supply these observations. It
+prints a `LAB/OFFLINE` banner and appends `offline-fixture` to its `ATTEST` line.
+The fixture implementation is unexported inside the CLI's offline path; test
+fixtures are unexported test-only types. The running entry point `CheckRunning`
+rejects **any** injected source and uses the declared `NodeNameReader`. That
+adapter is unwired pending N3 and always returns `MVP_CHAIN_READ_REQUIRED`.
+Running MVP therefore refuses without a chain read and never falls back to a
+fixture. N3 must implement current-value/registration reads and consistent-view
+validation on its own node before enabling the running mode. Strict default
+checking requires neither a source nor an offline flag.
+
 Approvals without a mode refuse `POLICY_MODE_REQUIRED`. Wrong grant bindings,
 designation and owner pins retain `OWNER_EVIDENCE_REQUIRED`,
 `NOTARY_NOT_DESIGNATED` and `NOTARY_NAME_CHANGED`. Canonical parsing and these
 bindings precede mode approval; mode approval precedes the ownership relation.
 Both configured cross-owner agreements remain required. A third-party notary
 with this mode still passes the strict affiliation/agreement path, with the
-additional mode approvals required. No other check is relaxed. Trusted
-provisioning must still establish which keys represent the two owners.
+additional chain-resolved mode approvals required. No other check is relaxed.
+This remains a deployment policy, not protocol or a claim of live qualification.
 
 Future directions are a jointly held notary name (2-of-2 now, t-of-n for a
 federation) and external notaries. They are future work, not implemented modes

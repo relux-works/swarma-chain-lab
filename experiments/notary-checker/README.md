@@ -11,8 +11,9 @@ and its signing digest. The CLI prints `ATTEST <digest>` or `REFUSED <code>`;
 refusals exit nonzero. `ATTEST` is an offline candidate decision, **not** a
 signed attestation or live authority. This is a laboratory, not production.
 
-There is no network, node, model, system clock, randomness, signer or real key
-handling in the library or CLI. The sole external Go dependency is the pinned
+There is no node implementation, model, system clock, randomness, signer or
+real key handling in this unit. MVP verification takes explicit name reads
+through a `NameSource` interface; the running adapter is reserved for N3. The sole external Go dependency is the pinned
 BIP-340 library already used in this repository. It is needed because the
 specification requires secp256k1 Schnorr signatures.
 
@@ -26,7 +27,13 @@ recipient-class proposals are unsupported.
 
 The strict specification reading remains the default. An explicit local
 `mvp-pair-owned-notary` deployment mode permits a notary owned by one of the
-two owners only with both owners' signatures over the exact policy scope.
+two owners only with both owners' signatures over the exact policy scope
+and chain-resolved names, distinct registrations and current grant keys.
+The running MVP entry point refuses `MVP_CHAIN_READ_REQUIRED` until N3 wires
+the node. A file is allowed only with `-offline-name-fixture FILE`; it prints
+a LAB/OFFLINE banner and `ATTEST <digest> offline-fixture`. The pinned synthetic
+positive observation file is `testdata/mvp-names.json`; its offline precondition
+is stated in DESIGN.md. Strict default checking needs no name input.
 This MVP exception is not in the specification and changes no protocol bytes.
 See [MVP deployment policy](DESIGN.md#mvp-deployment-policy-not-protocol) for
 signature bytes, named refusals and future directions.

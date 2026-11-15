@@ -4,21 +4,64 @@ package notarycheck
 // The absent mode retains the strict specification reading.
 const MVPPairOwnedNotary = "mvp-pair-owned-notary"
 
-// modeApproved authenticates both distinct configured owners over the complete
-// canonical policy with only mode_approvals omitted. This binds the mode, both
-// recomputed grant IDs, both owner identifiers, notary name/pin and agreed_by.
-// It proves signatures under configured keys, not real-world affiliations.
-func modeApproved(p Policy) bool {
+// modeApproved resolves identities from the chain, never from operator policy.
+// Signatures bind the exact policy plus ordered owner/name/registration claims.
+func modeApproved(p Policy, in Input) error {
 	approvals := p.ModeApprovals
+	if in.Names == nil {
+		return refuse("MVP_CHAIN_READ_REQUIRED")
+	}
 	if len(approvals) != 2 || approvals[0].Owner >= approvals[1].Owner {
-		return false
+		return refuse("MVP_MODE_APPROVAL_REQUIRED")
+	}
+	if approvals[0].Name == approvals[1].Name {
+		return refuse("MVP_OWNER_NAME_REUSED")
+	}
+	if approvals[0].Registration == approvals[1].Registration {
+		return refuse("MVP_OWNER_REGISTRATION_REUSED")
+	}
+	var st Statement
+	if !decode(in.Statement, &st, 8192) || st.TipHeight < 0 || !ishex(st.TipHash, 64) {
+		return refuse("STATEMENT_FIELD")
 	}
 	p.ModeApprovals = nil
-	digest := tagged("swarma-notary-local-policy-v1", canonical(p))
+	identities := make([]struct {
+		Owner        string `json:"owner"`
+		Name         string `json:"name"`
+		Registration Point  `json:"registration"`
+	}, 0, 2)
 	for _, a := range approvals {
-		if (a.Owner != p.IssuerOwner && a.Owner != p.DelegatorOwner) || !owner(a.Owner) || !signature(a.Owner[2:], digest, a.Signature) {
-			return false
+		identities = append(identities, struct {
+			Owner        string `json:"owner"`
+			Name         string `json:"name"`
+			Registration Point  `json:"registration"`
+		}{a.Owner, a.Name, a.Registration})
+	}
+	digest := tagged("swarma-notary-local-policy-v1", append(canonical(p), canonical(identities)...))
+	for _, a := range approvals {
+		if (a.Owner != p.IssuerOwner && a.Owner != p.DelegatorOwner) || !owner(a.Owner) || !nameRE.MatchString(a.Name) || !ishex(a.Registration.TxID, 64) {
+			return refuse("MVP_MODE_APPROVAL_REQUIRED")
+		}
+		observation, e := in.Names.Lookup(a.Name, st.TipHeight, st.TipHash)
+		if e != nil {
+			if e == Refusal("MVP_CHAIN_READ_REQUIRED") {
+				return e
+			}
+			return refuse("MVP_NAME_UNREADABLE")
+		}
+		if observation.Height != st.TipHeight || observation.BlockHash != st.TipHash {
+			return refuse("MVP_NAME_VIEW_MISMATCH")
+		}
+		if observation.Registration != a.Registration {
+			return refuse("MVP_NAME_REGISTRATION_MISMATCH")
+		}
+		k, e := grantKey(observation.Value)
+		if e != nil {
+			return refuse("MVP_NAME_VALUE")
+		}
+		if k != a.Owner[2:] || !signature(k, digest, a.Signature) {
+			return refuse("MVP_MODE_APPROVAL_REQUIRED")
 		}
 	}
-	return true
+	return nil
 }

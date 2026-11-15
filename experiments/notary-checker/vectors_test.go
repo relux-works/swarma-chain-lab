@@ -12,20 +12,21 @@ import (
 )
 
 type vector struct {
-	Name           string `json:"name"`
-	Claim          string `json:"claim"`
-	Expected       string `json:"expected"`
-	Parent         string `json:"parent"`
-	Child          string `json:"child"`
-	ParentContract string `json:"parent_contract"`
-	ChildContract  string `json:"child_contract"`
-	Request        string `json:"request"`
-	Policy         string `json:"policy"`
-	NotaryValue    string `json:"notary_value"`
-	Statement      string `json:"statement"`
-	ParentText     string `json:"parent_text"`
-	ChildText      string `json:"child_text"`
-	At             int64  `json:"at"`
+	Name           string        `json:"name"`
+	Claim          string        `json:"claim"`
+	Expected       string        `json:"expected"`
+	Parent         string        `json:"parent"`
+	Child          string        `json:"child"`
+	ParentContract string        `json:"parent_contract"`
+	ChildContract  string        `json:"child_contract"`
+	Request        string        `json:"request"`
+	Policy         string        `json:"policy"`
+	NotaryValue    string        `json:"notary_value"`
+	Statement      string        `json:"statement"`
+	ParentText     string        `json:"parent_text"`
+	ChildText      string        `json:"child_text"`
+	At             int64         `json:"at"`
+	Names          []fixtureName `json:"names"`
 	Result         struct {
 		Attestation string `json:"attestation"`
 		Digest      string `json:"digest"`
@@ -36,7 +37,11 @@ type vector struct {
 }
 
 func (v vector) input() Input {
-	return Input{[]byte(v.Parent), []byte(v.Child), []byte(v.ParentContract), []byte(v.ChildContract), []byte(v.Request), []byte(v.Policy), []byte(v.NotaryValue), []byte(v.Statement), []byte(v.ParentText), []byte(v.ChildText), v.At}
+	in := Input{Parent: []byte(v.Parent), Child: []byte(v.Child), ParentContract: []byte(v.ParentContract), ChildContract: []byte(v.ChildContract), Request: []byte(v.Request), Policy: []byte(v.Policy), NotaryValue: []byte(v.NotaryValue), Statement: []byte(v.Statement), ParentText: []byte(v.ParentText), ChildText: []byte(v.ChildText), At: v.At}
+	if v.Names != nil {
+		in.Names = fixtureNames(v.Names)
+	}
+	return in
 }
 
 type corpus struct {

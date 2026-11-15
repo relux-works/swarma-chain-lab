@@ -62,7 +62,7 @@ CASES = [
  ('policy-mode','check.go','POLICY_MODE_UNSUPPORTED','TestVectors/negative-mvp-unknown-mode','unknown deployment modes refuse'),
  ('policy-mode-required','check.go','POLICY_MODE_REQUIRED','TestVectors/negative-mvp-approvals-without-mode','approvals never infer an absent mode'),
  ('mvp-distinct-pair','check.go','MVP_MODE_PAIR_REQUIRED','TestVectors/negative-mvp-one-owner-pair','two-owner mode rejects a one-owner pair before approval checks'),
- ('mvp-both-approvals','check.go','MVP_MODE_APPROVAL_REQUIRED','TestVectors/negative-mvp-no-approvals','mode requires both signed exact-scope approvals, not just agreed_by'),
+ ('mvp-both-approvals','policy.go',None,'TestVectors/negative-mvp-no-approvals','mode requires both signed exact-scope approvals, not just agreed_by'),
 ]
 
 
@@ -94,8 +94,12 @@ def main():
       ('attestation-size-off-by-one','check.go',None,'TestVectors/negative-attestation-8193','8193 refuses while the 8192-byte control passes'),
       ('attestation-decode-size','check.go',None,'TestAttestationOutputSize/negative-attestation-8193','signed decode also rejects an oversized correctly signed candidate'),
       ('mvp-signature','policy.go',None,'TestVectors/negative-mvp-different-notary','owner signatures bind even another designated notary name'),
-      ('mvp-approval-order','policy.go',None,'TestVectors/negative-mvp-duplicate-approval','two copies of one owner signature are not bilateral approval'),
+      ('mvp-approval-order','policy.go',None,'TestVectors/negative-mvp-approval-order','approval owner order is canonical'),
       ('mvp-signing-authorities','check.go',None,'TestVectors/negative-mvp-opposite-owner-key','opposite compressed parities cannot reuse one BIP-340 signing authority for both owners'),
+      ('mvp-distinct-registration','policy.go','MVP_OWNER_REGISTRATION_REUSED','TestVectors/negative-mvp-owner-registration-reused','different names with one registration cannot count as two owners'),
+      ('mvp-distinct-name','policy.go','MVP_OWNER_NAME_REUSED','TestVectors/negative-mvp-owner-name-reused','one name cannot approve twice with two keys'),
+      ('mvp-name-view','policy.go','MVP_NAME_VIEW_MISMATCH','TestVectors/negative-mvp-name-height','observed height must match the statement'),
+      ('mvp-name-registration','policy.go','MVP_NAME_REGISTRATION_MISMATCH','TestVectors/negative-mvp-name-registration','current registration must equal the approved identity'),
     ]
     env = dict(os.environ, GOTOOLCHAIN='local', GOPROXY='off', GOSUMDB='off')
     go = env.get('GO', 'go')
@@ -135,8 +139,12 @@ def main():
             source = source.replace('len(raw) > MaxAttestationBytes', 'len(raw) > MaxAttestationBytes+1')
         elif name == 'attestation-decode-size':
             source = source.replace('decode(r.Attestation, &a, MaxAttestationBytes)', 'decode(r.Attestation, &a, MaxAttestationBytes+1)')
+        elif name == 'mvp-both-approvals':
+            # Deliberately accept a missing approval set without indexing it;
+            # a crash after dropping the length gate would prove nothing.
+            source = source.replace('return refuse("MVP_MODE_APPROVAL_REQUIRED")', 'return nil', 1)
         elif name == 'mvp-signature':
-            source = source.replace('!signature(a.Owner[2:], digest, a.Signature)', 'digest == ""')
+            source = source.replace('!signature(k, digest, a.Signature)', 'digest == ""')
         elif name == 'mvp-approval-order':
             source = source.replace('approvals[0].Owner >= approvals[1].Owner', 'false')
         elif name == 'mvp-signing-authorities':

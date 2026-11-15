@@ -5,7 +5,8 @@ import (
 )
 
 // Check validates signed octets and local policy, then returns an UNSIGNED
-// candidate and its signing digest. It is pure: no I/O, keys, clock or state.
+// candidate and its signing digest. It has no direct I/O, signing keys, clock
+// or state; MVP calls NameSource for reads at the explicit statement view.
 // The caller still owes all online and durable-record obligations in DESIGN.md.
 func Check(in Input) (Result, error) {
 	fail := func(s string) (Result, error) { return Result{}, refuse(s) }
@@ -87,8 +88,8 @@ func Check(in Input) (Result, error) {
 		if policy.IssuerOwner[2:] == policy.DelegatorOwner[2:] {
 			return fail("MVP_MODE_PAIR_REQUIRED")
 		}
-		if !modeApproved(policy) {
-			return fail("MVP_MODE_APPROVAL_REQUIRED")
+		if e := modeApproved(policy, in); e != nil {
+			return Result{}, e
 		}
 	}
 	if policy.IssuerOwner == policy.DelegatorOwner {

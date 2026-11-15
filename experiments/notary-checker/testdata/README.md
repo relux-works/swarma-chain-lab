@@ -35,3 +35,14 @@ Run `python3 scripts/make-fixtures.py` from the module to reproduce these
 files, then `python3 scripts/reference.py` and `go test -race ./...`.
 A fixture's expected code is written explicitly in the generator. Regeneration
 never asks the Go implementation what verdict to expect.
+
+MVP round-4 fixtures pin the current `swarma.landlord.grant` value, registration,
+height and block hash for each synthetic `id/fixture-*` owner name. **Precondition:**
+these offline observations are assumed accurate for their stated view; no file
+or operator assertion is chain evidence in running mode. The positive pinned
+`mvp-names.json` has SHA-256
+`bd429b0f3f159ebc2ba90c971e03a86f8c9450bdcce05e04aa3cfb8f3ad85a3c`.
+Negative vectors deliberately alter that synthetic view, reuse an identity,
+or sign with a noncurrent key. The checker and independent reader must reject
+them by their named codes. Only `-offline-name-fixture FILE` may load a file;
+its CLI result is marked `offline-fixture`. Running MVP refuses pending N3.

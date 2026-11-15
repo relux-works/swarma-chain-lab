@@ -8,10 +8,10 @@ modules, `GOPROXY=off`, and `GOSUMDB=off`. No runtime network or node was used.
 | --- | --- | --- |
 | `gofmt -l .` | 0 | No output |
 | `go vet ./...` | 0 | This module |
-| `go test -race ./...` | 0 | This module and CLI; 121 complete signed-bundle vectors and two isolated row vectors |
+| `go test -race ./...` | 0 | This module and CLI; 138 complete signed-bundle vectors and two isolated row vectors |
 | `go build ./cmd/notary-check` | 0 | CLI builds |
-| `python3 scripts/reference.py` | 0 | All 121 signed bundles and two isolated row vectors; exact candidate octets, digest, positive signatures, envelope IDs and frames |
-| `python3 scripts/check-mutants.py --work-dir <fresh-scratch>` | 0 | 59/59 named controls killed; zero survivors; each mutant test exits 1 with the named assertion failure |
+| `python3 scripts/reference.py` | 0 | All 138 signed bundles and two isolated row vectors; exact candidate octets, digest, positive signatures, envelope IDs and frames |
+| `python3 scripts/check-mutants.py --work-dir <fresh-scratch>` | 0 | 63/63 named controls killed; zero survivors; each mutant test exits 1 with the named assertion failure |
 | Boundary regressions | 0 | `TestAttestationOutputSize`, `TestCLIAttestationOutputSize`: fitting statements compose to 8191/8192 accepted bytes or a named empty 8193-byte refusal; signed decoder also rejects correctly signed oversized bytes |
 | Positive CLI fixture at `1700000100` | 0 | `ATTEST bbc8faeb27b65ce4460c92228ec0487496e586b2c4ee5e216943036bdc3fc051` |
 | Same CLI fixture at `1700000200` | 1 | Expected refusal `GRANT_EXPIRED`; this is a failing command as required, not a green gate |
@@ -93,8 +93,12 @@ pin after removing membership, to avoid counting a crash as detection.
 | attestation-size-off-by-one | 8193 refuses while the 8192-byte control passes | TestVectors/negative-attestation-8193 | ATTEST |
 | attestation-decode-size | signed decode also rejects an oversized correctly signed candidate | TestAttestationOutputSize/negative-attestation-8193 | named assertion failed |
 | mvp-signature | owner signatures bind even another designated notary name | TestVectors/negative-mvp-different-notary | ATTEST |
-| mvp-approval-order | two copies of one owner signature are not bilateral approval | TestVectors/negative-mvp-duplicate-approval | ATTEST |
+| mvp-approval-order | approval owner order is canonical | TestVectors/negative-mvp-approval-order | ATTEST |
 | mvp-signing-authorities | opposite compressed parities cannot reuse one BIP-340 signing authority for both owners | TestVectors/negative-mvp-opposite-owner-key | ATTEST |
+| mvp-distinct-registration | different names with one registration cannot count as two owners | TestVectors/negative-mvp-owner-registration-reused | ATTEST |
+| mvp-distinct-name | one name cannot approve twice with two keys | TestVectors/negative-mvp-owner-name-reused | MVP_NAME_REGISTRATION_MISMATCH |
+| mvp-name-view | observed height must match the statement | TestVectors/negative-mvp-name-height | ATTEST |
+| mvp-name-registration | current registration must equal the approved identity | TestVectors/negative-mvp-name-registration | ATTEST |
 
 No generated mutation tree, binary, cache or private execution log is part of
 the public change. No independent review, live service, name registration,
@@ -119,6 +123,39 @@ roles, notary name and owner pin; neither agreement identifiers alone nor one
 owner signature suffices. Absent mode retains the strict refusals. The named
 `mvp-both-approvals` mutation removes the bilateral mode gate and fails
 `TestVectors/negative-mvp-no-approvals` with erroneous `ATTEST`; signature and
-duplicate-approval mutations likewise fail their named vectors. Opposite-parity
+approval-order mutations likewise fail their named vectors. Opposite-parity
 compressed owner keys are rejected even with valid signatures: the
 `mvp-signing-authorities` mutant erroneously accepts that named witness. No survivors.
+
+
+## Round 4: chain-resolved MVP identities
+
+The same Go and independent-reader gates cover all 138 bundles and two row
+vectors. All 94 strict-default fixtures remain byte-for-byte unchanged; every
+prior vector name and expected refusal remains present. New fixtures cover
+name/registration reuse, the current grant-key binding, unreadable/malformed
+values, registration changes, and both mismatched height and hash.
+`TestRunningRejectsFixture` checks a valid offline positive against refusal
+of an injected source and refusal of the unwired node path; its strict default
+control passes without a names input. `TestLookupPinsStatementView` asserts
+both signed names and the explicit height/hash passed to the source.
+`TestCLIMVPNameFixtures` exercises every MVP vector through files and flags,
+checks the LAB/OFFLINE banner and success marker, and refuses a valid MVP
+bundle when the offline name input is omitted.
+
+The distinct-registration mutant yields erroneous `ATTEST` in
+`TestVectors/negative-mvp-owner-registration-reused`; the original checker
+refuses `MVP_OWNER_REGISTRATION_REUSED`. Distinct-name removal is a refusal-order
+control: the fixture still fails registration binding. The table does not
+claim that every removed guard independently causes false acceptance.
+All 63 final controls fail their named tests, with zero survivors, panics,
+setup failures or non-applied edits counted as detections. The initial
+control revision detected only 61/63: a length-gate deletion crashed and the
+order mutation survived the new signature binding. They were corrected to
+exercise unsafe early acceptance and correctly signed reversed identities;
+the final control run is the green evidence above.
+
+No node read, production observation, person-level identity proof or live
+admission is established by these fixtures. The running MVP path remains
+`MVP_CHAIN_READ_REQUIRED` pending N3. The pinned offline snapshot and its
+precondition are documented in testdata/README.md and DESIGN.md.

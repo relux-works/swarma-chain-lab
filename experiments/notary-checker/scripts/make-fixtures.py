@@ -301,12 +301,31 @@ for size in (8191, 8192, 8193):
 def approve_mode(v):
     pol = json.loads(v['policy'])
     pol.pop('mode_approvals', None)
-    digest = r.sha(b'swarma-notary-local-policy-v1' + r.octets(pol))
     roles = {owner(k): k for k in ('issuer_owner', 'delegator_owner', 'other')}
-    pol['mode_approvals'] = [dict(owner=k, signature=sign(TEST_KEYS[roles[k]], digest))
-                             for k in sorted({pol['issuer_owner'], pol['delegator_owner']})]
+    identities = []
+    names = []
+    st = json.loads(v['statement'])
+    for k in sorted({pol['issuer_owner'], pol['delegator_owner']}):
+        role = roles[k]
+        name = 'id/fixture-' + role.replace('_', '-')
+        registration = dict(txid=('a1' if role == 'issuer_owner' else 'a2' if role == 'delegator_owner' else 'a3')*32, vout=0)
+        identities.append(dict(owner=k, name=name, registration=registration))
+        names.append(dict(name=name, registration=registration, value=r.encode(dict(swarma=dict(landlord=dict(grant=public(TEST_KEYS[role]))))), height=st['tip_height'], blockhash=st['tip_hash']))
+    digest = r.sha(b'swarma-notary-local-policy-v1' + r.octets(pol) + r.octets(identities))
+    pol['mode_approvals'] = [dict(**a, signature=sign(TEST_KEYS[roles[a['owner']]], digest)) for a in identities]
+    v['names'] = names
     v['policy'] = r.encode(pol)
     return v
+
+
+# Re-sign only identities after deliberate fixture changes; public test keys only.
+def resign_identities(v):
+    pol = json.loads(v['policy']); approvals = pol.pop('mode_approvals')
+    identities = [{k:a[k] for k in ('owner','name','registration')} for a in approvals]
+    digest = r.sha(b'swarma-notary-local-policy-v1' + r.octets(pol) + r.octets(identities))
+    roles = {owner(k): k for k in ('issuer_owner','delegator_owner','other')}
+    pol['mode_approvals'] = [dict(**a,signature=sign(TEST_KEYS[roles[a['owner']]],digest)) for a in identities]
+    v['policy'] = r.encode(pol)
 
 
 def mvp_bundle(notary_role='issuer_owner', note=''):
@@ -332,7 +351,7 @@ for index in (0, 1):
     add('negative-mvp-one-approval-' + str(index), 'MVP_MODE_APPROVAL_REQUIRED', v, 'Either unilateral signature refuses; both owners must sign.')
 v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(mode_approvals=[x['mode_approvals'][0]] * 2))
 add('negative-mvp-duplicate-approval', 'MVP_MODE_APPROVAL_REQUIRED', v)
-v = mvp_bundle(); edit(v, 'policy', lambda x: x['mode_approvals'].reverse())
+v = mvp_bundle(); edit(v, 'policy', lambda x: x['mode_approvals'].reverse()); resign_identities(v)
 add('negative-mvp-approval-order', 'MVP_MODE_APPROVAL_REQUIRED', v)
 v = mvp_bundle(); edit(v, 'policy', lambda x: x['mode_approvals'][0].update(signature='00'*64))
 add('negative-mvp-signature', 'MVP_MODE_APPROVAL_REQUIRED', v)
@@ -371,8 +390,11 @@ v = mvp_bundle()
 pol = json.loads(v['policy']); pol.pop('mode_approvals')
 pol['delegator_owner'] = ('03' if pol['issuer_owner'].startswith('02') else '02') + pol['issuer_owner'][2:]
 pol['agreed_by'] = sorted([pol['issuer_owner'], pol['delegator_owner']])
-digest = r.sha(b'swarma-notary-local-policy-v1' + r.octets(pol))
-pol['mode_approvals'] = [dict(owner=k, signature=sign(TEST_KEYS['issuer_owner'], digest)) for k in pol['agreed_by']]
+identities = [dict(owner=k, name='id/fixture-parity-'+str(i), registration=dict(txid=('a1' if i == 0 else 'a2')*32,vout=0)) for i,k in enumerate(pol['agreed_by'])]
+digest = r.sha(b'swarma-notary-local-policy-v1' + r.octets(pol) + r.octets(identities))
+pol['mode_approvals'] = [dict(**a,signature=sign(TEST_KEYS['issuer_owner'],digest)) for a in identities]
+st=json.loads(v['statement'])
+v['names']=[dict(name=a['name'],registration=a['registration'],value=r.encode(dict(swarma=dict(landlord=dict(grant=public(TEST_KEYS['issuer_owner']))))),height=st['tip_height'],blockhash=st['tip_hash']) for a in identities]
 v['policy'] = r.encode(pol)
 add('negative-mvp-opposite-owner-key', 'MVP_MODE_PAIR_REQUIRED', v,
     'Opposite compressed parities share one BIP-340 authority and cannot count as two owner signing keys, even with valid signatures.')
@@ -381,7 +403,37 @@ add('negative-mvp-third-party-no-agreement', 'CROSS_OWNER_CERTIFIER_REQUIRED', v
 v = mvp_bundle('notary_owner'); edit(v, 'policy', lambda x: x.pop('mode_approvals'))
 add('negative-mvp-third-party-no-mode-approvals', 'MVP_MODE_APPROVAL_REQUIRED', v)
 
+
+
+v=mvp_bundle(); v.pop('names')
+add('negative-mvp-chain-read-required','MVP_CHAIN_READ_REQUIRED',v,'Running MVP cannot accept policy approvals without chain reads.')
+v=mvp_bundle(); edit(v,'policy',lambda p:p['mode_approvals'][1].update(name=p['mode_approvals'][0]['name'])); resign_identities(v)
+add('negative-mvp-owner-name-reused','MVP_OWNER_NAME_REUSED',v,'One owner name cannot occupy both approval slots even with two keys.')
+v=mvp_bundle(); edit(v,'policy',lambda p:p['mode_approvals'][1].update(registration=p['mode_approvals'][0]['registration'])); v['names'][1]['registration']=v['names'][0]['registration']; resign_identities(v)
+add('negative-mvp-owner-registration-reused','MVP_OWNER_REGISTRATION_REUSED',v,'Different names and signing keys with equal registration are one owner identity.')
+v=mvp_bundle(); v['names'][0]['value']=r.encode(dict(swarma=dict(landlord=dict(grant=public(TEST_KEYS['other'])))))
+add('negative-mvp-stale-grant-key','MVP_MODE_APPROVAL_REQUIRED',v,'An approval under an old key cannot override the current chain grant key.')
+for label,change,code in [
+ ('unreadable',lambda n:n.update(unreadable=True),'MVP_NAME_UNREADABLE'),
+ ('unresolved',lambda n:n.update(name='id/fixture-missing'),'MVP_NAME_UNREADABLE'),
+ ('malformed',lambda n:n.update(value='{'),'MVP_NAME_VALUE'),
+ ('missing-grant',lambda n:n.update(value='{"swarma":{"landlord":{}}}'),'MVP_NAME_VALUE'),
+ ('wrong-key-role',lambda n:n.update(value=r.encode(dict(swarma=dict(notary=dict(attest=public(TEST_KEYS['issuer_owner'])))))),'MVP_NAME_VALUE'),
+ ('value-alias',lambda n:n.update(value=n['value'].replace('swarma','Swarma')),'MVP_NAME_VALUE'),
+ ('value-duplicate',lambda n:n.update(value=n['value'][:-1]+',"swarma":{}}'),'MVP_NAME_VALUE'),
+ ('value-noncanonical',lambda n:n.update(value=n['value'].replace('"grant":','"grant": ')),'MVP_NAME_VALUE'),
+ ('height',lambda n:n.update(height=n['height']+1),'MVP_NAME_VIEW_MISMATCH'),
+ ('hash',lambda n:n.update(blockhash='ff'*32),'MVP_NAME_VIEW_MISMATCH'),
+ ('registration',lambda n:n.update(registration=dict(txid='ff'*32,vout=0)),'MVP_NAME_REGISTRATION_MISMATCH')]:
+    v=mvp_bundle(); change(v['names'][0]); add('negative-mvp-name-'+label,code,v)
+v=mvp_bundle(); v['names'][0]['value']=' {"extension":null,'+v['names'][0]['value'][1:]
+add('positive-mvp-name-extension','ATTEST',v,'Top-level extensions remain allowed while the authority span is exact.')
+v=mvp_bundle(); edit(v,'policy',lambda p:p['mode_approvals'][0].update(name='id/fixture-rebound')); v['names'][0]['name']='id/fixture-rebound'
+add('negative-mvp-identity-signature-binding','MVP_MODE_APPROVAL_REQUIRED',v,'Changing a name with the same key and registration still needs fresh signatures.')
+
 (ROOT/'testdata/vectors.json').write_text(json.dumps(dict(schema='notary-checker-lab-vectors/1', warning='Fixed public test keys; fabricated chain locators and policy affiliations; no live authority.', vectors=vectors,row_vectors=rows),indent=2)+'\n')
+mvp_names=next(v['names'] for v in vectors if v['name']=='positive-mvp-issuer-owner')
+(ROOT/'testdata/mvp-names.json').write_bytes(r.octets(mvp_names))
 positive=ROOT/'testdata/positive'; positive.mkdir(exist_ok=True)
 for k in ('parent','child','parent_contract','child_contract','request','policy','notary_value','statement'):
     (positive/(k.replace('_','-')+'.json')).write_text(vectors[0][k])

@@ -9,7 +9,11 @@ import (
 
 // notaryKey follows LIP-0010 sections 2, 3 and 9: top-level extensions are
 // skipped (regardless of type), but the exact authority span remains strict.
-func notaryKey(raw []byte) (string, error) {
+func notaryKey(raw []byte) (string, error) { return nameKey(raw, false) }
+
+func grantKey(raw []byte) (string, error) { return nameKey(raw, true) }
+
+func nameKey(raw []byte, grant bool) (string, error) {
 	bad := func() (string, error) { return "", refuse("NOTARY_KEY") }
 	if len(raw) > 520 || !utf8.Valid(raw) {
 		return bad()
@@ -53,6 +57,17 @@ func notaryKey(raw []byte) (string, error) {
 	end, e := d.Token()
 	if e != nil || end != json.Delim('}') || d.InputOffset() != int64(len(raw)) || !seenS {
 		return bad()
+	}
+	if grant {
+		var binding struct {
+			Landlord struct {
+				Grant string `json:"grant"`
+			} `json:"landlord"`
+		}
+		if !decode(authority, &binding, 520) || !key(binding.Landlord.Grant) {
+			return bad()
+		}
+		return binding.Landlord.Grant, nil
 	}
 	var binding struct {
 		Notary struct {
