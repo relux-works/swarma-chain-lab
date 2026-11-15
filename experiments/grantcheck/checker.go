@@ -292,7 +292,18 @@ func (c *Checker) Outbound(ctx context.Context, recipient string) Verdict {
 func (c *Checker) check(ctx context.Context, peer string, supplied *Presentation, inbound bool) Verdict {
 	return c.checkOperation(ctx, peer, supplied, inbound, false)
 }
-func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Presentation, inbound, provision bool) (out Verdict) {
+
+// checkTransaction is owned under both the checker mutex and durable store lock.
+// No candidate state reaches disk until the owning operation decides to commit.
+type checkTransaction struct {
+	m state
+}
+
+func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Presentation, inbound, provision bool) Verdict {
+	return c.checkStaged(ctx, peer, supplied, inbound, provision, nil)
+}
+
+func (c *Checker) checkStaged(ctx context.Context, peer string, supplied *Presentation, inbound, provision bool, pending *checkTransaction) (out Verdict) {
 	fail := func(code Code) Verdict { return route(code, inbound, false) }
 	if ctx == nil || ctx.Err() != nil {
 		return fail(CodeCancelled)
@@ -320,23 +331,31 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 			return fail(code)
 		}
 	}
-	if !c.mu.TryLock() {
-		return fail(CodeBusy)
-	}
-	defer c.mu.Unlock()
-	if c.poisoned || !canonicalRoot(c.config.StateDir) {
-		return fail(CodeStateUnavailable)
-	}
-	ctx, cancel := context.WithTimeout(ctx, c.config.CheckTimeout)
-	defer cancel()
-	s, err := durable.Open(c.config.StateDir, "grantcheck.lock")
-	if err != nil {
-		return fail(CodeStateUnavailable)
-	}
-	defer s.Close()
-	m, err := c.load(s)
-	if err != nil {
-		return fail(CodeStateUnavailable)
+	var s *durable.Store
+	var m state
+	if pending == nil {
+		if !c.mu.TryLock() {
+			return fail(CodeBusy)
+		}
+		defer c.mu.Unlock()
+		if c.poisoned || !canonicalRoot(c.config.StateDir) {
+			return fail(CodeStateUnavailable)
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.config.CheckTimeout)
+		defer cancel()
+		var err error
+		s, err = durable.Open(c.config.StateDir, "grantcheck.lock")
+		if err != nil {
+			return fail(CodeStateUnavailable)
+		}
+		defer s.Close()
+		m, err = c.load(s)
+		if err != nil {
+			return fail(CodeStateUnavailable)
+		}
+	} else {
+		m = pending.m
 	}
 	// Cancellation and predictable capacity refusal commit nothing, including
 	// audit and clock high-water. A successful cache/audit update is atomic.
@@ -363,6 +382,10 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 			changed = true
 		}
 		if changed {
+			if pending != nil {
+				pending.m = m
+				return
+			}
 			if code := c.commit(ctx, s, m); code != CodeLive {
 				out = fail(code)
 			}
@@ -398,6 +421,7 @@ func (c *Checker) checkOperation(ctx context.Context, peer string, supplied *Pre
 	}
 	c.node.reset(c.observedTime)
 	var r kernel.Receipt
+	var err error
 	r, err = c.backend.Check(ctx, p.Bytes, c.config.AgentName, peer, now)
 	if ctx.Err() != nil {
 		return fail(CodeCancelled)

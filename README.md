@@ -306,6 +306,10 @@ It checks headers equal to blocks, minimum height, maximum tip age and future
 skew for every admission and cached send. `Checker.Provision` protects manual
 first-message proof bootstrap with the same full checks and durable auditing.
 The envelope bench delegates these shared checks to grantcheck.
+Aggregate sends stage all checker state under one transaction and persist once
+after the final sample; refusals preserve the durable checker file. The
+`TestCoreAggregateFinalDecisionAtomic` Core witness and policy overlays cover
+the no-write-on-final-refusal guarantee.
 
 The HIDDEN age of an admitted view is at most A + F (not A).
 `trusted_now` is the consumer's `Config.Now` trusted clock input, using the
@@ -317,7 +321,7 @@ probe on a real Namecoin node before any non-bench use. Exact test values and
 named Core witnesses are listed in the policy document.
 
 Policy tools from the repository root: `python3 -B .scripts/grantcheck-policy-guards.py
---out .temp/policy-guards --private-root <fresh-absolute-regtest-parent>` runs six
+--out .temp/policy-guards --private-root <fresh-absolute-regtest-parent>` runs twelve
 Go-overlay controls and writes hashes/exits/logs there. The existing
 `python3 -B .scripts/check-px1-core-gate.py check --manifest
 .scripts/grantcheck-policy-core-gate.json <go-test-json>` checks the Core witness

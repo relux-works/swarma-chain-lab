@@ -22,14 +22,16 @@
     "TestCoreProvisioning/FinalSampleCancellation/Sample3",
     "TestCoreProvisioning/CombinedCapacity",
     "TestCoreFinalSampleFreshness",
-    "TestCoreAggregateEveryObservation"
+    "TestCoreAggregateEveryObservation",
+    "TestCoreAggregateFinalDecisionAtomic"
   ],
   "core_tests": [
     "TestCoreVectors",
     "TestCoreFreshness",
     "TestCoreProvisioning",
     "TestCoreFinalSampleFreshness",
-    "TestCoreAggregateEveryObservation"
+    "TestCoreAggregateEveryObservation",
+    "TestCoreAggregateFinalDecisionAtomic"
   ],
   "core_runs": {
     "TestCoreVectors": {
@@ -49,6 +51,10 @@
       "race": true
     },
     "TestCoreAggregateEveryObservation": {
+      "count": 1,
+      "race": true
+    },
+    "TestCoreAggregateFinalDecisionAtomic": {
       "count": 1,
       "race": true
     }
@@ -220,6 +226,14 @@
       ],
       "core": [
         "TestCoreAggregateEveryObservation"
+      ]
+    },
+    "TestCoreAggregateFinalDecisionAtomic": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreAggregateFinalDecisionAtomic"
       ]
     }
   }

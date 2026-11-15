@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
@@ -67,9 +68,7 @@ func TestFinalSampleCancellation(t *testing.T) {
 					if sample != 0 {
 						assertVerdict(t, v, Refused, CodeCancelled, false, true)
 						after := readCheckerState(t, c)
-						// Aggregate outbound's fourth sample follows an already committed
-						// recipient check; cancellation cannot undo that earlier commit.
-						if sample != 4 && !bytes.Equal(before, after) {
+						if !bytes.Equal(before, after) {
 							t.Fatal("cancelled call changed cache, audit or high-water")
 						}
 					} else {
@@ -169,5 +168,74 @@ func TestCommitCancellationGuard(t *testing.T) {
 	}
 	if code := c.commit(context.Background(), s, m); code != CodeLive {
 		t.Fatal("valid commit after cancellation", code)
+	}
+}
+
+// Claim: after one live recipient, a missing or refused later recipient and
+// cancellation at every clock sample preserve all checker bytes; a concurrent
+// same-checker call refuses busy and cannot interfere with a live aggregate.
+// The unit backend isolates transaction ordering; Core tests verify real grants.
+func TestAggregateRecipientTransaction(t *testing.T) {
+	for _, mode := range []string{"Live", "Missing", "Refused", "Cancelled"} {
+		for sample := range 8 {
+			if mode != "Cancelled" && sample != 0 {
+				continue
+			}
+			t.Run(fmt.Sprintf("%s/Sample%d", mode, sample), func(t *testing.T) {
+				c, b, p := unitChecker(t)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				assertVerdict(t, c.Provision(ctx, p), Live, CodeLive, false, false)
+				other := unitGrantForPeer(t, xonly(3))
+				id, err := kernel.PresentationID(other)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if mode != "Missing" {
+					assertVerdict(t, c.Provision(ctx, Presentation{GrantID: id, Bytes: other}), Live, CodeLive, false, false)
+				}
+				if mode == "Refused" {
+					old := b.Handler
+					b.Handler = func(ctx context.Context, raw []byte, a, peer string, now int64) (kernel.Receipt, error) {
+						r, err := old(ctx, raw, a, peer, now)
+						if peer == xonly(3) {
+							r.Verdict, r.Reason = kernel.Refused, "RPC_UNAVAILABLE"
+						}
+						return r, err
+					}
+				}
+				before := readCheckerState(t, c)
+				reads := 0
+				c.config.Now = func() time.Time {
+					reads++
+					if mode == "Cancelled" && reads == sample {
+						cancel()
+					}
+					if mode == "Live" && reads == 7 {
+						assertVerdict(t, c.Outbound(context.Background(), xonly(2)), Refused, CodeBusy, false, true)
+					}
+					return time.Unix(501, 0)
+				}
+				v := c.OutboundFrom(ctx, RecipientProof{NostrNIP17Seal, []string{xonly(2), xonly(3)}})
+				if mode == "Live" || mode == "Cancelled" && sample == 0 {
+					assertVerdict(t, v, Live, CodeLive, false, false)
+					if bytes.Equal(before, readCheckerState(t, c)) {
+						t.Fatal("live aggregate did not commit")
+					}
+				} else {
+					code := CodeCancelled
+					if mode == "Missing" {
+						code = CodeNoGrant
+					}
+					if mode == "Refused" {
+						code = CodeVerifierUnavailable
+					}
+					assertVerdict(t, v, Refused, code, false, code != CodeNoGrant)
+					if !bytes.Equal(before, readCheckerState(t, c)) {
+						t.Fatal("recipient refusal changed checker state")
+					}
+				}
+			})
+		}
 	}
 }

@@ -38,7 +38,7 @@ func TestCoreFinalSampleFreshness(t *testing.T) {
 			for _, delta := range []time.Duration{0, time.Nanosecond, time.Second} {
 				t.Run(fmt.Sprintf("Transport%d/%s/OverA%dns", transport, path, delta), func(t *testing.T) {
 					// Claim: late staleness is retryable, returns no live metadata, and preserves the complete cache and audit; equality admits.
-					c := freshCoreChecker(t, l, l.observer, tip+60, testFreshness(time.Minute, 2*time.Minute, info.Blocks), xonly(9), transport)
+					c := freshCoreChecker(t, l, l.observer, tip, testFreshness(time.Minute, 2*time.Minute, info.Blocks), xonly(9), transport)
 					for i, p := range proofs {
 						if i == 0 && (path == "Inbound" || path == "InboundFrom" || path == "Provision") {
 							continue // Supplied-proof cases must not already have the candidate cached.
@@ -167,5 +167,98 @@ func TestCoreAggregateEveryObservation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Claim: a multi-recipient aggregate stages all checker-owned state until its
+// final decision. Late refusals preserve the entire durable file byte for byte;
+// the live control advances High once, preserving the admitted cache and audit.
+func TestCoreAggregateFinalDecisionAtomic(t *testing.T) {
+	agent, err := nostr.GeneratePrivKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := newCoreLab(t, agent.PubKeyHex())
+	var keys []string
+	var proofs []Presentation
+	for i := range 3 {
+		peer, err := nostr.GeneratePrivKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, peer.PubKeyHex())
+		proofs = append(proofs, corePresentation(t, l.grant(peer, fmt.Sprintf("atomic-%d", i), l.seal(), true)))
+	}
+	info, tip := coreTip(t, l)
+	for _, transport := range []Transport{NostrNIP17Seal, SwarmEnvelopeV2} {
+		for _, mode := range []string{"Live", "StaleNanosecond", "StaleSecond", "Cancelled", "ClockRollback", "Expired"} {
+			t.Run(fmt.Sprintf("Transport%d/%s", transport, mode), func(t *testing.T) {
+				c := freshCoreChecker(t, l, l.observer, tip, testFreshness(time.Minute, 2*time.Minute, info.Blocks), xonly(9), transport)
+				for _, p := range proofs {
+					assertVerdict(t, c.Provision(context.Background(), p), Live, CodeLive, false, false)
+				}
+				before := readCheckerState(t, c)
+				var original state
+				if err := json.Unmarshal(before, &original); err != nil {
+					t.Fatal(err)
+				}
+				if original.High >= tip+60 || len(original.Cache) != 3 || len(original.Provisioning) != 3 {
+					t.Fatal("fixture must start below recipient time with all proofs and audits")
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				reads := 0
+				staged := true
+				c.config.Now = func() time.Time {
+					reads++
+					staged = staged && bytes.Equal(before, readCheckerState(t, c))
+					at := time.Unix(tip+60, 0)
+					if reads == 10 {
+						switch mode {
+						case "StaleNanosecond":
+							at = at.Add(time.Nanosecond)
+						case "StaleSecond":
+							at = at.Add(time.Second)
+						case "Cancelled":
+							cancel()
+						case "ClockRollback":
+							at = at.Add(-time.Nanosecond)
+						case "Expired":
+							at = time.Unix(coreEpoch+2000000, 0)
+						}
+					}
+					return at
+				}
+				v := c.OutboundFrom(ctx, RecipientProof{transport, keys})
+				if reads != 10 {
+					t.Fatalf("final sample not reached: %d", reads)
+				}
+				after := readCheckerState(t, c)
+				if mode == "Live" {
+					assertVerdict(t, v, Live, CodeLive, false, false)
+					original.High = tip + 60
+					if !staged || !bytes.Equal(jsonBytes(t, original), after) || bytes.Equal(before, after) {
+						t.Fatal("live aggregate must stage all recipients then commit the final high-water only")
+					}
+				} else {
+					code := CodeTipStale
+					switch mode {
+					case "Cancelled":
+						code = CodeCancelled
+					case "ClockRollback":
+						code = CodeClockInvalid
+					case "Expired":
+						code = CodeExpired
+					}
+					assertVerdict(t, v, Refused, code, false, code != CodeExpired)
+					if !bytes.Equal(before, after) {
+						t.Fatal("aggregate refusal committed cache, audit or high-water")
+					}
+				}
+				if v.GrantID != "" || len(v.Scope) != 0 || v.checked != nil {
+					t.Fatal("aggregate returned per-recipient live metadata")
+				}
+			})
+		}
 	}
 }

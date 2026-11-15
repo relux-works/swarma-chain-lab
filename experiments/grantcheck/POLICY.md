@@ -84,7 +84,7 @@ headers at F admit, while F+1 and two hours ahead refuse non-retryably.
 | --- | --- |
 | `Inbound` and `InboundFrom`, supplied or cached | Full observation rule, grant start/end, nondecreasing clock, cancellation; deferred cache commit checks cancellation again. |
 | `Outbound` | Same shared operation checks, with no proof-cache replacement or provisioning audit. |
-| `OutboundFrom`, one or multiple recipients | Shared checks for every recipient, then full observation rule on **each retained recipient observation** at the aggregate final sample; earliest grant end, clock order against every recipient, and cancellation. |
+| `OutboundFrom`, one or multiple recipients | One checker/store transaction stages every recipient without persistence, then full observation rule on **each retained recipient observation** at the aggregate final sample; earliest grant end, clock order against every recipient, and cancellation. Success commits the complete staged state once; every refusal discards it. |
 | `Provision` | Same shared operation checks before cache/audit commit; cancellation is checked again immediately before persistence. Late freshness refusal commits neither cache nor audit nor clock high-water. |
 
 Grant timestamps are integral Unix seconds; the shared operation checks the
@@ -156,8 +156,9 @@ Cancellation records no audit (including no refusal audit), changes no checker
 cache or clock high-water, and returns retryable `cancelled`. Checks run after
 trusted-clock callbacks and again immediately before each checker commit. The
 clock high-water is staged with the operation and persisted before returning
-live. Cancellation cannot roll back kernel observations or recipient checks
-already committed before it became observable. A context cancelled during the
+live. Aggregate recipient checks remain staged through the final decision.
+Cancellation cannot roll back kernel-owned observations already committed
+before it became observable. A context cancelled during the
 filesystem write is outside the pre-write observation boundary; callers must
 still treat every verdict as an observation, never an atomic future effect.
 
@@ -190,7 +191,8 @@ go mod verify
 Enable genuine Core with `CG1_REGTEST=1`, `CG1_CORE_DAEMON=<pinned-namecoind>`,
 `CG1_CORE_CLI=<pinned-namecoin-cli>` and a fresh absolute `CG1_RUN_ROOT`.
 `TestCoreVectors`, `TestCoreFreshness`, `TestCoreProvisioning`,
-`TestCoreFinalSampleFreshness` and `TestCoreAggregateEveryObservation` each
+`TestCoreFinalSampleFreshness`, `TestCoreAggregateEveryObservation` and
+`TestCoreAggregateFinalDecisionAtomic` each
 create an isolated subdirectory and stop only their recorded node PID. Release pairs are
 hash-pinned; no mixed or unlisted pair starts. Generated vectors record the
 actual executable hashes. Never publish their private datadirs or RPC config.
@@ -210,6 +212,7 @@ compile errors and unrelated failures are invalid controls.
 
 | Mutant | Named failing test | What the kill establishes |
 | --- | --- | --- |
+| Per-recipient persistence restored | `TestCoreAggregateFinalDecisionAtomic/Transport2/StaleNanosecond` | Final refusal preserves all durable checker bytes with an initially lower High |
 | Aggregate final freshness removed | `TestCoreFinalSampleFreshness/Transport2/OutboundFromAggregate/OverA1ns` | Earlier recipient checks cannot authorize a stale final sample |
 | Only last aggregate observation retained | `TestCoreAggregateEveryObservation/Transport2/OverA1ns` | A fresh last observation cannot cover an earlier stale one |
 | Shared final freshness removed | `TestCoreFinalSampleFreshness/Transport2/Provision/OverA1ns` | Late staleness refuses before proof-cache or audit commit |
@@ -239,3 +242,28 @@ Round-two commit witnesses:
   preserves prior state, and permits valid operations and reopening.
 - `durable.TestExplicitWriteBudget` retains the legacy writer limit and checks
   exact explicit limits, overflow, preservation and recovery.
+
+## Aggregate state transaction
+
+`OutboundFrom` holds the checker mutex and durable store lock across every
+recipient and the single aggregate final sample. Per-recipient checks stage
+high-water, cache and audit candidates in memory; they do not write the checker
+file. Only aggregate success writes the complete state once, including the final
+clock high-water. Any recipient refusal, final freshness/window/clock refusal or
+cancellation discards the candidate without rollback. Concurrent calls observe
+busy/locked state rather than having their completed updates overwritten.
+
+`Inbound`/`InboundFrom` (supplied and cached), direct `Outbound`, and `Provision`
+continue to own one shared operation transaction. No live result is returned
+before that operation's final clock, freshness, window and cancellation decision
+and persistence check. A late freshness refusal or cancellation writes nothing.
+`Provision` may record other decided refusals in its bounded audit; malformed
+proofs use a separate decided-refusal audit transaction. Kernel-owned journals
+remain separate from the checker high-water/cache/audit transaction.
+
+`TestCoreAggregateFinalDecisionAtomic` starts High below all recipient readings
+with three genuine admitted Core grants and existing cache/audit records. Both
+transports have exact-A live controls, final-only A+1ns/A+1s, cancellation,
+clock rollback and expiry refusals. Refusals compare the entire durable file's
+bytes; the live control verifies no intermediate write and the exact final
+state. The per-recipient-commit overlay must fail the stale-refusal assertion.

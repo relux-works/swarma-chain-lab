@@ -1,6 +1,10 @@
 package grantcheck
 
-import "context"
+import (
+	"context"
+
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
+)
 
 // Transport is a closed sender-verification provenance, not a routing address.
 // SwarmEnvelopeV2 may be carried over Matrix or another transport.
@@ -94,10 +98,29 @@ func (c *Checker) OutboundFrom(ctx context.Context, proof RecipientProof) Verdic
 	}
 	ctx, cancel := context.WithTimeout(ctx, c.config.CheckTimeout)
 	defer cancel()
+	// Keep one transaction across every recipient and the aggregate final sample.
+	// A concurrent operation refuses busy rather than having its update rolled back.
+	if !c.mu.TryLock() {
+		return fail(CodeBusy)
+	}
+	defer c.mu.Unlock()
+	if c.poisoned || !canonicalRoot(c.config.StateDir) {
+		return fail(CodeStateUnavailable)
+	}
+	s, err := durable.Open(c.config.StateDir, "grantcheck.lock")
+	if err != nil {
+		return fail(CodeStateUnavailable)
+	}
+	defer s.Close()
+	m, err := c.load(s)
+	if err != nil {
+		return fail(CodeStateUnavailable)
+	}
+	pending := checkTransaction{m: m}
 	end, checked := int64(maxUnix), int64(0)
 	observations := make([]*liveCheck, 0, len(proof.Keys))
 	for _, key := range proof.Keys {
-		v := c.check(ctx, key, nil, false)
+		v := c.checkStaged(ctx, key, nil, false, false, &pending)
 		if v.Decision != Live {
 			return v
 		}
@@ -129,6 +152,11 @@ func (c *Checker) OutboundFrom(ctx context.Context, proof RecipientProof) Verdic
 	}
 	if ctx.Err() != nil {
 		return fail(CodeCancelled)
+	}
+	// The final sample is part of this transaction, including its high-water.
+	pending.m.High = now
+	if code := c.commit(ctx, s, pending.m); code != CodeLive {
+		return fail(code)
 	}
 	v := fail(CodeLive)
 	v.CheckedAt = now

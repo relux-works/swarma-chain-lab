@@ -18,6 +18,11 @@ CG = 'experiments/grantcheck/checker.go'
 FRESH = 'experiments/grantcheck/freshness.go'
 GRANT = 'experiments/rental/grant_kernel.go'
 PLANTS = [
+    ('aggregate-per-recipient-commit', 'TestCoreAggregateFinalDecisionAtomic/Transport2/StaleNanosecond', 'experiments/grantcheck/sender.go',
+     'v := c.checkStaged(ctx, key, nil, false, false, &pending)',
+     'v := c.checkStaged(ctx, key, nil, false, false, &pending)\n\t\tif code := c.commit(ctx, s, pending.m); code != CodeLive { return fail(code) }',
+     'a final aggregate refusal must leave all durable checker bytes unchanged even when recipient clocks advance',
+     'aggregate refusal committed cache, audit or high-water'),
     ('aggregate-final-freshness', 'TestCoreFinalSampleFreshness/Transport2/OutboundFromAggregate/OverA1ns', 'experiments/grantcheck/sender.go',
      'if code := observation.node.freshAt(sample); code != CodeLive {',
      'if code := observation.node.freshAt(sample); false {',
