@@ -103,8 +103,8 @@ func Run(args []string, sys System, out io.Writer) error {
 		if e != nil {
 			return stopped("SCOPE_READ", e)
 		}
-		if singleuse.StrictInput(raw, &scope) != nil {
-			return fail(1, "SCOPE_SCHEMA")
+		if e := singleuse.StrictInput(raw, &scope); e != nil {
+			return stopped("SCOPE_SCHEMA", e)
 		}
 		return Init(*dir, manifest, baseline, InitOptions{Purpose: purpose, Scope: scope, System: sys})
 	case "create-dir", "create-tree", "create-file":

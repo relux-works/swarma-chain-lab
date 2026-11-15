@@ -482,3 +482,95 @@ func TestLedgerFutureUnitExistingLinkBeforeEffect(t *testing.T) {
 		t.Fatal("pre-existing link changed")
 	}
 }
+
+// Claim: required members on either entry refuse by field and unit name before ledger creation; explicit [] remains a sealed, reopenable empty list and null refuses.
+func TestLedgerFutureUnitRequiredMembers(t *testing.T) {
+	for _, index := range []int{0, 1} {
+		for _, variant := range []string{"name", "source", "sha256", "links", "empty-links", "null-links"} {
+			t.Run([]string{"first", "second"}[index]+"/"+variant, func(t *testing.T) {
+				f := newFutureFixture(t)
+				var scope map[string]json.RawMessage
+				must(t, json.Unmarshal(canonical(f.scope), &scope))
+				var units []map[string]json.RawMessage
+				must(t, json.Unmarshal(scope["future_units"], &units))
+				switch variant {
+				case "empty-links":
+					units[index]["links"] = json.RawMessage(`[]`)
+				case "null-links":
+					units[index]["links"] = json.RawMessage(`null`)
+				default:
+					delete(units[index], variant)
+				}
+				scope["future_units"] = canonical(units)
+				must(t, os.WriteFile(f.scopeFile, canonical(scope), 0600))
+				err := Run([]string{"init", "-dir", f.dir, "-manifest", f.manifest, "-baseline", f.baseline, "-scope", f.scopeFile}, f.sys, &bytes.Buffer{})
+				if variant == "empty-links" {
+					must(t, err)
+					f.open(t)
+					links := f.l.rows[0].Body.Genesis.Scope.FutureUnits[index].Links
+					if links == nil || len(links) != 0 || bytes.Contains(mustRead(t, filepath.Join(f.dir, recordsName)), []byte(`"links":null`)) {
+						t.Fatal("explicit empty links lost in genesis")
+					}
+					return
+				}
+				code(t, err, 1)
+				if !strings.Contains(err.Error(), "SCOPE_SCHEMA") {
+					t.Fatalf("wrong schema refusal: %v", err)
+				}
+				if variant != "null-links" && (!strings.Contains(err.Error(), "FUTURE_UNIT_REQUIRED "+variant) || variant != "name" && !strings.Contains(err.Error(), f.scope.FutureUnits[index].Name)) {
+					t.Fatalf("missing named member refusal: %v", err)
+				}
+				absent(t, f.dir)
+			})
+		}
+	}
+}
+
+// Claim: even a correctly rehashed genesis with null links refuses at schema decode; missing links also refuses at schema decode, beside a valid empty-list genesis.
+func TestLedgerFutureUnitGenesisRequiredLinks(t *testing.T) {
+	for _, index := range []int{0, 1} {
+		for _, variant := range []string{"empty", "null", "missing"} {
+			t.Run([]string{"first", "second"}[index]+"/"+variant, func(t *testing.T) {
+				f := newFutureFixture(t)
+				f.scope.FutureUnits[index].Links = []FutureUnitLink{}
+				must(t, f.init(t))
+				if variant != "empty" {
+					var row Record
+					must(t, json.Unmarshal(bytes.TrimSpace(mustRead(t, filepath.Join(f.dir, recordsName))), &row))
+					row.Body.Genesis.Scope.FutureUnits[index].Links = nil
+					row.Hash = recordHash(row)
+					raw := canonical(row)
+					if variant == "missing" {
+						raw = bytes.Replace(raw, []byte(`,"links":null`), nil, 1)
+					}
+					must(t, os.WriteFile(filepath.Join(f.dir, recordsName), append(raw, '\n'), 0600))
+					must(t, os.WriteFile(filepath.Join(f.dir, "HEAD"), canonical(head{1, row.Hash}), 0600))
+				}
+				l, err := Open(f.dir, f.sys)
+				if l != nil {
+					l.Close()
+				}
+				if variant == "empty" {
+					must(t, err)
+				} else {
+					code(t, err, 1)
+					if !strings.Contains(err.Error(), "LEDGER_SCHEMA seq=0") {
+						t.Fatalf("wrong genesis refusal: %v", err)
+					}
+				}
+			})
+		}
+	}
+}
+
+// Claim: typed Init also refuses nil links before creating a ledger; callers must supply an explicit empty slice for an empty inventory.
+func TestLedgerFutureUnitTypedNilLinks(t *testing.T) {
+	f := newFutureFixture(t)
+	f.scope.FutureUnits[0].Links = nil
+	err := Init(f.dir, f.manifest, f.baseline, InitOptions{Purpose: "station", Scope: f.scope, System: f.sys})
+	code(t, err, 1)
+	if !strings.Contains(err.Error(), "FUTURE_UNIT_REQUIRED links "+f.scope.FutureUnits[0].Name) {
+		t.Fatalf("missing named links refusal: %v", err)
+	}
+	absent(t, f.dir)
+}

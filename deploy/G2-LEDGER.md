@@ -109,8 +109,11 @@ To bind the future enable inventory of units installed **after init**, declare
 This member belongs in the scope object alongside `units`; the example digest
 is synthetic and must be replaced with the SHA-256 of the exact staged bytes.
 Include an entry for each unit whose future bytes and links must be bound.
-Each entry has exactly `name`,
-`source`, `sha256` and `links`; each link has exactly `path` and `target`.
+Each entry requires exactly `name`, `source`, `sha256` and `links`; each link
+has exactly `path` and `target`. The `links` member is REQUIRED and must be
+written explicitly: use `[]` for a unit that is never enabled. Missing required
+members and `links: null` refuse before ledger creation; genesis records with
+missing or null `links` also refuse when opened.
 `source` is the absolute path where the installation plan stages the unit before
 installing it; `target` is the absolute installed unit path that enable will
 select. Paths must be clean, absolute and outside volatile runtime storage;

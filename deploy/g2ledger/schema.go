@@ -104,6 +104,44 @@ type FutureUnit struct {
 	SHA256 string           `json:"sha256"`
 	Links  []FutureUnitLink `json:"links"`
 }
+
+// requiredMembers keeps omitted/null members distinct from an explicit empty
+// link inventory, for both JSON inputs and callers of the typed Init API.
+func (u FutureUnit) requiredMembers() error {
+	for _, field := range []struct {
+		name    string
+		missing bool
+	}{
+		{"name", u.Name == ""},
+		{"source", u.Source == ""},
+		{"sha256", u.SHA256 == ""},
+		{"links", u.Links == nil},
+	} {
+		if field.missing {
+			return errors.New("FUTURE_UNIT_REQUIRED " + field.name + " " + u.Name)
+		}
+	}
+	return nil
+}
+
+// UnmarshalJSON enforces required future-unit members at the shared decode
+// boundary, including genesis reads. Empty strings are invalid required values.
+func (u *FutureUnit) UnmarshalJSON(raw []byte) error {
+	type wire FutureUnit
+	var decoded wire
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&decoded); err != nil {
+		return err
+	}
+	candidate := FutureUnit(decoded)
+	if err := candidate.requiredMembers(); err != nil {
+		return err
+	}
+	*u = candidate
+	return nil
+}
+
 type FutureUnitLink struct {
 	Path   string `json:"path"`
 	Target string `json:"target"`

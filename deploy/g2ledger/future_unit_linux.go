@@ -11,6 +11,9 @@ func validateFutureUnits(s Scope) error {
 	}
 	units, links := map[string]bool{}, map[string]bool{}
 	for _, unit := range s.FutureUnits {
+		if err := unit.requiredMembers(); err != nil {
+			return err
+		}
 		if installName(unit.Name) != nil || units[unit.Name] {
 			return errors.New("FUTURE_UNIT_NAME_INVALID_OR_DUPLICATE " + unit.Name)
 		}
