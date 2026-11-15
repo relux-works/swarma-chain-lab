@@ -243,6 +243,11 @@ every pre-existing entry parent, including unit-link directories. Station
 retained children receive a named parent allowance only for their exact ledger
 identities; rehearsal restores the baseline entry set. From `deploy/`, validate
 this contract with `go test -race ./g2ledger ./cmd/deploy-kit`.
+The [G2 Go script ports](deploy/G2-PORTS.md) add scope/evidence checks and typed
+baseline, activation and rollback operations; their native E2 adapters and
+concrete step-plan/CLI integration remain pending. From `deploy/`, run
+`go test ./g2run -race` and `go vet ./g2run`; vectors are in
+`deploy/g2run/testdata/ports/` and validation logs belong in `.temp/`.
 
 ## Demo station lifecycle tools
 

@@ -1,0 +1,65 @@
+{
+  "origin": "g2-negatives.sh:39-47; g2-lib.sh:g2_owner_groups_check",
+  "cases": [
+    {
+      "name": "POS-F1-status-only",
+      "groups": [
+        "operator",
+        "status"
+      ],
+      "need": true,
+      "ok": true,
+      "oracle_rc": 0
+    },
+    {
+      "name": "POS-F1-before-change",
+      "groups": [
+        "operator"
+      ],
+      "need": false,
+      "ok": true,
+      "oracle_rc": 0
+    },
+    {
+      "name": "NEG-F1-owner-peer-present",
+      "groups": [
+        "operator",
+        "status",
+        "peer"
+      ],
+      "need": true,
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-F1-peer-before-change",
+      "groups": [
+        "operator",
+        "peer"
+      ],
+      "need": false,
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-F1-status-missing",
+      "groups": [
+        "operator"
+      ],
+      "need": true,
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "POS-F1-similar-name",
+      "groups": [
+        "operator",
+        "peer-x",
+        "status"
+      ],
+      "need": true,
+      "ok": true,
+      "oracle_rc": 0
+    }
+  ]
+}

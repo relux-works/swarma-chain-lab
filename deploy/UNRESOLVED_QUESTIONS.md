@@ -72,3 +72,13 @@ there is no engine mode for deleting d6 data or station keys. Removal after an
 install requires a separate reviewed procedure. No host
 installation, account/systemd qualification or tree deletion is established by
 local fixture validation.
+
+## G2 Go engine E2 integration
+
+The script ports in [G2-PORTS.md](G2-PORTS.md) require E2 capability adapters before
+host execution: account/group and unit readback, listeners/process inventory,
+ledger writes/verify/rollback, exact-state checks, tmpfiles and the installed
+check under kernel credentials. Missing adapters refuse before effects. The
+activation adapter must retain `RunG2HostFlow`'s preflight and post-apply account
+checks. The typed parameters, compiled step plan and CLI await the landed E2
+operation types; fixture tests do not establish native host acceptance.

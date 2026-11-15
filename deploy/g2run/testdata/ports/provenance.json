@@ -7,7 +7,11 @@
     "g2-ledger-owns.py": "ac5e4e4f3bd4ccbe5346cf2815c19b4d974ae9833d6e8442cbbe37193fcd1646",
     "g2-node-restarted.py": "cbed3cd1d44fe5e3c91c4b565bb7170679ba9127bcbcdca5e3d8c49f345bda34",
     "tests/g2-negatives.sh": "6efaffe1ae3b37e1ca4812bbdcda51c9e5bdf963568e707db98fc23b277920ed",
-    "tests/fixture-swarma-slotd-demo.service": "bd477b01b8e91250d0a69f74f2a520f0236da01ad2a5dbc401b4bd4041aab63e"
+    "tests/fixture-swarma-slotd-demo.service": "bd477b01b8e91250d0a69f74f2a520f0236da01ad2a5dbc401b4bd4041aab63e",
+    "g2-lib.sh": "9b042ef852f6f7e01ee1f419bccea27621a0d51cfb63118f8815e767d29ba6ed",
+    "g2-baseline.sh": "0d90122b421ae0f5e06e1f1f5f4bd3820ffa7100621c8116a4e8a1504a10a428",
+    "g2-activate.sh": "6470c9e56e96a45eaeab993eb296b4d500f868f9ed59e00809b31a2a610b157e",
+    "g2-rollback.sh": "59b49b152b28833363f593d6358bb14b2d0bb96c779b9be5ccf637fc232a8de3"
   },
   "substitutions": [
     "landlord instance name replaced by id/example",

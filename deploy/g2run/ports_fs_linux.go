@@ -60,7 +60,11 @@ func portOpenAbsolute(p string, flags int) (*os.File, error) {
 	if rel == "" {
 		rel = "."
 	}
-	fd, e := unix.Openat2(root, rel, &unix.OpenHow{Flags: uint64(flags | unix.O_CLOEXEC | unix.O_NOFOLLOW | unix.O_NONBLOCK), Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_SYMLINKS | unix.RESOLVE_NO_MAGICLINKS})
+	flags |= unix.O_CLOEXEC | unix.O_NOFOLLOW
+	if flags&unix.O_PATH == 0 {
+		flags |= unix.O_NONBLOCK
+	}
+	fd, e := unix.Openat2(root, rel, &unix.OpenHow{Flags: uint64(flags), Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_SYMLINKS | unix.RESOLVE_NO_MAGICLINKS})
 	if e != nil {
 		return nil, e
 	}
