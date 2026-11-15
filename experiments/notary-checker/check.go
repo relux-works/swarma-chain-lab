@@ -65,6 +65,12 @@ func Check(in Input) (Result, error) {
 			return fail("OWNER_EVIDENCE_REQUIRED")
 		}
 	}
+	if policy.Mode != "" && policy.Mode != MVPPairOwnedNotary {
+		return fail("POLICY_MODE_UNSUPPORTED")
+	}
+	if policy.Mode == "" && len(policy.ModeApprovals) != 0 {
+		return fail("POLICY_MODE_REQUIRED")
+	}
 	var designated *Notary
 	for i := range pd.Notaries {
 		if pd.Notaries[i].Name == policy.NotaryName {
@@ -77,12 +83,20 @@ func Check(in Input) (Result, error) {
 	if designated.Owner != policy.NotaryOwner {
 		return fail("NOTARY_NAME_CHANGED")
 	}
+	if policy.Mode == MVPPairOwnedNotary {
+		if policy.IssuerOwner[2:] == policy.DelegatorOwner[2:] {
+			return fail("MVP_MODE_PAIR_REQUIRED")
+		}
+		if !modeApproved(policy) {
+			return fail("MVP_MODE_APPROVAL_REQUIRED")
+		}
+	}
 	if policy.IssuerOwner == policy.DelegatorOwner {
 		if policy.NotaryOwner != policy.IssuerOwner {
 			return fail("NOTARY_OWNER_RELATION")
 		}
 	} else {
-		if policy.NotaryOwner == policy.IssuerOwner || policy.NotaryOwner == policy.DelegatorOwner {
+		if (policy.NotaryOwner == policy.IssuerOwner || policy.NotaryOwner == policy.DelegatorOwner) && policy.Mode != MVPPairOwnedNotary {
 			return fail("NOTARY_OWNER_RELATION")
 		}
 		if !contains(policy.AgreedBy, policy.IssuerOwner) || !contains(policy.AgreedBy, policy.DelegatorOwner) {

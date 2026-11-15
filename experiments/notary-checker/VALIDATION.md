@@ -8,10 +8,10 @@ modules, `GOPROXY=off`, and `GOSUMDB=off`. No runtime network or node was used.
 | --- | --- | --- |
 | `gofmt -l .` | 0 | No output |
 | `go vet ./...` | 0 | This module |
-| `go test -race ./...` | 0 | This module and CLI; 94 complete signed-bundle vectors and two isolated row vectors |
+| `go test -race ./...` | 0 | This module and CLI; 121 complete signed-bundle vectors and two isolated row vectors |
 | `go build ./cmd/notary-check` | 0 | CLI builds |
-| `python3 scripts/reference.py` | 0 | All 94 signed bundles and two isolated row vectors; exact candidate octets, digest, positive signatures, envelope IDs and frames |
-| `python3 scripts/check-mutants.py --work-dir <fresh-scratch>` | 0 | 52/52 named controls killed; zero survivors; each mutant test exits 1 with the named assertion failure |
+| `python3 scripts/reference.py` | 0 | All 121 signed bundles and two isolated row vectors; exact candidate octets, digest, positive signatures, envelope IDs and frames |
+| `python3 scripts/check-mutants.py --work-dir <fresh-scratch>` | 0 | 59/59 named controls killed; zero survivors; each mutant test exits 1 with the named assertion failure |
 | Boundary regressions | 0 | `TestAttestationOutputSize`, `TestCLIAttestationOutputSize`: fitting statements compose to 8191/8192 accepted bytes or a named empty 8193-byte refusal; signed decoder also rejects correctly signed oversized bytes |
 | Positive CLI fixture at `1700000100` | 0 | `ATTEST bbc8faeb27b65ce4460c92228ec0487496e586b2c4ee5e216943036bdc3fc051` |
 | Same CLI fixture at `1700000200` | 1 | Expected refusal `GRANT_EXPIRED`; this is a failing command as required, not a green gate |
@@ -72,13 +72,17 @@ pin after removing membership, to avoid counting a crash as detection.
 | designation | designated notary required; unsafe known-pin fallback | TestVectors/negative-not-designated | ATTEST |
 | owner-pin | notary owner must match signed pin | TestVectors/negative-owner-pin-mismatch | ATTEST |
 | owner-relation | same-owner issuer affiliation | TestVectors/negative-owner-relation | ATTEST |
-| cross-owner-relation | bilateral approval cannot waive third-party rule | TestVectors/negative-cross-owner-not-third-party | ATTEST |
+| cross-owner-relation | strict default requires a third owner despite bilateral agreement | TestVectors/negative-cross-owner-not-third-party | ATTEST |
 | cross-owner-agreement | both owners agree | TestVectors/negative-cross-owner-missing-certifier | ATTEST |
 | notary-delegator | key independence from delegator | TestVectors/negative-notary-is-delegator | ATTEST |
 | notary-delegatee | key independence from delegatee | TestVectors/negative-notary-is-delegatee | ATTEST |
 | notary-executor | name independence from executors | TestVectors/negative-notary-is-executor | ATTEST |
 | statement | explicit statement fields | TestVectors/negative-statement | ATTEST |
 | attestation-output-size | complete candidate cap, not just the smaller statement | TestVectors/negative-attestation-8193 | ATTEST |
+| policy-mode | unknown deployment modes refuse | TestVectors/negative-mvp-unknown-mode | NOTARY_OWNER_RELATION |
+| policy-mode-required | approvals never infer an absent mode | TestVectors/negative-mvp-approvals-without-mode | NOTARY_OWNER_RELATION |
+| mvp-distinct-pair | two-owner mode rejects a one-owner pair before approval checks | TestVectors/negative-mvp-one-owner-pair | MVP_MODE_APPROVAL_REQUIRED |
+| mvp-both-approvals | mode requires both signed exact-scope approvals, not just agreed_by | TestVectors/negative-mvp-no-approvals | ATTEST |
 | lexical | no normalization of signed string spelling | TestVectors/negative-contract-escape | ATTEST |
 | notary-value | notary key must be a curve point | TestVectors/negative-notary-key | ATTEST |
 | row-selection | ordinal selects its own row | TestVectors/negative-other-row-executor | ATTEST |
@@ -88,6 +92,9 @@ pin after removing membership, to avoid counting a crash as detection.
 | anchor-id | frame IDs must be 32-byte digests | TestAnchorRejectsMalformedID | named assertion failed |
 | attestation-size-off-by-one | 8193 refuses while the 8192-byte control passes | TestVectors/negative-attestation-8193 | ATTEST |
 | attestation-decode-size | signed decode also rejects an oversized correctly signed candidate | TestAttestationOutputSize/negative-attestation-8193 | named assertion failed |
+| mvp-signature | owner signatures bind even another designated notary name | TestVectors/negative-mvp-different-notary | ATTEST |
+| mvp-approval-order | two copies of one owner signature are not bilateral approval | TestVectors/negative-mvp-duplicate-approval | ATTEST |
+| mvp-signing-authorities | opposite compressed parities cannot reuse one BIP-340 signing authority for both owners | TestVectors/negative-mvp-opposite-owner-key | ATTEST |
 
 No generated mutation tree, binary, cache or private execution log is part of
 the public change. No independent review, live service, name registration,
@@ -103,3 +110,15 @@ These are intended failing controls (exit 1), not passing product gates. The
 fixed candidate passes the same fixtures, and positives retain their exact
 envelope ID and 72-byte anchor frame. The produced-object audit is in
 [DESIGN.md](DESIGN.md#produced-object-size-audit).
+
+Round 3 adds 27 deployment-policy vectors; all 94 earlier bundle vectors and
+both isolated row vectors are unchanged. Positive controls accept either
+pair-owned notary and a strict third-party notary under the explicit mode.
+Negatives bind both signatures to the exact grant pair, owner identities and
+roles, notary name and owner pin; neither agreement identifiers alone nor one
+owner signature suffices. Absent mode retains the strict refusals. The named
+`mvp-both-approvals` mutation removes the bilateral mode gate and fails
+`TestVectors/negative-mvp-no-approvals` with erroneous `ATTEST`; signature and
+duplicate-approval mutations likewise fail their named vectors. Opposite-parity
+compressed owner keys are rejected even with valid signatures: the
+`mvp-signing-authorities` mutant erroneously accepts that named witness. No survivors.

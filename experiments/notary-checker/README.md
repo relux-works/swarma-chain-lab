@@ -24,6 +24,13 @@ D8 affiliation/agreement evidence. Different text hashes refuse; no text is
 interpreted. Every admitted v3 row names a certifier; v4 optional-notary and
 recipient-class proposals are unsupported.
 
+The strict specification reading remains the default. An explicit local
+`mvp-pair-owned-notary` deployment mode permits a notary owned by one of the
+two owners only with both owners' signatures over the exact policy scope.
+This MVP exception is not in the specification and changes no protocol bytes.
+See [MVP deployment policy](DESIGN.md#mvp-deployment-policy-not-protocol) for
+signature bytes, named refusals and future directions.
+
 ## Build and verification
 
 Run from this module with Go 1.26, Python 3.10+ and a C compiler for the Go race

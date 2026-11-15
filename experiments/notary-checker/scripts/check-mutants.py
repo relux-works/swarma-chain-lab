@@ -52,13 +52,17 @@ CASES = [
  ('designation','check.go','NOTARY_NOT_DESIGNATED','TestVectors/negative-not-designated','designated notary required; unsafe known-pin fallback'),
  ('owner-pin','check.go','NOTARY_NAME_CHANGED','TestVectors/negative-owner-pin-mismatch','notary owner must match signed pin'),
  ('owner-relation','check.go','NOTARY_OWNER_RELATION','TestVectors/negative-owner-relation','same-owner issuer affiliation'),
- ('cross-owner-relation','check.go','NOTARY_OWNER_RELATION','TestVectors/negative-cross-owner-not-third-party','bilateral approval cannot waive third-party rule'),
+ ('cross-owner-relation','check.go','NOTARY_OWNER_RELATION','TestVectors/negative-cross-owner-not-third-party','strict default requires a third owner despite bilateral agreement'),
  ('cross-owner-agreement','check.go','CROSS_OWNER_CERTIFIER_REQUIRED','TestVectors/negative-cross-owner-missing-certifier','both owners agree'),
  ('notary-delegator','check.go','NOTARY_IS_DELEGATOR','TestVectors/negative-notary-is-delegator','key independence from delegator'),
  ('notary-delegatee','check.go','NOTARY_IS_DELEGATEE','TestVectors/negative-notary-is-delegatee','key independence from delegatee'),
  ('notary-executor','check.go','NOTARY_IS_EXECUTOR','TestVectors/negative-notary-is-executor','name independence from executors'),
  ('statement','check.go','STATEMENT_FIELD','TestVectors/negative-statement','explicit statement fields'),
  ('attestation-output-size','check.go','ATTESTATION_TOO_LARGE','TestVectors/negative-attestation-8193','complete candidate cap, not just the smaller statement'),
+ ('policy-mode','check.go','POLICY_MODE_UNSUPPORTED','TestVectors/negative-mvp-unknown-mode','unknown deployment modes refuse'),
+ ('policy-mode-required','check.go','POLICY_MODE_REQUIRED','TestVectors/negative-mvp-approvals-without-mode','approvals never infer an absent mode'),
+ ('mvp-distinct-pair','check.go','MVP_MODE_PAIR_REQUIRED','TestVectors/negative-mvp-one-owner-pair','two-owner mode rejects a one-owner pair before approval checks'),
+ ('mvp-both-approvals','check.go','MVP_MODE_APPROVAL_REQUIRED','TestVectors/negative-mvp-no-approvals','mode requires both signed exact-scope approvals, not just agreed_by'),
 ]
 
 
@@ -89,6 +93,9 @@ def main():
       ('anchor-id','check.go',None,'TestAnchorRejectsMalformedID','frame IDs must be 32-byte digests'),
       ('attestation-size-off-by-one','check.go',None,'TestVectors/negative-attestation-8193','8193 refuses while the 8192-byte control passes'),
       ('attestation-decode-size','check.go',None,'TestAttestationOutputSize/negative-attestation-8193','signed decode also rejects an oversized correctly signed candidate'),
+      ('mvp-signature','policy.go',None,'TestVectors/negative-mvp-different-notary','owner signatures bind even another designated notary name'),
+      ('mvp-approval-order','policy.go',None,'TestVectors/negative-mvp-duplicate-approval','two copies of one owner signature are not bilateral approval'),
+      ('mvp-signing-authorities','check.go',None,'TestVectors/negative-mvp-opposite-owner-key','opposite compressed parities cannot reuse one BIP-340 signing authority for both owners'),
     ]
     env = dict(os.environ, GOTOOLCHAIN='local', GOPROXY='off', GOSUMDB='off')
     go = env.get('GO', 'go')
@@ -128,6 +135,12 @@ def main():
             source = source.replace('len(raw) > MaxAttestationBytes', 'len(raw) > MaxAttestationBytes+1')
         elif name == 'attestation-decode-size':
             source = source.replace('decode(r.Attestation, &a, MaxAttestationBytes)', 'decode(r.Attestation, &a, MaxAttestationBytes+1)')
+        elif name == 'mvp-signature':
+            source = source.replace('!signature(a.Owner[2:], digest, a.Signature)', 'digest == ""')
+        elif name == 'mvp-approval-order':
+            source = source.replace('approvals[0].Owner >= approvals[1].Owner', 'false')
+        elif name == 'mvp-signing-authorities':
+            source = source.replace('policy.IssuerOwner[2:] == policy.DelegatorOwner[2:]', 'policy.IssuerOwner == policy.DelegatorOwner')
         if source == path.read_text():
             raise RuntimeError('mutation did not apply: '+name)
         path.write_text(source)

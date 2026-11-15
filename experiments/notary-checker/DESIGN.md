@@ -25,7 +25,7 @@ The library accepts the same bytes in `Input`; it performs no I/O.
 | Both contracts | All fifteen members of profile `/2` in their prescribed order, including the six-member `delegate`, four-member rows, three-member notary pins, and signed checkpoint. SHA-256 must equal the respective grant's `contract_sha256`. | LIP-0014 sections 2, 3, 3.1, 3.2; LIP-0013 sections 2.1–2.5 |
 | Delegation request | Complete canonical kind-8186 NIP-01 event, signed by the parent's `grantee_key`, with empty content and the five ordered tags `t,parent,contract,ordinal,nonce`. | LIP-0014 section 5; LIP-0013 section 3.1 |
 | Both scope texts | Exact bytes if the corresponding signed hash is nonempty; equal hashes are required by this checker's conservative text policy. No text is interpreted. Empty hashes require absent/empty text inputs. | LIP-0014 sections 3.3, 3.4 J5.1–J5.3, 8 V2 |
-| Local policy | Canonical local configuration binding both recomputed grant IDs, `issuer_owner`, `delegator_owner`, selected `notary_name`, its `notary_owner`, and sorted distinct `agreed_by` owner identifiers. Owner identifiers use valid compressed public keys. This is an explicit, trusted affiliation/agreement mapping, not a new protocol object, signature, or evidence from a presenter. | D8; LIP-0014 section 7; OPEN QUESTION O2 below |
+| Local policy | Canonical local configuration binding both recomputed grant IDs, `issuer_owner`, `delegator_owner`, selected `notary_name`, its `notary_owner`, and sorted distinct `agreed_by` owner identifiers. Owner identifiers use valid compressed public keys. This is a trusted affiliation/agreement mapping, not a protocol object or presenter evidence. The optional MVP deployment mode adds local owner signatures as described below. | D8; LIP-0014 section 7; OPEN QUESTION O2 below; local MVP policy below |
 | Notary value | Complete UTF-8 JSON name value, at most 520 bytes, from a trusted caller. Top-level extensions are skipped; duplicate/aliased `swarma` or `nostr` refuse. The exact `swarma` byte span must be the canonical `{"notary":{"attest":"<x-only key>"}}` binding. | LIP-0010 sections 2, 3, 9 |
 | Statement | Canonical local input `{"notary_seal":{"txid":...,"vout":...,"script":...},"tip_height":...,"tip_hash":...}`. These are claims to bind into a candidate, not established observations. | LIP-0014 sections 6.1, 6.2, 6.4 |
 | `-at` | Required explicit Unix seconds, 1 through 253402300799; the only time source. | LIP-0004 sections 2, 3, 5; LIP-0014 section 6.1 |
@@ -78,7 +78,7 @@ No parsed value is normalized into an accepted substitute for signed bytes.
 | Text hashes are identical and supplied text bytes match them | `TEXT_JUDGEMENT_REQUIRED`, `DELEGATION_BUNDLE` | Conservative restriction under LIP-0014 sections 3.3–3.4, 8 V2; O1 below |
 | Explicit policy binds both grant IDs and provides valid owner identifiers | `OWNER_EVIDENCE_REQUIRED` | D8; LIP-0014 section 7; local evidence boundary O2 |
 | Selected notary is designated and its configured owner equals the signed owner pin | `NOTARY_NOT_DESIGNATED`, `NOTARY_NAME_CHANGED` | LIP-0014 sections 2, 7, 7.1 J3.1; this comparison alone does not perform J3.2–J3.5 |
-| Same-owner delegation uses the issuer's notary; cross-owner delegation uses a third owner, distinct from **both** parties | `NOTARY_OWNER_RELATION` | D8; LIP-0014 section 7; stricter interpretation O2 |
+| By default, same-owner delegation uses the issuer's notary; cross-owner delegation uses a third owner, distinct from **both** parties | `NOTARY_OWNER_RELATION` | D8; LIP-0014 section 7; stricter interpretation O2 |
 | Cross-owner policy explicitly records both owners' agreement to the selected certifier | `CROSS_OWNER_CERTIFIER_REQUIRED` | D8; LIP-0014 section 7 |
 | The exact notary authority span yields a valid key | `NOTARY_KEY` | LIP-0010 sections 2, 3, 9 |
 | Notary key differs from delegator, then delegatee; name differs from both executors | `NOTARY_IS_DELEGATOR`, `NOTARY_IS_DELEGATEE`, `NOTARY_IS_EXECUTOR` | LIP-0014 section 8 V13; LIP-0012 section 7 |
@@ -228,7 +228,7 @@ and "both agree" but specify no v3 signed encoding or mechanical proof of
 these affiliations. One reading accepts issuer designation plus grantee
 consent as sufficient agreement and treats organizational affiliation as
 external policy; another requires explicit owner-level agreement and
-independent owner affiliation. This checker takes the stricter reading:
+independent owner affiliation. By default this checker takes the stricter reading:
 local policy must bind the exact pair, identify all owners, match the
 selected notary's signed owner pin, require its issuer affiliation within
 one owner, and require a distinct third owner plus both approvals across
@@ -237,6 +237,43 @@ claim that unequal keys prove unequal people. Multiple-key affiliations
 need an authenticated mapping before provisioning this policy; the checker
 will not infer them. A policy file supplied by an adversary can lie. The
 production evidence/provisioning contract remains an open service decision.
+
+## MVP deployment policy (not protocol)
+
+The explicit local `"mode":"mvp-pair-owned-notary"` is an MVP deployment
+policy. It is **not in the specification** and does not change the protocol.
+The specification default stays strict: omitting `mode` retains every existing
+rule, including a distinct third owner for cross-owner certification. No
+approval, owner relation or other input infers the mode; unknown strings refuse
+`POLICY_MODE_UNSUPPORTED` (an explicitly empty mode is noncanonical).
+
+For two distinct configured owners, this mode permits the selected notary's
+owner to equal either owner only when the same policy carries both owners'
+valid `mode_approvals`. They are exactly two `{"owner":...,"signature":...}`
+members sorted by distinct compressed owner identifier. Each is BIP-340 over
+`SHA-256("swarma-notary-local-policy-v1" || canonical policy without mode_approvals)`.
+Policy order is the existing seven fields followed by `mode`, then
+`mode_approvals`. Thus both signatures cover the mode, both recomputed grant
+IDs, both owner identifiers in their roles, exact notary name and owner pin,
+and `agreed_by`. Verification uses each compressed owner's x coordinate; the
+two owners must have different x coordinates, so opposite compressed parities
+of one signing key cannot supply both approvals.
+These are local policy approvals, never grant or attestation signatures.
+
+Missing, unilateral, duplicate, unrelated, invalid or replayed approvals refuse
+`MVP_MODE_APPROVAL_REQUIRED`; a one-owner pair refuses `MVP_MODE_PAIR_REQUIRED`.
+Approvals without a mode refuse `POLICY_MODE_REQUIRED`. Wrong grant bindings,
+designation and owner pins retain `OWNER_EVIDENCE_REQUIRED`,
+`NOTARY_NOT_DESIGNATED` and `NOTARY_NAME_CHANGED`. Canonical parsing and these
+bindings precede mode approval; mode approval precedes the ownership relation.
+Both configured cross-owner agreements remain required. A third-party notary
+with this mode still passes the strict affiliation/agreement path, with the
+additional mode approvals required. No other check is relaxed. Trusted
+provisioning must still establish which keys represent the two owners.
+
+Future directions are a jointly held notary name (2-of-2 now, t-of-n for a
+federation) and external notaries. They are future work, not implemented modes
+or claims of protocol adoption.
 
 ## Request-side context and pin differences
 

@@ -296,6 +296,91 @@ for size in (8191, 8192, 8193):
     add(name, 'ATTEST' if size <= 8192 else 'ATTESTATION_TOO_LARGE', v,
         f'A statement below its own cap composes to exactly {size} attestation bytes; no partial output on refusal.')
 
+# Local deployment approvals sign every policy field except the approvals array.
+# These use only the PUBLIC fixed owner test secrets, never production keys.
+def approve_mode(v):
+    pol = json.loads(v['policy'])
+    pol.pop('mode_approvals', None)
+    digest = r.sha(b'swarma-notary-local-policy-v1' + r.octets(pol))
+    roles = {owner(k): k for k in ('issuer_owner', 'delegator_owner', 'other')}
+    pol['mode_approvals'] = [dict(owner=k, signature=sign(TEST_KEYS[roles[k]], digest))
+                             for k in sorted({pol['issuer_owner'], pol['delegator_owner']})]
+    v['policy'] = r.encode(pol)
+    return v
+
+
+def mvp_bundle(notary_role='issuer_owner', note=''):
+    p, c = contracts()
+    p['note'] = note
+    p['delegate']['notaries'][0]['owner'] = owner(notary_role)
+    other = copy.deepcopy(p['delegate']['notaries'][0]); other['name'] = 'id/second-certifier'
+    p['delegate']['notaries'].append(other)
+    v = bundle(p, c)
+    edit(v, 'policy', lambda x: x.update(delegator_owner=owner('delegator_owner'), notary_owner=owner(notary_role),
+         agreed_by=sorted([owner('issuer_owner'), owner('delegator_owner')]), mode='mvp-pair-owned-notary'))
+    return approve_mode(v)
+
+
+for role in ('issuer_owner', 'delegator_owner', 'notary_owner'):
+    add('positive-mvp-' + role.replace('_', '-'), 'ATTEST', mvp_bundle(role),
+        'Explicit MVP mode with both exact-scope owner signatures; third-party affiliation still follows the strict path.')
+
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.pop('mode_approvals'))
+add('negative-mvp-no-approvals', 'MVP_MODE_APPROVAL_REQUIRED', v, 'Mode alone and agreed_by cannot authorize pair-owned certification.')
+for index in (0, 1):
+    v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(mode_approvals=[x['mode_approvals'][index]]))
+    add('negative-mvp-one-approval-' + str(index), 'MVP_MODE_APPROVAL_REQUIRED', v, 'Either unilateral signature refuses; both owners must sign.')
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(mode_approvals=[x['mode_approvals'][0]] * 2))
+add('negative-mvp-duplicate-approval', 'MVP_MODE_APPROVAL_REQUIRED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: x['mode_approvals'].reverse())
+add('negative-mvp-approval-order', 'MVP_MODE_APPROVAL_REQUIRED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: x['mode_approvals'][0].update(signature='00'*64))
+add('negative-mvp-signature', 'MVP_MODE_APPROVAL_REQUIRED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: x['mode_approvals'][0].update(owner=owner('other')))
+add('negative-mvp-unrelated-approver', 'MVP_MODE_APPROVAL_REQUIRED', v)
+v = mvp_bundle(note='A different exact grant pair.')
+edit(v, 'policy', lambda x: x.update(mode_approvals=json.loads(mvp_bundle()['policy'])['mode_approvals']))
+add('negative-mvp-different-grant-pair', 'MVP_MODE_APPROVAL_REQUIRED', v, 'Approvals cannot be replayed on another valid recomputed grant pair.')
+for field in ('parent_grant_id', 'child_grant_id'):
+    v = mvp_bundle(); edit(v, 'policy', lambda x: x.update({field: 'ff'*32}))
+    add('negative-mvp-wrong-' + field.replace('_', '-'), 'OWNER_EVIDENCE_REQUIRED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(delegator_owner=owner('other'), agreed_by=sorted([owner('issuer_owner'), owner('other')])))
+add('negative-mvp-different-owner-pair', 'MVP_MODE_APPROVAL_REQUIRED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(issuer_owner=x['delegator_owner'], delegator_owner=x['issuer_owner']))
+add('negative-mvp-swapped-owner-roles', 'MVP_MODE_APPROVAL_REQUIRED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(notary_name='id/second-certifier'))
+add('negative-mvp-different-notary', 'MVP_MODE_APPROVAL_REQUIRED', v, 'Even another designated notary with the same owner needs fresh bilateral signatures.')
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(notary_name='id/unlisted-certifier'))
+add('negative-mvp-undesignated-notary', 'NOTARY_NOT_DESIGNATED', v)
+v = mvp_bundle('delegator_owner')
+edit(v, 'policy', lambda x: x.update(mode_approvals=json.loads(mvp_bundle()['policy'])['mode_approvals']))
+add('negative-mvp-different-notary-owner', 'MVP_MODE_APPROVAL_REQUIRED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(notary_owner=owner('delegator_owner')))
+add('negative-mvp-owner-pin-mismatch', 'NOTARY_NAME_CHANGED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: (x.pop('mode'), x.pop('mode_approvals')))
+add('negative-mvp-mode-absent', 'NOTARY_OWNER_RELATION', v, 'Absent mode retains strict third-owner rule even with both configured agreements.')
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.pop('mode'))
+add('negative-mvp-approvals-without-mode', 'POLICY_MODE_REQUIRED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(mode='unknown-mode'))
+add('negative-mvp-unknown-mode', 'POLICY_MODE_UNSUPPORTED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(mode=''))
+add('negative-mvp-empty-mode', 'OWNER_EVIDENCE_REQUIRED', v)
+v = mvp_bundle(); edit(v, 'policy', lambda x: x.update(delegator_owner=x['issuer_owner']))
+add('negative-mvp-one-owner-pair', 'MVP_MODE_PAIR_REQUIRED', v)
+v = mvp_bundle()
+pol = json.loads(v['policy']); pol.pop('mode_approvals')
+pol['delegator_owner'] = ('03' if pol['issuer_owner'].startswith('02') else '02') + pol['issuer_owner'][2:]
+pol['agreed_by'] = sorted([pol['issuer_owner'], pol['delegator_owner']])
+digest = r.sha(b'swarma-notary-local-policy-v1' + r.octets(pol))
+pol['mode_approvals'] = [dict(owner=k, signature=sign(TEST_KEYS['issuer_owner'], digest)) for k in pol['agreed_by']]
+v['policy'] = r.encode(pol)
+add('negative-mvp-opposite-owner-key', 'MVP_MODE_PAIR_REQUIRED', v,
+    'Opposite compressed parities share one BIP-340 authority and cannot count as two owner signing keys, even with valid signatures.')
+v = mvp_bundle('notary_owner'); edit(v, 'policy', lambda x: x.update(agreed_by=[])); approve_mode(v)
+add('negative-mvp-third-party-no-agreement', 'CROSS_OWNER_CERTIFIER_REQUIRED', v, 'Third-party mode never waives the strict cross-owner agreement gate.')
+v = mvp_bundle('notary_owner'); edit(v, 'policy', lambda x: x.pop('mode_approvals'))
+add('negative-mvp-third-party-no-mode-approvals', 'MVP_MODE_APPROVAL_REQUIRED', v)
+
 (ROOT/'testdata/vectors.json').write_text(json.dumps(dict(schema='notary-checker-lab-vectors/1', warning='Fixed public test keys; fabricated chain locators and policy affiliations; no live authority.', vectors=vectors,row_vectors=rows),indent=2)+'\n')
 positive=ROOT/'testdata/positive'; positive.mkdir(exist_ok=True)
 for k in ('parent','child','parent_contract','child_contract','request','policy','notary_value','statement'):
