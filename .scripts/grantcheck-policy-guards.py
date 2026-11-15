@@ -18,6 +18,9 @@ CG = 'experiments/grantcheck/checker.go'
 FRESH = 'experiments/grantcheck/freshness.go'
 GRANT = 'experiments/rental/grant_kernel.go'
 PLANTS = [
+    ('rpc-result-null', 'TestCoreMalformedRPCEnvelopeRetryable/503/nonNullResult', 'experiments/single-use/node.go',
+     '!bytes.Equal(bytes.TrimSpace(result), []byte("null")) || ', '',
+     'a non-null result alongside an error is a retryable node failure, never a typed application refusal'),
     ('identity-allow-expired', 'TestCoreIdentityExpired/id/swarma-agent-e2e', 'experiments/rental/kernel.go',
      ', "allowExpired": true', '',
      'expired current names must be returned by Core and refused by name instead of as an outage'),

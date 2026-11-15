@@ -92,19 +92,22 @@ func (n *RPC) Call(ctx context.Context, method string, args ...any) (json.RawMes
 		return nil, fail("RPC_RESPONSE")
 	}
 	var id int
-	var result, rpcError json.RawMessage
-	e = sealwatch.ProjectJSON(b, map[string]any{"id": &id}, map[string]any{"result": &result, "error": &rpcError})
-	if e == nil && id == 1 && len(rpcError) > 0 && string(bytes.TrimSpace(rpcError)) != "null" {
+	var envelope map[string]json.RawMessage
+	e = sealwatch.DecodeJSON(b, &envelope)
+	result, rpcError := envelope["result"], envelope["error"]
+	// A response must contain exactly the JSON-RPC 1.0 members before it can carry an application error.
+	if e != nil || len(envelope) != 3 || json.Unmarshal(envelope["id"], &id) != nil || id != 1 || len(result) == 0 || len(rpcError) == 0 {
+		return nil, fail("RPC_RESPONSE")
+	}
+	if string(bytes.TrimSpace(rpcError)) != "null" {
 		var application RPCError
-		if sealwatch.ProjectJSON(rpcError, map[string]any{"code": &application.Code, "message": &application.Message}, nil) == nil {
-			return nil, &application
+		if !bytes.Equal(bytes.TrimSpace(result), []byte("null")) || sealwatch.ProjectJSON(rpcError, map[string]any{"code": &application.Code, "message": &application.Message}, nil) != nil {
+			return nil, fail("RPC_RESPONSE")
 		}
+		return nil, &application
 	}
 	if res.StatusCode != http.StatusOK {
 		return nil, fail("RPC_RESPONSE")
-	}
-	if e != nil || id != 1 || len(result) == 0 || len(rpcError) == 0 || string(bytes.TrimSpace(rpcError)) != "null" {
-		return nil, errNodeProjection
 	}
 	return result, nil
 }

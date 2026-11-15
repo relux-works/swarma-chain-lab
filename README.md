@@ -321,7 +321,7 @@ probe on a real Namecoin node before any non-bench use. Exact test values and
 named Core witnesses are listed in the policy document.
 
 Policy tools from the repository root: `python3 -B .scripts/grantcheck-policy-guards.py
---out .temp/policy-guards --private-root <fresh-absolute-regtest-parent>` runs twelve
+--out .temp/policy-guards --private-root <fresh-absolute-regtest-parent>` runs sixteen
 Go-overlay controls and writes hashes/exits/logs there. The existing
 `python3 -B .scripts/check-px1-core-gate.py check --manifest
 .scripts/grantcheck-policy-core-gate.json <go-test-json>` checks the Core witness
@@ -598,3 +598,5 @@ Grant identity expiry is reported by name as non-retryable
 `identity_expired` (`closed=true`), including cached re-checks. See
 [grantcheck identity expiry](experiments/grantcheck/README.md#expired-current-identities)
 for Core regtest controls and the RPC application/transport distinction.
+The client validates the complete JSON-RPC 1.0 error envelope before assigning
+an application code; malformed envelopes remain retryable node failures.

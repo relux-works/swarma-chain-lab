@@ -222,13 +222,13 @@ jobs:
           set +e
           manifest=../../.scripts/grantcheck-policy-core-gate.json
           checker=../../.scripts/check-px1-core-gate.py
-          env -u CG1_REGTEST go test -count=1 -json -run '^TestCore(Vectors|Freshness|Provisioning|FinalSampleFreshness|AggregateEveryObservation|AggregateFinalDecisionAtomic|IdentityExpired)$' . > "$RUNNER_TEMP/grantcheck-skip.json"
+          env -u CG1_REGTEST go test -count=1 -json -run '^TestCore(Vectors|Freshness|Provisioning|FinalSampleFreshness|AggregateEveryObservation|AggregateFinalDecisionAtomic|IdentityExpired|MalformedRPCEnvelopeRetryable)$' . > "$RUNNER_TEMP/grantcheck-skip.json"
           control_test=$?
           python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/grantcheck-skip.json" > "$RUNNER_TEMP/grantcheck-skip.txt"
           control_gate=$?
           grep -qx 'SKIPPED TestCoreFreshness' "$RUNNER_TEMP/grantcheck-skip.txt"
           skip_seen=$?
-          CG1_REGTEST=1 CG1_RUN_ROOT="$RUNNER_TEMP/grantcheck-policy-core" go test -race -count=1 -timeout 10m -json -run '^TestCore(Vectors|Freshness|Provisioning|FinalSampleFreshness|AggregateEveryObservation|AggregateFinalDecisionAtomic|IdentityExpired)$' . > "$RUNNER_TEMP/grantcheck-policy.json"
+          CG1_REGTEST=1 CG1_RUN_ROOT="$RUNNER_TEMP/grantcheck-policy-core" go test -race -count=1 -timeout 10m -json -run '^TestCore(Vectors|Freshness|Provisioning|FinalSampleFreshness|AggregateEveryObservation|AggregateFinalDecisionAtomic|IdentityExpired|MalformedRPCEnvelopeRetryable)$' . > "$RUNNER_TEMP/grantcheck-policy.json"
           code=$?
           python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/grantcheck-policy.json"
           gate=$?

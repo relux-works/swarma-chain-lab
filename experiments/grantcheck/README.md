@@ -47,6 +47,14 @@ recognizes Core code -4 with its expired-name message. Raw messages are not
 copied to public receipts. Transport failures and 5xx responses without a valid
 RPC error remain `verifier_unavailable`, retryable.
 
+An application error requires a complete JSON-RPC 1.0 envelope: exactly `id`,
+`result` and `error`, the matching request ID, a null result and an error object
+with an integer code and string message. Missing members, a non-null result
+alongside an error, duplicate keys and trailing data remain retryable node
+failures at every HTTP status. `TestCoreMalformedRPCEnvelopeRetryable` checks
+the public inbound, cached and outbound routes beside genuine live and valid
+application-error controls, including unchanged durable bytes on malformed replies.
+
 `TestCoreIdentityExpired` uses the existing pinned Core harness, real name
 registration, same-value renewal, block-height expiry of each identity role,
 and stopped-node controls. Run with the same `CG1_*` environment below:

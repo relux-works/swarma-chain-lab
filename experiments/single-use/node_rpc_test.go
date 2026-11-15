@@ -3,11 +3,57 @@ package singleuse
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
+
+// Claim: incomplete, ambiguous or malformed error envelopes remain unavailable at every HTTP status, beside valid error and success controls.
+func TestRPCCompleteErrorEnvelope(t *testing.T) {
+	for _, status := range []int{200, 500, 503} {
+		for _, tc := range []struct {
+			name, body string
+		}{
+			{"missingResult", `{"id":1,"error":{"code":-4,"message":"name expired"}}`},
+			{"nonNullResult", `{"id":1,"result":"live","error":{"code":-4,"message":"name expired"}}`},
+			{"missingID", `{"result":null,"error":{"code":-4,"message":"name expired"}}`},
+			{"mismatchedID", `{"id":2,"result":null,"error":{"code":-4,"message":"name expired"}}`},
+			{"nullID", `{"id":null,"result":null,"error":{"code":-4,"message":"name expired"}}`},
+			{"missingCode", `{"id":1,"result":null,"error":{"message":"name expired"}}`},
+			{"fractionalCode", `{"id":1,"result":null,"error":{"code":-4.5,"message":"name expired"}}`},
+			{"stringCode", `{"id":1,"result":null,"error":{"code":"-4","message":"name expired"}}`},
+			{"nullCode", `{"id":1,"result":null,"error":{"code":null,"message":"name expired"}}`},
+			{"missingMessage", `{"id":1,"result":null,"error":{"code":-4}}`},
+			{"nullMessage", `{"id":1,"result":null,"error":{"code":-4,"message":null}}`},
+			{"numericMessage", `{"id":1,"result":null,"error":{"code":-4,"message":7}}`},
+			{"arrayError", `{"id":1,"result":null,"error":[-4,"name expired"]}`},
+			{"unknownTopLevel", `{"id":1,"result":null,"error":{"code":-4,"message":"name expired"},"extra":true}`},
+			{"duplicateResult", `{"id":1,"result":"live","result":null,"error":{"code":-4,"message":"name expired"}}`},
+			{"duplicateCode", `{"id":1,"result":null,"error":{"code":-8,"code":-4,"message":"name expired"}}`},
+			{"trailingData", `{"id":1,"result":null,"error":{"code":-4,"message":"name expired"}} {}`},
+		} {
+			t.Run(fmt.Sprintf("%d/%s", status, tc.name), func(t *testing.T) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(status)
+					_, _ = w.Write([]byte(tc.body))
+				}))
+				defer server.Close()
+				client := server.Client()
+				client.Transport = rewriteRPCTransport{server.URL, client.Transport}
+				o := NewReadObservation(context.Background(), &RPC{client: client})
+				defer o.Close()
+				result := "unchanged"
+				err := o.Call("name_show", &result, "id/test")
+				var application *RPCError
+				if err == nil || err.Error() != "NODE_UNAVAILABLE" || errors.As(err, &application) || result != "unchanged" {
+					t.Fatalf("malformed envelope must remain unavailable without an application error or result: %v, %q", err, result)
+				}
+			})
+		}
+	}
+}
 
 // Claim: valid RPC application errors retain code/message through observation, regardless of HTTP status; unanswered or malformed failures remain unavailable.
 func TestRPCApplicationVersusTransport(t *testing.T) {

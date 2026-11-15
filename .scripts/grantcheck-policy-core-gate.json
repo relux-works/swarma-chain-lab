@@ -24,7 +24,20 @@
     "TestCoreFinalSampleFreshness",
     "TestCoreAggregateEveryObservation",
     "TestCoreAggregateFinalDecisionAtomic",
-    "TestCoreIdentityExpired"
+    "TestCoreIdentityExpired",
+    "TestCoreMalformedRPCEnvelopeRetryable",
+    "TestCoreMalformedRPCEnvelopeRetryable/200/missingResult",
+    "TestCoreMalformedRPCEnvelopeRetryable/200/nonNullResult",
+    "TestCoreMalformedRPCEnvelopeRetryable/200/missingID",
+    "TestCoreMalformedRPCEnvelopeRetryable/200/validApplication",
+    "TestCoreMalformedRPCEnvelopeRetryable/500/missingResult",
+    "TestCoreMalformedRPCEnvelopeRetryable/500/nonNullResult",
+    "TestCoreMalformedRPCEnvelopeRetryable/500/missingID",
+    "TestCoreMalformedRPCEnvelopeRetryable/500/validApplication",
+    "TestCoreMalformedRPCEnvelopeRetryable/503/missingResult",
+    "TestCoreMalformedRPCEnvelopeRetryable/503/nonNullResult",
+    "TestCoreMalformedRPCEnvelopeRetryable/503/missingID",
+    "TestCoreMalformedRPCEnvelopeRetryable/503/validApplication"
   ],
   "core_tests": [
     "TestCoreVectors",
@@ -33,7 +46,8 @@
     "TestCoreFinalSampleFreshness",
     "TestCoreAggregateEveryObservation",
     "TestCoreAggregateFinalDecisionAtomic",
-    "TestCoreIdentityExpired"
+    "TestCoreIdentityExpired",
+    "TestCoreMalformedRPCEnvelopeRetryable"
   ],
   "core_runs": {
     "TestCoreVectors": {
@@ -61,6 +75,10 @@
       "race": true
     },
     "TestCoreIdentityExpired": {
+      "count": 1,
+      "race": true
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable": {
       "count": 1,
       "race": true
     }
@@ -248,6 +266,110 @@
       ],
       "core": [
         "TestCoreIdentityExpired"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/200/missingResult": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/200/missingResult"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/200/nonNullResult": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/200/nonNullResult"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/200/missingID": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/200/missingID"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/200/validApplication": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/200/validApplication"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/500/missingResult": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/500/missingResult"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/500/nonNullResult": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/500/nonNullResult"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/500/missingID": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/500/missingID"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/500/validApplication": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/500/validApplication"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/503/missingResult": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/503/missingResult"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/503/nonNullResult": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/503/nonNullResult"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/503/missingID": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/503/missingID"
+      ]
+    },
+    "TestCoreMalformedRPCEnvelopeRetryable/503/validApplication": {
+      "layers": [
+        "core"
+      ],
+      "core": [
+        "TestCoreMalformedRPCEnvelopeRetryable/503/validApplication"
       ]
     }
   }
