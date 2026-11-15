@@ -59,7 +59,7 @@ func modeApproved(p Policy, in Input) error {
 		if e != nil {
 			return refuse("MVP_NAME_VALUE")
 		}
-		if k != a.Owner[2:] || !signature(k, digest, a.Signature) {
+		if !signature(k, digest, a.Signature) {
 			return refuse("MVP_MODE_APPROVAL_REQUIRED")
 		}
 	}

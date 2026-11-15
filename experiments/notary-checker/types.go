@@ -112,7 +112,9 @@ type Policy struct {
 	ModeApprovals  []ModeApproval `json:"mode_approvals,omitempty"`
 }
 
-// ModeApproval is a local deployment-policy signature, never a protocol object.
+// ModeApproval binds a configured owner role to a named registration. Its
+// signature verifies under the current chain grant key, independently of the
+// compressed Owner role identifier. It is never a protocol object.
 type ModeApproval struct {
 	Owner        string `json:"owner"`
 	Name         string `json:"name"`

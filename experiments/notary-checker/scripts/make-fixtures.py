@@ -431,6 +431,16 @@ add('positive-mvp-name-extension','ATTEST',v,'Top-level extensions remain allowe
 v=mvp_bundle(); edit(v,'policy',lambda p:p['mode_approvals'][0].update(name='id/fixture-rebound')); v['names'][0]['name']='id/fixture-rebound'
 add('negative-mvp-identity-signature-binding','MVP_MODE_APPROVAL_REQUIRED',v,'Changing a name with the same key and registration still needs fresh signatures.')
 
+
+v=mvp_bundle()
+v['names'][0]['value']=r.encode(dict(swarma=dict(landlord=dict(grant=public(TEST_KEYS['other'])))))
+pol=json.loads(v['policy']); approvals=pol.pop('mode_approvals')
+identities=[{k:a[k] for k in ('owner','name','registration')} for a in approvals]
+digest=r.sha(b'swarma-notary-local-policy-v1'+r.octets(pol)+r.octets(identities))
+approvals[0]['signature']=sign(TEST_KEYS['other'],digest)
+pol['mode_approvals']=approvals;v['policy']=r.encode(pol)
+add('positive-mvp-current-grant-key','ATTEST',v,'The chain current grant key may differ from the configured compressed owner identifier; only its signature authorizes approval.')
+
 (ROOT/'testdata/vectors.json').write_text(json.dumps(dict(schema='notary-checker-lab-vectors/1', warning='Fixed public test keys; fabricated chain locators and policy affiliations; no live authority.', vectors=vectors,row_vectors=rows),indent=2)+'\n')
 mvp_names=next(v['names'] for v in vectors if v['name']=='positive-mvp-issuer-owner')
 (ROOT/'testdata/mvp-names.json').write_bytes(r.octets(mvp_names))

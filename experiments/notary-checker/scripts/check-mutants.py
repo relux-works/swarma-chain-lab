@@ -96,6 +96,7 @@ def main():
       ('mvp-signature','policy.go',None,'TestVectors/negative-mvp-different-notary','owner signatures bind even another designated notary name'),
       ('mvp-approval-order','policy.go',None,'TestVectors/negative-mvp-approval-order','approval owner order is canonical'),
       ('mvp-signing-authorities','check.go',None,'TestVectors/negative-mvp-opposite-owner-key','opposite compressed parities cannot reuse one BIP-340 signing authority for both owners'),
+      ('mvp-current-grant-key','policy.go',None,'TestVectors/positive-mvp-current-grant-key','current chain grant key verifies independently of policy owner identifiers'),
       ('mvp-distinct-registration','policy.go','MVP_OWNER_REGISTRATION_REUSED','TestVectors/negative-mvp-owner-registration-reused','different names with one registration cannot count as two owners'),
       ('mvp-distinct-name','policy.go','MVP_OWNER_NAME_REUSED','TestVectors/negative-mvp-owner-name-reused','one name cannot approve twice with two keys'),
       ('mvp-name-view','policy.go','MVP_NAME_VIEW_MISMATCH','TestVectors/negative-mvp-name-height','observed height must match the statement'),
@@ -143,8 +144,10 @@ def main():
             # Deliberately accept a missing approval set without indexing it;
             # a crash after dropping the length gate would prove nothing.
             source = source.replace('return refuse("MVP_MODE_APPROVAL_REQUIRED")', 'return nil', 1)
+        elif name == 'mvp-current-grant-key':
+            source = source.replace('!signature(k, digest, a.Signature)', '!signature(a.Owner[2:], digest, a.Signature) || k == ""')
         elif name == 'mvp-signature':
-            source = source.replace('!signature(k, digest, a.Signature)', 'digest == ""')
+            source = source.replace('!signature(k, digest, a.Signature)', 'k == "" || digest == ""')
         elif name == 'mvp-approval-order':
             source = source.replace('approvals[0].Owner >= approvals[1].Owner', 'false')
         elif name == 'mvp-signing-authorities':

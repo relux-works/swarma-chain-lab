@@ -154,7 +154,7 @@ using its own shared producer/decoder constant.
 | Parsed contracts and nested delegates | Input contract is at most 8192 bytes; nested delegate is a span within it, also decoded at 8192 | Canonical equality preserves the input size. No contract producer exists in the runtime library |
 | Grant/consent/request hash encodings | Canonical projections of previously bounded, exactly re-encoded input objects: presentations 32768 bytes, requests 16384 | Only hashes escape these internal encodings. No expanded grant, consent or request is produced for a capped decoder |
 | Name authority, policy and statement | Reader-only inputs, respectively 520, 8192 and 8192 bytes | No separate runtime encoders; their selected fields feed the now-bounded attestation |
-| CLI success line | `ATTEST `, a 64-character digest and newline: 72 bytes | Overflow prints only `REFUSED ATTESTATION_TOO_LARGE` with exit 1; no candidate/digest is printed |
+| CLI success line | Strict: `ATTEST `, a 64-character digest and newline, 72 bytes; explicit offline fixture mode adds ` offline-fixture`, 88 bytes | Overflow prints only `REFUSED ATTESTATION_TOO_LARGE` with exit 1; no candidate/digest is printed |
 
 This audit covers this module's encoders and decoders, not a downstream online
 service's transport or node admission. No other producer/decoder size mismatch
@@ -270,8 +270,9 @@ The current value is parsed with LIP-0010 sections 2 and 3: valid UTF-8, at most
 520 bytes, unambiguous `swarma`/`nostr`, top-level extensions skipped, and an
 exact canonical `{"landlord":{"grant":"<x-only key>"}}` authority span.
 No missing, malformed, aliased, additional or noncanonical authority member
-is tolerated (`MVP_NAME_VALUE`). The resolved grant key must match the owner
-role's x coordinate and verify the approval. The chain provides this mapping
+is tolerated (`MVP_NAME_VALUE`). The resolved grant key must verify the approval. The compressed owner
+role identifier selects the policy role; it is not the grant key, and no
+equality between those different roles is required. The chain provides this mapping
 because an operator-supplied mapping is self-asserted: the notary operator may
 be one of the two owners. Policy keys, signatures alone, and a mapping file
 cannot establish the required current name-to-key relation.

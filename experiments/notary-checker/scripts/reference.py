@@ -375,7 +375,7 @@ def check(v):
             need(observed['height'] == st['tip_height'] and observed['blockhash'] == st['tip_hash'], 'MVP_NAME_VIEW_MISMATCH')
             need(observed['registration'] == a['registration'], 'MVP_NAME_REGISTRATION_MISMATCH')
             k = notary_key(observed['value'].encode(), grant=True)
-            need(k == a['owner'][2:] and verify(k, digest, a['signature']), 'MVP_MODE_APPROVAL_REQUIRED')
+            need(verify(k, digest, a['signature']), 'MVP_MODE_APPROVAL_REQUIRED')
     if pol['issuer_owner'] == pol['delegator_owner']:
         need(pol['notary_owner'] == pol['issuer_owner'], 'NOTARY_OWNER_RELATION')
     else:

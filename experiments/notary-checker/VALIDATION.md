@@ -8,10 +8,10 @@ modules, `GOPROXY=off`, and `GOSUMDB=off`. No runtime network or node was used.
 | --- | --- | --- |
 | `gofmt -l .` | 0 | No output |
 | `go vet ./...` | 0 | This module |
-| `go test -race ./...` | 0 | This module and CLI; 138 complete signed-bundle vectors and two isolated row vectors |
+| `go test -race ./...` | 0 | This module and CLI; 139 complete signed-bundle vectors and two isolated row vectors |
 | `go build ./cmd/notary-check` | 0 | CLI builds |
-| `python3 scripts/reference.py` | 0 | All 138 signed bundles and two isolated row vectors; exact candidate octets, digest, positive signatures, envelope IDs and frames |
-| `python3 scripts/check-mutants.py --work-dir <fresh-scratch>` | 0 | 63/63 named controls killed; zero survivors; each mutant test exits 1 with the named assertion failure |
+| `python3 scripts/reference.py` | 0 | All 139 signed bundles and two isolated row vectors; exact candidate octets, digest, positive signatures, envelope IDs and frames |
+| `python3 scripts/check-mutants.py --work-dir <fresh-scratch>` | 0 | 64/64 named controls killed; zero survivors; each mutant test exits 1 with the named assertion failure |
 | Boundary regressions | 0 | `TestAttestationOutputSize`, `TestCLIAttestationOutputSize`: fitting statements compose to 8191/8192 accepted bytes or a named empty 8193-byte refusal; signed decoder also rejects correctly signed oversized bytes |
 | Positive CLI fixture at `1700000100` | 0 | `ATTEST bbc8faeb27b65ce4460c92228ec0487496e586b2c4ee5e216943036bdc3fc051` |
 | Same CLI fixture at `1700000200` | 1 | Expected refusal `GRANT_EXPIRED`; this is a failing command as required, not a green gate |
@@ -95,6 +95,7 @@ pin after removing membership, to avoid counting a crash as detection.
 | mvp-signature | owner signatures bind even another designated notary name | TestVectors/negative-mvp-different-notary | ATTEST |
 | mvp-approval-order | approval owner order is canonical | TestVectors/negative-mvp-approval-order | ATTEST |
 | mvp-signing-authorities | opposite compressed parities cannot reuse one BIP-340 signing authority for both owners | TestVectors/negative-mvp-opposite-owner-key | ATTEST |
+| mvp-current-grant-key | current chain grant key verifies independently of policy owner identifiers | TestVectors/positive-mvp-current-grant-key | MVP_MODE_APPROVAL_REQUIRED |
 | mvp-distinct-registration | different names with one registration cannot count as two owners | TestVectors/negative-mvp-owner-registration-reused | ATTEST |
 | mvp-distinct-name | one name cannot approve twice with two keys | TestVectors/negative-mvp-owner-name-reused | MVP_NAME_REGISTRATION_MISMATCH |
 | mvp-name-view | observed height must match the statement | TestVectors/negative-mvp-name-height | ATTEST |
@@ -130,7 +131,7 @@ compressed owner keys are rejected even with valid signatures: the
 
 ## Round 4: chain-resolved MVP identities
 
-The same Go and independent-reader gates cover all 138 bundles and two row
+The same Go and independent-reader gates cover all 139 bundles and two row
 vectors. All 94 strict-default fixtures remain byte-for-byte unchanged; every
 prior vector name and expected refusal remains present. New fixtures cover
 name/registration reuse, the current grant-key binding, unreadable/malformed
@@ -148,7 +149,7 @@ The distinct-registration mutant yields erroneous `ATTEST` in
 refuses `MVP_OWNER_REGISTRATION_REUSED`. Distinct-name removal is a refusal-order
 control: the fixture still fails registration binding. The table does not
 claim that every removed guard independently causes false acceptance.
-All 63 final controls fail their named tests, with zero survivors, panics,
+All 64 final controls fail their named tests, with zero survivors, panics,
 setup failures or non-applied edits counted as detections. The initial
 control revision detected only 61/63: a length-gate deletion crashed and the
 order mutation survived the new signature binding. They were corrected to
@@ -159,3 +160,12 @@ No node read, production observation, person-level identity proof or live
 admission is established by these fixtures. The running MVP path remains
 `MVP_CHAIN_READ_REQUIRED` pending N3. The pinned offline snapshot and its
 precondition are documented in testdata/README.md and DESIGN.md.
+
+
+`positive-mvp-current-grant-key` additionally proves the current chain grant
+key can differ from the compressed policy owner identifier: approval verifies
+under the former. The stale-key negative remains paired with it. Replacing
+the current key with the policy identifier fails that named positive, as shown
+by `mvp-current-grant-key`. A producer self-review removed an unintended extra
+key-equality restriction before handoff; it was appended as a signed correction
+to preserve the already published commit without rewriting history.
