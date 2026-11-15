@@ -64,6 +64,7 @@ func callIndex(s *fakeSystem, prefix string) int {
 
 // Claim: rehearsal removes matching state accounts, membership, created unit file, regtest dir and fixture files in dependency order; retries accept absence.
 func TestLedgerRehearsalRemovesCreatedObjects(t *testing.T) {
+	const unitBody = "[Install]\nWantedBy=multi-user.target\n"
 	f := setupWith(t, "rehearsal", func(f *fixture) {
 		f.declare("regtest", "dir")
 		f.declare("regtest/block", "file")
@@ -72,6 +73,9 @@ func TestLedgerRehearsalRemovesCreatedObjects(t *testing.T) {
 		must(t, os.Remove(filepath.Join(f.root, "demo.service")))
 		f.declare("demo.service", "file")
 		unitPath := filepath.Join(f.root, "demo.service")
+		// This fixture installs after init, so bind its future bytes and link.
+		f.scope.FutureUnits = []FutureUnit{{Name: "demo.service", Source: filepath.Join(f.root, "baseline", "unit-source"), SHA256: digest([]byte(unitBody)),
+			Links: []FutureUnitLink{{Path: filepath.Join(f.root, "multi-user.target.wants", "demo.service"), Target: unitPath}}}}
 		f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 			if cmd == "/usr/bin/systemctl" && args[0] == "is-enabled" {
 				if _, e := os.Lstat(unitPath); os.IsNotExist(e) {
@@ -90,7 +94,7 @@ func TestLedgerRehearsalRemovesCreatedObjects(t *testing.T) {
 	out := f.create(t, "out", "dir", "state")
 	result := f.create(t, "out/result", "file", "state")
 	unitSource := filepath.Join(f.root, "baseline", "unit-source")
-	must(t, os.WriteFile(unitSource, []byte("[Install]\nWantedBy=multi-user.target\n"), 0600))
+	must(t, os.WriteFile(unitSource, []byte(unitBody), 0600))
 	unit := filepath.Join(f.root, "demo.service")
 	must(t, f.l.CreateFS(unit, unitSource, "file", "state", uint32(os.Geteuid()), uint32(os.Getegid()), 0600))
 	must(t, f.l.Enable("demo.service"))

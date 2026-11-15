@@ -254,6 +254,9 @@ func (l *Ledger) Enable(name string) error {
 	if e != nil {
 		return stopped("UNIT_INSTALL "+name, e)
 	}
+	if e := l.checkFutureUnit(name, plan); e != nil {
+		return e
+	}
 	if len(plan.Missing) == 0 {
 		return fail(1, "UNIT_NO_NEW_LINKS "+name)
 	}
@@ -293,7 +296,15 @@ func (l *Ledger) Enable(name string) error {
 		return orphan(a)
 	}
 	current, e := expectedUnitInstall(l.sys, name)
-	if e != nil || !plan.equal(current) {
+	if e != nil {
+		l.poisoned = true
+		return orphan(a)
+	}
+	if e := l.checkFutureUnit(name, current); e != nil {
+		l.poisoned = true
+		return e
+	}
+	if !plan.equal(current) {
 		l.poisoned = true
 		return orphan(a)
 	}

@@ -88,11 +88,25 @@ type Identity struct {
 // Scope declares targets before any mutation. Parents are inventory scope only;
 // declaring a directory never grants authority over arbitrary descendants.
 type Scope struct {
-	Reused []string    `json:"reused"`
-	Paths  []ScopePath `json:"paths"`
-	Users  []string    `json:"users"`
-	Groups []string    `json:"groups"`
-	Units  []string    `json:"units"`
+	FutureUnits []FutureUnit `json:"future_units,omitempty"`
+	Reused      []string     `json:"reused"`
+	Paths       []ScopePath  `json:"paths"`
+	Users       []string     `json:"users"`
+	Groups      []string     `json:"groups"`
+	Units       []string     `json:"units"`
+}
+
+// FutureUnit binds staging provenance and the complete prospective enable set.
+// Link declarations carry no observed identity or undo authority.
+type FutureUnit struct {
+	Name   string           `json:"name"`
+	Source string           `json:"source"`
+	SHA256 string           `json:"sha256"`
+	Links  []FutureUnitLink `json:"links"`
+}
+type FutureUnitLink struct {
+	Path   string `json:"path"`
+	Target string `json:"target"`
 }
 type ScopePath struct {
 	Path string `json:"path"`

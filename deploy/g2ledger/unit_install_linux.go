@@ -138,13 +138,15 @@ func installLists(raw string, dropin bool) (map[string][]string, error) {
 }
 
 type unitInstall struct {
+	Source   string
+	SHA256   string
 	Expected []UnitLink
 	Existing []UnitLink
 	Missing  []UnitLink
 }
 
 func (p unitInstall) equal(q unitInstall) bool {
-	return slices.Equal(p.Expected, q.Expected) && slices.Equal(p.Existing, q.Existing) && slices.Equal(p.Missing, q.Missing)
+	return p.Source == q.Source && p.SHA256 == q.SHA256 && slices.Equal(p.Expected, q.Expected) && slices.Equal(p.Existing, q.Existing) && slices.Equal(p.Missing, q.Missing)
 }
 
 // Read the first named file in systemd's own search order. A selected symlink
@@ -190,6 +192,7 @@ func expectedUnitInstall(sys System, name string) (unitInstall, error) {
 	if source == "" {
 		return plan, errors.New("UNIT_FILE_MISSING")
 	}
+	plan.Source, plan.SHA256 = source, digest(raw)
 	lists, err := installLists(string(raw), false)
 	if err != nil {
 		return plan, err

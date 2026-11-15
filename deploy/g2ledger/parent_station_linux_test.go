@@ -302,6 +302,13 @@ func TestLedgerUnitLinkCreatedHierarchy(t *testing.T) {
 		must(t, os.Mkdir(vendor, 0700))
 		must(t, os.WriteFile(filepath.Join(vendor, "demo.service"), []byte("[Install]\nWantedBy=a.target b.target\nAlias=alias.service\n"), 0600))
 		f.sys.unitRoot = filepath.Join(f.root, "install", "config")
+		// The install hierarchy is absent at init; its links are declared prospectively.
+		source := filepath.Join(vendor, "demo.service")
+		f.scope.FutureUnits = []FutureUnit{{Name: "demo.service", Source: source, SHA256: digest(mustRead(t, source)), Links: []FutureUnitLink{
+			{Path: filepath.Join(f.sys.unitRoot, "a.target.wants", "demo.service"), Target: source},
+			{Path: filepath.Join(f.sys.unitRoot, "b.target.wants", "demo.service"), Target: source},
+			{Path: filepath.Join(f.sys.unitRoot, "alias.service"), Target: source},
+		}}}
 	})
 	f.l.sys = installPathSystem{f.sys, []string{vendor}, f.sys.unitRoot}
 	source := filepath.Join(vendor, "demo.service")

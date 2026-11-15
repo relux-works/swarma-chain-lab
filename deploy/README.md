@@ -50,7 +50,18 @@ Run `deploy-kit g2-ledger init -dir /root/g2/ledger -manifest /root/g2/release/m
 after verifying the release, then `deploy-kit g2-ledger verify -dir /root/g2/ledger`.
 Declare intended paths/accounts/units and a required `reused` array of existing
 parent directories (`[]` for none) in the scope file before init; genesis
-records their S0 state and attempt purpose. Replay emits JSONL differences and
+records their S0 state and attempt purpose. When the installation plan stages
+and installs units after init, add `future_units`: one `{name, source, sha256,
+links: [{path, target}]}` entry per declared unit. `source` is the absolute staged
+unit path, `sha256` pins the exact bytes, and `links` pins the complete enable
+inventory. Genesis seals it without requiring staged or installed units to
+exist. Link parents must be reused or attempt-created under reused parents;
+unused reused declarations still refuse. Enable checks installed bytes and the
+complete absent link set before effects, with named digest/inventory refusals.
+Without this field every declared unit must be installed and parseable at init;
+missing units refuse as `REUSED_PROSPECTIVE_UNIT_PLAN <unit>: UNIT_FILE_MISSING`.
+See [scope declarations](G2-LEDGER.md#declare-s0-comparison-scopes) for the closed
+schema and a plan example. Replay emits JSONL differences and
 a summary on stdout, with a human summary on stderr. The single retention table
 and comparison limits (including unconditional station account/key protection) are in [G2-LEDGER.md](G2-LEDGER.md#replay-and-retention).
 Artifacts are private `records.jsonl`, `HEAD` and `LOCK` inside the supplied directory;
@@ -65,6 +76,8 @@ Run `gofmt -l g2ledger`, `go vet ./...`, and
 The focused controls use
 `go test -race ./g2ledger -run '^TestLedger(Reused|ForeignFileCtime|Atime)' -count=1`;
 they use real temporary directories without privileged account/systemd mutations.
+`go test -race ./g2ledger -run '^TestLedgerFutureUnit' -count=1` checks future
+unit declarations, byte/inventory binding, absent-unit init and legacy controls.
 `create-user` requires `-role tree-owner|service` (choose one); the ledger
 commits the role and verifies it during replay. `create-tree` requires a
 committed `tree-owner` account that has no other recorded role. It is reserved

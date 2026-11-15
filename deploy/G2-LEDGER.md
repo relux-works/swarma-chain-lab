@@ -87,6 +87,66 @@ scope only: they grant no creation, adoption, retention or recursive authority.
 The plan scripts must declare every pre-existing parent they intend to reuse
 before init; the engine never infers this set from observed child operations.
 
+For an attempt that installs units **after init**, also declare `future_units`:
+
+```json
+"future_units": [
+  {
+    "name": "swarma-rehearsal.service",
+    "source": "/var/lib/swarma-rehearsal/stage/swarma-rehearsal.service",
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "links": [
+      {
+        "path": "/etc/systemd/system/multi-user.target.wants/swarma-rehearsal.service",
+        "target": "/etc/systemd/system/swarma-rehearsal.service"
+      }
+    ]
+  }
+]
+```
+
+This member belongs in the scope object alongside `units`; the example digest
+is synthetic and must be replaced with the SHA-256 of the exact staged bytes.
+Include one entry for **every** unit in `units`. Each entry has exactly `name`,
+`source`, `sha256` and `links`; each link has exactly `path` and `target`.
+`source` is the absolute path where the installation plan stages the unit before
+installing it; `target` is the absolute installed unit path that enable will
+select. Paths must be clean, absolute and outside volatile runtime storage;
+the digest must be 64 lowercase hexadecimal characters. Empty declarations,
+missing/extra/duplicate units, duplicate link paths and unknown fields refuse.
+The staging and installed paths may both be absent at init: init validates and
+seals the declaration in genesis without opening either unit file. The sealed
+source path records staging provenance; the staging file need not survive until
+enable. Declare any staged/installed files that the ledger creates in `paths`
+as usual; `future_units` grants no file-creation authority.
+
+Each link's immediate parent must be a declared reused directory or an absent
+directory that enable will create, rooted under a declared reused directory.
+A pre-existing undeclared parent refuses at init as
+`UNIT_LINK_PARENT_NOT_DECLARED <path>`. An unrelated reused directory still
+refuses as `REUSED_PARENT_NOT_PROSPECTIVE <path>`; ancestor-only declarations do
+not authorize writes into an existing descendant. Attempt-created parents are
+still verified against their committed live identity at enable time.
+
+Before intent, enable reads the selected installed unit with the normal
+no-follow parser and requires its bytes to match the sealed digest
+(`FUTURE_UNIT_SHA256_MISMATCH <unit>`). Its complete derived PATH/TARGET set,
+and the set of links still absent, must both equal the declared inventory
+(`FUTURE_UNIT_LINK_SET_MISMATCH <unit>`). A pre-existing declared link therefore
+refuses for this mode. Both checks repeat after intent, before the command;
+changes refuse without enabling or creating any link. Receipts must still name
+exactly the planned links and pass all existing observation/undo checks. An
+unexpected command receipt leaves an orphan; it cannot retroactively authorize
+an effect. Privileged unit and namespace writers must remain quiescent.
+
+**Compatibility rule:** omitting `future_units` keeps the installed-file plan
+behavior, but **every** unit in `units` must already be present and parseable at
+init, even if ordinary scope paths already justify all reused directories.
+A missing unit refuses as
+`REUSED_PROSPECTIVE_UNIT_PLAN <unit>: UNIT_FILE_MISSING`. Supply `future_units`
+for future installation; pre-installing a unit is not necessary in that mode.
+An explicit empty array or null is not an omitted field and refuses.
+
 Declare every intended mutation path with its kind (`dir`, `tree`, `file`, `secret`),
 every created account, both subjects of every membership, and every enabled
 unit **before init**. Config modification requires a `file` scope. Missing
@@ -403,14 +463,17 @@ reuse set emits no parent line. Declaration use is validated at **init**, in
 `captureBaseline` via `validateProspectiveReused`, against the declared
 prospective entry inventory, rather than at final compare against executed
 operations. Each reused directory must be the immediate parent of a declared
-scope path, an engine-derived install link for a declared unit, or an absent
-install directory that the engine may create. Atomic-replacement/rename
+scope path, an install link from the sealed `future_units` inventory (or the
+installed-file parser in legacy mode), or an absent install directory that the
+engine may create. Atomic-replacement/rename
 temporaries of declared modify-files share the declared file's immediate
 parent; they do not authorize other ancestors. A truly unused declaration is
 refused by name as `REUSED_PARENT_NOT_PROSPECTIVE` before journal creation.
-When a reused parent relies on unit-derived entries alone, the unit's install
-definition must be available to the engine at init; an unreadable or unsupported
-plan refuses as `REUSED_PROSPECTIVE_UNIT_PLAN` rather than guessing its links.
+With `future_units`, the declaration supplies prospective links without reading
+installed units at init. Without that field, every declared unit's installed
+definition must be available and supported at init; a missing, unreadable or
+unsupported plan refuses as `REUSED_PROSPECTIVE_UNIT_PLAN` rather than guessing
+its links.
 An interrupted attempt may never reach a declared entry: an unchanged parent
 then emits no row and no violation, including after S0 or S1. A changed parent
 still requires the full sealed-snapshot, restored-invariant and named-cause
@@ -746,6 +809,7 @@ invoke real account mutation commands.
 
 ### Unit enable receipts and undo
 
+With `future_units`, the sealed digest and inventory checks above also apply.
 Before enable, the ledger derives the **expected PATH/TARGET set from the
 requested unit file**, independently of the command receipt. The system scope
 uses the search order returned by `/usr/bin/systemd-analyze --system unit-paths`

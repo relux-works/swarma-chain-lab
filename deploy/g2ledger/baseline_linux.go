@@ -74,7 +74,7 @@ func validateScope(s Scope) error {
 			}
 		}
 	}
-	return nil
+	return validateFutureUnits(s)
 }
 func scopeObjects(s Scope) ([]BaselineObject, error) {
 	objects := map[string]BaselineObject{}
@@ -248,33 +248,50 @@ func validateProspectiveReused(s Scope, sys System) error {
 	for _, path := range s.Paths {
 		parents[filepath.Dir(path.Path)] = true
 	}
-	needsUnitPlan := false
-	for _, path := range s.Reused {
-		needsUnitPlan = needsUnitPlan || !parents[path]
-	}
-	if needsUnitPlan {
-		for _, name := range s.Units {
+	for _, name := range s.Units {
+		var links []FutureUnitLink
+		if s.FutureUnits != nil {
+			for _, unit := range s.FutureUnits {
+				if unit.Name == name {
+					links = unit.Links
+				}
+			}
+		} else {
+			// Legacy scopes require every declared unit to be installed at init.
 			plan, err := expectedUnitInstall(sys, name)
 			if err != nil {
 				return fmt.Errorf("REUSED_PROSPECTIVE_UNIT_PLAN %s: %w", name, err)
 			}
 			for _, link := range plan.Expected {
-				dir := filepath.Dir(link.Path)
-				for {
-					parents[dir] = true
-					st, err := os.Lstat(dir)
-					if err == nil {
-						if !st.IsDir() {
-							return errors.New("UNIT_LINK_PARENT_NOT_DIRECTORY " + dir)
+				links = append(links, FutureUnitLink{Path: link.Path, Target: link.Target})
+			}
+		}
+		for _, link := range links {
+			dir := filepath.Dir(link.Path)
+			for {
+				parents[dir] = true
+				st, err := os.Lstat(dir)
+				if err == nil {
+					if !st.IsDir() {
+						return errors.New("UNIT_LINK_PARENT_NOT_DIRECTORY " + dir)
+					}
+					if s.FutureUnits != nil {
+						declared := false
+						for _, reused := range s.Reused {
+							declared = declared || reused == dir
 						}
-						break
+						if !declared {
+							return errors.New("UNIT_LINK_PARENT_NOT_DECLARED " + dir)
+						}
 					}
-					if !errors.Is(err, os.ErrNotExist) {
-						return err
-					}
-					// Creating this absent directory is itself a prospective entry.
-					dir = filepath.Dir(dir)
+					break
 				}
+				if !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
+				// The enable operation will create this absent directory;
+				// its own parent must ultimately be declared reused.
+				dir = filepath.Dir(dir)
 			}
 		}
 	}
