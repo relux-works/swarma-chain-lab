@@ -68,6 +68,8 @@ github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1Cpa
 github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7JYyY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261115115549-2da2e6fc2109 h1:YIJye6qVD6GVNo2oSqUGaABhzcxR0mPKSVKPMeApiZs=
+github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261115115549-2da2e6fc2109/go.mod h1:iZzfoFjDMzjGwBctG9MB7ZX0AxqW3XUotAQGqCL+TxU=
 github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115113336-4a573e2d22ac h1:+bGJowb4TgXodpoD5HLGnE98tUNSWesoz7AkiKHhyOI=
 github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115113336-4a573e2d22ac/go.mod h1:N801KpBg+hqKx6H2kaFVFvq06OQ9RH9yStcGvVZfRgk=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
