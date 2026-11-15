@@ -56,7 +56,9 @@ in this slice. No observation vectors are claimed here.
 `scripts/second-reader.py` independently implements the draft grammar and
 arithmetic in Python, without importing Go or using its parser. RIPEMD-160
 uses the independent system OpenSSL command, explicitly required because
-some Python builds omit that algorithm. Its curve check uses modular
+some Python builds omit that algorithm. The legacy provider is selected
+explicitly: [OpenSSL 3.0.2 documents RIPEMD-160 there](https://github.com/openssl/openssl/blob/openssl-3.0.2/doc/man7/EVP_MD-RIPEMD160.pod).
+Its curve check uses modular
 square-root verification; its script
 reader consumes the literal grammar with a cursor. It computes each decision
 before consulting the expected answer, then compares all 84 decisions with
@@ -76,9 +78,10 @@ a shared misunderstanding of the draft.
 
 ## Tools and commands
 
-Use Go 1.26.10, Python 3.14.4 and the system OpenSSL CLI from the repository root.
+Use Go 1.26.10, Python 3.14.4 and the system OpenSSL 3 CLI with its legacy
+provider from the repository root.
 `openssl version` checks availability. The reader invokes
-`openssl dgst -ripemd160 -binary` with the SHA-256 digest on standard input;
+`openssl dgst -provider legacy -ripemd160 -binary` with the SHA-256 digest on standard input;
 its 20 output octets are compared in memory, with decisions saved below.
 Set `GOTOOLCHAIN=local`,
 `GOWORK=off`, a short private `TMPDIR`, and private `GOCACHE`/`GOMODCACHE`.

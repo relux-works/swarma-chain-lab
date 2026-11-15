@@ -21,8 +21,9 @@ TESTS = {"TestV4OwnerPin", "TestV4NameScript", "TestV4Writer", "TestV4LiveName"}
 
 def hash160(data):
     # RIPEMD-160 is absent from some Python builds. Require the independent
-    # OpenSSL CLI explicitly; there is no alternate backend or passing stub.
-    run = subprocess.run(["openssl", "dgst", "-ripemd160", "-binary"],
+    # OpenSSL 3.0.2 supplies it only in the legacy provider; select that
+    # provider explicitly on every platform, without an alternate backend.
+    run = subprocess.run(["openssl", "dgst", "-provider", "legacy", "-ripemd160", "-binary"],
                          input=hashlib.sha256(data).digest(), capture_output=True)
     if run.returncode != 0 or len(run.stdout) != 20:
         raise ValueError("OpenSSL RIPEMD-160 unavailable or malformed output")
