@@ -1,0 +1,41 @@
+{
+  "origin": "g2-negatives.sh:311-343",
+  "cases": [
+    {
+      "name": "POS-D13-1-owned-committed-identity",
+      "mutation": "commit",
+      "oracle_rc": 0,
+      "ok": true
+    },
+    {
+      "name": "NEG-D13-1-replaced-inode-not-owned",
+      "mutation": "replace",
+      "oracle_rc": 1,
+      "ok": false
+    },
+    {
+      "name": "NEG-D13-1-changed-content-not-owned",
+      "mutation": "append",
+      "oracle_rc": 1,
+      "ok": false
+    },
+    {
+      "name": "NEG-D13-1-aborted-intent-not-owned",
+      "mutation": "abort",
+      "oracle_rc": 1,
+      "ok": false
+    },
+    {
+      "name": "NEG-D13-1-malformed-ledger-refused",
+      "mutation": "malformed",
+      "oracle_rc": 2,
+      "ok": false
+    },
+    {
+      "name": "POS-ledger-owns-pre-epoch-timestamp",
+      "mutation": "negative-atime",
+      "ok": true,
+      "oracle_rc": 0
+    }
+  ]
+}

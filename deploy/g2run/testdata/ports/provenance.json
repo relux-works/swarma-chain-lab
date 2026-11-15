@@ -1,0 +1,17 @@
+{
+  "sources": {
+    "g2-scope.py": "6f587e619a6324fb264ea7230d454746ed0c14e67e33e73bf7d981390d414db7",
+    "g2-drift.py": "5292d4035f10d55e3db4b17dd871d4b1b96da7a024c5cfda3c25bb2f15188f78",
+    "g2-landlord-check.py": "c1bd3bbba04bcc5f0e1db68caca8359ed591ef01ddf0a2d95de0889e41b6e3c0",
+    "g2-manifest-check.py": "527e9f30bce035773d5b21e21eb7219fd927a2f0ba86ebbed13e9abcdd2d01b4",
+    "g2-ledger-owns.py": "ac5e4e4f3bd4ccbe5346cf2815c19b4d974ae9833d6e8442cbbe37193fcd1646",
+    "g2-node-restarted.py": "cbed3cd1d44fe5e3c91c4b565bb7170679ba9127bcbcdca5e3d8c49f345bda34",
+    "tests/g2-negatives.sh": "6efaffe1ae3b37e1ca4812bbdcda51c9e5bdf963568e707db98fc23b277920ed",
+    "tests/fixture-swarma-slotd-demo.service": "bd477b01b8e91250d0a69f74f2a520f0236da01ad2a5dbc401b4bd4041aab63e"
+  },
+  "substitutions": [
+    "landlord instance name replaced by id/example",
+    "runtime fixture roots replaced with @STAGE@ and @WALLET@; Go tests expand these without interpretation"
+  ],
+  "note": "Expected verdicts captured by executing the supplied Python sources; source contains private instance data and is not copied into the repository."
+}

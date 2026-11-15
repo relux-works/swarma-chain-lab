@@ -1,0 +1,54 @@
+{
+  "origin": "g2-node-restarted.py; no dedicated source vectors supplied",
+  "cases": [
+    {
+      "name": "POS-node-restarted",
+      "raw": "{\"chain\": \"main\", \"blocks\": 42, \"initialblockdownload\": false}",
+      "oracle_rc": 0,
+      "ok": true,
+      "output": "NODE_RESTARTED chain=main blocks=42 ibd=False\n"
+    },
+    {
+      "name": "POS-node-restarted-ibd",
+      "raw": "{\"chain\": \"test\", \"blocks\": 0, \"initialblockdownload\": true}",
+      "oracle_rc": 0,
+      "ok": true,
+      "output": "NODE_RESTARTED chain=test blocks=0 ibd=True\n"
+    },
+    {
+      "name": "NEG-node-restarted-missing",
+      "raw": "{\"chain\": \"main\", \"blocks\": 42}",
+      "oracle_rc": 1,
+      "ok": false,
+      "output": ""
+    },
+    {
+      "name": "NEG-node-restarted-json",
+      "raw": "{bad",
+      "oracle_rc": 1,
+      "ok": false,
+      "output": ""
+    },
+    {
+      "name": "NEG-node-restarted-control",
+      "raw": "{\"chain\": \"x\\nforged\", \"blocks\": 42, \"initialblockdownload\": false}",
+      "oracle_rc": 0,
+      "ok": false,
+      "output": ""
+    },
+    {
+      "name": "NEG-node-restarted-bool-count",
+      "raw": "{\"chain\": \"main\", \"blocks\": true, \"initialblockdownload\": false}",
+      "oracle_rc": 0,
+      "ok": false,
+      "output": ""
+    },
+    {
+      "name": "NEG-node-restarted-nonbool",
+      "raw": "{\"chain\": \"main\", \"blocks\": 42, \"initialblockdownload\": \"False\"}",
+      "oracle_rc": 0,
+      "ok": false,
+      "output": ""
+    }
+  ]
+}

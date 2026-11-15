@@ -1,0 +1,61 @@
+{
+  "origin": "g2-negatives.sh:204-236,300-308",
+  "cases": [
+    {
+      "name": "POS-D10-4-restore-full-identity",
+      "mutation": "roundtrip",
+      "ok": true,
+      "oracle_rc": 0,
+      "content": "SERVICE"
+    },
+    {
+      "name": "NEG-D10-4-replaced-inode",
+      "mutation": "replace",
+      "ok": false,
+      "oracle_rc": 1,
+      "content": "SERVICE"
+    },
+    {
+      "name": "NEG-D10-4-state-exists",
+      "mutation": "exists",
+      "ok": false,
+      "oracle_rc": 1,
+      "content": "SERVICE"
+    },
+    {
+      "name": "POS-D11-1-roundtrip-restores-atime-and-mtime",
+      "mutation": "old-atime",
+      "ok": true,
+      "oracle_rc": 0,
+      "content": "SERVICE"
+    },
+    {
+      "name": "NEG-D11-1-symlink-refused",
+      "mutation": "symlink",
+      "ok": false,
+      "oracle_rc": 1,
+      "content": "SERVICE"
+    },
+    {
+      "name": "NEG-N6-drift-malformed-state-no-write",
+      "mutation": "bad-state",
+      "ok": false,
+      "oracle_rc": 1,
+      "content": "SERVICE"
+    },
+    {
+      "name": "NEG-drift-empty",
+      "mutation": "empty",
+      "ok": false,
+      "oracle_rc": 1,
+      "content": "SERVICE"
+    },
+    {
+      "name": "POS-drift-pre-epoch-timestamps",
+      "mutation": "negative-atime",
+      "ok": true,
+      "oracle_rc": 0,
+      "content": "SERVICE"
+    }
+  ]
+}

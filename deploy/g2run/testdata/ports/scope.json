@@ -1,0 +1,504 @@
+{
+  "origin": "g2-negatives.sh:88-180",
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "wallet": "[Unit]\nDescription=G2 pay executor\n\n[Service]\nExecStart=/opt/swarma/wallet/0123456789ab/bin/agent-walletd\n\n[Install]\nWantedBy=multi-user.target\n",
+  "slot": "# Installed root:root 0644. Host policy and payload are separately provisioned.\n[Unit]\nDescription=Swarma demo station slot lifecycle\nAfter=local-fs.target nss-user-lookup.target\nStartLimitIntervalSec=60\nStartLimitBurst=3\n\n[Service]\nType=exec\nUser=root\nGroup=root\nUMask=0077\nWorkingDirectory=/\nExecStart=/usr/libexec/swarma-slotd-demo -policy /etc/swarma-slotd-demo/policy.json\nRestart=on-failure\nRestartSec=2\nTimeoutStopSec=45\nKillMode=control-group\nStandardInput=null\nStandardOutput=journal\nStandardError=journal\nEnvironment=PATH=/usr/sbin:/usr/bin LANG=C LC_ALL=C\nUnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GLIBC_TUNABLES GCONV_PATH LOCPATH\nNoNewPrivileges=yes\nRestrictRealtime=yes\nLockPersonality=yes\n# Keep host account databases, mounts, /proc, netlink and systemd visible.\n# Payload sandboxing and caps belong to each separate transient slot unit.\n\n[Install]\nWantedBy=multi-user.target\n",
+  "expected": {
+    "station": {
+      "paths": [
+        {
+          "path": "/etc/namecoin/namecoin.conf",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/swarma",
+          "kind": "dir"
+        },
+        {
+          "path": "/etc/swarma-g2-agent",
+          "kind": "dir"
+        },
+        {
+          "path": "/etc/swarma-g2-agent/agent.key",
+          "kind": "secret"
+        },
+        {
+          "path": "/etc/swarma-slotd-demo",
+          "kind": "dir"
+        },
+        {
+          "path": "/etc/swarma-slotd-demo/policy.json",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/swarma/wallet",
+          "kind": "dir"
+        },
+        {
+          "path": "/etc/swarma/wallet/install-manifest.json",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/swarma/wallet/install-manifest.json.sig",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/swarma/wallet/receipt.key",
+          "kind": "secret"
+        },
+        {
+          "path": "/etc/swarma/wallet/service.json",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/swarma/wallet/wallet.json",
+          "kind": "secret"
+        },
+        {
+          "path": "/etc/systemd/system/swarma-slotd-demo.service",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/systemd/system/swarma-wallet.service",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/systemd/system/swarma-wallet.service.d",
+          "kind": "dir"
+        },
+        {
+          "path": "/etc/systemd/system/swarma-wallet.service.d/10-install.conf",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/systemd/system/swarma-wallet.service.d/g2-status.conf",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/tmpfiles.d/swarma-wallet-g2.conf",
+          "kind": "file"
+        },
+        {
+          "path": "/opt/swarma",
+          "kind": "dir"
+        },
+        {
+          "path": "/opt/swarma/wallet",
+          "kind": "dir"
+        },
+        {
+          "path": "/opt/swarma/wallet/0123456789ab",
+          "kind": "dir"
+        },
+        {
+          "path": "/opt/swarma/wallet/0123456789ab/bin",
+          "kind": "dir"
+        },
+        {
+          "path": "/opt/swarma/wallet/0123456789ab/bin/agent-walletd",
+          "kind": "file"
+        },
+        {
+          "path": "/usr/libexec/swarma-slotd-demo",
+          "kind": "file"
+        },
+        {
+          "path": "/usr/local/libexec/slotd-qual",
+          "kind": "dir"
+        },
+        {
+          "path": "/usr/local/libexec/slotd-qual/client.py",
+          "kind": "file"
+        },
+        {
+          "path": "/usr/local/libexec/slotd-qual/probe",
+          "kind": "file"
+        },
+        {
+          "path": "/usr/local/libexec/swarma-g2",
+          "kind": "dir"
+        },
+        {
+          "path": "/usr/local/libexec/swarma-g2/udp-probe.py",
+          "kind": "file"
+        },
+        {
+          "path": "/usr/local/sbin/swarma-slotd-demo-stop",
+          "kind": "file"
+        },
+        {
+          "path": "/var/lib/slotd-install-stage",
+          "kind": "dir"
+        },
+        {
+          "path": "/var/lib/slotd-install-stage/install.py",
+          "kind": "file"
+        },
+        {
+          "path": "/var/lib/slotd-install-stage/policy.json",
+          "kind": "file"
+        },
+        {
+          "path": "/var/lib/slotd-install-stage/slotd-linux",
+          "kind": "file"
+        },
+        {
+          "path": "/var/lib/slotd-install-stage/stop.sh",
+          "kind": "file"
+        },
+        {
+          "path": "/var/lib/slotd-install-stage/swarma-slotd-demo.service",
+          "kind": "file"
+        },
+        {
+          "path": "/var/lib/swarma-slot-homes",
+          "kind": "dir"
+        },
+        {
+          "path": "/var/lib/swarma-wallet",
+          "kind": "dir"
+        },
+        {
+          "path": "/var/lib/swarma-wallet/kernel",
+          "kind": "dir"
+        },
+        {
+          "path": "/var/lib/swarma-wallet/objects",
+          "kind": "dir"
+        },
+        {
+          "path": "/var/lib/swarma-wallet/service",
+          "kind": "dir"
+        },
+        {
+          "path": "/var/lib/swarma-wallet/wallet",
+          "kind": "dir"
+        }
+      ],
+      "users": [
+        "g2-agent",
+        "owner",
+        "slotd-qual",
+        "swarma-wallet"
+      ],
+      "groups": [
+        "g2-agent",
+        "slotd-qual",
+        "swarma-wallet",
+        "swarma-wallet-peer",
+        "swarma-wallet-status"
+      ],
+      "units": [
+        "swarma-slotd-demo.service",
+        "swarma-wallet.service"
+      ],
+      "reused": [
+        "/etc",
+        "/etc/namecoin",
+        "/etc/systemd/system",
+        "/etc/systemd/system/multi-user.target.wants",
+        "/etc/tmpfiles.d",
+        "/opt",
+        "/usr/libexec",
+        "/usr/local/libexec",
+        "/usr/local/sbin",
+        "/var/lib"
+      ],
+      "future_units": [
+        {
+          "name": "swarma-slotd-demo.service",
+          "source": "@STAGE@/slotd/swarma-slotd-demo.service",
+          "sha256": "bd477b01b8e91250d0a69f74f2a520f0236da01ad2a5dbc401b4bd4041aab63e",
+          "links": [
+            {
+              "path": "/etc/systemd/system/multi-user.target.wants/swarma-slotd-demo.service",
+              "target": "/etc/systemd/system/swarma-slotd-demo.service"
+            }
+          ]
+        },
+        {
+          "name": "swarma-wallet.service",
+          "source": "@STAGE@/swarma-wallet.service",
+          "sha256": "705d08cf6ebf7fe2c2a9437dd4e6e02a89d79218cdf5306ef3e3c0755ffc4366",
+          "links": [
+            {
+              "path": "/etc/systemd/system/multi-user.target.wants/swarma-wallet.service",
+              "target": "/etc/systemd/system/swarma-wallet.service"
+            }
+          ]
+        }
+      ],
+      "node": {
+        "unit": "namecoind.service",
+        "config": "/etc/namecoin/namecoin.conf",
+        "preimage": "/root/g2/baseline/namecoin.conf"
+      }
+    },
+    "rehearsal": {
+      "paths": [
+        {
+          "path": "/etc/swarma",
+          "kind": "dir"
+        },
+        {
+          "path": "/etc/swarma-g2-agent-rehearsal",
+          "kind": "dir"
+        },
+        {
+          "path": "/etc/swarma-g2-agent-rehearsal/agent.key",
+          "kind": "secret"
+        },
+        {
+          "path": "/etc/swarma/wallet",
+          "kind": "dir"
+        },
+        {
+          "path": "/etc/swarma/wallet/install-manifest.json",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/swarma/wallet/install-manifest.json.sig",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/swarma/wallet/receipt.key",
+          "kind": "secret"
+        },
+        {
+          "path": "/etc/swarma/wallet/service.json",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/swarma/wallet/wallet.json",
+          "kind": "secret"
+        },
+        {
+          "path": "/etc/systemd/system/swarma-wallet.service",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/systemd/system/swarma-wallet.service.d",
+          "kind": "dir"
+        },
+        {
+          "path": "/etc/systemd/system/swarma-wallet.service.d/10-install.conf",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/systemd/system/swarma-wallet.service.d/g2-status.conf",
+          "kind": "file"
+        },
+        {
+          "path": "/etc/tmpfiles.d/swarma-wallet-g2.conf",
+          "kind": "file"
+        },
+        {
+          "path": "/opt/swarma",
+          "kind": "dir"
+        },
+        {
+          "path": "/opt/swarma/wallet",
+          "kind": "dir"
+        },
+        {
+          "path": "/opt/swarma/wallet/0123456789ab",
+          "kind": "dir"
+        },
+        {
+          "path": "/opt/swarma/wallet/0123456789ab/bin",
+          "kind": "dir"
+        },
+        {
+          "path": "/opt/swarma/wallet/0123456789ab/bin/agent-walletd",
+          "kind": "file"
+        },
+        {
+          "path": "/usr/local/libexec/swarma-g2",
+          "kind": "dir"
+        },
+        {
+          "path": "/usr/local/libexec/swarma-g2/udp-probe.py",
+          "kind": "file"
+        },
+        {
+          "path": "/var/lib/swarma-wallet",
+          "kind": "dir"
+        },
+        {
+          "path": "/var/lib/swarma-wallet/kernel",
+          "kind": "dir"
+        },
+        {
+          "path": "/var/lib/swarma-wallet/objects",
+          "kind": "dir"
+        },
+        {
+          "path": "/var/lib/swarma-wallet/service",
+          "kind": "dir"
+        },
+        {
+          "path": "/var/lib/swarma-wallet/wallet",
+          "kind": "dir"
+        }
+      ],
+      "users": [
+        "g2-agent",
+        "swarma-wallet"
+      ],
+      "groups": [
+        "g2-agent",
+        "swarma-wallet",
+        "swarma-wallet-peer",
+        "swarma-wallet-status"
+      ],
+      "units": [
+        "swarma-wallet.service"
+      ],
+      "reused": [
+        "/etc",
+        "/etc/swarma",
+        "/etc/systemd/system",
+        "/etc/tmpfiles.d",
+        "/opt",
+        "/usr/local/libexec",
+        "/var/lib"
+      ],
+      "future_units": [
+        {
+          "name": "swarma-wallet.service",
+          "source": "@STAGE@/swarma-wallet.service",
+          "sha256": "705d08cf6ebf7fe2c2a9437dd4e6e02a89d79218cdf5306ef3e3c0755ffc4366",
+          "links": []
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "POS-SCOPE-station",
+      "mutation": "station",
+      "ok": true,
+      "oracle_rc": 0
+    },
+    {
+      "name": "POS-SCOPE-rehearsal",
+      "mutation": "rehearsal",
+      "ok": true,
+      "oracle_rc": 0
+    },
+    {
+      "name": "NEG-SCOPE-short-commit",
+      "mutation": "short-commit",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-SCOPE-bad-purpose",
+      "mutation": "bad-purpose",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-SCOPE-no-overwrite",
+      "mutation": "exists",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D16-3-missing-reused-parent-refused",
+      "mutation": "missing-reused",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D18r1-1-staged-unit-missing",
+      "mutation": "missing",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D18r1-1-staged-unit-symlink",
+      "mutation": "symlink",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D18r1-1-staged-dir-symlink",
+      "mutation": "dir-symlink",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D18r1-1-staged-fifo",
+      "mutation": "fifo",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D18r1-1-unfilled-token",
+      "mutation": "token",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D18r1-1-install-not-exact",
+      "mutation": "install",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D18r1-1-install-extra-alias",
+      "mutation": "alias",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D18r1-1-slotd-not-pinned",
+      "mutation": "pin",
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D18r1-1-relative-stage",
+      "mutation": "relative",
+      "ok": false,
+      "oracle_rc": 1
+    }
+  ],
+  "layout": {
+    "ConfigParent": "/etc/swarma",
+    "WalletConfig": "/etc/swarma/wallet",
+    "Data": "/var/lib/swarma-wallet",
+    "Helper": "/usr/local/libexec/swarma-g2",
+    "Tmpfiles": "/etc/tmpfiles.d/swarma-wallet-g2.conf",
+    "VersionParent": "/opt/swarma",
+    "VersionRoot": "/opt/swarma/wallet",
+    "UnitDirectory": "/etc/systemd/system",
+    "WantsDirectory": "/etc/systemd/system/multi-user.target.wants",
+    "StationAgent": "/etc/swarma-g2-agent",
+    "RehearsalAgent": "/etc/swarma-g2-agent-rehearsal",
+    "SlotHomes": "/var/lib/swarma-slot-homes",
+    "SlotHelper": "/usr/local/libexec/slotd-qual",
+    "SlotStage": "/var/lib/slotd-install-stage",
+    "SlotConfig": "/etc/swarma-slotd-demo",
+    "SlotBinary": "/usr/libexec/swarma-slotd-demo",
+    "SlotStop": "/usr/local/sbin/swarma-slotd-demo-stop",
+    "WalletUser": "swarma-wallet",
+    "AgentUser": "g2-agent",
+    "WalletGroup": "swarma-wallet",
+    "PeerGroup": "swarma-wallet-peer",
+    "StatusGroup": "swarma-wallet-status",
+    "SlotUser": "slotd-qual",
+    "Operator": "owner",
+    "WalletUnit": "swarma-wallet.service",
+    "SlotUnit": "swarma-slotd-demo.service",
+    "WalletSource": "swarma-wallet.service",
+    "SlotSource": "slotd/swarma-slotd-demo.service",
+    "SlotUnitPin": "bd477b01b8e91250d0a69f74f2a520f0236da01ad2a5dbc401b4bd4041aab63e",
+    "Node": {
+      "unit": "namecoind.service",
+      "config": "/etc/namecoin/namecoin.conf",
+      "preimage": "/root/g2/baseline/namecoin.conf"
+    }
+  }
+}
