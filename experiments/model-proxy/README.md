@@ -65,8 +65,13 @@ Disconnect, timeout, malformed/missing usage, truncated SSE, shutdown, failed
 settlement and restart with a pending request retain the full unresolved
 reservation. There is no generation retry or refund based on connection loss.
 Status exposes charged exposure and observed usage separately; request counts
-are never refunded. Provider usage exceeding the reserved bound freezes the
-slot; this cannot undo an upstream bill or prove a misbehaving provider obeyed
+are never refunded. For Responses cancellation before upstream headers, the
+current refusal is HTTP 502 with `{"error":"UPSTREAM"}`; it emits no
+`response.completed`, reports no success and clears the in-flight marker while
+retaining the entire reservation. Once a downstream SSE frame has been flushed,
+revocation or expiry cuts that established stream with `proxy_stream` and no
+`response.completed`. Neither path retries generation. Provider usage exceeding the reserved
+bound freezes the slot; this cannot undo an upstream bill or prove a misbehaving provider obeyed
 its contract.
 
 The ledger is private, bounded and exclusively locked using `single-use/durable`:
@@ -182,6 +187,16 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o .temp/model-proxy-linux ./cmd/
 The Linux executable takes `-config <private-config-path>`. Starting a real
 proxy and providing deployment credentials are separate operator actions.
 The CLI emits typed audit JSON and fixed startup failure text only.
+
+The phase-specific Responses closure checks can be repeated with
+`GOWORK=off go test -race -count=200 -run '^TestResponses(InFlightClosure|PreHeaderClosure)$' .`.
+Run once with a short, empty tmpfs `TMPDIR` and once with an empty disk-backed
+`TMPDIR`; keep logs under `.temp/`. Established-stream cases wait for the first
+complete downstream frame to be written and flushed. Pre-header cases hold all
+headers until cancellation and verify booking exposure of 100 input tokens,
+10 output tokens, one request and 230 nano-USD, with zero observed usage and
+cleared in-flight state, including persisted state. This ledger version has no
+daily aggregate counter; these tests do not claim daily-ceiling coverage.
 
 Tests use a loopback TLS fake upstream. They cover reservation equality/overflow,
 auth/header stripping, SSE accounting and interruption, actual child-process

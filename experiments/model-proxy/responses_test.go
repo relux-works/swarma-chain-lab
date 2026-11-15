@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -83,14 +84,17 @@ func (h *responsesHarness) send(body string) *httptest.ResponseRecorder {
 	return h.sendAs(body, h.b.SlotID, h.cred.Bearer.Reveal(), "responses")
 }
 func (h *responsesHarness) sendAs(body, id string, bearer Secret, route string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	h.sendTo(w, body, id, bearer, route)
+	return w
+}
+func (h *responsesHarness) sendTo(w http.ResponseWriter, body, id string, bearer Secret, route string) {
 	r := httptest.NewRequest("POST", "https://proxy.example/slots/"+id+"/v1/"+route, strings.NewReader(body))
 	r.Header.Set("Authorization", "Bearer "+string(bearer))
 	r.Header.Set("OpenAI-Organization", "client-organization")
 	r.Header.Set("OpenAI-Beta", "client-beta")
 	r.Header.Set("x-api-key", "client-key")
-	w := httptest.NewRecorder()
 	h.s.ServeHTTP(w, r)
-	return w
 }
 func (h *responsesHarness) status(t *testing.T) Status {
 	t.Helper()
@@ -522,24 +526,27 @@ func TestResponsesCompleteAndLongInput(t *testing.T) {
 
 // Expiry/revocation cancels a blocked real TLS stream and preserves its full
 // reservation. A concurrent request cannot create a second upstream call.
+// The downstream flush establishes the stream phase; an upstream flush cannot.
 func TestResponsesInFlightClosure(t *testing.T) {
 	for _, kind := range []string{"expired", "revoked"} {
 		t.Run(kind, func(t *testing.T) {
 			h := responsesFixture(t)
-			started := make(chan struct{})
 			h.reply = func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "text/event-stream")
 				io.WriteString(w, encodeEvents(responseEvents(false, 7, 3)[:1], true))
 				w.(http.Flusher).Flush()
-				close(started)
 				<-r.Context().Done()
 			}
+			writer := &responsesFrameWriter{ResponseRecorder: httptest.NewRecorder(), frame: make(chan struct{})}
 			done := make(chan *httptest.ResponseRecorder, 1)
-			go func() { done <- h.send(responsesRequest(true, false)) }()
+			go func() {
+				h.sendTo(writer, responsesRequest(true, false), h.b.SlotID, h.cred.Bearer.Reveal(), "responses")
+				done <- writer.ResponseRecorder
+			}()
 			select {
-			case <-started:
+			case <-writer.frame:
 			case <-time.After(2 * time.Second):
-				t.Fatal("Responses upstream did not start")
+				t.Fatal("Responses downstream frame was not flushed")
 			}
 			w := h.send(responsesRequest(true, false))
 			if w.Code != 403 || !strings.Contains(w.Body.String(), "BUSY") || h.calls.Load() != 1 {
@@ -564,6 +571,135 @@ func TestResponsesInFlightClosure(t *testing.T) {
 			}
 			if h.send(responsesRequest(true, false)).Code != 401 || h.calls.Load() != 1 {
 				t.Fatal("Responses closed credential reused")
+			}
+		})
+	}
+}
+
+// Only the handler goroutine touches the recorder. Closing frame publishes a
+// complete response.created frame after Flush, without concurrent body reads.
+type responsesFrameWriter struct {
+	*httptest.ResponseRecorder
+	frame chan struct{}
+	sent  bool
+}
+
+func (w *responsesFrameWriter) Flush() {
+	w.ResponseRecorder.Flush()
+	if !w.sent && strings.HasPrefix(w.Body.String(), "event: response.created\n") && strings.HasSuffix(w.Body.String(), "\n\n") {
+		w.sent = true
+		close(w.frame)
+	}
+}
+
+// With no upstream headers available, cancellation returns 502 UPSTREAM rather
+// than an SSE error. Neither revocation nor expiry may refund the reservation,
+// settle usage, report success, retry generation, or leave InFlight set.
+// These loopback controls do not assert that remote billing stops on cancel.
+func TestResponsesPreHeaderClosure(t *testing.T) {
+	for _, kind := range []string{"expired", "revoked"} {
+		t.Run(kind, func(t *testing.T) {
+			h := responsesFixture(t)
+			// Keep timeout distinct from the cancellation under test.
+			h.s.cfg.Timeout = 20 * time.Second
+			entered, release, cancelled, returned := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
+			var releaseOnce sync.Once
+			unblock := func() { releaseOnce.Do(func() { close(release) }) }
+			defer unblock()
+			h.reply = func(w http.ResponseWriter, r *http.Request) {
+				defer close(returned)
+				close(entered)
+				// Do not write headers, even after observing cancellation, until
+				// the test releases this handler.
+				select {
+				case <-r.Context().Done():
+					close(cancelled)
+				case <-release:
+					return
+				}
+				<-release
+				// A late valid completion must not turn cancellation into success.
+				w.Header().Set("Content-Type", "text/event-stream")
+				io.WriteString(w, responseFrames(false, 7, 3))
+				w.(http.Flusher).Flush()
+			}
+			audits := make(chan Audit, 8)
+			h.s.cfg.Audit = func(a Audit) { audits <- a }
+			done := make(chan *httptest.ResponseRecorder, 1)
+			go func() { done <- h.send(responsesRequest(true, false)) }()
+			select {
+			case <-entered:
+			case <-time.After(2 * time.Second):
+				t.Fatal("Responses upstream did not enter pre-header barrier")
+			}
+			assertHeld := func(inFlight bool) {
+				t.Helper()
+				v := h.status(t)
+				// 100 input * 2 + 10 output * 3 = 230 nano-USD.
+				if v.Exposure != (Counts{100, 10, 1, 230}) || v.Observed != (Usage{}) || v.InFlight != inFlight {
+					t.Fatalf("Responses pre-header reservation changed: exposure=%+v observed=%+v inFlight=%v", v.Exposure, v.Observed, v.InFlight)
+				}
+			}
+			assertHeld(true)
+			if w := h.send(responsesRequest(true, false)); w.Code != 403 || !strings.Contains(w.Body.String(), "BUSY") || h.calls.Load() != 1 {
+				t.Fatal("Responses pre-header parallel request forwarded")
+			}
+			if kind == "expired" {
+				h.now.Store(h.b.NotAfter)
+			} else if e := h.s.Revoke(h.b); e != nil {
+				t.Fatal(e)
+			}
+			select {
+			case <-cancelled:
+			case <-time.After(2 * time.Second):
+				t.Fatal("Responses pre-header request was not cancelled")
+			}
+			unblock()
+			select {
+			case <-returned:
+			case <-time.After(2 * time.Second):
+				t.Fatal("Responses pre-header upstream did not return after release")
+			}
+			select {
+			case w := <-done:
+				if w.Code != http.StatusBadGateway || w.Body.String() != `{"error":"UPSTREAM"}` || strings.Contains(w.Body.String(), "response.completed") {
+					t.Fatalf("Responses pre-header closure must return 502 UPSTREAM without completion: status=%d body=%q", w.Code, w.Body.String())
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("Responses pre-header closure remained blocked")
+			}
+			assertHeld(false)
+			raw, e := h.s.disk.Read("registry.json", MaxBody)
+			var persisted ledger
+			if e != nil || json.Unmarshal(raw, &persisted) != nil {
+				t.Fatal("Responses pre-header ledger could not be read")
+			}
+			rec := persisted.Records[h.b.SlotID]
+			if rec.Exposure != (Counts{100, 10, 1, 230}) || rec.Observed != (Usage{}) || rec.Pending != nil {
+				t.Fatal("Responses pre-header reservation was not durably retained and cleared")
+			}
+			// Handler return includes all audit writes and deferred settlement.
+			close(audits)
+			upstreamRefusal := false
+			for a := range audits {
+				if a.HTTPStatus < 400 || a.Code == "OK" || a.Usage != (Usage{}) {
+					t.Fatal("Responses pre-header closure reported success")
+				}
+				upstreamRefusal = upstreamRefusal || (a.HTTPStatus == 502 && a.Code == "UPSTREAM")
+			}
+			if !upstreamRefusal {
+				t.Fatal("Responses pre-header refusal audit missing")
+			}
+			// Reopen verifies retained exposure and cleared InFlight are durable.
+			h.s.Close()
+			s, e := New(h.c)
+			if e != nil {
+				t.Fatal(e)
+			}
+			h.s = s
+			assertHeld(false)
+			if w := h.send(responsesRequest(true, false)); w.Code != 401 || h.calls.Load() != 1 {
+				t.Fatal("Responses pre-header closed credential reused or retried")
 			}
 		})
 	}
