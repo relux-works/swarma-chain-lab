@@ -486,6 +486,16 @@ can select an exact-commit file proxy for unpublished local delivery; this is
 local artifact evidence and does not attest public proxy availability. Run gate
 controls with `python3 .scripts/test_check_published_grantcheck_capacity.py`.
 
+The published wallet checker regression runs outside the checkout without module
+replacements. Run `python3 .scripts/check-published-wallet-grantcheck.py --help`
+for the selected wallet, checker, writer and historical checker versions. It
+uses the same external public-API tests against both downloaded checker snapshots:
+r4 must reject final-sample staleness and r5 must stage aggregate state until
+acceptance. Logs, exact module graphs and command exits go under the external
+`--scratch-parent`; `--proxy` may identify a local artifact proxy for unpublished
+source, which does not establish public availability. Gate controls run with
+`python3 -B -m unittest discover -s .scripts -p 'test_check_published_wallet_grantcheck.py' -v`.
+
 ## N1 identity and discovery tools
 
 The rental module supports [typed optional N1 identity values](experiments/rental/N1-VALUES.md)

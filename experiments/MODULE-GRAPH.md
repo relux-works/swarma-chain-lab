@@ -2,7 +2,7 @@
 
 The current floor is signed source `e70a35a41dec5948d5452f1f898f4d26977372d7`, published at
 `20261114210947`. All 101 internal requirements select this compatible branch
-snapshot. It descends from main `66dfd7cf2ed5ece75f0632be188412cea426154b`
+snapshot or an ancestry-verified successor. It descends from main `66dfd7cf2ed5ece75f0632be188412cea426154b`
 and strict-parser change `28d4b9f1aba4f10e8d57ea486f73b52aeabe46ab`.
 The manifest-refresh commit is selected uniformly to retain current consumer APIs and every strict
 call site, including the wallet's rental and grantcheck requirements. This also
@@ -11,6 +11,13 @@ wallet modules. Its requirements point to `27d39435cdc4`, so transitive selected
 retain the rebased strict change. This two-layer refresh avoids selecting the
 pre-refresh manifests that still contain old sibling pins. No requirement is
 lowered; no local replacement changes.
+
+The PR #111 selection refresh selects the combined-budget writer via its containing
+snapshot. Every consumer requirement on single-use or grantcheck selects
+`43a49e4c07acfc4e966c7ca2fdd8aa0331eeef51`, containing both final-sample
+freshness and atomic aggregate acceptance. These are earlier commits of the
+rebased branch and descend from the strict snapshot floor. The floor below
+remains the shared minimum; it does not replace these per-edge selections.
 
 Semantic-version order establishes an API floor, **not fix containment**. The
 numerically higher rental snapshot `3baa201bafb6` lacks the strict certificate

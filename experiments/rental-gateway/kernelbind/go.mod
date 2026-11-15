@@ -8,7 +8,7 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.5
 	github.com/relux-works/swarma-chain-lab/experiments/rental v0.5.1-0.20261114210947-e70a35a41dec
 	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261114210947-e70a35a41dec
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261114210947-e70a35a41dec
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115012415-43a49e4c07ac
 )
 
 require (
