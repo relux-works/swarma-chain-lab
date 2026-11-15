@@ -50,12 +50,16 @@ Run `deploy-kit g2-ledger init -dir /root/g2/ledger -manifest /root/g2/release/m
 after verifying the release, then `deploy-kit g2-ledger verify -dir /root/g2/ledger`.
 Declare intended paths/accounts/units and a required `reused` array of existing
 parent directories (`[]` for none) in the scope file before init; genesis
-records their S0 state and attempt purpose. When the installation plan stages
-and installs units after init, add `future_units`: one `{name, source, sha256,
-links: [{path, target}]}` entry per declared unit. `source` is the absolute staged
+records their S0 state and attempt purpose. When the installation plan installs
+units after init, stage their sources before init and add `future_units`: one
+`{name, source, sha256, links: [{path, target}]}` entry per declared unit.
+`source` is the absolute staged
 unit path, `sha256` pins the exact bytes, and `links` pins the complete enable
-inventory. Genesis seals it without requiring staged or installed units to
-exist. Link parents must be reused or attempt-created under reused parents;
+inventory. Init reads each staged input from a private 0700 staging directory
+outside declared targets, rejects missing/nonregular/symlink or digest-mismatched
+sources before creating the ledger, and seals the verified digest in genesis.
+Installed units may still be absent. Link parents must be reused or
+attempt-created under reused parents;
 unused reused declarations still refuse. Enable checks installed bytes and the
 complete absent link set before effects, with named digest/inventory refusals.
 Without this field every declared unit must be installed and parseable at init;

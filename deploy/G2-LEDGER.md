@@ -93,7 +93,7 @@ For an attempt that installs units **after init**, also declare `future_units`:
 "future_units": [
   {
     "name": "swarma-rehearsal.service",
-    "source": "/var/lib/swarma-rehearsal/stage/swarma-rehearsal.service",
+    "source": "/root/g2/stage/swarma-rehearsal.service",
     "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "links": [
       {
@@ -114,11 +114,19 @@ installing it; `target` is the absolute installed unit path that enable will
 select. Paths must be clean, absolute and outside volatile runtime storage;
 the digest must be 64 lowercase hexadecimal characters. Empty declarations,
 missing/extra/duplicate units, duplicate link paths and unknown fields refuse.
-The staging and installed paths may both be absent at init: init validates and
-seals the declaration in genesis without opening either unit file. The sealed
-source path records staging provenance; the staging file need not survive until
-enable. Declare any staged/installed files that the ledger creates in `paths`
-as usual; `future_units` grants no file-creation authority.
+Before init, place every staged source under a private 0700 staging directory
+outside the declared targets. It is an **input read at init**, not a mutation
+target: do not add it to `paths` or its staging parent to `reused` merely to
+declare the input. Init opens every declared source without following symlinks
+in any component, requires a regular file, and hashes its actual bytes. Missing
+sources refuse as `FUTURE_UNIT_SOURCE_MISSING <unit>`; nonregular files,
+symlinks and read failures refuse as `FUTURE_UNIT_SOURCE_READ <unit>`; a digest
+difference refuses as `FUTURE_UNIT_SOURCE_SHA256_MISMATCH <unit>`. These checks
+run before creating the ledger directory, so refusal leaves no new ledger.
+Genesis seals the verified digest and declaration. Installed units may still
+be absent at init; the staged input need not survive until enable.
+Declare installed files that the ledger creates in `paths` as usual;
+`future_units` grants no file-creation authority.
 
 Each link's immediate parent must be a declared reused directory or an absent
 directory that enable will create, rooted under a declared reused directory.
@@ -138,6 +146,14 @@ changes refuse without enabling or creating any link. Receipts must still name
 exactly the planned links and pass all existing observation/undo checks. An
 unexpected command receipt leaves an orphan; it cannot retroactively authorize
 an effect. Privileged unit and namespace writers must remain quiescent.
+
+Both reads are necessary: init proves the declared digest describes the actual
+staged input, while enable proves the installer wrote exactly those bytes at
+the engine-selected installed path (`/etc/systemd/system/UNIT` in the station).
+The installer may be ledger `create-file` copying the staged input or an
+external pinned installer copying it through its own staging directory. A
+matching staged source alone never authorizes different installed bytes, even
+when their Install sections would create identical links.
 
 **Compatibility rule:** omitting `future_units` keeps the installed-file plan
 behavior, but **every** unit in `units` must already be present and parseable at

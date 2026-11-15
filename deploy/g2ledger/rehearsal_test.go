@@ -76,6 +76,7 @@ func TestLedgerRehearsalRemovesCreatedObjects(t *testing.T) {
 		// This fixture installs after init, so bind its future bytes and link.
 		f.scope.FutureUnits = []FutureUnit{{Name: "demo.service", Source: filepath.Join(f.root, "baseline", "unit-source"), SHA256: digest([]byte(unitBody)),
 			Links: []FutureUnitLink{{Path: filepath.Join(f.root, "multi-user.target.wants", "demo.service"), Target: unitPath}}}}
+		must(t, os.WriteFile(f.scope.FutureUnits[0].Source, []byte(unitBody), 0600))
 		f.sys.fault = func(cmd string, args []string) (fakeReply, bool) {
 			if cmd == "/usr/bin/systemctl" && args[0] == "is-enabled" {
 				if _, e := os.Lstat(unitPath); os.IsNotExist(e) {

@@ -57,6 +57,24 @@ func validateFutureUnits(s Scope) error {
 	return nil
 }
 
+// Staged units are input reads, not mutation targets. Verify every source
+// before creating the ledger; enable separately verifies the installed bytes.
+func verifyFutureUnitSources(s Scope) error {
+	for _, unit := range s.FutureUnits {
+		id, err := observe(unit.Source, "file")
+		if err != nil {
+			return stopped("FUTURE_UNIT_SOURCE_READ "+unit.Name, err)
+		}
+		if id == nil {
+			return fail(1, "FUTURE_UNIT_SOURCE_MISSING "+unit.Name)
+		}
+		if id.FS.SHA256 != unit.SHA256 {
+			return fail(1, "FUTURE_UNIT_SOURCE_SHA256_MISMATCH "+unit.Name)
+		}
+	}
+	return nil
+}
+
 // The selected installed bytes and complete derived inventory must match the
 // sealed declaration, independently of systemctl's later creation receipt.
 func (l *Ledger) checkFutureUnit(name string, actual unitInstall) error {

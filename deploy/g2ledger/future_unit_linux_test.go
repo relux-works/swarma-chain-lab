@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 type futureFixture struct {
@@ -42,7 +44,7 @@ func newFutureFixture(t *testing.T) *futureFixture {
 	raw, err := os.ReadFile("testdata/release-manifest.json")
 	must(t, err)
 	must(t, os.WriteFile(f.manifest, raw, 0600))
-	f.scope.Reused = []string{f.sys.unitRoot, wants, stage}
+	f.scope.Reused = []string{f.sys.unitRoot, wants}
 	f.scope.Users, f.scope.Groups = []string{}, []string{}
 	for _, name := range []string{"swarma-slotd-demo.service", "swarma-wallet.service"} {
 		body := []byte("[Unit]\nDescription=public fixture\n[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=multi-user.target\n")
@@ -50,8 +52,9 @@ func newFutureFixture(t *testing.T) *futureFixture {
 		must(t, os.WriteFile(payload, body, 0600))
 		f.payloads = append(f.payloads, payload)
 		source, target := filepath.Join(stage, name), filepath.Join(f.sys.unitRoot, name)
+		must(t, os.WriteFile(source, body, 0600))
 		f.scope.Units = append(f.scope.Units, name)
-		f.scope.Paths = append(f.scope.Paths, ScopePath{Path: source, Kind: "file"}, ScopePath{Path: target, Kind: "file"})
+		f.scope.Paths = append(f.scope.Paths, ScopePath{Path: target, Kind: "file"})
 		f.scope.FutureUnits = append(f.scope.FutureUnits, FutureUnit{Name: name, Source: source, SHA256: digest(body),
 			Links: []FutureUnitLink{{Path: filepath.Join(wants, name), Target: target}}})
 	}
@@ -72,8 +75,7 @@ func (f *futureFixture) open(t *testing.T) {
 }
 func (f *futureFixture) install(t *testing.T) {
 	t.Helper()
-	for i, unit := range f.scope.FutureUnits {
-		must(t, f.l.CreateFS(unit.Source, f.payloads[i], "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600))
+	for _, unit := range f.scope.FutureUnits {
 		must(t, f.l.CreateFS(unit.Links[0].Target, unit.Source, "file", "remove", uint32(os.Geteuid()), uint32(os.Getegid()), 0600))
 		f.sys.units[unit.Name] = "disabled"
 	}
@@ -91,11 +93,13 @@ func (f *futureFixture) noEnable(t *testing.T, err error, reason string, count i
 	}
 }
 
-// Claim: station-shaped init needs neither staged nor installed units; matching later installs enable and name each link as its reused-parent cause.
+// Claim: station-shaped init reads staged inputs outside targets while installed units are absent; matching later installs enable and name each link as its reused-parent cause.
 func TestLedgerFutureUnitStationAbsentInitAndEnable(t *testing.T) {
 	f := newFutureFixture(t)
 	for _, unit := range f.scope.FutureUnits {
-		absent(t, unit.Source)
+		if digest(mustRead(t, unit.Source)) != unit.SHA256 {
+			t.Fatal("staged input differs from plan")
+		}
 		absent(t, unit.Links[0].Target)
 	}
 	code(t, f.init(t), 0)
@@ -128,6 +132,102 @@ func TestLedgerFutureUnitStationAbsentInitAndEnable(t *testing.T) {
 	}
 }
 
+// Claim: each staged input must be a real regular file with the declared digest;
+// failures name the unit and leave no ledger, while matching inputs seal genesis.
+func TestLedgerFutureUnitStagedSourceAtInit(t *testing.T) {
+	for _, index := range []int{0, 1} {
+		for _, variant := range []string{"matching", "missing", "wrong-sha256", "symlink", "directory", "fifo", "parent-symlink"} {
+			t.Run([]string{"first", "second"}[index]+"/"+variant, func(t *testing.T) {
+				f := newFutureFixture(t)
+				unit := &f.scope.FutureUnits[index]
+				reason := "FUTURE_UNIT_SOURCE_READ " + unit.Name
+				switch variant {
+				case "missing":
+					must(t, os.Remove(unit.Source))
+					reason = "FUTURE_UNIT_SOURCE_MISSING " + unit.Name
+				case "wrong-sha256":
+					must(t, os.WriteFile(unit.Source, []byte("different staged bytes\n"), 0600))
+					reason = "FUTURE_UNIT_SOURCE_SHA256_MISMATCH " + unit.Name
+				case "symlink":
+					must(t, os.Remove(unit.Source))
+					must(t, os.Symlink(f.payloads[index], unit.Source))
+				case "directory":
+					must(t, os.Remove(unit.Source))
+					must(t, os.Mkdir(unit.Source, 0700))
+				case "fifo":
+					must(t, os.Remove(unit.Source))
+					must(t, unix.Mkfifo(unit.Source, 0600))
+				case "parent-symlink":
+					alias := filepath.Join(f.root, "stage-alias")
+					must(t, os.Symlink(filepath.Dir(unit.Source), alias))
+					unit.Source = filepath.Join(alias, unit.Name)
+				}
+				err := f.init(t)
+				if variant == "matching" {
+					code(t, err, 0)
+					f.open(t)
+					if !bytes.Equal(canonical(f.scope), canonical(f.l.rows[0].Body.Genesis.Scope)) {
+						t.Fatal("verified input digest not sealed")
+					}
+				} else {
+					code(t, err, 1)
+					if !strings.Contains(err.Error(), reason) {
+						t.Fatalf("want %s: %v", reason, err)
+					}
+					absent(t, f.dir)
+				}
+			})
+		}
+	}
+}
+
+// Claim: an external installer must copy the init-verified staged bytes to the
+// selected installed path; different bytes with the same Install list refuse
+// before intent, enable or links. Staged inputs need not survive until enable.
+func TestLedgerFutureUnitInstallerBytesBeforeEnable(t *testing.T) {
+	for _, variant := range []string{"staged-bytes", "different-bytes", "staged-removed"} {
+		t.Run(variant, func(t *testing.T) {
+			f := newFutureFixture(t)
+			must(t, f.init(t))
+			f.open(t)
+			unit := f.scope.FutureUnits[0]
+			staged := mustRead(t, unit.Source)
+			if digest(staged) != unit.SHA256 {
+				t.Fatal("staged input differs from bound digest")
+			}
+			installed := append([]byte(nil), staged...)
+			if variant == "different-bytes" {
+				installed = append(installed, []byte("# installer substituted bytes\n")...)
+			}
+			// Model a pinned external installer, independent of ledger create-file.
+			target := filepath.Join(f.sys.unitRoot, unit.Name)
+			must(t, os.WriteFile(target, installed, 0600))
+			f.sys.units[unit.Name] = "disabled"
+			if variant == "staged-removed" {
+				must(t, os.Remove(unit.Source))
+			} else if !bytes.Equal(staged, mustRead(t, unit.Source)) {
+				t.Fatal("installer changed staged input")
+			}
+			count := len(f.l.rows)
+			err := f.l.Enable(unit.Name)
+			if variant == "different-bytes" {
+				f.noEnable(t, err, "FUTURE_UNIT_SHA256_MISMATCH "+unit.Name, count)
+				if f.sys.units[unit.Name] != "disabled" || !bytes.Equal(installed, mustRead(t, target)) {
+					t.Fatal("refusal changed installed bytes or enablement")
+				}
+			} else {
+				must(t, err)
+				link := unit.Links[0]
+				got, err := os.Readlink(link.Path)
+				must(t, err)
+				if got != target || f.sys.units[unit.Name] != "enabled" || !f.sys.called("/usr/bin/systemctl enable") {
+					t.Fatal("matching installer did not enable the bound link")
+				}
+			}
+		})
+	}
+}
+
 // Claim: changed installed bytes with an unchanged Install inventory refuse by unit name before intent or any link; the exact bytes work above.
 func TestLedgerFutureUnitSHA256BeforeEffect(t *testing.T) {
 	f := newFutureFixture(t)
@@ -154,6 +254,7 @@ func TestLedgerFutureUnitInventoryBeforeEffect(t *testing.T) {
 				body = append(body, []byte("Alias=extra.service\n")...)
 				unit.SHA256 = digest(body)
 				must(t, os.WriteFile(f.payloads[0], body, 0600))
+				must(t, os.WriteFile(unit.Source, body, 0600))
 			}
 			extra := FutureUnitLink{Path: filepath.Join(f.sys.unitRoot, "extra.service"), Target: unit.Links[0].Target}
 			switch variant {
@@ -214,7 +315,7 @@ func TestLedgerFutureUnitParentDeclarations(t *testing.T) {
 			reason := ""
 			switch variant {
 			case "undeclared":
-				f.scope.Reused = []string{f.sys.unitRoot, filepath.Dir(f.scope.FutureUnits[0].Source)}
+				f.scope.Reused = []string{f.sys.unitRoot}
 				reason = "UNIT_LINK_PARENT_NOT_DECLARED " + wants
 			case "unused":
 				unused := filepath.Join(f.root, "unused")
@@ -223,7 +324,7 @@ func TestLedgerFutureUnitParentDeclarations(t *testing.T) {
 				reason = "REUSED_PARENT_NOT_PROSPECTIVE " + unused
 			case "absent-wants":
 				must(t, os.Remove(wants))
-				f.scope.Reused = []string{f.sys.unitRoot, filepath.Dir(f.scope.FutureUnits[0].Source)}
+				f.scope.Reused = []string{f.sys.unitRoot}
 			}
 			err := f.init(t)
 			if reason == "" {
@@ -250,7 +351,7 @@ func TestLedgerFutureUnitLegacyRequiresInstalled(t *testing.T) {
 			units := f.scope.FutureUnits
 			f.scope.FutureUnits = nil
 			if variant == "absent-path-parents-only" {
-				f.scope.Reused = []string{f.sys.unitRoot, filepath.Dir(units[0].Source)}
+				f.scope.Reused = []string{f.sys.unitRoot}
 			}
 			if variant == "present" || variant == "one-absent" {
 				for i, unit := range units {

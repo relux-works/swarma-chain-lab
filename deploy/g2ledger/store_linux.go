@@ -78,6 +78,9 @@ func Init(dir, manifest, baseline string, options ...InitOptions) error {
 	if e := validateScope(opts.Scope); e != nil {
 		return stopped("INIT_SCOPE", e)
 	}
+	if e := verifyFutureUnitSources(opts.Scope); e != nil {
+		return e
+	}
 
 	raw, e := readFile(manifest, 1<<20)
 	if e != nil {
