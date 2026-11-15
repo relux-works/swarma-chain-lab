@@ -1,8 +1,8 @@
-# Grant v4 identity checks
+# Grant v4 identity checks and history
 
-Experimental functions for [LIP-0021 draft sections 2–5](https://github.com/relux-works/swarma-link-spec/blob/45054797ee9ad3e38213e067051dfbd3eb2a21a1/lips/LIP-0021-name-ownership-and-history.md).
+Experimental functions for [LIP-0021 draft sections 2–7](https://github.com/relux-works/swarma-link-spec/blob/45054797ee9ad3e38213e067051dfbd3eb2a21a1/lips/LIP-0021-name-ownership-and-history.md).
 All profile rules remain **Draft**, with co-author agreement pending. This
-module decides only on stated octets and heights. It grants no authority,
+module decides only on stated octets, heights and history facts. It grants no authority,
 reads no node and verifies no transaction signature.
 
 - `ParsePin`: lowercase compressed secp256k1 key, form and point checked
@@ -22,6 +22,47 @@ reads no node and verifies no transaction signature.
   comparison avoids signed addition overflow. Negative heights, `H < h`, and
   `D < 1` return `ErrLiveInput`. The caller supplies consensus depth for `H`;
   there is no production default (O5.1).
+- `CheckHistory`: walk stated name-input links back to a registration, including
+  the output current at `R` and every later output in the constrained stretch.
+  Issuer refusals follow O7.1's first-applicable-row order. Notary history ignores
+  `swarma` and checks the current writer after the walk (O7.3); simultaneous
+  notary walk findings are returned as a set, with no priority invented.
+- `CheckRecipientOwner`, `ResolveRecipient`, `CheckRecipientKey`: exactly one
+  recipient mode, a signed request key or name plus owner. Name mode proves the
+  current output's owner before selecting its current Nostr key. The `nostr`
+  member is supplied as a key string or a `names` map; only `names._` is selected.
+  No namespace prefix, registration pin or exact output pin is required.
+- `CheckConsentEvidence`, `CheckConsentKey`: the evidence output must be current,
+  live and controlled at `R`; the walk stops there. Consent uses its historical
+  Nostr key, while later requests use the current key. These check stated facts,
+  not event signatures, consent binding, age or consumption (O7.4; W7.6).
+- `ReadOwnerSignedChange`: O7.5's pure owner-signed change predicate, including
+  unsupported ownership as unproven and a supported prefix's changed member as
+  an independent ground of change. No journal or pending-operation feed exists.
+
+`StatedName` explicitly asserts that its facts belong to one coherent observation,
+that each adjacent pair follows a name input, and that readings are relative to
+its owner pin. It is not a node adapter or presenter-proof interface. Output IDs
+are opaque stated identifiers, not a new object-member encoding.
+`ReadStatedOutput` composes the existing script and writer checks on raw octets;
+value-member extraction and transaction/link validation remain caller duties.
+An absent live output is distinct from an unavailable read, and a zero decision
+never passes. Missing facts, unsupported prefixes, duplicate output IDs,
+ascending heights and a cut-short walk never report an unchanged history.
+
+An optional operator step bound counts each examined output, including the
+registration/evidence output at exactly the bound. There is no built-in maximum.
+`HistoryPredicate.CacheKey` copies the rule (issuer or notary), name,
+registration, pin, member octets, `R`/checkpoint, active-chain identity through
+the cached output, and that output's identity. It is only a key constructor:
+no cache storage or reorg detector is implemented. A caller must discard saved
+walk computations on a reorganisation touching their stretch and recheck
+liveness at every admission.
+
+This draft uses `R` as the constrained history start and a cache-key input;
+that choice remains Draft. Consent checks the channel key at the coherent
+issuance snapshot, and request admission resolves the current channel key.
+`created_at` is not an input to any height comparison here.
 
 Zero pins, unknown heights and an unstated chain cannot establish witness
 ownership. The package's zero reading/writer/liveness values never pass.
@@ -36,7 +77,7 @@ commit `45054797ee9ad3e38213e067051dfbd3eb2a21a1`, path
 `67e45caabfa4599160e53bd95541db2b02ad8afdc21872776756881a85c97b4c`.
 
 The pin field contains three **groups**, not three cases: 3 valid, 9 invalid,
-and 3 comparisons. This module therefore checks **84 vectors**, with no skips:
+and 3 comparisons. This module therefore checks **140 vectors**, with no skips:
 
 | Test | Cases | Claim and limit |
 | --- | ---: | --- |
@@ -44,20 +85,29 @@ and 3 comparisons. This module therefore checks **84 vectors**, with no skips:
 | `TestV4NameScript` | 39 | Exact scripts and pushed fields; no node parser or consensus execution |
 | `TestV4Writer` | 24 | Input selection, key, layout and hash type; no signature verification |
 | `TestV4LiveName` | 6 | Exclusive expiry on supplied depths; no consensus-depth lookup |
+| `TestV4IssuerHistory` | 29 | Renewal, transfer/return, re-registration, ordered refusals and incomplete walks; no node reads |
+| `TestV4RecipientHistory` | 5 | Current-owner verdicts; no recipient-history closure |
+| `TestV4ConsentHistory` | 12 | Evidence current at `R`, owner, expiry and bound; no event pipeline |
+| `TestV4NotaryHistoryPredicate` | 10 | Checkpoint, ownership and current writer; distinct issuer/notary cache predicates |
 
 Each case with a declared valid neighbour evaluates that neighbour in the
 same subtest before evaluating the case. Claim comments state the limit of
 each test group; individual vector claims are printed in the Go test stream.
 Additional tests cover malformed/truncated octets, missing facts, ambiguous
 inputs, wrong witness keys, push boundaries and overflow-safe height arithmetic.
-The fixture's 56 walk cases are retained for source fidelity and **not run**
-in this slice. No observation vectors are claimed here.
+All 56 walk cases run, with no skips. `TestV4RecipientUnion` adds both/neither
+mode refusal, a non-`id/` positive control, current-channel rotation, old-key
+refusal, owner-before-key resolution, missing/ambiguous member and unknown-channel
+refusals. `TestV4ConsentSnapshotKey` distinguishes historical consent from current
+request keys. Boundary tests cover missing/malformed facts, zero/exact step
+bounds, cache predicate inputs, notary compound findings and owner-signed changes.
+No LIP-0022 observation vectors are claimed here.
 
 `scripts/second-reader.py` independently implements the draft grammar and
 arithmetic in Python, without importing Go or using its parser. Its own
 `scripts/ripemd160.py` follows the [published RIPEMD-160 pseudocode](https://homes.esat.kuleuven.be/~bosselae/ripemd/rmd160.txt)
-with two parallel lanes of 32-bit words. It uses no OpenSSL command, optional
-hash provider, external Python dependency or fallback.
+with two parallel lanes of 32-bit words. It uses no external command, optional hash provider, external Python
+dependency or fallback.
 Its curve check uses modular
 square-root verification; its script
 reader consumes the literal grammar with a cursor. It computes each decision
@@ -86,7 +136,7 @@ test key, with no live identity binding.
 answer, altered Go answer, missing/duplicate output, a skip and truncated output,
 beside valid controls. `test_hash_backend` empties `PATH` and forbids
 subprocess calls and `hashlib.new` while computing the known answer and all
-84 decisions. There is no OpenSSL fallback to exercise. These are bounded
+84 decisions. There is no alternate backend to exercise. These are bounded
 instrument controls, not proof against a shared misunderstanding of the draft.
 
 ## Tools and commands
@@ -124,6 +174,9 @@ also check the public diff for private information outside that bounded scan.
 
 | Mutant | Property narrowed | Required failing test |
 | --- | --- | --- |
+| Check current owner only | An issuer transfer-and-return on the stretch refuses | `TestV4IssuerHistory/walk-issuer-04` |
+| Require an `id/` recipient | A supported non-`id/` name still resolves after owner proof | `TestV4RecipientUnion/any-namespace` |
+| Share issuer/notary cache key | Identical other inputs cannot reuse a different predicate | `TestV4NotaryHistoryPredicate/cache-rule-separation` |
 | Accept any script containing the pin | A multisig containing the key stays outside the closed list | `TestV4NameScript/script-21` |
 | Inclusive expiry | Equality at `h + D` is expired | `TestV4LiveName/live-03` |
 | Skip witness checking, accept controlled witness spends | Hash type must be `01` in the witness too | `TestV4Writer/writer-21` |
@@ -132,13 +185,13 @@ also check the public diff for private information outside that bounded scan.
 
 Every plant must exit 1 with the named failing test and its assertion
 diagnostic. Build/setup failures do not kill a mutant. Unplanted Go and Python
-controls must pass first; no survivor is accepted. These are five narrow bounds,
+controls must pass first; no survivor is accepted. These are eight narrow bounds,
 not exhaustive mutation coverage.
 
 ## Gaps and remaining scope
 
 The implementation plan's closed single-key script list is followed exactly.
-No arbitrary walk limit is introduced: the walk is outside this slice.
+No arbitrary walk limit or production observation threshold is introduced.
 
 - **GAP: node reads.** LIP-0021 section 1 and LIP-0022's buildability table
   require a run on the pinned node build before reads can be qualified. No
@@ -149,9 +202,10 @@ No arbitrary walk limit is introduced: the walk is outside this slice.
   LIP-0020 and LIP-0014 section 7.1. This module defines no such schema.
 - **GAP: the `swarma` member.** Its comparison can only be equality of given
   octets until its extraction rule exists; this slice performs no extraction.
-- History walks, verdicts and recipient union (LIP-0021 sections 6–7,
-  LIP-0008 section 3.1 and LIP-0020 W7.6) remain separate work. LIP-0022
-  observation/freshness comparisons also remain separate.
+- Full grant admission, consent event parsing/signatures/binding/time/single-use
+  integration, durable closures, a cache implementation, and node-side chain/link
+  or snapshot validation remain separate work. LIP-0022 observation/freshness
+  comparisons also remain separate. No unimplemented stage is returned as passing.
 - The measured numbers `S`, `K`, `LAG` and age thresholds have no production
   values here. This module implements no clock, age, recency or depth policy.
 

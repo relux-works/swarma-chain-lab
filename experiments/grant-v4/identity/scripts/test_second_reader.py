@@ -51,7 +51,7 @@ class AgreementControls(unittest.TestCase):
                              "7dd65592d0ab2fe0d0257d571abf032cd9db93dc")
             self.assertEqual(len(reader.calculate(self.vectors)), 84)
 
-    # An unchanged 84-case map passes; altered Go verdicts and missing cases fail specifically as disagreements.
+    # An unchanged 140-case map passes; altered Go verdicts and missing cases fail specifically as disagreements.
     def test_go_disagreement_and_omission(self):
         reader.agree(self.decisions, dict(self.decisions))
         bad = dict(self.decisions, **{"live-03": "live"})
@@ -63,10 +63,29 @@ class AgreementControls(unittest.TestCase):
 
     # A wrong published expectation cannot be accepted merely because Go agrees with it; the valid source is the control.
     def test_vector_disagreement(self):
-        self.assertEqual(len(reader.calculate(self.vectors)), 84)
+        self.assertEqual(len(reader.calculate(self.vectors)), 140)
         bad = copy.deepcopy(self.vectors)
         bad["live"][2]["expect"] = "live"
         with self.assertRaisesRegex(ValueError, "VECTOR_DISAGREEMENT live-03"):
+            reader.calculate(bad)
+
+    # A corrupted walk expectation or Go answer is rejected beside the independent 56-case control; no node adapter is exercised.
+    def test_walk_disagreement(self):
+        walks = reader.calculate_walks(self.vectors["walks"])
+        self.assertEqual(len(walks), 56)
+        bad = copy.deepcopy(self.vectors)
+        bad["walks"][3]["expect"] = "ok"
+        with self.assertRaisesRegex(ValueError, "VECTOR_DISAGREEMENT walk-issuer-04"):
+            reader.calculate(bad)
+        bad_go = dict(self.decisions, **{"walk-issuer-04": "ok"})
+        with self.assertRaisesRegex(ValueError, "GO_DISAGREEMENT walk-issuer-04"):
+            reader.agree(self.decisions, bad_go)
+        del bad_go["walk-consent-12"]
+        with self.assertRaisesRegex(ValueError, "Go result ids differ: missing=.*walk-consent-12"):
+            reader.agree(self.decisions, bad_go)
+        bad = copy.deepcopy(self.vectors)
+        bad["walks"].pop()
+        with self.assertRaisesRegex(ValueError, "wrong walk vector counts"):
             reader.calculate(bad)
 
     # Missing/duplicate Go output and a skip are gate failures beside a complete stream; this does not qualify arbitrary test runners.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent LIP-0021 draft sections 2-5 reader; Python standard library only.
+"""Independent LIP-0021 draft sections 2-7 reader; Python standard library only.
 
 No Go code or Go-derived intermediate parsing is used. Expectations are read only
 after the rule calculations. Compare every result with both the pinned vector
@@ -15,10 +15,11 @@ import subprocess
 import sys
 
 from ripemd160 import ripemd160
+from walk_reader import calculate_walks
 
 MODULE = Path(__file__).resolve().parents[1]
 VECTOR_SHA256 = "67e45caabfa4599160e53bd95541db2b02ad8afdc21872776756881a85c97b4c"
-TESTS = {"TestV4OwnerPin", "TestV4NameScript", "TestV4Writer", "TestV4LiveName"}
+TESTS = {"TestV4OwnerPin", "TestV4NameScript", "TestV4Writer", "TestV4LiveName", "TestV4IssuerHistory", "TestV4RecipientHistory", "TestV4ConsentHistory", "TestV4NotaryHistoryPredicate", "TestV4RecipientUnion"}
 
 
 def hash160(data):
@@ -182,6 +183,10 @@ def calculate(vectors):
         if neighbour := row.get("valid_neighbour"):
             if neighbour not in index or index[neighbour].get("valid_neighbour"):
                 raise ValueError(f"invalid neighbour for {row['id']}")
+    walks = calculate_walks(vectors["walks"])
+    if result.keys() & walks.keys():
+        raise ValueError("duplicate walk and octet vector IDs")
+    result.update(walks)
     return result
 
 
@@ -229,14 +234,14 @@ def main():
         if args.go_results:
             stream = args.go_results.read_text()
         else:
-            run = subprocess.run(["go", "test", "-count=1", "-json", "-run", "^TestV4(OwnerPin|NameScript|Writer|LiveName)$", "./..."], cwd=MODULE, text=True, capture_output=True)
+            run = subprocess.run(["go", "test", "-count=1", "-json", "-run", "^TestV4(OwnerPin|NameScript|Writer|LiveName|IssuerHistory|RecipientHistory|ConsentHistory|NotaryHistoryPredicate|RecipientUnion)$", "./..."], cwd=MODULE, text=True, capture_output=True)
             if run.returncode != 0:
                 raise ValueError(f"Go test exit {run.returncode}:\n{run.stdout}\n{run.stderr}")
             stream = run.stdout
         agree(decisions, go_results(stream))
         if args.output:
             args.output.write_text(json.dumps(decisions, indent=2, sort_keys=True) + "\n")
-        print(f"AGREE {len(decisions)} vectors: independent Python = pinned vectors = Go; no walk or node reads")
+        print(f"AGREE {len(decisions)} vectors: independent Python = pinned vectors = Go; 56 walks, no node reads")
         return 0
     except (ValueError, KeyError, OSError) as error:
         print(error, file=sys.stderr)

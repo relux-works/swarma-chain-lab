@@ -39,6 +39,7 @@ type vector struct {
 type vectors struct {
 	Pins                   struct{ Valid, Invalid, Comparisons []vector }
 	Scripts, Writers, Live []vector
+	Walks                  []walkVector
 	Parameters             struct {
 		WitnessFrom int64 `json:"witness_rules_from_height_main_chain"`
 	}

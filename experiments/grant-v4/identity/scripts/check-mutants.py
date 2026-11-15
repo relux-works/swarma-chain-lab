@@ -11,6 +11,9 @@ import sys
 
 MODULE = Path(__file__).resolve().parents[1]
 PLANTS = [
+    ("current-owner-only", "verdict.go", "if inView {", "if inView && out.ID == s.Outputs[0].ID {", "TestV4IssuerHistory/walk-issuer-04", "walk-issuer-04: got"),
+    ("require-id-recipient", "recipient.go", "if state == nil ||", 'if !bytes.HasPrefix(r.ByName.Name, []byte("id/")) || state == nil ||', "TestV4RecipientUnion/any-namespace", "current selected channel key:"),
+    ("shared-history-cache-key", "walk.go", "rule: p.Rule,", "rule: IssuerHistory,", "TestV4NotaryHistoryPredicate/cache-rule-separation", "issuer and notary cache keys collide"),
     ("contains-key", "script.go", "\tns, ok := ParseNameScript(script)\n", "\tif p.ok && bytes.Contains(script, p.key[:]) {\n\t\tns, _ := ParseNameScript(script)\n\t\treturn Controlled, ns\n\t}\n\tns, ok := ParseNameScript(script)\n", "TestV4NameScript/script-21", "script-21: got"),
     ("inclusive-expiry", "live.go", "height-confirmedAt < depth", "height-confirmedAt <= depth", "TestV4LiveName/live-03", "live-03: got"),
     ("skip-witness-check", "writer.go", "ok = witnessSpendOK(in, p)", "ok = true", "TestV4Writer/writer-21", "writer-21: got"),
@@ -74,7 +77,7 @@ def main():
         command = ["go", "test", "-count=1", "-json", "./..."]
         proc, events = run(scratch, "control", command)
         roots = {e.get("Test") for e in events if e.get("Action") == "pass"}
-        if proc.returncode != 0 or any(e.get("Action") in ("fail", "skip") for e in events) or not {"TestV4OwnerPin", "TestV4NameScript", "TestV4Writer", "TestV4LiveName"} <= roots:
+        if proc.returncode != 0 or any(e.get("Action") in ("fail", "skip") for e in events) or not {"TestV4OwnerPin", "TestV4NameScript", "TestV4Writer", "TestV4LiveName", "TestV4IssuerHistory", "TestV4RecipientUnion", "TestV4NotaryHistoryPredicate", "TestV4ConsentHistory", "TestV4RecipientHistory"} <= roots:
             raise ValueError(f"unplanted control failed, exit {proc.returncode}")
         evidence["runs"].append({"name": "control", "command": command, "exit": proc.returncode})
         for name, file, old, new, required, diagnostic in PLANTS:

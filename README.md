@@ -9,8 +9,9 @@ service, grant format, wallet, consensus implementation or deployment.
 Experiments live in `experiments/<name>/`:
 
 - [Grant v4 identity checks](experiments/grant-v4/identity/README.md): experimental
-  owner pins, closed script readings, writer checks and exclusive height expiry
-  from LIP-0021 Draft sections 2–5; all checks use stated octets and heights.
+  owner pins, script/writer checks, expiry, issuer/notary history verdicts,
+  consent evidence and recipient union from LIP-0021 Draft sections 2–7 and
+  LIP-0008 Draft section 3.1; all checks use stated octets, heights and facts.
 - [Grant v4 wire primitives](experiments/grant-v4/wire/README.md): the proposed
   LIP-0020 canonical bytes, typed hashes, strict signatures and defined objects;
   all 205 pinned vectors, with no chain reads or whole-grant admission.
@@ -608,6 +609,7 @@ an application code; malformed envelopes remain retryable node failures.
 
 The [identity module commands](experiments/grant-v4/identity/README.md#tools-and-commands)
 cover Go formatting, dependency verification, vet, race tests and build, an
-independent Python vector reader, agreement controls and Go overlay mutants.
+independent Python reader for all 140 identity vectors (including all 56 walks),
+agreement controls and Go overlay mutants.
 Run them from the repository root; test and mutation evidence goes under
 `.temp/`. The module-graph and public-hygiene tools above cover its registration.
