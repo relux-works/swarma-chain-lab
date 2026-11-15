@@ -255,3 +255,90 @@ func TestOnlyExecFixedStartsProcesses(t *testing.T) {
 		}
 	}
 }
+
+// argsViolations reports every Cmd.Args element that is not a constant: Args must be a []string literal whose
+// elements are string literals or flagValue("-flag", typedValue) with a literal flag (the owner's E2 condition: a
+// typed value never enters Args except through flagValue, which validates it as an operand).
+func argsViolations(t *testing.T, files []string) []string {
+	t.Helper()
+	var out []string
+	fs := token.NewFileSet()
+	okElem := func(e ast.Expr) bool {
+		switch x := e.(type) {
+		case *ast.BasicLit:
+			return x.Kind == token.STRING
+		case *ast.CallExpr:
+			id, ok := x.Fun.(*ast.Ident)
+			if !ok || id.Name != "flagValue" || len(x.Args) != 2 {
+				return false
+			}
+			lit, ok := x.Args[0].(*ast.BasicLit)
+			return ok && lit.Kind == token.STRING
+		}
+		return false
+	}
+	checkValue := func(base string, v ast.Expr) {
+		lit, ok := v.(*ast.CompositeLit)
+		if !ok {
+			out = append(out, base+": Args is not a literal")
+			return
+		}
+		for _, el := range lit.Elts {
+			if !okElem(el) {
+				out = append(out, base+": a non-constant Args element")
+			}
+		}
+	}
+	for _, f := range files {
+		af, e := parser.ParseFile(fs, f, nil, 0)
+		if e != nil {
+			t.Fatal(e)
+		}
+		base := filepath.Base(f)
+		ast.Inspect(af, func(n ast.Node) bool {
+			switch x := n.(type) {
+			case *ast.CompositeLit:
+				if id, ok := x.Type.(*ast.Ident); ok && id.Name == "Cmd" {
+					for _, el := range x.Elts {
+						if kvx, ok := el.(*ast.KeyValueExpr); ok {
+							if k, ok := kvx.Key.(*ast.Ident); ok && k.Name == "Args" {
+								checkValue(base, kvx.Value)
+							}
+						}
+					}
+				}
+			case *ast.AssignStmt:
+				for i, l := range x.Lhs {
+					if sel, ok := l.(*ast.SelectorExpr); ok && sel.Sel.Name == "Args" && i < len(x.Rhs) {
+						checkValue(base, x.Rhs[i])
+					}
+				}
+			}
+			return true
+		})
+	}
+	return out
+}
+
+// Claim: in every non-test source, Cmd.Args holds only constants or flagValue(literal flag, typed value); controls:
+// a concatenated value, a variable, an append, and a computed flag name are each flagged, and a valid literal with
+// flagValue is not.
+func TestArgsHoldOnlyConstants(t *testing.T) {
+	if v := argsViolations(t, packageSources(t, ".")); len(v) != 0 {
+		t.Errorf("non-constant Args: %v", v)
+	}
+	plants := map[string]bool{
+		"package g2run\nfunc a(v string) Cmd { return Cmd{Program: \"x\", Args: []string{\"--file=\" + v}} }\n":               true,
+		"package g2run\nfunc b(args []string) Cmd { return Cmd{Program: \"x\", Args: args} }\n":                               true,
+		"package g2run\nfunc c(x *Cmd, v string) { x.Args = append(x.Args, v) }\n":                                            true,
+		"package g2run\nfunc d(f, v string) Cmd { return Cmd{Program: \"x\", Args: []string{flagValue(f, v)}} }\n":            true,
+		"package g2run\nfunc e(v string) Cmd { return Cmd{Program: \"x\", Args: []string{\"-p\", flagValue(\"--x\", v)}} }\n": false,
+	}
+	for src, bad := range plants {
+		p := filepath.Join(t.TempDir(), "plant.go")
+		os.WriteFile(p, []byte(src), 0600)
+		if got := len(argsViolations(t, []string{p})) != 0; got != bad {
+			t.Errorf("CONTROL %q: flagged=%v want %v", src, got, bad)
+		}
+	}
+}
