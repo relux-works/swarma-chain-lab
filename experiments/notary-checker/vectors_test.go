@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 )
 
 type vector struct {
@@ -151,6 +154,86 @@ func TestSignedAttestationRejectsMismatch(t *testing.T) {
 				t.Fatal("accepted altered candidate/signature")
 			}
 		})
+	}
+}
+
+// Fitting statements may overflow when composed. Exact 8191/8192-byte controls
+// round-trip through signed decode; 8193 refuses with no candidate, digest,
+// envelope or ID, even with a valid PUBLIC FIXTURE signature.
+func TestAttestationOutputSize(t *testing.T) {
+	if MaxAttestationBytes != 8192 {
+		t.Fatal("attestation cap differs from the pinned specification")
+	}
+	c := readCorpus(t)
+	var base Attestation
+	if e := json.Unmarshal([]byte(c.Vectors[0].Result.Attestation), &base); e != nil {
+		t.Fatal(e)
+	}
+	seen := 0
+	for _, v := range c.Vectors {
+		var size int
+		switch v.Name {
+		case "positive-attestation-8191":
+			size = 8191
+		case "positive-attestation-8192":
+			size = 8192
+		case "negative-attestation-8193":
+			size = 8193
+		default:
+			continue
+		}
+		seen++
+		t.Run(v.Name, func(t *testing.T) {
+			var st Statement
+			if !decode([]byte(v.Statement), &st, 8192) || len(v.Statement) >= 8192 {
+				t.Fatal("regression must have a valid statement below its own cap")
+			}
+			a := base
+			a.NotarySeal, a.TipHeight, a.TipHash = st.NotarySeal, st.TipHeight, st.TipHash
+			raw := canonical(a)
+			if len(raw) != size {
+				t.Fatalf("boundary fixture has %d bytes; want %d", len(raw), size)
+			}
+			got, e := Check(v.input())
+			if size > 8192 {
+				if e == nil || e.Error() != "ATTESTATION_TOO_LARGE" || len(got.Attestation) != 0 || got.Digest != "" {
+					t.Fatalf("oversized candidate must refuse without output: %v", e)
+				}
+			} else if e != nil || !bytes.Equal(got.Attestation, raw) || got.Digest != tagged("swarma-notary-v1", raw) {
+				t.Fatalf("valid boundary candidate failed: %v", e)
+			}
+			// This deliberately signs synthetic oversized bytes as an independent
+			// decoder control; the production checker must never return them.
+			r := Result{raw, tagged("swarma-notary-v1", raw)}
+			digest, _ := hex.DecodeString(r.Digest)
+			keyBytes := make([]byte, 32)
+			keyBytes[31] = 4 // testdata/keys.json: public fixed notary secret.
+			key, _ := btcec.PrivKeyFromBytes(keyBytes)
+			sig, e := schnorr.Sign(key, digest)
+			if e != nil {
+				t.Fatal(e)
+			}
+			b, id, e := SignedAttestation(r, hex.EncodeToString(sig.Serialize()))
+			if size > 8192 {
+				if e == nil || e.Error() != "ATTESTATION_SIGNATURE" || b != nil || id != "" {
+					t.Fatal("signed decoder accepted oversized candidate or leaked output")
+				}
+				return
+			}
+			if e != nil || id != hash(b) || len(b) != size+159 {
+				t.Fatalf("boundary signed envelope failed: %v", e)
+			}
+			var envelope struct {
+				Attestation Attestation `json:"attestation"`
+				Signature   string      `json:"signature"`
+			}
+			if !decode(b, &envelope, MaxAttestationBytes+159) || !bytes.Equal(canonical(envelope.Attestation), raw) {
+				t.Fatal("signed envelope did not preserve the exact bounded candidate")
+			}
+		})
+	}
+	if seen != 3 {
+		t.Fatal("missing boundary vectors")
 	}
 }
 

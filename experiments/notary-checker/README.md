@@ -105,3 +105,8 @@ maintain a durable per-row record, obtain validated tip claims, sign, fund and
 anchor real attestations, and process durable withdrawals. Neither caller
 assertions nor a passing offline digest replace these obligations. No such
 key, VM, endpoint, registration, funding or chain operation is delivered here.
+
+The complete canonical candidate is limited to 8192 bytes before any digest is
+returned. Oversize composition refuses as `ATTESTATION_TOO_LARGE`; the signature
+helper uses the same candidate limit. See [DESIGN.md](DESIGN.md#produced-object-size-audit)
+for the envelope, ID, anchor-frame and input-encoding audit.

@@ -58,6 +58,7 @@ CASES = [
  ('notary-delegatee','check.go','NOTARY_IS_DELEGATEE','TestVectors/negative-notary-is-delegatee','key independence from delegatee'),
  ('notary-executor','check.go','NOTARY_IS_EXECUTOR','TestVectors/negative-notary-is-executor','name independence from executors'),
  ('statement','check.go','STATEMENT_FIELD','TestVectors/negative-statement','explicit statement fields'),
+ ('attestation-output-size','check.go','ATTESTATION_TOO_LARGE','TestVectors/negative-attestation-8193','complete candidate cap, not just the smaller statement'),
 ]
 
 
@@ -86,6 +87,8 @@ def main():
       ('row-pool-sum','contract.go',None,'TestContractRules/negative-parent-row-cap','row caps fit the separate signed pool'),
       ('delegate-spend','contract.go',None,'TestContractRules/negative-delegated-spend','D12 independently forbids delegated spend'),
       ('anchor-id','check.go',None,'TestAnchorRejectsMalformedID','frame IDs must be 32-byte digests'),
+      ('attestation-size-off-by-one','check.go',None,'TestVectors/negative-attestation-8193','8193 refuses while the 8192-byte control passes'),
+      ('attestation-decode-size','check.go',None,'TestAttestationOutputSize/negative-attestation-8193','signed decode also rejects an oversized correctly signed candidate'),
     ]
     env = dict(os.environ, GOTOOLCHAIN='local', GOPROXY='off', GOSUMDB='off')
     go = env.get('GO', 'go')
@@ -121,6 +124,10 @@ def main():
             source = source.replace('!signature(a.NotaryKey, r.Digest, sig)', 'false')
         elif name == 'anchor-id':
             source = source.replace('!ishex(attestationID, 64) || !ishex(childID, 64) || !ishex(parentID, 64)', 'false')
+        elif name == 'attestation-size-off-by-one':
+            source = source.replace('len(raw) > MaxAttestationBytes', 'len(raw) > MaxAttestationBytes+1')
+        elif name == 'attestation-decode-size':
+            source = source.replace('decode(r.Attestation, &a, MaxAttestationBytes)', 'decode(r.Attestation, &a, MaxAttestationBytes+1)')
         if source == path.read_text():
             raise RuntimeError('mutation did not apply: '+name)
         path.write_text(source)

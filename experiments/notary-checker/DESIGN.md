@@ -134,6 +134,31 @@ SHA-256("swarma-notary-v1" || exact attestation bytes)
 The fixed ASCII prefix is 16 bytes, without a NUL, length or padding
 (LIP-0014 section 6.1).
 
+The complete canonical attestation must be at most 8192 bytes (LIP-0014
+section 6.1 inherits LIP-0013 section 2.1). `MaxAttestationBytes` is shared by
+`Check` and `SignedAttestation`'s candidate decoder. The statement's separate
+input bound does not bound the composed document. After composition and before
+computing a digest, an oversized candidate refuses as `ATTESTATION_TOO_LARGE`
+with an empty `Result`. The independent reader enforces the same invariant
+using its own shared producer/decoder constant.
+
+### Produced-object size audit
+
+| Produced object | Size and receiving constraint | Alignment |
+| --- | --- | --- |
+| Canonical attestation | At most 8192 bytes; signed helper decodes with `MaxAttestationBytes` | Producer now enforces that same constant before returning bytes or digest; 8191/8192 accepted, 8193 refused |
+| Signing digest | SHA-256, 32 octets represented by 64 lowercase hex characters | Signature helper checks the exact digest against the candidate; the prefix preimage is not a separately decoded document |
+| Signed envelope and `attestation_id` | Candidate plus exactly 159 bytes for fixed member names and the 128-character BIP-340 signature; at most 8351 bytes. ID is SHA-256, 64 lowercase hex characters | Section 6.1 applies the document cap to the inner eighteen-member attestation; it defines the envelope separately for hashing. No envelope decoder or conflicting envelope cap is implemented here. Boundary tests preserve exact inner bytes and hash the whole envelope |
+| Anchor script | Exactly 72 bytes; three input IDs must each decode from 64 lowercase hex characters to 32 bytes | Fixed framing and SHA-256 commitment match section 6.4/LIP-0005; positive vectors assert exact frame bytes and length, malformed IDs yield no script |
+| Parsed contracts and nested delegates | Input contract is at most 8192 bytes; nested delegate is a span within it, also decoded at 8192 | Canonical equality preserves the input size. No contract producer exists in the runtime library |
+| Grant/consent/request hash encodings | Canonical projections of previously bounded, exactly re-encoded input objects: presentations 32768 bytes, requests 16384 | Only hashes escape these internal encodings. No expanded grant, consent or request is produced for a capped decoder |
+| Name authority, policy and statement | Reader-only inputs, respectively 520, 8192 and 8192 bytes | No separate runtime encoders; their selected fields feed the now-bounded attestation |
+| CLI success line | `ATTEST `, a 64-character digest and newline: 72 bytes | Overflow prints only `REFUSED ATTESTATION_TOO_LARGE` with exit 1; no candidate/digest is printed |
+
+This audit covers this module's encoders and decoders, not a downstream online
+service's transport or node admission. No other producer/decoder size mismatch
+was found; no additional protocol cap or live qualification is implied.
+
 A later service signs that 32-byte digest with the key yielded by the
 notary's own name (LIP-0010 section 9; LIP-0012 section 2). The helper
 `SignedAttestation` verifies a supplied signature, constructs exactly

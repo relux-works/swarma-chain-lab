@@ -256,6 +256,46 @@ for name,expected,budget in [('row-zero-positive','ATTEST',0),('row-budget-over'
     cc=copy.deepcopy(c); cc['spend_budget']=budget
     rows.append(dict(name=name,claim='Isolated row-cap defense; NOT admission of a spend grant.',parent=p,child=cc,expected=expected))
 
+# Exact-size padding uses pushes of at most 520 bytes followed by OP_DROP,
+# keeping the seal script below the opcode limit as well as the element limit.
+def script_padding(size):
+    result = bytearray()
+    while size:
+        if size >= 260:
+            count = min(520, size-4)
+            part = b'\x4d' + count.to_bytes(2, 'little') + bytes(count) + b'\x75'
+        elif size >= 79:
+            count = min(255, size-3)
+            part = bytes([0x4c, count]) + bytes(count) + b'\x75'
+        elif size >= 3:
+            count = min(75, size-2)
+            part = bytes([count]) + bytes(count) + b'\x75'
+        else:
+            part = b'\x00\x75' if size == 2 else b'\x61'
+        result.extend(part)
+        size -= len(part)
+    return result.hex()
+
+
+# Pin the complete document sizes independently of either reader's size limit.
+# The odd-size neighbors use one extra decimal digit in the explicit tip height.
+for size in (8191, 8192, 8193):
+    v = bundle()
+    a = json.loads(vectors[0]['result']['attestation'])
+    st = json.loads(v['statement'])
+    extra = size - len(r.octets(a))
+    if extra % 2:
+        st['tip_height'] = a['tip_height'] = 1000
+        extra -= 1
+    padding_bytes = extra // 2
+    st['notary_seal']['script'] = script_padding(padding_bytes) + st['notary_seal']['script']
+    a['notary_seal'] = st['notary_seal']
+    assert len(r.octets(a)) == size and len(r.octets(st)) < 8192
+    v['statement'] = r.encode(st)
+    name = ('positive-attestation-' if size <= 8192 else 'negative-attestation-') + str(size)
+    add(name, 'ATTEST' if size <= 8192 else 'ATTESTATION_TOO_LARGE', v,
+        f'A statement below its own cap composes to exactly {size} attestation bytes; no partial output on refusal.')
+
 (ROOT/'testdata/vectors.json').write_text(json.dumps(dict(schema='notary-checker-lab-vectors/1', warning='Fixed public test keys; fabricated chain locators and policy affiliations; no live authority.', vectors=vectors,row_vectors=rows),indent=2)+'\n')
 positive=ROOT/'testdata/positive'; positive.mkdir(exist_ok=True)
 for k in ('parent','child','parent_contract','child_contract','request','policy','notary_value','statement'):

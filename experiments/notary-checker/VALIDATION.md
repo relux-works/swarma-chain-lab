@@ -8,10 +8,11 @@ modules, `GOPROXY=off`, and `GOSUMDB=off`. No runtime network or node was used.
 | --- | --- | --- |
 | `gofmt -l .` | 0 | No output |
 | `go vet ./...` | 0 | This module |
-| `go test -race ./...` | 0 | This module and CLI; 91 complete signed-bundle vectors and two isolated row vectors |
+| `go test -race ./...` | 0 | This module and CLI; 94 complete signed-bundle vectors and two isolated row vectors |
 | `go build ./cmd/notary-check` | 0 | CLI builds |
-| `python3 scripts/reference.py` | 0 | All 91 signed bundles and two isolated row vectors; exact candidate octets, digest, positive signatures, envelope IDs and frames |
-| `python3 scripts/check-mutants.py --work-dir <fresh-scratch>` | 0 | 49/49 named controls killed; zero survivors; each mutant test exits 1 with the named assertion failure |
+| `python3 scripts/reference.py` | 0 | All 94 signed bundles and two isolated row vectors; exact candidate octets, digest, positive signatures, envelope IDs and frames |
+| `python3 scripts/check-mutants.py --work-dir <fresh-scratch>` | 0 | 52/52 named controls killed; zero survivors; each mutant test exits 1 with the named assertion failure |
+| Boundary regressions | 0 | `TestAttestationOutputSize`, `TestCLIAttestationOutputSize`: fitting statements compose to 8191/8192 accepted bytes or a named empty 8193-byte refusal; signed decoder also rejects correctly signed oversized bytes |
 | Positive CLI fixture at `1700000100` | 0 | `ATTEST bbc8faeb27b65ce4460c92228ec0487496e586b2c4ee5e216943036bdc3fc051` |
 | Same CLI fixture at `1700000200` | 1 | Expected refusal `GRANT_EXPIRED`; this is a failing command as required, not a green gate |
 
@@ -77,6 +78,7 @@ pin after removing membership, to avoid counting a crash as detection.
 | notary-delegatee | key independence from delegatee | TestVectors/negative-notary-is-delegatee | ATTEST |
 | notary-executor | name independence from executors | TestVectors/negative-notary-is-executor | ATTEST |
 | statement | explicit statement fields | TestVectors/negative-statement | ATTEST |
+| attestation-output-size | complete candidate cap, not just the smaller statement | TestVectors/negative-attestation-8193 | ATTEST |
 | lexical | no normalization of signed string spelling | TestVectors/negative-contract-escape | ATTEST |
 | notary-value | notary key must be a curve point | TestVectors/negative-notary-key | ATTEST |
 | row-selection | ordinal selects its own row | TestVectors/negative-other-row-executor | ATTEST |
@@ -84,7 +86,20 @@ pin after removing membership, to avoid counting a crash as detection.
 | row-pool-sum | row caps fit the separate signed pool | TestContractRules/negative-parent-row-cap | ATTEST |
 | delegate-spend | D12 independently forbids delegated spend | TestContractRules/negative-delegated-spend | ATTEST |
 | anchor-id | frame IDs must be 32-byte digests | TestAnchorRejectsMalformedID | named assertion failed |
+| attestation-size-off-by-one | 8193 refuses while the 8192-byte control passes | TestVectors/negative-attestation-8193 | ATTEST |
+| attestation-decode-size | signed decode also rejects an oversized correctly signed candidate | TestAttestationOutputSize/negative-attestation-8193 | named assertion failed |
 
 No generated mutation tree, binary, cache or private execution log is part of
 the public change. No independent review, live service, name registration,
 node/journal qualification or production attestation is claimed.
+
+The three new boundaries have statements of 7459, 7460 and 7461 bytes,
+respectively, each below the separate statement cap. Their script padding uses
+pushes of at most 520 bytes and drops before the fixed synthetic P2PKH script.
+No node execution is claimed. The 8193-byte witness fails against each original
+reader: the Go named regression reports an accepted oversized candidate, and
+the original Python reader reports `ATTEST` instead of `ATTESTATION_TOO_LARGE`.
+These are intended failing controls (exit 1), not passing product gates. The
+fixed candidate passes the same fixtures, and positives retain their exact
+envelope ID and 72-byte anchor frame. The produced-object audit is in
+[DESIGN.md](DESIGN.md#produced-object-size-audit).

@@ -112,6 +112,9 @@ func Check(in Input) (Result, error) {
 	}
 	a := Attestation{"swarma-notary-attestation/1", "child-within-parent", p.Network, p.Genesis, p.LandlordName, policy.NotaryName, nk, pid, p.ContractSHA256, cid, c.ContractSHA256, cc.Ordinal, text, "pass", st.NotarySeal, st.TipHeight, st.TipHash, in.At}
 	raw := canonical(a)
+	if len(raw) > MaxAttestationBytes {
+		return fail("ATTESTATION_TOO_LARGE")
+	}
 	return Result{raw, tagged("swarma-notary-v1", raw)}, nil
 }
 
@@ -119,7 +122,7 @@ func Check(in Input) (Result, error) {
 // compact envelope of LIP-0014 section 6.1. It does not certify chain state.
 func SignedAttestation(r Result, sig string) ([]byte, string, error) {
 	var a Attestation
-	if !decode(r.Attestation, &a, 8192) || r.Digest != tagged("swarma-notary-v1", r.Attestation) || !signature(a.NotaryKey, r.Digest, sig) {
+	if !decode(r.Attestation, &a, MaxAttestationBytes) || r.Digest != tagged("swarma-notary-v1", r.Attestation) || !signature(a.NotaryKey, r.Digest, sig) {
 		return nil, "", refuse("ATTESTATION_SIGNATURE")
 	}
 	envelope := struct {

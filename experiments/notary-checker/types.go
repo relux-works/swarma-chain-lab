@@ -8,6 +8,10 @@ const SpecCommit = "2012ac9155568af80d610bdf9b7683881a46e5cb"
 const MaxMoney int64 = 2100000000000000
 const MaxTime int64 = 253402300799
 
+// MaxAttestationBytes is the complete canonical attestation limit inherited
+// from LIP-0013 section 2.1 by LIP-0014 section 6.1, excluding its signature envelope.
+const MaxAttestationBytes = 8192
+
 type Point struct {
 	TxID string `json:"txid"`
 	Vout uint32 `json:"vout"`

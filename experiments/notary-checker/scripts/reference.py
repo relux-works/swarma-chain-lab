@@ -16,6 +16,7 @@ G = (0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
      0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8)
 MAX_TIME = 253402300799
 MAX_MONEY = 2100000000000000
+MAX_ATTESTATION_BYTES = 8192
 CONTRACT = 'profile network landlord_name agent_name grantee_key actions repos spend_budget not_before not_after scope_text_sha256 parent_grant_id ordinal delegate note'.split()
 DELEGATE = 'depth actions budget slots notaries checkpoint'.split()
 GRANT = 'version network genesis agent_name landlord_name issuer_key grantee_key contract_sha256 scope not_before not_after seal consent'.split()
@@ -362,7 +363,9 @@ def check(v):
     a = dict(zip('profile kind network genesis landlord_name notary_name notary_key parent_grant_id parent_contract_sha256 child_grant_id child_contract_sha256 ordinal textual mechanical notary_seal tip_height tip_hash attested_at'.split(),
                  ['swarma-notary-attestation/1', 'child-within-parent', p['network'], p['genesis'], p['landlord_name'], pol['notary_name'], nk,
                   pid, p['contract_sha256'], cid, c['contract_sha256'], cc['ordinal'], 'identical' if pc['scope_text_sha256'] else 'none', 'pass', st['notary_seal'], st['tip_height'], st['tip_hash'], at]))
-    return {'attestation': encode(a), 'digest': sha(b'swarma-notary-v1'+octets(a))}
+    raw = octets(a)
+    need(len(raw) <= MAX_ATTESTATION_BYTES, 'ATTESTATION_TOO_LARGE')
+    return {'attestation': raw.decode('ascii'), 'digest': sha(b'swarma-notary-v1'+raw)}
 
 
 def outcome(v):
@@ -375,17 +378,39 @@ def outcome(v):
 def main():
     path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[1]/'testdata/vectors.json'
     corpus = json.loads(path.read_text())
+    boundaries = {'positive-attestation-8191': 8191, 'positive-attestation-8192': 8192, 'negative-attestation-8193': 8193}
+    seen = set()
     for v in corpus['vectors']:
         code, result = outcome(v)
         assert code == v['expected'], (v['name'], code, v['expected'])
+        if v['name'] in boundaries:
+            seen.add(v['name'])
+            # Recompose exact boundary bytes independently of check's result:
+            # the input statement fits, yet the full candidate can overflow.
+            a = json.loads(corpus['vectors'][0]['result']['attestation'])
+            st = json.loads(v['statement'])
+            a.update(notary_seal=st['notary_seal'], tip_height=st['tip_height'], tip_hash=st['tip_hash'])
+            raw = octets(a)
+            assert len(v['statement'].encode()) < 8192 and len(raw) == boundaries[v['name']], v['name']
+            if len(raw) > 8192:
+                assert result is None, v['name']
+                try:
+                    load(raw, MAX_ATTESTATION_BYTES, 'ATTESTATION_SHAPE')
+                except Refused as e:
+                    assert str(e) == 'ATTESTATION_SHAPE', v['name']
+                else:
+                    raise AssertionError((v['name'], 'oversized signed-object decode accepted'))
         if result:
             assert result == v['result'], v['name']
-            a = load(result['attestation'].encode(), 8192, 'ATTESTATION_SHAPE')
+            a = load(result['attestation'].encode(), MAX_ATTESTATION_BYTES, 'ATTESTATION_SHAPE')
             assert verify(a['notary_key'], result['digest'], v['attestation_signature']), v['name']
             envelope = dict(attestation=a, signature=v['attestation_signature'])
             assert sha(octets(envelope)) == v['attestation_id'], v['name']
             preimage = b'swarma-attest-v1' + bytes.fromhex(v['attestation_id']+a['child_grant_id']+a['parent_grant_id'])
             assert '6a03534c044201'+sha(preimage)+'01'+v['attestation_id'] == v['anchor_script'], v['name']
+        else:
+            assert result is None, (v['name'], 'partial refusal output')
+    assert seen == set(boundaries), 'missing attestation boundary vectors'
     for v in corpus['row_vectors']:
         code = 'ATTEST'
         try:
