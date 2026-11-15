@@ -11,9 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -78,7 +81,12 @@ func testPlan() Plan[testParams] {
 			"A1": marks("A1"), "A2": marks("A2"), "A3": marks("A3"), "R2": marks("R2"),
 			"ABORT": marks("ABORT"), "ROLLBACK": marks("ROLLBACK"), "R": marks("R"),
 		},
-		Programs:     map[string]string{"true": "/usr/bin/true", "false": "/usr/bin/false", "printf": "/usr/bin/printf", "printenv": "/usr/bin/printenv", "cat": "/usr/bin/cat", "touch": "/usr/bin/touch"},
+		Programs: map[string]Program{
+			"true": {"/usr/bin/true", "test"}, "false": {"/usr/bin/false", "test"}, "printf": {"/usr/bin/printf", "test"},
+			"printenv": {"/usr/bin/printenv", "test"}, "cat": {"/usr/bin/cat", "test"}, "touch": {"/usr/bin/touch", "test"},
+			"echo": {"/usr/bin/echo", "test"}, "head": {"/usr/bin/head", "test"}, "ls": {"/usr/bin/ls", "test"},
+		},
+		OutputRoots:  []string{"log"},
 		PackageFiles: []string{"params.json"},
 		ParamsFile:   "params.json",
 		Decode: func(raw []byte) (testParams, error) {
@@ -124,6 +132,7 @@ func buildPackage(t *testing.T, state string, files map[string]string) {
 	gz.Close()
 	must(t, os.MkdirAll(filepath.Join(state, "pkg"), 0700))
 	for _, n := range names {
+		must(t, os.MkdirAll(filepath.Dir(filepath.Join(state, "pkg", n)), 0700))
 		must(t, os.WriteFile(filepath.Join(state, "pkg", n), []byte(files[n]), 0600))
 	}
 	must(t, os.WriteFile(filepath.Join(state, "pkg", "SHA256SUMS"), []byte(sums.String()), 0600))
@@ -142,6 +151,7 @@ func fixture(t *testing.T) string {
 	t.Helper()
 	state := filepath.Join(t.TempDir(), "g2")
 	must(t, os.MkdirAll(filepath.Join(state, "marks"), 0700))
+	must(t, os.MkdirAll(filepath.Join(state, "log"), 0700))
 	must(t, os.WriteFile(filepath.Join(state, "run.lock"), nil, 0600))
 	must(t, os.WriteFile(filepath.Join(state, "DONE"), []byte("OK B.1\n"), 0600))
 	buildPackage(t, state, map[string]string{"params.json": `{"name":"x"}`})
@@ -413,6 +423,15 @@ func TestPackageAndParams(t *testing.T) {
 		}},
 		{"params-empty-name", 85, func(t *testing.T, s string) { buildPackage(t, s, map[string]string{"params.json": `{"name":""}`}) }},
 		{"required-file-missing", 83, func(t *testing.T, s string) { buildPackage(t, s, map[string]string{"other.json": `{}`}) }},
+		// A symlinked ancestor inside pkg/ pointing at identical bytes outside the package is refused, not verified.
+		{"ancestor-symlink", 84, func(t *testing.T, s string) {
+			buildPackage(t, s, map[string]string{"params.json": `{"name":"x"}`, "sub/file": "same"})
+			out := filepath.Join(t.TempDir(), "outside")
+			os.MkdirAll(out, 0700)
+			os.WriteFile(filepath.Join(out, "file"), []byte("same"), 0600)
+			os.RemoveAll(filepath.Join(s, "pkg", "sub"))
+			os.Symlink(out, filepath.Join(s, "pkg", "sub"))
+		}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -459,22 +478,41 @@ func TestRecovery(t *testing.T) {
 // refused before any state is read; the valid test plan passes beside them.
 func TestPlanValidateRefusals(t *testing.T) {
 	cases := map[string]func(p *Plan[testParams]){
-		"shell-program":    func(p *Plan[testParams]) { p.Programs["sh"] = "/bin/sh" },
-		"python-program":   func(p *Plan[testParams]) { p.Programs["python3"] = "/usr/bin/python3" },
-		"python3.14":       func(p *Plan[testParams]) { p.Programs["python3.14"] = "/usr/bin/python3.14" },
-		"env-program":      func(p *Plan[testParams]) { p.Programs["env"] = "/usr/bin/env" },
-		"find-program":     func(p *Plan[testParams]) { p.Programs["find"] = "/usr/bin/find" },
-		"relative-program": func(p *Plan[testParams]) { p.Programs["true"] = "true" },
-		"name-mismatch":    func(p *Plan[testParams]) { p.Programs["true"] = "/bin/sh" },
-		"missing-step":     func(p *Plan[testParams]) { delete(p.Steps, "A2") },
-		"unreachable-step": func(p *Plan[testParams]) { p.Steps["Z9"] = marks("Z9") },
-		"duplicate-in-seq": func(p *Plan[testParams]) { p.Sequences["station"] = []string{"A1", "A1"} },
+		"shell-program":       func(p *Plan[testParams]) { p.Programs["sh"] = Program{"/bin/sh", "x"} },
+		"python-program":      func(p *Plan[testParams]) { p.Programs["python3"] = Program{"/usr/bin/python3", "x"} },
+		"python3.14":          func(p *Plan[testParams]) { p.Programs["python3.14"] = Program{"/usr/bin/python3.14", "x"} },
+		"env-program":         func(p *Plan[testParams]) { p.Programs["env"] = Program{"/usr/bin/env", "x"} },
+		"find-program":        func(p *Plan[testParams]) { p.Programs["find"] = Program{"/usr/bin/find", "x"} },
+		"systemd-run-program": func(p *Plan[testParams]) { p.Programs["systemd-run"] = Program{"/usr/bin/systemd-run", "x"} },
+		"tar-program":         func(p *Plan[testParams]) { p.Programs["tar"] = Program{"/usr/bin/tar", "x"} },
+		"relative-program":    func(p *Plan[testParams]) { p.Programs["true"] = Program{"true", "x"} },
+		"name-mismatch":       func(p *Plan[testParams]) { p.Programs["true"] = Program{"/bin/sh", "x"} },
+		"program-without-why": func(p *Plan[testParams]) { p.Programs["true"] = Program{"/usr/bin/true", " "} },
+		"output-root-dot":     func(p *Plan[testParams]) { p.OutputRoots = []string{"."} },
+		"output-root-escape":  func(p *Plan[testParams]) { p.OutputRoots = []string{"../x"} },
+		"output-root-abs":     func(p *Plan[testParams]) { p.OutputRoots = []string{"/tmp"} },
+		"missing-step":        func(p *Plan[testParams]) { delete(p.Steps, "A2") },
+		"unreachable-step":    func(p *Plan[testParams]) { p.Steps["Z9"] = marks("Z9") },
+		"duplicate-in-seq":    func(p *Plan[testParams]) { p.Sequences["station"] = []string{"A1", "A1"} },
 		"never-eligible": func(p *Plan[testParams]) {
 			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q"})
 			p.Steps["Q"] = marks("Q")
 		},
-		"params-unlisted":  func(p *Plan[testParams]) { p.PackageFiles = []string{"other.json"} },
-		"absolute-pkgfile": func(p *Plan[testParams]) { p.PackageFiles = append(p.PackageFiles, "/etc/passwd") },
+		"recovery-missing-predecessor": func(p *Plan[testParams]) {
+			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q", AfterLast: []string{"NOPE"}})
+			p.Steps["Q"] = marks("Q")
+		},
+		"recovery-cycle-without-anchor": func(p *Plan[testParams]) {
+			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q1", AfterLast: []string{"Q2"}}, RecoveryRule{Step: "Q2", AfterLast: []string{"Q1"}})
+			p.Steps["Q1"], p.Steps["Q2"] = marks("Q1"), marks("Q2")
+		},
+		"recovery-shadows-init": func(p *Plan[testParams]) {
+			p.Recovery = append(p.Recovery, RecoveryRule{Step: "INIT-station", AfterStop: true})
+			p.Steps["INIT-station"] = marks("I")
+		},
+		"unregistered-program": func(p *Plan[testParams]) { p.Programs["cp"] = Program{"/usr/bin/cp", "x"} },
+		"params-unlisted":      func(p *Plan[testParams]) { p.PackageFiles = []string{"other.json"} },
+		"absolute-pkgfile":     func(p *Plan[testParams]) { p.PackageFiles = append(p.PackageFiles, "/etc/passwd") },
 	}
 	if e := testPlan().Validate(); e != nil {
 		t.Fatalf("the valid plan is refused: %v", e)
@@ -491,5 +529,65 @@ func TestPlanValidateRefusals(t *testing.T) {
 				t.Fatalf("Main rc=%d, want 2 (plan refused before any state)", rc)
 			}
 		})
+	}
+}
+
+// Claim: DONE without its final newline (an incomplete record) is refused before admission (rc 69), state unchanged,
+// so a new record can never fuse with it; beside the sequence positive.
+func TestDoneWithoutNewlineRefused(t *testing.T) {
+	plan := testPlan()
+	state := fixture(t)
+	setState(t, state, "station", "INIT-station")
+	must(t, os.WriteFile(filepath.Join(state, "DONE"), []byte("OK B.1\nOK INIT-station"), 0600))
+	before := snapshot(t, state)
+	if rc, out := runStep(t, plan, state, "A1"); rc != 69 || snapshot(t, state) != before {
+		t.Fatalf("rc=%d %s", rc, out)
+	}
+}
+
+// Claim: a successful sequence and a recovery leave no temporary file behind (every record was replaced by rename).
+// Limit: power-loss durability (the fsync of each file and directory) is by construction and inspection, not tested.
+func TestNoTempFilesLeft(t *testing.T) {
+	plan := testPlan()
+	state := fixture(t)
+	for _, s := range []string{"INIT-station", "A1", "A2"} {
+		if rc, out := runStep(t, plan, state, s); rc != 0 {
+			t.Fatalf("%s rc=%d %s", s, rc, out)
+		}
+	}
+	os.WriteFile(filepath.Join(state, "STOPPED"), []byte("epoch-0 STOP A3 rc=1\n"), 0600)
+	if rc, out := runStep(t, plan, state, "ROLLBACK"); rc != 0 {
+		t.Fatalf("ROLLBACK rc=%d %s", rc, out)
+	}
+	filepath.Walk(state, func(p string, fi os.FileInfo, e error) error {
+		if strings.Contains(filepath.Base(p), ".tmp-") {
+			t.Errorf("temporary file left: %s", p)
+		}
+		return nil
+	})
+}
+
+// Claim: when CLOSED cannot be written (a zero file-size limit in a child process, as the review of record executed),
+// the recovery refusal is truthful: rc 77 and the state tree byte-identical, no empty CLOSED left behind.
+func TestRecoveryClosedWriteFailureIsTruthful(t *testing.T) {
+	if os.Getenv("G2RUN_HELPER") == "fsize0" {
+		signal.Ignore(syscall.SIGXFSZ)
+		must(t, unix.Setrlimit(unix.RLIMIT_FSIZE, &unix.Rlimit{Cur: 0, Max: 0}))
+		var out, errb bytes.Buffer
+		os.Exit(Main(testPlan(), []string{"-state", os.Getenv("G2RUN_STATE"), "ABORT"}, &out, &errb))
+	}
+	state := fixture(t)
+	setState(t, state, "station", "INIT-station")
+	os.WriteFile(filepath.Join(state, "STOPPED"), []byte("epoch-0 STOP A1 rc=1\n"), 0600)
+	before := snapshot(t, state)
+	cmd := exec.Command(os.Args[0], "-test.run=^TestRecoveryClosedWriteFailureIsTruthful$")
+	cmd.Env = append(os.Environ(), "G2RUN_HELPER=fsize0", "G2RUN_STATE="+state)
+	e := cmd.Run()
+	var ee *exec.ExitError
+	if !errors.As(e, &ee) || ee.ExitCode() != 77 {
+		t.Fatalf("helper: %v, want exit 77", e)
+	}
+	if after := snapshot(t, state); after != before {
+		t.Fatalf("a refused recovery changed state:\n%s\n---\n%s", before, after)
 	}
 }

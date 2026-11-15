@@ -40,8 +40,11 @@ type Plan[P any] struct {
 	Recovery []RecoveryRule
 	// Steps builds each step's operations from the decoded parameters.
 	Steps map[string]func(P) []Op
-	// Programs is the ExecFixed table: program name -> absolute path.
-	Programs map[string]string
+	// Programs is the ExecFixed ALLOW-LIST: program name -> its absolute path and why the plan needs it.
+	Programs map[string]Program
+	// OutputRoots are the directories, relative to the state directory, beneath which a program's output may be
+	// written; the runner's own files at the state root are therefore never a target.
+	OutputRoots []string
 	// PackageFiles must each be listed exactly once in the package's SHA256SUMS; ParamsFile is one of them.
 	PackageFiles []string
 	ParamsFile   string
@@ -60,6 +63,9 @@ var forbiddenPrograms = map[string]bool{
 	"sed": true, "find": true, "xargs": true, "sudo": true, "su": true, "doas": true, "runuser": true,
 	"setpriv": true, "nohup": true, "timeout": true, "nice": true, "setsid": true, "install": true, "eval": true,
 	"exec": true, "script": true, "expect": true, "tclsh": true, "lua": true, "php": true,
+	"tar": true, "rsync": true, "ssh": true, "scp": true, "sftp": true, "systemd-run": true, "chroot": true,
+	"nsenter": true, "unshare": true, "flock": true, "stdbuf": true, "taskset": true, "ionice": true, "watch": true,
+	"git": true, "make": true, "strace": true, "ltrace": true, "gdb": true, "pkexec": true, "machinectl": true,
 }
 
 // isInitStep reports the purpose of an INIT-<purpose> step.
@@ -98,26 +104,68 @@ func (p Plan[P]) Validate() error {
 			known[s] = true
 		}
 	}
+	normal := map[string]bool{}
+	for s := range known {
+		normal[s] = true
+	}
+	recovery := map[string]RecoveryRule{}
 	for _, r := range p.Recovery {
-		if !stepPattern.MatchString(r.Step) || known[r.Step] || p.Steps[r.Step] == nil {
+		// The INIT-<purpose> names are generated and reserved in every class: a recovery step may not shadow one.
+		if _, init := initPurpose(r.Step); init || !stepPattern.MatchString(r.Step) || known[r.Step] || p.Steps[r.Step] == nil {
 			return fmt.Errorf("PLAN_RECOVERY_STEP %q", r.Step)
 		}
 		if r.Purpose != "" && p.Sequences[r.Purpose] == nil {
 			return fmt.Errorf("PLAN_RECOVERY_PURPOSE %q", r.Purpose)
 		}
-		if !r.AfterStop && len(r.AfterLast) == 0 {
-			return fmt.Errorf("PLAN_RECOVERY_NEVER_ELIGIBLE %s", r.Step)
-		}
 		known[r.Step] = true
+		recovery[r.Step] = r
+	}
+	// Every AfterLast names a real step, and every recovery step is reachable: eligible after a STOP, or after a normal
+	// step, or after a recovery step that is itself reachable (a fixed point, so a cycle with no anchor is refused).
+	for _, r := range recovery {
+		for _, a := range r.AfterLast {
+			if !normal[a] && recovery[a].Step == "" {
+				return fmt.Errorf("PLAN_RECOVERY_PREDECESSOR %s after %q", r.Step, a)
+			}
+		}
+	}
+	reach := map[string]bool{}
+	for changed := true; changed; {
+		changed = false
+		for name, r := range recovery {
+			if reach[name] {
+				continue
+			}
+			ok := r.AfterStop
+			for _, a := range r.AfterLast {
+				ok = ok || normal[a] || reach[a]
+			}
+			if ok {
+				reach[name], changed = true, true
+			}
+		}
+	}
+	for name := range recovery {
+		if !reach[name] {
+			return fmt.Errorf("PLAN_RECOVERY_NEVER_ELIGIBLE %s", name)
+		}
 	}
 	for s := range p.Steps {
-		if !known[s] {
+		if _, init := initPurpose(s); init || !known[s] {
 			return fmt.Errorf("PLAN_STEP_UNREACHABLE %s", s)
 		}
 	}
-	for name, abs := range p.Programs {
-		if !validProgram(name, abs) {
+	for name, prog := range p.Programs {
+		if !validProgram(name, prog.Path) || strings.TrimSpace(prog.Why) == "" {
 			return fmt.Errorf("PLAN_PROGRAM %q", name)
+		}
+		if _, ok := registered[name]; !ok {
+			return fmt.Errorf("PLAN_PROGRAM_UNREGISTERED %q (no reviewed typed wrapper)", name)
+		}
+	}
+	for _, r := range p.OutputRoots {
+		if !validOutputRoot(r) {
+			return fmt.Errorf("PLAN_OUTPUT_ROOT %q", r)
 		}
 	}
 	seen := map[string]bool{}
@@ -138,6 +186,11 @@ func validProgram(name, abs string) bool {
 		return false
 	}
 	return filepath.IsAbs(abs) && filepath.Clean(abs) == abs && !strings.ContainsAny(abs, "\x00\r\n ")
+}
+
+// validOutputRoot is a clean relative directory beneath the state directory, never the state directory itself.
+func validOutputRoot(r string) bool {
+	return validPackagePath(r) && r != "." && !strings.HasSuffix(r, "/")
 }
 
 func validPackagePath(p string) bool {
