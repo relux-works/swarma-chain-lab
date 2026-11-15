@@ -40,9 +40,9 @@ replace github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/ga
 replace github.com/relux-works/swarma-chain-lab/experiments/model-proxy => ../model-proxy
 
 require (
-	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261115115549-2da2e6fc2109
+	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261115220730-767224f6077f
 	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261115082735-f1936aa1117a
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115113336-4a573e2d22ac
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115220730-8928bda29253
 	golang.org/x/sys v0.47.0
 )
 

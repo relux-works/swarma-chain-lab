@@ -37,7 +37,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.4.1-0.20261115082735-f1936aa1117a
 	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261115082735-f1936aa1117a
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115113336-4a573e2d22ac
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115220730-8928bda29253
 	golang.org/x/sys v0.47.0
 )
 
