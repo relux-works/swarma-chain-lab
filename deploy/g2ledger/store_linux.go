@@ -44,6 +44,7 @@ type Ledger struct {
 	procRead        func(string) ([]byte, error)                        // defaults to real /proc reads
 	afterTreeVerify func() error                                        // boundary race injection; never set by the CLI
 	treePlans       map[string]*treePlan
+	rollbackHook    func(string) error // test-only crash boundary after a sealed checkpoint
 	afterIntent     func(Action) error // crash/race injection; never set by the CLI
 }
 
@@ -68,6 +69,9 @@ func Init(dir, manifest, baseline string, options ...InitOptions) error {
 	}
 	if len(options) == 1 {
 		opts = options[0]
+	}
+	if opts.Scope.Node != nil && opts.Purpose != "station" {
+		return fail(1, "NODE_STATION_ONLY")
 	}
 	if !validPurpose(opts.Purpose) {
 		return fail(1, "INIT_PURPOSE")
@@ -146,7 +150,11 @@ func Init(dir, manifest, baseline string, options ...InitOptions) error {
 	if e != nil {
 		return stopped("INIT_S0", e)
 	}
-	g := &Genesis{Version: 1, Purpose: opts.Purpose, Scope: opts.Scope, S0: s0, Attempt: randomID(), ManifestSHA256: digest(raw), ReleaseSHA: digest(raw), Commit: m.Commit, H12: m.Commit[:12], Baseline: baseline, BaselineSHA256: sum}
+	node, e := captureNodeBaseline(opts.Scope.Node, baseline, s0, opts.System)
+	if e != nil {
+		return e
+	}
+	g := &Genesis{Node: node, Version: 1, Purpose: opts.Purpose, Scope: opts.Scope, S0: s0, Attempt: randomID(), ManifestSHA256: digest(raw), ReleaseSHA: digest(raw), Commit: m.Commit, H12: m.Commit[:12], Baseline: baseline, BaselineSHA256: sum}
 	if e = l.append(Body{Op: "genesis", Genesis: g}); e != nil {
 		return e
 	}
@@ -242,6 +250,9 @@ func (l *Ledger) load() error {
 			return fail(1, fmt.Sprintf("LEDGER_CHAIN seq=%d", j))
 		}
 		body := r.Body
+		if body.Op != "rollback" && body.Rollback != nil {
+			return fail(1, "LEDGER_ROLLBACK_SCHEMA")
+		}
 		if body.Op != "parent-replay" && body.ParentReplay != nil {
 			return fail(1, "LEDGER_PARENT_REPLAY_SCHEMA")
 		}
@@ -250,6 +261,9 @@ func (l *Ledger) load() error {
 			g := body.Genesis
 			if j != 0 || body.Action != nil || body.Result != nil || g == nil || g.Version != 1 || !validPurpose(g.Purpose) || !isHex(g.Attempt, 16) || !isHex(g.ManifestSHA256, 32) || g.ReleaseSHA != g.ManifestSHA256 || !isHex(g.Commit, 20) || g.H12 != g.Commit[:12] || !validPath(g.Baseline) || !isHex(g.BaselineSHA256, 32) {
 				return fail(1, "LEDGER_GENESIS")
+			}
+			if e = validateNodeGenesis(g); e != nil {
+				return stopped("LEDGER_NODE", e)
 			}
 			if e = validateBaseline(g); e != nil {
 				return stopped("LEDGER_S0", e)
@@ -262,6 +276,11 @@ func (l *Ledger) load() error {
 				return stopped("LEDGER_ACTION", e)
 			}
 			a := *body.Action
+			if rows[0].Body.Genesis.Scope.Node != nil && a.Kind == "modify" && a.Paths[0] == rows[0].Body.Genesis.Scope.Node.Config {
+				if e := validateNodeAction(rows[0].Body.Genesis, a); e != nil {
+					return e
+				}
+			}
 			if e = actionAllowed(*rows[0].Body.Genesis, a); e != nil {
 				return e
 			}
@@ -305,6 +324,33 @@ func (l *Ledger) load() error {
 				}
 			}
 			delete(pending, result.Intent)
+		case "rollback":
+			if j == 0 {
+				return fail(1, "LEDGER_MISSING_GENESIS")
+			}
+			if body.Rollback != nil && body.Rollback.Restore != nil {
+				if rows[0].Body.Genesis.Scope.Node == nil || !validRollbackStep(body.Rollback) {
+					return fail(1, "LEDGER_RESTORE_AUTHORITY")
+				}
+				s := body.Rollback
+				valid := s.Restore.Path == rows[0].Body.Genesis.Scope.Node.Config
+				old := nodeS0(rows[0].Body.Genesis)
+				authorized := old != nil && identityEqual(*old, *s.Restore) || restoreInodeAuthorized(rows, *s.Restore)
+				for _, prior := range rows {
+					if prior.Body.Op == "commit" {
+						a := rows[prior.Body.Result.Intent].Body.Action
+						if a.Kind == "modify" && a.Paths[0] == s.Restore.Path {
+							authorized = authorized || identityEqual(prior.Body.Result.Identities[0], *s.Restore) || restoredIdentity(*s.Restore, *a)
+						}
+					}
+				}
+				if !valid || !authorized {
+					return fail(1, "LEDGER_RESTORE_AUTHORITY")
+				}
+			}
+			if body.Genesis != nil || body.Action != nil || body.Result != nil || body.ParentReplay != nil || len(pending) != 0 || rows[0].Body.Genesis.Scope.Node == nil || !validRollbackStep(body.Rollback) {
+				return fail(1, "LEDGER_ROLLBACK_SCHEMA")
+			}
 		case "parent-replay":
 			p := body.ParentReplay
 			if body.Genesis != nil || body.Action != nil || body.Result != nil || p == nil || len(p.Parents) == 0 || len(pending) != 0 || p.Commit >= r.Seq || rows[p.Commit].Body.Op != "commit" {
@@ -454,6 +500,11 @@ func (l *Ledger) append(body Body) error {
 	return nil
 }
 func (l *Ledger) begin(a Action) (uint64, error) {
+	for _, r := range l.rows {
+		if r.Body.Op == "rollback" {
+			return 0, fail(1, "ATTEMPT_ROLLING_BACK")
+		}
+	}
 	if e := validateAction(&a); e != nil {
 		return 0, stopped("ACTION", e)
 	}

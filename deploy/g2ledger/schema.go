@@ -88,6 +88,7 @@ type Identity struct {
 // Scope declares targets before any mutation. Parents are inventory scope only;
 // declaring a directory never grants authority over arbitrary descendants.
 type Scope struct {
+	Node        *NodeScope   `json:"node,omitempty"`
 	FutureUnits []FutureUnit `json:"future_units,omitempty"`
 	Reused      []string     `json:"reused"`
 	Paths       []ScopePath  `json:"paths"`
@@ -184,7 +185,29 @@ type BaselineObject struct {
 	Members  []string          `json:"members,omitempty"`
 }
 
+// NodeScope grants runtime control only over this unit and file. The preimage
+// is read-only evidence inside the sealed baseline, never a deletion target.
+type NodeScope struct {
+	Unit     string `json:"unit"`
+	Config   string `json:"config"`
+	Preimage string `json:"preimage"`
+}
+type NodeBaseline struct {
+	Running bool `json:"running"`
+}
+
+// RollbackStep records an engine checkpoint, including intent before effects.
+// Values are enums: neither command output nor configuration bytes are logged.
+type RollbackStep struct {
+	Restore *Identity `json:"restore,omitempty"`
+	Phase   string    `json:"phase"`
+	Disk    string    `json:"disk"`
+	Node    string    `json:"node"`
+	Reason  string    `json:"reason,omitempty"`
+}
+
 type Genesis struct {
+	Node           *NodeBaseline    `json:"node,omitempty"`
 	Version        int              `json:"version"`
 	Purpose        string           `json:"purpose"`
 	Scope          Scope            `json:"scope"`
@@ -225,6 +248,7 @@ type Result struct {
 	Reason     string          `json:"reason,omitempty"`
 }
 type Body struct {
+	Rollback     *RollbackStep `json:"rollback,omitempty"`
 	ParentReplay *ParentReplay `json:"parent_replay,omitempty"`
 	Op           string        `json:"op"`
 	Genesis      *Genesis      `json:"genesis,omitempty"`

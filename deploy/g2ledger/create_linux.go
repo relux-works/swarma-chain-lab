@@ -695,6 +695,11 @@ func (l *Ledger) ModifyFile(path, backup, newPath string) error {
 		return fail(1, "MODIFY_NO_CHANGE "+path)
 	}
 	a := Action{Kind: "modify", Ret: "state", Paths: []string{path}, Backup: backup, BackupSHA256: digest(old), NewSHA256: digest(data), UID: original.FS.UID, GID: original.FS.GID, Mode: original.FS.Mode, Before: []Identity{*original}}
+	if n := l.rows[0].Body.Genesis.Scope.Node; n != nil && n.Config == path {
+		if e := l.validateNodeModify(a); e != nil {
+			return e
+		}
+	}
 	seq, e := l.begin(a)
 	if e != nil {
 		return e

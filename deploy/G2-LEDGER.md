@@ -1074,3 +1074,175 @@ walked lexically because its absent components contain no symlinks; inspection
 resumes if `..` returns to an existing ancestor. The same resolver classifies
 baseline exclusions. Protected parents and serialized privileged writers are
 still required.
+
+
+## Phase-aware node rollback
+
+Use `deploy-kit g2-rollback`, rather than shell-controlled node restarts, for
+the station install plan. It is a separate typed command because ordinary
+reverse replay does not prove that a running process has adopted restored
+configuration. The shell supplies only the initialized ledger and purpose:
+
+```sh
+deploy-kit g2-rollback -dir "$LEDGER" -mode station
+```
+
+Release authentication must have succeeded before any release executable runs.
+This command does not authenticate itself or authorize a pre-initialization
+recovery. Before entry, preserve the existing attempt-service quiescence and
+inventory gates: only services with established attempt ownership may be
+stopped, and foreign services remain outside that authority. This command owns
+the node/config/replay portion of recovery; it does not grant new authority to
+stop other services. The caller must not perform a node start, config restore,
+or hash-based decision around it.
+
+### Inputs and authority
+
+Before initialization, include an optional `node` object in the existing scope:
+
+```json
+{
+  "node": {
+    "unit": "namecoind.service",
+    "config": "/etc/namecoin/namecoin.conf",
+    "preimage": "/var/lib/install-attempt/baseline/namecoin.conf"
+  },
+  "reused": ["/etc/namecoin"],
+  "paths": [{"path": "/etc/namecoin/namecoin.conf", "kind": "file"}],
+  "users": [],
+  "groups": [],
+  "units": []
+}
+```
+
+This fragment illustrates the node declaration; retain the rest of the actual
+attempt's scope. `preimage` must be a regular no-follow file inside the baseline
+directory passed to `init`, with bytes equal to the existing scoped config at
+initialization. The whole baseline is already sealed by the genesis digest;
+the config's identity/digest is independently sealed in the initial filesystem
+snapshot. No config bytes or credentials are written into the journal.
+`init` captures the node's running state through the injected `System` interface,
+using the plan's `systemctl show` interface. Only loaded + active + nonzero PID,
+or loaded + inactive/failed + zero PID are admitted. A transitional, unknown,
+contradictory or failed lookup refuses initialization.
+
+The node declaration is station-only. Its unit is a separate runtime-control
+scope and must not also appear in the enable/disable `units` scope. Its config
+must be an existing `file` target, and its preimage is read-only baseline
+evidence, never a replay target. `modify-file` for this config must use exactly
+that preimage and the sealed initial config identity. A legacy station ledger
+without `scope.node` returns `NODE_DECLARATION_REQUIRED`; no shell state is used
+to synthesize missing authority. Initialize the new scope before installation;
+never rewrite an existing genesis to add authority. Rehearsal omits `node` and
+uses the existing rehearsal replay, without any node call.
+
+For node-bearing ledgers, `g2-ledger replay` returns `NODE_ROLLBACK_REQUIRED`.
+Once rollback has written a checkpoint, forward creator operations refuse
+`ATTEMPT_ROLLING_BACK`. The ledger lock covers the full engine operation.
+
+### Phases and interrupted recovery
+
+The engine derives the attempt phase from committed config modifications,
+parent-replay receipts and its own sealed rollback checkpoints. It distinguishes
+`pre-change`, `config-changed`, `partially-replayed` and `rollback-PHASE`.
+Unjournaled early install steps do not pretend to have more precise phase
+evidence: before config modification, the baseline running state and current
+node observation determine whether recovery must restart the baseline node.
+Neither shell variables nor per-invocation before/after hashes select recovery.
+
+Every invocation performs these steps in order, including retries after a
+previous successful restoration:
+
+1. Validate the complete journal/HEAD, node scope and bound preimage.
+2. Record `stop-intent`, stop the declared node, and require an observed stopped
+   process before recording `stopped`.
+3. Validate the config against the committed install identity, an already
+   restored preimage, or an unfinished restore receipt. Record `restore-intent`
+   with the exact destination identity before writing. Restore the preimage
+   bytes and recorded UID, GID, mode and nanosecond mtime while the node is down,
+   then record `restored`. Inode and ctime are kernel identities, not fields
+   falsely claimed to be restored to their initial values.
+4. Record `replay-intent`; apply existing scoped reverse replay and retention
+   rules, including the final baseline comparison; record `replayed` only on
+   success. When an unlink/rename precedes an undo error, replay seals the bounded
+   parent transition before returning that error. It executes no later effect.
+5. If the node was running at baseline, record `start-intent`, recheck restored
+   config at that boundary, start, and record `started`. Otherwise never start it.
+6. Record `check-intent`; read actual config bytes and metadata, node status and
+   loaded policy. Record `verified` only after the final state agrees. An
+   unreadable loaded policy requires a deliberate stop and a stopped readback.
+
+Restoration writes through a checked held descriptor to the existing config
+inode, rather than creating an unjournaled sibling file. If interrupted midway,
+the durable `restore-intent` permits finishing only that same inode with the
+same type/owner/group/mode. Replacement is refused. A completed `restored` or
+later checkpoint ends that partial-write authority, so it cannot authorize a
+future foreign edit. A failed write, truncate, metadata operation or fsync
+returns nonzero with the node stopped; retry restores the complete preimage.
+
+| Accepted replay state class | Recovery obligation |
+| --- | --- |
+| No committed config change, before or after a node stop | Check exact initial config; recover baseline running/stopped state |
+| Config committed, node stopped after failed start | Restore first; never retry starting the installed config |
+| Config committed, installed policy still running | Stop, restore, then reconcile runtime |
+| Newer file/directory already absent | Accept absence only under existing replay authority; retain node obligation |
+| Membership already removed or unit links already disabled | Preserve completed scoped effects; retain node obligation |
+| Config already restored, later replay/reload failed | Stop/reconcile runtime even though disk bytes already match |
+| Retained station data/accounts still present | Keep existing retention checks and policy |
+| Any sealed rollback checkpoint, including start or final check | Reestablish stop/restore; never skip final readback |
+| Partial config write after a durable restore intent | Restore the recorded inode; reject replacement |
+
+The suite exercises all 32 combinations of absent file/directory, removed
+membership, disabled unit and restored config, plus per-stage failures,
+checkpoint interruptions, partial writes and the stale-live-policy regression.
+Unresolved forward intents (with or without a physical effect), `UNSEALED`,
+truncated records and HEAD disagreement remain fail-closed journal states.
+Retry does not damage them or grant missing authority; operator reconciliation
+is still required before recovery can proceed. This command does not invent a
+commit receipt or repair a corrupt journal.
+
+### Final readback, output and exit codes
+
+The final readback requires file bytes equal to the bound preimage and the
+recorded UID/GID/mode/mtime. For a running outcome, `NodeController.Policy` must
+independently attest the loaded configuration digest, covering RPC auth and
+whitelists. Returning the on-disk digest is not a conforming runtime adapter.
+An explicit read error or readable-but-mismatching policy is a refusal.
+
+The native `System` adapter uses `systemctl stop/start/show`, suppresses child
+diagnostics and provides no loaded-policy attestation. After restoring a
+baseline-running node, it deliberately stops it with `LIVE_POLICY_UNREADABLE`
+and verifies zero live process. This is an intentional availability outcome,
+not a claim that restored RPC credentials were accepted by a running node.
+An injected controller can provide readable-policy success without root in
+fixtures. A baseline-stopped node stays stopped with `BASELINE_STOPPED`.
+No node network request, credential argument, wallet operation or account
+mutation is introduced by the node adapter.
+
+Success adds a `rollback_verified` JSON row with `reason` empty for a verified
+running outcome or the named stopped reason. Existing replay comparison rows
+are also emitted. Steps are hash-chained `rollback` records; config bytes,
+external command output and credentials are never embedded. The terminal
+checkpoint rechecks disk and node state before admitting success.
+
+| Exit | Meaning |
+| --- | --- |
+| 0 | Config and live policy verified, or config verified and node deliberately stopped with a named reason |
+| 1 | Named refusal: state/status/config/policy mismatch, failed stop/start/readback/replay, missing declaration or unverified journal |
+| 2 | Invalid arguments/mode or unexpected internal error |
+| 3 | Unresolved intent; no invented ownership or automatic orphan adoption |
+
+Recovery refusals report `phase`, ledger-derived `attempt`, `disk` and `node`.
+Disk states are `preinstall`, `installed`, `mismatch`, `unreadable`; node states
+are `running`, `stopped`, `unknown`. A ledger-validation refusal uses
+`phase=validate disk=unverified node=unverified` and a bounded cause name, because
+no live observation is authorized. External diagnostics are not echoed.
+
+Examples of reasons include `ROLLBACK_STOP_FAILED`, `ROLLBACK_STOP_READBACK`,
+`ROLLBACK_RESTORE_FAILED`, `ROLLBACK_REPLAY_FAILED`, `ROLLBACK_START_FAILED`,
+`ROLLBACK_CONFIG_MISMATCH`, `ROLLBACK_LIVE_POLICY_MISMATCH` and
+`ROLLBACK_READBACK_FAILED`. No later recovery stage runs after a refusal.
+Transient faults converge when removed; identity drift and journal damage
+remain explicit refusals until their ownership/evidence boundary is reconciled.
+A failed stdout write also returns nonzero even if a verified checkpoint was
+already sealed; retry is safe.

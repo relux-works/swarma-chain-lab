@@ -46,6 +46,26 @@ fixtures; `TestReleaseIntegration` checks the real bundle in the opt-in release 
 `deploy-kit g2-ledger` provides typed attempt records and fail-closed rollback
 for Linux installation orchestration. See [G2-LEDGER.md](G2-LEDGER.md) for all
 subcommands, the canonical schema, retention, exit codes and install call sites.
+`deploy-kit g2-rollback -dir LEDGER -mode station|rehearsal` owns node
+stop, config restore, restart and final readback for the station install plan.
+Declare `scope.node` at ledger initialization; its unit, config path, preimage
+and captured baseline running state become ledger evidence. A station ledger
+without that declaration refuses node rollback. Ordinary `g2-ledger replay`
+refuses a node-bearing ledger so callers cannot bypass the stop/restore barrier.
+The engine restores the config bytes, owner, group, mode and recorded mtime
+before any start, and starts only a node that was running at baseline.
+
+Exit 0 requires verified preinstall config plus either matching live policy or
+a deliberately stopped node with `BASELINE_STOPPED` or
+`LIVE_POLICY_UNREADABLE`. The native systemctl adapter cannot attest loaded RPC
+authentication and whitelists: it deliberately stops the node and verifies that
+stop, reporting `LIVE_POLICY_UNREADABLE`. It makes no node RPC call. A typed
+injected controller can provide independent loaded-policy readback; disk hashes
+alone never establish live policy. Errors name the recovery phase and remaining
+disk/node states; retries repeat the safe barrier rather than comparing two
+shell hashes. See [the full rollback contract](G2-LEDGER.md#phase-aware-node-rollback)
+for scope inputs, replay states, refusal codes and caller preconditions.
+
 Run `deploy-kit g2-ledger init -dir /root/g2/ledger -manifest /root/g2/release/manifest.json -baseline /root/g2/baseline -purpose station -scope /root/g2/scope.json`
 after verifying the release, then `deploy-kit g2-ledger verify -dir /root/g2/ledger`.
 Declare intended paths/accounts/units and a required `reused` array of existing
@@ -311,6 +331,12 @@ values are sentinels to replace. See [SURVEY.md](SURVEY.md) for the landed nativ
 schemas and [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for deployment inputs.
 
 ## Tools and artifacts
+
+- `deploy-kit g2-rollback -dir "$LEDGER" -mode station|rehearsal` performs
+  ledger-bound node recovery and scoped reverse replay. It records recovery
+  checkpoints inside the ledger and emits replay/readback JSON rows to stdout;
+  capture them in an attempt-owned log if needed. Native node operations use
+  `/usr/bin/systemctl stop|start|show` through the injected `System` boundary.
 
 - `/usr/bin/systemd-analyze --system unit-paths` supplies the unit search order
   for `g2-ledger enable`; `systemd-analyze --version` bounds `UpheldBy=` support.

@@ -11,7 +11,8 @@ import (
 // Replay validates every row and the terminal HEAD before the first lookup or
 // effect. It stops immediately on the first error; effects already completed
 // earlier in reverse order are not a transaction and are not undone.
-func (l *Ledger) Replay(mode string) error {
+func (l *Ledger) Replay(mode string) error { return l.replay(mode, false) }
+func (l *Ledger) replay(mode string, nodeSafe bool) error {
 	if mode != "station" && mode != "rehearsal" {
 		return fail(2, "REPLAY_MODE")
 	}
@@ -22,10 +23,14 @@ func (l *Ledger) Replay(mode string) error {
 		return fail(1, "LEDGER_POISONED")
 	}
 	g := l.rows[0].Body.Genesis
+	if g.Scope.Node != nil && !nodeSafe {
+		return fail(1, "NODE_ROLLBACK_REQUIRED use g2-rollback")
+	}
 	if !purposeMatches(g.Purpose, mode) {
 		return fail(1, "MODE_PURPOSE_MISMATCH purpose="+g.Purpose+" mode="+mode)
 	}
 	defer l.closeTreePlans()
+	defer l.closeParentWatch()
 	if mode == "rehearsal" {
 		if e := l.preflightRehearsal(); e != nil {
 			return e
@@ -44,11 +49,15 @@ func (l *Ledger) Replay(mode string) error {
 		if e := l.startParentWatch(a, r.Body.Result.Identities); e != nil {
 			return l.reportParentFailure(e, mode)
 		}
+		var effectErr error
 		for k := len(r.Body.Result.Identities) - 1; k >= 0; k-- {
-			if e := l.undo(a, r.Body.Result.Identities[k], mode, removedGroups); e != nil {
-				return e
+			if effectErr = l.undo(a, r.Body.Result.Identities[k], mode, removedGroups); effectErr != nil {
+				break
 			}
 		}
+		// A failure may follow a completed unlink/rename (for example reload).
+		// Seal that bounded interval before returning, so retry does not lose
+		// the parent transition. No later undo or service command is executed.
 		parents, e := l.finishParentWatch()
 		if e != nil {
 			return l.reportParentFailure(e, mode)
@@ -57,6 +66,9 @@ func (l *Ledger) Replay(mode string) error {
 			if e := l.append(Body{Op: "parent-replay", ParentReplay: &ParentReplay{Commit: r.Seq, Parents: parents}}); e != nil {
 				return e
 			}
+		}
+		if effectErr != nil {
+			return effectErr
 		}
 	}
 	return l.compareBaseline(mode)

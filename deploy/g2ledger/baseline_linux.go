@@ -74,6 +74,26 @@ func validateScope(s Scope) error {
 			}
 		}
 	}
+	if s.Node != nil {
+		n := s.Node
+		if !unitPattern.MatchString(n.Unit) || !strings.HasSuffix(n.Unit, ".service") || !validPath(n.Config) || !validPath(n.Preimage) || n.Config == n.Preimage {
+			return errors.New("NODE_SCOPE")
+		}
+		found := false
+		for _, p := range s.Paths {
+			if p.Path == n.Config && p.Kind == "file" {
+				found = true
+			}
+		}
+		if !found {
+			return errors.New("NODE_CONFIG_OUTSIDE_SCOPE")
+		}
+		for _, u := range s.Units {
+			if u == n.Unit {
+				return errors.New("NODE_UNIT_ENABLE_SCOPE")
+			}
+		}
+	}
 	return validateFutureUnits(s)
 }
 func scopeObjects(s Scope) ([]BaselineObject, error) {
