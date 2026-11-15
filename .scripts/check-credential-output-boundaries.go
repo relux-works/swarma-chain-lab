@@ -32,12 +32,20 @@ var fields = map[string]string{
 	"experiments/rental-executor/http.go:decodeTrackBClaim.Token":                   "string",
 	"experiments/m5-rehearsal/fixtures/registrar.go.txt:rehearsalRegistrar.APIKey":  "proxy.UpstreamKey",
 	"experiments/rental-gateway/station/linuxuser.go:FakeExec.Inputs":               "[]codec.Secret[[]byte]",
+	"experiments/model-proxy/credential.go:UpstreamCredential.Value":                "UpstreamKey",
+	"experiments/model-proxy/credential.go:staticSource.value":                      "UpstreamKey",
+	"experiments/model-proxy/credential.go:FileSource.current":                      "UpstreamKey",
 }
 var reveals = map[string]int{
 	"experiments/model-proxy/registry.go:newService:r.Bearer.Reveal()":                            4,
 	"experiments/model-proxy/registry.go:newService:c.APIKey.Reveal()":                            3,
 	"experiments/model-proxy/messages.go:Messages.Headers:key.Reveal()":                           1,
 	"experiments/model-proxy/responses.go:Responses.Headers:key.Reveal()":                         1,
+	"experiments/model-proxy/credential.go:UpstreamCredential.valid:c.Value.Reveal()":             1,
+	"experiments/model-proxy/credential.go:FileSource.read:f.current.Reveal()":                    1,
+	"experiments/model-proxy/credential.go:Service.issued:c.Value.Reveal()":                       1,
+	"experiments/model-proxy/credential.go:authenticate:c.Value.Reveal()":                         1,
+	"experiments/model-proxy/tripwire.go:Service.foreignBearer:r.Bearer.Reveal()":                 1,
 	"experiments/rental-gateway/station/localtest.go:LocalTestDriver.Create:token.Reveal()":       1,
 	"experiments/rental-gateway/station/linuxuser.go:LinuxUserDriver.Create:token.Reveal()":       1,
 	"experiments/rental-gateway/station/trackbadmin.go:TrackBAdminClient.Mint:out.Token.Reveal()": 1,
@@ -69,7 +77,7 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 			case *ast.StructType:
 				for _, field := range v.Fields.List {
 					for _, name := range field.Names {
-						if name.Name == "APIKey" || name.Name == "TrackBToken" || name.Name == "Token" || (owner == "FakeExec" && name.Name == "Inputs") {
+						if name.Name == "APIKey" || name.Name == "TrackBToken" || name.Name == "Token" || (owner == "FakeExec" && name.Name == "Inputs") || (owner == "UpstreamCredential" && name.Name == "Value") || (owner == "staticSource" && name.Name == "value") || (owner == "FileSource" && name.Name == "current") {
 							gotFields[path+":"+owner+"."+name.Name] = rendered(field.Type)
 						}
 					}

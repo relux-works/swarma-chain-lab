@@ -51,11 +51,17 @@ func TestN1bUpstreamKeyBoundaries(t *testing.T) {
 			t.Fatal("upstream key entered public state")
 		}
 	}
+	// An empty key is the absence of any credential origin and names that
+	// refusal; malformed keys keep the CONFIG refusal.
 	for _, raw := range []Secret{"", Secret(strings.Repeat("a", 4097)), "contains space", "contains\nnewline"} {
 		config := h.c
 		config.APIKey = NewAPIKey(raw)
+		want := "CONFIG"
+		if raw == "" {
+			want = "CONFIG_CREDENTIAL"
+		}
 		service, e := New(config)
-		if e == nil || e.Error() != "CONFIG" || service != nil {
+		if e == nil || e.Error() != want || service != nil {
 			t.Fatal("invalid operator key admitted")
 		}
 	}

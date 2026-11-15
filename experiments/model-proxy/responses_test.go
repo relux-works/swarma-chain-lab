@@ -56,7 +56,7 @@ func responsesFixture(t *testing.T, defaultLimit ...uint64) *responsesHarness {
 		ModelProfiles: map[string]ModelProfile{modelID: {Profile: OpenAIResponsesProfile, Upstream: up.URL + "/v1/responses"}},
 		Now:           func() time.Time { return time.Unix(h.now.Load(), 0) }, Timeout: time.Second, Transport: up.Client().Transport,
 		Audit: func(a Audit) {
-			if a.Code != "OK" && a.Code != "STREAM" && a.Code != "USAGE" && a.Code != "AUTH" && a.Code != "CAP" && a.Code != "REQUEST" && a.Code != "BODY" && a.Code != "PROFILE" && a.Code != "UPSTREAM" && a.Code != "ROUTE" && a.Code != "BUSY" && a.Code != "DAILY_COST_CEILING" && a.Code != "DAILY_ACCOUNTING_MISSING" && a.Code != "DAILY_ACCOUNTING_CORRUPT" {
+			if a.Code != "OK" && a.Code != "STREAM" && a.Code != "USAGE" && a.Code != "AUTH" && a.Code != "CAP" && a.Code != "REQUEST" && a.Code != "BODY" && a.Code != "PROFILE" && a.Code != "UPSTREAM" && a.Code != "ROUTE" && a.Code != "BUSY" && a.Code != "DAILY_COST_CEILING" && a.Code != "DAILY_ACCOUNTING_MISSING" && a.Code != "DAILY_ACCOUNTING_CORRUPT" && a.Code != "LEAK_CREDENTIAL" && a.Code != "LEAK_BEARER" && a.Code != "ACCOUNT_BLOCKED" && a.Code != "CREDENTIAL_UNAVAILABLE" && a.Code != "CREDENTIAL_REJECTED" {
 				t.Error("Responses private audit content")
 			}
 		},
@@ -70,7 +70,7 @@ func responsesFixture(t *testing.T, defaultLimit ...uint64) *responsesHarness {
 		t.Fatal(e)
 	}
 	t.Cleanup(func() { h.s.Close() })
-	h.b = Binding{strings.Repeat("b", 64), strings.Repeat("c", 64), 90, 1000, Caps{1000, 1000, 10, 10, 10000, 0}}
+	h.b = Binding{strings.Repeat("b", 64), strings.Repeat("c", 64), 90, 1000, Caps{1000, 1000, 10, 10, 10000, 0}, RunBinding{}}
 	if len(defaultLimit) > 0 {
 		h.b.Caps.DefaultMaxOutputTokens = defaultLimit[0]
 	}

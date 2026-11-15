@@ -48,10 +48,15 @@ type ledger struct {
 	High    int64             `json:"high"`
 	Records map[string]record `json:"records"`
 	Daily   *dailyAccounting  `json:"daily,omitempty"`
+	// Blocked maps a run account digest to the tripwire verdict that blocked
+	// it. Only the explicit owner clear removes an entry.
+	Blocked map[string]string `json:"blocked,omitempty"`
 }
 type Service struct {
 	mu                sync.Mutex
 	cfg               Config
+	source            CredentialSource
+	tripwire          *tripwire
 	disk              *durable.Store
 	state             ledger
 	persisted         string
@@ -78,13 +83,34 @@ func InitializeAccounting(c Config) error {
 func New(c Config) (*Service, error) { return newService(c, false) }
 
 func newService(c Config, initialize bool) (*Service, error) {
-	if c.Now == nil || !validOrigin(c.Endpoint.URL) || !digest(c.Endpoint.CertSHA256) || !validURL(c.Upstream) || len(c.APIKey.Reveal()) < 1 || len(c.APIKey.Reveal()) > 4096 || len(c.Models) < 1 || len(c.Models) > 16 {
+	if c.Now == nil || !validOrigin(c.Endpoint.URL) || !digest(c.Endpoint.CertSHA256) || !validURL(c.Upstream) || len(c.Models) < 1 || len(c.Models) > 16 {
 		return nil, fail("CONFIG")
 	}
-	for _, v := range []byte(c.APIKey.Reveal()) {
-		if v < 33 || v > 126 {
+	// Exactly one credential origin: the static key or a per-use source.
+	static := len(c.APIKey.Reveal()) > 0
+	if static == (c.Source != nil) {
+		return nil, fail("CONFIG_CREDENTIAL")
+	}
+	source := c.Source
+	if static {
+		if !printable(c.APIKey.Reveal(), 4096) {
 			return nil, fail("CONFIG")
 		}
+		source = &staticSource{value: c.APIKey}
+	}
+	switch c.Mode {
+	case "", ModeDevelopment:
+	case ModeManaged:
+		// Managed mode admits only a non-file source: the proxy must never be
+		// able to read a provider token from this host.
+		if _, file := c.Source.(*FileSource); static || file {
+			return nil, fail("CONFIG_MODE")
+		}
+	default:
+		return nil, fail("CONFIG_MODE")
+	}
+	if c.RunMaxWindowSeconds > MaxRunWindow {
+		return nil, fail("CONFIG_RUN_WINDOW")
 	}
 	models := map[string]Model{}
 	for k, m := range c.Models {
@@ -125,7 +151,12 @@ func newService(c Config, initialize bool) (*Service, error) {
 	if e != nil {
 		return nil, fail("STATE_OPEN")
 	}
-	s := &Service{cfg: c, disk: d, cancel: map[string]context.CancelFunc{}, state: ledger{Version: 1, Config: sum(privateCanonical(fingerprint)), Records: map[string]record{}}}
+	s := &Service{cfg: c, source: source, tripwire: newTripwire(), disk: d, cancel: map[string]context.CancelFunc{}, state: ledger{Version: 1, Config: sum(privateCanonical(fingerprint)), Records: map[string]record{}}}
+	if static {
+		// The static key is issued at construction, so the tripwire sees it
+		// before the first request rather than after the first fetch.
+		s.tripwire.add(c.APIKey.Reveal())
+	}
 	raw, e := d.Read("registry.json", MaxBody)
 	if e != nil {
 		d.Close()
@@ -169,6 +200,12 @@ func newService(c Config, initialize bool) (*Service, error) {
 		if v.Config != s.state.Config {
 			d.Close()
 			return nil, fail("STATE")
+		}
+		for account, code := range v.Blocked {
+			if !digest(account) || !blockCode(code) {
+				d.Close()
+				return nil, fail("STATE")
+			}
 		}
 		var pendingCost uint64
 		seen := map[Secret]bool{}
@@ -294,6 +331,16 @@ func (s *Service) Prepare(b Binding) (Credential, error) {
 	if !b.Valid() || now < b.NotBefore || now >= b.NotAfter {
 		return Credential{}, fail("BINDING")
 	}
+	if b.Kind() == KindRun {
+		// The run window ceiling comes only from sealed configuration; zero
+		// means no run binding is admitted at all.
+		if s.cfg.RunMaxWindowSeconds == 0 || b.NotAfter-b.NotBefore > int64(s.cfg.RunMaxWindowSeconds) {
+			return Credential{}, fail("RUN_WINDOW")
+		}
+		if s.isBlocked(b) {
+			return Credential{}, fail("ACCOUNT_BLOCKED")
+		}
+	}
 	if r, ok := s.state.Records[b.SlotID]; ok {
 		if r.Binding != b {
 			return Credential{}, fail("CONFLICT")
@@ -343,6 +390,9 @@ func (s *Service) Activate(b Binding) error {
 	}
 	if now < b.NotBefore || now >= b.NotAfter || r.Phase == "revoked" || r.Phase == "frozen" {
 		return fail("TERMINAL")
+	}
+	if s.isBlocked(b) {
+		return fail("ACCOUNT_BLOCKED")
 	}
 	r.Phase = "active"
 	s.state.Records[b.SlotID] = r
@@ -398,6 +448,9 @@ func (s *Service) authorize(id string, bearer Secret) (record, error) {
 	r, ok := s.state.Records[id]
 	if !ok || subtle.ConstantTimeCompare([]byte(r.Bearer.Reveal()), []byte(bearer)) != 1 || r.Phase != "active" || now < r.Binding.NotBefore || now >= r.Binding.NotAfter {
 		return record{}, fail("AUTH")
+	}
+	if s.isBlocked(r.Binding) {
+		return record{}, fail("ACCOUNT_BLOCKED")
 	}
 	return r, nil
 }
@@ -460,7 +513,7 @@ func (s *Service) alive(id string) bool {
 	defer s.mu.Unlock()
 	now, e := s.clock()
 	r, ok := s.state.Records[id]
-	return e == nil && ok && r.Phase == "active" && now >= r.Binding.NotBefore && now < r.Binding.NotAfter
+	return e == nil && ok && r.Phase == "active" && now >= r.Binding.NotBefore && now < r.Binding.NotAfter && !s.isBlocked(r.Binding)
 }
 func (s *Service) settle(id string, u *Usage) error {
 	s.mu.Lock()

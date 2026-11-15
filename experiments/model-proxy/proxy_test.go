@@ -67,7 +67,7 @@ func fixture(t *testing.T) *harness {
 		t.Fatal(e)
 	}
 	t.Cleanup(func() { h.s.Close() })
-	h.b = Binding{strings.Repeat("b", 64), strings.Repeat("c", 64), 90, 1000, Caps{1000, 1000, 10, 10, 10000, 0}}
+	h.b = Binding{strings.Repeat("b", 64), strings.Repeat("c", 64), 90, 1000, Caps{1000, 1000, 10, 10, 10000, 0}, RunBinding{}}
 	h.cred, e = h.s.Prepare(h.b)
 	if e != nil {
 		t.Fatal(e)

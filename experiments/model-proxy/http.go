@@ -45,15 +45,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bearer := Secret(strings.TrimPrefix(headers[0], "Bearer "))
-	s.mu.Lock()
-	_, e := s.authorize(id, bearer)
-	s.mu.Unlock()
-	if e != nil {
-		if accountingCode(e.Error()) {
-			reject(503, e.Error())
-		} else {
-			reject(401, "AUTH")
-		}
+	cred, status, code := s.admit(r, id, bearer)
+	if code != "" {
+		s.refuse(w, id, status, code)
 		return
 	}
 	if r.Header.Get("Content-Encoding") != "" || r.ContentLength > MaxBody {
@@ -63,6 +57,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	raw, e := io.ReadAll(io.LimitReader(r.Body, MaxBody+1))
 	if e != nil || len(raw) > MaxBody {
 		reject(413, "BODY")
+		return
+	}
+	if status, code := s.inspectBody(id, raw); code != "" {
+		s.refuse(w, id, status, code)
 		return
 	}
 	p, e := s.cfg.Dialect.Parse(raw)
@@ -77,7 +75,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	call, cancel, e := s.reserve(r.Context(), id, bearer, p)
 	if e != nil {
 		code := e.Error()
-		if code != "BUSY" && code != "MODEL" && code != "CAP" && code != "DAILY_COST_CEILING" && !accountingCode(code) {
+		if code != "BUSY" && code != "MODEL" && code != "CAP" && code != "DAILY_COST_CEILING" && code != "ACCOUNT_BLOCKED" && !accountingCode(code) {
 			code = "AUTH"
 		}
 		status := 403
@@ -124,7 +122,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reject(502, "UPSTREAM")
 		return
 	}
-	s.cfg.Dialect.Headers(req.Header, s.cfg.APIKey)
 	transport := s.cfg.Transport
 	if transport == nil {
 		t := http.DefaultTransport.(*http.Transport).Clone()
@@ -133,10 +130,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		transport = t
 		defer t.CloseIdleConnections()
 	}
-	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return fail("REDIRECT") }}
-	resp, e := client.Do(req)
+	resp, e := s.exchange(call, req, p.Body, s.cfg.Dialect, cred, transport)
 	if e != nil {
-		reject(502, "UPSTREAM")
+		reject(502, e.Error())
 		return
 	}
 	defer resp.Body.Close()

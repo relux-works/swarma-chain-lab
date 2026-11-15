@@ -1,6 +1,8 @@
 package modelproxy
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"syscall"
@@ -53,4 +55,52 @@ func LoadConfig(path string) (FileConfig, error) {
 // ParseConfig validates bytes already admitted by the caller's static-file boundary.
 func ParseConfig(raw []byte) (FileConfig, error) {
 	return modelprofile.DecodeFileConfig(raw)
+}
+
+// GatewayFileConfig is the sealed file with the gateway tail: `mode` and
+// `run_max_window_seconds` follow the published fields in this order, each
+// optional. The tail is admitted through the same installed static boundary
+// and manifest hash as the rest of the file; omitted mode is development and
+// an omitted run maximum admits no run binding.
+type GatewayFileConfig struct {
+	FileConfig
+	Mode                string `json:"mode,omitempty"`
+	RunMaxWindowSeconds uint64 `json:"run_max_window_seconds,omitempty"`
+}
+
+func LoadGatewayConfig(path string) (GatewayFileConfig, error) {
+	raw, e := ReadInstalledFile(path, MaxBody)
+	if e != nil {
+		return GatewayFileConfig{}, e
+	}
+	return ParseGatewayConfig(raw)
+}
+
+// ParseGatewayConfig applies the published canonical rules to the whole file,
+// then the published decoder to the published part. A run maximum above
+// MaxRunWindow or an unknown mode is refused at decode, before any startup.
+func ParseGatewayConfig(raw []byte) (GatewayFileConfig, error) {
+	var g GatewayFileConfig
+	if len(raw) == 0 || len(raw) > MaxBody {
+		return g, modelprofile.ErrFile
+	}
+	raw = bytes.TrimSpace(raw)
+	if unique(raw) != nil || json.Unmarshal(raw, &g) != nil {
+		return GatewayFileConfig{}, modelprofile.ErrFile
+	}
+	if canonical, e := json.Marshal(g); e != nil || !bytes.Equal(raw, canonical) {
+		return GatewayFileConfig{}, modelprofile.ErrFile
+	}
+	if _, e := modelprofile.DecodeFileConfig(privateCanonical(g.FileConfig)); e != nil {
+		return GatewayFileConfig{}, e
+	}
+	switch g.Mode {
+	case "", ModeDevelopment, ModeManaged:
+	default:
+		return GatewayFileConfig{}, fail("CONFIG_MODE")
+	}
+	if g.RunMaxWindowSeconds > MaxRunWindow {
+		return GatewayFileConfig{}, fail("CONFIG_RUN_WINDOW")
+	}
+	return g, nil
 }
