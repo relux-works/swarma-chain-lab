@@ -1,22 +1,22 @@
 {
   "comment": "Semantic-version floors only. Strict-parser preservation additionally requires Git ancestry and selected-source checks in check-strict-module-snapshots.py.",
-  "snapshot_commit": "2332f74636d435e5086bbc4f23cc2d5f7b2ad0d8",
+  "snapshot_commit": "3bbc2d8ab62efe0bc498c80d29413daee816d03b",
   "snapshot_time": "20261115072539",
   "modules": {
-    "github.com/relux-works/swarma-chain-lab/experiments/grant-store": "v0.1.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/grantcheck": "v0.1.2-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke": "v0.3.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/model-proxy": "v0.4.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/payment-chain": "v0.2.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/rental": "v0.5.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/rental-booking": "v0.4.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/rental-gateway": "v0.4.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind": "v0.1.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/sealwatch": "v0.2.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/signer-service": "v0.3.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/single-use": "v0.3.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle": "v0.2.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind": "v0.1.1-0.20261115072539-2332f74636d4",
-    "github.com/relux-works/swarma-chain-lab/experiments/station-payload": "v0.3.1-0.20261115072539-2332f74636d4"
+    "github.com/relux-works/swarma-chain-lab/experiments/grant-store": "v0.1.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/grantcheck": "v0.1.2-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke": "v0.3.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/model-proxy": "v0.4.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/payment-chain": "v0.2.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/rental": "v0.5.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/rental-booking": "v0.4.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/rental-gateway": "v0.4.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind": "v0.1.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/sealwatch": "v0.2.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/signer-service": "v0.3.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/single-use": "v0.3.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle": "v0.2.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind": "v0.1.1-0.20261115072539-3bbc2d8ab62e",
+    "github.com/relux-works/swarma-chain-lab/experiments/station-payload": "v0.3.1-0.20261115072539-3bbc2d8ab62e"
   }
 }

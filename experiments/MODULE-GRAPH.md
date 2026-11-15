@@ -1,12 +1,18 @@
 # Published module graph audit
 
-The current floor is signed manifest-selection source `2332f74636d435e5086bbc4f23cc2d5f7b2ad0d8`, published at
+The current floor is signed audited source `3bbc2d8ab62efe0bc498c80d29413daee816d03b`, with commit time
 `20261115072539`. All 101 internal requirements select this ancestry-verified snapshot.
 It contains signed identity-expiry source
-`8f2786b2c6ac773b2bfa67bac7680c52e72fa885` and selects that source in its own
-manifests. This two-layer refresh preserves typed RPC application errors and
-named expired-identity refusals through published transitive dependencies.
+`8f2786b2c6ac773b2bfa67bac7680c52e72fa885`, manifest-selection ancestor
+`2332f74636d435e5086bbc4f23cc2d5f7b2ad0d8`, and the refreshed detached-v2
+consumer byte audit. Its own manifests already retain the fixed source through
+that earlier selection layer, preserving typed RPC application errors and named
+expired-identity refusals through published transitive dependencies.
 No third-party requirement or local replacement changes.
+
+These selections were regenerated locally after a signed rebase, using the same
+module-specific version bases and the selected ancestors’ Git commit times.
+Public-proxy resolution and checksum verification await publication.
 
 **Landing hold: pure fast-forward only.** The selected source and manifest
 commits are this branch's own ancestors. Preserve their signed commit objects;
@@ -52,23 +58,23 @@ source and used normal checksum verification. Current external consumer checks
 resolve the selected versions through the public proxy and verify checksums
 before test-only parser instrumentation.
 
-| Dependency under experiments/ | Published requirement |
+| Dependency under experiments/ | Selected requirement |
 | --- | --- |
-| `grant-store` | `v0.1.1-0.20261115072539-2332f74636d4` |
-| `m5-host-smoke` | `v0.3.1-0.20261115072539-2332f74636d4` |
-| `model-proxy` | `v0.4.1-0.20261115072539-2332f74636d4` |
-| `payment-chain` | `v0.2.1-0.20261115072539-2332f74636d4` |
-| `rental` | `v0.5.1-0.20261115072539-2332f74636d4` |
-| `rental-booking` | `v0.4.1-0.20261115072539-2332f74636d4` |
-| `rental-gateway` | `v0.4.1-0.20261115072539-2332f74636d4` |
-| `rental-gateway/kernelbind` | `v0.1.1-0.20261115072539-2332f74636d4` |
-| `sealwatch` | `v0.2.1-0.20261115072539-2332f74636d4` |
-| `signer-service` | `v0.3.1-0.20261115072539-2332f74636d4` |
-| `single-use` | `v0.3.1-0.20261115072539-2332f74636d4` |
-| `station-lifecycle` | `v0.2.1-0.20261115072539-2332f74636d4` |
-| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261115072539-2332f74636d4` |
-| `station-payload` | `v0.3.1-0.20261115072539-2332f74636d4` |
-| `grantcheck` | `v0.1.2-0.20261115072539-2332f74636d4` |
+| `grant-store` | `v0.1.1-0.20261115072539-3bbc2d8ab62e` |
+| `m5-host-smoke` | `v0.3.1-0.20261115072539-3bbc2d8ab62e` |
+| `model-proxy` | `v0.4.1-0.20261115072539-3bbc2d8ab62e` |
+| `payment-chain` | `v0.2.1-0.20261115072539-3bbc2d8ab62e` |
+| `rental` | `v0.5.1-0.20261115072539-3bbc2d8ab62e` |
+| `rental-booking` | `v0.4.1-0.20261115072539-3bbc2d8ab62e` |
+| `rental-gateway` | `v0.4.1-0.20261115072539-3bbc2d8ab62e` |
+| `rental-gateway/kernelbind` | `v0.1.1-0.20261115072539-3bbc2d8ab62e` |
+| `sealwatch` | `v0.2.1-0.20261115072539-3bbc2d8ab62e` |
+| `signer-service` | `v0.3.1-0.20261115072539-3bbc2d8ab62e` |
+| `single-use` | `v0.3.1-0.20261115072539-3bbc2d8ab62e` |
+| `station-lifecycle` | `v0.2.1-0.20261115072539-3bbc2d8ab62e` |
+| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261115072539-3bbc2d8ab62e` |
+| `station-payload` | `v0.3.1-0.20261115072539-3bbc2d8ab62e` |
+| `grantcheck` | `v0.1.2-0.20261115072539-3bbc2d8ab62e` |
 
 The inventory below is generated and checked by
 `python3 .scripts/check-module-graph.py`, which parses every `go.mod` with
