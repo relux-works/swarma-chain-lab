@@ -28,7 +28,7 @@
     "reason": "Historical issuance read-site audit; documentation only."
   },
   "experiments/rental/README.md": {
-    "sha256": "6454461ede580031c38029f08a8999baeeb1ebeab199924c2064012942e8b8e1",
+    "sha256": "313bad6a3a72eef33a1ac042acbeff82887c35310738442aaa792971447308f4",
     "reason": "Experiment documentation and CLI examples; no executable consumer."
   },
   "experiments/rental/certificate.go": {
@@ -52,15 +52,15 @@
     "reason": "Exact-envelope issuer record integrity/replay and issuance result export; booking ID and reserved seal key issuance, never envelope ID."
   },
   "experiments/rental/detached_kernel.go": {
-    "sha256": "caa376f25dc8d2e90bee7c9e98d629ac7d67dddfbfe63d73a43b1842cc0c929a",
+    "sha256": "94501a42927e312616a1497d0f96cf32a0cf80546b301420699f675366b049ad",
     "reason": "Observer-local receipt correlation, detached state filename/integrity and first-admitted seal index; StateDir scopes all durable reads."
   },
   "experiments/rental/grant_kernel.go": {
-    "sha256": "6e04acd8c47031379d6518aead1e5e16c9d7333a70163b8a0ee8773503db5ed4",
+    "sha256": "0444b4944d58ff25223fe77c18ad8f6acba196ed742c2fc1843a0df5b4f5250f",
     "reason": "Shared Receipt clearing for committed v3 grants; never reads a detached-v2 envelope ID."
   },
   "experiments/rental/kernel.go": {
-    "sha256": "8ff9d9d2b6d1224243b1245b4d92a739fdabcfc2f0c8864ab1757901ee5b6731",
+    "sha256": "1615940e32311e4a54b98433b463b72365a7eae5da70cfff0b4d2ff6a77b49b4",
     "reason": "Shared Receipt field/JSON serialization; other reads are v1 committed-certificate state, never detached-v2 cross-observer identity."
   },
   "experiments/rental/planner.go": {
