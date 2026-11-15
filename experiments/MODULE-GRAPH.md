@@ -1,23 +1,17 @@
 # Published module graph audit
 
-The current floor is signed source `e70a35a41dec5948d5452f1f898f4d26977372d7`, published at
-`20261114210947`. All 101 internal requirements select this compatible branch
-snapshot or an ancestry-verified successor. It descends from main `66dfd7cf2ed5ece75f0632be188412cea426154b`
-and strict-parser change `28d4b9f1aba4f10e8d57ea486f73b52aeabe46ab`.
-The manifest-refresh commit is selected uniformly to retain current consumer APIs and every strict
-call site, including the wallet's rental and grantcheck requirements. This also
-retains the source changes in the booking, executor, gateway, shared parser and
-wallet modules. Its requirements point to `27d39435cdc4`, so transitive selected modules also
-retain the rebased strict change. This two-layer refresh avoids selecting the
-pre-refresh manifests that still contain old sibling pins. No requirement is
-lowered; no local replacement changes.
+The current floor is signed identity-expiry source `8f2786b2c6ac773b2bfa67bac7680c52e72fa885`, published at
+`20261115072538`. Every internal requirement selects this ancestry-verified snapshot.
+It descends from the previous shared floor and strict-parser change
+`28d4b9f1aba4f10e8d57ea486f73b52aeabe46ab`.
+This source contains the typed RPC application error and named expired-identity
+refusal. The manifest selection layer is refreshed separately so published
+consumers retain those fixes through their transitive dependencies.
 
-The PR #111 selection refresh selects the combined-budget writer via its containing
-snapshot. Every consumer requirement on single-use or grantcheck selects
-`43a49e4c07acfc4e966c7ca2fdd8aa0331eeef51`, containing both final-sample
-freshness and atomic aggregate acceptance. These are earlier commits of the
-rebased branch and descend from the strict snapshot floor. The floor below
-remains the shared minimum; it does not replace these per-edge selections.
+The identity-expiry snapshot also descends from the PR #111 combined-budget
+writer `43a49e4c07acfc4e966c7ca2fdd8aa0331eeef51`, retaining final-sample
+freshness and atomic aggregate acceptance. Ancestry, not version order,
+establishes containment of those earlier fixes.
 
 Semantic-version order establishes an API floor, **not fix containment**. The
 numerically higher rental snapshot `3baa201bafb6` lacks the strict certificate
@@ -56,21 +50,21 @@ before test-only parser instrumentation.
 
 | Dependency under experiments/ | Published requirement |
 | --- | --- |
-| `grant-store` | `v0.1.1-0.20261114210947-e70a35a41dec` |
-| `m5-host-smoke` | `v0.3.1-0.20261114210947-e70a35a41dec` |
-| `model-proxy` | `v0.4.1-0.20261114210947-e70a35a41dec` |
-| `payment-chain` | `v0.2.1-0.20261114210947-e70a35a41dec` |
-| `rental` | `v0.5.1-0.20261114210947-e70a35a41dec` |
-| `rental-booking` | `v0.4.1-0.20261114210947-e70a35a41dec` |
-| `rental-gateway` | `v0.4.1-0.20261114210947-e70a35a41dec` |
-| `rental-gateway/kernelbind` | `v0.1.1-0.20261114210947-e70a35a41dec` |
-| `sealwatch` | `v0.2.1-0.20261114210947-e70a35a41dec` |
-| `signer-service` | `v0.3.1-0.20261114210947-e70a35a41dec` |
-| `single-use` | `v0.3.1-0.20261114210947-e70a35a41dec` |
-| `station-lifecycle` | `v0.2.1-0.20261114210947-e70a35a41dec` |
-| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261114210947-e70a35a41dec` |
-| `station-payload` | `v0.3.1-0.20261114210947-e70a35a41dec` |
-| `grantcheck` | `v0.1.2-0.20261114210947-e70a35a41dec` |
+| `grant-store` | `v0.1.1-0.20261115072538-8f2786b2c6ac` |
+| `m5-host-smoke` | `v0.3.1-0.20261115072538-8f2786b2c6ac` |
+| `model-proxy` | `v0.4.1-0.20261115072538-8f2786b2c6ac` |
+| `payment-chain` | `v0.2.1-0.20261115072538-8f2786b2c6ac` |
+| `rental` | `v0.5.1-0.20261115072538-8f2786b2c6ac` |
+| `rental-booking` | `v0.4.1-0.20261115072538-8f2786b2c6ac` |
+| `rental-gateway` | `v0.4.1-0.20261115072538-8f2786b2c6ac` |
+| `rental-gateway/kernelbind` | `v0.1.1-0.20261115072538-8f2786b2c6ac` |
+| `sealwatch` | `v0.2.1-0.20261115072538-8f2786b2c6ac` |
+| `signer-service` | `v0.3.1-0.20261115072538-8f2786b2c6ac` |
+| `single-use` | `v0.3.1-0.20261115072538-8f2786b2c6ac` |
+| `station-lifecycle` | `v0.2.1-0.20261115072538-8f2786b2c6ac` |
+| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261115072538-8f2786b2c6ac` |
+| `station-payload` | `v0.3.1-0.20261115072538-8f2786b2c6ac` |
+| `grantcheck` | `v0.1.2-0.20261115072538-8f2786b2c6ac` |
 
 The inventory below is generated and checked by
 `python3 .scripts/check-module-graph.py`, which parses every `go.mod` with
