@@ -178,6 +178,59 @@ func isRunnerRecord(sfd int, st *unix.Stat_t) bool {
 	return false
 }
 
+// closeRange and procFDDir are variables so that a test can exercise the fallback and the refusal.
+var (
+	closeRange = unix.CloseRange
+	procFDDir  = "/proc/self/fd"
+)
+
+// markInheritedCloexec sets close-on-exec on every descriptor >= 3: close_range(2) with CLOSE_RANGE_CLOEXEC, or, where
+// the kernel lacks it, each descriptor listed in /proc/self/fd. It fails closed when neither works.
+func markInheritedCloexec() error {
+	if closeRange(3, ^uint(0), unix.CLOSE_RANGE_CLOEXEC) == nil {
+		return nil
+	}
+	ents, e := os.ReadDir(procFDDir)
+	if e != nil {
+		return fmt.Errorf("close_range unavailable and %s unreadable: %v", procFDDir, e)
+	}
+	for _, en := range ents {
+		fd, ok := parseFD(en.Name())
+		if !ok {
+			return fmt.Errorf("unexpected entry %q in %s", en.Name(), procFDDir)
+		}
+		if fd < 3 {
+			continue
+		}
+		flags, e := unix.FcntlInt(uintptr(fd), unix.F_GETFD, 0)
+		if e == unix.EBADF {
+			continue // the directory's own descriptor, already closed by ReadDir
+		}
+		if e != nil {
+			return fmt.Errorf("fd %d: %v", fd, e)
+		}
+		if _, e := unix.FcntlInt(uintptr(fd), unix.F_SETFD, flags|unix.FD_CLOEXEC); e != nil && e != unix.EBADF {
+			return fmt.Errorf("fd %d: %v", fd, e)
+		}
+	}
+	return nil
+}
+
+// parseFD reads a decimal descriptor number without a sign or leading zero.
+func parseFD(s string) (int, bool) {
+	if s == "" || len(s) > 9 || (len(s) > 1 && s[0] == '0') {
+		return 0, false
+	}
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n, true
+}
+
 // capped keeps at most MaxCapture bytes and remembers that more were written.
 type capped struct {
 	b    []byte
@@ -221,6 +274,12 @@ func (x *Executor) Run(c Cmd) (Result, error) {
 	want := c.WantRC
 	if len(want) == 0 {
 		want = []int{0}
+	}
+	// Descriptors the runner INHERITED without close-on-exec (from an operator shell, a supervisor, a CI runner)
+	// would pass to the child, since Go marks only the files it opens itself. Mark every descriptor >= 3
+	// close-on-exec before each start, and refuse to start if that cannot be done.
+	if e := markInheritedCloexec(); e != nil {
+		return Result{}, fmt.Errorf("EXEC_FD_CLOEXEC %s: %v", c.Program, e)
 	}
 	devnull, e := os.Open(os.DevNull)
 	if e != nil {

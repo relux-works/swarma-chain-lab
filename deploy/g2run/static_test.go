@@ -28,7 +28,8 @@ var watched = map[string]map[string]bool{
 var kernelMembers = map[string]map[string]bool{
 	"syscall": {"Stat_t": true},
 	"golang.org/x/sys/unix": {
-		"AT_SYMLINK_NOFOLLOW": true, "Close": true, "F_SETFL": true, "Fchmod": true, "FcntlInt": true, "Flock": true,
+		"AT_SYMLINK_NOFOLLOW": true, "CLOSE_RANGE_CLOEXEC": true, "Close": true, "CloseRange": true, "EBADF": true,
+		"FD_CLOEXEC": true, "F_GETFD": true, "F_SETFD": true, "F_SETFL": true, "Fchmod": true, "FcntlInt": true, "Flock": true,
 		"Fstat": true, "Fstatat": true, "Fsync": true, "Ftruncate": true, "LOCK_EX": true, "LOCK_NB": true, "Mkdir": true,
 		"O_CLOEXEC": true, "O_CREAT": true, "O_DIRECTORY": true, "O_NOFOLLOW": true, "O_NONBLOCK": true, "O_PATH": true,
 		"O_RDONLY": true, "O_WRONLY": true, "Open": true, "OpenHow": true, "Openat2": true, "RESOLVE_BENEATH": true,

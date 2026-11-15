@@ -105,18 +105,60 @@ func TestExecFixedNoDescriptorLeak(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer f.Close()
-	r, e := x.Run(Cmd{Program: "ls", Args: []string{"/proc/self/fd"}})
+	// An INHERITED descriptor: dup(2) clears close-on-exec, as an operator shell or a CI runner leaves it.
+	leak, e := unix.Dup(int(f.Fd()))
 	if e != nil {
 		t.Fatal(e)
 	}
-	var fds []int
-	for _, s := range strings.Fields(string(r.Stdout)) {
-		n, _ := strconv.Atoi(s)
-		fds = append(fds, n)
+	defer unix.Close(leak)
+	if fl, _ := unix.FcntlInt(uintptr(leak), unix.F_GETFD, 0); fl&unix.FD_CLOEXEC != 0 {
+		t.Fatal("CONTROL: the planted descriptor is already close-on-exec, so the test would prove nothing")
 	}
-	sort.Ints(fds)
-	if len(fds) > 4 || fds[len(fds)-1] > 3 {
-		t.Fatalf("child descriptors %v (runner held fd %d)", fds, f.Fd())
+	childFDs := func() []int {
+		r, e := x.Run(Cmd{Program: "ls", Args: []string{"/proc/self/fd"}})
+		if e != nil {
+			t.Fatal(e)
+		}
+		var fds []int
+		for _, s := range strings.Fields(string(r.Stdout)) {
+			n, _ := strconv.Atoi(s)
+			fds = append(fds, n)
+		}
+		sort.Ints(fds)
+		return fds
+	}
+	if fds := childFDs(); len(fds) > 4 || fds[len(fds)-1] > 3 {
+		t.Fatalf("child descriptors %v (runner held fd %d, inherited fd %d)", fds, f.Fd(), leak)
+	}
+	// The /proc/self/fd fallback, used where close_range(2) is unavailable, protects a fresh inherited descriptor too.
+	old := closeRange
+	closeRange = func(uint, uint, uint) error { return unix.ENOSYS }
+	defer func() { closeRange = old }()
+	leak2, _ := unix.Dup(int(f.Fd()))
+	defer unix.Close(leak2)
+	if fds := childFDs(); len(fds) > 4 || fds[len(fds)-1] > 3 {
+		t.Fatalf("fallback: child descriptors %v (inherited fd %d)", fds, leak2)
+	}
+}
+
+// Claim: when neither close_range(2) nor /proc/self/fd can mark the inherited descriptors, the program does NOT start
+// (EXEC_FD_CLOEXEC, fail closed); the normal path beside it starts.
+func TestExecFixedCloexecFailClosed(t *testing.T) {
+	x, state := testExecutor(t)
+	marker := filepath.Join(state, "ran")
+	oldCR, oldDir := closeRange, procFDDir
+	closeRange = func(uint, uint, uint) error { return unix.ENOSYS }
+	procFDDir = filepath.Join(state, "no-such-proc")
+	_, e := x.Run(Cmd{Program: "touch", Args: []string{marker}})
+	closeRange, procFDDir = oldCR, oldDir
+	if e == nil || !strings.Contains(e.Error(), "EXEC_FD_CLOEXEC") {
+		t.Fatalf("e=%v, want EXEC_FD_CLOEXEC", e)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("the program ran although its descriptors could not be marked")
+	}
+	if _, e := x.Run(Cmd{Program: "touch", Args: []string{marker}}); e != nil {
+		t.Fatal(e)
 	}
 }
 
