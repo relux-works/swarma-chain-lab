@@ -1,0 +1,11 @@
+{
+  "warning": "PUBLIC FIXED TEST SECRETS ONLY. Small integers, deliberately unsafe. Never fund or use these keys outside isolated fixtures.",
+  "issuer": 1,
+  "delegator": 2,
+  "delegatee": 3,
+  "notary": 4,
+  "issuer_owner": 5,
+  "delegator_owner": 6,
+  "notary_owner": 7,
+  "other": 8
+}
