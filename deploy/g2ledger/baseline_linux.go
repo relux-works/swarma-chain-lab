@@ -248,6 +248,14 @@ func validateProspectiveReused(s Scope, sys System) error {
 	for _, path := range s.Paths {
 		parents[filepath.Dir(path.Path)] = true
 	}
+	// Preserve legacy lazy derivation: path parents alone can justify all reuse.
+	needsUnitPlan := false
+	for _, path := range s.Reused {
+		needsUnitPlan = needsUnitPlan || !parents[path]
+	}
+	if s.FutureUnits == nil && !needsUnitPlan {
+		return nil
+	}
 	for _, name := range s.Units {
 		var links []FutureUnitLink
 		if s.FutureUnits != nil {
@@ -257,7 +265,7 @@ func validateProspectiveReused(s Scope, sys System) error {
 				}
 			}
 		} else {
-			// Legacy scopes require every declared unit to be installed at init.
+			// Legacy scopes read installed units only when reuse needs their plan.
 			plan, err := expectedUnitInstall(sys, name)
 			if err != nil {
 				return fmt.Errorf("REUSED_PROSPECTIVE_UNIT_PLAN %s: %w", name, err)

@@ -51,8 +51,11 @@ after verifying the release, then `deploy-kit g2-ledger verify -dir /root/g2/led
 Declare intended paths/accounts/units and a required `reused` array of existing
 parent directories (`[]` for none) in the scope file before init; genesis
 records their S0 state and attempt purpose. When the installation plan installs
-units after init, stage their sources before init and add `future_units`: one
-`{name, source, sha256, links: [{path, target}]}` entry per declared unit.
+units after init, stage their sources before init and add `future_units`: a
+`{name, source, sha256, links: [{path, target}]}` entry for each unit whose
+future enable inventory is to be bound. Entries may cover a subset of `units`,
+and `future_units: []` is accepted. A created but never-enabled unit may omit
+its entry or declare an empty `links` inventory.
 `source` is the absolute staged
 unit path, `sha256` pins the exact bytes, and `links` pins the complete enable
 inventory. Init reads each staged input from a private 0700 staging directory
@@ -62,8 +65,12 @@ Installed units may still be absent. Link parents must be reused or
 attempt-created under reused parents;
 unused reused declarations still refuse. Enable checks installed bytes and the
 complete absent link set before effects, with named digest/inventory refusals.
-Without this field every declared unit must be installed and parseable at init;
-missing units refuse as `REUSED_PROSPECTIVE_UNIT_PLAN <unit>: UNIT_FILE_MISSING`.
+Without this field, installed unit plans are read only if a reused directory
+is not already an immediate parent of a declared path. When such a plan is
+needed, missing units refuse as
+`REUSED_PROSPECTIVE_UNIT_PLAN <unit>: UNIT_FILE_MISSING`. A declared future link
+need never be made: its unchanged reused parent emits no comparison row. A
+reused parent with no prospective entry still refuses by name at init.
 See [scope declarations](G2-LEDGER.md#declare-s0-comparison-scopes) for the closed
 schema and a plan example. Replay emits JSONL differences and
 a summary on stdout, with a human summary on stderr. The single retention table

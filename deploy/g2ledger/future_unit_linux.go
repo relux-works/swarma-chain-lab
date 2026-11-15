@@ -9,9 +9,6 @@ func validateFutureUnits(s Scope) error {
 	if s.FutureUnits == nil {
 		return nil
 	}
-	if len(s.FutureUnits) == 0 {
-		return errors.New("FUTURE_UNIT_PLAN_EMPTY")
-	}
 	units, links := map[string]bool{}, map[string]bool{}
 	for _, unit := range s.FutureUnits {
 		if installName(unit.Name) != nil || units[unit.Name] {
@@ -34,9 +31,6 @@ func validateFutureUnits(s Scope) error {
 		if !isHex(unit.SHA256, 32) {
 			return errors.New("FUTURE_UNIT_SHA256 " + unit.Name)
 		}
-		if len(unit.Links) == 0 {
-			return errors.New("FUTURE_UNIT_LINKS_EMPTY " + unit.Name)
-		}
 		for _, link := range unit.Links {
 			if !validPath(link.Path) || !validPath(link.Target) || filepath.Base(link.Target) != unit.Name || links[link.Path] {
 				return errors.New("FUTURE_UNIT_LINK_INVALID_OR_DUPLICATE " + unit.Name)
@@ -47,11 +41,6 @@ func validateFutureUnits(s Scope) error {
 				}
 			}
 			links[link.Path] = true
-		}
-	}
-	for _, name := range s.Units {
-		if !units[name] {
-			return errors.New("FUTURE_UNIT_PLAN_MISSING " + name)
 		}
 	}
 	return nil

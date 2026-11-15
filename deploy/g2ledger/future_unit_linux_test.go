@@ -343,7 +343,7 @@ func TestLedgerFutureUnitParentDeclarations(t *testing.T) {
 	}
 }
 
-// Claim: legacy scopes require every declared unit file even when reuse is justified by file paths; present units preserve init and enable behavior.
+// Claim: legacy scopes needing a unit plan refuse missing units; path-parent-only reuse does not derive plans, and installed enabling controls still pass.
 func TestLedgerFutureUnitLegacyRequiresInstalled(t *testing.T) {
 	for _, variant := range []string{"absent", "one-absent", "present", "absent-path-parents-only"} {
 		t.Run(variant, func(t *testing.T) {
@@ -363,8 +363,11 @@ func TestLedgerFutureUnitLegacyRequiresInstalled(t *testing.T) {
 				}
 			}
 			err := f.init(t)
-			if variant == "present" {
+			if variant == "present" || variant == "absent-path-parents-only" {
 				must(t, err)
+				if variant == "absent-path-parents-only" {
+					return
+				}
 				f.open(t)
 				must(t, f.l.Enable(units[0].Name))
 			} else {
@@ -382,9 +385,9 @@ func TestLedgerFutureUnitLegacyRequiresInstalled(t *testing.T) {
 	}
 }
 
-// Claim: closed future-plan schemas reject malformed hashes/paths, duplicate or missing units/links and unknown nested fields before journal creation.
+// Claim: closed future-plan schemas reject malformed hashes/paths, duplicate units/links and entries outside the unit scope and unknown nested fields before journal creation.
 func TestLedgerFutureUnitClosedSchema(t *testing.T) {
-	for _, variant := range []string{"hash", "relative-source", "relative-link", "relative-target", "duplicate-unit", "duplicate-link", "missing-unit", "unknown-unit", "empty", "empty-links", "unknown-field", "link-identity", "null"} {
+	for _, variant := range []string{"hash", "relative-source", "relative-link", "relative-target", "duplicate-unit", "duplicate-link", "unknown-unit", "unknown-field", "link-identity", "null"} {
 		t.Run(variant, func(t *testing.T) {
 			f := newFutureFixture(t)
 			switch variant {
@@ -400,19 +403,10 @@ func TestLedgerFutureUnitClosedSchema(t *testing.T) {
 				f.scope.FutureUnits = append(f.scope.FutureUnits, f.scope.FutureUnits[0])
 			case "duplicate-link":
 				f.scope.FutureUnits[0].Links = append(f.scope.FutureUnits[0].Links, f.scope.FutureUnits[0].Links[0])
-			case "missing-unit":
-				f.scope.FutureUnits = f.scope.FutureUnits[:1]
 			case "unknown-unit":
 				f.scope.FutureUnits[0].Name = "unknown.service"
-			case "empty":
-				f.scope.FutureUnits = []FutureUnit{}
-			case "empty-links":
-				f.scope.FutureUnits[0].Links = []FutureUnitLink{}
 			}
 			raw := canonical(f.scope)
-			if variant == "empty" {
-				raw = bytes.Replace(raw, []byte(`"reused":`), []byte(`"future_units":[],"reused":`), 1)
-			}
 			if variant == "unknown-field" {
 				raw = bytes.Replace(raw, []byte(`"source":`), []byte(`"extra":true,"source":`), 1)
 			}

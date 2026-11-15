@@ -87,7 +87,8 @@ scope only: they grant no creation, adoption, retention or recursive authority.
 The plan scripts must declare every pre-existing parent they intend to reuse
 before init; the engine never infers this set from observed child operations.
 
-For an attempt that installs units **after init**, also declare `future_units`:
+To bind the future enable inventory of units installed **after init**, declare
+`future_units`:
 
 ```json
 "future_units": [
@@ -107,13 +108,19 @@ For an attempt that installs units **after init**, also declare `future_units`:
 
 This member belongs in the scope object alongside `units`; the example digest
 is synthetic and must be replaced with the SHA-256 of the exact staged bytes.
-Include one entry for **every** unit in `units`. Each entry has exactly `name`,
+Include an entry for each unit whose future bytes and links must be bound.
+Each entry has exactly `name`,
 `source`, `sha256` and `links`; each link has exactly `path` and `target`.
 `source` is the absolute path where the installation plan stages the unit before
 installing it; `target` is the absolute installed unit path that enable will
 select. Paths must be clean, absolute and outside volatile runtime storage;
-the digest must be 64 lowercase hexadecimal characters. Empty declarations,
-missing/extra/duplicate units, duplicate link paths and unknown fields refuse.
+the digest must be 64 lowercase hexadecimal characters. Entries outside `units`,
+duplicate units, duplicate link paths and unknown fields refuse. Entries may
+cover a subset of `units`; `future_units: []` and empty `links` inventories are
+accepted. A created but never-enabled unit may omit its future entry, declare
+an empty inventory, or declare links that the attempt never makes. A declared
+link is a prospective entry even when never made; an unchanged reused parent
+then emits no row. Enabling a bound unit still requires its exact inventory.
 Before init, place every staged source under a private 0700 staging directory
 outside the declared targets. It is an **input read at init**, not a mutation
 target: do not add it to `paths` or its staging parent to `reused` merely to
@@ -155,13 +162,13 @@ external pinned installer copying it through its own staging directory. A
 matching staged source alone never authorizes different installed bytes, even
 when their Install sections would create identical links.
 
-**Compatibility rule:** omitting `future_units` keeps the installed-file plan
-behavior, but **every** unit in `units` must already be present and parseable at
-init, even if ordinary scope paths already justify all reused directories.
-A missing unit refuses as
-`REUSED_PROSPECTIVE_UNIT_PLAN <unit>: UNIT_FILE_MISSING`. Supply `future_units`
-for future installation; pre-installing a unit is not necessary in that mode.
-An explicit empty array or null is not an omitted field and refuses.
+**Compatibility rule:** omitting `future_units` preserves lazy installed-file
+plan derivation: only when some reused directory is not an immediate parent of
+a declared path are the plans for all declared units read at init. If paths
+already justify all reuse, a unit may be absent at init and created later
+without enabling. When derivation is needed, an absent unit still refuses as
+`REUSED_PROSPECTIVE_UNIT_PLAN <unit>: UNIT_FILE_MISSING`. An explicit empty
+array declares no future links; null still refuses the closed schema.
 
 Declare every intended mutation path with its kind (`dir`, `tree`, `file`, `secret`),
 every created account, both subjects of every membership, and every enabled
@@ -486,10 +493,11 @@ temporaries of declared modify-files share the declared file's immediate
 parent; they do not authorize other ancestors. A truly unused declaration is
 refused by name as `REUSED_PARENT_NOT_PROSPECTIVE` before journal creation.
 With `future_units`, the declaration supplies prospective links without reading
-installed units at init. Without that field, every declared unit's installed
-definition must be available and supported at init; a missing, unreadable or
-unsupported plan refuses as `REUSED_PROSPECTIVE_UNIT_PLAN` rather than guessing
-its links.
+installed units at init. Without that field, installed plans are derived only
+when at least one reused directory is not already justified by a declared
+path's immediate parent. In that case all declared units must be available
+and supported; a missing, unreadable or unsupported plan refuses as
+`REUSED_PROSPECTIVE_UNIT_PLAN` rather than guessing its links.
 An interrupted attempt may never reach a declared entry: an unchanged parent
 then emits no row and no violation, including after S0 or S1. A changed parent
 still requires the full sealed-snapshot, restored-invariant and named-cause
