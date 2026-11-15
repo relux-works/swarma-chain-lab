@@ -1,18 +1,18 @@
 # Published module graph audit
 
-The current floor is signed audited source `3bbc2d8ab62efe0bc498c80d29413daee816d03b`, with commit time
-`20261115072539`. All 101 internal requirements select this ancestry-verified snapshot.
-It contains signed identity-expiry source
-`8f2786b2c6ac773b2bfa67bac7680c52e72fa885`, manifest-selection ancestor
-`2332f74636d435e5086bbc4f23cc2d5f7b2ad0d8`, and the refreshed detached-v2
-consumer byte audit. Its own manifests already retain the fixed source through
-that earlier selection layer, preserving typed RPC application errors and named
-expired-identity refusals through published transitive dependencies.
+The current floor is signed error-envelope source `1b02659161608036dfa9820167a2dbbbbd983b10`, with commit time
+`20261115082435`. All 101 internal requirements select this ancestry-verified snapshot.
+It contains complete JSON-RPC error-envelope fix
+`1b02659161608036dfa9820167a2dbbbbd983b10`. A typed application error requires all three response members,
+a matching request ID and a null result. Malformed envelopes remain node failures.
+This first layer selects the fixed source. A later manifest selection retains
+these refreshed requirements through published transitive dependencies.
+The detached-v2 consumer byte inventory was regenerated and audited unchanged.
 No third-party requirement or local replacement changes.
 
-These selections were regenerated locally after a signed rebase, using the same
-module-specific version bases and the selected ancestors’ Git commit times.
-Public-proxy resolution and checksum verification await publication.
+These selections were regenerated locally from the selected ancestors' Git
+commit times and ancestry-verified module-specific version bases. Public-proxy
+resolution and checksum verification await publication.
 
 **Landing hold: pure fast-forward only.** The selected source and manifest
 commits are this branch's own ancestors. Preserve their signed commit objects;
@@ -60,21 +60,21 @@ before test-only parser instrumentation.
 
 | Dependency under experiments/ | Selected requirement |
 | --- | --- |
-| `grant-store` | `v0.1.1-0.20261115072539-3bbc2d8ab62e` |
-| `m5-host-smoke` | `v0.3.1-0.20261115072539-3bbc2d8ab62e` |
-| `model-proxy` | `v0.4.1-0.20261115072539-3bbc2d8ab62e` |
-| `payment-chain` | `v0.2.1-0.20261115072539-3bbc2d8ab62e` |
-| `rental` | `v0.5.1-0.20261115072539-3bbc2d8ab62e` |
-| `rental-booking` | `v0.4.1-0.20261115072539-3bbc2d8ab62e` |
-| `rental-gateway` | `v0.4.1-0.20261115072539-3bbc2d8ab62e` |
-| `rental-gateway/kernelbind` | `v0.1.1-0.20261115072539-3bbc2d8ab62e` |
-| `sealwatch` | `v0.2.1-0.20261115072539-3bbc2d8ab62e` |
-| `signer-service` | `v0.3.1-0.20261115072539-3bbc2d8ab62e` |
-| `single-use` | `v0.3.1-0.20261115072539-3bbc2d8ab62e` |
-| `station-lifecycle` | `v0.2.1-0.20261115072539-3bbc2d8ab62e` |
-| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261115072539-3bbc2d8ab62e` |
-| `station-payload` | `v0.3.1-0.20261115072539-3bbc2d8ab62e` |
-| `grantcheck` | `v0.1.2-0.20261115072539-3bbc2d8ab62e` |
+| `grant-store` | `v0.1.1-0.20261115082435-1b0265916160` |
+| `m5-host-smoke` | `v0.3.1-0.20261115082435-1b0265916160` |
+| `model-proxy` | `v0.4.1-0.20261115082435-1b0265916160` |
+| `payment-chain` | `v0.2.1-0.20261115082435-1b0265916160` |
+| `rental` | `v0.5.1-0.20261115082435-1b0265916160` |
+| `rental-booking` | `v0.4.1-0.20261115082435-1b0265916160` |
+| `rental-gateway` | `v0.4.1-0.20261115082435-1b0265916160` |
+| `rental-gateway/kernelbind` | `v0.1.1-0.20261115082435-1b0265916160` |
+| `sealwatch` | `v0.2.1-0.20261115082435-1b0265916160` |
+| `signer-service` | `v0.3.1-0.20261115082435-1b0265916160` |
+| `single-use` | `v0.3.1-0.20261115082435-1b0265916160` |
+| `station-lifecycle` | `v0.2.1-0.20261115082435-1b0265916160` |
+| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261115082435-1b0265916160` |
+| `station-payload` | `v0.3.1-0.20261115082435-1b0265916160` |
+| `grantcheck` | `v0.1.2-0.20261115082435-1b0265916160` |
 
 The inventory below is generated and checked by
 `python3 .scripts/check-module-graph.py`, which parses every `go.mod` with
