@@ -1,0 +1,5442 @@
+{
+  "schema": "swarma-link-spec/lip-0021-vectors/1",
+  "lip": "LIP-0021",
+  "note": "Draft vectors for LIP-0021. No vector reads a chain: scripts, heights and histories are stated, and no node decoded or validated them. Keys are the compressed forms of published BIP-340 test keys and belong to nobody. Names, values, hashes and the octets of signatures are placeholders, and no signature in this file verifies. A refused vector holds one defect and names a valid neighbour that differs from it in that defect; a vector marked compound holds two findings and names none. No verdict of this file records a closure.",
+  "fields": {
+    "scripts": "script_hex is a whole output script. confirmed_at is the height of the block that holds the output; it is stated where the address script is a witness key hash, the one script whose reading depends on it. expect.prefix is update, registration, reservation or none; name and value are the pushed octets as ASCII; expect.reading is the outcome of O3.4 against pin.",
+    "writers": "created states the operation and the name of the output whose writer is asked. inputs lists, for each input of that operation, the script of the output that it spends, its unlocking script and, where it has one, the items of its witness; spent_confirmed_at is the height of the block that holds the spent output and is stated where that output is a witness key hash.",
+    "walks": "history lists the outputs of a name from the current one back. prefix is update, registration or none (no supported prefix); reading is the outcome of O3.4 against the pin of the rule; swarma stands for the octets of the `swarma` member of the value, and none for a value without the member; writer is the outcome of O4.4 for the operation that created the output; readable false means that the node does not supply the transaction of the output. context.step_bound is the operator's bound of O6.3; context.transaction_index false is a node without the index."
+  },
+  "test_pins": {
+    "owner": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+    "other": "02dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8",
+    "third": "02dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659"
+  },
+  "parameters": {
+    "depth_main_chain": 36000,
+    "depth_regression_test_chain": 30,
+    "witness_rules_from_height_main_chain": 475000,
+    "name": "id/lip0021-issuer",
+    "supported_address_scripts": {
+      "key hash": "76a914 <20 octets> 88ac",
+      "witness key hash": "0014 <20 octets>"
+    }
+  },
+  "rules": [
+    {
+      "rule": "O1.1",
+      "section": "1",
+      "title": "the verifier's own node and the three kinds of fact",
+      "state": "proposed",
+      "vectors": [],
+      "not_covered": "No vector reads a node. The vectors of O1.3 state that a fact is missing."
+    },
+    {
+      "rule": "O1.2",
+      "section": "1",
+      "title": "one consistent observation",
+      "state": "proposed",
+      "vectors": [],
+      "not_covered": "No vector takes an observation or holds a pending operation. The observation profile is open."
+    },
+    {
+      "rule": "O1.3",
+      "section": "1",
+      "title": "a missing fact proves nothing",
+      "state": "proposed",
+      "vectors": [
+        "walk-issuer-13",
+        "walk-issuer-19",
+        "walk-recipient-05"
+      ]
+    },
+    {
+      "rule": "O2.1",
+      "section": "2",
+      "title": "the form and the point of an owner pin",
+      "state": "proposed",
+      "vectors": [
+        "pin-v-01",
+        "pin-v-02",
+        "pin-v-03",
+        "pin-i-01",
+        "pin-i-02",
+        "pin-i-03",
+        "pin-i-04",
+        "pin-i-05",
+        "pin-i-06",
+        "pin-i-07",
+        "pin-i-08",
+        "pin-i-09"
+      ]
+    },
+    {
+      "rule": "O2.2",
+      "section": "2",
+      "title": "the pin is the key itself",
+      "state": "proposed",
+      "vectors": [
+        "pin-i-01",
+        "pin-i-05"
+      ]
+    },
+    {
+      "rule": "O2.3",
+      "section": "2",
+      "title": "comparison with a signing key by x coordinate",
+      "state": "proposed",
+      "vectors": [
+        "pin-c-01",
+        "pin-c-02",
+        "pin-c-03"
+      ]
+    },
+    {
+      "rule": "O3.1",
+      "section": "3",
+      "title": "the verifier parses the octets itself",
+      "state": "proposed",
+      "vectors": [
+        "script-01",
+        "script-28"
+      ],
+      "not_covered": "No vector shows what a node decodes. script-28 holds a script that the node's parser reads otherwise than this profile, by the source of that parser."
+    },
+    {
+      "rule": "O3.2",
+      "section": "3",
+      "title": "three supported prefixes",
+      "state": "proposed",
+      "vectors": [
+        "script-01",
+        "script-02",
+        "script-03",
+        "script-04",
+        "script-05",
+        "script-06",
+        "script-07",
+        "script-08",
+        "script-09",
+        "script-10",
+        "script-11",
+        "script-12",
+        "script-13",
+        "script-14",
+        "script-29",
+        "script-30",
+        "script-31",
+        "script-32",
+        "script-33",
+        "script-34",
+        "script-35",
+        "script-36",
+        "script-37",
+        "script-38",
+        "script-39"
+      ]
+    },
+    {
+      "rule": "O3.3",
+      "section": "3",
+      "title": "two supported address scripts",
+      "state": "proposed",
+      "vectors": [
+        "script-01",
+        "script-02",
+        "script-03",
+        "script-04",
+        "script-05",
+        "script-06",
+        "script-07",
+        "script-08",
+        "script-09",
+        "script-10",
+        "script-11",
+        "script-12",
+        "script-13",
+        "script-14",
+        "script-15",
+        "script-16",
+        "script-17",
+        "script-18",
+        "script-19",
+        "script-20",
+        "script-21",
+        "script-22",
+        "script-23",
+        "script-24",
+        "script-25",
+        "script-26",
+        "script-27",
+        "script-28"
+      ]
+    },
+    {
+      "rule": "O3.4",
+      "section": "3",
+      "title": "three outcomes of a reading",
+      "state": "proposed",
+      "vectors": [
+        "script-01",
+        "script-02",
+        "script-03",
+        "script-04",
+        "script-05",
+        "script-06",
+        "script-07",
+        "script-08",
+        "script-09",
+        "script-10",
+        "script-11",
+        "script-12",
+        "script-13",
+        "script-14",
+        "script-15",
+        "script-16",
+        "script-17",
+        "script-18",
+        "script-19",
+        "script-20",
+        "script-21",
+        "script-22",
+        "script-23",
+        "script-24",
+        "script-25",
+        "script-26",
+        "script-27",
+        "script-28",
+        "script-29",
+        "script-30",
+        "script-31",
+        "script-32",
+        "script-33",
+        "script-34",
+        "script-35",
+        "script-36",
+        "script-37",
+        "script-38",
+        "script-39"
+      ]
+    },
+    {
+      "rule": "O3.5",
+      "section": "3",
+      "title": "unsupported proves nothing",
+      "state": "proposed",
+      "vectors": [
+        "script-15",
+        "script-16",
+        "script-17",
+        "script-18",
+        "script-19",
+        "script-20",
+        "script-21",
+        "script-22",
+        "script-23",
+        "script-24",
+        "script-25",
+        "script-26",
+        "script-27",
+        "script-28",
+        "script-29",
+        "script-30",
+        "script-31",
+        "script-32",
+        "script-33",
+        "script-34",
+        "script-35",
+        "script-36",
+        "script-37",
+        "script-38",
+        "script-39",
+        "walk-issuer-11",
+        "walk-issuer-17",
+        "walk-issuer-28",
+        "walk-issuer-29",
+        "walk-recipient-03",
+        "walk-consent-09",
+        "walk-notary-07"
+      ]
+    },
+    {
+      "rule": "O4.1",
+      "section": "4",
+      "title": "the name input of an operation",
+      "state": "proposed",
+      "vectors": [
+        "writer-01",
+        "writer-02",
+        "writer-03",
+        "writer-04",
+        "writer-05",
+        "writer-06",
+        "writer-07",
+        "writer-08",
+        "writer-09",
+        "writer-10",
+        "writer-11",
+        "writer-12",
+        "writer-13",
+        "writer-14",
+        "writer-15",
+        "writer-16",
+        "writer-17",
+        "writer-18",
+        "writer-19",
+        "writer-20",
+        "writer-21",
+        "writer-22",
+        "writer-23",
+        "writer-24",
+        "walk-notary-08",
+        "walk-notary-09"
+      ]
+    },
+    {
+      "rule": "O4.2",
+      "section": "4",
+      "title": "written by the pinned owner",
+      "state": "proposed",
+      "vectors": [
+        "writer-01",
+        "writer-02",
+        "writer-03",
+        "writer-04",
+        "writer-05",
+        "writer-06",
+        "writer-07",
+        "writer-08",
+        "writer-09",
+        "writer-10",
+        "writer-11",
+        "writer-12",
+        "writer-13",
+        "writer-14",
+        "writer-15",
+        "writer-16",
+        "writer-17",
+        "writer-18",
+        "writer-19",
+        "writer-20",
+        "writer-21",
+        "writer-22",
+        "writer-23",
+        "writer-24"
+      ]
+    },
+    {
+      "rule": "O4.3",
+      "section": "4",
+      "title": "the hash type in the unlocking script or in the witness",
+      "state": "proposed",
+      "vectors": [
+        "writer-01",
+        "writer-02",
+        "writer-03",
+        "writer-04",
+        "writer-05",
+        "writer-06",
+        "writer-07",
+        "writer-08",
+        "writer-09",
+        "writer-10",
+        "writer-11",
+        "writer-12",
+        "writer-13",
+        "writer-14",
+        "writer-15",
+        "writer-16",
+        "writer-17",
+        "writer-18",
+        "writer-19",
+        "writer-20",
+        "writer-21",
+        "writer-22",
+        "writer-23",
+        "writer-24"
+      ]
+    },
+    {
+      "rule": "O4.4",
+      "section": "4",
+      "title": "three outcomes of the writer check",
+      "state": "proposed",
+      "vectors": [
+        "writer-01",
+        "writer-02",
+        "writer-03",
+        "writer-04",
+        "writer-05",
+        "writer-06",
+        "writer-07",
+        "writer-08",
+        "writer-09",
+        "writer-10",
+        "writer-11",
+        "writer-12",
+        "writer-13",
+        "writer-14",
+        "writer-15",
+        "writer-16",
+        "writer-17",
+        "writer-18",
+        "writer-19",
+        "writer-20",
+        "writer-21",
+        "writer-22",
+        "writer-23",
+        "writer-24",
+        "walk-issuer-16",
+        "walk-notary-01",
+        "walk-notary-04",
+        "walk-notary-05",
+        "walk-notary-06",
+        "walk-notary-08",
+        "walk-notary-09"
+      ]
+    },
+    {
+      "rule": "O5.1",
+      "section": "5",
+      "title": "a live name",
+      "state": "proposed",
+      "vectors": [
+        "live-01",
+        "live-02",
+        "live-03",
+        "live-04",
+        "live-05",
+        "live-06",
+        "walk-issuer-08",
+        "walk-issuer-09",
+        "walk-issuer-27",
+        "walk-recipient-04",
+        "walk-consent-07"
+      ]
+    },
+    {
+      "rule": "O5.2",
+      "section": "5",
+      "title": "an expired name and a new registration",
+      "state": "proposed",
+      "vectors": [
+        "walk-issuer-07",
+        "walk-issuer-08",
+        "walk-recipient-04",
+        "walk-notary-10"
+      ],
+      "not_covered": "The vectors show that an expired name refuses and that a walk from a new registration ends there. None shows a chain on which a name expires and is registered again."
+    },
+    {
+      "rule": "O6.1",
+      "section": "6",
+      "title": "the steps of a walk",
+      "state": "proposed",
+      "vectors": [
+        "walk-issuer-01",
+        "walk-issuer-02",
+        "walk-issuer-03",
+        "walk-issuer-04",
+        "walk-issuer-05",
+        "walk-issuer-06",
+        "walk-issuer-07",
+        "walk-issuer-10",
+        "walk-issuer-20",
+        "walk-issuer-24",
+        "walk-issuer-25",
+        "walk-issuer-26",
+        "walk-consent-01",
+        "walk-consent-02",
+        "walk-consent-03",
+        "walk-consent-04",
+        "walk-consent-05",
+        "walk-consent-06",
+        "walk-consent-10",
+        "walk-consent-11",
+        "walk-consent-12",
+        "walk-notary-01",
+        "walk-notary-02",
+        "walk-notary-03",
+        "walk-notary-05",
+        "walk-notary-08",
+        "walk-notary-10"
+      ]
+    },
+    {
+      "rule": "O6.2",
+      "section": "6",
+      "title": "the output current at a block, and the stretch",
+      "state": "proposed",
+      "vectors": [
+        "walk-issuer-01",
+        "walk-issuer-02",
+        "walk-issuer-03",
+        "walk-issuer-04",
+        "walk-issuer-05",
+        "walk-issuer-06",
+        "walk-issuer-07",
+        "walk-issuer-10",
+        "walk-issuer-20",
+        "walk-issuer-24",
+        "walk-issuer-25",
+        "walk-issuer-26",
+        "walk-issuer-29",
+        "walk-consent-01",
+        "walk-consent-02",
+        "walk-consent-03",
+        "walk-consent-04",
+        "walk-consent-05",
+        "walk-consent-06",
+        "walk-consent-10",
+        "walk-consent-11",
+        "walk-consent-12",
+        "walk-notary-01",
+        "walk-notary-02",
+        "walk-notary-03",
+        "walk-notary-05",
+        "walk-notary-08",
+        "walk-notary-10"
+      ]
+    },
+    {
+      "rule": "O6.3",
+      "section": "6",
+      "title": "a walk that cannot be finished",
+      "state": "proposed",
+      "vectors": [
+        "walk-issuer-12",
+        "walk-issuer-14",
+        "walk-issuer-18",
+        "walk-issuer-19",
+        "walk-issuer-21",
+        "walk-consent-08"
+      ]
+    },
+    {
+      "rule": "O6.4",
+      "section": "6",
+      "title": "caching",
+      "state": "proposed",
+      "vectors": [],
+      "not_covered": "No vector caches a walk."
+    },
+    {
+      "rule": "O6.5",
+      "section": "6",
+      "title": "after a reorganisation",
+      "state": "proposed",
+      "vectors": [],
+      "not_covered": "No vector holds a reorganisation."
+    },
+    {
+      "rule": "O7.1",
+      "section": "7",
+      "title": "the issuer's name at admission",
+      "state": "proposed",
+      "vectors": [
+        "walk-issuer-01",
+        "walk-issuer-02",
+        "walk-issuer-03",
+        "walk-issuer-04",
+        "walk-issuer-05",
+        "walk-issuer-06",
+        "walk-issuer-07",
+        "walk-issuer-08",
+        "walk-issuer-09",
+        "walk-issuer-10",
+        "walk-issuer-11",
+        "walk-issuer-12",
+        "walk-issuer-13",
+        "walk-issuer-14",
+        "walk-issuer-15",
+        "walk-issuer-16",
+        "walk-issuer-17",
+        "walk-issuer-18",
+        "walk-issuer-19",
+        "walk-issuer-20",
+        "walk-issuer-21",
+        "walk-issuer-22",
+        "walk-issuer-23",
+        "walk-issuer-24",
+        "walk-issuer-25",
+        "walk-issuer-26",
+        "walk-issuer-27",
+        "walk-issuer-28",
+        "walk-issuer-29"
+      ]
+    },
+    {
+      "rule": "O7.2",
+      "section": "7",
+      "title": "a recipient by name at admission",
+      "state": "proposed",
+      "vectors": [
+        "walk-recipient-01",
+        "walk-recipient-02",
+        "walk-recipient-03",
+        "walk-recipient-04",
+        "walk-recipient-05"
+      ]
+    },
+    {
+      "rule": "O7.3",
+      "section": "7",
+      "title": "a notary's name",
+      "state": "proposed",
+      "vectors": [
+        "walk-notary-01",
+        "walk-notary-02",
+        "walk-notary-03",
+        "walk-notary-04",
+        "walk-notary-05",
+        "walk-notary-06",
+        "walk-notary-07",
+        "walk-notary-08",
+        "walk-notary-09",
+        "walk-notary-10"
+      ],
+      "not_covered": "No vector of a notary's name holds two findings, a checkpoint outside the active chain, or a name without a live output."
+    },
+    {
+      "rule": "O7.4",
+      "section": "7",
+      "title": "the consent of a recipient by name",
+      "state": "proposed",
+      "vectors": [
+        "walk-consent-01",
+        "walk-consent-02",
+        "walk-consent-03",
+        "walk-consent-04",
+        "walk-consent-05",
+        "walk-consent-06",
+        "walk-consent-07",
+        "walk-consent-08",
+        "walk-consent-09",
+        "walk-consent-10",
+        "walk-consent-11",
+        "walk-consent-12"
+      ]
+    },
+    {
+      "rule": "O7.5",
+      "section": "7",
+      "title": "a change that the owner signed",
+      "state": "proposed",
+      "vectors": [],
+      "not_covered": "No vector holds a pending operation or a closure. The readings that the rule names are in the groups scripts and writers."
+    }
+  ],
+  "pins": {
+    "valid": [
+      {
+        "id": "pin-v-01",
+        "rules": [
+          "O2.1"
+        ],
+        "claim": "A compressed key. Its first octet states the parity of y.",
+        "value": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "expect": "pin"
+      },
+      {
+        "id": "pin-v-02",
+        "rules": [
+          "O2.1"
+        ],
+        "claim": "The key with the same x coordinate and the other parity. It is a pin, of another key.",
+        "value": "03f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "expect": "pin"
+      },
+      {
+        "id": "pin-v-03",
+        "rules": [
+          "O2.1"
+        ],
+        "claim": "Another compressed key.",
+        "value": "02dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8",
+        "expect": "pin"
+      }
+    ],
+    "invalid": [
+      {
+        "id": "pin-i-01",
+        "rules": [
+          "O2.1",
+          "O2.2"
+        ],
+        "claim": "The x coordinate alone, 64 characters: the form of a signing key and not of a pin.",
+        "value": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "expect": "form",
+        "valid_neighbour": "pin-v-01"
+      },
+      {
+        "id": "pin-i-02",
+        "rules": [
+          "O2.1"
+        ],
+        "claim": "The pin in uppercase hexadecimal.",
+        "value": "02F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9",
+        "expect": "form",
+        "valid_neighbour": "pin-v-01"
+      },
+      {
+        "id": "pin-i-03",
+        "rules": [
+          "O2.1"
+        ],
+        "claim": "The uncompressed form of the same key, 65 octets.",
+        "value": "04f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9388f7b0f632de8140fe337e62a37f3566500a99934c2231b6cb9fd7584b8e672",
+        "expect": "form",
+        "valid_neighbour": "pin-v-01"
+      },
+      {
+        "id": "pin-i-04",
+        "rules": [
+          "O2.1"
+        ],
+        "claim": "A first octet of 04 before 32 octets.",
+        "value": "04f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "expect": "form",
+        "valid_neighbour": "pin-v-01"
+      },
+      {
+        "id": "pin-i-05",
+        "rules": [
+          "O2.1",
+          "O2.2"
+        ],
+        "claim": "The hash of the key, 20 octets, in the place of the key.",
+        "value": "7dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+        "expect": "form",
+        "valid_neighbour": "pin-v-01"
+      },
+      {
+        "id": "pin-i-06",
+        "rules": [
+          "O2.1"
+        ],
+        "claim": "The pin one character short.",
+        "value": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f",
+        "expect": "form",
+        "valid_neighbour": "pin-v-01"
+      },
+      {
+        "id": "pin-i-07",
+        "rules": [
+          "O2.1"
+        ],
+        "claim": "66 characters of which one is no hexadecimal digit.",
+        "value": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036fg",
+        "expect": "form",
+        "valid_neighbour": "pin-v-01"
+      },
+      {
+        "id": "pin-i-08",
+        "rules": [
+          "O2.1"
+        ],
+        "claim": "A first octet of 02 before a value that is no x coordinate of a point of the curve.",
+        "value": "02eefdea4cdb677750a420fee807eacf21eb9898ae79b9768766e4faa04a2d4a34",
+        "expect": "point",
+        "valid_neighbour": "pin-v-01"
+      },
+      {
+        "id": "pin-i-09",
+        "rules": [
+          "O2.1"
+        ],
+        "claim": "The same value after a first octet of 03.",
+        "value": "03eefdea4cdb677750a420fee807eacf21eb9898ae79b9768766e4faa04a2d4a34",
+        "expect": "point",
+        "valid_neighbour": "pin-v-01"
+      }
+    ],
+    "comparisons": [
+      {
+        "id": "pin-c-01",
+        "rules": [
+          "O2.3"
+        ],
+        "claim": "A pin and the signing key with its x coordinate are the same key.",
+        "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "signing_public_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "expect": "same"
+      },
+      {
+        "id": "pin-c-02",
+        "rules": [
+          "O2.3"
+        ],
+        "claim": "The pin of the other parity and the same signing key are the same key as well: the comparison ignores the first octet.",
+        "pin": "03f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "signing_public_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "expect": "same"
+      },
+      {
+        "id": "pin-c-03",
+        "rules": [
+          "O2.3"
+        ],
+        "claim": "A pin and a signing key with another x coordinate.",
+        "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "signing_public_key": "dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8",
+        "expect": "different",
+        "valid_neighbour": "pin-c-01"
+      }
+    ]
+  },
+  "scripts": [
+    {
+      "id": "script-01",
+      "rules": [
+        "O3.1",
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "An update that pays the hash of the pinned key.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+        "reading": "controlled"
+      }
+    },
+    {
+      "id": "script-02",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "A registration that pays the hash of the pinned key.",
+      "script_hex": "521169642f6c6970303032312d697373756572146991b79ead42f74e9d0c0320e99595358201a8624c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d6d76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "registration",
+        "name": "id/lip0021-issuer",
+        "rand_hex": "6991b79ead42f74e9d0c0320e99595358201a862",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+        "reading": "controlled"
+      }
+    },
+    {
+      "id": "script-03",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "A reservation that pays the hash of the pinned key. Its 20 octets are the hash of the rand value and the name of script-02.",
+      "script_hex": "511428ba1c284b709999f12aae2c4f09f06d5661d92e6d76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "reservation",
+        "hash_hex": "28ba1c284b709999f12aae2c4f09f06d5661d92e",
+        "address_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+        "reading": "controlled"
+      }
+    },
+    {
+      "id": "script-04",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "An update of a name of another namespace with an empty value, which is pushed as the octet 00.",
+      "script_hex": "5311642f6c6970303032312d6578616d706c65006d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "d/lip0021-example",
+        "value": "",
+        "address_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+        "reading": "controlled"
+      }
+    },
+    {
+      "id": "script-05",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "An update with a value of 75 octets, the longest that one length octet pushes.",
+      "script_hex": "531169642f6c6970303032312d6973737565724b7b22737761726d61223a7b2266696c6c6572223a22787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878227d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"filler\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+        "address_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+        "reading": "controlled"
+      }
+    },
+    {
+      "id": "script-06",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "An update with a value of 76 octets, the shortest that needs 4c.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c4c7b22737761726d61223a7b2266696c6c6572223a2278787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878227d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"filler\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+        "address_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+        "reading": "controlled"
+      }
+    },
+    {
+      "id": "script-07",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "An update with a value of 255 octets, the longest that 4c pushes.",
+      "script_hex": "531169642f6c6970303032312d6973737565724cff7b22737761726d61223a7b2266696c6c6572223a22787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878227d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"filler\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+        "address_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+        "reading": "controlled"
+      }
+    },
+    {
+      "id": "script-08",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "An update with a value of 256 octets, the shortest that needs 4d.",
+      "script_hex": "531169642f6c6970303032312d6973737565724d00017b22737761726d61223a7b2266696c6c6572223a2278787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878227d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"filler\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+        "address_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+        "reading": "controlled"
+      }
+    },
+    {
+      "id": "script-09",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "An update that pays the witness key hash of the pinned key, in a block above the height from which the main chain enforces the witness rules.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7500147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "confirmed_at": 800000,
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "00147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+        "reading": "controlled"
+      }
+    },
+    {
+      "id": "script-10",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "The same script in the block of height 475000, the first in which the main chain enforces the witness rules.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7500147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "confirmed_at": 475000,
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "00147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+        "reading": "controlled"
+      }
+    },
+    {
+      "id": "script-11",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "The script of script-01 read against the pin of the other parity: the hash commits to the first octet of the key.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "03f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+        "reading": "another key"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-12",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "An update that pays the hash of the uncompressed form of the pinned key.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7576a914ec7eced2c57ed1292bc4eb9bfd13c9f7603bc33888ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "76a914ec7eced2c57ed1292bc4eb9bfd13c9f7603bc33888ac",
+        "reading": "another key"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-13",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "An update that pays the hash of another key.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7576a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+        "reading": "another key"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-14",
+      "rules": [
+        "O3.2",
+        "O3.3",
+        "O3.4"
+      ],
+      "claim": "An update that pays the witness key hash of another key.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d75001416dd39ddc484903d2ee4ff5cb6897c623caa7f4f",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "confirmed_at": 800000,
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "001416dd39ddc484903d2ee4ff5cb6897c623caa7f4f",
+        "reading": "another key"
+      },
+      "valid_neighbour": "script-09"
+    },
+    {
+      "id": "script-15",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The script of script-10 one block lower, at height 474999: the main chain did not enforce the witness rules there, and anybody could spend the output.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7500147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "confirmed_at": 474999,
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "00147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-10"
+    },
+    {
+      "id": "script-16",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A script hash behind the prefix.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d75a914f56a52172a91f7ca4c02127809b7de7200bf11d987",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "a914f56a52172a91f7ca4c02127809b7de7200bf11d987",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-17",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A script hash that wraps the witness key hash of the pinned key.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d75a91469ea5ff598a286f418ae77503ce85d83da4ae88e87",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "a91469ea5ff598a286f418ae77503ce85d83da4ae88e87",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-18",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A witness script hash behind the prefix.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7500207a3951082706811ccde0729d911c2027259242f8f88375706de1f6af8aab4ef0",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "00207a3951082706811ccde0729d911c2027259242f8f88375706de1f6af8aab4ef0",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-09"
+    },
+    {
+      "id": "script-19",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A Taproot output for the x coordinate of the pinned key behind the prefix.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d755120f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "5120f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-09"
+    },
+    {
+      "id": "script-20",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The pinned key itself, without a hash, behind the prefix.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d752102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "2102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9ac",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-21",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "One of two keys, the pinned key among them, behind the prefix.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d75512102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f92102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb852ae",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "512102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f92102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb852ae",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-22",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The key hash of script-01 with one more opcode after it.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac61",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac61",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-23",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A hash of 19 octets in the frame of the key hash.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7576a9137dd65592d0ab2fe0d0257d571abf032cd9db9388ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "76a9137dd65592d0ab2fe0d0257d571abf032cd9db9388ac",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-24",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A witness program of 19 octets.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7500137dd65592d0ab2fe0d0257d571abf032cd9db93",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "00137dd65592d0ab2fe0d0257d571abf032cd9db93",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-09"
+    },
+    {
+      "id": "script-25",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The 20 octets of the pinned key after a witness version of 1 in place of 0.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7551147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "51147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-09"
+    },
+    {
+      "id": "script-26",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The witness key hash of script-09 with one more opcode after it.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7500147dd65592d0ab2fe0d0257d571abf032cd9db93dc61",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "00147dd65592d0ab2fe0d0257d571abf032cd9db93dc61",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-09"
+    },
+    {
+      "id": "script-27",
+      "rules": [
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A prefix with nothing after it.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d75",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-28",
+      "rules": [
+        "O3.1",
+        "O3.3",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The script of script-01 with one OP_NOP between the prefix and the address script. By its source the node's parser skips the opcode and finds the address script of script-01; under this profile the address script begins with that opcode and is unsupported.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d756176a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "update",
+        "name": "id/lip0021-issuer",
+        "value": "{\"swarma\":{\"landlord\":{\"grant\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\"}}}",
+        "address_script_hex": "6176a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-29",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The name is pushed with 4c although it has fewer than 76 octets.",
+      "script_hex": "534c1169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-30",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A value of 13 octets is pushed with 4d.",
+      "script_hex": "531169642f6c6970303032312d6973737565724d0d007b22737761726d61223a7b7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-31",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A value of 300 octets is pushed with 4e and a length of four octets.",
+      "script_hex": "531169642f6c6970303032312d6973737565724e2c0100007b22737761726d61223a7b2266696c6c6572223a22787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878227d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-32",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The opcode of an update before one push only.",
+      "script_hex": "531169642f6c6970303032312d6973737565726d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-33",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The opcode of an update before the three pushes of a registration.",
+      "script_hex": "531169642f6c6970303032312d697373756572146991b79ead42f74e9d0c0320e99595358201a8624c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-34",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A registration that ends with 6d 75 in place of 6d 6d.",
+      "script_hex": "521169642f6c6970303032312d697373756572146991b79ead42f74e9d0c0320e99595358201a8624c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-35",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "An update whose two last opcodes stand in the other order, 75 6d.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639227d7d7d756d76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-36",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "A reservation with a hash of 19 octets.",
+      "script_hex": "511328ba1c284b709999f12aae2c4f09f06d5661d96d76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-37",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The script of script-01 cut off inside the push of the value.",
+      "script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f72",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-38",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "The address script of script-01 without any prefix: an ordinary output of the pinned key and no output of a name.",
+      "script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    },
+    {
+      "id": "script-39",
+      "rules": [
+        "O3.2",
+        "O3.4",
+        "O3.5"
+      ],
+      "claim": "An empty script.",
+      "script_hex": "",
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "expect": {
+        "prefix": "none",
+        "reading": "unsupported"
+      },
+      "valid_neighbour": "script-01"
+    }
+  ],
+  "writers": [
+    {
+      "id": "writer-01",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "An update. Its second input spends the previous output of the name, a key hash that the pin controls, with a signature that ends in 01. Its first input pays the fee with a coin of another key. The octets of the signatures are placeholders.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "written by the owner"
+    },
+    {
+      "id": "writer-02",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "A registration whose name input spends a reservation that the pin controls.",
+      "created": {
+        "operation": "registration",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "511428ba1c284b709999f12aae2c4f09f06d5661d92e6d76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        }
+      ],
+      "expect": "written by the owner"
+    },
+    {
+      "id": "writer-03",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The first update after a registration: its name input spends the registration output.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "521169642f6c6970303032312d697373756572146991b79ead42f74e9d0c0320e99595358201a8624c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d6d76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "written by the owner"
+    },
+    {
+      "id": "writer-04",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "An update whose name input spends a witness key hash that the pin controls. The unlocking script is empty, and the witness holds the signature, which ends in 01, and the key.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7500147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+          "spent_confirmed_at": 800000,
+          "unlocking_script_hex": "",
+          "witness_hex": [
+            "3044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b5052101",
+            "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+          ]
+        }
+      ],
+      "expect": "written by the owner"
+    },
+    {
+      "id": "writer-05",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "An update whose name input spends an output of another key, signed by that key: a transfer to the pinned owner, whose value the earlier holder wrote.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        }
+      ],
+      "expect": "written by another",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-06",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "A registration by another party. The reservation is that party's; the pinned owner signed a fee input beside it, and a fee input is no name input.",
+      "created": {
+        "operation": "registration",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "511428ba1c284b709999f12aae2c4f09f06d5661d92e6d76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "written by another",
+      "valid_neighbour": "writer-02"
+    },
+    {
+      "id": "writer-07",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "An update whose name input spends the witness key hash of another key.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d75001416dd39ddc484903d2ee4ff5cb6897c623caa7f4f",
+          "spent_confirmed_at": 800000,
+          "unlocking_script_hex": "",
+          "witness_hex": [
+            "3044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b5052101",
+            "02dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+          ]
+        }
+      ],
+      "expect": "written by another",
+      "valid_neighbour": "writer-04"
+    },
+    {
+      "id": "writer-08",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The update of writer-01 with the hash type 81, SIGHASH_ALL with ANYONECANPAY.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521812102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-09",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The update of writer-01 with the hash type 03, SIGHASH_SINGLE.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521032102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-10",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The update of writer-01 with the hash type 02, SIGHASH_NONE.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521022102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-11",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The update of writer-01 with the hash type 83, SIGHASH_SINGLE with ANYONECANPAY.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521832102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-12",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The update of writer-01 with the hash type 00: every octet but 01 is outside the profile, whatever a node makes of it.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521002102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-13",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The name input spends an output of the name whose address script is a script hash.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d75a914f56a52172a91f7ca4c02127809b7de7200bf11d987",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-14",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The unlocking script of the name input has three pushes.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "0100473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-15",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The signature of the name input is pushed with 4c although it has fewer than 76 octets.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "4c473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-16",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The second push of the unlocking script is another key than the pin. A node does not validate such a spend of this output; a reader that meets it concludes nothing.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-17",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The name input spends a key hash with an empty unlocking script and no witness.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": ""
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-18",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The name input spends a key hash as writer-01 does and carries a witness beside its unlocking script.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+          "witness_hex": [
+            "3044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b5052101",
+            "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+          ]
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-19",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "No input spends an output with a supported prefix: the previous output of the name pushes its name with 4c.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "534c1169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-20",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The only input with a supported prefix carries another name. Consensus does not allow such an update; a reader that meets it finds no name input.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531069642f6c6970303032312d6f746865724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7576a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-01"
+    },
+    {
+      "id": "writer-21",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The update of writer-04 with the hash type 81 in the witness.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7500147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+          "spent_confirmed_at": 800000,
+          "unlocking_script_hex": "",
+          "witness_hex": [
+            "3044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b5052181",
+            "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+          ]
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-04"
+    },
+    {
+      "id": "writer-22",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The update of writer-04 with a witness of three items.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7500147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+          "spent_confirmed_at": 800000,
+          "unlocking_script_hex": "",
+          "witness_hex": [
+            "00",
+            "3044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b5052101",
+            "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+          ]
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-04"
+    },
+    {
+      "id": "writer-23",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The update of writer-04 with the signature and the key in an unlocking script, as for a key hash, and no witness. A node does not validate such a spend of a witness key hash.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7500147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+          "spent_confirmed_at": 800000,
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-04"
+    },
+    {
+      "id": "writer-24",
+      "rules": [
+        "O4.1",
+        "O4.2",
+        "O4.3",
+        "O4.4"
+      ],
+      "claim": "The update of writer-04 where the spent output is confirmed at height 474999, below the height from which the main chain enforces the witness rules.",
+      "created": {
+        "operation": "update",
+        "name": "id/lip0021-issuer"
+      },
+      "pin": "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "inputs": [
+        {
+          "spent_script_hex": "76a91416dd39ddc484903d2ee4ff5cb6897c623caa7f4f88ac",
+          "unlocking_script_hex": "473044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b50521012102dd308afec5777e13121fa72b9cc1b7cc0139715309b086c960e18fd969774eb8"
+        },
+        {
+          "spent_script_hex": "531169642f6c6970303032312d6973737565724c647b22737761726d61223a7b226c616e646c6f7264223a7b226772616e74223a2264666631643737663261363731633566333631383337323664623233343162653538666561653164613264656365643834333234306637623530326261363539227d7d7d6d7500147dd65592d0ab2fe0d0257d571abf032cd9db93dc",
+          "spent_confirmed_at": 474999,
+          "unlocking_script_hex": "",
+          "witness_hex": [
+            "3044022003450bfae6d507ba1c2580922ac3ef0a14850c9b6288fd685250422972dcab8302205600d856977c588a85d2a0f9a88a9e4fb03e6f555539dbb1766f8ddbd5b5052101",
+            "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+          ]
+        }
+      ],
+      "expect": "unsupported",
+      "valid_neighbour": "writer-04"
+    }
+  ],
+  "live": [
+    {
+      "id": "live-01",
+      "rules": [
+        "O5.1"
+      ],
+      "claim": "The block of the operation itself.",
+      "confirmed_at": 500000,
+      "height": 500000,
+      "depth": 36000,
+      "expect": "live"
+    },
+    {
+      "id": "live-02",
+      "rules": [
+        "O5.1"
+      ],
+      "claim": "The last block at which the name is live, 35999 blocks above the operation.",
+      "confirmed_at": 500000,
+      "height": 535999,
+      "depth": 36000,
+      "expect": "live"
+    },
+    {
+      "id": "live-03",
+      "rules": [
+        "O5.1"
+      ],
+      "claim": "One block later the name is expired.",
+      "confirmed_at": 500000,
+      "height": 536000,
+      "depth": 36000,
+      "expect": "expired",
+      "valid_neighbour": "live-02"
+    },
+    {
+      "id": "live-04",
+      "rules": [
+        "O5.1"
+      ],
+      "claim": "Long after the expiry.",
+      "confirmed_at": 500000,
+      "height": 600000,
+      "depth": 36000,
+      "expect": "expired",
+      "valid_neighbour": "live-02"
+    },
+    {
+      "id": "live-05",
+      "rules": [
+        "O5.1"
+      ],
+      "claim": "A regression test chain, whose depth is 30: 29 blocks above the operation.",
+      "confirmed_at": 100,
+      "height": 129,
+      "depth": 30,
+      "expect": "live"
+    },
+    {
+      "id": "live-06",
+      "rules": [
+        "O5.1"
+      ],
+      "claim": "The same chain one block later.",
+      "confirmed_at": 100,
+      "height": 130,
+      "depth": 30,
+      "expect": "expired",
+      "valid_neighbour": "live-05"
+    }
+  ],
+  "walks": [
+    {
+      "id": "walk-issuer-01",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "The walk ends at the bound registration. The output that was current at the recent block (o2, height 400) and the two later outputs are controlled and carry the bound `swarma`.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-issuer-02",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "One more update above the recent block that changes neither the owner nor `swarma`: a renewal, or an update of another member of the value. It closes nothing.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o5",
+          "height": 750,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-issuer-03",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "The current output reads as another key: the name is in other hands.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "valid_neighbour": "walk-issuer-01"
+    },
+    {
+      "id": "walk-issuer-04",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "The name changed hands and came back: the current output is controlled again, and an earlier output of the stretch is not. The walk finds it without any memory of an earlier observation; a check of the current owner alone passes it.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "valid_neighbour": "walk-issuer-01"
+    },
+    {
+      "id": "walk-issuer-05",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "An output of the stretch carries another `swarma`: the grant key was replaced. The notary rule passes the same history (walk-notary-01).",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S2",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "valid_neighbour": "walk-issuer-01"
+    },
+    {
+      "id": "walk-issuer-06",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "An output before the stretch belonged to another key. The stretch starts at the output that was current at the recent block, and what lies before it is not judged.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-issuer-07",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1",
+        "O5.2"
+      ],
+      "claim": "The walk ends at another registration than the bound one: the name expired and was registered again, by the same owner key and with the same `swarma`.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "p2",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "p1",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-B",
+          "height": 450,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "valid_neighbour": "walk-issuer-01"
+    },
+    {
+      "id": "walk-issuer-08",
+      "rules": [
+        "O5.1",
+        "O5.2",
+        "O7.1"
+      ],
+      "claim": "The name is expired at the tip: its current output is 36000 blocks below it.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 36700,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "valid_neighbour": "walk-issuer-09"
+    },
+    {
+      "id": "walk-issuer-09",
+      "rules": [
+        "O5.1",
+        "O7.1"
+      ],
+      "claim": "One block earlier the name is live.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 36699,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-issuer-10",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "The bound registration is confirmed above the recent block: no output of it was current at that block.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 50,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_SNAPSHOT",
+      "valid_neighbour": "walk-issuer-01"
+    },
+    {
+      "id": "walk-issuer-11",
+      "rules": [
+        "O3.5",
+        "O7.1"
+      ],
+      "claim": "An output of the stretch is unsupported. Nothing is proved, and the refusal is not that of a change.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "unsupported",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_HISTORY_UNAVAILABLE",
+      "valid_neighbour": "walk-issuer-01"
+    },
+    {
+      "id": "walk-issuer-12",
+      "rules": [
+        "O6.3",
+        "O7.1"
+      ],
+      "claim": "The verifier bounds a walk at three steps, and the registration is five steps back. The stretch itself was read and shows no change; the registration was not reached.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1",
+        "step_bound": 3
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_HISTORY_UNAVAILABLE",
+      "valid_neighbour": "walk-issuer-14"
+    },
+    {
+      "id": "walk-issuer-13",
+      "rules": [
+        "O1.3",
+        "O7.1"
+      ],
+      "claim": "The node keeps no transaction index and supplies no transaction.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1",
+        "transaction_index": false
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_HISTORY_UNAVAILABLE",
+      "valid_neighbour": "walk-issuer-01"
+    },
+    {
+      "id": "walk-issuer-14",
+      "rules": [
+        "O6.3",
+        "O7.1"
+      ],
+      "claim": "A bound of five steps is exactly the length of the walk.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1",
+        "step_bound": 5
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-issuer-15",
+      "rules": [
+        "O7.1"
+      ],
+      "claim": "Two findings: an output in view reads as another key (row 2), and a later one is unsupported (row 5). The change that the chain proved is reported.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "unsupported",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "compound": true
+    },
+    {
+      "id": "walk-issuer-16",
+      "rules": [
+        "O4.4",
+        "O7.1"
+      ],
+      "claim": "The value of the current output was written by another party. The issuer rule in force does not ask who wrote the value and passes; the extension of section 4.1 would refuse, and the notary rule refuses the same history (walk-notary-04).",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by another"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-issuer-17",
+      "rules": [
+        "O3.5",
+        "O7.1"
+      ],
+      "claim": "An output before the stretch has an unsupported address script. The walk needs its prefix and nothing else.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "unsupported",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-issuer-18",
+      "rules": [
+        "O6.3",
+        "O7.1"
+      ],
+      "claim": "An output before the stretch has no supported prefix, and the walk cannot pass it.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "none",
+          "reading": "unsupported",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_HISTORY_UNAVAILABLE",
+      "valid_neighbour": "walk-issuer-17"
+    },
+    {
+      "id": "walk-issuer-19",
+      "rules": [
+        "O1.3",
+        "O6.3",
+        "O7.1"
+      ],
+      "claim": "The node does not supply the transaction of one output before the stretch, while every other read works.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner",
+          "readable": false
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_HISTORY_UNAVAILABLE",
+      "valid_neighbour": "walk-issuer-01"
+    },
+    {
+      "id": "walk-issuer-20",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "An output of the stretch carries a value without a `swarma` member.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "none",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "valid_neighbour": "walk-issuer-01"
+    },
+    {
+      "id": "walk-issuer-21",
+      "rules": [
+        "O6.3",
+        "O7.1"
+      ],
+      "claim": "Two findings: an output in view reads as another key (row 2), and a bound of three steps ends the walk before the registration (row 5). The change is reported although the walk was cut short behind it.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1",
+        "step_bound": 3
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "compound": true
+    },
+    {
+      "id": "walk-issuer-22",
+      "rules": [
+        "O7.1"
+      ],
+      "claim": "Two findings: an output in view reads as another key (row 2), and the bound registration is confirmed above the recent block (row 4).",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 50,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "compound": true
+    },
+    {
+      "id": "walk-issuer-23",
+      "rules": [
+        "O7.1"
+      ],
+      "claim": "Two findings: the bound registration is confirmed above the recent block (row 4), and an output in view is unsupported (row 5).",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 50,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "unsupported",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_SNAPSHOT",
+      "compound": true
+    },
+    {
+      "id": "walk-issuer-24",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "The output that was current at the recent block (o2) reads as another key, and every later output is controlled: at the block that the grant commits, the name was in other hands.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "valid_neighbour": "walk-issuer-01"
+    },
+    {
+      "id": "walk-issuer-25",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "An output that is confirmed in the recent block itself (o3, height 500) was current at that block. The output before it belonged to another key and lies before the stretch.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 500,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-issuer-26",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "The same history with the recent block one lower. o3 is now confirmed above it, and the output that was current at it is o2, which reads as another key.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 499,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 500,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "valid_neighbour": "walk-issuer-25"
+    },
+    {
+      "id": "walk-issuer-27",
+      "rules": [
+        "O5.1",
+        "O7.1"
+      ],
+      "claim": "Two findings: the name is expired at the tip (row 1), and the node supplies no transaction (row 5). The expiry needs no walk and is reported.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 500,
+        "tip_height": 36700,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1",
+        "transaction_index": false
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_NAME_CHANGED",
+      "compound": true
+    },
+    {
+      "id": "walk-issuer-28",
+      "rules": [
+        "O3.5",
+        "O7.1"
+      ],
+      "claim": "The owner paid the name to an unsupported script (o3) and replaced that output later (o4). For a grant whose recent block lies below the replacement, the unsupported output stays in view, and the grant refuses.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 650,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "unsupported",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ISSUER_HISTORY_UNAVAILABLE",
+      "valid_neighbour": "walk-issuer-29"
+    },
+    {
+      "id": "walk-issuer-29",
+      "rules": [
+        "O3.5",
+        "O6.2",
+        "O7.1"
+      ],
+      "claim": "The same history for a grant whose recent block is the block of the replacement (o4, height 700): the unsupported output lies before the stretch.",
+      "rule": "issuer",
+      "context": {
+        "recent_block_height": 700,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A",
+        "bound_swarma": "S1"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "unsupported",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-recipient-01",
+      "rules": [
+        "O7.2"
+      ],
+      "claim": "The current output is controlled by the owner key that the grant signs. An earlier output belonged to another key; the rule does not read it.",
+      "rule": "recipient",
+      "context": {
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-recipient-02",
+      "rules": [
+        "O7.2"
+      ],
+      "claim": "The current output reads as another key.",
+      "rule": "recipient",
+      "context": {
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "RECIPIENT_NAME_NOT_HELD",
+      "valid_neighbour": "walk-recipient-01"
+    },
+    {
+      "id": "walk-recipient-03",
+      "rules": [
+        "O3.5",
+        "O7.2"
+      ],
+      "claim": "The current output is unsupported.",
+      "rule": "recipient",
+      "context": {
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "unsupported",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "RECIPIENT_NAME_UNAVAILABLE",
+      "valid_neighbour": "walk-recipient-01"
+    },
+    {
+      "id": "walk-recipient-04",
+      "rules": [
+        "O5.1",
+        "O5.2",
+        "O7.2"
+      ],
+      "claim": "The name is expired at the tip.",
+      "rule": "recipient",
+      "context": {
+        "tip_height": 36700,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "RECIPIENT_NAME_NOT_HELD",
+      "valid_neighbour": "walk-recipient-01"
+    },
+    {
+      "id": "walk-recipient-05",
+      "rules": [
+        "O1.3",
+        "O7.2"
+      ],
+      "claim": "The node does not supply the transaction of the current output.",
+      "rule": "recipient",
+      "context": {
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner",
+          "readable": false
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "RECIPIENT_NAME_UNAVAILABLE",
+      "valid_neighbour": "walk-recipient-01"
+    },
+    {
+      "id": "walk-consent-01",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.4"
+      ],
+      "claim": "The evidence output (o2, height 400) was current at the recent block: the output that spends it (o3) is confirmed above that block.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "o2",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-consent-02",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.4"
+      ],
+      "claim": "The evidence output is the current output of the name.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "o2",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-consent-03",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.4"
+      ],
+      "claim": "The evidence output was replaced below the recent block: o1 was spent by o2 at height 400.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "o1",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "CONSENT_EVIDENCE",
+      "valid_neighbour": "walk-consent-01"
+    },
+    {
+      "id": "walk-consent-04",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.4"
+      ],
+      "claim": "The evidence output is confirmed above the recent block.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "o3",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "CONSENT_EVIDENCE",
+      "valid_neighbour": "walk-consent-01"
+    },
+    {
+      "id": "walk-consent-05",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.4"
+      ],
+      "claim": "The evidence output is no output of the name: the walk reaches the registration without meeting it.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "x9",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "CONSENT_EVIDENCE",
+      "valid_neighbour": "walk-consent-01"
+    },
+    {
+      "id": "walk-consent-06",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.4"
+      ],
+      "claim": "The evidence output reads as another key.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "o2",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "CONSENT_EVIDENCE",
+      "valid_neighbour": "walk-consent-01"
+    },
+    {
+      "id": "walk-consent-07",
+      "rules": [
+        "O5.1",
+        "O7.4"
+      ],
+      "claim": "The name was expired at the recent block: the evidence output is 36000 blocks below it.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "o2",
+        "recent_block_height": 36400,
+        "tip_height": 36405,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "CONSENT_EVIDENCE",
+      "valid_neighbour": "walk-consent-02"
+    },
+    {
+      "id": "walk-consent-08",
+      "rules": [
+        "O6.3",
+        "O7.4"
+      ],
+      "claim": "The verifier bounds a walk at two steps, and the evidence output is the third output of the walk.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "o2",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "step_bound": 2
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "CONSENT_EVIDENCE",
+      "valid_neighbour": "walk-consent-01"
+    },
+    {
+      "id": "walk-consent-09",
+      "rules": [
+        "O3.5",
+        "O7.4"
+      ],
+      "claim": "The evidence output is unsupported. The code is the same as for a condition that fails.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "o2",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "unsupported",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "CONSENT_EVIDENCE",
+      "valid_neighbour": "walk-consent-01"
+    },
+    {
+      "id": "walk-consent-10",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.4"
+      ],
+      "claim": "The evidence output is confirmed in the recent block itself (o3, height 500).",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "o3",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 500,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-consent-11",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.4"
+      ],
+      "claim": "The output that spends the evidence output (o2) is confirmed in the recent block itself, so the evidence output was no longer current at that block.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "o2",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 500,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "CONSENT_EVIDENCE",
+      "valid_neighbour": "walk-consent-10"
+    },
+    {
+      "id": "walk-consent-12",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.4"
+      ],
+      "claim": "The evidence output is the registration itself, and the first update of the name is confirmed above the recent block.",
+      "rule": "consent",
+      "context": {
+        "evidence_output": "reg-A",
+        "recent_block_height": 500,
+        "tip_height": 800,
+        "depth": 36000
+      },
+      "history": [
+        {
+          "id": "o1",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-notary-01",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.3",
+        "O4.4"
+      ],
+      "claim": "The stretch from the checkpoint is controlled by the bound owner, and the owner wrote the value of the current output. `swarma` changed on the stretch, which the notary rule allows: the attestation key was rotated. The issuer rule refuses the same history (walk-issuer-05).",
+      "rule": "notary",
+      "context": {
+        "checkpoint_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S2",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-notary-02",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.3"
+      ],
+      "claim": "An output of the stretch reads as another key.",
+      "rule": "notary",
+      "context": {
+        "checkpoint_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "another key",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "NOTARY_NAME_CHANGED",
+      "valid_neighbour": "walk-notary-05"
+    },
+    {
+      "id": "walk-notary-03",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.3"
+      ],
+      "claim": "The bound registration is confirmed above the checkpoint.",
+      "rule": "notary",
+      "context": {
+        "checkpoint_height": 50,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "NOTARY_CHECKPOINT",
+      "valid_neighbour": "walk-notary-05"
+    },
+    {
+      "id": "walk-notary-04",
+      "rules": [
+        "O4.4",
+        "O7.3"
+      ],
+      "claim": "The operation that created the current output was not authorized by the bound owner: another key held its name input. The issuer rule in force passes the same history (walk-issuer-16).",
+      "rule": "notary",
+      "context": {
+        "checkpoint_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by another"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "NOTARY_VALUE_UNAUTHORIZED",
+      "valid_neighbour": "walk-notary-05"
+    },
+    {
+      "id": "walk-notary-05",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.3",
+        "O4.4"
+      ],
+      "claim": "The plain history: the stretch from the checkpoint is controlled by the bound owner, and the owner wrote the value of the current output.",
+      "rule": "notary",
+      "context": {
+        "checkpoint_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-notary-06",
+      "rules": [
+        "O4.4",
+        "O7.3"
+      ],
+      "claim": "The name input of the operation that created the current output was signed with a hash type outside the profile. Nothing is proved.",
+      "rule": "notary",
+      "context": {
+        "checkpoint_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "unsupported"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "NOTARY_HISTORY_UNAVAILABLE",
+      "valid_neighbour": "walk-notary-05"
+    },
+    {
+      "id": "walk-notary-07",
+      "rules": [
+        "O3.5",
+        "O7.3"
+      ],
+      "claim": "An output of the stretch is unsupported.",
+      "rule": "notary",
+      "context": {
+        "checkpoint_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A"
+      },
+      "history": [
+        {
+          "id": "o4",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o3",
+          "height": 600,
+          "prefix": "update",
+          "reading": "unsupported",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o2",
+          "height": 400,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "o1",
+          "height": 250,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "NOTARY_HISTORY_UNAVAILABLE",
+      "valid_neighbour": "walk-notary-05"
+    },
+    {
+      "id": "walk-notary-08",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.3",
+        "O4.1",
+        "O4.4"
+      ],
+      "claim": "The registration is the current output, and the bound owner signed it: its name input, a reservation, was the owner's.",
+      "rule": "notary",
+      "context": {
+        "checkpoint_height": 120,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A"
+      },
+      "history": [
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "walk-notary-09",
+      "rules": [
+        "O4.1",
+        "O4.4",
+        "O7.3"
+      ],
+      "claim": "The registration is the current output, and its reservation was another party's: the owner received the name and wrote nothing.",
+      "rule": "notary",
+      "context": {
+        "checkpoint_height": 120,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A"
+      },
+      "history": [
+        {
+          "id": "reg-A",
+          "height": 100,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by another"
+        }
+      ],
+      "expect": "NOTARY_VALUE_UNAUTHORIZED",
+      "valid_neighbour": "walk-notary-08"
+    },
+    {
+      "id": "walk-notary-10",
+      "rules": [
+        "O6.1",
+        "O6.2",
+        "O7.3",
+        "O5.2"
+      ],
+      "claim": "The walk ends at another registration than the bound one: the name expired and was registered again by the same owner key.",
+      "rule": "notary",
+      "context": {
+        "checkpoint_height": 500,
+        "tip_height": 800,
+        "depth": 36000,
+        "bound_registration": "reg-A"
+      },
+      "history": [
+        {
+          "id": "p2",
+          "height": 700,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "p1",
+          "height": 600,
+          "prefix": "update",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        },
+        {
+          "id": "reg-B",
+          "height": 450,
+          "prefix": "registration",
+          "reading": "controlled",
+          "swarma": "S1",
+          "writer": "written by the owner"
+        }
+      ],
+      "expect": "NOTARY_NAME_CHANGED",
+      "valid_neighbour": "walk-notary-05"
+    }
+  ]
+}

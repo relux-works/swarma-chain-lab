@@ -8,6 +8,9 @@ service, grant format, wallet, consensus implementation or deployment.
 
 Experiments live in `experiments/<name>/`:
 
+- [Grant v4 identity checks](experiments/grant-v4/identity/README.md): experimental
+  owner pins, closed script readings, writer checks and exclusive height expiry
+  from LIP-0021 Draft sections 2–5; all checks use stated octets and heights.
 - [Grant v4 wire primitives](experiments/grant-v4/wire/README.md): the proposed
   LIP-0020 canonical bytes, typed hashes, strict signatures and defined objects;
   all 205 pinned vectors, with no chain reads or whole-grant admission.
@@ -600,3 +603,11 @@ Grant identity expiry is reported by name as non-retryable
 for Core regtest controls and the RPC application/transport distinction.
 The client validates the complete JSON-RPC 1.0 error envelope before assigning
 an application code; malformed envelopes remain retryable node failures.
+
+## Grant v4 identity tools
+
+The [identity module commands](experiments/grant-v4/identity/README.md#tools-and-commands)
+cover Go formatting, dependency verification, vet, race tests and build, an
+independent Python vector reader, agreement controls and Go overlay mutants.
+Run them from the repository root; test and mutation evidence goes under
+`.temp/`. The module-graph and public-hygiene tools above cover its registration.

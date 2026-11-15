@@ -1,0 +1,136 @@
+# Grant v4 identity checks
+
+Experimental functions for [LIP-0021 draft sections 2–5](https://github.com/relux-works/swarma-link-spec/blob/45054797ee9ad3e38213e067051dfbd3eb2a21a1/lips/LIP-0021-name-ownership-and-history.md).
+All profile rules remain **Draft**, with co-author agreement pending. This
+module decides only on stated octets and heights. It grants no authority,
+reads no node and verifies no transaction signature.
+
+- `ParsePin`: lowercase compressed secp256k1 key, form and point checked
+  separately. `SameKeyAsSigning` compares the x coordinate with a validated
+  signing key (O2.1–O2.3).
+- `ReadOutput`: exact update, registration or reservation prefix, shortest
+  pushes, and exactly a key-hash or witness-key-hash address script. Witness
+  support requires a stated confirmation height and activation height.
+  Other scripts return `Unsupported`, which proves no ownership change
+  (O3.2–O3.5). Returned pushed octets are copies.
+- `CheckWriter`: exactly one matching name input, its spent output controlled
+  by the pin, and the exact unlocking/witness layout with the pin and hash-type
+  octet `01`. A spent output of another key gives `WrittenByAnother`;
+  malformed or ambiguous evidence gives `WriterUnsupported` (O4.1–O4.4).
+  This reads the hash type; a validating node must establish signature validity.
+- `CheckLive(h, H, D)`: live iff `H < h + D`, expired at equality. The difference
+  comparison avoids signed addition overflow. Negative heights, `H < h`, and
+  `D < 1` return `ErrLiveInput`. The caller supplies consensus depth for `H`;
+  there is no production default (O5.1).
+
+Zero pins, unknown heights and an unstated chain cannot establish witness
+ownership. The package's zero reading/writer/liveness values never pass.
+`ParseNameScript` parses the prefix alone: success does not imply that its
+address script is supported or that any key controls it.
+
+## Vectors and independent second reader
+
+`testdata/name-vectors.json` is the unchanged public specification fixture at
+commit `45054797ee9ad3e38213e067051dfbd3eb2a21a1`, path
+`vectors/LIP-0021/name-vectors.json`, length **176121** octets, SHA-256
+`67e45caabfa4599160e53bd95541db2b02ad8afdc21872776756881a85c97b4c`.
+
+The pin field contains three **groups**, not three cases: 3 valid, 9 invalid,
+and 3 comparisons. This module therefore checks **84 vectors**, with no skips:
+
+| Test | Cases | Claim and limit |
+| --- | ---: | --- |
+| `TestV4OwnerPin` | 15 | Pin encoding, curve point and x-only comparison; no object schema |
+| `TestV4NameScript` | 39 | Exact scripts and pushed fields; no node parser or consensus execution |
+| `TestV4Writer` | 24 | Input selection, key, layout and hash type; no signature verification |
+| `TestV4LiveName` | 6 | Exclusive expiry on supplied depths; no consensus-depth lookup |
+
+Each case with a declared valid neighbour evaluates that neighbour in the
+same subtest before evaluating the case. Claim comments state the limit of
+each test group; individual vector claims are printed in the Go test stream.
+Additional tests cover malformed/truncated octets, missing facts, ambiguous
+inputs, wrong witness keys, push boundaries and overflow-safe height arithmetic.
+The fixture's 56 walk cases are retained for source fidelity and **not run**
+in this slice. No observation vectors are claimed here.
+
+`scripts/second-reader.py` independently implements the draft grammar and
+arithmetic in Python's standard library, without importing Go or using its
+parser. Its curve check uses modular square-root verification; its script
+reader consumes the literal grammar with a cursor. It computes each decision
+before consulting the expected answer, then compares all 84 decisions with
+both the fixture and the actual Go results. Differences, missing/duplicate
+results, skips, test failures or incomplete output refuse the agreement gate.
+Python is the repository's existing tooling language and supplies an independent
+implementation without adding a library or an internal module dependency.
+
+`scripts/test_second_reader.py` calibrates that gate with a wrong vector answer,
+an altered Go answer, missing/duplicate output, a skip and truncated output,
+beside valid controls. These are bounded instrument controls, not proof against
+a shared misunderstanding of the draft.
+
+## Tools and commands
+
+Use Go 1.26.10 and Python 3.14.4 from the repository root. Set `GOTOOLCHAIN=local`,
+`GOWORK=off`, a short private `TMPDIR`, and private `GOCACHE`/`GOMODCACHE`.
+Supply the pinned `golang.org/x/crypto v0.55.0` dependency from a verified cache;
+validation runs with `GOPROXY=off` and `GOFLAGS=-mod=readonly`.
+No local replacement or dependency on an earlier grant module is used.
+
+```sh
+go -C experiments/grant-v4/identity mod verify
+gofmt -l experiments/grant-v4/identity/*.go
+go -C experiments/grant-v4/identity vet ./...
+go -C experiments/grant-v4/identity test -race -count=1 -json ./... > .temp/identity-tests.json
+go -C experiments/grant-v4/identity build ./...
+python3 -B experiments/grant-v4/identity/scripts/second-reader.py --go-results .temp/identity-tests.json --output .temp/identity-independent.json
+python3 -B -m unittest discover -s experiments/grant-v4/identity/scripts -p 'test_second_reader.py' -v
+python3 -B experiments/grant-v4/identity/scripts/check-mutants.py --scratch .temp/identity-mutants
+python3 -B .scripts/check-module-graph.py
+python3 -B .scripts/check-strict-module-snapshots.py
+python3 -B .github/scripts/check-public-hygiene.py
+```
+
+Create `.temp/` before using these output paths. Go formatting reports source
+paths; vet/build/mod verification report on stdout. Test streams and the
+independent verdict map go to the named `.temp/` files. The overlay runner
+requires a fresh scratch directory, records source hashes, commands, real
+exits, complete streams and overlay replacements there, and never edits source.
+The dedicated workflow runs these module checks and uploads its evidence.
+The repository hygiene scanner checks tracked Matrix identifiers; review must
+also check the public diff for private information outside that bounded scan.
+
+| Mutant | Property narrowed | Required failing test |
+| --- | --- | --- |
+| Accept any script containing the pin | A multisig containing the key stays outside the closed list | `TestV4NameScript/script-21` |
+| Inclusive expiry | Equality at `h + D` is expired | `TestV4LiveName/live-03` |
+| Skip witness checking, accept controlled witness spends | Hash type must be `01` in the witness too | `TestV4Writer/writer-21` |
+| Omit witness branch, refuse all witness spends | A supported owner witness spend passes | `TestV4Writer/writer-04` |
+
+Every plant must exit 1 with the named failing subtest and its assertion
+diagnostic. Build/setup failures do not kill a mutant. The unplanted suite
+must pass first; no survivor is accepted. These are four narrow bounds,
+not exhaustive mutation coverage.
+
+## Gaps and remaining scope
+
+The implementation plan's closed single-key script list is followed exactly.
+No arbitrary walk limit is introduced: the walk is outside this slice.
+
+- **GAP: node reads.** LIP-0021 section 1 and LIP-0022's buildability table
+  require a run on the pinned node build before reads can be qualified. No
+  RPC adapter, observation consistency or presenter-supplied authority is added.
+- **GAP: action classes and evidence classes.** These await action profiles
+  and LIP-0008 sections 2 and 12.1. Nothing stubs them as passing.
+- **GAP: pins inside grant, notary and pointer objects.** Their members await
+  LIP-0020 and LIP-0014 section 7.1. This module defines no such schema.
+- **GAP: the `swarma` member.** Its comparison can only be equality of given
+  octets until its extraction rule exists; this slice performs no extraction.
+- History walks, verdicts and recipient union (LIP-0021 sections 6–7,
+  LIP-0008 section 3.1 and LIP-0020 W7.6) remain separate work. LIP-0022
+  observation/freshness comparisons also remain separate.
+- The measured numbers `S`, `K`, `LAG` and age thresholds have no production
+  values here. This module implements no clock, age, recency or depth policy.
+
+See [unresolved questions](UNRESOLVED_QUESTIONS.md). No claim of owner
+acceptance, co-author agreement, real-chain qualification or production
+admission follows from these tests.

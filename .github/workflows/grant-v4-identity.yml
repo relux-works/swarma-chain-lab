@@ -1,0 +1,78 @@
+name: Grant v4 identity checks
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/grant-v4/identity/**'
+      - '.github/workflows/grant-v4-identity.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/grant-v4/identity/**'
+      - '.github/workflows/grant-v4-identity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: 'off'
+      GOFLAGS: '-mod=readonly'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
+        with:
+          go-version: '1.26.10'
+          check-latest: false
+          cache: false
+      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
+        with:
+          python-version: '3.14.4'
+          check-latest: false
+      - name: Fetch and verify pinned dependency
+        run: |
+          go -C experiments/grant-v4/identity mod download
+          go -C experiments/grant-v4/identity mod verify
+      - name: Record candidate identity
+        run: git rev-parse HEAD > "$RUNNER_TEMP/identity-head.txt"
+      - name: Formatting
+        run: test -z "$(gofmt -l experiments/grant-v4/identity/*.go)"
+      - name: Vet
+        env:
+          GOPROXY: 'off'
+        run: go -C experiments/grant-v4/identity vet ./...
+      - name: Race tests and all pinned vectors
+        env:
+          GOPROXY: 'off'
+        run: go -C experiments/grant-v4/identity test -race -count=1 -json ./... > "$RUNNER_TEMP/identity-tests.json"
+      - name: Build
+        env:
+          GOPROXY: 'off'
+        run: go -C experiments/grant-v4/identity build ./...
+      - name: Independent second reader and agreement controls
+        run: |
+          python3 -B experiments/grant-v4/identity/scripts/second-reader.py --go-results "$RUNNER_TEMP/identity-tests.json" --output "$RUNNER_TEMP/identity-independent.json"
+          python3 -B -m unittest discover -s experiments/grant-v4/identity/scripts -p 'test_second_reader.py' -v
+      - name: Narrowing overlay mutants
+        env:
+          GOPROXY: 'off'
+        run: python3 -B experiments/grant-v4/identity/scripts/check-mutants.py --scratch "$RUNNER_TEMP/identity-mutants"
+      - name: Preserve exact evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: identity-evidence
+          path: |
+            ${{ runner.temp }}/identity-head.txt
+            ${{ runner.temp }}/identity-tests.json
+            ${{ runner.temp }}/identity-independent.json
+            ${{ runner.temp }}/identity-mutants/
+          if-no-files-found: error
