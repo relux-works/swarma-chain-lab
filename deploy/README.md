@@ -248,8 +248,13 @@ From `deploy/`, `go test -count=1 -run '^TestVerifyManifest' ./cmd/deploy-kit`
 runs fixture, parity and CLI controls. After a real double build, run
 `DK1_VERIFY_MANIFEST="$RELEASE_DIR/manifest.json" go test -count=1 -run
 '^TestVerifyManifestRealRelease$' -v ./cmd/deploy-kit` as one command to apply
-both parity directions to the generated manifest. The Deploy kit workflow
-runs these controls against its real double-build output.
+both parity directions and the plan's 15 negative release-check cases to the
+generated manifest. `TestVerifyManifestReleaseCheckCases` runs the same named
+NEG-R1 mutations and POS-R1 positive control on the ledger fixture, enriched
+with a published dependency where required. Each negative case checks the
+handler and actual CLI for a named refusal, exit 1, empty stdout and unchanged
+input. The Deploy kit workflow runs these controls against its real double-build
+output.
 
 ## Public configuration validation
 
