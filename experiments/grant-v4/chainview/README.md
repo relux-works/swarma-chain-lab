@@ -71,15 +71,64 @@ copy callback state so callers cannot mutate retained state after returning.
 `MemoryStore` is for tests and has no durability guarantee.
 
 `FileStore` targets a **trusted local Unix filesystem**. It locks a stable
-sidecar file, reloads state under that lock on every access, writes a temporary
-file, syncs it, atomically renames it and syncs its directory before success.
-New state files have mode `0600`. The parent directory must already exist.
-`CreateFileStore` explicitly initializes new state and refuses replacement;
-`OpenFileStore` refuses missing or malformed state and never silently resets it.
-Separate instances/processes using the same canonical path serialize updates.
-Do not alias the path, remove the lock file, or replace the directory in use.
-An I/O error must prevent admission, including an uncertain directory-sync
-result after rename. Remote filesystems and storage hardware are unqualified.
+sidecar file and reloads both records under that lock on every access. Version-2
+snapshots carry a monotonic generation, the kept mark and all first sights. A
+separate sentinel carries **both generation and kept mark**. Its directory must
+be disjoint from the snapshot directory (neither may contain the other), so
+restoring only the data directory cannot restore the sentinel. The default is
+`<data-directory>.continuity/<snapshot-basename>.sentinel`, a sibling directory.
+`CreateFileStoreAt` / `OpenFileStoreAt` accept explicit paths in disjoint existing
+directories. Use canonical paths; do not alias paths, remove the lock file or
+replace directories while any process is using the store.
+
+For **each record**, a durable `PENDING` sidecar is written and file/directory
+synced **before** the temporary data file is renamed. The temporary file is
+written and fsynced, renamed, and its directory fsynced. Only then is the marker
+cleared and that unlink directory-synced. Any failed step returns
+`STORE_UNCERTAIN`; `Clock.Observe` returns that named code and an error, never a
+passing decision. A retry/reopen/restart with a marker repeats the write barrier
+on the visible record. Every access, including a no-op, also fsyncs each record
+and its directory even when the marker appears absent: an unlink whose sync
+failed must not become a passing retry. No decision is available before fresh
+successful barriers. A repaired filesystem permits automatic recovery.
+
+Commit order is **snapshot first, then sentinel**, each through the barrier
+above. After settling pending I/O, open and every transaction compare records:
+
+| Relation | Result |
+| --- | --- |
+| Equal generations and equal marks | Open |
+| Snapshot exactly sentinel + 1, snapshot mark at least sentinel mark | Interrupted commit: durably roll sentinel forward; open without operator |
+| Sentinel ahead, gap greater than 1, decreased/inconsistent mark, or missing sentinel | `STORE_CONTINUITY`; no decision |
+
+`CreateFileStore` is explicit initialization and refuses replacement. The data
+parent must exist; it creates the default sibling directory with mode `0700`.
+State and marker files have mode `0600`. `OpenFileStore` never initializes or
+migrates missing/version-1 records. Interrupted *initialization* is not an
+acknowledged store: missing records still require operator inspection. Ordinary
+commits after successful creation recover from process crashes without operator
+intervention. Remote filesystems and storage hardware remain unqualified.
+
+### Explicit operator recovery
+
+Stop store users and inspect the snapshot, separate sentinel and existing audit.
+Recovery is an explicit command, never a fallback from `OpenFileStore`:
+
+```sh
+mkdir -p .temp/chainview
+go -C experiments/grant-v4/chainview build -o "$PWD/.temp/chainview/clock-store-recover" ./cmd/clock-store-recover
+.temp/chainview/clock-store-recover -snapshot state/data/clock.json -sentinel state/data.continuity/clock.json.sentinel -audit state/data.continuity/recovery.json
+```
+
+The command durably logs a timestamped `started` event **before** altering state
+and a `committed` event after both records are durable. It chooses the **MAX**
+mark from every present snapshot, sentinel and prior audit event, and a generation
+above every present generation. It never lowers a mark, retains every available
+snapshot first sight, and can repair a missing sentinel. Malformed present
+records and a missing snapshot refuse; lost first sights cannot be reconstructed
+from the sentinel. Recovery-log failure prevents unaudited mutation. These are
+operator-owned local artifacts, not remote witnesses or a trusted hardware
+anchor. Back up the audit and continuity directory separately from the data dir.
 
 B3.7 writes a first sight for a coherent pinned observation with a clock at or
 above the mark **even when health, skew, age or another rule refuses**. A void,
@@ -88,9 +137,12 @@ new sight or successful decision; an existing-tip refusal leaves it unchanged.
 First sights survive restart and tip return and are never evicted. This module
 stores no closure and cannot erase a closure independently validated elsewhere.
 
-Loss or restoration of an older valid copy is not detectable here. Recovery
-policy and the observation interval are open in the draft; there is no implicit
-reset, hardware durability attestation, or production storage qualification.
+**GAP: a deliberate same-authority rewrite of both files together with the clock
+is outside the guarantee; LIP-0022 B3.2 assumes trusted storage, and the operator
+owns storage integrity.** The separate sentinel detects accidental partial
+restoration only; it provides no rollback resistance. There is no implicit reset,
+hardware durability attestation or production storage qualification. Observation
+cadence and recovery of lost first sights remain outside this implementation.
 
 ## Vectors and validation
 
@@ -118,17 +170,39 @@ comparison lag, recent-block distance, anchor-above-recent, depth, height-window
 edges and fact height. File-store tests cover callback aborts, invalid state,
 immutable sightings, aliases, actual process exit/reopen, concurrent writers and
 a real write-permission refusal followed by repair.
-They do not simulate every power-loss point or qualify real node behavior.
+`TestReviewDirectorySyncRetry` injects temp-fsync, rename, directory-fsync,
+marker-clear and clear-directory-sync failures for **both** records, checking
+same-handle retry, a new handle and an actual restarted process beside repaired
+positive controls. `TestV4UncertainNoOp` prevents admission from a visible but
+uncertain update. `TestReviewDirectoryOpenRetry` retains the real permission
+witness. `TestReviewRolledBackStoreRefused`,
+`TestReviewRestoredFileAfterProcessRestart` and `TestV4MissingSentinelRefused`
+exercise partial restore, generation gaps, inconsistent marks and missing
+continuity. `TestV4InterruptedCommitOpens` checks automatic +1 recovery.
+`TestV4CommitCrashPoints` actually exits a process after every filesystem step
+of an ordinary commit and reopens without operator intervention.
+`TestV4OperatorRecoveryMaximum` and `TestRecoveryCommand` cover audited explicit
+recovery and forbidden unaudited mutation. `TestV4BothFilesRestoreDocumentedLimit`
+records the deliberate both-records-and-clock restore limit. These process/fault
+controls do not qualify physical power loss, storage hardware or real nodes.
 
 | Mutant | Narrows the gate to | Named failing test |
 | --- | --- | --- |
 | MIN depth instead of MAX | Both asymmetric minima with depth just below the maximum | `TestV4DepthMaximum` |
 | Allow a clock below the mark | Known/new tip rollback and unchanged kept state | `TestV4ClockRollback` |
 | Report the lower of two findings | Both input orders for every pair of profile codes | `TestV4FirstRefusal` |
+| Collapse distinct sources at the same tip | Equal tips do not remove source independence | `TestV4NodeSources` |
+| Allow age equal to the cutoff | Exact cutoff refuses for header and seen age, both classes | `TestV4DualTimeAndRisk` |
+| Skip the directory fsync | Both records must cross the post-rename directory barrier | `TestReviewDirectorySyncRetry` |
+| Admit an uncertain no-op | Visible same-state retry cannot authorize before a fresh barrier | `TestV4UncertainNoOp` |
+| Skip sentinel comparison | Partial restore, mark mismatch and >1 gap refuse | `TestReviewRolledBackStoreRefused` |
+| Treat missing sentinel as fresh | Loss of continuity never initializes implicitly | `TestV4MissingSentinelRefused` |
 
 The runner requires exit **0** from each unchanged control and exit **1** with
 the named failing test from each Go overlay. Compilation/setup failures and
-skips are not kills. All three mutants are killed; there are no survivors.
+skips are not kills. All nine mutants are killed; there are no survivors. The source-collapse and
+exact-age overlays also export incorrect vector results that the second reader
+rejects.
 It also requires the independent reader to refuse a deliberately incorrect
 passing Go result for the header `S+1` vector, with a valid-result control.
 
@@ -144,7 +218,7 @@ needed. `.temp/` is ignored scratch space.
 ```sh
 mkdir -p .temp/chainview
 # Format check: empty output is required.
-gofmt -l experiments/grant-v4/chainview/*.go
+gofmt -l experiments/grant-v4/chainview/*.go experiments/grant-v4/chainview/cmd/clock-store-recover/*.go
 go -C experiments/grant-v4/chainview vet ./...
 CHAINVIEW_VECTOR_RESULTS="$PWD/.temp/chainview/go-vectors.json" go -C experiments/grant-v4/chainview test -race -count=1 -json ./... > .temp/chainview/tests.json
 python3 -B experiments/grant-v4/chainview/scripts/check-vectors.py --go-results .temp/chainview/go-vectors.json
@@ -177,4 +251,4 @@ Git verifies the unmodified fixture bytes and unchanged sibling-module scope.
 - **GAP: `swarma` extraction.** The rule defining those member octets is open;
   this module does not extract or interpret them.
 - Owners' acceptance, co-author agreement, measurements, real-node and storage
-  qualification, lost-store recovery and downstream integration remain pending.
+  qualification, recovery of lost first sights and downstream integration remain pending.

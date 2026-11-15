@@ -106,7 +106,10 @@ func (c *Clock) Observe(in ClockInput) (Code, error) {
 		return nil
 	})
 	if err != nil {
-		return "", err
+		if errors.Is(err, ErrStoreContinuity) {
+			return StoreContinuity, err
+		}
+		return StoreUncertain, err
 	}
 	return result, nil
 }

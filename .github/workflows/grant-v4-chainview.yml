@@ -42,7 +42,7 @@ jobs:
       - name: Record candidate identity and formatting
         run: |
           git rev-parse HEAD > "$RUNNER_TEMP/chainview-head.txt"
-          gofmt -l experiments/grant-v4/chainview/*.go > "$RUNNER_TEMP/chainview-format.txt"
+          gofmt -l experiments/grant-v4/chainview/*.go experiments/grant-v4/chainview/cmd/clock-store-recover/*.go > "$RUNNER_TEMP/chainview-format.txt"
           test ! -s "$RUNNER_TEMP/chainview-format.txt"
       - name: Vet
         run: go -C experiments/grant-v4/chainview vet ./...
@@ -54,7 +54,7 @@ jobs:
         run: python3 -B experiments/grant-v4/chainview/scripts/check-vectors.py --go-results "$RUNNER_TEMP/chainview-go-vectors.json"
       - name: Build
         run: go -C experiments/grant-v4/chainview build ./...
-      - name: Three narrowing control plants and reader control
+      - name: Nine narrowing control plants and reader controls
         run: python3 -B experiments/grant-v4/chainview/scripts/check-mutants.py --scratch "$RUNNER_TEMP/chainview-mutants"
       - name: Preserve exact test and control evidence
         if: always()
