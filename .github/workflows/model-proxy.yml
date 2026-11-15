@@ -64,3 +64,5 @@ jobs:
           done
           cd experiments/model-proxy
           go run .scripts/guards.go -out .temp/guards
+          go run .scripts/daily-ceiling-guards.go -out .temp/daily-guards
+          go test -race -count=50 -run '^TestDailyParallelReservations$' .

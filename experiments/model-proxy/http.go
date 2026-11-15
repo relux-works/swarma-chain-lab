@@ -49,7 +49,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, e := s.authorize(id, bearer)
 	s.mu.Unlock()
 	if e != nil {
-		reject(401, "AUTH")
+		if accountingCode(e.Error()) {
+			reject(503, e.Error())
+		} else {
+			reject(401, "AUTH")
+		}
 		return
 	}
 	if r.Header.Get("Content-Encoding") != "" || r.ContentLength > MaxBody {
@@ -73,10 +77,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	call, cancel, e := s.reserve(r.Context(), id, bearer, p)
 	if e != nil {
 		code := e.Error()
-		if code != "BUSY" && code != "MODEL" && code != "CAP" {
+		if code != "BUSY" && code != "MODEL" && code != "CAP" && code != "DAILY_COST_CEILING" && !accountingCode(code) {
 			code = "AUTH"
 		}
-		reject(403, code)
+		status := 403
+		if accountingCode(code) {
+			status = 503
+		}
+		reject(status, code)
 		return
 	}
 	defer cancel()

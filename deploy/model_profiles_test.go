@@ -1,6 +1,9 @@
 package deploy
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 // The public config validator admits the native Responses profile but refuses
 // unknown models/profiles and unpinned endpoints. It opens no credential files.
@@ -39,5 +42,21 @@ func TestModelResponsesProfiles(t *testing.T) {
 				t.Fatal("Responses public config guard missing", e)
 			}
 		})
+	}
+}
+
+// Deployment accepts the same optional sealed ceiling; malformed numeric and unknown override fields still refuse.
+func TestModelDailyCostCeiling(t *testing.T) {
+	c := modelFixture()
+	c.DailyCostCeilingNanoUSD = 230
+	raw := encoded(t, c)
+	if e := validateModel(raw, c.Listen); e != nil {
+		t.Fatal("sealed ceiling deployment refused", e)
+	}
+	for _, field := range []string{`"daily_cost_ceiling_nano_usd":-1`, `"daily_cost_ceiling_nano_usd":18446744073709551616`, `"daily_cost_ceiling_nano_usd":230,"ceiling_override":231`} {
+		bad := bytes.Replace(raw, []byte(`"daily_cost_ceiling_nano_usd":230`), []byte(field), 1)
+		if e := validateModel(bad, c.Listen); e != ErrPolicy {
+			t.Fatal("invalid daily ceiling deployment accepted", e)
+		}
 	}
 }

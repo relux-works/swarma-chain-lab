@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ type reservation struct {
 	Model string `json:"model"`
 	Usage Usage  `json:"usage"`
 	Cost  uint64 `json:"cost"`
+	Day   int64  `json:"day"`
 }
 type record struct {
 	Binding  Binding              `json:"binding"`
@@ -26,22 +28,56 @@ type record struct {
 	Observed Usage                `json:"observed"`
 	Pending  *reservation         `json:"pending"`
 }
+type dailyAccounting struct {
+	Day       int64  `json:"day"`
+	Committed uint64 `json:"committed"`
+	Checksum  string `json:"checksum"`
+}
+
+func (d *dailyAccounting) checksum() string { return sum(privateCanonical([]any{d.Day, d.Committed})) }
+
+func newDaily(day int64) *dailyAccounting {
+	d := &dailyAccounting{Day: day}
+	d.Checksum = d.checksum()
+	return d
+}
+
 type ledger struct {
 	Version int               `json:"version"`
 	Config  string            `json:"config"`
 	High    int64             `json:"high"`
 	Records map[string]record `json:"records"`
+	Daily   *dailyAccounting  `json:"daily,omitempty"`
 }
 type Service struct {
-	mu               sync.Mutex
-	cfg              Config
-	disk             *durable.Store
-	state            ledger
-	closed, poisoned bool
-	cancel           map[string]context.CancelFunc
+	mu                sync.Mutex
+	cfg               Config
+	disk              *durable.Store
+	state             ledger
+	persisted         string
+	accountingFailure string
+	closed, poisoned  bool
+	cancel            map[string]context.CancelFunc
 }
 
-func New(c Config) (*Service, error) {
+// InitializeAccounting is an explicit provisioning operation, never a startup
+// fallback. The CLI admits its configuration through the signed static boundary.
+// An existing lock, ledger or any other entry prevents reinitialization.
+func InitializeAccounting(c Config) error {
+	entries, e := os.ReadDir(c.StateDir)
+	if e != nil || len(entries) != 0 {
+		return fail("DAILY_ACCOUNTING_INIT_REFUSED")
+	}
+	s, e := newService(c, true)
+	if e != nil {
+		return e
+	}
+	return s.Close()
+}
+
+func New(c Config) (*Service, error) { return newService(c, false) }
+
+func newService(c Config, initialize bool) (*Service, error) {
 	if c.Now == nil || !validOrigin(c.Endpoint.URL) || !digest(c.Endpoint.CertSHA256) || !validURL(c.Upstream) || len(c.APIKey.Reveal()) < 1 || len(c.APIKey.Reveal()) > 4096 || len(c.Models) < 1 || len(c.Models) > 16 {
 		return nil, fail("CONFIG")
 	}
@@ -84,6 +120,7 @@ func New(c Config) (*Service, error) {
 	if len(profiles) != 0 {
 		fingerprint = append(fingerprint, profiles)
 	}
+	fingerprint = append(fingerprint, c.DailyCostCeilingNanoUSD)
 	d, e := durable.Open(c.StateDir, "proxy.lock")
 	if e != nil {
 		return nil, fail("STATE_OPEN")
@@ -92,14 +129,48 @@ func New(c Config) (*Service, error) {
 	raw, e := d.Read("registry.json", MaxBody)
 	if e != nil {
 		d.Close()
-		return nil, fail("STATE_READ")
+		return nil, fail("DAILY_ACCOUNTING_CORRUPT")
 	}
+	if raw == nil {
+		if !initialize {
+			d.Close()
+			return nil, fail("DAILY_ACCOUNTING_MISSING")
+		}
+		now := c.Now().Unix()
+		if now < 1 || now > 1<<50 {
+			d.Close()
+			return nil, fail("CLOCK")
+		}
+		s.state.High = now
+		s.state.Daily = newDaily(now / 86400)
+		raw = privateCanonical(s.state)
+		if d.Write("registry.json", raw) != nil {
+			d.Close()
+			return nil, fail("STATE_WRITE")
+		}
+		s.persisted = sum(raw)
+		return s, nil
+	}
+	if initialize {
+		d.Close()
+		return nil, fail("DAILY_ACCOUNTING_INIT_REFUSED")
+	}
+	s.persisted = sum(raw)
 	if raw != nil {
 		var v ledger
-		if unique(raw) != nil || json.Unmarshal(raw, &v) != nil || string(privateCanonical(v)) != string(raw) || v.Version != 1 || v.Config != s.state.Config || v.High < 0 || len(v.Records) > MaxRecords || v.Records == nil {
+		if unique(raw) != nil || json.Unmarshal(raw, &v) != nil || string(privateCanonical(v)) != string(raw) || v.Version != 1 || v.High < 0 || len(v.Records) > MaxRecords || v.Records == nil {
+			d.Close()
+			return nil, fail("DAILY_ACCOUNTING_CORRUPT")
+		}
+		if v.Daily == nil || v.Daily.Checksum != v.Daily.checksum() || v.Daily.Day < 0 || v.Daily.Day != v.High/86400 || v.Daily.Committed > c.DailyCostCeilingNanoUSD {
+			d.Close()
+			return nil, fail("DAILY_ACCOUNTING_CORRUPT")
+		}
+		if v.Config != s.state.Config {
 			d.Close()
 			return nil, fail("STATE")
 		}
+		var pendingCost uint64
 		seen := map[Secret]bool{}
 		for id, r := range v.Records {
 			b, e := base64.RawURLEncoding.DecodeString(string(r.Bearer.Reveal()))
@@ -108,6 +179,20 @@ func New(c Config) (*Service, error) {
 				return nil, fail("STATE")
 			}
 			seen[r.Bearer.Reveal()] = true
+			if p := r.Pending; p != nil {
+				if p.Day < 0 || p.Day > v.Daily.Day {
+					d.Close()
+					return nil, fail("DAILY_ACCOUNTING_CORRUPT")
+				}
+				if p.Day == v.Daily.Day {
+					var ok bool
+					pendingCost, ok = add(pendingCost, p.Cost)
+					if !ok || pendingCost > v.Daily.Committed {
+						d.Close()
+						return nil, fail("DAILY_ACCOUNTING_CORRUPT")
+					}
+				}
+			}
 			// An interrupted attempt remains charged at its entire worst-case exposure.
 			r.Pending = nil
 			v.Records[id] = r
@@ -141,16 +226,48 @@ func (s *Service) save() error {
 	if s.closed || s.poisoned {
 		return fail("STATE_WRITE")
 	}
+	if e := s.accountingIntegrity(); e != nil {
+		return e
+	}
+	s.state.Daily.Checksum = s.state.Daily.checksum()
 	raw := privateCanonical(s.state)
 	if len(raw) > MaxBody || s.disk.Write("registry.json", raw) != nil {
 		s.poisoned = true
 		return fail("STATE_WRITE")
 	}
+	s.persisted = sum(raw)
 	return nil
 }
+
+// The process must not recreate deleted state or overwrite corrupted accounting.
+// All calls hold mu; the filesystem lock excludes a second cooperating process.
+func (s *Service) accountingIntegrity() error {
+	raw, e := s.disk.Read("registry.json", MaxBody)
+	code := ""
+	if e != nil {
+		code = "DAILY_ACCOUNTING_CORRUPT"
+	} else if raw == nil {
+		code = "DAILY_ACCOUNTING_MISSING"
+	} else if sum(raw) != s.persisted {
+		code = "DAILY_ACCOUNTING_CORRUPT"
+	}
+	if code != "" {
+		s.poisoned = true
+		s.accountingFailure = code
+		return fail(code)
+	}
+	return nil
+}
+
 func (s *Service) clock() (int64, error) {
+	if s.accountingFailure != "" {
+		return 0, fail(s.accountingFailure)
+	}
 	if s.closed || s.poisoned {
 		return 0, fail("UNAVAILABLE")
+	}
+	if e := s.accountingIntegrity(); e != nil {
+		return 0, e
 	}
 	now := s.cfg.Now().Unix()
 	if now < 1 || now > 1<<50 || now < s.state.High {
@@ -158,6 +275,9 @@ func (s *Service) clock() (int64, error) {
 	}
 	if now > s.state.High {
 		s.state.High = now
+		if day := now / 86400; day > s.state.Daily.Day {
+			s.state.Daily = newDaily(day)
+		}
 		if e := s.save(); e != nil {
 			return now, e
 		}
@@ -313,8 +433,15 @@ func (s *Service) reserve(ctx context.Context, id string, bearer Secret, p Prepa
 	if !a || !b || !d || !f || next.Input > c.InputTokens || next.Output > c.OutputTokens || next.Requests > c.Requests || next.Cost > c.CostNanoUSD {
 		return nil, nil, fail("CAP")
 	}
+	dailyNext, ok := add(s.state.Daily.Committed, cost)
+	if !ok || dailyNext > s.cfg.DailyCostCeilingNanoUSD {
+		return nil, nil, fail("DAILY_COST_CEILING")
+	}
+	// Both reservations commit in one fsync/rename/directory-sync transaction
+	// under mu, before any provider call. Pending/uncertain cost stays charged.
+	s.state.Daily.Committed = dailyNext
 	r.Exposure = next
-	r.Pending = &reservation{p.Model, u, cost}
+	r.Pending = &reservation{Model: p.Model, Usage: u, Cost: cost, Day: s.state.Daily.Day}
 	s.state.Records[id] = r
 	if e = s.save(); e != nil {
 		return nil, nil, e
@@ -342,6 +469,9 @@ func (s *Service) settle(id string, u *Usage) error {
 	if s.closed || s.poisoned {
 		return fail("STATE_WRITE")
 	}
+	if _, e := s.clock(); e != nil {
+		return e
+	}
 	r := s.state.Records[id]
 	p := r.Pending
 	if p == nil {
@@ -357,6 +487,10 @@ func (s *Service) settle(id string, u *Usage) error {
 			r.Exposure.Input = r.Exposure.Input - p.Usage.Input + u.Input
 			r.Exposure.Output = r.Exposure.Output - p.Usage.Output + u.Output
 			r.Exposure.Cost = r.Exposure.Cost - p.Cost + cost
+			// Settlement belongs to the admission day, never a later day's budget.
+			if p.Day == s.state.Daily.Day {
+				s.state.Daily.Committed -= p.Cost - cost
+			}
 			r.Observed.Input += u.Input
 			r.Observed.Output += u.Output
 		}

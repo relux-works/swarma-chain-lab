@@ -160,14 +160,15 @@ type modelConfig struct {
 		URL        string `json:"url"`
 		CertSHA256 string `json:"cert_sha256"`
 	} `json:"endpoint"`
-	TLSCert       string                      `json:"tls_cert"`
-	TLSKey        string                      `json:"tls_key"`
-	AdminSocket   string                      `json:"admin_socket"`
-	CallerUID     *uint32                     `json:"caller_uid"`
-	Upstream      string                      `json:"upstream"`
-	APIKeyFile    string                      `json:"api_key_file"`
-	Models        map[string]modelSpec        `json:"models"`
-	ModelProfiles map[string]modelProfileSpec `json:"model_profiles,omitempty"`
+	TLSCert                 string                      `json:"tls_cert"`
+	TLSKey                  string                      `json:"tls_key"`
+	AdminSocket             string                      `json:"admin_socket"`
+	CallerUID               *uint32                     `json:"caller_uid"`
+	Upstream                string                      `json:"upstream"`
+	APIKeyFile              string                      `json:"api_key_file"`
+	Models                  map[string]modelSpec        `json:"models"`
+	ModelProfiles           map[string]modelProfileSpec `json:"model_profiles,omitempty"`
+	DailyCostCeilingNanoUSD uint64                      `json:"daily_cost_ceiling_nano_usd,omitempty"`
 }
 
 func modelResponsesURL(raw string) bool {

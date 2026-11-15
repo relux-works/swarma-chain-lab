@@ -34,6 +34,10 @@ func (s *Service) adminHandler(w http.ResponseWriter, r *http.Request) {
 		refusal(w, 403, "PEER")
 		return
 	}
+	if r.URL.Path == "/v1/budget" {
+		s.budgetHandler(w, r)
+		return
+	}
 	if r.Method != "POST" || r.URL.Path != "/v1/registry" || r.URL.RawQuery != "" {
 		refusal(w, 400, "ADMIN")
 		return

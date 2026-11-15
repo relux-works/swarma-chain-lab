@@ -77,12 +77,89 @@ its contract.
 The ledger is private, bounded and exclusively locked using `single-use/durable`:
 0700 state root, 0600 files, fsync/rename/directory-sync, 64 lifetime records,
 16 active/prepared slots, one in-flight request per slot and at most 16 globally.
-A configuration fingerprint binds endpoint, upstream, model table and dialect.
+A configuration fingerprint binds endpoint, upstream, model table, dialect and
+daily cost ceiling.
 Restart preserves credentials, revocation and exposure; it never replays work.
 There is no automatic record GC. Resetting state would reset accounting and is
 not an ordinary recovery step. A durable wall-clock high-water refuses rollback.
 Expiry is checked again during requests every 25 ms; already accepted provider
 work can continue after local cancellation, hence conservative retention.
+
+## Proxy-wide daily cost ceiling
+
+`daily_cost_ceiling_nano_usd` is an optional final top-level unsigned integer
+in the canonical admin configuration, after `model_profiles` when present.
+It uses the same integer nano-USD units and pinned model prices as booking caps.
+Omission or zero disables generation; neither means unlimited. Provision a
+positive operator-approved ceiling to enable generation. There is no built-in
+production ceiling or price.
+
+The installed loader admits this field only as part of the existing signed
+static configuration set: the config bytes are hashed in the manifest, whose
+signature and digest are pinned by the root-owned install anchor. The file is
+root:exclusive-service-group0640 under protected0750 ancestry. See the
+[install contract](../../deploy/INSTALL-CONFIG.md) for sealing and admission.
+The daemon reads no environment override. Public Messages/Responses fields and
+registrar operations cannot set the ceiling. Even a registrar that mints many
+bindings with large booking caps cannot raise this proxy-wide limit. The
+ceiling is copied at construction and included in the durable configuration
+fingerprint; changing it requires a separately planned admin migration, not a
+live update or deletion of state.
+
+Admission reserves the full context/input and requested output cost against
+both the booking and the current UTC day's ceiling. The process mutex covers
+the check, addition and durable write; the exclusive state-directory lock
+excludes another cooperating proxy. Both reservations are stored in the same
+`registry.json` transaction using the existing atomic rename, file fsync and
+directory fsync, before any provider call. Equality is admitted. If the new
+exposure would exceed the ceiling by even one nano-unit, admission returns
+HTTP403 `{"error":"DAILY_COST_CEILING"}` without a provider call or booking
+charge. Integer overflow also refuses.
+
+Today's committed spend is conservative charged exposure, including full
+in-flight and uncertain reservations. Verified settlement replaces a reservation
+with actual usage before releasing success. Interrupted calls and restart keep
+the full unresolved cost. A reservation belongs to its UTC admission day:
+forward midnight resets the current bucket durably on the next admission,
+settlement or readback; a late settlement never refunds the new day. The existing
+durable clock high-water refuses rollback. This bounds admitted cost under the
+pinned provider billing contract, rather than proving a provider obeys it. A
+hard limit on the provider key remains a separate operator action.
+
+Provision accounting once, before the first normal startup, using the installed
+binary with the same sealed inputs and service identity:
+
+```sh
+model-proxy -config SEALED_CONFIG -initialize-accounting
+```
+
+This command opens no listener and makes no provider call. It requires an
+existing private0700 **empty** state directory and refuses any existing entry,
+including a lock left by an attempted startup. It is not a recovery/reset
+command. Normal startup never initializes missing accounting. Missing state
+returns `DAILY_ACCOUNTING_MISSING`; invalid, incomplete or corrupted accounting
+returns `DAILY_ACCOUNTING_CORRUPT`. Live admission/readback also checks the
+persisted file and poisons the process closed on loss or modification; these
+refusals use HTTP503. A checksum over the day and cost also detects accidental
+accounting corruption at restart, including a zeroed spend. It does not attest
+against an administrator rewriting state and its checksum. No refusal recreates
+zero spend. Restore authoritative
+state through an admin recovery plan, preserving spend and credentials. An
+older ledger without the daily bucket is refused; this change provides no
+automatic migration or reset of existing installations.
+
+The pinned caller can read the peer-checked Unix admin endpoint. The install
+plan can capture its JSON without loading or printing a provider key:
+
+```sh
+curl --silent --show-error --fail --unix-socket ADMIN_SOCKET http://local/v1/budget
+```
+
+The GET response contains only `utc_day` (YYYY-MM-DD), `ceiling_nano_usd`,
+`committed_nano_usd` and `remaining_nano_usd` (ceiling minus charged exposure).
+It is marked `Cache-Control: no-store`. Query parameters, a body, other methods
+and unverified peers refuse; the public TLS generation listener has no budget
+route. Readback advances and persists a pending UTC rollover before responding.
 
 ## Fixed Messages profile
 
@@ -134,11 +211,10 @@ the Messages path for that top-level endpoint.
 
 Prices/context bounds remain in the existing `models` table. Profile settings
 are copied at construction and included in the durable configuration fingerprint.
-An omitted profile map preserves the old file and fingerprint bytes. Changing
-profiles after records exist is refused as fingerprint drift; do not delete
-state to force an upgrade. A real migration needs a separate plan preserving
-bearers and exposure. Messages implementations and regression fixtures are
-unchanged.
+An omitted profile map retains Messages selection. The daily ceiling extends
+restart identity for every profile. Changing profiles after records exist is
+refused as fingerprint drift; do not delete state to force an upgrade. A real migration needs a separate plan preserving
+bearers and exposure. The Messages wire profile remains unchanged.
 
 Responses accepts at most 2 MiB requests, 256 KiB SSE frames and 8 MiB total
 replies. Text/refusal messages and declared function calls are validated against
@@ -161,7 +237,8 @@ Non-Linux administration fails with LINUX_ONLY and has no TCP fallback.
 
 `LoadConfig` accepts a private owner-controlled 0600 canonical JSON file with
 exact fields in this order: `state_dir`, `listen`, `endpoint`, `tls_cert`,
-`tls_key`, `admin_socket`, `caller_uid`, `upstream`, `api_key_file`, `models`.
+`tls_key`, `admin_socket`, `caller_uid`, `upstream`, `api_key_file`, `models`,
+optionally followed by `model_profiles` and `daily_cost_ceiling_nano_usd`.
 Endpoint has `url`, `cert_sha256`; each model has `context_tokens`,
 `input_nano_usd`, `output_nano_usd`, `source`. Model keys are sorted by JSON
 canonicalization. The listen address is an explicit IP and nonzero port matching
@@ -173,7 +250,7 @@ be symlink-free. Only synthetic fixtures are read by automated tests.
 
 ## Tools and verification
 
-From this module, with Go 1.26.8 and the sibling source modules present:
+From this module, with Go 1.26.10 and the sibling source modules present:
 
 ```sh
 GOWORK=off go mod verify
@@ -181,12 +258,14 @@ GOWORK=off go vet ./...
 GOWORK=off go test -race -count=1 ./...
 GOWORK=off go build -o .temp/model-proxy ./cmd/model-proxy
 GOWORK=off go run .scripts/guards.go -out .temp/guards
+GOWORK=off go run .scripts/daily-ceiling-guards.go -out .temp/daily-guards
+GOWORK=off go test -race -count=50 -run '^TestDailyParallelReservations$' .
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o .temp/model-proxy-linux ./cmd/model-proxy
 ```
 
 The Linux executable takes `-config <private-config-path>`. Starting a real
 proxy and providing deployment credentials are separate operator actions.
-The CLI emits typed audit JSON and fixed startup failure text only.
+The CLI emits typed audit JSON and fixed startup failure codes only.
 
 The phase-specific Responses closure checks can be repeated with
 `GOWORK=off go test -race -count=200 -run '^TestResponses(InFlightClosure|PreHeaderClosure)$' .`.
@@ -231,3 +310,11 @@ their separate contracts. No production mode fallback exists. Full signed
 admission tests live in `single-use/configguard`; local ownership seams are
 synthetic and do not qualify Linux deployment. See the deploy runbook for
 same-binary preflight and the separate DK5b payload launch gate.
+
+The daily-ceiling guard tool uses compiler overlays for three controls: removing
+the ceiling check, admitting ceiling+1, and treating missing accounting as zero.
+It records baseline and mutant command exits, owned PIDs, hashes and named test
+assertions under `.temp/daily-guards`. Candidate source bytes remain unchanged.
+`TestDailyParallelReservations` races sixteen bookings against three full-cost
+admissions; the repeated command above checks fifty independent schedules. These
+synthetic costs and local fakes do not exercise a paid provider.

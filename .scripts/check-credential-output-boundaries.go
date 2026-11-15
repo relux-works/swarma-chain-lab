@@ -34,8 +34,8 @@ var fields = map[string]string{
 	"experiments/rental-gateway/station/linuxuser.go:FakeExec.Inputs":               "[]codec.Secret[[]byte]",
 }
 var reveals = map[string]int{
-	"experiments/model-proxy/registry.go:New:r.Bearer.Reveal()":                                   4,
-	"experiments/model-proxy/registry.go:New:c.APIKey.Reveal()":                                   3,
+	"experiments/model-proxy/registry.go:newService:r.Bearer.Reveal()":                            4,
+	"experiments/model-proxy/registry.go:newService:c.APIKey.Reveal()":                            3,
 	"experiments/model-proxy/messages.go:Messages.Headers:key.Reveal()":                           1,
 	"experiments/model-proxy/responses.go:Responses.Headers:key.Reveal()":                         1,
 	"experiments/rental-gateway/station/localtest.go:LocalTestDriver.Create:token.Reveal()":       1,

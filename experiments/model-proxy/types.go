@@ -111,17 +111,20 @@ type Audit struct {
 	Usage      Usage
 }
 type Config struct {
-	StateDir      string
-	Endpoint      Endpoint
-	Upstream      string
-	APIKey        UpstreamKey
-	Models        map[string]Model
-	ModelProfiles map[string]ModelProfile
-	Now           func() time.Time
-	Timeout       time.Duration
-	Transport     http.RoundTripper
-	Dialect       Dialect
-	Audit         func(Audit)
+	// DailyCostCeilingNanoUSD is copied from the sealed admin configuration.
+	// Zero disables generation; it never means unlimited.
+	DailyCostCeilingNanoUSD uint64
+	StateDir                string
+	Endpoint                Endpoint
+	Upstream                string
+	APIKey                  UpstreamKey
+	Models                  map[string]Model
+	ModelProfiles           map[string]ModelProfile
+	Now                     func() time.Time
+	Timeout                 time.Duration
+	Transport               http.RoundTripper
+	Dialect                 Dialect
+	Audit                   func(Audit)
 }
 
 func validURL(raw string) bool {

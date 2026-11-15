@@ -42,17 +42,18 @@ type ModelProfile struct {
 }
 
 type FileConfig struct {
-	StateDir      string                  `json:"state_dir"`
-	Listen        string                  `json:"listen"`
-	Endpoint      Endpoint                `json:"endpoint"`
-	TLSCert       string                  `json:"tls_cert"`
-	TLSKey        string                  `json:"tls_key"`
-	AdminSocket   string                  `json:"admin_socket"`
-	CallerUID     uint32                  `json:"caller_uid"`
-	Upstream      string                  `json:"upstream"`
-	APIKeyFile    string                  `json:"api_key_file"`
-	Models        map[string]Model        `json:"models"`
-	ModelProfiles map[string]ModelProfile `json:"model_profiles,omitempty"`
+	StateDir                string                  `json:"state_dir"`
+	Listen                  string                  `json:"listen"`
+	Endpoint                Endpoint                `json:"endpoint"`
+	TLSCert                 string                  `json:"tls_cert"`
+	TLSKey                  string                  `json:"tls_key"`
+	AdminSocket             string                  `json:"admin_socket"`
+	CallerUID               uint32                  `json:"caller_uid"`
+	Upstream                string                  `json:"upstream"`
+	APIKeyFile              string                  `json:"api_key_file"`
+	Models                  map[string]Model        `json:"models"`
+	ModelProfiles           map[string]ModelProfile `json:"model_profiles,omitempty"`
+	DailyCostCeilingNanoUSD uint64                  `json:"daily_cost_ceiling_nano_usd,omitempty"`
 }
 
 type TypedProfile struct {

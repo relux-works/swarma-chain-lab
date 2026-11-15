@@ -207,6 +207,7 @@ func TestCrashRecovery(t *testing.T) {
 			if v := h.status(t); v.Exposure != want || v.InFlight || h.calls.Load() != 0 {
 				t.Fatal("crash lost/duplicated charge", v)
 			}
+			assertDaily(t, h, 1000000, want.Cost)
 			if h.send(request(false)).Code != 200 {
 				t.Fatal("post-crash valid neighbor")
 			}
@@ -218,7 +219,7 @@ func TestProxyCrashChild(t *testing.T) {
 	if root == "" {
 		t.Skip("subprocess boundary helper")
 	}
-	s, e := New(Config{StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: os.Getenv("MODEL_PROXY_TEST_UPSTREAM"), APIKey: NewAPIKey(keyMarker), Models: map[string]Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "fixture model bound, not production pricing"}}, Now: func() time.Time { return time.Unix(100, 0) }})
+	s, e := New(Config{DailyCostCeilingNanoUSD: 1000000, StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: os.Getenv("MODEL_PROXY_TEST_UPSTREAM"), APIKey: NewAPIKey(keyMarker), Models: map[string]Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "fixture model bound, not production pricing"}}, Now: func() time.Time { return time.Unix(100, 0) }})
 	if e != nil {
 		t.Fatal(e)
 	}

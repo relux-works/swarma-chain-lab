@@ -57,7 +57,10 @@ func fixture(t *testing.T) *harness {
 	if e := os.Chmod(root, 0700); e != nil {
 		t.Fatal(e)
 	}
-	h.c = Config{StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: upstream.URL + "/v1/messages", APIKey: NewAPIKey(keyMarker), Models: map[string]Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "fixture model bound, not production pricing"}}, Now: func() time.Time { return time.Unix(h.now.Load(), 0) }, Transport: upstream.Client().Transport, Timeout: time.Second, Audit: func(a Audit) { h.mu.Lock(); defer h.mu.Unlock(); h.audits = append(h.audits, a) }}
+	h.c = Config{DailyCostCeilingNanoUSD: 1000000, StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: upstream.URL + "/v1/messages", APIKey: NewAPIKey(keyMarker), Models: map[string]Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "fixture model bound, not production pricing"}}, Now: func() time.Time { return time.Unix(h.now.Load(), 0) }, Transport: upstream.Client().Transport, Timeout: time.Second, Audit: func(a Audit) { h.mu.Lock(); defer h.mu.Unlock(); h.audits = append(h.audits, a) }}
+	if e := InitializeAccounting(h.c); e != nil {
+		t.Fatal(e)
+	}
 	var e error
 	h.s, e = New(h.c)
 	if e != nil {
@@ -436,7 +439,8 @@ func TestConfiguration(t *testing.T) {
 	}
 }
 
-// No Create/generation authority follows a failed durable reservation write.
+// Readable state in a nonwritable fixture directory isolates an actual durable
+// reservation-write failure; it grants no provider call or partial accounting.
 func TestWriteBeforeForward(t *testing.T) {
 	h := fixture(t)
 	path := h.c.StateDir + "/registry.json"
@@ -444,7 +448,7 @@ func TestWriteBeforeForward(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if e = os.Chmod(path, 0400); e != nil {
+	if e = os.Chmod(h.c.StateDir, 0500); e != nil {
 		t.Fatal(e)
 	}
 	if w := h.send(request(false)); w.Code == 200 || h.calls.Load() != 0 {
@@ -454,7 +458,7 @@ func TestWriteBeforeForward(t *testing.T) {
 	if e != nil || string(before) != string(after) {
 		t.Fatal("failed reservation partially wrote")
 	}
-	if e = os.Chmod(path, 0600); e != nil {
+	if e = os.Chmod(h.c.StateDir, 0700); e != nil {
 		t.Fatal(e)
 	}
 	h.reopen(t)

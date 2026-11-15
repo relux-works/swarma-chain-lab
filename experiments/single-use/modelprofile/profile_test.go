@@ -39,3 +39,21 @@ func TestGolden(t *testing.T) {
 		})
 	}
 }
+
+// The ceiling survives canonical public decoding without weakening unknown, duplicate or non-uint64 field rejection.
+func TestDailyCostCeilingSchema(t *testing.T) {
+	raw, e := json.Marshal(FileConfig{DailyCostCeilingNanoUSD: 230})
+	if e != nil {
+		t.Fatal(e)
+	}
+	c, e := DecodeFileConfig(raw)
+	if e != nil || c.DailyCostCeilingNanoUSD != 230 {
+		t.Fatal("daily ceiling omitted", e)
+	}
+	for _, field := range []string{`"daily_cost_ceiling_nano_usd":-1`, `"daily_cost_ceiling_nano_usd":18446744073709551616`, `"daily_cost_ceiling_nano_usd":"230"`, `"daily_cost_ceiling_nano_usd":230,"daily_cost_ceiling_nano_usd":231`, `"daily_cost_ceiling_nano_usd":230,"ceiling_override":231`} {
+		bad := bytes.Replace(raw, []byte(`"daily_cost_ceiling_nano_usd":230`), []byte(field), 1)
+		if _, e = DecodeFileConfig(bad); e != ErrFile {
+			t.Fatal("invalid daily ceiling config accepted", e)
+		}
+	}
+}

@@ -37,6 +37,7 @@ type ledgerPrivate struct {
 	Config  string                   `json:"config"`
 	High    int64                    `json:"high"`
 	Records map[string]recordPrivate `json:"records"`
+	Daily   *dailyAccounting         `json:"daily,omitempty"`
 }
 
 func ledgerPrivateValue(s ledger) ledgerPrivate {
@@ -45,6 +46,7 @@ func ledgerPrivateValue(s ledger) ledgerPrivate {
 		Config:  s.Config,
 		High:    s.High,
 		Records: privateRecords(s.Records),
+		Daily:   s.Daily,
 	}
 }
 func privateRecords(in map[string]record) map[string]recordPrivate {

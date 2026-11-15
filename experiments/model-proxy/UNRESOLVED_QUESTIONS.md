@@ -27,3 +27,9 @@
   root/operator tampering and dishonest provider accounting are outside this
   demo's trust boundary. In-flight cancellation does not prove upstream billing
   stopped; full uncertain exposure remains charged.
+
+- Existing installations need an admin-approved migration preserving credentials,
+  outstanding exposure and the admission-day bucket before enabling the new
+  ceiling. Automatic ledger initialization on startup and state reset are
+  deliberately unavailable. Provisioning a provider-key hard limit remains a
+  separate operator action; no provider account is changed by this module.

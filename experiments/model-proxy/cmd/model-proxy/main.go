@@ -32,13 +32,19 @@ func main() {
 		if errors.As(e, &reason) {
 			fmt.Fprintln(os.Stderr, reason.Error())
 		} else {
-			fmt.Fprintln(os.Stderr, "MODEL_PROXY_FAILED")
+			switch e.Error() {
+			case "DAILY_ACCOUNTING_MISSING", "DAILY_ACCOUNTING_CORRUPT", "DAILY_ACCOUNTING_INIT_REFUSED":
+				fmt.Fprintln(os.Stderr, e.Error())
+			default:
+				fmt.Fprintln(os.Stderr, "MODEL_PROXY_FAILED")
+			}
 		}
 		os.Exit(1)
 	}
 }
 func run() error {
 	path := flag.String("config", "", "private configuration file")
+	initialize := flag.Bool("initialize-accounting", false, "initialize an empty accounting directory from sealed configuration")
 	flag.Parse()
 	if *path == "" || flag.NArg() != 0 || runtime.GOOS != "linux" {
 		return fmt.Errorf("CONFIG")
@@ -83,7 +89,11 @@ func run() error {
 		return fmt.Errorf("LISTEN")
 	}
 	var mu sync.Mutex
-	s, e := proxy.New(proxy.Config{StateDir: c.StateDir, Endpoint: c.Endpoint, Upstream: c.Upstream, APIKey: proxy.NewAPIKey(proxy.Secret(key)), Models: c.Models, ModelProfiles: c.ModelProfiles, Now: time.Now, Audit: func(a proxy.Audit) { mu.Lock(); defer mu.Unlock(); _ = json.NewEncoder(os.Stdout).Encode(a) }})
+	cfg := proxy.Config{DailyCostCeilingNanoUSD: c.DailyCostCeilingNanoUSD, StateDir: c.StateDir, Endpoint: c.Endpoint, Upstream: c.Upstream, APIKey: proxy.NewAPIKey(proxy.Secret(key)), Models: c.Models, ModelProfiles: c.ModelProfiles, Now: time.Now, Audit: func(a proxy.Audit) { mu.Lock(); defer mu.Unlock(); _ = json.NewEncoder(os.Stdout).Encode(a) }}
+	if *initialize {
+		return proxy.InitializeAccounting(cfg)
+	}
+	s, e := proxy.New(cfg)
 	if e != nil {
 		return e
 	}

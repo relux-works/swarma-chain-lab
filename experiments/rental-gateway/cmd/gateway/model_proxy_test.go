@@ -184,7 +184,11 @@ func TestModelConfiguredLifecycle(t *testing.T) {
 			}))
 			defer upstream.Close()
 			c.ModelProxy = modelConfig(t)
-			service, e := proxy.New(proxy.Config{StateDir: testRoot(t), Endpoint: proxy.Endpoint{URL: c.ModelProxy.Origin, CertSHA256: c.ModelProxy.CertSHA256}, Upstream: upstream.URL + "/v1/messages", APIKey: proxy.NewAPIKey("synthetic-fixture"), Models: map[string]proxy.Model{"fixture-model": {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic fixture"}}, Now: now, Transport: upstream.Client().Transport})
+			proxyConfig := proxy.Config{DailyCostCeilingNanoUSD: 1000000, StateDir: testRoot(t), Endpoint: proxy.Endpoint{URL: c.ModelProxy.Origin, CertSHA256: c.ModelProxy.CertSHA256}, Upstream: upstream.URL + "/v1/messages", APIKey: proxy.NewAPIKey("synthetic-fixture"), Models: map[string]proxy.Model{"fixture-model": {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic fixture"}}, Now: now, Transport: upstream.Client().Transport}
+			if e := proxy.InitializeAccounting(proxyConfig); e != nil {
+				t.Fatal(e)
+			}
+			service, e := proxy.New(proxyConfig)
 			if e != nil {
 				t.Fatal(e)
 			}

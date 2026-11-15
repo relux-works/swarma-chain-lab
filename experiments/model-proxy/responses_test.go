@@ -51,15 +51,18 @@ func responsesFixture(t *testing.T, defaultLimit ...uint64) *responsesHarness {
 	if e := os.Chmod(root, 0700); e != nil {
 		t.Fatal(e)
 	}
-	h.c = Config{StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: up.URL + "/v1/responses", APIKey: NewAPIKey(keyMarker),
+	h.c = Config{DailyCostCeilingNanoUSD: 1000000, StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: up.URL + "/v1/responses", APIKey: NewAPIKey(keyMarker),
 		Models:        map[string]Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "synthetic fixture prices"}},
 		ModelProfiles: map[string]ModelProfile{modelID: {Profile: OpenAIResponsesProfile, Upstream: up.URL + "/v1/responses"}},
 		Now:           func() time.Time { return time.Unix(h.now.Load(), 0) }, Timeout: time.Second, Transport: up.Client().Transport,
 		Audit: func(a Audit) {
-			if a.Code != "OK" && a.Code != "STREAM" && a.Code != "USAGE" && a.Code != "AUTH" && a.Code != "CAP" && a.Code != "REQUEST" && a.Code != "BODY" && a.Code != "PROFILE" && a.Code != "UPSTREAM" && a.Code != "ROUTE" && a.Code != "BUSY" {
+			if a.Code != "OK" && a.Code != "STREAM" && a.Code != "USAGE" && a.Code != "AUTH" && a.Code != "CAP" && a.Code != "REQUEST" && a.Code != "BODY" && a.Code != "PROFILE" && a.Code != "UPSTREAM" && a.Code != "ROUTE" && a.Code != "BUSY" && a.Code != "DAILY_COST_CEILING" && a.Code != "DAILY_ACCOUNTING_MISSING" && a.Code != "DAILY_ACCOUNTING_CORRUPT" {
 				t.Error("Responses private audit content")
 			}
 		},
+	}
+	if e := InitializeAccounting(h.c); e != nil {
+		t.Fatal(e)
 	}
 	var e error
 	h.s, e = New(h.c)
@@ -423,8 +426,8 @@ func TestResponsesAuthAndCaps(t *testing.T) {
 	}
 }
 
-// Explicit model profiles bind restart identity; omission leaves the historical
-// fingerprint and canonical config unchanged. This is not a state migration.
+// Explicit profiles and the daily ceiling bind restart identity; omission of
+// profiles preserves Messages selection. This does not migrate old ledgers.
 func TestResponsesProfileConfiguration(t *testing.T) {
 	t.Run("fingerprint", func(t *testing.T) {
 		h := responsesFixture(t)
@@ -447,9 +450,9 @@ func TestResponsesProfileConfiguration(t *testing.T) {
 	})
 	t.Run("legacy", func(t *testing.T) {
 		h := fixture(t)
-		old := sum(privateCanonical([]any{h.c.Endpoint, h.c.Upstream, h.c.Models, (Messages{}).Profile()}))
+		old := sum(privateCanonical([]any{h.c.Endpoint, h.c.Upstream, h.c.Models, (Messages{}).Profile(), h.c.DailyCostCeilingNanoUSD}))
 		if h.s.state.Config != old {
-			t.Fatal("legacy fingerprint changed")
+			t.Fatal("Messages fingerprint omitted daily ceiling")
 		}
 		if strings.Contains(string(privateCanonical(FileConfig{})), "model_profiles") {
 			t.Fatal("legacy config bytes changed")
@@ -493,9 +496,9 @@ func TestResponsesProfileConfiguration(t *testing.T) {
 				c.Upstream = "https://example.invalid/v1/messages"
 			}
 			c.ModelProfiles = map[string]ModelProfile{key: p}
-			s, e := New(c)
+			// Provisioning validates profiles before creating any accounting authority.
+			e := InitializeAccounting(c)
 			if e == nil {
-				s.Close()
 				t.Fatal("Responses invalid profile accepted")
 			}
 			if e.Error() != "CONFIG_PROFILE" {
