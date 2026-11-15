@@ -13,6 +13,7 @@ import sys
 
 MODULE = Path(__file__).resolve().parents[1]
 MUTANTS = [
+    ('drop-derived-audit-sidecar', 'recovery.go', [('path+".lock", audit+".pending")', 'path+".lock")')], 'TestDeltaRecoveryDerivedPathCollision'),
     ('minimum-depth', 'depth.go', [('max(signedMinimum, operatorFloor)', 'min(signedMinimum, operatorFloor)')], 'TestV4DepthMaximum'),
     ('clock-rollback', 'clock.go', [('if in.Now < state.KeptMark {', 'if false {'), ('now < keptMark ||', 'false ||')], 'TestV4ClockRollback'),
     ('lower-finding', 'order.go', [('for _, candidate := range refusalOrder {\n\t\tfor _, code := range findings {',

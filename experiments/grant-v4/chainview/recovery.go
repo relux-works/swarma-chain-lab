@@ -19,27 +19,59 @@ type recoveryEvent struct {
 	Generation    uint64 `json:"generation"`
 }
 
+// ErrRecoveryPathCollision refuses overlapping managed names before any write.
+var ErrRecoveryPathCollision = errors.New("RECOVERY_PATH_COLLISION")
+
+// canonicalRecoveryPath resolves parent aliases but preserves the final name:
+// record I/O rejects final-component symlinks rather than following them.
+func canonicalRecoveryPath(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Dir(absolute))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, filepath.Base(absolute)), nil
+}
+
+func recoveryPaths(path, sentinel, audit string) (string, string, string, error) {
+	paths := []string{path, sentinel, audit}
+	for i, path := range paths {
+		canonical, err := canonicalRecoveryPath(path)
+		if err != nil {
+			return "", "", "", err
+		}
+		paths[i] = canonical
+	}
+	path, sentinel, audit = paths[0], paths[1], paths[2]
+	// Derive markers from canonical record names, exactly as write does. Include
+	// every stable name before fileStoreAt's placement checks and lock creation.
+	paths = append(paths, path+".pending", sentinel+".pending", path+".lock", audit+".pending")
+	seen := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		if seen[path] {
+			return "", "", "", fmt.Errorf("%w: managed names overlap", ErrRecoveryPathCollision)
+		}
+		seen[path] = true
+	}
+	return path, sentinel, audit, nil
+}
+
 // RecoverFileStoreAt is an explicit operator action, never an open fallback.
 // It preserves every available snapshot sight and takes MAX of the snapshot,
 // sentinel and previous recovery-log marks. Malformed present records refuse;
 // a missing snapshot refuses because lost first sights cannot be reconstructed.
 // The durable audit intent precedes mutation; a committed event follows it.
 func RecoverFileStoreAt(path, sentinel, audit string) (*FileStore, error) {
+	path, sentinel, audit, err := recoveryPaths(path, sentinel, audit)
+	if err != nil {
+		return nil, err
+	}
 	s, err := fileStoreAt(path, sentinel)
 	if err != nil {
 		return nil, err
-	}
-	audit, err = filepath.Abs(audit)
-	if err != nil {
-		return nil, err
-	}
-	auditDir, err := filepath.EvalSymlinks(filepath.Dir(audit))
-	if err != nil {
-		return nil, err
-	}
-	audit = filepath.Join(auditDir, filepath.Base(audit))
-	if audit == s.path || audit == s.sentinel || audit == s.path+".pending" || audit == s.sentinel+".pending" || audit == s.path+".lock" {
-		return nil, errors.New("audit path overlaps store")
 	}
 	err = s.locked(func() error {
 		snapshot, err := readSnapshot(s.path)

@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -64,4 +66,110 @@ func TestRecoveryCommand(t *testing.T) {
 	if err != nil || state.KeptMark != 200 || state.FirstSights["tip"] != 100 {
 		t.Fatal("recovery lost maximum or sight", state, err)
 	}
+}
+
+// The actual command refuses both derived-sidecar overlaps with exit 1, no
+// committed audit, and unchanged records/markers; disjoint audits recover MAX.
+func TestDeltaRecoveryCommandDerivedPathCollision(t *testing.T) {
+	for _, record := range []string{"snapshot", "sentinel"} {
+		t.Run(record, func(t *testing.T) {
+			root := t.TempDir()
+			data, continuity := filepath.Join(root, "data"), filepath.Join(root, "continuity")
+			for _, dir := range []string{data, continuity} {
+				if err := os.Mkdir(dir, 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			path, sentinel := filepath.Join(data, "clock"), filepath.Join(continuity, "clock")
+			if record == "snapshot" {
+				path += ".pending"
+			} else {
+				sentinel += ".pending"
+			}
+			s, err := chainview.CreateFileStoreAt(path, sentinel, chainview.ClockState{KeptMark: 100, FirstSights: map[string]int64{"tip": 100}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			old, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Transact(func(state *chainview.ClockState) error { state.KeptMark = 200; return nil }); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, old, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := chainview.OpenFileStoreAt(path, sentinel); !errors.Is(err, chainview.ErrStoreContinuity) {
+				t.Fatalf("partial restore: %v", err)
+			}
+			audit := filepath.Join(data, "clock")
+			if record == "sentinel" {
+				audit = filepath.Join(continuity, "clock")
+			}
+			// Deliberately remove the prior lock to detect even lock creation.
+			if err := os.Remove(path + ".lock"); err != nil {
+				t.Fatal(err)
+			}
+			before := commandRecoveryTree(t, root)
+			run := func(audit string) ([]byte, error) {
+				child := exec.Command(os.Args[0], "-test.run=^TestRecoveryCommand$", "-test.v")
+				child.Env = append(os.Environ(), "CHAINVIEW_RECOVERY_COMMAND=1", "CHAINVIEW_RECOVERY_ARGS="+strings.Join([]string{"-snapshot", path, "-sentinel", sentinel, "-audit", audit}, "\n"))
+				return child.CombinedOutput()
+			}
+			output, err := run(audit)
+			var exit *exec.ExitError
+			if !errors.As(err, &exit) || exit.ExitCode() != 1 || !bytes.Contains(output, []byte("RECOVERY_PATH_COLLISION")) || bytes.Contains(output, []byte(`"committed"`)) {
+				t.Fatalf("collision command: %v\n%s", err, output)
+			}
+			if !reflect.DeepEqual(before, commandRecoveryTree(t, root)) {
+				t.Fatal("refused command changed filesystem")
+			}
+			output, err = run(filepath.Join(continuity, "disjoint-audit"))
+			if err != nil || !bytes.Contains(output, []byte(`"committed"`)) {
+				t.Fatalf("disjoint command: %v\n%s", err, output)
+			}
+			opened, err := chainview.OpenFileStoreAt(path, sentinel)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state, err := chainview.ReadClockState(opened)
+			if err != nil || state.KeptMark != 200 || !reflect.DeepEqual(state.FirstSights, map[string]int64{"tip": 100}) {
+				t.Fatalf("lost maximum/sights: %+v, %v", state, err)
+			}
+		})
+	}
+}
+
+type commandFileImage struct {
+	Mode     os.FileMode
+	Modified int64
+	Data     string
+}
+
+func commandRecoveryTree(t *testing.T, root string) map[string]commandFileImage {
+	t.Helper()
+	image := map[string]commandFileImage{}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		var data []byte
+		if info.Mode().IsRegular() {
+			data, err = os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+		}
+		image[path] = commandFileImage{info.Mode(), info.ModTime().UnixNano(), string(data)}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return image
 }

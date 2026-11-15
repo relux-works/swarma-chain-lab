@@ -126,7 +126,12 @@ mark from every present snapshot, sentinel and prior audit event, and a generati
 above every present generation. It never lowers a mark, retains every available
 snapshot first sight, and can repair a missing sentinel. Malformed present
 records and a missing snapshot refuse; lost first sights cannot be reconstructed
-from the sentinel. Recovery-log failure prevents unaudited mutation. These are
+from the sentinel. Before creating a lock or writing anything, recovery compares
+all seven managed names: snapshot, sentinel, both pending markers, snapshot lock,
+audit and audit pending marker. Paths are cleaned and made absolute, resolving
+parent-directory symlinks without following the final component. Any duplicate
+returns `RECOVERY_PATH_COLLISION` without changing filesystem entries.
+Recovery-log failure prevents unaudited mutation. These are
 operator-owned local artifacts, not remote witnesses or a trusted hardware
 anchor. Back up the audit and continuity directory separately from the data dir.
 
@@ -183,7 +188,12 @@ continuity. `TestV4InterruptedCommitOpens` checks automatic +1 recovery.
 of an ordinary commit and reopens without operator intervention.
 `TestV4OperatorRecoveryMaximum` and `TestRecoveryCommand` cover audited explicit
 recovery and forbidden unaudited mutation. `TestV4BothFilesRestoreDocumentedLimit`
-records the deliberate both-records-and-clock restore limit. These process/fault
+records the deliberate both-records-and-clock restore limit.
+`TestDeltaRecoveryDerivedPathCollision` and
+`TestDeltaRecoveryCommandDerivedPathCollision` refuse both destructive sidecar
+overlaps beside disjoint-audit recovery controls. `TestRecoveryManagedPathCollisions`
+covers every feasible pairwise equality before lock creation, and
+`TestRecoveryCanonicalPaths` checks parent aliases and cleaned relative paths. These process/fault
 controls do not qualify physical power loss, storage hardware or real nodes.
 
 | Mutant | Narrows the gate to | Named failing test |
@@ -196,11 +206,12 @@ controls do not qualify physical power loss, storage hardware or real nodes.
 | Skip the directory fsync | Both records must cross the post-rename directory barrier | `TestReviewDirectorySyncRetry` |
 | Admit an uncertain no-op | Visible same-state retry cannot authorize before a fresh barrier | `TestV4UncertainNoOp` |
 | Skip sentinel comparison | Partial restore, mark mismatch and >1 gap refuse | `TestReviewRolledBackStoreRefused` |
+| Drop derived audit sidecar check | Snapshot/sentinel named as the audit pending marker cannot be removed | `TestDeltaRecoveryDerivedPathCollision` |
 | Treat missing sentinel as fresh | Loss of continuity never initializes implicitly | `TestV4MissingSentinelRefused` |
 
 The runner requires exit **0** from each unchanged control and exit **1** with
 the named failing test from each Go overlay. Compilation/setup failures and
-skips are not kills. All nine mutants are killed; there are no survivors. The source-collapse and
+skips are not kills. All ten mutants are killed; there are no survivors. The source-collapse and
 exact-age overlays also export incorrect vector results that the second reader
 rejects.
 It also requires the independent reader to refuse a deliberately incorrect

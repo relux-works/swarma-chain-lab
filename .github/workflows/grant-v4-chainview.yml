@@ -54,7 +54,7 @@ jobs:
         run: python3 -B experiments/grant-v4/chainview/scripts/check-vectors.py --go-results "$RUNNER_TEMP/chainview-go-vectors.json"
       - name: Build
         run: go -C experiments/grant-v4/chainview build ./...
-      - name: Nine narrowing control plants and reader controls
+      - name: Ten narrowing control plants and reader controls
         run: python3 -B experiments/grant-v4/chainview/scripts/check-mutants.py --scratch "$RUNNER_TEMP/chainview-mutants"
       - name: Preserve exact test and control evidence
         if: always()
