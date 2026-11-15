@@ -22,6 +22,21 @@ var watched = map[string]map[string]bool{
 		"SyscallNoError": true, "RawSyscallNoError": true},
 }
 
+// kernelMembers is the CLOSED set of members of the kernel-facing packages that code OUTSIDE the designated function
+// may use: types, constants and file operations. Everything else in syscall and golang.org/x/sys/unix (raw syscalls,
+// AllThreadsSyscall, ptrace, clone, exec, ...) is refused outside (*Executor).Run, whether or not it is listed above.
+var kernelMembers = map[string]map[string]bool{
+	"syscall": {"Stat_t": true},
+	"golang.org/x/sys/unix": {
+		"AT_SYMLINK_NOFOLLOW": true, "Close": true, "F_SETFL": true, "Fchmod": true, "FcntlInt": true, "Flock": true,
+		"Fstat": true, "Fstatat": true, "Fsync": true, "Ftruncate": true, "LOCK_EX": true, "LOCK_NB": true, "Mkdir": true,
+		"O_CLOEXEC": true, "O_CREAT": true, "O_DIRECTORY": true, "O_NOFOLLOW": true, "O_NONBLOCK": true, "O_PATH": true,
+		"O_RDONLY": true, "O_WRONLY": true, "Open": true, "OpenHow": true, "Openat2": true, "RESOLVE_BENEATH": true,
+		"RESOLVE_NO_MAGICLINKS": true, "RESOLVE_NO_SYMLINKS": true, "Rmdir": true, "S_IFMT": true, "S_IFREG": true,
+		"Stat_t": true, "Umask": true,
+	},
+}
+
 // forbiddenImports may not be imported at all: they reach the kernel or foreign code around the checker.
 var forbiddenImports = map[string]bool{"unsafe": true, "C": true, "plugin": true}
 
@@ -94,7 +109,7 @@ func execViolations(t *testing.T, files []string) []string {
 				out = append(out, base+": import "+path+" is not in the reviewed allow-list")
 				continue
 			}
-			if watched[path] == nil {
+			if watched[path] == nil && kernelMembers[path] == nil {
 				continue
 			}
 			local := path[strings.LastIndex(path, "/")+1:]
@@ -123,16 +138,40 @@ func execViolations(t *testing.T, files []string) []string {
 				}
 				if (watched[path]["*"] || watched[path][sel.Sel.Name]) && !allowed {
 					out = append(out, base+": "+where+" uses "+path+"."+sel.Sel.Name)
+				} else if kernelMembers[path] != nil && !kernelMembers[path][sel.Sel.Name] && !allowed {
+					out = append(out, base+": "+where+" uses "+path+"."+sel.Sel.Name+" (not in the kernel member allow-list)")
 				}
 				return true
 			})
 		}
 		for _, d := range af.Decls {
 			if fd, ok := d.(*ast.FuncDecl); ok {
+				// A bodyless declaration is implemented elsewhere (assembly, linkname): refused in this package.
+				if fd.Body == nil {
+					out = append(out, base+": bodyless func "+fd.Name.Name)
+				}
 				check(fd, isDesignated(f, fd), "func "+fd.Name.Name)
 			} else {
 				check(d, false, "package level")
 			}
+		}
+	}
+	return out
+}
+
+// foreignSources lists every entry of the package directory that is not a Go source file: assembly (.s, .S), C, C++,
+// Objective-C, Fortran, SWIG and .syso objects would all join the build beside the Go files and bypass the checker, so
+// the package holds Go files only.
+func foreignSources(t *testing.T, dir string) []string {
+	t.Helper()
+	var out []string
+	ents, e := os.ReadDir(dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, en := range ents {
+		if en.IsDir() || !strings.HasSuffix(en.Name(), ".go") {
+			out = append(out, en.Name())
 		}
 	}
 	return out
@@ -158,12 +197,27 @@ func packageSources(t *testing.T, dir string) []string {
 // builds an exec's attributes, under any import alias; no file reaches the kernel around the checker (unsafe, cgo,
 // plugin, go:linkname); and no file imports anything outside the closed, reviewed allow-list. Controls: each planted
 // alternate path the reviews of record executed (an aliased os import, a second exec function inside
-// execfixed_linux.go, syscall.Exec, a dot import, go:linkname, unsafe, net/http/cgi's Handler, go/build) is flagged,
+// execfixed_linux.go, syscall.Exec, a dot import, go:linkname, unsafe, net/http/cgi's Handler, go/build,
+// syscall.AllThreadsSyscall, unix.PtraceAttach, a bodyless assembly-backed declaration) is flagged; the package
+// directory holds Go files only (.s, .c, .syso and subdirectories are reported, with a control); the members of
+// syscall and golang.org/x/sys/unix used outside (*Executor).Run come from a closed allow-list;
 // and the designated function itself is not, so a clean result is not vacuous. Limit: the allow-list's
 // "starts no process" review covers the listed packages as they are in the pinned Go toolchain.
 func TestOnlyExecFixedStartsProcesses(t *testing.T) {
 	if v := execViolations(t, packageSources(t, ".")); len(v) != 0 {
 		t.Errorf("exec paths outside (*Executor).Run: %v", v)
+	}
+	if f := foreignSources(t, "."); len(f) != 0 {
+		t.Errorf("non-Go entries in the package directory: %v", f)
+	}
+	// Control: assembly, C and object files and a subdirectory are each reported.
+	fdir := t.TempDir()
+	for _, n := range []string{"ok.go", "x_amd64.s", "y.c", "z.syso"} {
+		os.WriteFile(filepath.Join(fdir, n), []byte("package g2run\n"), 0600)
+	}
+	os.Mkdir(filepath.Join(fdir, "sub"), 0700)
+	if got := foreignSources(t, fdir); len(got) != 4 {
+		t.Errorf("CONTROL foreign sources: got %v, want x_amd64.s, y.c, z.syso and sub", got)
 	}
 	plants := map[string]string{
 		"alias.go":    "package g2run\nimport process \"os\"\nfunc a() { process.StartProcess(\"/bin/sh\", nil, nil) }\n",
@@ -174,6 +228,10 @@ func TestOnlyExecFixedStartsProcesses(t *testing.T) {
 		// rev366 delta: an indirect launcher from the standard library, outside every watched package.
 		"cgi.go":     "package g2run\nimport (\n\"net/http\"\n\"net/http/cgi\"\n)\nfunc f(w http.ResponseWriter, r *http.Request) { (&cgi.Handler{Path: \"/usr/bin/printf\"}).ServeHTTP(w, r) }\n",
 		"gobuild.go": "package g2run\nimport \"go/build\"\nfunc g() { build.Default.Import(\"x\", \".\", 0) }\n",
+		// rev366 second delta: raw syscalls outside the enumerated denylist, and an assembly stub.
+		"allthreads.go": "package g2run\nimport \"syscall\"\nfunc h() { syscall.AllThreadsSyscall(59, 0, 0, 0) }\n",
+		"unixptrace.go": "package g2run\nimport \"golang.org/x/sys/unix\"\nfunc i() { unix.PtraceAttach(1) }\n",
+		"bodyless.go":   "package g2run\nfunc rawExec(path, argv, envv uintptr) uintptr\n",
 		// A file with the designated name: Run is allowed, a second function using exec is not.
 		"execfixed_linux.go": "package g2run\nimport \"os/exec\"\ntype Executor struct{}\nfunc (x *Executor) Run() { exec.Command(\"/usr/bin/true\").Run() }\nfunc other() { exec.Command(\"/bin/sh\").Run() }\n",
 	}
