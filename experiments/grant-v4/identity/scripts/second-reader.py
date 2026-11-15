@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent LIP-0021 draft sections 2-7 reader; Python standard library only.
+"""Independent LIP-0021 draft sections 2-5 reader; Python standard library only.
 
 No Go code or Go-derived intermediate parsing is used. Expectations are read only
 after the rule calculations. Compare every result with both the pinned vector
@@ -15,7 +15,6 @@ import subprocess
 import sys
 
 from ripemd160 import ripemd160
-from walk_reader import calculate_walks
 
 MODULE = Path(__file__).resolve().parents[1]
 VECTOR_SHA256 = "67e45caabfa4599160e53bd95541db2b02ad8afdc21872776756881a85c97b4c"
@@ -183,6 +182,14 @@ def calculate(vectors):
         if neighbour := row.get("valid_neighbour"):
             if neighbour not in index or index[neighbour].get("valid_neighbour"):
                 raise ValueError(f"invalid neighbour for {row['id']}")
+    return result
+
+
+def calculate_all(vectors):
+    """Keep the original octet/height reader separate from history decisions."""
+    from walk_reader import calculate_walks
+
+    result = calculate(vectors)
     walks = calculate_walks(vectors["walks"])
     if result.keys() & walks.keys():
         raise ValueError("duplicate walk and octet vector IDs")
@@ -230,7 +237,7 @@ def main():
         data = (MODULE / "testdata/name-vectors.json").read_bytes()
         if hashlib.sha256(data).hexdigest() != VECTOR_SHA256:
             raise ValueError("vector source hash differs")
-        decisions = calculate(json.loads(data))
+        decisions = calculate_all(json.loads(data))
         if args.go_results:
             stream = args.go_results.read_text()
         else:

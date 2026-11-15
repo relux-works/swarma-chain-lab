@@ -64,6 +64,17 @@ that choice remains Draft. Consent checks the channel key at the coherent
 issuance snapshot, and request admission resolves the current channel key.
 `created_at` is not an input to any height comparison here.
 
+The three additional narrowing overlays cover the history/recipient contracts:
+
+| Mutant | Property narrowed | Required failing test |
+| --- | --- | --- |
+| Check current owner only | An issuer transfer-and-return on the stretch refuses | `TestV4IssuerHistory/walk-issuer-04` |
+| Require an `id/` recipient | A supported non-`id/` name still resolves after owner proof | `TestV4RecipientUnion/any-namespace` |
+| Share issuer/notary cache key | Identical other inputs cannot reuse a different predicate | `TestV4NotaryHistoryPredicate/cache-rule-separation` |
+
+Each requires exit 1 and the named assertion failure; setup failures do not
+count. The original octet/height overlays are documented separately below.
+
 Zero pins, unknown heights and an unstated chain cannot establish witness
 ownership. The package's zero reading/writer/liveness values never pass.
 `ParseNameScript` parses the prefix alone: success does not imply that its
@@ -102,6 +113,13 @@ refusals. `TestV4ConsentSnapshotKey` distinguishes historical consent from curre
 request keys. Boundary tests cover missing/malformed facts, zero/exact step
 bounds, cache predicate inputs, notary compound findings and owner-signed changes.
 No LIP-0022 observation vectors are claimed here.
+
+`scripts/walk_reader.py` independently evaluates all 56 stated histories from
+sections 6–7, without Go helpers. The agreement entry point combines those with
+the original reader's 84 octet/height cases and compares **all 140** results
+against the fixture and Go. Its calibration includes changed walk expectations,
+changed Go walk verdicts and omitted walk results. The original-reader and hash
+backend description below concerns the original 84-case subset.
 
 `scripts/second-reader.py` independently implements the draft grammar and
 arithmetic in Python, without importing Go or using its parser. Its own
@@ -174,9 +192,6 @@ also check the public diff for private information outside that bounded scan.
 
 | Mutant | Property narrowed | Required failing test |
 | --- | --- | --- |
-| Check current owner only | An issuer transfer-and-return on the stretch refuses | `TestV4IssuerHistory/walk-issuer-04` |
-| Require an `id/` recipient | A supported non-`id/` name still resolves after owner proof | `TestV4RecipientUnion/any-namespace` |
-| Share issuer/notary cache key | Identical other inputs cannot reuse a different predicate | `TestV4NotaryHistoryPredicate/cache-rule-separation` |
 | Accept any script containing the pin | A multisig containing the key stays outside the closed list | `TestV4NameScript/script-21` |
 | Inclusive expiry | Equality at `h + D` is expired | `TestV4LiveName/live-03` |
 | Skip witness checking, accept controlled witness spends | Hash type must be `01` in the witness too | `TestV4Writer/writer-21` |
@@ -185,7 +200,7 @@ also check the public diff for private information outside that bounded scan.
 
 Every plant must exit 1 with the named failing test and its assertion
 diagnostic. Build/setup failures do not kill a mutant. Unplanted Go and Python
-controls must pass first; no survivor is accepted. These are eight narrow bounds,
+controls must pass first; no survivor is accepted. These are five narrow bounds,
 not exhaustive mutation coverage.
 
 ## Gaps and remaining scope
