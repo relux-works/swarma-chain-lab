@@ -46,6 +46,13 @@ var forbiddenImports = map[string]bool{"unsafe": true, "C": true, "plugin": true
 // set is a violation, standard library or not: a package that launches processes indirectly (net/http/cgi's Handler,
 // go/build's go-command calls, a module wrapping exec) can enter only by a reviewed change to this list.
 var allowedImports = map[string]string{
+	"io/fs":    "file modes and path errors",
+	"net/http": "RouteCode: one loopback RPC status probe; the client starts no process (net/http/cgi stays out)",
+	"sort":     "ordering",
+	"strconv":  "numeric parsing",
+	// The one indirect launcher admitted on purpose: the attempt ledger runs in-process, and its exec-create starts the
+	// reviewed key and rpcauth tools under g2ledger's own review and tests, never a program named by a plan.
+	"github.com/relux-works/swarma-chain-lab/deploy/g2ledger": "the attempt ledger, in-process (exec-create: g2-keygen, g2-rpcauth)",
 	"archive/tar":           "reads the package archive",
 	"bufio":                 "buffered reads",
 	"bytes":                 "byte buffers",
@@ -203,7 +210,8 @@ func packageSources(t *testing.T, dir string) []string {
 // directory holds Go files only (.s, .c, .syso and subdirectories are reported, with a control); the members of
 // syscall and golang.org/x/sys/unix used outside (*Executor).Run come from a closed allow-list;
 // and the designated function itself is not, so a clean result is not vacuous. Limit: the allow-list's
-// "starts no process" review covers the listed packages as they are in the pinned Go toolchain.
+// "starts no process" review covers the listed packages as they are in the pinned Go toolchain, and g2ledger is
+// the one admitted exception: its exec-create starts the kit's own key and rpcauth tools under that package's review.
 func TestOnlyExecFixedStartsProcesses(t *testing.T) {
 	if v := execViolations(t, packageSources(t, ".")); len(v) != 0 {
 		t.Errorf("exec paths outside (*Executor).Run: %v", v)
