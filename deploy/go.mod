@@ -2,7 +2,7 @@ module github.com/relux-works/swarma-chain-lab/deploy
 
 go 1.26.0
 
-require github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115082735-f1936aa1117a
+require github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115113336-4a573e2d22ac
 
 require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0

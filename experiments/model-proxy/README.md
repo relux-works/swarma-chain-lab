@@ -318,3 +318,8 @@ assertions under `.temp/daily-guards`. Candidate source bytes remain unchanged.
 `TestDailyParallelReservations` races sixteen bookings against three full-cost
 admissions; the repeated command above checks fifty independent schedules. These
 synthetic costs and local fakes do not exercise a paid provider.
+
+CI also builds the CLI with local sibling replacements removed in a temporary
+modfile. This verifies that the published `single-use` dependency includes the
+sealed config field; a sibling source replacement alone cannot satisfy that
+packaging boundary. The temporary modfile, sums and binary live under `.temp/`.

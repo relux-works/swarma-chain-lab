@@ -52,6 +52,18 @@ jobs:
           for module in model-proxy station-lifecycle/gatewaybind; do
             (cd experiments/"$module" && go mod download && go mod verify)
           done
+      - name: Build CLI with published sibling dependencies
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          cd experiments/model-proxy
+          mkdir -p .temp
+          cp go.mod .temp/published.mod
+          cp go.sum .temp/published.sum
+          go mod edit -modfile=.temp/published.mod -dropreplace=github.com/relux-works/swarma-chain-lab/experiments/single-use -dropreplace=github.com/relux-works/swarma-chain-lab/experiments/sealwatch
+          go mod download -modfile=.temp/published.mod all
+          go mod verify -modfile=.temp/published.mod
+          go build -mod=readonly -modfile=.temp/published.mod -o .temp/model-proxy-published ./cmd/model-proxy
       - name: Vet, race tests, build and guard controls
         env:
           GOPROXY: 'off'
