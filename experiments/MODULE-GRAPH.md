@@ -1,12 +1,12 @@
 # Published module graph audit
 
-The current floor is signed error-envelope source `1b02659161608036dfa9820167a2dbbbbd983b10`, with commit time
-`20261115082435`. All 101 internal requirements select this ancestry-verified snapshot.
+The current floor is signed error-envelope source `f1936aa1117aaa97df2802182af966edbacd0d50`, with commit time
+`20261115082735`. All 101 internal requirements select this ancestry-verified snapshot.
 It contains complete JSON-RPC error-envelope fix
 `1b02659161608036dfa9820167a2dbbbbd983b10`. A typed application error requires all three response members,
 a matching request ID and a null result. Malformed envelopes remain node failures.
-This first layer selects the fixed source. A later manifest selection retains
-these refreshed requirements through published transitive dependencies.
+Its own 101 internal requirements select fixed source `1b02659161608036dfa9820167a2dbbbbd983b10`.
+Both source and manifest selections contain the fix by verified ancestry.
 The detached-v2 consumer byte inventory was regenerated and audited unchanged.
 No third-party requirement or local replacement changes.
 
@@ -60,21 +60,21 @@ before test-only parser instrumentation.
 
 | Dependency under experiments/ | Selected requirement |
 | --- | --- |
-| `grant-store` | `v0.1.1-0.20261115082435-1b0265916160` |
-| `m5-host-smoke` | `v0.3.1-0.20261115082435-1b0265916160` |
-| `model-proxy` | `v0.4.1-0.20261115082435-1b0265916160` |
-| `payment-chain` | `v0.2.1-0.20261115082435-1b0265916160` |
-| `rental` | `v0.5.1-0.20261115082435-1b0265916160` |
-| `rental-booking` | `v0.4.1-0.20261115082435-1b0265916160` |
-| `rental-gateway` | `v0.4.1-0.20261115082435-1b0265916160` |
-| `rental-gateway/kernelbind` | `v0.1.1-0.20261115082435-1b0265916160` |
-| `sealwatch` | `v0.2.1-0.20261115082435-1b0265916160` |
-| `signer-service` | `v0.3.1-0.20261115082435-1b0265916160` |
-| `single-use` | `v0.3.1-0.20261115082435-1b0265916160` |
-| `station-lifecycle` | `v0.2.1-0.20261115082435-1b0265916160` |
-| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261115082435-1b0265916160` |
-| `station-payload` | `v0.3.1-0.20261115082435-1b0265916160` |
-| `grantcheck` | `v0.1.2-0.20261115082435-1b0265916160` |
+| `grant-store` | `v0.1.1-0.20261115082735-f1936aa1117a` |
+| `m5-host-smoke` | `v0.3.1-0.20261115082735-f1936aa1117a` |
+| `model-proxy` | `v0.4.1-0.20261115082735-f1936aa1117a` |
+| `payment-chain` | `v0.2.1-0.20261115082735-f1936aa1117a` |
+| `rental` | `v0.5.1-0.20261115082735-f1936aa1117a` |
+| `rental-booking` | `v0.4.1-0.20261115082735-f1936aa1117a` |
+| `rental-gateway` | `v0.4.1-0.20261115082735-f1936aa1117a` |
+| `rental-gateway/kernelbind` | `v0.1.1-0.20261115082735-f1936aa1117a` |
+| `sealwatch` | `v0.2.1-0.20261115082735-f1936aa1117a` |
+| `signer-service` | `v0.3.1-0.20261115082735-f1936aa1117a` |
+| `single-use` | `v0.3.1-0.20261115082735-f1936aa1117a` |
+| `station-lifecycle` | `v0.2.1-0.20261115082735-f1936aa1117a` |
+| `station-lifecycle/gatewaybind` | `v0.1.1-0.20261115082735-f1936aa1117a` |
+| `station-payload` | `v0.3.1-0.20261115082735-f1936aa1117a` |
+| `grantcheck` | `v0.1.2-0.20261115082735-f1936aa1117a` |
 
 The inventory below is generated and checked by
 `python3 .scripts/check-module-graph.py`, which parses every `go.mod` with

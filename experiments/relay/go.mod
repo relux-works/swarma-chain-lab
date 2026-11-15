@@ -13,8 +13,8 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.5 // indirect
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261115082435-1b0265916160 // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261115082435-1b0265916160 // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261115082735-f1936aa1117a // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261115082735-f1936aa1117a // indirect
 )
 
 replace github.com/relux-works/swarma-chain-lab/experiments/single-use => ../single-use
@@ -35,9 +35,9 @@ replace github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/ga
 
 require (
 	github.com/gorilla/websocket v1.5.3
-	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.4.1-0.20261115082435-1b0265916160
-	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261115082435-1b0265916160
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115082435-1b0265916160
+	github.com/relux-works/swarma-chain-lab/experiments/rental-booking v0.4.1-0.20261115082735-f1936aa1117a
+	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261115082735-f1936aa1117a
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115082735-f1936aa1117a
 	golang.org/x/sys v0.47.0
 )
 
