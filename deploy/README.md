@@ -253,7 +253,15 @@ generated manifest. `TestVerifyManifestReleaseCheckCases` runs the same named
 NEG-R1 mutations and POS-R1 positive control on the ledger fixture, enriched
 with a published dependency where required. Each negative case checks the
 handler and actual CLI for a named refusal, exit 1, empty stdout and unchanged
-input. When the real gateway has only in-tree replacements, the missing
+input. The other-release case updates the release and every module commit
+consistently, first requires standalone manifest acceptance, then requires
+`VERIFY_MANIFEST_COMMIT` against the original pin. The old root-only mutation
+is retained separately as an inconsistent-manifest control. Full pins sharing
+39 hex digits at either end must also refuse. `TestVerifyManifestClosedPipe`
+runs the built executable with a working output channel and with stdout
+connected to a pipe whose reader was closed before startup; the latter must
+exit 1 with `VERIFY_MANIFEST_OUTPUT` on stderr.
+When the real gateway has only in-tree replacements, the missing
 published-version case uses that enriched fixture; every other case uses the
 actual generated manifest. The Deploy kit workflow runs these controls against
 its real double-build output.

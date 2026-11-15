@@ -85,6 +85,20 @@ func TestVerifyManifestCommitPin(t *testing.T) {
 	}
 	checkManifestFile(t, raw, m.Commit, "")
 	checkManifestFile(t, raw, strings.Repeat("b", 40), "VERIFY_MANIFEST_COMMIT")
+	// Each pin is full hex and differs at only one end. Partial comparisons
+	// must not admit either a matching 39-digit prefix or suffix.
+	different := func(c byte) string {
+		if c == '0' {
+			return "1"
+		}
+		return "0"
+	}
+	t.Run("shared-prefix", func(t *testing.T) {
+		checkManifestFile(t, raw, m.Commit[:39]+different(m.Commit[39]), "VERIFY_MANIFEST_COMMIT")
+	})
+	t.Run("shared-suffix", func(t *testing.T) {
+		checkManifestFile(t, raw, different(m.Commit[0])+m.Commit[1:], "VERIFY_MANIFEST_COMMIT")
+	})
 }
 
 // Claim: fixture mutations exercise both refusal and acceptance parity with the shipped validator, independently of commit-pin checks.
@@ -247,9 +261,26 @@ func checkManifestReleaseCases(t *testing.T, raw []byte) {
 		{name: "POS-R1-release-of-h-with-full-linkage"},
 		{
 			name: "NEG-R1-01-release-of-another-commit",
+			edit: func(r map[string]any) {
+				// A coherent other release must pass shared validation before
+				// the CLI can compare it against the original release pin.
+				other := strings.Repeat("2", 40)
+				r["commit"] = other
+				for _, item := range r["linkage"].([]any) {
+					for _, item := range item.(map[string]any)["modules"].([]any) {
+						row := item.(map[string]any)
+						row["commit"] = other
+						row["verdict"] = "contains " + deploy.StrictParseCommit
+					}
+				}
+			},
+			reason: "VERIFY_MANIFEST_COMMIT",
+		},
+		{
+			name: "inconsistent-release-and-module-commits",
 			edit: func(r map[string]any) { r["commit"] = strings.Repeat("2", 40) },
-			// The unchanged in-tree module commits now disagree with the
-			// mutated release commit, so shared validation refuses first.
+			// Retain the original root-only mutation as a linkage-consistency
+			// control, separately from the plan's other-release pin case.
 			reason: "VERIFY_MANIFEST_INVALID",
 		},
 		{name: "NEG-R1-02-manifest-without-linkage", edit: func(r map[string]any) { delete(r, "linkage") }, reason: "VERIFY_MANIFEST_INVALID"},
@@ -328,6 +359,11 @@ func checkManifestReleaseCases(t *testing.T, raw []byte) {
 			}
 			if tc.pin != "" {
 				pin = tc.pin
+			}
+			if tc.reason == "VERIFY_MANIFEST_COMMIT" || tc.reason == "VERIFY_MANIFEST_INPUT" {
+				if _, e := deploy.ValidateManifest(candidate); e != nil {
+					t.Fatalf("pin control must reach the pin check with a valid manifest: %v", e)
+				}
 			}
 			checkManifestFile(t, candidate, pin, tc.reason)
 			dir := t.TempDir()
@@ -420,5 +456,55 @@ func TestVerifyManifestCLI(t *testing.T) {
 		} else if exit, ok := e.(*exec.ExitError); !ok || exit.ExitCode() != 1 || stdout.Len() != 0 || stderr.String() != "VERIFY_MANIFEST_COMMIT\n" {
 			t.Fatalf("refusal CLI: %v %q %q", e, stdout.String(), stderr.String())
 		}
+	}
+}
+
+// Claim: a real closed stdout pipe returns exit 1 and the named output refusal,
+// while the same built executable, valid manifest and pin accept on working stdout.
+func TestVerifyManifestClosedPipe(t *testing.T) {
+	binary := filepath.Join(t.TempDir(), "deploy-kit")
+	build := exec.Command("go", "build", "-o", binary, ".")
+	if output, e := build.CombinedOutput(); e != nil {
+		t.Fatalf("build CLI: %v %s", e, output)
+	}
+	raw := manifestFixture(t)
+	m, e := deploy.ValidateManifest(raw)
+	if e != nil {
+		t.Fatal(e)
+	}
+	path := filepath.Join(t.TempDir(), "manifest.json")
+	if e := os.WriteFile(path, raw, 0400); e != nil {
+		t.Fatal(e)
+	}
+	for _, closed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("closed=%t", closed), func(t *testing.T) {
+			cmd := exec.Command(binary, "verify-manifest", "-manifest", path, "-commit", m.Commit)
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			if closed {
+				reader, writer, e := os.Pipe()
+				if e != nil {
+					t.Fatal(e)
+				}
+				defer writer.Close()
+				// Close before starting the child: no scheduling race can leave
+				// a reader available when the child writes its success summary.
+				if e := reader.Close(); e != nil {
+					t.Fatal(e)
+				}
+				cmd.Stdout = writer
+			}
+			e := cmd.Run()
+			if closed {
+				if exit, ok := e.(*exec.ExitError); !ok || exit.ExitCode() != 1 || stderr.String() != "VERIFY_MANIFEST_OUTPUT\n" {
+					t.Fatalf("want exit 1 and VERIFY_MANIFEST_OUTPUT; got %v stderr=%q", e, stderr.String())
+				}
+			} else {
+				want := fmt.Sprintf("verified manifest commit=%s binaries=%d strict=%s\n", m.Commit, len(m.Linkage), deploy.StrictParseCommit)
+				if e != nil || stdout.String() != want || stderr.Len() != 0 {
+					t.Fatalf("want exit 0 and summary %q; got %v stdout=%q stderr=%q", want, e, stdout.String(), stderr.String())
+				}
+			}
+		})
 	}
 }

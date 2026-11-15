@@ -28,8 +28,8 @@ func run(args []string) error {
 	if len(args) == 0 {
 		return errors.New("usage: deploy-kit build|verify-manifest|validate|check-coins|check-model-terms|render-install-anchor|g2-install-sign|g2-render|g2-host-flow|g2-agent-groups|g2-custody-probe|g2-custody-verify|g2-funded-preflight|g2-custody-hash [flags]")
 	}
-	if args[0] == "g2-keygen" || args[0] == "g2-rpcauth" || args[0] == "g2-ledger" {
-		// A closed stdout pipe must return EPIPE to the creator or ledger
+	if args[0] == "g2-keygen" || args[0] == "g2-rpcauth" || args[0] == "g2-ledger" || args[0] == "verify-manifest" {
+		// A closed stdout pipe must return EPIPE to the command
 		// error path rather than terminate before it can report failure.
 		signal.Ignore(syscall.SIGPIPE)
 	}
