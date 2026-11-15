@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Run narrowing LIP-0021 control plants through Go overlays, never source edits."""
+"""Run narrowing LIP-0021 control plants through Go overlays and isolated Python copies."""
 
 import argparse
 import hashlib
 import json
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -23,6 +24,42 @@ def run(scratch, name, command):
     (scratch / (name+".stderr.log")).write_text(proc.stderr)
     events = [json.loads(line) for line in proc.stdout.splitlines()]
     return proc, events
+
+
+def python_round_control(scratch, evidence):
+    """Require an assertion failure in the published-vector test, not a setup error."""
+    required = "test_second_reader.Ripemd160Vectors.test_published_vectors"
+    command = [sys.executable, "-B", "-m", "unittest", "-v", required]
+    scripts = MODULE / "scripts"
+    mutant = scratch / "python-broken-round"
+    shutil.copytree(scripts, mutant / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
+    (mutant / "testdata").mkdir()
+    shutil.copy2(MODULE / "testdata/ripemd160-vectors.json", mutant / "testdata")
+    source = mutant / "scripts/ripemd160.py"
+    original = source.read_text()
+    old, new = "return x ^ y ^ z", "return x ^ y ^ z ^ 1"
+    if original.count(old) != 1:
+        raise ValueError("python-broken-round: plant not uniquely applicable")
+    source.write_text(original.replace(old, new, 1))
+    for name, cwd in [("python-control", scripts), ("python-broken-round", mutant / "scripts")]:
+        proc = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
+        (scratch / (name + ".stdout.log")).write_text(proc.stdout)
+        (scratch / (name + ".stderr.log")).write_text(proc.stderr)
+        record = {"name": name, "command": command, "exit": proc.returncode}
+        evidence["runs"].append(record)
+        if name == "python-control":
+            if proc.returncode != 0 or "Ran 1 test" not in proc.stderr or "OK" not in proc.stderr:
+                raise ValueError(f"Python unplanted control failed, exit {proc.returncode}")
+        else:
+            killed = (proc.returncode == 1 and
+                      f"FAIL: test_published_vectors ({required})" in proc.stderr and
+                      "AssertionError:" in proc.stderr and
+                      "published RIPEMD-160 vector" in proc.stderr and
+                      "ERROR:" not in proc.stderr)
+            record.update(required_failure=required, killed=killed)
+            print(f"{name}: exit {proc.returncode}; {'KILLED ' + required if killed else 'NOT KILLED'}")
+            if not killed:
+                raise ValueError("python-broken-round: intended assertion failure not demonstrated")
 
 
 def main():
@@ -58,6 +95,7 @@ def main():
             print(f"{name}: exit {proc.returncode}; {'KILLED '+required if killed else 'NOT KILLED'}")
             if not killed:
                 raise ValueError(f"{name}: intended test failure not demonstrated")
+        python_round_control(scratch, evidence)
         return 0
     except (ValueError, OSError) as error:
         print(error, file=sys.stderr)

@@ -1,0 +1,14 @@
+{
+  "source": "https://homes.esat.kuleuven.be/~bosselae/ripemd160.html",
+  "vectors": [
+    {"id": "empty", "message": "", "repeat": 1, "digest": "9c1185a5c5e9fc54612808977ee8f548b2258d31"},
+    {"id": "a", "message": "a", "repeat": 1, "digest": "0bdc9d2d256b3ee9daae347be6f4dc835a467ffe"},
+    {"id": "abc", "message": "abc", "repeat": 1, "digest": "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc"},
+    {"id": "message-digest", "message": "message digest", "repeat": 1, "digest": "5d0689ef49d2fae572b881b123a85ffa21595f36"},
+    {"id": "alphabet", "message": "abcdefghijklmnopqrstuvwxyz", "repeat": 1, "digest": "f71c27109c692c1b56bbdceb5b9d2865b3708dbc"},
+    {"id": "two-block-padding", "message": "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", "repeat": 1, "digest": "12a053384a9c0c88e405a06c27dcf49ada62eb2b"},
+    {"id": "alphanumeric", "message": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", "repeat": 1, "digest": "b0e20b6e3116640286ed3a87a5713079b21f5189"},
+    {"id": "eight-digits", "message": "1234567890", "repeat": 8, "digest": "9b752e45573d4b39f4dbd3323cab82bf63326bfb"},
+    {"id": "million-a", "message": "a", "repeat": 1000000, "digest": "52783243c1697bdbe16d37f97f68f08325dc1528"}
+  ]
+}

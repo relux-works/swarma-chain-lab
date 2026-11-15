@@ -6,11 +6,34 @@ import json
 from pathlib import Path
 import unittest
 from unittest import mock
-from types import SimpleNamespace
 
 SPEC = importlib.util.spec_from_file_location("second_reader", Path(__file__).with_name("second-reader.py"))
 reader = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(reader)
+
+
+class Ripemd160Vectors(unittest.TestCase):
+    # The Python digest matches all nine original published answers, including multi-block and million-byte messages.
+    def test_published_vectors(self):
+        # Source: https://homes.esat.kuleuven.be/~bosselae/ripemd160.html
+        vectors = json.loads((reader.MODULE / "testdata/ripemd160-vectors.json").read_text())["vectors"]
+        self.assertEqual(len(vectors), 9)
+        for row in vectors:
+            with self.subTest(vector=row["id"]):
+                data = row["message"].encode("ascii") * row["repeat"]
+                self.assertEqual(reader.ripemd160(data).hex(), row["digest"], "published RIPEMD-160 vector")
+
+    # The published BIP-340 vector index 0 key yields the fixed HASH160 and P2PKH script through the second reader.
+    def test_bip340_known_answer(self):
+        # Public x: bitcoin/bips, bip-0340/test-vectors.csv, index 0; compressed with prefix 02.
+        # Source: https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
+        key = bytes.fromhex("02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9")
+        digest = reader.hash160(key)
+        self.assertEqual(digest.hex(), "7dd65592d0ab2fe0d0257d571abf032cd9db93dc")
+        script = b"\x76\xa9\x14" + digest + b"\x88\xac"
+        self.assertEqual(script.hex(), "76a9147dd65592d0ab2fe0d0257d571abf032cd9db93dc88ac")
+        self.assertEqual(reader.address_kind(script, None, 0), ("key", digest))
+
 
 
 class AgreementControls(unittest.TestCase):
@@ -19,18 +42,14 @@ class AgreementControls(unittest.TestCase):
         cls.vectors = json.loads((reader.MODULE / "testdata/name-vectors.json").read_text())
         cls.decisions = reader.calculate(cls.vectors)
 
-    # The public key's independently fixed hash passes; backend failure or short output refuses rather than yielding a verdict.
+    # Hashing and all 84 decisions still work with no executable search path and forbidden external/optional hash backends.
     def test_hash_backend(self):
-        self.assertEqual(reader.hash160(bytes.fromhex(self.vectors["test_pins"]["owner"])).hex(),
-                         "7dd65592d0ab2fe0d0257d571abf032cd9db93dc")
-        for code, output in [(1, b""), (0, b""), (0, bytes(19)), (0, bytes(21))]:
-            with self.subTest(code=code, length=len(output)):
-                with mock.patch.object(reader.subprocess, "run", return_value=SimpleNamespace(returncode=code, stdout=output)):
-                    with self.assertRaisesRegex(ValueError, "OpenSSL RIPEMD-160 unavailable or malformed output"):
-                        reader.hash160(b"public test octets")
-        with mock.patch.object(reader.subprocess, "run", side_effect=FileNotFoundError("openssl")):
-            with self.assertRaises(FileNotFoundError):
-                reader.hash160(b"public test octets")
+        with mock.patch.dict("os.environ", {"PATH": ""}), \
+             mock.patch.object(reader.subprocess, "run", side_effect=AssertionError("external command forbidden")), \
+             mock.patch.object(reader.hashlib, "new", side_effect=AssertionError("optional hash provider forbidden")):
+            self.assertEqual(reader.hash160(bytes.fromhex(self.vectors["test_pins"]["owner"])).hex(),
+                             "7dd65592d0ab2fe0d0257d571abf032cd9db93dc")
+            self.assertEqual(len(reader.calculate(self.vectors)), 84)
 
     # An unchanged 84-case map passes; altered Go verdicts and missing cases fail specifically as disagreements.
     def test_go_disagreement_and_omission(self):

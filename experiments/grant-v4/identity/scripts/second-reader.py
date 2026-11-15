@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent LIP-0021 draft sections 2-5 reader; Python plus system OpenSSL.
+"""Independent LIP-0021 draft sections 2-5 reader; Python standard library only.
 
 No Go code or Go-derived intermediate parsing is used. Expectations are read only
 after the rule calculations. Compare every result with both the pinned vector
@@ -14,20 +14,15 @@ import re
 import subprocess
 import sys
 
+from ripemd160 import ripemd160
+
 MODULE = Path(__file__).resolve().parents[1]
 VECTOR_SHA256 = "67e45caabfa4599160e53bd95541db2b02ad8afdc21872776756881a85c97b4c"
 TESTS = {"TestV4OwnerPin", "TestV4NameScript", "TestV4Writer", "TestV4LiveName"}
 
 
 def hash160(data):
-    # RIPEMD-160 is absent from some Python builds. Require the independent
-    # OpenSSL 3.0.2 supplies it only in the legacy provider; select that
-    # provider explicitly on every platform, without an alternate backend.
-    run = subprocess.run(["openssl", "dgst", "-provider", "legacy", "-ripemd160", "-binary"],
-                         input=hashlib.sha256(data).digest(), capture_output=True)
-    if run.returncode != 0 or len(run.stdout) != 20:
-        raise ValueError("OpenSSL RIPEMD-160 unavailable or malformed output")
-    return run.stdout
+    return ripemd160(hashlib.sha256(data).digest())
 
 
 def pin_result(text):
