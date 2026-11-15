@@ -1150,8 +1150,15 @@ evidence: before config modification, the baseline running state and current
 node observation determine whether recovery must restart the baseline node.
 Neither shell variables nor per-invocation before/after hashes select recovery.
 
-Every invocation performs these steps in order, including retries after a
-previous successful restoration:
+After journal and preimage validation, a retry whose terminal sealed checkpoint
+is `verified` with a deliberately stopped node can return `retry=noop`. It
+freshly verifies actual config bytes and baseline metadata, the full baseline
+comparison, and stopped node readback before success. It issues no stop/start,
+config/metadata write or journal append. A changed node/config cannot use this
+shortcut. Partial recoveries, including restored config without a completed
+verified checkpoint, retain the reconciliation obligation.
+
+All other invocations perform these steps in order:
 
 1. Validate the complete journal/HEAD, node scope and bound preimage.
 2. Record `stop-intent`, stop the declared node, and require an observed stopped
@@ -1191,7 +1198,8 @@ earlier payload sync cannot be mistaken for durable restoration.
 | Membership already removed or unit links already disabled | Preserve completed scoped effects; retain node obligation |
 | Config already restored, later replay/reload failed | Stop/reconcile runtime even though disk bytes already match |
 | Retained station data/accounts still present | Keep existing retention checks and policy |
-| Any sealed rollback checkpoint, including start or final check | Reestablish stop/restore; never skip final readback |
+| Partial rollback checkpoint, including start or final check | Reestablish stop/restore; never skip final readback |
+| Completed deliberately stopped rollback | Fresh config/baseline/stopped readback; no control commands or writes; name `retry=noop` |
 | Partial config write after a durable restore intent | Restore the recorded inode; reject replacement |
 
 The suite exercises all 32 combinations of absent file/directory, removed
@@ -1226,6 +1234,32 @@ running outcome or the named stopped reason. Existing replay comparison rows
 are also emitted. Steps are hash-chained `rollback` records; config bytes,
 external command output and credentials are never embedded. The terminal
 checkpoint rechecks disk and node state before admitting success.
+
+In addition to that JSON receipt, every successful invocation writes one plain
+named stdout line with exit 0. Exact station lines are:
+
+```text
+ROLLBACK_OK node=stopped config=baseline-verified retry=reconciled
+ROLLBACK_OK node=running config=baseline-verified retry=reconciled
+ROLLBACK_OK node=stopped config=baseline-verified retry=noop
+```
+
+The running line requires baseline-running state and independently attested
+loaded policy. The stopped lines cover `BASELINE_STOPPED` and
+`LIVE_POLICY_UNREADABLE`; their JSON reason remains unchanged. Rehearsal emits
+`{"type":"rollback_verified","reason":"REHEARSAL"}` and
+`ROLLBACK_OK node=not-applicable config=not-applicable retry=reconciled` after
+successful replay. JSON comparison rows remain separate lines. Refusals keep
+their current named lines and exits below and never emit `ROLLBACK_OK`.
+`ROLLBACK_OUTPUT_FAILED state=verified safe-to-rerun` exits 1 even if the JSON
+receipt was already written. For restart, see the station install plan's
+restart-after-rollback step.
+
+`TestRollbackIdempotentStoppedRetry` checks the completed stopped retry with a
+controller that fails on any stop/start and checks config bytes/identity and
+journal length unchanged. `TestRollbackCheckpointInterruptions` and
+`TestRollbackResumeRejectsStaleLivePolicy` cover partial rollback convergence;
+a partial restored checkpoint never qualifies as a completed no-op.
 
 | Exit | Meaning |
 | --- | --- |

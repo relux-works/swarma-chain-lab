@@ -62,9 +62,31 @@ authentication and whitelists: it deliberately stops the node and verifies that
 stop, reporting `LIVE_POLICY_UNREADABLE`. It makes no node RPC call. A typed
 injected controller can provide independent loaded-policy readback; disk hashes
 alone never establish live policy. Errors name the recovery phase and remaining
-disk/node states; retries repeat the safe barrier rather than comparing two
-shell hashes. See [the full rollback contract](G2-LEDGER.md#phase-aware-node-rollback)
+disk/node states; partial retries repeat the safe barrier. A completed stopped
+rollback with freshly verified config and node state returns a no-op without
+stop/start commands or config/metadata/journal writes. See [the full rollback contract](G2-LEDGER.md#phase-aware-node-rollback)
 for scope inputs, replay states, refusal codes and caller preconditions.
+
+Every successful invocation preserves the `rollback_verified` JSON receipt and
+prints one plain stdout state line (exit 0):
+
+```text
+ROLLBACK_OK node=stopped config=baseline-verified retry=reconciled
+ROLLBACK_OK node=running config=baseline-verified retry=reconciled
+ROLLBACK_OK node=stopped config=baseline-verified retry=noop
+```
+
+The running line requires independent loaded-policy attestation. `retry=noop`
+requires a completed stopped rollback and fresh baseline/config/node checks;
+partial rollback retries converge through normal reconciliation. Rehearsal has
+no node/config restoration and prints
+`ROLLBACK_OK node=not-applicable config=not-applicable retry=reconciled` plus
+`{"type":"rollback_verified","reason":"REHEARSAL"}`. Other JSON comparison
+rows remain. Refusals retain their named diagnostics and exit codes: 1 for
+state/effect/evidence refusal (including `ROLLBACK_OUTPUT_FAILED` for a failed
+stdout write), 2 for usage/internal error, 3 for unresolved intent. They emit no
+`ROLLBACK_OK`. For restart after a stopped rollback, see the station install
+plan's restart-after-rollback step.
 
 Run `deploy-kit g2-ledger init -dir /root/g2/ledger -manifest /root/g2/release/manifest.json -baseline /root/g2/baseline -purpose station -scope /root/g2/scope.json`
 after verifying the release, then `deploy-kit g2-ledger verify -dir /root/g2/ledger`.

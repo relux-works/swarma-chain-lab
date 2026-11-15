@@ -42,6 +42,9 @@ func TestRollbackCLIContract(t *testing.T) {
 		if got != want || !strings.Contains(stderr.String(), reason) {
 			t.Fatalf("exit=%d want=%d stderr=%s", got, want, stderr.String())
 		}
+		if want == 0 && !strings.HasSuffix(out.String(), "{\"type\":\"rollback_verified\",\"reason\":\"REHEARSAL\"}\nROLLBACK_OK node=not-applicable config=not-applicable retry=reconciled\n") {
+			t.Fatalf("missing rehearsal success receipt: %s", out.String())
+		}
 		if want != 0 && out.Len() != 0 {
 			t.Fatal("refusal emitted success output")
 		}

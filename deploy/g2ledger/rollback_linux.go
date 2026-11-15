@@ -242,8 +242,8 @@ func (l *Ledger) rollbackCheckpoint(phase string, c NodeController, reason strin
 
 // Rollback reconciles the node before ordinary reverse replay and rechecks the
 // restored bytes/metadata AND the live policy (or a named deliberate stop).
-// Every run reestablishes the stop/restore barrier; progress records are audit
-// evidence, never permission to skip runtime reconciliation on a retry.
+// Partial recovery reestablishes the stop/restore barrier. A completed stopped
+// rollback may return a no-op only after fresh disk, baseline and node checks.
 func (l *Ledger) Rollback(mode string, controller NodeController) error {
 	if mode != "station" && mode != "rehearsal" {
 		return fail(2, "ROLLBACK_MODE")
@@ -262,7 +262,10 @@ func (l *Ledger) Rollback(mode string, controller NodeController) error {
 		// Rehearsal explicitly has no node. A legacy station ledger cannot silently
 		// claim node recovery without a sealed baseline runtime declaration.
 		if mode == "rehearsal" {
-			return l.Replay(mode)
+			if err := l.Replay(mode); err != nil {
+				return err
+			}
+			return l.rollbackSuccess("not-applicable", "REHEARSAL", "reconciled")
 		}
 		return fail(1, "NODE_DECLARATION_REQUIRED phase=validate disk=unverified node=unverified; initialize scope.node before installation")
 	}
@@ -308,6 +311,37 @@ func (l *Ledger) Rollback(mode string, controller NodeController) error {
 	defer clear(old)
 	if digest(old) != nodeS0(g).FS.SHA256 {
 		return refuse("CONFIG_MISMATCH", nil)
+	}
+	// A completed stopped rollback has no remaining restart obligation. Validate
+	// current state again without issuing control commands or rewriting receipts.
+	last := l.rows[len(l.rows)-1].Body.Rollback
+	if last != nil && last.Phase == "verified" && last.Node == "stopped" &&
+		(last.Reason == "BASELINE_STOPPED" || last.Reason == "LIVE_POLICY_UNREADABLE") && l.nodeDisk() == "preinstall" {
+		running, err := controller.Observe(n.Unit)
+		if err != nil {
+			return refuse("READBACK_FAILED", err)
+		}
+		if !running {
+			actual, err := readFile(n.Config, 64<<20)
+			if err != nil {
+				return refuse("READBACK_FAILED", err)
+			}
+			equal := bytes.Equal(actual, old)
+			clear(actual)
+			if !equal {
+				return refuse("CONFIG_MISMATCH", nil)
+			}
+			if err := l.compareBaseline(mode); err != nil {
+				return refuse("REPLAY_FAILED", err)
+			}
+			if running, err := controller.Observe(n.Unit); err != nil || running {
+				return refuse("STOP_READBACK", err)
+			}
+			if l.nodeDisk() != "preinstall" {
+				return refuse("CONFIG_MISMATCH", nil)
+			}
+			return l.rollbackSuccess("stopped", last.Reason, "noop")
+		}
 	}
 	if err := checkpoint("stop-intent"); err != nil {
 		return err
@@ -437,13 +471,31 @@ func (l *Ledger) Rollback(mode string, controller NodeController) error {
 	if err := l.rollbackCheckpoint("verified", controller, reason); err != nil {
 		return refuse("CHECKPOINT_FAILED", err)
 	}
-	if l.output != nil {
-		if err := checkedWrite(l.output, append(canonical(struct {
-			Type   string `json:"type"`
-			Reason string `json:"reason"`
-		}{"rollback_verified", reason}), '\n')); err != nil {
-			return fail(1, "ROLLBACK_OUTPUT_FAILED state=verified safe-to-rerun")
-		}
+	node := "stopped"
+	if reason == "" {
+		node = "running"
+	}
+	return l.rollbackSuccess(node, reason, "reconciled")
+}
+
+func (l *Ledger) rollbackSuccess(node, reason, retry string) error {
+	if l.output == nil {
+		return nil
+	}
+	// Preserve the JSON receipt and add a separate operator-readable state line.
+	if err := checkedWrite(l.output, append(canonical(struct {
+		Type   string `json:"type"`
+		Reason string `json:"reason"`
+	}{"rollback_verified", reason}), '\n')); err != nil {
+		return fail(1, "ROLLBACK_OUTPUT_FAILED state=verified safe-to-rerun")
+	}
+	config := "baseline-verified"
+	if node == "not-applicable" {
+		config = "not-applicable"
+	}
+	line := fmt.Sprintf("ROLLBACK_OK node=%s config=%s retry=%s\n", node, config, retry)
+	if err := checkedWrite(l.output, []byte(line)); err != nil {
+		return fail(1, "ROLLBACK_OUTPUT_FAILED state=verified safe-to-rerun")
 	}
 	return nil
 }
