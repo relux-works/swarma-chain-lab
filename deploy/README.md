@@ -253,8 +253,10 @@ generated manifest. `TestVerifyManifestReleaseCheckCases` runs the same named
 NEG-R1 mutations and POS-R1 positive control on the ledger fixture, enriched
 with a published dependency where required. Each negative case checks the
 handler and actual CLI for a named refusal, exit 1, empty stdout and unchanged
-input. The Deploy kit workflow runs these controls against its real double-build
-output.
+input. When the real gateway has only in-tree replacements, the missing
+published-version case uses that enriched fixture; every other case uses the
+actual generated manifest. The Deploy kit workflow runs these controls against
+its real double-build output.
 
 ## Public configuration validation
 

@@ -168,7 +168,44 @@ func checkManifestParity(t *testing.T, raw []byte) {
 // by both the command handler and the executable, with a named reason, empty
 // stdout and no input changes. POS-R1 is the nearby accepting control.
 func TestVerifyManifestReleaseCheckCases(t *testing.T) {
-	checkManifestReleaseCases(t, manifestFixture(t))
+	checkManifestReleaseCases(t, releaseCheckFixture(t))
+}
+
+// Claim: an all-local gateway closure, as emitted by the real release, stays
+// valid for POS-R1 and the negative table; only missing published metadata
+// needs a separate fixture. This guards against adding a duplicate dependency.
+func TestVerifyManifestReleaseCheckLocalOnly(t *testing.T) {
+	raw := manifestEdit(t, releaseCheckFixture(t), func(r map[string]any) {
+		row := manifestModule(r)
+		row["replace"] = "experiments/rental"
+		row["version"] = "(devel)"
+	})
+	checkManifestReleaseCases(t, raw)
+}
+
+// The minimal ledger fixture has only one local module per binary. A valid
+// published dependency makes missing-version, missing-main and order cases
+// meaningful without changing the manifest produced by a real release.
+func releaseCheckFixture(t *testing.T) []byte {
+	t.Helper()
+	raw := manifestFixture(t)
+	m, e := deploy.ValidateManifest(raw)
+	if e != nil {
+		t.Fatal(e)
+	}
+	raw = manifestEdit(t, raw, func(r map[string]any) {
+		row := manifestRow(r, "linkage", 0)
+		dependency := map[string]any{
+			"module":  "github.com/relux-works/swarma-chain-lab/experiments/rental",
+			"version": "v0.3.1", "commit": m.Commit,
+			"verdict": "contains " + deploy.StrictParseCommit,
+		}
+		row["modules"] = append([]any{dependency}, row["modules"].([]any)...)
+	})
+	if _, e := deploy.ValidateManifest(raw); e != nil {
+		t.Fatalf("release-check fixture baseline: %v", e)
+	}
+	return raw
 }
 
 func checkManifestReleaseCases(t *testing.T, raw []byte) {
@@ -177,10 +214,6 @@ func checkManifestReleaseCases(t *testing.T, raw []byte) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	// The minimal ledger fixture has only one local module per binary. Add a
-	// valid published dependency to make missing-version, missing-main and
-	// descending-order mutations meaningful. Real releases already have both
-	// local and published gateway modules and are used without this addition.
 	var root map[string]any
 	if e := json.Unmarshal(raw, &root); e != nil {
 		t.Fatal(e)
@@ -191,20 +224,6 @@ func checkManifestReleaseCases(t *testing.T, raw []byte) {
 		if item.(map[string]any)["replace"] == nil || item.(map[string]any)["replace"] == "" {
 			published = true
 		}
-	}
-	if !published {
-		raw = manifestEdit(t, raw, func(r map[string]any) {
-			row := manifestRow(r, "linkage", 0)
-			dependency := map[string]any{
-				"module":  "github.com/relux-works/swarma-chain-lab/experiments/rental",
-				"version": "v0.3.1", "commit": m.Commit,
-				"verdict": "contains " + deploy.StrictParseCommit,
-			}
-			row["modules"] = append([]any{dependency}, row["modules"].([]any)...)
-		})
-	}
-	if _, e := deploy.ValidateManifest(raw); e != nil {
-		t.Fatalf("release-check positive baseline: %v", e)
 	}
 	module := func(r map[string]any, local bool) map[string]any {
 		for _, item := range manifestRow(r, "linkage", 0)["modules"].([]any) {
@@ -218,11 +237,12 @@ func checkManifestReleaseCases(t *testing.T, raw []byte) {
 		return nil
 	}
 	cases := []struct {
-		name    string
-		edit    func(map[string]any)
-		rawEdit func([]byte) []byte
-		pin     string
-		reason  string
+		name           string
+		edit           func(map[string]any)
+		rawEdit        func([]byte) []byte
+		pin            string
+		reason         string
+		needsPublished bool
 	}{
 		{name: "POS-R1-release-of-h-with-full-linkage"},
 		{
@@ -233,8 +253,8 @@ func checkManifestReleaseCases(t *testing.T, raw []byte) {
 			reason: "VERIFY_MANIFEST_INVALID",
 		},
 		{name: "NEG-R1-02-manifest-without-linkage", edit: func(r map[string]any) { delete(r, "linkage") }, reason: "VERIFY_MANIFEST_INVALID"},
-		{name: "NEG-R1-03-foreign-strict-commit", edit: func(r map[string]any) { module(r, false)["verdict"] = "contains " + strings.Repeat("f", 40) }, reason: "VERIFY_MANIFEST_INVALID"},
-		{name: "NEG-R1-04-abbreviated-verdict", edit: func(r map[string]any) { module(r, false)["verdict"] = "contains " + deploy.StrictParseCommit[:8] }, reason: "VERIFY_MANIFEST_INVALID"},
+		{name: "NEG-R1-03-foreign-strict-commit", edit: func(r map[string]any) { manifestModule(r)["verdict"] = "contains " + strings.Repeat("f", 40) }, reason: "VERIFY_MANIFEST_INVALID"},
+		{name: "NEG-R1-04-abbreviated-verdict", edit: func(r map[string]any) { manifestModule(r)["verdict"] = "contains " + deploy.StrictParseCommit[:8] }, reason: "VERIFY_MANIFEST_INVALID"},
 		{name: "NEG-R1-05-binary-without-linkage-row", edit: func(r map[string]any) {
 			rows := r["linkage"].([]any)
 			r["linkage"] = append(rows[:8], rows[9:]...)
@@ -245,7 +265,7 @@ func checkManifestReleaseCases(t *testing.T, raw []byte) {
 		}, reason: "VERIFY_MANIFEST_INVALID"},
 		{name: "NEG-R1-07-in-tree-module-not-at-h", edit: func(r map[string]any) { module(r, true)["commit"] = strings.Repeat("3", 40) }, reason: "VERIFY_MANIFEST_INVALID"},
 		{name: "NEG-R1-08-replace-outside-checkout", edit: func(r map[string]any) { module(r, true)["replace"] = "../elsewhere" }, reason: "VERIFY_MANIFEST_INVALID"},
-		{name: "NEG-R1-09-published-module-without-version", edit: func(r map[string]any) { delete(module(r, false), "version") }, reason: "VERIFY_MANIFEST_INVALID"},
+		{name: "NEG-R1-09-published-module-without-version", needsPublished: true, edit: func(r map[string]any) { delete(module(r, false), "version") }, reason: "VERIFY_MANIFEST_INVALID"},
 		{name: "NEG-R1-10-row-without-main-module", edit: func(r map[string]any) {
 			row := manifestRow(r, "linkage", 0)
 			own := "github.com/relux-works/swarma-chain-lab/" + manifestRow(r, "artifacts", 0)["module"].(string)
@@ -284,17 +304,28 @@ func checkManifestReleaseCases(t *testing.T, raw []byte) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			candidate := raw
+			baseline, pin := raw, m.Commit
+			if tc.needsPublished && !published {
+				// A real release can use exclusively in-tree replacements.
+				// Exercise missing published metadata on testdata in that case,
+				// preserving the actual generated manifest for all other cases.
+				baseline = releaseCheckFixture(t)
+				fixture, e := deploy.ValidateManifest(baseline)
+				if e != nil {
+					t.Fatal(e)
+				}
+				pin = fixture.Commit
+			}
+			candidate := baseline
 			if tc.edit != nil {
-				candidate = manifestEdit(t, raw, tc.edit)
+				candidate = manifestEdit(t, baseline, tc.edit)
 			}
 			if tc.rawEdit != nil {
-				candidate = tc.rawEdit(raw)
-				if bytes.Equal(candidate, raw) {
+				candidate = tc.rawEdit(baseline)
+				if bytes.Equal(candidate, baseline) {
 					t.Fatal("raw mutation was not applied")
 				}
 			}
-			pin := m.Commit
 			if tc.pin != "" {
 				pin = tc.pin
 			}
