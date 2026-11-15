@@ -382,3 +382,27 @@ func TestRollbackJournalSchemaControls(t *testing.T) {
 		})
 	}
 }
+
+// Claim: an error after payload sync never becomes success merely because bytes match on retry; the retry syncs the restored inode again before any start.
+func TestRollbackRestoredFileSyncRetried(t *testing.T) {
+	f, n := rollbackFixture(t, true)
+	installRollbackConfig(t, f, n, true)
+	calls := 0
+	f.l.payloadSync = func(file *os.File) error { calls++; return errors.New("injected payload sync failure") }
+	e := f.l.Rollback("station", n)
+	code(t, e, 1)
+	if calls != 1 || n.running || !strings.Contains(e.Error(), "RESTORE_FAILED") {
+		t.Fatal("sync failure did not stop recovery", e)
+	}
+	if f.l.nodeDisk() != "preinstall" {
+		t.Fatal("witness must already have restored bytes and metadata")
+	}
+	f.reopen(t)
+	retrySyncs := 0
+	f.l.payloadSync = func(file *os.File) error { retrySyncs++; return nil }
+	must(t, f.l.Rollback("station", n))
+	if retrySyncs != 1 {
+		t.Fatalf("matching restored inode was not synced on retry: %d", retrySyncs)
+	}
+	assertRollbackTerminal(t, f, n, true)
+}

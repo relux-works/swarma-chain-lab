@@ -1179,6 +1179,8 @@ same type/owner/group/mode. Replacement is refused. A completed `restored` or
 later checkpoint ends that partial-write authority, so it cannot authorize a
 future foreign edit. A failed write, truncate, metadata operation or fsync
 returns nonzero with the node stopped; retry restores the complete preimage.
+An already-matching inode is synced again before recovery proceeds, so a failed
+earlier payload sync cannot be mistaken for durable restoration.
 
 | Accepted replay state class | Recovery obligation |
 | --- | --- |

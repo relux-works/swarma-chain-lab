@@ -345,6 +345,10 @@ func (l *Ledger) Rollback(mode string, controller NodeController) error {
 		if err := l.restoreNodeFile(*got, old, *expected.FS); err != nil {
 			return refuse("RESTORE_FAILED", err)
 		}
+	} else if err := l.syncNodeFile(*got); err != nil {
+		// Matching bytes may be the result of a previous failed payload sync.
+		// A retry must reestablish durability before publishing restored.
+		return refuse("RESTORE_FAILED", err)
 	}
 	if l.nodeDisk() != "preinstall" {
 		return refuse("CONFIG_MISMATCH", nil)
@@ -526,5 +530,26 @@ func (l *Ledger) restoreNodeFile(want Identity, old []byte, metadata FSIdentity)
 	if err = unix.UtimesNanoAt(int(f.Fd()), "", []unix.Timespec{{Nsec: unix.UTIME_OMIT}, unix.NsecToTimespec(metadata.MtimeNS)}, unix.AT_EMPTY_PATH); err != nil {
 		return err
 	}
-	return f.Sync()
+	return l.syncPayload(f)
+}
+
+func (l *Ledger) syncNodeFile(want Identity) error {
+	d, n, err := parent(want.Path)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	f, err := at(d, n, unix.O_RDONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	got, err := fsIdentity(f, "modify")
+	if err != nil {
+		return err
+	}
+	if !identityEqual(Identity{Path: want.Path, FS: got}, want) {
+		return errors.New("NODE_SYNC_IDENTITY_CHANGED")
+	}
+	return l.syncPayload(f)
 }
