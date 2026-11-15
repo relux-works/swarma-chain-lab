@@ -25,6 +25,7 @@ var plants = []plant{
 	{"drop_ceiling_check", `if !ok || dailyNext > s.cfg.DailyCostCeilingNanoUSD {`, `if false && (!ok || dailyNext > s.cfg.DailyCostCeilingNanoUSD) {`, `^TestDailyCeilingBoundary$/^229$`, `TestDailyCeilingBoundary/229`, `daily ceiling+1 forwarded or charged`},
 	{"allow_ceiling_plus_one", `dailyNext > s.cfg.DailyCostCeilingNanoUSD`, `dailyNext > s.cfg.DailyCostCeilingNanoUSD+1`, `^TestDailyCeilingBoundary$/^229$`, `TestDailyCeilingBoundary/229`, `daily ceiling+1 forwarded or charged`},
 	{"missing_accounting_as_zero", `if !initialize {`, `if false && !initialize {`, `^TestDailyAccountingInitialization$`, `TestDailyAccountingInitialization`, `missing accounting initialized as zero`},
+	{"release_pre_header_daily", "\tvar verdict error\n\tif u != nil {", "\tif u == nil && p.Day == s.state.Daily.Day {\n\t\ts.state.Daily.Committed -= p.Cost\n\t}\n\tvar verdict error\n\tif u != nil {", `^TestResponsesPreHeaderClosure$`, `TestResponsesPreHeaderClosure/expired`, `Responses pre-header daily reservation changed`},
 }
 
 type result struct {
@@ -101,11 +102,11 @@ func run() error {
 		}
 		return r, raw, nil
 	}
-	baseline, b, e := runTest("baseline", `^(TestDailyCeilingBoundary|TestDailyAccountingInitialization)$`, "")
+	baseline, b, e := runTest("baseline", `^(TestDailyCeilingBoundary|TestDailyAccountingInitialization|TestResponsesPreHeaderClosure)$`, "")
 	if e != nil {
 		return e
 	}
-	if baseline.Exit != 0 || !bytes.Contains(b, []byte("--- PASS: TestDailyCeilingBoundary/230")) || !bytes.Contains(b, []byte("--- PASS: TestDailyCeilingBoundary/229")) || !bytes.Contains(b, []byte("--- PASS: TestDailyAccountingInitialization")) {
+	if baseline.Exit != 0 || !bytes.Contains(b, []byte("--- PASS: TestDailyCeilingBoundary/230")) || !bytes.Contains(b, []byte("--- PASS: TestDailyCeilingBoundary/229")) || !bytes.Contains(b, []byte("--- PASS: TestDailyAccountingInitialization")) || !bytes.Contains(b, []byte("--- PASS: TestResponsesPreHeaderClosure/expired")) || !bytes.Contains(b, []byte("--- PASS: TestResponsesPreHeaderClosure/revoked")) {
 		return fmt.Errorf("baseline did not pass named positive and negative controls: exit %d", baseline.Exit)
 	}
 	results := []result{baseline}

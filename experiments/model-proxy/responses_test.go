@@ -598,7 +598,9 @@ func (w *responsesFrameWriter) Flush() {
 // With no upstream headers available, cancellation returns 502 UPSTREAM rather
 // than an SSE error. Neither revocation nor expiry may refund the reservation,
 // settle usage, report success, retry generation, or leave InFlight set.
-// These loopback controls do not assert that remote billing stops on cancel.
+// The daily bucket retains the same full reservation as the booking before
+// and after closure and restart. These loopback controls do not assert that
+// remote billing stops on cancel.
 func TestResponsesPreHeaderClosure(t *testing.T) {
 	for _, kind := range []string{"expired", "revoked"} {
 		t.Run(kind, func(t *testing.T) {
@@ -635,6 +637,15 @@ func TestResponsesPreHeaderClosure(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("Responses upstream did not enter pre-header barrier")
 			}
+			admissionDay := h.now.Load() / 86400
+			assertDailyHeld := func() {
+				t.Helper()
+				v := h.status(t)
+				b, e := h.s.DailyBudget()
+				if e != nil || b.UTCDay != time.Unix(admissionDay*86400, 0).UTC().Format("2006-01-02") || b.CeilingNanoUSD != h.c.DailyCostCeilingNanoUSD || b.CommittedNanoUSD != 230 || b.CommittedNanoUSD != v.Exposure.Cost || b.RemainingNanoUSD != h.c.DailyCostCeilingNanoUSD-230 {
+					t.Fatalf("Responses pre-header daily reservation changed: budget=%+v exposure=%+v error=%v", b, v.Exposure, e)
+				}
+			}
 			assertHeld := func(inFlight bool) {
 				t.Helper()
 				v := h.status(t)
@@ -642,6 +653,7 @@ func TestResponsesPreHeaderClosure(t *testing.T) {
 				if v.Exposure != (Counts{100, 10, 1, 230}) || v.Observed != (Usage{}) || v.InFlight != inFlight {
 					t.Fatalf("Responses pre-header reservation changed: exposure=%+v observed=%+v inFlight=%v", v.Exposure, v.Observed, v.InFlight)
 				}
+				assertDailyHeld()
 			}
 			assertHeld(true)
 			if w := h.send(responsesRequest(true, false)); w.Code != 403 || !strings.Contains(w.Body.String(), "BUSY") || h.calls.Load() != 1 {
@@ -652,6 +664,7 @@ func TestResponsesPreHeaderClosure(t *testing.T) {
 			} else if e := h.s.Revoke(h.b); e != nil {
 				t.Fatal(e)
 			}
+			assertDailyHeld()
 			select {
 			case <-cancelled:
 			case <-time.After(2 * time.Second):
@@ -680,6 +693,9 @@ func TestResponsesPreHeaderClosure(t *testing.T) {
 			rec := persisted.Records[h.b.SlotID]
 			if rec.Exposure != (Counts{100, 10, 1, 230}) || rec.Observed != (Usage{}) || rec.Pending != nil {
 				t.Fatal("Responses pre-header reservation was not durably retained and cleared")
+			}
+			if persisted.Daily == nil || persisted.Daily.Day != admissionDay || persisted.Daily.Committed != rec.Exposure.Cost || persisted.Daily.Checksum != persisted.Daily.checksum() {
+				t.Fatal("Responses pre-header daily reservation was not durably retained")
 			}
 			// Handler return includes all audit writes and deferred settlement.
 			close(audits)

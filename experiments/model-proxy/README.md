@@ -311,8 +311,10 @@ admission tests live in `single-use/configguard`; local ownership seams are
 synthetic and do not qualify Linux deployment. See the deploy runbook for
 same-binary preflight and the separate DK5b payload launch gate.
 
-The daily-ceiling guard tool uses compiler overlays for three controls: removing
-the ceiling check, admitting ceiling+1, and treating missing accounting as zero.
+The daily-ceiling guard tool uses compiler overlays for four controls: removing
+the ceiling check, admitting ceiling+1, treating missing accounting as zero, and
+refunding daily exposure after a pre-header cancellation. The expired and revoked
+pre-header tests retain the full booking and daily reservation across restart.
 It records baseline and mutant command exits, owned PIDs, hashes and named test
 assertions under `.temp/daily-guards`. Candidate source bytes remain unchanged.
 `TestDailyParallelReservations` races sixteen bookings against three full-cost
