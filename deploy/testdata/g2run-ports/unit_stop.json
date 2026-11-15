@@ -1,0 +1,104 @@
+{
+  "origin": "g2-negatives.sh:345-381; g2-lib.sh:181-218",
+  "cases": [
+    {
+      "name": "NEG-D13-1-foreign-running-refused-not-stopped",
+      "load": "loaded",
+      "active": "active",
+      "pid": 4242,
+      "fragment": "@UNITDIR@/wallet.service",
+      "owns_rc": 1,
+      "receipt": false,
+      "ok": false,
+      "stops": 0
+    },
+    {
+      "name": "NEG-D13-1-foreign-running-with-receipt-not-stopped",
+      "load": "loaded",
+      "active": "active",
+      "pid": 4242,
+      "fragment": "@UNITDIR@/wallet.service",
+      "owns_rc": 1,
+      "receipt": true,
+      "ok": false,
+      "stops": 0
+    },
+    {
+      "name": "POS-D13-1-foreign-inactive-left-untouched",
+      "load": "loaded",
+      "active": "inactive",
+      "pid": 0,
+      "fragment": "@UNITDIR@/wallet.service",
+      "owns_rc": 1,
+      "receipt": false,
+      "ok": true,
+      "stops": 0
+    },
+    {
+      "name": "NEG-D13-1-foreign-fragment-path-not-stopped",
+      "load": "loaded",
+      "active": "active",
+      "pid": 4242,
+      "fragment": "/usr/lib/systemd/system/wallet.service",
+      "owns_rc": 0,
+      "receipt": true,
+      "ok": false,
+      "stops": 0
+    },
+    {
+      "name": "NEG-D13-1-own-unit-never-started-running-refused",
+      "load": "loaded",
+      "active": "active",
+      "pid": 4242,
+      "fragment": "@UNITDIR@/wallet.service",
+      "owns_rc": 0,
+      "receipt": false,
+      "ok": false,
+      "stops": 0
+    },
+    {
+      "name": "POS-D13-1-own-unit-never-started-inactive",
+      "load": "loaded",
+      "active": "inactive",
+      "pid": 0,
+      "fragment": "@UNITDIR@/wallet.service",
+      "owns_rc": 0,
+      "receipt": false,
+      "ok": true,
+      "stops": 0
+    },
+    {
+      "name": "POS-D13-1-attempt-started-stopped",
+      "load": "loaded",
+      "active": "active",
+      "pid": 4242,
+      "fragment": "@UNITDIR@/wallet.service",
+      "owns_rc": 0,
+      "receipt": true,
+      "ok": true,
+      "stops": 1
+    },
+    {
+      "name": "NEG-D13-1-ownership-error-refused",
+      "load": "loaded",
+      "active": "active",
+      "pid": 4242,
+      "fragment": "@UNITDIR@/wallet.service",
+      "owns_rc": 2,
+      "receipt": true,
+      "ok": false,
+      "stops": 0
+    },
+    {
+      "name": "POS-D13-1-not-loaded-nothing-to-stop",
+      "load": "not-found",
+      "active": "inactive",
+      "pid": 0,
+      "fragment": "",
+      "owns_rc": 1,
+      "receipt": false,
+      "ok": true,
+      "stops": 0
+    }
+  ]
+}

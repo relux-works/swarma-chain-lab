@@ -1,0 +1,95 @@
+{
+  "origin": "g2-negatives.sh:557-610",
+  "cases": [
+    {
+      "name": "NEG-D19-1-rollback-refuses-without-verified-marker-runs-no-kit",
+      "purpose": "station",
+      "mutation": "marker",
+      "output": "ROLLBACK_OK node=stopped config=baseline-verified retry=reconciled\n",
+      "engine_rc": 0,
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D19-1-rollback-refuses-without-ledger-runs-no-kit",
+      "purpose": "station",
+      "mutation": "ledger",
+      "output": "ROLLBACK_OK node=stopped config=baseline-verified retry=reconciled\n",
+      "engine_rc": 0,
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D19-1-rollback-refuses-a-changed-manifest-runs-no-kit",
+      "purpose": "station",
+      "mutation": "manifest",
+      "output": "ROLLBACK_OK node=stopped config=baseline-verified retry=reconciled\n",
+      "engine_rc": 0,
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "POS-D19-2-rollback-ok-with-the-exact-engine-line",
+      "purpose": "station",
+      "mutation": "",
+      "output": "ROLLBACK_OK node=stopped config=baseline-verified retry=reconciled\n",
+      "engine_rc": 0,
+      "ok": true,
+      "oracle_rc": 0
+    },
+    {
+      "name": "NEG-D19-2-engine-exit-0-without-ok-line-refused",
+      "purpose": "station",
+      "mutation": "",
+      "output": "",
+      "engine_rc": 0,
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D19-2-engine-refusal-exit-passes-through-nothing-after",
+      "purpose": "station",
+      "mutation": "",
+      "output": "G2_ROLLBACK_REFUSED phase=config-changed disk=new node=running\n",
+      "engine_rc": 1,
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D19-4-rehearsal-line-refused-in-station-mode",
+      "purpose": "station",
+      "mutation": "",
+      "output": "ROLLBACK_OK node=not-applicable config=not-applicable retry=reconciled\n",
+      "engine_rc": 0,
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "NEG-D19-2-two-ok-lines-refused",
+      "purpose": "station",
+      "mutation": "",
+      "output": "ROLLBACK_OK node=stopped config=baseline-verified retry=reconciled\nROLLBACK_OK node=stopped config=baseline-verified retry=reconciled\n",
+      "engine_rc": 0,
+      "ok": false,
+      "oracle_rc": 1
+    },
+    {
+      "name": "POS-D19-4-noop-retry-line-accepted",
+      "purpose": "station",
+      "mutation": "",
+      "output": "ROLLBACK_OK node=stopped config=baseline-verified retry=noop\n",
+      "engine_rc": 0,
+      "ok": true,
+      "oracle_rc": 0
+    },
+    {
+      "name": "POS-D19-2-rehearsal-rollback-line",
+      "purpose": "rehearsal",
+      "mutation": "",
+      "output": "ROLLBACK_OK node=not-applicable config=not-applicable retry=reconciled\n",
+      "engine_rc": 0,
+      "ok": true,
+      "oracle_rc": 0
+    }
+  ]
+}

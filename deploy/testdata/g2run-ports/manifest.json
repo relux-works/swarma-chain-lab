@@ -1,0 +1,87 @@
+{
+  "origin": "g2-negatives.sh:182-203; neighboring exact-schema cases",
+  "release": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "gid": 210201,
+  "cases": [
+    {
+      "name": "POS-D10-5-int-one",
+      "raw": "{\"v\":1,\"release_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"service\":\"wallet\",\"gid\":210201,\"files\":[{\"path\":\"@WALLET@/receipt.key\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"@WALLET@/service.json\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"@WALLET@/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+      "approved": "{\"@WALLET@/receipt.key\": \"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\", \"@WALLET@/service.json\": \"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\", \"@WALLET@/wallet.json\": \"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}",
+      "ok": true,
+      "oracle_rc": 0,
+      "refusal": ""
+    },
+    {
+      "name": "NEG-D10-5-v-bool",
+      "raw": "{\"v\":true,\"release_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"service\":\"wallet\",\"gid\":210201,\"files\":[{\"path\":\"@WALLET@/receipt.key\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"@WALLET@/service.json\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"@WALLET@/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+      "approved": "{\"@WALLET@/receipt.key\": \"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\", \"@WALLET@/service.json\": \"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\", \"@WALLET@/wallet.json\": \"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}",
+      "ok": false,
+      "oracle_rc": 1,
+      "refusal": "MANIFEST_VERSION"
+    },
+    {
+      "name": "NEG-D10-5-v-float",
+      "raw": "{\"v\":1.0,\"release_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"service\":\"wallet\",\"gid\":210201,\"files\":[{\"path\":\"@WALLET@/receipt.key\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"@WALLET@/service.json\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"@WALLET@/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+      "approved": "{\"@WALLET@/receipt.key\": \"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\", \"@WALLET@/service.json\": \"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\", \"@WALLET@/wallet.json\": \"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}",
+      "ok": false,
+      "oracle_rc": 1,
+      "refusal": "MANIFEST_VERSION"
+    },
+    {
+      "name": "NEG-D10-5-gid-bool",
+      "raw": "{\"v\":1,\"release_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"service\":\"wallet\",\"gid\":true,\"files\":[{\"path\":\"@WALLET@/receipt.key\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"@WALLET@/service.json\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"@WALLET@/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+      "approved": "{\"@WALLET@/receipt.key\": \"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\", \"@WALLET@/service.json\": \"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\", \"@WALLET@/wallet.json\": \"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}",
+      "ok": false,
+      "oracle_rc": 1,
+      "refusal": "MANIFEST_GID"
+    },
+    {
+      "name": "NEG-D10-5-duplicate-key",
+      "raw": "{\"v\":1,\"v\":1,\"release_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"service\":\"wallet\",\"gid\":210201,\"files\":[{\"path\":\"@WALLET@/receipt.key\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"@WALLET@/service.json\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"@WALLET@/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+      "approved": "{\"@WALLET@/receipt.key\": \"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\", \"@WALLET@/service.json\": \"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\", \"@WALLET@/wallet.json\": \"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}",
+      "ok": false,
+      "oracle_rc": 1,
+      "refusal": "MANIFEST_JSON"
+    },
+    {
+      "name": "NEG-D10-5-noncanonical",
+      "raw": "{\"v\": 1,\"release_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"service\":\"wallet\",\"gid\":210201,\"files\":[{\"path\":\"@WALLET@/receipt.key\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"@WALLET@/service.json\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"@WALLET@/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+      "approved": "{\"@WALLET@/receipt.key\": \"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\", \"@WALLET@/service.json\": \"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\", \"@WALLET@/wallet.json\": \"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}",
+      "ok": false,
+      "oracle_rc": 1,
+      "refusal": "MANIFEST_NONCANONICAL"
+    },
+    {
+      "name": "NEG-manifest-extra-key",
+      "raw": "{\"extra\":1,\"v\":1,\"release_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"service\":\"wallet\",\"gid\":210201,\"files\":[{\"path\":\"@WALLET@/receipt.key\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"@WALLET@/service.json\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"@WALLET@/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+      "approved": "{\"@WALLET@/receipt.key\": \"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\", \"@WALLET@/service.json\": \"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\", \"@WALLET@/wallet.json\": \"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}",
+      "ok": false,
+      "oracle_rc": 1,
+      "refusal": "MANIFEST_KEYS"
+    },
+    {
+      "name": "NEG-manifest-service",
+      "raw": "{\"v\":1,\"release_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"service\":\"other\",\"gid\":210201,\"files\":[{\"path\":\"@WALLET@/receipt.key\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"@WALLET@/service.json\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"@WALLET@/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+      "approved": "{\"@WALLET@/receipt.key\": \"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\", \"@WALLET@/service.json\": \"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\", \"@WALLET@/wallet.json\": \"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}",
+      "ok": false,
+      "oracle_rc": 1,
+      "refusal": "MANIFEST_SERVICE"
+    },
+    {
+      "name": "NEG-manifest-release",
+      "raw": "{\"v\":1,\"release_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"service\":\"wallet\",\"gid\":210201,\"files\":[{\"path\":\"@WALLET@/receipt.key\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"@WALLET@/service.json\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"@WALLET@/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+      "approved": "{\"@WALLET@/receipt.key\": \"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\", \"@WALLET@/service.json\": \"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\", \"@WALLET@/wallet.json\": \"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}",
+      "ok": false,
+      "oracle_rc": 1,
+      "refusal": "MANIFEST_RELEASE"
+    },
+    {
+      "name": "NEG-manifest-files-order",
+      "raw": "{\"v\":1,\"release_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"service\":\"wallet\",\"gid\":210201,\"files\":[{\"path\":\"@WALLET@/service.json\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"@WALLET@/receipt.key\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"@WALLET@/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+      "approved": "{\"@WALLET@/receipt.key\": \"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\", \"@WALLET@/service.json\": \"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\", \"@WALLET@/wallet.json\": \"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}",
+      "ok": false,
+      "oracle_rc": 1,
+      "refusal": "MANIFEST_FILE_ENTRY"
+    }
+  ]
+}

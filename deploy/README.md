@@ -354,6 +354,11 @@ schemas and [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for deployment in
 
 ## Tools and artifacts
 
+- The G2 Go script ports and their recorded oracle vectors are described in
+  [G2-PORTS.md](G2-PORTS.md). From this module run `go test ./g2run -race`
+  and `go vet ./g2run`; test fixtures live in `testdata/g2run-ports/` and task
+  validation logs belong under the checkout's `.temp/`.
+
 - `deploy-kit g2-rollback -dir "$LEDGER" -mode station|rehearsal` performs
   ledger-bound node recovery and scoped reverse replay. It records recovery
   checkpoints inside the ledger and emits replay/readback JSON rows to stdout;
