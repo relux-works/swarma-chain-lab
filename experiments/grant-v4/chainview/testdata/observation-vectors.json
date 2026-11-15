@@ -1,0 +1,3070 @@
+{
+  "schema": "swarma-link-spec/lip-0022-vectors/1",
+  "lip": "LIP-0022",
+  "note": "Draft vectors for LIP-0022. No vector reads a node or a clock: tips, times, heights and the state of nodes are stated. Block hashes are placeholders. A vector whose outcome is not the passing one holds one defect and names a neighbour with the passing outcome that differs from it in that defect; a vector marked compound states several findings and names none, and a sequence states the outcome of each of its steps. No verdict of this file records a closure. S, LAG and K are the proposed values of three provisional numbers; a change of one of them changes the vectors at its boundary.",
+  "parameters": {
+    "s_seconds": 600,
+    "lag_blocks": 1,
+    "k_blocks": 432,
+    "cutoff_money_or_irreversible_seconds": 3600,
+    "cutoff_other_privileged_seconds": 5400,
+    "pinned_genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+    "order_of_the_first_six_codes": [
+      "OBSERVATION_CHAIN",
+      "OBSERVATION_VOID",
+      "NODE_UNHEALTHY",
+      "NODE_DISAGREEMENT",
+      "OBSERVATION_CLOCK",
+      "TIP_AGE"
+    ]
+  },
+  "fields": {
+    "observations": "readings: the tips of the first and of the last read, the hash that the node gives for height 0, and where stated the tip read before the effect. facts: a block that holds a fact, and what the node gives for heights of its active chain.",
+    "nodes": "active_chain of the reading node maps a height to the hash that the node gives for it. headers_above_tip is how many blocks the best header that a node knows lies above its tip.",
+    "clock": "now, kept_mark, tip_header_time and first_sight are seconds of UTC. first_sight is absent where the verifier holds none for the tip, and the observation then writes it. class is absent where the action profile states none. now_before_effect is the second reading of B1.6.",
+    "sequences": "One verifier over time. start and end state what it keeps durably: the kept mark of B3.2 and the first sights of B3.7, a map from the hash of a block to a time. Each step is an observation with its reading of the clock, its tip and the expected outcome, or a restart, which changes nothing that is kept. finding states a refusal of section 1 or 2 that holds for that observation. control names a sequence without the defect.",
+    "recent": "blocks: committed_block_height is absent where the node does not know the committed hash. windows: the rule of LIP-0008 section 7.1 with a verdict and no code.",
+    "depth": "evidence.block_height is absent for a pending transaction.",
+    "order": "findings lists the codes that hold for one observation, in no particular order; expect is the one that B6.1 reports."
+  },
+  "rules": [
+    {
+      "rule": "B1.1",
+      "section": "1",
+      "title": "an observation between two reads of the tip",
+      "state": "proposed",
+      "vectors": [
+        "obs-01",
+        "obs-02",
+        "obs-03",
+        "seq-10"
+      ]
+    },
+    {
+      "rule": "B1.2",
+      "section": "1",
+      "title": "a void observation proves nothing and closes nothing",
+      "state": "proposed",
+      "vectors": [
+        "obs-02",
+        "obs-03"
+      ],
+      "not_covered": "No vector holds a closure. The vectors of B1.1 state the void observation."
+    },
+    {
+      "rule": "B1.3",
+      "section": "1",
+      "title": "the pinned chain",
+      "state": "proposed",
+      "vectors": [
+        "obs-01",
+        "obs-04"
+      ]
+    },
+    {
+      "rule": "B1.4",
+      "section": "1",
+      "title": "a confirmed fact belongs to the observation",
+      "state": "proposed",
+      "vectors": [
+        "fact-01",
+        "fact-02",
+        "fact-03",
+        "fact-04",
+        "fact-05"
+      ]
+    },
+    {
+      "rule": "B1.5",
+      "section": "1",
+      "title": "every fact of a check from one observation",
+      "state": "proposed",
+      "vectors": [
+        "window-01",
+        "window-02",
+        "window-03",
+        "window-04",
+        "window-05",
+        "window-06",
+        "window-07"
+      ],
+      "not_covered": "The window vectors take the height of the tip from one observation. No vector holds a whole admission check, and none shows a fact from an earlier observation."
+    },
+    {
+      "rule": "B1.6",
+      "section": "1",
+      "title": "the tip and the clock again before an effect",
+      "state": "proposed",
+      "vectors": [
+        "obs-05",
+        "obs-06",
+        "clock-13",
+        "clock-14",
+        "clock-22",
+        "clock-23"
+      ]
+    },
+    {
+      "rule": "B2.1",
+      "section": "2",
+      "title": "the reading node and the configured comparison nodes",
+      "state": "proposed",
+      "vectors": [
+        "node-07",
+        "node-17",
+        "node-18",
+        "node-19",
+        "node-20",
+        "node-21",
+        "node-24"
+      ],
+      "not_covered": "node-07 states a verifier without a comparison node. No vector shows that a fact was taken from one, and none shows a configuration."
+    },
+    {
+      "rule": "B2.2",
+      "section": "2",
+      "title": "when two nodes count as two",
+      "state": "proposed",
+      "vectors": [
+        "node-01",
+        "node-08",
+        "node-09",
+        "node-21"
+      ]
+    },
+    {
+      "rule": "B2.3",
+      "section": "2",
+      "title": "a healthy node",
+      "state": "proposed",
+      "vectors": [
+        "node-01",
+        "node-02",
+        "node-10",
+        "node-11",
+        "node-12",
+        "node-13",
+        "node-14",
+        "node-15",
+        "node-23"
+      ]
+    },
+    {
+      "rule": "B2.4",
+      "section": "2",
+      "title": "a tip agrees, is behind or conflicts",
+      "state": "proposed",
+      "vectors": [
+        "node-01",
+        "node-02",
+        "node-03",
+        "node-04",
+        "node-05",
+        "node-06",
+        "node-17",
+        "node-18",
+        "node-19",
+        "node-20",
+        "node-21",
+        "node-22",
+        "node-24"
+      ]
+    },
+    {
+      "rule": "B2.5",
+      "section": "2",
+      "title": "a healthy observation",
+      "state": "proposed",
+      "vectors": [
+        "node-01",
+        "node-02",
+        "node-03",
+        "node-04",
+        "node-05",
+        "node-06",
+        "node-07",
+        "node-08",
+        "node-09",
+        "node-10",
+        "node-11",
+        "node-12",
+        "node-13",
+        "node-15",
+        "node-16",
+        "node-17",
+        "node-18",
+        "node-19",
+        "node-20",
+        "node-21",
+        "node-22",
+        "node-23",
+        "node-24",
+        "node-25"
+      ]
+    },
+    {
+      "rule": "B3.1",
+      "section": "3",
+      "title": "the verifier's clock",
+      "state": "proposed",
+      "vectors": [],
+      "not_covered": "No vector reads a clock; each states a reading."
+    },
+    {
+      "rule": "B3.2",
+      "section": "3",
+      "title": "a clock that went back",
+      "state": "proposed",
+      "vectors": [
+        "clock-11",
+        "clock-12",
+        "seq-07",
+        "seq-08"
+      ]
+    },
+    {
+      "rule": "B3.3",
+      "section": "3",
+      "title": "a header ahead of the clock",
+      "state": "proposed",
+      "vectors": [
+        "clock-09",
+        "clock-10",
+        "seq-01"
+      ]
+    },
+    {
+      "rule": "B3.4",
+      "section": "3",
+      "title": "the age of the tip: the larger of the header age and the seen age",
+      "state": "proposed",
+      "vectors": [
+        "clock-01",
+        "clock-02",
+        "clock-03",
+        "clock-04",
+        "clock-05",
+        "clock-06",
+        "clock-09",
+        "clock-15",
+        "clock-16",
+        "clock-17",
+        "clock-18",
+        "clock-19",
+        "clock-20",
+        "clock-21",
+        "clock-22",
+        "clock-23",
+        "seq-01",
+        "seq-02",
+        "seq-03",
+        "seq-04",
+        "seq-05",
+        "seq-06"
+      ]
+    },
+    {
+      "rule": "B3.5",
+      "section": "3",
+      "title": "the class of an action",
+      "state": "proposed",
+      "vectors": [
+        "clock-01",
+        "clock-02",
+        "clock-03",
+        "clock-04",
+        "clock-05",
+        "clock-06",
+        "clock-07",
+        "clock-08"
+      ]
+    },
+    {
+      "rule": "B3.6",
+      "section": "3",
+      "title": "the two cutoffs",
+      "state": "proposed",
+      "vectors": [
+        "clock-01",
+        "clock-02",
+        "clock-03",
+        "clock-04",
+        "clock-05",
+        "clock-06",
+        "clock-07",
+        "clock-08",
+        "clock-13",
+        "clock-14",
+        "clock-15",
+        "clock-16",
+        "clock-17",
+        "clock-18",
+        "clock-19",
+        "clock-22",
+        "clock-23",
+        "seq-01",
+        "seq-02",
+        "seq-03",
+        "seq-04",
+        "seq-05",
+        "seq-06"
+      ]
+    },
+    {
+      "rule": "B3.7",
+      "section": "3",
+      "title": "the first sight of a tip",
+      "state": "proposed",
+      "vectors": [
+        "clock-20",
+        "clock-21",
+        "seq-01",
+        "seq-02",
+        "seq-03",
+        "seq-05",
+        "seq-08",
+        "seq-09",
+        "seq-10"
+      ]
+    },
+    {
+      "rule": "B3.8",
+      "section": "3",
+      "title": "a first sight is written once and kept",
+      "state": "proposed",
+      "vectors": [
+        "seq-04",
+        "seq-06"
+      ],
+      "not_covered": "The sequences state a restart as a step. No vector holds a store that was lost or that went back."
+    },
+    {
+      "rule": "B4.1",
+      "section": "4",
+      "title": "the issuer commits the tip of its observation",
+      "state": "proposed",
+      "vectors": [],
+      "not_covered": "No vector holds an issuer's observation."
+    },
+    {
+      "rule": "B4.2",
+      "section": "4",
+      "title": "the recent block on the active chain",
+      "state": "proposed",
+      "vectors": [
+        "recent-01",
+        "recent-06",
+        "recent-07",
+        "recent-08"
+      ]
+    },
+    {
+      "rule": "B4.3",
+      "section": "4",
+      "title": "the anchor above the recent block",
+      "state": "proposed",
+      "vectors": [
+        "recent-01",
+        "recent-02",
+        "recent-03",
+        "recent-04",
+        "recent-05"
+      ]
+    },
+    {
+      "rule": "B4.4",
+      "section": "4",
+      "title": "after a reorganisation",
+      "state": "proposed",
+      "vectors": [],
+      "not_covered": "No vector holds a reorganisation."
+    },
+    {
+      "rule": "B5.1",
+      "section": "5",
+      "title": "the depth of a confirmed fact",
+      "state": "proposed",
+      "vectors": [
+        "depth-01",
+        "depth-02",
+        "depth-06"
+      ]
+    },
+    {
+      "rule": "B5.2",
+      "section": "5",
+      "title": "the larger of the signed minimum and the operator's floor",
+      "state": "proposed",
+      "vectors": [
+        "depth-02",
+        "depth-03",
+        "depth-04",
+        "depth-05"
+      ]
+    },
+    {
+      "rule": "B5.3",
+      "section": "5",
+      "title": "no comparison across chains",
+      "state": "proposed",
+      "vectors": [
+        "depth-07"
+      ]
+    },
+    {
+      "rule": "B6.1",
+      "section": "6",
+      "title": "the order of the first six codes",
+      "state": "proposed",
+      "vectors": [
+        "node-25",
+        "seq-09",
+        "order-01",
+        "order-02",
+        "order-03",
+        "order-04",
+        "order-05",
+        "order-06"
+      ]
+    },
+    {
+      "rule": "B6.2",
+      "section": "6",
+      "title": "the place of the other three",
+      "state": "proposed",
+      "vectors": [],
+      "not_covered": "No vector holds a rule of a grant beside a refusal of this profile."
+    }
+  ],
+  "observations": {
+    "readings": [
+      {
+        "id": "obs-01",
+        "rules": [
+          "B1.1",
+          "B1.3"
+        ],
+        "claim": "The first and the last read give the same tip, and the block of height 0 has the pinned hash.",
+        "pinned_genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "first_tip": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "last_tip": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "expect": "ok"
+      },
+      {
+        "id": "obs-02",
+        "rules": [
+          "B1.1",
+          "B1.2"
+        ],
+        "claim": "A block arrived during the reads: the last read gives a higher tip.",
+        "pinned_genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "first_tip": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "last_tip": {
+          "height": 801,
+          "hash": "4a2c7521f65009d414ebafb87db0520accf6280b94d51acb5191fc4391a68d62"
+        },
+        "expect": "OBSERVATION_VOID",
+        "valid_neighbour": "obs-01"
+      },
+      {
+        "id": "obs-03",
+        "rules": [
+          "B1.1",
+          "B1.2"
+        ],
+        "claim": "The tip was replaced during the reads: the same height, another hash.",
+        "pinned_genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "first_tip": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "last_tip": {
+          "height": 800,
+          "hash": "c3b524b99ace16edc24c170939255ba6ce4c512793d39614981c4e38884e2b81"
+        },
+        "expect": "OBSERVATION_VOID",
+        "valid_neighbour": "obs-01"
+      },
+      {
+        "id": "obs-04",
+        "rules": [
+          "B1.3"
+        ],
+        "claim": "The node gives another hash for the block of height 0: it is on another chain.",
+        "pinned_genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "genesis_hash": "6e54be8a9d5846f871874febb3e4e703b646754a1ea9ffde5c488d182947f349",
+        "first_tip": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "last_tip": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "expect": "OBSERVATION_CHAIN",
+        "valid_neighbour": "obs-01"
+      },
+      {
+        "id": "obs-05",
+        "rules": [
+          "B1.6"
+        ],
+        "claim": "The tip that the verifier reads immediately before the effect is the tip of the observation.",
+        "pinned_genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "first_tip": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "last_tip": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "tip_before_effect": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "expect": "ok"
+      },
+      {
+        "id": "obs-06",
+        "rules": [
+          "B1.6"
+        ],
+        "claim": "A block arrived between the observation and the effect.",
+        "pinned_genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "first_tip": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "last_tip": {
+          "height": 800,
+          "hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "tip_before_effect": {
+          "height": 801,
+          "hash": "4a2c7521f65009d414ebafb87db0520accf6280b94d51acb5191fc4391a68d62"
+        },
+        "expect": "OBSERVATION_VOID",
+        "valid_neighbour": "obs-05"
+      }
+    ],
+    "facts": [
+      {
+        "id": "fact-01",
+        "rules": [
+          "B1.4"
+        ],
+        "claim": "The node gives the hash of the block for its height, and the block holds the transaction.",
+        "tip_height": 800,
+        "active_chain": {
+          "699": "603f1ebfbb394bb3af764a2831bf35084b036ac1e17013589ed3dccc65ddd9e5",
+          "700": "5030c8894761858c8bfd95f777979a11bdebb5d33604b27ae712e49dc28cfc1f",
+          "701": "3a0145ffc70817d86f218f0bd870dd17848d7b8ef6e17872c213dc896abf70f6",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "block_height": 700,
+        "block_hash": "5030c8894761858c8bfd95f777979a11bdebb5d33604b27ae712e49dc28cfc1f",
+        "block_holds_transaction": true,
+        "expect": "belongs"
+      },
+      {
+        "id": "fact-02",
+        "rules": [
+          "B1.4"
+        ],
+        "claim": "A fact in the tip block itself.",
+        "tip_height": 800,
+        "active_chain": {
+          "699": "603f1ebfbb394bb3af764a2831bf35084b036ac1e17013589ed3dccc65ddd9e5",
+          "700": "5030c8894761858c8bfd95f777979a11bdebb5d33604b27ae712e49dc28cfc1f",
+          "701": "3a0145ffc70817d86f218f0bd870dd17848d7b8ef6e17872c213dc896abf70f6",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "block_height": 800,
+        "block_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "block_holds_transaction": true,
+        "expect": "belongs"
+      },
+      {
+        "id": "fact-03",
+        "rules": [
+          "B1.4"
+        ],
+        "claim": "The block is known and is not on the active chain: the node gives another hash for its height.",
+        "tip_height": 800,
+        "active_chain": {
+          "699": "603f1ebfbb394bb3af764a2831bf35084b036ac1e17013589ed3dccc65ddd9e5",
+          "700": "5030c8894761858c8bfd95f777979a11bdebb5d33604b27ae712e49dc28cfc1f",
+          "701": "3a0145ffc70817d86f218f0bd870dd17848d7b8ef6e17872c213dc896abf70f6",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "block_height": 700,
+        "block_hash": "3894ea5f85a63b92fe8f1c111b3553aab8e8fcbd82a6e997f2e5f79559467450",
+        "block_holds_transaction": true,
+        "expect": "does not belong",
+        "valid_neighbour": "fact-01"
+      },
+      {
+        "id": "fact-04",
+        "rules": [
+          "B1.4"
+        ],
+        "claim": "The stated height of the block is above the tip.",
+        "tip_height": 800,
+        "active_chain": {
+          "699": "603f1ebfbb394bb3af764a2831bf35084b036ac1e17013589ed3dccc65ddd9e5",
+          "700": "5030c8894761858c8bfd95f777979a11bdebb5d33604b27ae712e49dc28cfc1f",
+          "701": "3a0145ffc70817d86f218f0bd870dd17848d7b8ef6e17872c213dc896abf70f6",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "block_height": 801,
+        "block_hash": "4a2c7521f65009d414ebafb87db0520accf6280b94d51acb5191fc4391a68d62",
+        "block_holds_transaction": true,
+        "expect": "does not belong",
+        "valid_neighbour": "fact-01"
+      },
+      {
+        "id": "fact-05",
+        "rules": [
+          "B1.4"
+        ],
+        "claim": "The block is on the active chain and does not hold the transaction.",
+        "tip_height": 800,
+        "active_chain": {
+          "699": "603f1ebfbb394bb3af764a2831bf35084b036ac1e17013589ed3dccc65ddd9e5",
+          "700": "5030c8894761858c8bfd95f777979a11bdebb5d33604b27ae712e49dc28cfc1f",
+          "701": "3a0145ffc70817d86f218f0bd870dd17848d7b8ef6e17872c213dc896abf70f6",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        "block_height": 700,
+        "block_hash": "5030c8894761858c8bfd95f777979a11bdebb5d33604b27ae712e49dc28cfc1f",
+        "block_holds_transaction": false,
+        "expect": "does not belong",
+        "valid_neighbour": "fact-01"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "node-01",
+      "rules": [
+        "B2.2",
+        "B2.3",
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "One comparison node of another source at the same tip.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "node-02",
+      "rules": [
+        "B2.3",
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "The comparison node is one block behind, on the reading node's chain.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 799,
+          "tip_hash": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "node-03",
+      "rules": [
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "The comparison node is two blocks behind.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 798,
+          "tip_hash": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030"
+        }
+      ],
+      "expect": "NODE_DISAGREEMENT",
+      "valid_neighbour": "node-02"
+    },
+    {
+      "id": "node-04",
+      "rules": [
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "The comparison node is one block ahead: the reading node has not seen a block.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 801,
+          "tip_hash": "4a2c7521f65009d414ebafb87db0520accf6280b94d51acb5191fc4391a68d62"
+        }
+      ],
+      "expect": "NODE_DISAGREEMENT",
+      "valid_neighbour": "node-01"
+    },
+    {
+      "id": "node-05",
+      "rules": [
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "The two tips have the same height and different hashes.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "c3b524b99ace16edc24c170939255ba6ce4c512793d39614981c4e38884e2b81"
+        }
+      ],
+      "expect": "NODE_DISAGREEMENT",
+      "valid_neighbour": "node-01"
+    },
+    {
+      "id": "node-06",
+      "rules": [
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "The comparison node is one block behind and on another branch: the reading node gives another hash for that height.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 799,
+          "tip_hash": "6784373e5e2724266d7239815ae1108c527778bf3a78d3d6ee5960263b6cc135"
+        }
+      ],
+      "expect": "NODE_DISAGREEMENT",
+      "valid_neighbour": "node-02"
+    },
+    {
+      "id": "node-07",
+      "rules": [
+        "B2.1",
+        "B2.5"
+      ],
+      "claim": "No comparison node is configured.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [],
+      "expect": "NODE_UNHEALTHY",
+      "valid_neighbour": "node-01"
+    },
+    {
+      "id": "node-08",
+      "rules": [
+        "B2.2",
+        "B2.5"
+      ],
+      "claim": "The only comparison node has the source label of the reading node: two addresses of one source count as one node.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-a",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "NODE_UNHEALTHY",
+      "valid_neighbour": "node-01"
+    },
+    {
+      "id": "node-09",
+      "rules": [
+        "B2.2",
+        "B2.5"
+      ],
+      "claim": "Two comparison nodes agree. One has the reading node's label and does not count; the other has another label and does.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-a",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "node-10",
+      "rules": [
+        "B2.3",
+        "B2.5"
+      ],
+      "claim": "The comparison node is in initial block download.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": true,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "NODE_UNHEALTHY",
+      "valid_neighbour": "node-01"
+    },
+    {
+      "id": "node-11",
+      "rules": [
+        "B2.3",
+        "B2.5"
+      ],
+      "claim": "The comparison node does not answer.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": false,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "NODE_UNHEALTHY",
+      "valid_neighbour": "node-01"
+    },
+    {
+      "id": "node-12",
+      "rules": [
+        "B2.3",
+        "B2.5"
+      ],
+      "claim": "The comparison node is on another chain: it gives another hash for the block of height 0.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "6e54be8a9d5846f871874febb3e4e703b646754a1ea9ffde5c488d182947f349",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "NODE_UNHEALTHY",
+      "valid_neighbour": "node-01"
+    },
+    {
+      "id": "node-13",
+      "rules": [
+        "B2.3",
+        "B2.5"
+      ],
+      "claim": "The reading node is in initial block download.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": true,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "NODE_UNHEALTHY",
+      "valid_neighbour": "node-01"
+    },
+    {
+      "id": "node-14",
+      "rules": [
+        "B2.3"
+      ],
+      "claim": "The reading node knows a header one block above its tip, which the proposed LAG allows.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 1,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "node-15",
+      "rules": [
+        "B2.3",
+        "B2.5"
+      ],
+      "claim": "The reading node knows a header two blocks above its tip.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 2,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "NODE_UNHEALTHY",
+      "valid_neighbour": "node-14"
+    },
+    {
+      "id": "node-16",
+      "rules": [
+        "B2.5"
+      ],
+      "claim": "Two comparison nodes of other sources: one does not answer, the other is healthy and agrees.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": false,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        {
+          "source_label": "operator-c",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "node-17",
+      "rules": [
+        "B2.1",
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "Two healthy comparison nodes of other sources: one is on another branch at the reading node's height, the other agrees. The node that conflicts refuses the observation, whatever the other answers.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "c3b524b99ace16edc24c170939255ba6ce4c512793d39614981c4e38884e2b81"
+        },
+        {
+          "source_label": "operator-c",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "NODE_DISAGREEMENT",
+      "valid_neighbour": "node-18"
+    },
+    {
+      "id": "node-18",
+      "rules": [
+        "B2.1",
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "Two healthy comparison nodes of other sources, both at the reading node's tip.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        {
+          "source_label": "operator-c",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "node-19",
+      "rules": [
+        "B2.1",
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "Two healthy comparison nodes of other sources: one is one block ahead, the other agrees. A checker that stops at the first node that agrees admits.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-c",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 801,
+          "tip_hash": "4a2c7521f65009d414ebafb87db0520accf6280b94d51acb5191fc4391a68d62"
+        }
+      ],
+      "expect": "NODE_DISAGREEMENT",
+      "valid_neighbour": "node-18"
+    },
+    {
+      "id": "node-20",
+      "rules": [
+        "B2.1",
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "Two healthy comparison nodes of other sources: one is one block behind on the reading node's chain, which the proposed LAG allows, and the other is at its tip.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 799,
+          "tip_hash": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39"
+        },
+        {
+          "source_label": "operator-c",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "node-21",
+      "rules": [
+        "B2.2",
+        "B2.1",
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "A healthy comparison node with the reading node's own source label is one block ahead, and a node of another source agrees. The label does not take the refusal away.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-a",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 801,
+          "tip_hash": "4a2c7521f65009d414ebafb87db0520accf6280b94d51acb5191fc4391a68d62"
+        },
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "NODE_DISAGREEMENT",
+      "valid_neighbour": "node-09"
+    },
+    {
+      "id": "node-22",
+      "rules": [
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "A healthy comparison node is three blocks behind on the reading node's chain, and another agrees. A node that is behind neither agrees nor conflicts.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 797,
+          "tip_hash": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472"
+        },
+        {
+          "source_label": "operator-c",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "node-23",
+      "rules": [
+        "B2.3",
+        "B2.5"
+      ],
+      "claim": "A comparison node on another branch knows a header two blocks above its tip and is not healthy; another node agrees. A node that is not healthy refuses nothing.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 2,
+          "tip_height": 800,
+          "tip_hash": "c3b524b99ace16edc24c170939255ba6ce4c512793d39614981c4e38884e2b81"
+        },
+        {
+          "source_label": "operator-c",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "ok"
+    },
+    {
+      "id": "node-24",
+      "rules": [
+        "B2.1",
+        "B2.4",
+        "B2.5"
+      ],
+      "claim": "Two healthy comparison nodes of other sources: one is one block behind and on another branch, the other agrees. A tip within LAG that is no block of the reading node's chain conflicts.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 799,
+          "tip_hash": "6784373e5e2724266d7239815ae1108c527778bf3a78d3d6ee5960263b6cc135"
+        },
+        {
+          "source_label": "operator-c",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      ],
+      "expect": "NODE_DISAGREEMENT",
+      "valid_neighbour": "node-20"
+    },
+    {
+      "id": "node-25",
+      "rules": [
+        "B2.5",
+        "B6.1"
+      ],
+      "claim": "Two findings: the only comparison node of another source does not answer, and a healthy node with the reading node's label is one block ahead. The order reports the first.",
+      "lag": 1,
+      "reading_node": {
+        "source_label": "operator-a",
+        "answers": true,
+        "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+        "initial_block_download": false,
+        "headers_above_tip": 0,
+        "tip_height": 800,
+        "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef",
+        "active_chain": {
+          "796": "b352614392e567dc6a306920fcc3eeeaa3005363c90b8b79391ef8fa5680bc24",
+          "797": "d3af3503306630c5a7a438187970577d8a98958d1a4613f1e596e7c4ca07d472",
+          "798": "dfc29cfbe50e9b4bafaa8f85dc6fde62f082b3da61cfc30e9659af2aaeb1a030",
+          "799": "63830b2600f26eb0b06d75ee0ba7883812282a6724bfd0df68d4810c2b105a39",
+          "800": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        }
+      },
+      "comparison_nodes": [
+        {
+          "source_label": "operator-b",
+          "answers": false,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 800,
+          "tip_hash": "59233397c0bba0d2ea61587f5ba75d02b41aedddcfc99aaa2367e18803e427ef"
+        },
+        {
+          "source_label": "operator-a",
+          "answers": true,
+          "genesis_hash": "27d6d39eed6457cab6a01ad31bc35ebb20115eaeec078bd4e7d888d05f9010cb",
+          "initial_block_download": false,
+          "headers_above_tip": 0,
+          "tip_height": 801,
+          "tip_hash": "4a2c7521f65009d414ebafb87db0520accf6280b94d51acb5191fc4391a68d62"
+        }
+      ],
+      "expect": "NODE_UNHEALTHY",
+      "compound": true
+    }
+  ],
+  "clock": [
+    {
+      "id": "clock-01",
+      "rules": [
+        "B3.4",
+        "B3.5",
+        "B3.6"
+      ],
+      "claim": "A money or irreversible action at a tip age of 3599 seconds.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596401,
+      "first_sight": 1794599940,
+      "class": "money or irreversible",
+      "expect": "ok"
+    },
+    {
+      "id": "clock-02",
+      "rules": [
+        "B3.4",
+        "B3.5",
+        "B3.6"
+      ],
+      "claim": "The same action at 3600 seconds: the cutoff itself refuses.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596400,
+      "first_sight": 1794599940,
+      "class": "money or irreversible",
+      "expect": "TIP_AGE",
+      "valid_neighbour": "clock-01"
+    },
+    {
+      "id": "clock-03",
+      "rules": [
+        "B3.4",
+        "B3.5",
+        "B3.6"
+      ],
+      "claim": "The same action at 3601 seconds.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596399,
+      "first_sight": 1794599940,
+      "class": "money or irreversible",
+      "expect": "TIP_AGE",
+      "valid_neighbour": "clock-01"
+    },
+    {
+      "id": "clock-04",
+      "rules": [
+        "B3.4",
+        "B3.5",
+        "B3.6"
+      ],
+      "claim": "Another privileged action at 3600 seconds, between the two cutoffs.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596400,
+      "first_sight": 1794599940,
+      "class": "other privileged",
+      "expect": "ok"
+    },
+    {
+      "id": "clock-05",
+      "rules": [
+        "B3.4",
+        "B3.5",
+        "B3.6"
+      ],
+      "claim": "Another privileged action at 5399 seconds.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794594601,
+      "first_sight": 1794599940,
+      "class": "other privileged",
+      "expect": "ok"
+    },
+    {
+      "id": "clock-06",
+      "rules": [
+        "B3.4",
+        "B3.5",
+        "B3.6"
+      ],
+      "claim": "Another privileged action at 5400 seconds.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794594600,
+      "first_sight": 1794599940,
+      "class": "other privileged",
+      "expect": "TIP_AGE",
+      "valid_neighbour": "clock-05"
+    },
+    {
+      "id": "clock-07",
+      "rules": [
+        "B3.5",
+        "B3.6"
+      ],
+      "claim": "An action whose profile states no class, at 3599 seconds: it has the first class.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596401,
+      "first_sight": 1794599940,
+      "expect": "ok"
+    },
+    {
+      "id": "clock-08",
+      "rules": [
+        "B3.5",
+        "B3.6"
+      ],
+      "claim": "The same action at 3600 seconds refuses as the first class does.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596400,
+      "first_sight": 1794599940,
+      "expect": "TIP_AGE",
+      "valid_neighbour": "clock-07"
+    },
+    {
+      "id": "clock-09",
+      "rules": [
+        "B3.3",
+        "B3.4"
+      ],
+      "claim": "The header of the tip is 600 seconds ahead of the clock, the proposed S: the age counts as 0.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794600600,
+      "first_sight": 1794599940,
+      "class": "money or irreversible",
+      "expect": "ok"
+    },
+    {
+      "id": "clock-10",
+      "rules": [
+        "B3.3"
+      ],
+      "claim": "The header of the tip is 601 seconds ahead of the clock.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794600601,
+      "first_sight": 1794599940,
+      "class": "money or irreversible",
+      "expect": "OBSERVATION_CLOCK",
+      "valid_neighbour": "clock-09"
+    },
+    {
+      "id": "clock-11",
+      "rules": [
+        "B3.2"
+      ],
+      "claim": "The clock reads exactly the kept mark.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794600000,
+      "tip_header_time": 1794599940,
+      "first_sight": 1794599940,
+      "class": "money or irreversible",
+      "expect": "ok"
+    },
+    {
+      "id": "clock-12",
+      "rules": [
+        "B3.2"
+      ],
+      "claim": "The clock reads one second less than the kept mark: it went back.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794600001,
+      "tip_header_time": 1794599940,
+      "first_sight": 1794599940,
+      "class": "money or irreversible",
+      "expect": "OBSERVATION_CLOCK",
+      "valid_neighbour": "clock-11"
+    },
+    {
+      "id": "clock-13",
+      "rules": [
+        "B1.6",
+        "B3.6"
+      ],
+      "claim": "The age is 3598 seconds at the observation and 3599 at the second reading of the clock before the effect.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596402,
+      "first_sight": 1794599940,
+      "class": "money or irreversible",
+      "now_before_effect": 1794600001,
+      "expect": "ok"
+    },
+    {
+      "id": "clock-14",
+      "rules": [
+        "B1.6",
+        "B3.6"
+      ],
+      "claim": "The age is 3599 seconds at the observation and 3601 at the second reading of the clock before the effect.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596401,
+      "first_sight": 1794599940,
+      "class": "money or irreversible",
+      "now_before_effect": 1794600002,
+      "expect": "TIP_AGE",
+      "valid_neighbour": "clock-13"
+    },
+    {
+      "id": "clock-15",
+      "rules": [
+        "B3.4",
+        "B3.6"
+      ],
+      "claim": "The header of the tip is 300 seconds ahead of the clock, so the header age is 0, and the verifier first saw the tip 3599 seconds ago.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794600300,
+      "first_sight": 1794596401,
+      "class": "money or irreversible",
+      "expect": "ok"
+    },
+    {
+      "id": "clock-16",
+      "rules": [
+        "B3.4",
+        "B3.6"
+      ],
+      "claim": "The same header, and the verifier first saw the tip 3600 seconds ago: the seen age refuses although the header is ahead.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794600300,
+      "first_sight": 1794596400,
+      "class": "money or irreversible",
+      "expect": "TIP_AGE",
+      "valid_neighbour": "clock-15"
+    },
+    {
+      "id": "clock-17",
+      "rules": [
+        "B3.4",
+        "B3.6"
+      ],
+      "claim": "The header age is 3599 seconds and the seen age 3600: the larger of the two counts.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596401,
+      "first_sight": 1794596400,
+      "class": "money or irreversible",
+      "expect": "TIP_AGE",
+      "valid_neighbour": "clock-01"
+    },
+    {
+      "id": "clock-18",
+      "rules": [
+        "B3.4",
+        "B3.6"
+      ],
+      "claim": "Another privileged action: the header is 300 seconds ahead, and the verifier first saw the tip 5399 seconds ago.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794600300,
+      "first_sight": 1794594601,
+      "class": "other privileged",
+      "expect": "ok"
+    },
+    {
+      "id": "clock-19",
+      "rules": [
+        "B3.4",
+        "B3.6"
+      ],
+      "claim": "The same action with a first sight 5400 seconds ago.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794600300,
+      "first_sight": 1794594600,
+      "class": "other privileged",
+      "expect": "TIP_AGE",
+      "valid_neighbour": "clock-18"
+    },
+    {
+      "id": "clock-20",
+      "rules": [
+        "B3.4",
+        "B3.7"
+      ],
+      "claim": "The verifier holds no first sight of the tip: this observation writes it, the seen age is 0, and the header age of 3599 seconds counts.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596401,
+      "class": "money or irreversible",
+      "expect": "ok"
+    },
+    {
+      "id": "clock-21",
+      "rules": [
+        "B3.4",
+        "B3.7"
+      ],
+      "claim": "The verifier holds no first sight of the tip, and the header is 3600 seconds old: a block that is old when the verifier first sees it refuses by its header.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794596400,
+      "class": "money or irreversible",
+      "expect": "TIP_AGE",
+      "valid_neighbour": "clock-20"
+    },
+    {
+      "id": "clock-22",
+      "rules": [
+        "B1.6",
+        "B3.4",
+        "B3.6"
+      ],
+      "claim": "The header is 300 seconds ahead. The seen age is 3598 seconds at the observation and 3599 at the second reading of the clock before the effect.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794600300,
+      "first_sight": 1794596402,
+      "class": "money or irreversible",
+      "now_before_effect": 1794600001,
+      "expect": "ok"
+    },
+    {
+      "id": "clock-23",
+      "rules": [
+        "B1.6",
+        "B3.4",
+        "B3.6"
+      ],
+      "claim": "The same tip with a second reading two seconds later: the seen age is 3600 before the effect.",
+      "s": 600,
+      "now": 1794600000,
+      "kept_mark": 1794599970,
+      "tip_header_time": 1794600300,
+      "first_sight": 1794596402,
+      "class": "money or irreversible",
+      "now_before_effect": 1794600002,
+      "expect": "TIP_AGE",
+      "valid_neighbour": "clock-22"
+    }
+  ],
+  "sequences": [
+    {
+      "id": "seq-01",
+      "rules": [
+        "B3.3",
+        "B3.4",
+        "B3.6",
+        "B3.7"
+      ],
+      "claim": "The header of a tip is two hours ahead of the clock when the verifier first sees it, and no block follows. The first observation writes the first sight although B3.3 refuses it. When the clock has come within S of the header the seen age is 6600 seconds, and the tip is admitted for no action. A checker that measures the header age alone admits at the third and the fourth step.",
+      "s": 600,
+      "start": {
+        "kept_mark": 1794599970,
+        "first_sights": {}
+      },
+      "steps": [
+        {
+          "now": 1794600000,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794607200
+          },
+          "expect": "OBSERVATION_CLOCK"
+        },
+        {
+          "now": 1794606599,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794607200
+          },
+          "expect": "OBSERVATION_CLOCK"
+        },
+        {
+          "now": 1794606600,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794607200
+          },
+          "expect": "TIP_AGE"
+        },
+        {
+          "now": 1794610799,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794607200
+          },
+          "expect": "TIP_AGE"
+        },
+        {
+          "now": 1794610800,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794607200
+          },
+          "expect": "TIP_AGE"
+        },
+        {
+          "now": 1794610900,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794607200
+          },
+          "class": "other privileged",
+          "expect": "TIP_AGE"
+        }
+      ],
+      "end": {
+        "kept_mark": 1794600000,
+        "first_sights": {
+          "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec": 1794600000
+        }
+      },
+      "control": "seq-02"
+    },
+    {
+      "id": "seq-02",
+      "rules": [
+        "B3.4",
+        "B3.6",
+        "B3.7"
+      ],
+      "claim": "A tip whose header is 20 seconds behind the clock at its first sight, and no block follows. Both classes are admitted until the header age reaches their cutoff.",
+      "s": 600,
+      "start": {
+        "kept_mark": 1794599970,
+        "first_sights": {}
+      },
+      "steps": [
+        {
+          "now": 1794600000,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794599980
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603579,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794599980
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603580,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794599980
+          },
+          "expect": "TIP_AGE"
+        },
+        {
+          "now": 1794603580,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794599980
+          },
+          "class": "other privileged",
+          "expect": "ok"
+        },
+        {
+          "now": 1794605379,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794599980
+          },
+          "class": "other privileged",
+          "expect": "ok"
+        },
+        {
+          "now": 1794605380,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794599980
+          },
+          "class": "other privileged",
+          "expect": "TIP_AGE"
+        }
+      ],
+      "end": {
+        "kept_mark": 1794605379,
+        "first_sights": {
+          "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec": 1794600000
+        }
+      }
+    },
+    {
+      "id": "seq-03",
+      "rules": [
+        "B3.4",
+        "B3.6",
+        "B3.7"
+      ],
+      "claim": "The header of a tip is 600 seconds ahead of the clock at its first sight, which the proposed S allows. The action stops 3600 seconds after the first sight, when the header age is 3000 seconds.",
+      "s": 600,
+      "start": {
+        "kept_mark": 1794599970,
+        "first_sights": {}
+      },
+      "steps": [
+        {
+          "now": 1794600000,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603599,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603600,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "TIP_AGE"
+        }
+      ],
+      "end": {
+        "kept_mark": 1794603599,
+        "first_sights": {
+          "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec": 1794600000
+        }
+      },
+      "control": "seq-02"
+    },
+    {
+      "id": "seq-04",
+      "rules": [
+        "B3.8",
+        "B3.4",
+        "B3.6"
+      ],
+      "claim": "The verifier restarts between two observations of one tip. The first sight is kept, and the seen age counts from it.",
+      "s": 600,
+      "start": {
+        "kept_mark": 1794599970,
+        "first_sights": {}
+      },
+      "steps": [
+        {
+          "now": 1794600000,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "ok"
+        },
+        {
+          "restart": true
+        },
+        {
+          "now": 1794603599,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "ok"
+        },
+        {
+          "restart": true
+        },
+        {
+          "now": 1794603600,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "TIP_AGE"
+        }
+      ],
+      "end": {
+        "kept_mark": 1794603599,
+        "first_sights": {
+          "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec": 1794600000
+        }
+      },
+      "control": "seq-02"
+    },
+    {
+      "id": "seq-05",
+      "rules": [
+        "B3.4",
+        "B3.6",
+        "B3.7"
+      ],
+      "claim": "A new block arrives after the tip grew too old: the new tip has a first sight of its own, and the action is admitted again.",
+      "s": 600,
+      "start": {
+        "kept_mark": 1794599970,
+        "first_sights": {}
+      },
+      "steps": [
+        {
+          "now": 1794600000,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600000
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603600,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600000
+          },
+          "expect": "TIP_AGE"
+        },
+        {
+          "now": 1794603700,
+          "tip": {
+            "hash": "0bc28f9987aae19456a247f5934e26eacf2cc085410e2960bb431e4a7da2e58e",
+            "header_time": 1794603690
+          },
+          "expect": "ok"
+        }
+      ],
+      "end": {
+        "kept_mark": 1794603700,
+        "first_sights": {
+          "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec": 1794600000,
+          "0bc28f9987aae19456a247f5934e26eacf2cc085410e2960bb431e4a7da2e58e": 1794603700
+        }
+      }
+    },
+    {
+      "id": "seq-06",
+      "rules": [
+        "B3.8",
+        "B3.4",
+        "B3.6"
+      ],
+      "claim": "The tip goes to another block and comes back. The block that is the tip again has the first sight that it had. A checker that writes a first sight anew admits at the last step.",
+      "s": 600,
+      "start": {
+        "kept_mark": 1794599970,
+        "first_sights": {}
+      },
+      "steps": [
+        {
+          "now": 1794600000,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794601000,
+          "tip": {
+            "hash": "0bc28f9987aae19456a247f5934e26eacf2cc085410e2960bb431e4a7da2e58e",
+            "header_time": 1794601000
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603599,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603600,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "TIP_AGE"
+        }
+      ],
+      "end": {
+        "kept_mark": 1794603599,
+        "first_sights": {
+          "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec": 1794600000,
+          "0bc28f9987aae19456a247f5934e26eacf2cc085410e2960bb431e4a7da2e58e": 1794601000
+        }
+      },
+      "control": "seq-05"
+    },
+    {
+      "id": "seq-07",
+      "rules": [
+        "B3.2"
+      ],
+      "claim": "The clock reads one second less than a reading that the verifier has used, and reads more again afterwards. The kept mark stays through the refusal.",
+      "s": 600,
+      "start": {
+        "kept_mark": 1794599970,
+        "first_sights": {}
+      },
+      "steps": [
+        {
+          "now": 1794600000,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600000
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794599999,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600000
+          },
+          "expect": "OBSERVATION_CLOCK"
+        },
+        {
+          "now": 1794600010,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600000
+          },
+          "expect": "ok"
+        }
+      ],
+      "end": {
+        "kept_mark": 1794600010,
+        "first_sights": {
+          "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec": 1794600000
+        }
+      }
+    },
+    {
+      "id": "seq-08",
+      "rules": [
+        "B3.2",
+        "B3.7"
+      ],
+      "claim": "A block is the tip for the first time in an observation whose clock reads less than the kept mark. That observation writes no first sight; the next one does.",
+      "s": 600,
+      "start": {
+        "kept_mark": 1794600000,
+        "first_sights": {}
+      },
+      "steps": [
+        {
+          "now": 1794599900,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "OBSERVATION_CLOCK"
+        },
+        {
+          "now": 1794600050,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603649,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603650,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "TIP_AGE"
+        }
+      ],
+      "end": {
+        "kept_mark": 1794603649,
+        "first_sights": {
+          "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec": 1794600050
+        }
+      }
+    },
+    {
+      "id": "seq-09",
+      "rules": [
+        "B3.7",
+        "B6.1"
+      ],
+      "claim": "The first observation of a tip is refused because a comparison node conflicts. It writes the first sight all the same, and the seen age counts from it.",
+      "s": 600,
+      "start": {
+        "kept_mark": 1794599970,
+        "first_sights": {}
+      },
+      "steps": [
+        {
+          "now": 1794600000,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "finding": "NODE_DISAGREEMENT",
+          "expect": "NODE_DISAGREEMENT"
+        },
+        {
+          "now": 1794603599,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603600,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600600
+          },
+          "expect": "TIP_AGE"
+        }
+      ],
+      "end": {
+        "kept_mark": 1794603599,
+        "first_sights": {
+          "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec": 1794600000
+        }
+      }
+    },
+    {
+      "id": "seq-10",
+      "rules": [
+        "B1.1",
+        "B3.7"
+      ],
+      "claim": "The first observation of a tip is void. It writes no first sight, and the seen age counts from the next observation.",
+      "s": 600,
+      "start": {
+        "kept_mark": 1794599970,
+        "first_sights": {}
+      },
+      "steps": [
+        {
+          "now": 1794600000,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600700
+          },
+          "finding": "OBSERVATION_VOID",
+          "expect": "OBSERVATION_VOID"
+        },
+        {
+          "now": 1794600100,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600700
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603699,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600700
+          },
+          "expect": "ok"
+        },
+        {
+          "now": 1794603700,
+          "tip": {
+            "hash": "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec",
+            "header_time": 1794600700
+          },
+          "expect": "TIP_AGE"
+        }
+      ],
+      "end": {
+        "kept_mark": 1794603699,
+        "first_sights": {
+          "ecfebe46cb7cd6f1a15015197b7998e5ee8faf0798b4622d72a5b55d510c88ec": 1794600100
+        }
+      }
+    }
+  ],
+  "recent": {
+    "blocks": [
+      {
+        "id": "recent-01",
+        "rules": [
+          "B4.2",
+          "B4.3"
+        ],
+        "claim": "The committed block is on the active chain at height 500, and the anchor is confirmed in the next block.",
+        "k": 432,
+        "tip_height": 1000,
+        "active_chain": {
+          "499": "45035d3276b5a41c11fd88ea5ba533e11dd690a67307bfe98cf61de2b8e3e732",
+          "500": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+          "501": "f9fe9d09b4221c97dfe02ed41da7e3b3df9b22d47bcb90d0777dd7bebd0f889f",
+          "1000": "5a0e02db6a39542f0e488ee53fdb506da0a9aa8379a7455561feb13de10efaf1"
+        },
+        "committed_block_hash": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+        "committed_block_height": 500,
+        "anchor_height": 501,
+        "expect": "ok"
+      },
+      {
+        "id": "recent-02",
+        "rules": [
+          "B4.3"
+        ],
+        "claim": "The anchor is confirmed 432 blocks above the recent block, the proposed K.",
+        "k": 432,
+        "tip_height": 1000,
+        "active_chain": {
+          "499": "45035d3276b5a41c11fd88ea5ba533e11dd690a67307bfe98cf61de2b8e3e732",
+          "500": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+          "501": "f9fe9d09b4221c97dfe02ed41da7e3b3df9b22d47bcb90d0777dd7bebd0f889f",
+          "1000": "5a0e02db6a39542f0e488ee53fdb506da0a9aa8379a7455561feb13de10efaf1"
+        },
+        "committed_block_hash": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+        "committed_block_height": 500,
+        "anchor_height": 932,
+        "expect": "ok"
+      },
+      {
+        "id": "recent-03",
+        "rules": [
+          "B4.3"
+        ],
+        "claim": "The anchor is confirmed 433 blocks above the recent block.",
+        "k": 432,
+        "tip_height": 1000,
+        "active_chain": {
+          "499": "45035d3276b5a41c11fd88ea5ba533e11dd690a67307bfe98cf61de2b8e3e732",
+          "500": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+          "501": "f9fe9d09b4221c97dfe02ed41da7e3b3df9b22d47bcb90d0777dd7bebd0f889f",
+          "1000": "5a0e02db6a39542f0e488ee53fdb506da0a9aa8379a7455561feb13de10efaf1"
+        },
+        "committed_block_hash": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+        "committed_block_height": 500,
+        "anchor_height": 933,
+        "expect": "RECENT_BLOCK_WINDOW",
+        "valid_neighbour": "recent-02"
+      },
+      {
+        "id": "recent-04",
+        "rules": [
+          "B4.3"
+        ],
+        "claim": "The anchor is confirmed in the recent block itself, which no issuance can produce.",
+        "k": 432,
+        "tip_height": 1000,
+        "active_chain": {
+          "499": "45035d3276b5a41c11fd88ea5ba533e11dd690a67307bfe98cf61de2b8e3e732",
+          "500": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+          "501": "f9fe9d09b4221c97dfe02ed41da7e3b3df9b22d47bcb90d0777dd7bebd0f889f",
+          "1000": "5a0e02db6a39542f0e488ee53fdb506da0a9aa8379a7455561feb13de10efaf1"
+        },
+        "committed_block_hash": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+        "committed_block_height": 500,
+        "anchor_height": 500,
+        "expect": "RECENT_BLOCK_WINDOW",
+        "valid_neighbour": "recent-01"
+      },
+      {
+        "id": "recent-05",
+        "rules": [
+          "B4.3"
+        ],
+        "claim": "The anchor is confirmed below the recent block.",
+        "k": 432,
+        "tip_height": 1000,
+        "active_chain": {
+          "499": "45035d3276b5a41c11fd88ea5ba533e11dd690a67307bfe98cf61de2b8e3e732",
+          "500": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+          "501": "f9fe9d09b4221c97dfe02ed41da7e3b3df9b22d47bcb90d0777dd7bebd0f889f",
+          "1000": "5a0e02db6a39542f0e488ee53fdb506da0a9aa8379a7455561feb13de10efaf1"
+        },
+        "committed_block_hash": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+        "committed_block_height": 500,
+        "anchor_height": 499,
+        "expect": "RECENT_BLOCK_WINDOW",
+        "valid_neighbour": "recent-01"
+      },
+      {
+        "id": "recent-06",
+        "rules": [
+          "B4.2"
+        ],
+        "claim": "The node does not know a block with the committed hash.",
+        "k": 432,
+        "tip_height": 1000,
+        "active_chain": {
+          "499": "45035d3276b5a41c11fd88ea5ba533e11dd690a67307bfe98cf61de2b8e3e732",
+          "500": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+          "501": "f9fe9d09b4221c97dfe02ed41da7e3b3df9b22d47bcb90d0777dd7bebd0f889f",
+          "1000": "5a0e02db6a39542f0e488ee53fdb506da0a9aa8379a7455561feb13de10efaf1"
+        },
+        "committed_block_hash": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+        "anchor_height": 501,
+        "expect": "RECENT_BLOCK",
+        "valid_neighbour": "recent-01"
+      },
+      {
+        "id": "recent-07",
+        "rules": [
+          "B4.2"
+        ],
+        "claim": "The node knows the committed block, and it is not on the active chain: the node gives another hash for its height.",
+        "k": 432,
+        "tip_height": 1000,
+        "active_chain": {
+          "499": "45035d3276b5a41c11fd88ea5ba533e11dd690a67307bfe98cf61de2b8e3e732",
+          "500": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+          "501": "f9fe9d09b4221c97dfe02ed41da7e3b3df9b22d47bcb90d0777dd7bebd0f889f",
+          "1000": "5a0e02db6a39542f0e488ee53fdb506da0a9aa8379a7455561feb13de10efaf1"
+        },
+        "committed_block_hash": "5bad509f7b60a88b7e1b3c3f1338cb9eb0519b318b253595d016f19fddba3731",
+        "committed_block_height": 500,
+        "anchor_height": 501,
+        "expect": "RECENT_BLOCK",
+        "valid_neighbour": "recent-01"
+      },
+      {
+        "id": "recent-08",
+        "rules": [
+          "B4.2"
+        ],
+        "claim": "The committed block is stated at a height above the tip of the observation.",
+        "k": 432,
+        "tip_height": 1000,
+        "active_chain": {
+          "499": "45035d3276b5a41c11fd88ea5ba533e11dd690a67307bfe98cf61de2b8e3e732",
+          "500": "f84f71194cbe2301dde181008c775940c3df32031c72972c26529b4419fbccf7",
+          "501": "f9fe9d09b4221c97dfe02ed41da7e3b3df9b22d47bcb90d0777dd7bebd0f889f",
+          "1000": "5a0e02db6a39542f0e488ee53fdb506da0a9aa8379a7455561feb13de10efaf1"
+        },
+        "committed_block_hash": "43056e87f323caa4599b7e87eb54f9c7bf8defa9a37b8263e4d69e5f58c28a75",
+        "committed_block_height": 1001,
+        "anchor_height": 1002,
+        "expect": "RECENT_BLOCK",
+        "valid_neighbour": "recent-01"
+      }
+    ],
+    "windows": [
+      {
+        "id": "window-01",
+        "rules": [
+          "B1.5"
+        ],
+        "claim": "The tip is at the first height of the window, which is included.",
+        "recent_block_height": 500,
+        "not_before_height": 600,
+        "not_after_height": 700,
+        "tip_height": 600,
+        "expect": "admit"
+      },
+      {
+        "id": "window-02",
+        "rules": [
+          "B1.5"
+        ],
+        "claim": "The tip is at the last height below the end of the window.",
+        "recent_block_height": 500,
+        "not_before_height": 600,
+        "not_after_height": 700,
+        "tip_height": 699,
+        "expect": "admit"
+      },
+      {
+        "id": "window-03",
+        "rules": [
+          "B1.5"
+        ],
+        "claim": "The tip is at the end of the window, which is excluded.",
+        "recent_block_height": 500,
+        "not_before_height": 600,
+        "not_after_height": 700,
+        "tip_height": 700,
+        "expect": "refuse",
+        "valid_neighbour": "window-02"
+      },
+      {
+        "id": "window-04",
+        "rules": [
+          "B1.5"
+        ],
+        "claim": "The tip is one block below the window.",
+        "recent_block_height": 500,
+        "not_before_height": 600,
+        "not_after_height": 700,
+        "tip_height": 599,
+        "expect": "refuse",
+        "valid_neighbour": "window-01"
+      },
+      {
+        "id": "window-05",
+        "rules": [
+          "B1.5"
+        ],
+        "claim": "The window opens at the recent block itself.",
+        "recent_block_height": 500,
+        "not_before_height": 500,
+        "not_after_height": 700,
+        "tip_height": 600,
+        "expect": "admit"
+      },
+      {
+        "id": "window-06",
+        "rules": [
+          "B1.5"
+        ],
+        "claim": "The window opens one block below the recent block.",
+        "recent_block_height": 500,
+        "not_before_height": 499,
+        "not_after_height": 700,
+        "tip_height": 600,
+        "expect": "refuse",
+        "valid_neighbour": "window-05"
+      },
+      {
+        "id": "window-07",
+        "rules": [
+          "B1.5"
+        ],
+        "claim": "The two heights of the window are equal.",
+        "recent_block_height": 500,
+        "not_before_height": 600,
+        "not_after_height": 600,
+        "tip_height": 600,
+        "expect": "refuse",
+        "valid_neighbour": "window-01"
+      }
+    ]
+  },
+  "depth": [
+    {
+      "id": "depth-01",
+      "rules": [
+        "B5.1"
+      ],
+      "claim": "A fact in the tip block has depth 1, which meets a minimum of 1.",
+      "chain": "namecoin",
+      "evidence_class": "issuance",
+      "signed_minimum": 1,
+      "operator_floor": 1,
+      "tip_height": 800,
+      "evidence": {
+        "chain": "namecoin",
+        "block_height": 800
+      },
+      "expect": "ok"
+    },
+    {
+      "id": "depth-02",
+      "rules": [
+        "B5.1",
+        "B5.2"
+      ],
+      "claim": "The grant signs a minimum of 3 and the operator's floor is 6: the minimum that holds is 6, and the evidence has depth 6.",
+      "chain": "namecoin",
+      "evidence_class": "issuance",
+      "signed_minimum": 3,
+      "operator_floor": 6,
+      "tip_height": 800,
+      "evidence": {
+        "chain": "namecoin",
+        "block_height": 795
+      },
+      "expect": "ok"
+    },
+    {
+      "id": "depth-03",
+      "rules": [
+        "B5.2"
+      ],
+      "claim": "The same minimums with evidence of depth 5. A checker that took the smaller of the two would admit.",
+      "chain": "namecoin",
+      "evidence_class": "issuance",
+      "signed_minimum": 3,
+      "operator_floor": 6,
+      "tip_height": 800,
+      "evidence": {
+        "chain": "namecoin",
+        "block_height": 796
+      },
+      "expect": "CONFIRMATIONS",
+      "valid_neighbour": "depth-02"
+    },
+    {
+      "id": "depth-04",
+      "rules": [
+        "B5.2"
+      ],
+      "claim": "The grant signs a minimum of 6 and the operator's floor is 3, with evidence of depth 6.",
+      "chain": "namecoin",
+      "evidence_class": "issuance",
+      "signed_minimum": 6,
+      "operator_floor": 3,
+      "tip_height": 800,
+      "evidence": {
+        "chain": "namecoin",
+        "block_height": 795
+      },
+      "expect": "ok"
+    },
+    {
+      "id": "depth-05",
+      "rules": [
+        "B5.2"
+      ],
+      "claim": "The same minimums with evidence of depth 5: a configuration does not lower the signed minimum.",
+      "chain": "namecoin",
+      "evidence_class": "issuance",
+      "signed_minimum": 6,
+      "operator_floor": 3,
+      "tip_height": 800,
+      "evidence": {
+        "chain": "namecoin",
+        "block_height": 796
+      },
+      "expect": "CONFIRMATIONS",
+      "valid_neighbour": "depth-04"
+    },
+    {
+      "id": "depth-06",
+      "rules": [
+        "B5.1"
+      ],
+      "claim": "The evidence is a pending transaction, which has no depth.",
+      "chain": "namecoin",
+      "evidence_class": "issuance",
+      "signed_minimum": 1,
+      "operator_floor": 1,
+      "tip_height": 800,
+      "evidence": {
+        "chain": "namecoin"
+      },
+      "expect": "CONFIRMATIONS",
+      "valid_neighbour": "depth-01"
+    },
+    {
+      "id": "depth-07",
+      "rules": [
+        "B5.3"
+      ],
+      "claim": "The minimum is for evidence on Namecoin, and the evidence offered is 100 blocks deep on another chain.",
+      "chain": "namecoin",
+      "evidence_class": "issuance",
+      "signed_minimum": 3,
+      "operator_floor": 6,
+      "tip_height": 800,
+      "evidence": {
+        "chain": "bitcoin",
+        "block_height": 701
+      },
+      "expect": "CONFIRMATIONS",
+      "valid_neighbour": "depth-02"
+    }
+  ],
+  "order": [
+    {
+      "id": "order-01",
+      "rules": [
+        "B6.1"
+      ],
+      "claim": "The node is on another chain, and its tip moved during the reads.",
+      "findings": [
+        "OBSERVATION_VOID",
+        "OBSERVATION_CHAIN"
+      ],
+      "expect": "OBSERVATION_CHAIN",
+      "compound": true
+    },
+    {
+      "id": "order-02",
+      "rules": [
+        "B6.1"
+      ],
+      "claim": "The tip moved during the reads, and the comparison node does not agree.",
+      "findings": [
+        "NODE_DISAGREEMENT",
+        "OBSERVATION_VOID"
+      ],
+      "expect": "OBSERVATION_VOID",
+      "compound": true
+    },
+    {
+      "id": "order-03",
+      "rules": [
+        "B6.1"
+      ],
+      "claim": "The tip moved during the reads, and the tip is too old for the action.",
+      "findings": [
+        "TIP_AGE",
+        "OBSERVATION_VOID"
+      ],
+      "expect": "OBSERVATION_VOID",
+      "compound": true
+    },
+    {
+      "id": "order-04",
+      "rules": [
+        "B6.1"
+      ],
+      "claim": "The reading node is not healthy, and no comparison node agrees with it.",
+      "findings": [
+        "NODE_DISAGREEMENT",
+        "NODE_UNHEALTHY"
+      ],
+      "expect": "NODE_UNHEALTHY",
+      "compound": true
+    },
+    {
+      "id": "order-05",
+      "rules": [
+        "B6.1"
+      ],
+      "claim": "No comparison node agrees, and the header of the tip is ahead of the clock by more than S.",
+      "findings": [
+        "OBSERVATION_CLOCK",
+        "NODE_DISAGREEMENT"
+      ],
+      "expect": "NODE_DISAGREEMENT",
+      "compound": true
+    },
+    {
+      "id": "order-06",
+      "rules": [
+        "B6.1"
+      ],
+      "claim": "The clock went back, and the tip is too old for the action.",
+      "findings": [
+        "TIP_AGE",
+        "OBSERVATION_CLOCK"
+      ],
+      "expect": "OBSERVATION_CLOCK",
+      "compound": true
+    }
+  ]
+}

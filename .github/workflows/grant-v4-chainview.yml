@@ -1,0 +1,70 @@
+name: Grant v4 chainview checks
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/grant-v4/chainview/**'
+      - '.github/workflows/grant-v4-chainview.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/grant-v4/chainview/**'
+      - '.github/workflows/grant-v4-chainview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chainview:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: 'off'
+      GOPROXY: 'off'
+      GOSUMDB: 'off'
+      GOMAXPROCS: '2'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
+        with:
+          go-version: '1.26.10'
+          check-latest: false
+          cache: false
+      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
+        with:
+          python-version: '3.14.4'
+          check-latest: false
+      - name: Record candidate identity and formatting
+        run: |
+          git rev-parse HEAD > "$RUNNER_TEMP/chainview-head.txt"
+          gofmt -l experiments/grant-v4/chainview/*.go > "$RUNNER_TEMP/chainview-format.txt"
+          test ! -s "$RUNNER_TEMP/chainview-format.txt"
+      - name: Vet
+        run: go -C experiments/grant-v4/chainview vet ./...
+      - name: Race tests and all pinned vectors
+        env:
+          CHAINVIEW_VECTOR_RESULTS: ${{ runner.temp }}/chainview-go-vectors.json
+        run: go -C experiments/grant-v4/chainview test -race -count=1 -json ./... > "$RUNNER_TEMP/chainview-tests.json"
+      - name: Independent second reader
+        run: python3 -B experiments/grant-v4/chainview/scripts/check-vectors.py --go-results "$RUNNER_TEMP/chainview-go-vectors.json"
+      - name: Build
+        run: go -C experiments/grant-v4/chainview build ./...
+      - name: Three narrowing control plants and reader control
+        run: python3 -B experiments/grant-v4/chainview/scripts/check-mutants.py --scratch "$RUNNER_TEMP/chainview-mutants"
+      - name: Preserve exact test and control evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chainview-evidence
+          path: |
+            ${{ runner.temp }}/chainview-head.txt
+            ${{ runner.temp }}/chainview-format.txt
+            ${{ runner.temp }}/chainview-tests.json
+            ${{ runner.temp }}/chainview-go-vectors.json
+            ${{ runner.temp }}/chainview-mutants/**
+          if-no-files-found: error

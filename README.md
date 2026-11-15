@@ -16,6 +16,11 @@ Experiments live in `experiments/<name>/`:
   LIP-0020 canonical bytes, typed hashes, strict signatures and defined objects;
   all 205 pinned vectors, with no chain reads or whole-grant admission.
 
+- [Grant v4 observation decisions](experiments/grant-v4/chainview/README.md):
+  LIP-0022 Draft sections 1–6 comparisons, durable first sightings and clock
+  marks, all 97 pinned vectors and an independent second reader; stated inputs
+  only, with no production thresholds or node-read qualification.
+
 - [Rental Nostr relay](experiments/relay/README.md): bounded durable gift-wrap,
   consent and package transport, NIP-42, relay-side IP limits and deployment
   templates; AUTH client integration remains a separate follow-up.
@@ -613,3 +618,13 @@ independent Python reader for all 140 identity vectors (including all 56 walks),
 agreement controls and Go overlay mutants.
 Run them from the repository root; test and mutation evidence goes under
 `.temp/`. The module-graph and public-hygiene tools above cover its registration.
+
+## Grant v4 observation tools
+
+The [chainview module](experiments/grant-v4/chainview/README.md#tools-and-commands)
+uses Go 1.26.10 for `gofmt`, `go vet`, `go test -race` and `go build`, and Python
+3.14.4 for the independent vector reader and three narrowing overlay controls.
+From the repository root, run `go -C experiments/grant-v4/chainview test -race ./...`;
+the module README gives the exact vector-export, second-reader and mutation
+commands. Evidence belongs in `.temp/chainview/`. The dependency-free module
+reads no node and assigns no action/evidence classes or production thresholds.

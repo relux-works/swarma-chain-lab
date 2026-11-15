@@ -12,3 +12,13 @@ A new detached profile with a per-certificate commitment is the fix, outside
 this change; grants v4's content-only stable object IDs remove the issue.
 See the [identifier audit](docs/signature-identities.md) and the genuine-Core
 same-observer and two-fresh-observer signature tests.
+
+## Grant v4 observation decisions (Draft)
+
+LIP-0022's comparisons are implemented only on stated inputs in
+[chainview](experiments/grant-v4/chainview/README.md). Owners' acceptance and
+co-author agreement remain pending. Node reads (including pending-state
+coherence and hidden tip return), action/evidence classes, object pin members,
+production skew/lag/recent-block/age parameters, first-sight observation cadence,
+lost/rolled-back store recovery and real-node/storage qualification remain open.
+No adapter or passing placeholder supplies those gaps.
