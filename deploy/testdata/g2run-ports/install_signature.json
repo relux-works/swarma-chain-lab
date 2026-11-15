@@ -1,0 +1,16 @@
+{
+  "files": {
+    "/etc/example/wallet/receipt.key": "receipt.key",
+    "/etc/example/wallet/service.json": "service.json",
+    "/etc/example/wallet/wallet.json": "wallet.json"
+  },
+  "gid": 18,
+  "manifest": "{\"v\":1,\"release_sha256\":\"000000000000000000000000000000000000000000000000000000000000000a\",\"service\":\"wallet\",\"gid\":18,\"files\":[{\"path\":\"/etc/example/wallet/receipt.key\",\"sha256\":\"fc83a659b96fe256cdbc9de29bcb01a71ae20f1571399d9517a1fc688afce532\"},{\"path\":\"/etc/example/wallet/service.json\",\"sha256\":\"9bf19fc4cdd719cacf76d4108f9905395b7f1ce3c37847a1302e5a567a818918\"},{\"path\":\"/etc/example/wallet/wallet.json\",\"sha256\":\"1d893d3570fb14c59c3a9b5be1d6700adfa7fd4ccc854de7fecc602b100c6c09\"}]}",
+  "note": "Public deterministic test seed; never a deployment key.",
+  "origin": "deploy/cmd/deploy-kit/g2_install_sign.go:g2InstallSignWith -manifest",
+  "public": "MCowBQYDK2VwAyEAA6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+  "release": "000000000000000000000000000000000000000000000000000000000000000a",
+  "seed_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "signature": "{\"v\":1,\"algorithm\":\"ed25519\",\"signature\":\"Gto1B8m5DCS1NuEB3HhEFJiiFA1J5B4ZqpFdnmYHPGwWFKtVnrtHE+Dn/7bdKCYTQY/fC2FamwH1Tt1ZhmfeBQ==\"}\n",
+  "source_sha256": "7f4865a544d33aa59543035a2256e9d8960f351fa121fe854f69e3d30aef8c1e"
+}

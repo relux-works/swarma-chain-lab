@@ -19,7 +19,7 @@ import (
 
 func portFixture(t *testing.T, name string, dst any) {
 	t.Helper()
-	b, e := os.ReadFile("testdata/ports/" + name + ".json")
+	b, e := os.ReadFile("../testdata/g2run-ports/" + name + ".json")
 	if e != nil {
 		t.Fatal(e)
 	}

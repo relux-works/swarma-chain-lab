@@ -67,7 +67,7 @@ func (a Activation) Validate() error {
 			return errors.New("ACTIVATION_ID")
 		}
 	}
-	if a.ServiceGID == a.PeerGID || a.ServiceGID == a.StatusGID || a.PeerGID == a.StatusGID {
+	if a.ServiceGID == a.PeerGID || a.ServiceGID == a.StatusGID || a.PeerGID == a.StatusGID || a.AgentGID == a.ServiceGID || a.AgentGID == a.PeerGID || a.AgentGID == a.StatusGID {
 		return errors.New("ACTIVATION_GROUP_SEPARATION")
 	}
 	paths := []string{a.Release, a.Stage, a.Log, a.Ledger, a.Rendered, a.ConfigParent, a.Wallet, a.Status, a.AgentKey, a.StationAgentKey, a.RehearsalAgentKey, a.TmpfilesConf, a.VersionParent, a.VersionRoot, a.UnitDirectory, filepath.Dir(a.AgentKey)}
@@ -264,7 +264,10 @@ func (a Activation) activate(c *Ctx) error {
 	if bytes.ContainsRune(staged, '@') || bytes.ContainsRune(status, '@') {
 		return errors.New("ACTIVATION_UNFILLED_TOKEN")
 	}
-	lines := installLines(staged)
+	lines, textErr := installLines(staged)
+	if textErr != nil || validateUnitText(status) != nil {
+		return errors.New("ACTIVATION_INSTALL_TEXT")
+	}
 	if len(lines) != 1 || lines[0] != "WantedBy=multi-user.target" {
 		return errors.New("ACTIVATION_INSTALL_SECTION")
 	}
@@ -349,7 +352,7 @@ func (a Activation) accounts(c *Ctx) error {
 		name    string
 		id      uint32
 		primary *uint32
-	}{{PortPasswd, a.ServiceUser, a.ServiceUID, &a.ServiceGID}, {PortGroup, a.PeerGroup, a.PeerGID, nil}, {PortGroup, a.StatusGroup, a.StatusGID, nil}, {PortPasswd, a.AgentUser, a.AgentUID, nil}} {
+	}{{PortPasswd, a.ServiceUser, a.ServiceUID, &a.ServiceGID}, {PortGroup, a.ServiceUser, a.ServiceGID, nil}, {PortGroup, a.PeerGroup, a.PeerGID, nil}, {PortGroup, a.StatusGroup, a.StatusGID, nil}, {PortPasswd, a.AgentUser, a.AgentUID, nil}, {PortGroup, a.AgentUser, a.AgentGID, nil}} {
 		r, e := lookupPort(c, a.Deps.Lookup, PortLookup{q.db, q.name})
 		if e != nil {
 			return e
@@ -436,7 +439,9 @@ func signPortInstall(raw []byte, random io.Reader) ([]byte, string, error) {
 	private := ed25519.NewKeyFromSeed(seed[:])
 	clear(seed[:])
 	defer clear(private)
-	signature := ed25519.Sign(private, raw)
+	message := append([]byte(configguard.SignatureDomain), raw...)
+	defer clear(message)
+	signature := ed25519.Sign(private, message)
 	der, e := x509.MarshalPKIXPublicKey(private.Public())
 	if e != nil {
 		return nil, "", errors.New("ACTIVATION_SIGN_KEY")

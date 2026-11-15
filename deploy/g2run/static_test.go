@@ -23,7 +23,8 @@ var watched = map[string]map[string]bool{
 }
 
 // kernelMembers is the CLOSED set of members of the kernel-facing packages that code OUTSIDE the designated function
-// may use: types, constants and file operations. Everything else in syscall and golang.org/x/sys/unix (raw syscalls,
+// may use: types, constants and file operations. E3 schema libraries use the
+// same closed selector gate below. Everything else in syscall and golang.org/x/sys/unix (raw syscalls,
 // AllThreadsSyscall, ptrace, clone, exec, ...) is refused outside (*Executor).Run, whether or not it is listed above.
 var kernelMembers = map[string]map[string]bool{
 	"syscall": {"Stat_t": true},
@@ -34,6 +35,19 @@ var kernelMembers = map[string]map[string]bool{
 		"O_RDONLY": true, "O_WRONLY": true, "Open": true, "OpenHow": true, "Openat2": true, "RESOLVE_BENEATH": true,
 		"RESOLVE_NO_MAGICLINKS": true, "RESOLVE_NO_SYMLINKS": true, "Rmdir": true, "S_IFMT": true, "S_IFREG": true,
 		"Stat_t": true, "Umask": true,
+		// E3: descriptor-only drift, exclusive file publication and directory work.
+		"AT_EMPTY_PATH": true, "ENOENT": true, "Mkdirat": true, "NsecToTimespec": true,
+		"O_APPEND": true, "O_EXCL": true, "O_NOATIME": true, "O_RDWR": true, "Openat": true,
+		"RENAME_NOREPLACE": true, "Renameat2": true, "Timespec": true, "Unlinkat": true, "UtimesNanoAt": true,
+	},
+	// E3 imports only schema values from the ledger library. Its process-capable
+	// RealSystem, Run and RunRollback entry points remain outside this closed set.
+	"github.com/relux-works/swarma-chain-lab/deploy/g2ledger": {
+		"Scope": true, "ScopePath": true, "FutureUnit": true, "FutureUnitLink": true,
+		"NodeScope": true, "FSIdentity": true,
+	},
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/configguard": {
+		"Anchor": true, "RenderDropIn": true, "Signature": true, "SignatureDomain": true,
 	},
 }
 
@@ -41,10 +55,21 @@ var kernelMembers = map[string]map[string]bool{
 var forbiddenImports = map[string]bool{"unsafe": true, "C": true, "plugin": true}
 
 // allowedImports is the CLOSED set of imports a non-test source of this package may use. The watched packages are
-// confined member by member (above); every other entry was reviewed not to start a process. Any import outside this
+// confined member by member (above), as are E3 schema libraries; every other
+// entry was reviewed not to start a process. Any import outside this
 // set is a violation, standard library or not: a package that launches processes indirectly (net/http/cgi's Handler,
 // go/build's go-command calls, a module wrapping exec) can enter only by a reviewed change to this list.
 var allowedImports = map[string]string{
+	"crypto/ed25519":  "E3 in-memory install signatures; no process creation",
+	"crypto/rand":     "E3 ephemeral signing seeds and atomic-write nonces; no process creation",
+	"crypto/x509":     "E3 public-key PKIX encoding; no process creation",
+	"encoding/base64": "E3 public signature/key encoding",
+	"sort":            "E3 deterministic evidence and scope ordering",
+	"strconv":         "E3 bounded base-8/base-10 parsing and numeric formatting",
+	"unicode/utf8":    "E3 strict UTF-8 evidence and unit text",
+	"github.com/relux-works/swarma-chain-lab/deploy/g2ledger":                    "E3 schema selectors only, closed by kernelMembers",
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use/configguard": "E3 DK5 domain, wire schema and pure anchor rendering, selectors closed above",
+
 	"archive/tar":           "reads the package archive",
 	"bufio":                 "buffered reads",
 	"bytes":                 "byte buffers",

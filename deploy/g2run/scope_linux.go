@@ -40,24 +40,60 @@ func portUnit(p string) bool {
 func portAccount(p string) bool {
 	return p != "" && len(p) <= 32 && p[0] != '-' && strings.Trim(p, "abcdefghijklmnopqrstuvwxyz0123456789_-") == ""
 }
-func installLines(body []byte) []string {
+
+// validateUnitText admits LF and CRLF only. Reject all other C0/C1 controls
+// (including tabs), and Python splitlines' Unicode LS/PS boundaries, before
+// interpreting any section or directive. A comment cannot hide another key.
+func validateUnitText(body []byte) error {
+	if !utf8.Valid(body) {
+		return errors.New("UNIT_INSTALL_UTF8")
+	}
+	for i, r := range string(body) {
+		if r == '\n' {
+			continue
+		}
+		if r == '\r' && i+1 < len(body) && body[i+1] == '\n' {
+			continue
+		}
+		if r < 0x20 || r >= 0x7f && r <= 0x9f || r == 0x2028 || r == 0x2029 {
+			return errors.New("UNIT_INSTALL_CONTROL")
+		}
+	}
+	return nil
+}
+
+// installLines preserves the raw key lines: scope applies its source's strip
+// convention, while activation compares the exact sed-extracted bytes. A CRLF
+// key retains its CR here, matching the activation source's raw comparison.
+func installLines(body []byte) ([]string, error) {
+	if e := validateUnitText(body); e != nil {
+		return nil, e
+	}
 	out := []string{}
 	inside := false
-	for _, line := range strings.Split(strings.ReplaceAll(string(body), "\r\n", "\n"), "\n") {
+	for _, line := range strings.Split(string(body), "\n") {
 		if strings.HasPrefix(line, "[") {
 			inside = strings.TrimSpace(line) == "[Install]"
 			continue
 		}
-		if inside {
-			for _, key := range []string{"WantedBy=", "RequiredBy=", "UpheldBy=", "Alias=", "Also="} {
-				if strings.HasPrefix(line, key) {
-					out = append(out, strings.TrimSpace(line))
-					break
+		if !inside {
+			continue
+		}
+		key, _, found := strings.Cut(line, "=")
+		if !found {
+			continue
+		}
+		for _, known := range []string{"WantedBy", "RequiredBy", "UpheldBy", "Alias", "Also"} {
+			if strings.TrimSpace(key) == known {
+				if key != known {
+					return nil, errors.New("UNIT_INSTALL_KEY_WHITESPACE")
 				}
+				out = append(out, line)
+				break
 			}
 		}
 	}
-	return out
+	return out, nil
 }
 
 // BuildScope ports the source generator's parent closure, volatile-path ban,
@@ -113,8 +149,11 @@ func BuildScope(fs PortFS, s ScopeSpec) (g2ledger.Scope, error) {
 		if bytes.ContainsRune(body, '@') {
 			return fail("UNFILLED_TOKEN")
 		}
-		lines := installLines(body)
-		if len(lines) != 1 || lines[0] != "WantedBy=multi-user.target" {
+		lines, textErr := installLines(body)
+		if textErr != nil {
+			return fail("INSTALL_TEXT")
+		}
+		if len(lines) != 1 || strings.TrimSpace(lines[0]) != "WantedBy=multi-user.target" {
 			return fail("INSTALL")
 		}
 		digest := sha256.Sum256(body)

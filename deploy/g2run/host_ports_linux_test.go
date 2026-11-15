@@ -4,9 +4,6 @@ package g2run
 
 import (
 	"bytes"
-	"crypto/ed25519"
-	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -392,6 +389,8 @@ func activationFixture(t *testing.T, purpose string) (Activation, *Ctx, *portHos
 	h.a = &a
 	h.addUser(a.ServiceUser, a.ServiceUID, a.ServiceGID)
 	h.addUser(a.AgentUser, a.AgentUID, a.AgentGID)
+	h.addGroup(a.ServiceUser, a.ServiceGID)
+	h.addGroup(a.AgentUser, a.AgentGID)
 	h.addGroup(a.PeerGroup, a.PeerGID)
 	h.addGroup(a.StatusGroup, a.StatusGID)
 	h.status = a.Status
@@ -467,37 +466,11 @@ func TestActivationPortPositive(t *testing.T) {
 			if !reflect.DeepEqual(cmd.Args, []string{"--check-installed"}) || len(cmd.Operands) != 0 || cmd.Cred.UID != a.ServiceUID || cmd.Cred.GID != a.PeerGID || !reflect.DeepEqual(cmd.Cred.Groups, []uint32{a.ServiceGID, a.StatusGID}) || !cmd.Merge || cmd.Stdout != "log/s8-1-check-installed.out" {
 				t.Fatalf("wrong service check: %+v", cmd)
 			}
-			raw, e := a.FS.read(a.Wallet + "/install-manifest.json")
-			if e != nil {
-				t.Fatal(e)
+			set, policy := activationStagedSet(t, a)
+			if e := configguard.ValidateStagedSet(set, policy); e != nil {
+				t.Fatal("production DK5 verifier:", e)
 			}
-			signature, e := a.FS.read(a.Wallet + "/install-manifest.json.sig")
-			if e != nil {
-				t.Fatal(e)
-			}
-			public, e := a.FS.read(a.Stage + "/install.pub.b64")
-			if e != nil {
-				t.Fatal(e)
-			}
-			var sig configguard.Signature
-			if e = json.Unmarshal(signature, &sig); e != nil {
-				t.Fatal(e)
-			}
-			sigBytes, e := base64.StdEncoding.DecodeString(sig.Value)
-			if e != nil {
-				t.Fatal(e)
-			}
-			der, e := base64.StdEncoding.DecodeString(string(public))
-			if e != nil {
-				t.Fatal(e)
-			}
-			key, e := x509.ParsePKIXPublicKey(der)
-			if e != nil {
-				t.Fatal(e)
-			}
-			if !ed25519.Verify(key.(ed25519.PublicKey), raw, sigBytes) {
-				t.Fatal("signature does not verify")
-			}
+
 			if purpose == "station" {
 				if !portContains(h.events, "start "+a.Unit) {
 					t.Fatal("not started")

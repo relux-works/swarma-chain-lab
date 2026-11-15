@@ -16,7 +16,7 @@ modes, file sync, rename and parent-directory sync.
 | g2-ledger-owns.py | LedgerOwns | TestLedgerOwnsOriginalVectors |
 | g2-node-restarted.py | CheckNodeRestarted | TestNodeRestartedOriginalVectors |
 
-`g2run/testdata/ports/` holds the source oracle inputs and recorded verdicts.
+`testdata/g2run-ports/` holds the source oracle inputs and recorded verdicts.
 `provenance.json` identifies the supplied source bytes. The landlord name is a
 generic fixture substitution; temporary paths are expanded by Go in tests.
 The sources are not copied because they contain deployment instance data.
@@ -119,3 +119,30 @@ Further deliberate differences from the shell callers:
 The generic parameters decoder, compiled 34-step plan and `deploy-kit g2-run`
 subcommand are deferred until E2's types land. These ports do not expose an
 install command before those integration obligations are resolved.
+
+## Signature, unit-text and named-group contracts
+
+Install signatures use the original CLI's exact
+`configguard.SignatureDomain || installed manifest` message. A deterministic
+vector captured through the original `g2-install-sign -manifest` path is in
+`testdata/g2run-ports/install_signature.json`. Tests also admit a full activation
+set through the production DK5 validator and reject a raw-manifest signature.
+
+The unit parser permits LF/CRLF boundaries and refuses all other C0/C1 controls
+(including tabs), Unicode LS/PS and known Install keys with altered key spacing.
+Scope retains Python's stripping of extracted value lines. Activation preserves
+its source's exact raw line comparison: a trailing space or a CRLF key's CR
+refuses there. `unit_text.json` records original Python/sed results separately
+from the explicitly stricter control-character policy. The status drop-in is
+subject to the same text refusal before its publication.
+
+Activation binds both service and agent named groups to their declared GIDs.
+The agent GID must also differ from the wallet, peer and status GIDs, before
+ledger effects. This complements the existing host-flow preflight requirement.
+
+The package directory contains Go files only; fixtures live outside it under
+`deploy/testdata/g2run-ports/`. E1's exec detection, closed syscall-member policy,
+foreign-source refusal and original controls are preserved. Added imports are
+explicit; the ledger library is limited to six schema types, and configguard to
+its domain/schema/anchor-rendering selectors. Ledger process entry points remain
+forbidden by the same closed member gate.
