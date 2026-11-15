@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent LIP-0021 draft sections 2-5 reader; Python standard library only.
+"""Independent LIP-0021 draft sections 2-5 reader; Python plus system OpenSSL.
 
 No Go code or Go-derived intermediate parsing is used. Expectations are read only
 after the rule calculations. Compare every result with both the pinned vector
@@ -17,6 +17,16 @@ import sys
 MODULE = Path(__file__).resolve().parents[1]
 VECTOR_SHA256 = "67e45caabfa4599160e53bd95541db2b02ad8afdc21872776756881a85c97b4c"
 TESTS = {"TestV4OwnerPin", "TestV4NameScript", "TestV4Writer", "TestV4LiveName"}
+
+
+def hash160(data):
+    # RIPEMD-160 is absent from some Python builds. Require the independent
+    # OpenSSL CLI explicitly; there is no alternate backend or passing stub.
+    run = subprocess.run(["openssl", "dgst", "-ripemd160", "-binary"],
+                         input=hashlib.sha256(data).digest(), capture_output=True)
+    if run.returncode != 0 or len(run.stdout) != 20:
+        raise ValueError("OpenSSL RIPEMD-160 unavailable or malformed output")
+    return run.stdout
 
 
 def pin_result(text):
@@ -99,7 +109,7 @@ def read_script(data, pin, at, witness_from):
         if key in ns:
             result[key if key in ("name", "value") else key+"_hex"] = ns[key].decode("ascii") if key in ("name", "value") else ns[key].hex()
     kind, keyhash = address_kind(ns["address"], at, witness_from)
-    digest = hashlib.new("ripemd160", hashlib.sha256(bytes.fromhex(pin)).digest()).digest()
+    digest = hash160(bytes.fromhex(pin))
     result["reading"] = "unsupported" if kind is None else "controlled" if keyhash == digest else "another key"
     return result
 

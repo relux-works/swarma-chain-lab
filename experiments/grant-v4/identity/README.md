@@ -54,23 +54,33 @@ The fixture's 56 walk cases are retained for source fidelity and **not run**
 in this slice. No observation vectors are claimed here.
 
 `scripts/second-reader.py` independently implements the draft grammar and
-arithmetic in Python's standard library, without importing Go or using its
-parser. Its curve check uses modular square-root verification; its script
+arithmetic in Python, without importing Go or using its parser. RIPEMD-160
+uses the independent system OpenSSL command, explicitly required because
+some Python builds omit that algorithm. Its curve check uses modular
+square-root verification; its script
 reader consumes the literal grammar with a cursor. It computes each decision
 before consulting the expected answer, then compares all 84 decisions with
 both the fixture and the actual Go results. Differences, missing/duplicate
 results, skips, test failures or incomplete output refuse the agreement gate.
-Python is the repository's existing tooling language and supplies an independent
-implementation without adding a library or an internal module dependency.
+Python is the repository's existing tooling language. The reader uses its
+standard library and the existing OpenSSL command, without adding a Python
+library or an internal module dependency. Missing OpenSSL, nonzero hash-command
+exit or output other than 20 octets refuses the reader.
 
 `scripts/test_second_reader.py` calibrates that gate with a wrong vector answer,
 an altered Go answer, missing/duplicate output, a skip and truncated output,
-beside valid controls. These are bounded instrument controls, not proof against
+beside valid controls. A hash-backend control checks a fixed public-key digest,
+missing executable, failing command and malformed output. These are bounded
+instrument controls, not proof against
 a shared misunderstanding of the draft.
 
 ## Tools and commands
 
-Use Go 1.26.10 and Python 3.14.4 from the repository root. Set `GOTOOLCHAIN=local`,
+Use Go 1.26.10, Python 3.14.4 and the system OpenSSL CLI from the repository root.
+`openssl version` checks availability. The reader invokes
+`openssl dgst -ripemd160 -binary` with the SHA-256 digest on standard input;
+its 20 output octets are compared in memory, with decisions saved below.
+Set `GOTOOLCHAIN=local`,
 `GOWORK=off`, a short private `TMPDIR`, and private `GOCACHE`/`GOMODCACHE`.
 Supply the pinned `golang.org/x/crypto v0.55.0` dependency from a verified cache;
 validation runs with `GOPROXY=off` and `GOFLAGS=-mod=readonly`.

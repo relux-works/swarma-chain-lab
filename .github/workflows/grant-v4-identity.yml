@@ -59,6 +59,7 @@ jobs:
         run: go -C experiments/grant-v4/identity build ./...
       - name: Independent second reader and agreement controls
         run: |
+          openssl version
           python3 -B experiments/grant-v4/identity/scripts/second-reader.py --go-results "$RUNNER_TEMP/identity-tests.json" --output "$RUNNER_TEMP/identity-independent.json"
           python3 -B -m unittest discover -s experiments/grant-v4/identity/scripts -p 'test_second_reader.py' -v
       - name: Narrowing overlay mutants

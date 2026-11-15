@@ -1,10 +1,12 @@
-"""Bounded controls for the independent agreement gate (standard library only)."""
+"""Bounded controls for the independent agreement gate and its hash backend."""
 
 import copy
 import importlib.util
 import json
 from pathlib import Path
 import unittest
+from unittest import mock
+from types import SimpleNamespace
 
 SPEC = importlib.util.spec_from_file_location("second_reader", Path(__file__).with_name("second-reader.py"))
 reader = importlib.util.module_from_spec(SPEC)
@@ -16,6 +18,19 @@ class AgreementControls(unittest.TestCase):
     def setUpClass(cls):
         cls.vectors = json.loads((reader.MODULE / "testdata/name-vectors.json").read_text())
         cls.decisions = reader.calculate(cls.vectors)
+
+    # The public key's independently fixed hash passes; backend failure or short output refuses rather than yielding a verdict.
+    def test_hash_backend(self):
+        self.assertEqual(reader.hash160(bytes.fromhex(self.vectors["test_pins"]["owner"])).hex(),
+                         "7dd65592d0ab2fe0d0257d571abf032cd9db93dc")
+        for code, output in [(1, b""), (0, b""), (0, bytes(19)), (0, bytes(21))]:
+            with self.subTest(code=code, length=len(output)):
+                with mock.patch.object(reader.subprocess, "run", return_value=SimpleNamespace(returncode=code, stdout=output)):
+                    with self.assertRaisesRegex(ValueError, "OpenSSL RIPEMD-160 unavailable or malformed output"):
+                        reader.hash160(b"public test octets")
+        with mock.patch.object(reader.subprocess, "run", side_effect=FileNotFoundError("openssl")):
+            with self.assertRaises(FileNotFoundError):
+                reader.hash160(b"public test octets")
 
     # An unchanged 84-case map passes; altered Go verdicts and missing cases fail specifically as disagreements.
     def test_go_disagreement_and_omission(self):
