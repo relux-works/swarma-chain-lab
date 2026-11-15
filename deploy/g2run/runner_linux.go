@@ -126,19 +126,64 @@ func report(w io.Writer, step string, e error) int {
 
 func (r *run[P]) recordStop(s *stop) int {
 	line := fmt.Sprintf("epoch-%d STOP %s rc=%d\n", time.Now().Unix(), r.step, s.rc)
-	f, e := os.OpenFile(r.p("STOPPED"), os.O_WRONLY|os.O_APPEND|os.O_CREATE|unix.O_NOFOLLOW, 0600)
-	if e == nil {
-		_, e = f.WriteString(line)
-		if ce := f.Close(); e == nil {
-			e = ce
-		}
-	}
-	if e != nil {
+	if _, e := appendLine(r.state, "STOPPED", line); e != nil {
 		fmt.Fprintf(r.errw, "STOP at %s (rc=%d): %s; recording in STOPPED FAILED (%v): the admission record still refuses every later normal step\n", r.step, s.rc, s.reason, e)
 	} else {
 		fmt.Fprintf(r.errw, "STOP at %s (rc=%d): %s; recorded in STOPPED: only the recovery steps may run now\n", r.step, s.rc, s.reason)
 	}
 	return s.rc
+}
+
+// syncDir makes a directory's entries durable (a created, renamed or removed name).
+func syncDir(dir string) error {
+	fd, e := unix.Open(dir, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if e != nil {
+		return e
+	}
+	defer unix.Close(fd)
+	return unix.Fsync(fd)
+}
+
+// replaceFile writes DIR/NAME atomically and durably: a new temp file in DIR (exclusive, no symlink), its content,
+// fsync, rename over NAME, fsync DIR. renamed tells whether NAME already changed when an error is returned: before
+// the rename nothing changed (the temp file is removed); after it, the new content is in place but may not be durable.
+func replaceFile(dir, name, content string) (renamed bool, e error) {
+	tmp := filepath.Join(dir, fmt.Sprintf(".%s.tmp-%d-%d", name, os.Getpid(), time.Now().UnixNano()))
+	f, e := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL|unix.O_NOFOLLOW, 0600)
+	if e != nil {
+		return false, e
+	}
+	_, e = f.WriteString(content)
+	if e == nil {
+		e = f.Sync()
+	}
+	if ce := f.Close(); e == nil {
+		e = ce
+	}
+	if e == nil {
+		e = os.Rename(tmp, filepath.Join(dir, name))
+	}
+	if e != nil {
+		os.Remove(tmp)
+		return false, e
+	}
+	return true, syncDir(dir)
+}
+
+// appendLine adds a line to a small newline-terminated record file by an atomic, durable replacement. An existing
+// file must be a regular file whose content ends in a newline (a record without its newline would fuse with the next).
+func appendLine(dir, name, line string) (renamed bool, e error) {
+	old := ""
+	if exists(filepath.Join(dir, name)) {
+		old, e = readSmall(filepath.Join(dir, name))
+		if e != nil {
+			return false, e
+		}
+		if old != "" && !strings.HasSuffix(old, "\n") {
+			return false, fmt.Errorf("%s is not newline-terminated", name)
+		}
+	}
+	return replaceFile(dir, name, old+line)
 }
 
 // exists is true for anything at the name, a dangling symlink included.
@@ -192,6 +237,9 @@ func (r *run[P]) admit() error {
 	if e != nil || len(dl) == 0 || dl[0] != r.plan.BootstrapLine {
 		return refuse(69, "the bootstrap did not complete (DONE does not start with %q)", r.plan.BootstrapLine)
 	}
+	if !strings.HasSuffix(done, "\n") {
+		return refuse(69, "DONE is not newline-terminated: its last record is incomplete")
+	}
 	last := dl[len(dl)-1]
 	if class == "recovery" {
 		return r.admitRecovery(last)
@@ -233,11 +281,16 @@ func (r *run[P]) admit() error {
 			return refuse(75, "%s runs only right after %s; the last completed step is %q", r.step, want, last)
 		}
 	}
+	// Admission is durable before any effect: the INFLIGHT directory and its step record, each fsynced with its parent.
 	if e := unix.Mkdir(r.p("INFLIGHT"), 0o700); e != nil {
 		return refuse(72, "cannot create INFLIGHT exclusively: %v", e)
 	}
 	r.admitted = true
-	return writeNew(filepath.Join(r.p("INFLIGHT"), "step"), fmt.Sprintf("epoch-%d %s\n", time.Now().Unix(), r.step))
+	if e := syncDir(r.state); e != nil {
+		return e
+	}
+	_, e = replaceFile(r.p("INFLIGHT"), "step", fmt.Sprintf("epoch-%d %s\n", time.Now().Unix(), r.step))
+	return e
 }
 
 func (r *run[P]) admitRecovery(last string) error {
@@ -266,31 +319,20 @@ func (r *run[P]) admitRecovery(last string) error {
 	if !eligible {
 		return refuse(77, "%s is not eligible in this state (last completed: %q; STOP recorded or INFLIGHT: %v)", r.step, last, stopped)
 	}
-	f, e := os.OpenFile(r.p("CLOSED"), os.O_WRONLY|os.O_APPEND|os.O_CREATE|unix.O_NOFOLLOW, 0600)
-	if e != nil {
+	// CLOSED is replaced atomically: a failure before the rename leaves it unchanged and is a truthful refusal; a
+	// failure after it (the directory fsync) is a partial admission and is recorded as a STOP.
+	renamed, e := appendLine(r.state, "CLOSED", fmt.Sprintf("epoch-%d %s\n", time.Now().Unix(), r.step))
+	if renamed {
+		r.admitted = true
+	}
+	if e != nil && !renamed {
 		return refuse(77, "cannot record %s in CLOSED: %v", r.step, e)
 	}
-	_, e = fmt.Fprintf(f, "epoch-%d %s\n", time.Now().Unix(), r.step)
-	if ce := f.Close(); e == nil {
-		e = ce
-	}
-	if e != nil {
-		return refuse(77, "cannot record %s in CLOSED: %v", r.step, e)
-	}
-	r.admitted = true
-	return nil
-}
-
-func writeNew(p, content string) error {
-	f, e := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL|unix.O_NOFOLLOW, 0600)
 	if e != nil {
 		return e
 	}
-	_, e = f.WriteString(content)
-	if ce := f.Close(); e == nil {
-		e = ce
-	}
-	return e
+	r.admitted = true
+	return nil
 }
 
 // body runs after admission: the package bytes, the parameters, then the step.
@@ -299,9 +341,13 @@ func (r *run[P]) body() error {
 		return e
 	}
 	if r.class == "init" {
-		return writeNew(r.p("PURPOSE"), r.purpose+"\n")
+		if exists(r.p("PURPOSE")) {
+			return &stop{rc: 73, reason: "PURPOSE appeared after admission"}
+		}
+		_, e := replaceFile(r.state, "PURPOSE", r.purpose+"\n")
+		return e
 	}
-	raw, e := os.ReadFile(filepath.Join(r.state, "pkg", r.plan.ParamsFile))
+	raw, e := readBeneath(filepath.Join(r.state, "pkg"), r.plan.ParamsFile)
 	if e != nil {
 		return &stop{rc: 85, reason: "PARAMS_READ: " + e.Error()}
 	}
@@ -315,7 +361,7 @@ func (r *run[P]) body() error {
 			return &stop{rc: 86, reason: fmt.Sprintf("OP_INVALID %d %s: %v", i+1, op.Kind(), e)}
 		}
 	}
-	x, e := NewExecutor(r.plan.Programs)
+	x, e := NewExecutor(r.state, r.plan.Programs, r.plan.OutputRoots)
 	if e != nil {
 		return &stop{rc: 86, reason: e.Error()}
 	}
@@ -328,16 +374,10 @@ func (r *run[P]) body() error {
 	return nil
 }
 
+// succeed records OK durably BEFORE the latch is cleared: DONE is replaced atomically and fsynced with its directory;
+// only then are INFLIGHT/step and INFLIGHT removed, and the state directory fsynced again.
 func (r *run[P]) succeed() error {
-	f, e := os.OpenFile(r.p("DONE"), os.O_WRONLY|os.O_APPEND|unix.O_NOFOLLOW, 0)
-	if e != nil {
-		return e
-	}
-	_, e = fmt.Fprintf(f, "OK %s\n", r.step)
-	if ce := f.Close(); e == nil {
-		e = ce
-	}
-	if e != nil {
+	if _, e := appendLine(r.state, "DONE", fmt.Sprintf("OK %s\n", r.step)); e != nil {
 		return e
 	}
 	if r.class == "recovery" {
@@ -346,7 +386,10 @@ func (r *run[P]) succeed() error {
 	if e := os.Remove(filepath.Join(r.p("INFLIGHT"), "step")); e != nil {
 		return e
 	}
-	return unix.Rmdir(r.p("INFLIGHT"))
+	if e := unix.Rmdir(r.p("INFLIGHT")); e != nil {
+		return e
+	}
+	return syncDir(r.state)
 }
 
 // VerifyPackage checks the install package against the operator's pin, first error wins, each with its own code:
@@ -364,9 +407,11 @@ func VerifyPackage(state string, required []string) error {
 	if e != nil || sum != pin {
 		return &stop{rc: 81, reason: "the kept package tarball does not match the pin"}
 	}
+	pkg := filepath.Join(state, "pkg")
 	member, e := tarMember(tarPath, "SHA256SUMS")
-	live, le := readSmall(filepath.Join(state, "pkg", "SHA256SUMS"))
-	if e != nil || le != nil || !bytes.Equal(member, []byte(live)) {
+	liveB, le := readBeneath(pkg, "SHA256SUMS")
+	live := string(liveB)
+	if e != nil || le != nil || !bytes.Equal(member, liveB) {
 		return &stop{rc: 82, reason: "pkg/SHA256SUMS differs from the pinned package's"}
 	}
 	listed := map[string]string{}
@@ -388,17 +433,64 @@ func VerifyPackage(state string, required []string) error {
 		if count[f] != 1 {
 			return &stop{rc: 84, reason: fmt.Sprintf("SHA256SUMS lists %s %d times", f, count[f])}
 		}
-		p := filepath.Join(state, "pkg", f)
-		fi, e := os.Lstat(p)
-		if e != nil || !fi.Mode().IsRegular() {
-			return &stop{rc: 84, reason: fmt.Sprintf("pkg/%s is not a regular file", f)}
+		// Opened beneath pkg/ with no symlink anywhere on the way, so a symlinked ancestor cannot point the check at
+		// bytes outside the package.
+		got, e := hashBeneath(pkg, f)
+		if e != nil {
+			return &stop{rc: 84, reason: fmt.Sprintf("pkg/%s is not a regular file beneath pkg/: %v", f, e)}
 		}
-		got, e := fileSHA256(p)
-		if e != nil || got != want {
+		if got != want {
 			return &stop{rc: 84, reason: fmt.Sprintf("pkg/%s does not match SHA256SUMS", f)}
 		}
 	}
 	return nil
+}
+
+// openBeneath opens DIR/REL read-only with openat2: beneath DIR, with no symlink or magic link anywhere on the way
+// (DIR itself included), and only if it is a regular file.
+func openBeneath(dir, rel string) (*os.File, error) {
+	dfd, e := unix.Open(dir, unix.O_PATH|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if e != nil {
+		return nil, e
+	}
+	defer unix.Close(dfd)
+	fd, e := unix.Openat2(dfd, rel, &unix.OpenHow{Flags: unix.O_RDONLY | unix.O_CLOEXEC | unix.O_NONBLOCK,
+		Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_SYMLINKS | unix.RESOLVE_NO_MAGICLINKS})
+	if e != nil {
+		return nil, e
+	}
+	var st unix.Stat_t
+	if e = unix.Fstat(fd, &st); e != nil || st.Mode&unix.S_IFMT != unix.S_IFREG {
+		unix.Close(fd)
+		return nil, errors.New("not a regular file")
+	}
+	return os.NewFile(uintptr(fd), filepath.Join(dir, rel)), nil
+}
+
+func readBeneath(dir, rel string) ([]byte, error) {
+	f, e := openBeneath(dir, rel)
+	if e != nil {
+		return nil, e
+	}
+	defer f.Close()
+	b, e := io.ReadAll(io.LimitReader(f, 16<<20+1))
+	if e == nil && len(b) > 16<<20 {
+		e = errors.New("larger than 16 MiB")
+	}
+	return b, e
+}
+
+func hashBeneath(dir, rel string) (string, error) {
+	f, e := openBeneath(dir, rel)
+	if e != nil {
+		return "", e
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, e := io.Copy(h, bufio.NewReader(f)); e != nil {
+		return "", e
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func fileSHA256(p string) (string, error) {

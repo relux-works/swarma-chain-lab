@@ -15,7 +15,13 @@ No value is ever evaluated by a shell or by any other interpreter.
   - The output file is opened before the program starts.
   - The kernel sets the credentials (`Cred`), with no runuser or setpriv.
   - The table refuses shells, interpreters and the programs that run other programs or do file work: `sh`, `python3`, `env`, `find`, `sed`, `install`, `runuser`, `setpriv` and the like.
-- **Enforced in tests.** A static test fails if any non-test source of the package starts a process outside ExecFixed. A planted control proves the checker sees one.
+- **A closed program set.** A plan may name only programs registered by a reviewed typed wrapper (`RegisterProgram`, called from init functions). A denylist of interpreters and of tools that run other programs (`sh`, `python3`, `env`, `find`, `sed`, `install`, `tar`, `rsync`, `ssh`, `systemd-run`, `chroot`, `nsenter`, `unshare`, `flock`, `git`, `make` and more) is only the backstop.
+- **Programs are pinned at construction.** The executor copies the table. Each link is resolved once: the link and every directory on both paths must be root-owned and closed to writes. The resolved file must be a root-owned regular file, neither setuid nor setgid and not group or other writable. Go cannot set no-new-privileges for one exec, so a set-id program is refused outright. The pinned file runs, with argv[0] kept as the table path so that a multicall binary picks the right tool.
+- **Commands fail closed.** A status outside the command's `WantRC` (default `{0}`) is an error, so an operation that ignores the result still stops. Values travel as `Operands`: each is a `ValidOperand` (never empty, never starting with `-`, no NUL, CR or LF) and follows `--`.
+- **Output stays where it is declared.** Output is a path relative to a declared output root, opened with openat2 beneath that root (no symlink, no magic link, no `..` or `//` spelling, never the state root where the runner's own files live). It is opened before the start, must be a regular file owned by the runner, and is set to 0600.
+- **Capture is bounded.** Captured output is capped at 1 MiB; more is an error, and an endless producer is stopped.
+- **No leaked descriptors.** Every descriptor the runner holds, the run.lock flock included, is close-on-exec; a test lists the child's descriptors.
+- **Enforced in tests.** A static test resolves import aliases and allows exec-related symbols only inside `(*Executor).Run`. Dot or blank imports of those packages, `unsafe`, cgo, `plugin` and `go:linkname` are refused. Planted controls prove the checker sees each alternate path the review executed.
 
 ## The on-disk discipline (`g2-run -state DIR STEP`)
 
@@ -35,6 +41,18 @@ No value is ever evaluated by a shell or by any other interpreter.
 Every refusal before admission changes no state; the tests compare the whole state tree before and after.
 
 After admission, any error or panic is a STOP: `epoch-N STOP STEP rc=N` is appended to STOPPED, and INFLIGHT (or CLOSED) stays. A step is a Go function returning an error, so there is no completion sentinel and no abandoned body.
+
+Every record is written durably: a temp file, fsync, rename and a directory fsync. DONE, STOPPED, CLOSED and PURPOSE follow this rule. Admission (INFLIGHT and its step record) is durable before any effect, and OK is durable in DONE before INFLIGHT is removed.
+
+A refusal is truthful. A recovery whose CLOSED record cannot be written leaves the state unchanged and says so. If the rename landed but its directory fsync failed, the admission did happen, and the failure is recorded as a STOP.
+
+DONE must end in a newline (rc 69 otherwise), so a record can never fuse with an incomplete one. Package files are opened beneath `pkg/` with no symlink anywhere on the way, so a linked ancestor cannot point the check at bytes outside the package.
+
+Limits:
+- Power-loss durability follows from the construction and from inspection, not from a test.
+- A child is started in its own process group, so it survives a killed runner. INFLIGHT stays latched in that case, and the recovery steps handle the state. E2 adds per-operation timeouts.
+- `Cred` with real uid changes is tested only as root, and the set-id branch of the table check needs root-owned fixtures.
+- The exit codes keep the meanings of the shell runner they replace, but no oracle from the old runner is run against them.
 
 ## Units
 
