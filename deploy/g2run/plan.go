@@ -129,25 +129,58 @@ func (p Plan[P]) Validate() error {
 			}
 		}
 	}
-	reach := map[string]bool{}
-	for changed := true; changed; {
-		changed = false
+	// Reachability is computed separately for each purpose, because the runner admits a step only in a state of one
+	// purpose: in purpose P a recovery is eligible when its Purpose is "" or P and either AfterStop is set or one of its
+	// AfterLast steps is a normal step of P's own sequence or a recovery already reachable in P (a fixed point per
+	// purpose, so a cycle with no anchor is refused). A recovery reachable in no purpose is refused, and so is every
+	// AfterLast edge that is live in no purpose where its recovery is eligible: a predecessor from another purpose's
+	// sequence can never be the last line of a state this recovery runs in.
+	reachAny := map[string]bool{}
+	live := map[string]map[string]bool{}
+	for purpose, seq := range p.Sequences {
+		inSeq := map[string]bool{}
+		for _, s := range seq {
+			inSeq[s] = true
+		}
+		reach := map[string]bool{}
+		for changed := true; changed; {
+			changed = false
+			for name, r := range recovery {
+				if reach[name] || (r.Purpose != "" && r.Purpose != purpose) {
+					continue
+				}
+				ok := r.AfterStop
+				for _, a := range r.AfterLast {
+					ok = ok || inSeq[a] || reach[a]
+				}
+				if ok {
+					reach[name], changed = true, true
+				}
+			}
+		}
 		for name, r := range recovery {
-			if reach[name] {
+			if !reach[name] {
 				continue
 			}
-			ok := r.AfterStop
+			reachAny[name] = true
 			for _, a := range r.AfterLast {
-				ok = ok || normal[a] || reach[a]
-			}
-			if ok {
-				reach[name], changed = true, true
+				if inSeq[a] || reach[a] {
+					if live[name] == nil {
+						live[name] = map[string]bool{}
+					}
+					live[name][a] = true
+				}
 			}
 		}
 	}
-	for name := range recovery {
-		if !reach[name] {
+	for name, r := range recovery {
+		if !reachAny[name] {
 			return fmt.Errorf("PLAN_RECOVERY_NEVER_ELIGIBLE %s", name)
+		}
+		for _, a := range r.AfterLast {
+			if !live[name][a] {
+				return fmt.Errorf("PLAN_RECOVERY_PREDECESSOR_INELIGIBLE %s after %q (no purpose admits both)", name, a)
+			}
 		}
 	}
 	for s := range p.Steps {
@@ -188,9 +221,23 @@ func validProgram(name, abs string) bool {
 	return filepath.IsAbs(abs) && filepath.Clean(abs) == abs && !strings.ContainsAny(abs, "\x00\r\n ")
 }
 
-// validOutputRoot is a clean relative directory beneath the state directory, never the state directory itself.
+// runnerNames are the runner's own files and directories at the state root: its records, its lock, its in-flight
+// latch and the extracted package. No output root may be one of them or lie beneath one.
+var runnerNames = []string{"DONE", "STOPPED", "CLOSED", "PURPOSE", "INFLIGHT", "run.lock", "pkg"}
+
+// validOutputRoot is a clean relative directory beneath the state directory, never the state directory itself and
+// never one of the runner's own names or beneath one.
 func validOutputRoot(r string) bool {
-	return validPackagePath(r) && r != "." && !strings.HasSuffix(r, "/")
+	if !validPackagePath(r) || r == "." || strings.HasSuffix(r, "/") {
+		return false
+	}
+	first, _, _ := strings.Cut(r, "/")
+	for _, n := range runnerNames {
+		if first == n {
+			return false
+		}
+	}
+	return true
 }
 
 func validPackagePath(p string) bool {

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func init() {
@@ -165,8 +167,83 @@ func TestExecFixedOutput(t *testing.T) {
 	}
 }
 
+// Claim (rev366 delta, exec-output-hardlink): an output name beneath a declared root that is a HARD LINK to a runner
+// record is refused before the record changes and before the program runs, and so is any output inode with more than
+// one link; the private positive beside it still writes. The record-identity branch is proved on its own below, since
+// on one filesystem a second name for a record always raises its link count first.
+func TestExecFixedOutputHardlink(t *testing.T) {
+	x, state := testExecutor(t)
+	marker := filepath.Join(state, "ran")
+	done := filepath.Join(state, "DONE")
+	if e := os.WriteFile(done, []byte("OK B.1\nOK A1\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.Link(done, filepath.Join(state, "log", "out")); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := x.Run(Cmd{Program: "touch", Args: []string{marker}, Stdout: "log/out"}); e == nil || !strings.Contains(e.Error(), "EXEC_OUTPUT_LINKED") {
+		t.Fatalf("a hard link to DONE was accepted as output: %v", e)
+	}
+	if b, _ := os.ReadFile(done); string(b) != "OK B.1\nOK A1\n" {
+		t.Fatalf("DONE changed: %q", b)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("the program ran although its output was refused")
+	}
+	// Any second name is refused, not only one that reaches a record.
+	other := filepath.Join(state, "log", "a")
+	os.WriteFile(other, []byte("keep"), 0600)
+	os.Link(other, filepath.Join(state, "log", "b"))
+	if _, e := x.Run(Cmd{Program: "printf", Args: []string{"x"}, Stdout: "log/b"}); e == nil || !strings.Contains(e.Error(), "EXEC_OUTPUT_LINKED") {
+		t.Fatalf("a two-link output was accepted: %v", e)
+	}
+	if b, _ := os.ReadFile(other); string(b) != "keep" {
+		t.Fatalf("the linked file changed: %q", b)
+	}
+	// Positive control: a fresh private output still works.
+	if _, e := x.Run(Cmd{Program: "printf", Args: []string{"%s", "ok"}, Stdout: "log/fresh"}); e != nil {
+		t.Fatal(e)
+	}
+	if b, _ := os.ReadFile(filepath.Join(state, "log", "fresh")); string(b) != "ok" {
+		t.Fatalf("fresh = %q", b)
+	}
+}
+
+// Claim: isRunnerRecord matches the inode of each runner record that exists (DONE, run.lock, the in-flight step) and
+// matches no other file; a record that does not exist matches nothing.
+func TestIsRunnerRecord(t *testing.T) {
+	state := t.TempDir()
+	os.WriteFile(filepath.Join(state, "DONE"), []byte("OK B.1\n"), 0600)
+	os.WriteFile(filepath.Join(state, "run.lock"), nil, 0600)
+	os.Mkdir(filepath.Join(state, "INFLIGHT"), 0700)
+	os.WriteFile(filepath.Join(state, "INFLIGHT", "step"), []byte("x\n"), 0600)
+	os.Mkdir(filepath.Join(state, "log"), 0700)
+	os.WriteFile(filepath.Join(state, "log", "out"), nil, 0600)
+	sfd, e := unix.Open(state, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer unix.Close(sfd)
+	stat := func(p string) *unix.Stat_t {
+		var st unix.Stat_t
+		if e := unix.Stat(filepath.Join(state, p), &st); e != nil {
+			t.Fatal(e)
+		}
+		return &st
+	}
+	for _, rec := range []string{"DONE", "run.lock", "INFLIGHT/step"} {
+		if !isRunnerRecord(sfd, stat(rec)) {
+			t.Errorf("%s not recognised as a runner record", rec)
+		}
+	}
+	if isRunnerRecord(sfd, stat("log/out")) {
+		t.Error("an ordinary output was taken for a runner record")
+	}
+}
+
 // Claim: a capture over MaxCapture is an error, and an endless producer is stopped (it is not drained forever); the
-// run returns within bounded time.
+// run returns within bounded time with EXEC_OUTPUT_TOO_LARGE (the rev366 delta noted the earlier version only reached
+// EXEC_UNKNOWN_PROGRAM, because yes was not in the test table).
 func TestExecFixedCaptureBounded(t *testing.T) {
 	x, _ := testExecutor(t)
 	if _, e := x.Run(Cmd{Program: "head", Args: []string{"-c", strconv.Itoa(MaxCapture + 1), "/dev/zero"}}); e == nil || !strings.Contains(e.Error(), "EXEC_OUTPUT_TOO_LARGE") {
@@ -179,8 +256,8 @@ func TestExecFixedCaptureBounded(t *testing.T) {
 	go func() { _, e := x.Run(Cmd{Program: "yes"}); done <- e }()
 	select {
 	case e := <-done:
-		if e == nil {
-			t.Fatal("an endless producer was accepted")
+		if e == nil || !strings.Contains(e.Error(), "EXEC_OUTPUT_TOO_LARGE") {
+			t.Fatalf("an endless producer: %v, want EXEC_OUTPUT_TOO_LARGE", e)
 		}
 	case <-time.After(20 * time.Second):
 		t.Fatal("an endless producer was drained without bound")
