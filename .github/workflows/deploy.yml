@@ -129,6 +129,11 @@ jobs:
           mkdir "$DK1_RELEASE_OUT"
           go test -v -count=1 -timeout 20m -run '^TestReleaseIntegration$' .
           (cd "$DK1_RELEASE_OUT/release" && sha256sum -c SHA256SUMS)
+      - name: Verify real release manifest and consumer parity
+        run: |
+          commit="$(git rev-parse HEAD)"
+          "$RUNNER_TEMP/dk1-release/release/bin/deploy-kit" verify-manifest -manifest "$RUNNER_TEMP/dk1-release/release/manifest.json" -commit "$commit"
+          DK1_VERIFY_MANIFEST="$RUNNER_TEMP/dk1-release/release/manifest.json" go test -v -count=1 -run '^TestVerifyManifestRealRelease$' ./cmd/deploy-kit
       - name: Actual CLI acceptance and refusal controls
         run: |
           mkdir "$RUNNER_TEMP/dk1-cli"

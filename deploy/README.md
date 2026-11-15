@@ -216,6 +216,41 @@ refuse. Member names are case-sensitive in the manifest and in every service,
 tool and pending row: aliases such as `TOOLS` or `TOOL` refuse even alongside
 their canonical names. The builder runs it on its own manifest before staging it.
 
+## Release manifest verification (plan B.2)
+
+Before consuming a release, use its `bin/deploy-kit` as the station install
+plan step B.2 interface:
+
+```sh
+"$RELEASE_DIR/bin/deploy-kit" verify-manifest -manifest "$RELEASE_DIR/manifest.json" -commit "$REVIEWED_COMMIT"
+```
+
+This calls the same `deploy.ValidateManifest` contract used by the release
+builder and `g2-ledger init`, then requires the manifest commit to equal the
+supplied full 40-hex commit exactly. The shared contract requires the complete
+service/tool linkage inventory and every internal module's verdict to be
+`contains e70a35a41dec5948d5452f1f898f4d26977372d7`. Do not copy its schema into
+an installer or implement another validator.
+
+Success exits 0 with one line:
+`verified manifest commit=<commit> binaries=<count> strict=<strict-commit>`.
+Refusal exits 1 with no stdout and a fixed name on stderr:
+`VERIFY_MANIFEST_INPUT` (flags or commit syntax), `VERIFY_MANIFEST_READ`
+(unreadable file), `VERIFY_MANIFEST_INVALID` (shared manifest/linkage contract),
+`VERIFY_MANIFEST_COMMIT` (pin mismatch), or `VERIFY_MANIFEST_OUTPUT` (summary
+write failure). Diagnostics do not echo file paths or manifest contents.
+The command writes no files and invokes neither Git nor the network; ancestry
+was established during the release build. It validates the manifest, while
+release signature verification and checking artifact bytes against `SHA256SUMS`
+remain separate consumer steps.
+
+From `deploy/`, `go test -count=1 -run '^TestVerifyManifest' ./cmd/deploy-kit`
+runs fixture, parity and CLI controls. After a real double build, run
+`DK1_VERIFY_MANIFEST="$RELEASE_DIR/manifest.json" go test -count=1 -run
+'^TestVerifyManifestRealRelease$' -v ./cmd/deploy-kit` as one command to apply
+both parity directions to the generated manifest. The Deploy kit workflow
+runs these controls against its real double-build output.
+
 ## Public configuration validation
 
 `validate -config` checks a separate public deployment policy JSON, rather than

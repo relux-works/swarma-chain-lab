@@ -26,7 +26,7 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: deploy-kit build|validate|check-coins|check-model-terms|render-install-anchor|g2-install-sign|g2-render|g2-host-flow|g2-agent-groups|g2-custody-probe|g2-custody-verify|g2-funded-preflight|g2-custody-hash [flags]")
+		return errors.New("usage: deploy-kit build|verify-manifest|validate|check-coins|check-model-terms|render-install-anchor|g2-install-sign|g2-render|g2-host-flow|g2-agent-groups|g2-custody-probe|g2-custody-verify|g2-funded-preflight|g2-custody-hash [flags]")
 	}
 	if args[0] == "g2-keygen" || args[0] == "g2-rpcauth" || args[0] == "g2-ledger" {
 		// A closed stdout pipe must return EPIPE to the creator or ledger
@@ -63,6 +63,8 @@ func run(args []string) error {
 		return g2Keygen(args[1:], os.Stdout)
 	case "g2-rpcauth":
 		return g2RPCAuth(args[1:], os.Stdout)
+	case "verify-manifest":
+		return verifyManifest(args[1:], os.Stdout)
 	case "build":
 		repo := f.String("repo", "", "canonical clean repository root")
 		commit := f.String("commit", "", "exact HEAD commit SHA")
