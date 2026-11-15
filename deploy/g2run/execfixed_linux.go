@@ -142,6 +142,17 @@ func (x *Executor) openOutput(rel string) (*os.File, error) {
 		unix.Close(fd)
 		return nil, fmt.Errorf("EXEC_OUTPUT_NOT_PRIVATE_FILE %s", rel)
 	}
+	// RESOLVE_BENEATH confines the NAME, not the inode: a hard link beneath an output root can name a runner record
+	// (DONE, a step latch). The opened inode must therefore have exactly one link and must not be any runner record,
+	// both checked on the open descriptor before anything changes it (no Fchmod, no Ftruncate before this point).
+	if st.Nlink != 1 {
+		unix.Close(fd)
+		return nil, fmt.Errorf("EXEC_OUTPUT_LINKED %s (%d links)", rel, st.Nlink)
+	}
+	if isRunnerRecord(sfd, &st) {
+		unix.Close(fd)
+		return nil, fmt.Errorf("EXEC_OUTPUT_IS_RUNNER_RECORD %s", rel)
+	}
 	if e = unix.Fchmod(fd, 0o600); e == nil {
 		e = unix.Ftruncate(fd, 0)
 	}
@@ -153,6 +164,18 @@ func (x *Executor) openOutput(rel string) (*os.File, error) {
 		return nil, fmt.Errorf("EXEC_OUTPUT_OPEN %s: %v", rel, e)
 	}
 	return os.NewFile(uintptr(fd), filepath.Join(x.state, rel)), nil
+}
+
+// isRunnerRecord reports whether st is the inode of one of the runner's own files at the state root (sfd), or of the
+// in-flight step record. A record that does not exist cannot match.
+func isRunnerRecord(sfd int, st *unix.Stat_t) bool {
+	for _, name := range append(append([]string{}, runnerNames...), "INFLIGHT/step") {
+		var rs unix.Stat_t
+		if unix.Fstatat(sfd, name, &rs, unix.AT_SYMLINK_NOFOLLOW) == nil && rs.Dev == st.Dev && rs.Ino == st.Ino {
+			return true
+		}
+	}
+	return false
 }
 
 // capped keeps at most MaxCapture bytes and remembers that more were written.

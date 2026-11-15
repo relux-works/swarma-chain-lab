@@ -85,6 +85,7 @@ func testPlan() Plan[testParams] {
 			"true": {"/usr/bin/true", "test"}, "false": {"/usr/bin/false", "test"}, "printf": {"/usr/bin/printf", "test"},
 			"printenv": {"/usr/bin/printenv", "test"}, "cat": {"/usr/bin/cat", "test"}, "touch": {"/usr/bin/touch", "test"},
 			"echo": {"/usr/bin/echo", "test"}, "head": {"/usr/bin/head", "test"}, "ls": {"/usr/bin/ls", "test"},
+			"yes": {"/usr/bin/yes", "test"},
 		},
 		OutputRoots:  []string{"log"},
 		PackageFiles: []string{"params.json"},
@@ -506,6 +507,22 @@ func TestPlanValidateRefusals(t *testing.T) {
 			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q1", AfterLast: []string{"Q2"}}, RecoveryRule{Step: "Q2", AfterLast: []string{"Q1"}})
 			p.Steps["Q1"], p.Steps["Q2"] = marks("Q1"), marks("Q2")
 		},
+		// rev366 delta (recovery-graph-unchecked): reachability holds per purpose. R2 is a rehearsal-only step.
+		"recovery-station-after-rehearsal-step": func(p *Plan[testParams]) {
+			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q", Purpose: "station", AfterLast: []string{"R2"}})
+			p.Steps["Q"] = marks("Q")
+		},
+		"recovery-chain-crosses-purpose": func(p *Plan[testParams]) {
+			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q1", Purpose: "rehearsal", AfterLast: []string{"R2"}},
+				RecoveryRule{Step: "Q2", Purpose: "station", AfterLast: []string{"Q1"}})
+			p.Steps["Q1"], p.Steps["Q2"] = marks("Q1"), marks("Q2")
+		},
+		"recovery-dead-predecessor-edge": func(p *Plan[testParams]) {
+			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q", Purpose: "station", AfterStop: true, AfterLast: []string{"R2"}})
+			p.Steps["Q"] = marks("Q")
+		},
+		"output-root-is-runner-name": func(p *Plan[testParams]) { p.OutputRoots = []string{"pkg"} },
+		"output-root-under-latch":    func(p *Plan[testParams]) { p.OutputRoots = []string{"INFLIGHT/x"} },
 		"recovery-shadows-init": func(p *Plan[testParams]) {
 			p.Recovery = append(p.Recovery, RecoveryRule{Step: "INIT-station", AfterStop: true})
 			p.Steps["INIT-station"] = marks("I")
@@ -527,6 +544,42 @@ func TestPlanValidateRefusals(t *testing.T) {
 			var errb bytes.Buffer
 			if rc := Main(p, []string{"-state", "/nonexistent-g2run", "A1"}, &bytes.Buffer{}, &errb); rc != 2 {
 				t.Fatalf("Main rc=%d, want 2 (plan refused before any state)", rc)
+			}
+		})
+	}
+}
+
+// Claim: per-purpose reachability still ADMITS the recoveries that some purpose can run: an any-purpose recovery
+// after a rehearsal-only step, a rehearsal recovery after a step both sequences share, a chain inside one purpose,
+// and an output root beside the runner's names. Paired with the refusals above, so a validator that refuses every
+// purpose-bound recovery fails here.
+func TestPlanValidatePurposeReachabilityPositives(t *testing.T) {
+	cases := map[string]func(p *Plan[testParams]){
+		"any-purpose-after-rehearsal-step": func(p *Plan[testParams]) {
+			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q", AfterLast: []string{"R2"}})
+			p.Steps["Q"] = marks("Q")
+		},
+		"rehearsal-after-shared-step": func(p *Plan[testParams]) {
+			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q", Purpose: "rehearsal", AfterLast: []string{"A1"}})
+			p.Steps["Q"] = marks("Q")
+		},
+		"chain-inside-rehearsal": func(p *Plan[testParams]) {
+			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q1", Purpose: "rehearsal", AfterLast: []string{"R2"}},
+				RecoveryRule{Step: "Q2", Purpose: "rehearsal", AfterLast: []string{"Q1"}})
+			p.Steps["Q1"], p.Steps["Q2"] = marks("Q1"), marks("Q2")
+		},
+		"station-after-stop-only": func(p *Plan[testParams]) {
+			p.Recovery = append(p.Recovery, RecoveryRule{Step: "Q", Purpose: "station", AfterStop: true})
+			p.Steps["Q"] = marks("Q")
+		},
+		"output-root-beside-runner-names": func(p *Plan[testParams]) { p.OutputRoots = []string{"log", "pkg-out", "DONE.d"} },
+	}
+	for name, mut := range cases {
+		t.Run(name, func(t *testing.T) {
+			p := testPlan()
+			mut(&p)
+			if e := p.Validate(); e != nil {
+				t.Fatalf("refused: %v", e)
 			}
 		})
 	}

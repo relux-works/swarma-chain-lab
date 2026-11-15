@@ -18,10 +18,10 @@ No value is ever evaluated by a shell or by any other interpreter.
 - **A closed program set.** A plan may name only programs registered by a reviewed typed wrapper (`RegisterProgram`, called from init functions). A denylist of interpreters and of tools that run other programs (`sh`, `python3`, `env`, `find`, `sed`, `install`, `tar`, `rsync`, `ssh`, `systemd-run`, `chroot`, `nsenter`, `unshare`, `flock`, `git`, `make` and more) is only the backstop.
 - **Programs are pinned at construction.** The executor copies the table. Each link is resolved once: the link and every directory on both paths must be root-owned and closed to writes. The resolved file must be a root-owned regular file, neither setuid nor setgid and not group or other writable. Go cannot set no-new-privileges for one exec, so a set-id program is refused outright. The pinned file runs, with argv[0] kept as the table path so that a multicall binary picks the right tool.
 - **Commands fail closed.** A status outside the command's `WantRC` (default `{0}`) is an error, so an operation that ignores the result still stops. Values travel as `Operands`: each is a `ValidOperand` (never empty, never starting with `-`, no NUL, CR or LF) and follows `--`.
-- **Output stays where it is declared.** Output is a path relative to a declared output root, opened with openat2 beneath that root (no symlink, no magic link, no `..` or `//` spelling, never the state root where the runner's own files live). It is opened before the start, must be a regular file owned by the runner, and is set to 0600.
+- **Output stays where it is declared.** Output is a path relative to a declared output root, opened with openat2 beneath that root (no symlink, no magic link, no `..` or `//` spelling, never the state root where the runner's own files live). It is opened before the start, must be a regular file owned by the runner with exactly one link and must not be the inode of any runner record (a hard link beneath an output root is refused), and is set to 0600. No output root may be one of the runner's own names (DONE, STOPPED, CLOSED, PURPOSE, INFLIGHT, run.lock, pkg) or lie beneath one.
 - **Capture is bounded.** Captured output is capped at 1 MiB; more is an error, and an endless producer is stopped.
 - **No leaked descriptors.** Every descriptor the runner holds, the run.lock flock included, is close-on-exec; a test lists the child's descriptors.
-- **Enforced in tests.** A static test resolves import aliases and allows exec-related symbols only inside `(*Executor).Run`. Dot or blank imports of those packages, `unsafe`, cgo, `plugin` and `go:linkname` are refused. Planted controls prove the checker sees each alternate path the review executed.
+- **Enforced in tests.** A static test resolves import aliases and allows exec-related symbols only inside `(*Executor).Run`. Dot or blank imports of those packages, `unsafe`, cgo, `plugin` and `go:linkname` are refused. Imports form a CLOSED allow-list: a package outside it is refused even from the standard library, because some start processes indirectly (`net/http/cgi`, `go/build`). Planted controls prove the checker sees each alternate path the reviews executed.
 
 ## The on-disk discipline (`g2-run -state DIR STEP`)
 
@@ -32,7 +32,7 @@ No value is ever evaluated by a shell or by any other interpreter.
 | 3 | `DIR/run.lock`: exists, regular, opened read-only (never created), exclusive non-blocking flock | 66, 67 |
 | 4 | DONE starts with the plan's bootstrap line | 69 |
 | 5 | normal step: no STOPPED, CLOSED or INFLIGHT; follows exactly its predecessor in its purpose's sequence; admitted by the exclusive mkdir of INFLIGHT | 70-75 |
-| 5 | recovery step: eligible per its rule (after a STOP, or after a named last step); admitted by an append to CLOSED | 76, 77 |
+| 5 | recovery step: eligible per its rule (after a STOP, or after a named last step); admitted by an append to CLOSED. The plan is validated per purpose: every recovery is reachable in some purpose it may run in, and every named last step is live in such a purpose | 76, 77 |
 | 6 | the package: the pin, the tarball, its SHA256SUMS member, the required files, every listed digest (strict format, regular files) | 80-84 |
 | 7 | the typed parameters (`pkg/<ParamsFile>`) | 85 |
 | 8 | every op validates, then every op runs in order | 86, 1 |
