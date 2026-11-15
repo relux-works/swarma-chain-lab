@@ -8,9 +8,9 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.5
 	github.com/gorilla/websocket v1.5.3
 	github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke v0.3.1-0.20261115082735-f1936aa1117a
-	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261115082735-f1936aa1117a
+	github.com/relux-works/swarma-chain-lab/experiments/model-proxy v0.4.1-0.20261115115549-2da2e6fc2109
 	github.com/relux-works/swarma-chain-lab/experiments/rental v0.5.1-0.20261115082735-f1936aa1117a
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115082735-f1936aa1117a
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115113336-4a573e2d22ac
 	github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle v0.2.1-0.20261115082735-f1936aa1117a
 	github.com/relux-works/swarma-chain-lab/experiments/station-lifecycle/gatewaybind v0.1.1-0.20261115082735-f1936aa1117a
 	github.com/relux-works/swarma-chain-lab/experiments/station-payload v0.3.1-0.20261115082735-f1936aa1117a
