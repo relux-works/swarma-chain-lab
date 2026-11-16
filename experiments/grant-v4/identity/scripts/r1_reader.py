@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent v0.1.49 R1 draft calculations; no Go parsing/intermediates.
+"""Independent v0.1.51 R1 profile calculations; no Go parsing/intermediates.
 
 This reader reuses the existing Python O3/O4 primitives, independently of Go.
 Expectations are consulted after decisions. No node or signature is qualified.
@@ -17,7 +17,7 @@ spec = importlib.util.spec_from_file_location("name_reader", Path(__file__).with
 names = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(names)
 ROOT = Path(__file__).resolve().parents[1]
-HASHES = {"row-fit-vectors.json":"b92eb11c26432002daa51e8c463dbdfbaf27c5bc9b8b7c444ad51016c27f4ae8","groups-vectors.json":"ff0df0b7c859c27baa905be68237cc8453695d5f2bc6ec33d3b16d5445387f96","class-vectors.json":"749cb734fce306f8a5fd163414398c1fb4005216ebc810c350b25b11014278e8","holders-vectors.json":"2cbfe76a1dfe83f3ac09be8538ff159eb4ff609faf88444aa3f44c8d26f0fe12"}
+HASHES = {"row-fit-vectors.json":"b92eb11c26432002daa51e8c463dbdfbaf27c5bc9b8b7c444ad51016c27f4ae8","groups-vectors.json":"46ebd308bf71332c3026320d4978e44e96e14e57a1f88aab614c47934b566c5c","class-vectors.json":"46522ae03176f6891a83c6a834af24fb7c16dfd4825ac83a5163bfdcf872f994","holders-vectors.json":"d7bd9ecdcd826b13a743a85b1875b8fc976c587ae37aa89a847b37b9d4152ad8"}
 
 
 class Pairs(list):
@@ -71,7 +71,7 @@ def value_members(raw):
     return decoder, top, read
 
 
-def value_read(raw):
+def value_read(raw, profile="draft"):
     decoder, top, read = value_members(raw)
     swarma = obj(read["swarma"])
     if list(swarma) == ["agent"]:
@@ -86,7 +86,7 @@ def value_read(raw):
         holders = binding.get("holders", [])
         if type(holders) is not list or any(not isinstance(p, str) or names.pin_result(p) != "pin" for p in holders):
             raise ValueError("holder pin")
-        if any(a >= b for a, b in zip(holders, holders[1:])):
+        if profile == "draft" and any(a >= b for a, b in zip(holders, holders[1:])):
             raise ValueError("holder order")
         result = {"grant": binding["grant"], "holders": holders}
     else:
@@ -130,18 +130,18 @@ def limit_map(limits):
     return amounts
 
 
-def group_decision(parent):
+def group_decision(parent, profile="draft"):
     groups = parent["groups"]
-    if not 1 <= len(groups) <= 16 or any(not 1 <= len(g["ranges"]) <= 16 for g in groups):
+    if profile == "draft" and (not 1 <= len(groups) <= 16 or any(not 1 <= len(g["ranges"]) <= 16 for g in groups)):
         return {"outcome": "refused", "rule": "R8.4"}
     coins, sums, total = {}, {}, 0
     for group in groups:
         rows = 0
         for interval in group["ranges"]:
             first, count = interval["first"], interval["count"]
-            if count > 4096:
+            if profile == "draft" and count > 4096:
                 return {"outcome": "refused", "rule": "R8.4"}
-            if count < 1 or first < 0 or first + count > 2**32 or re.fullmatch("0014[0-9a-f]{40}", interval["script_hex"]) is None:
+            if count < 1 or first < 0 or first + count > 2**32 or (profile == "draft" and re.fullmatch("0014[0-9a-f]{40}", interval["script_hex"]) is None):
                 return {"outcome": "refused", "rule": "R8.2"}
             end = first + count
             txid = interval["txid"]
@@ -186,7 +186,14 @@ def template_decision(template):
     return {"outcome": "valid"}
 
 
-def landlord_decision(state, context, exact):
+def landlord_decision(state, context, exact, profile="draft"):
+    if profile == "in-force-051":
+        if "pinned_checkpoint" not in state:
+            return "CLASS_HISTORY_UNAVAILABLE"
+        context = dict(context, recent_block_height=state["pinned_checkpoint"])
+        if context["recent_block_height"] > context["tip_height"]:
+            return "CLASS_HISTORY_UNAVAILABLE"
+        exact = False
     status = state.get("current_status", 1)
     if status == 2:
         return "CLASS_LANDLORD_CHANGED"
@@ -213,17 +220,18 @@ def landlord_decision(state, context, exact):
                 return "CLASS_HISTORY_UNAVAILABLE"
             if output["height"] <= context["recent_block_height"]:
                 break
-    writer = history[0]["writer"]
-    if writer == "written by another":
-        return "CLASS_VALUE_UNAUTHORIZED"
-    if writer != "written by the owner":
-        return "CLASS_HISTORY_UNAVAILABLE"
+    if profile == "draft":
+        writer = history[0]["writer"]
+        if writer == "written by another":
+            return "CLASS_VALUE_UNAUTHORIZED"
+        if writer != "written by the owner":
+            return "CLASS_HISTORY_UNAVAILABLE"
     if state.get("pending_spend_of_current_output", False):
         return "CLASS_LANDLORD_PENDING"
     return None
 
 
-def admission_decision(row):
+def admission_decision(row, profile="draft"):
     constraint = row["row"]["recipient"]
     child = row["child"]["recipient"]
     exact = "name" in constraint
@@ -252,7 +260,7 @@ def admission_decision(row):
             return {"outcome": "identity: unsupported channel or missing channel key"}
         return {"outcome": "pass", "attestation": "required"}
     try:
-        agent = value_read(reading["value"])
+        agent = value_read(reading["value"], profile)
         landlord = agent["landlord"]
     except (ValueError, KeyError, TypeError):
         return {"outcome": "CLASS_LANDLORD"}
@@ -262,10 +270,10 @@ def admission_decision(row):
     state = row["node"]["landlords"].get(landlord)
     if state is None:
         return {"outcome": "CLASS_HISTORY_UNAVAILABLE"}
-    if error := landlord_decision(state, row["context"], exact):
+    if error := landlord_decision(state, row["context"], exact, profile):
         return {"outcome": error}
     try:
-        holders = value_read(state["current_value"])["holders"]
+        holders = value_read(state["current_value"], profile)["holders"]
     except (ValueError, KeyError, TypeError):
         return {"outcome": "CLASS_HOLDER"}
     if child["owner_public_key"] not in holders:
@@ -276,7 +284,7 @@ def admission_decision(row):
         return {"outcome": "CLASS_HISTORY_UNAVAILABLE" if "unsupported" in writers else "CLASS_WRITER"}
     if agent["channel"] is None:
         return {"outcome": "identity: unsupported channel or missing channel key"}
-    return {"outcome": "pass", "attestation": "not read" if row["row"]["certifier"] is None else "required"}
+    return {"outcome": "pass", "attestation": ("not read" if profile == "draft" else "not required") if row["row"]["certifier"] is None else "required"}
 
 
 def revision_decisions(files):
@@ -336,6 +344,96 @@ def revision_decisions(files):
     return decisions
 
 
+
+PROFILE_ERROR = "R1_PROFILE_UNAVAILABLE"
+DRAFT_ERROR = "R1_DRAFT_RULE_UNAVAILABLE"
+
+
+def rule_availability(profile, rule, catalog):
+    if profile not in ("draft", "in-force-051"):
+        return PROFILE_ERROR
+    if rule not in catalog or (profile == "in-force-051" and catalog[rule] == "DRAFT"):
+        return DRAFT_ERROR
+    return "available"
+
+
+def fit_decision(child, template, rows):
+    if not 1 <= child["ordinal"] <= rows:
+        code = "CHILD_ORDINAL"
+    elif child["executor"] != template["executor"]:
+        code = "CHILD_AGENT_NOT_ALLOWED"
+    elif "name" not in child["recipient"]:
+        code = "CHILD_GRANTEE_NOT_ALLOWED"
+    else:
+        caps, amounts = limit_map(template["limits"]), limit_map(child["limits"])
+        code = "CHILD_BUDGET_OVER" if any(key not in caps or value > caps[key] for key, value in amounts.items()) else "pass"
+    return {"outcome": code}
+
+
+def profile_vectors(files, profile):
+    """Apply a named profile to original fixture octets, never Go results."""
+    result = {}
+    closed = profile not in ("draft", "in-force-051")
+    groups = files["groups-vectors.json"]
+    parents = {row["id"]: row["parent"] for row in groups["parents"]}
+    for row in groups["parents"]:
+        result[row["id"]] = PROFILE_ERROR if closed else group_decision(row["parent"], profile)
+    for row in groups["ordinals"]:
+        result[row["id"]] = PROFILE_ERROR if closed else (DRAFT_ERROR if profile == "in-force-051" else ordinal_decision(parents[row["parent_of"]], row["ordinal"]))
+    for row in files["class-vectors.json"]["templates"]:
+        result[row["id"]] = PROFILE_ERROR if closed else template_decision(row["template"])
+    for original in files["class-vectors.json"]["admissions"]:
+        row = copy.deepcopy(original)
+        # Adapter convention: fixture checkpoint explicitly states 500, also
+        # equal to its recent block. Separate controls break that equality.
+        for state in row["node"]["landlords"].values():
+            state["pinned_checkpoint"] = 500
+        result[row["id"]] = PROFILE_ERROR if closed else admission_decision(row, profile)
+    for row in files["holders-vectors.json"]["values"]:
+        if closed:
+            actual = PROFILE_ERROR
+        else:
+            try:
+                value = value_read(row["value"], profile)
+                actual = {"outcome": "valid", "grant": value["grant"], "holders": value["holders"]}
+            except (ValueError, KeyError, TypeError):
+                actual = {"outcome": "refused"}
+        result[row["id"]] = actual
+    for row in files["holders-vectors.json"]["capacity"]:
+        size = len(row["value_without_holders"].encode())
+        most = (520-size-12)//69
+        result[row["id"]] = PROFILE_ERROR if closed else {"without":size,"most":most,"with":size+12+69*most,"more":size+12+69*(most+1)}
+    fit = files["row-fit-vectors.json"]
+    for row in fit["vectors"]:
+        result[row["id"]] = PROFILE_ERROR if closed else fit_decision(row["child"],fit["row"],fit["row_count"])
+    return result
+
+
+def profile_calculate(files):
+    config = json.loads((ROOT / "testdata" / "profile-vectors.json").read_text())
+    if config["spec_tag"] != "v0.1.51" or config["spec_commit"] != "bd3bc80e5543d8a563343ec05abd1a5f3f67284c":
+        raise ValueError("R1 profile specification pin differs")
+    catalog = {row["rule"]: row["status"] for row in config["rules"]}
+    if len(catalog) != 20 or len(config["profiles"]) != 5:
+        raise ValueError("R1 profile inventory differs")
+    output = {}
+    base = profile_vectors(files, "draft")
+    for profile in config["profiles"]:
+        actual = profile_vectors(files, profile["name"])
+        for identifier, value in actual.items():
+            expected = base[identifier]
+            if profile["name"] == "in-force-051":
+                expected = config["in_force_overrides"].get(identifier, expected)
+            elif profile["name"] != "draft":
+                expected = PROFILE_ERROR
+            if value != expected:
+                raise ValueError(f"profile {profile['name']} {identifier}: {value!r} != {expected!r}")
+            output[f"profile/{profile['name']}/{identifier}"] = value
+        for rule in config["rules"]:
+            output[f"profile/{profile['name']}/rule/{rule['rule']}"] = rule_availability(profile["name"], rule["rule"], catalog)
+    return output
+
+
 def calculate(files):
     groups, classes, values = [files[name] for name in ("groups-vectors.json", "class-vectors.json", "holders-vectors.json")]
     decisions = {}
@@ -391,6 +489,7 @@ def calculate(files):
     if len(decisions) != 151:
         raise ValueError("R1 inventory differs")
     decisions.update(revision_decisions(files))
+    decisions.update(profile_calculate(files))
     return decisions
 
 
@@ -408,7 +507,7 @@ def go_results(stream):
             if item["id"] in decisions:
                 raise ValueError("duplicate Go R1 result")
             decisions[item["id"]] = item["result"]
-    if not {"TestR1Groups", "TestR1Class", "TestR1Holders", "TestR1RowFitVectors"} <= passed or not package:
+    if not {"TestR1Groups", "TestR1Class", "TestR1Holders", "TestR1RowFitVectors", "TestR1Profiles"} <= passed or not package:
         raise ValueError("R1 Go package or required tests missing")
     return decisions
 

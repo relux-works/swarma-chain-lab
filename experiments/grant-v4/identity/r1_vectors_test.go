@@ -201,7 +201,7 @@ func r1Fixture(t *testing.T, file string, out any) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hashes := map[string]string{"row-fit-vectors.json": "b92eb11c26432002daa51e8c463dbdfbaf27c5bc9b8b7c444ad51016c27f4ae8", "groups-vectors.json": "ff0df0b7c859c27baa905be68237cc8453695d5f2bc6ec33d3b16d5445387f96", "class-vectors.json": "749cb734fce306f8a5fd163414398c1fb4005216ebc810c350b25b11014278e8", "holders-vectors.json": "2cbfe76a1dfe83f3ac09be8538ff159eb4ff609faf88444aa3f44c8d26f0fe12"}
+	hashes := map[string]string{"row-fit-vectors.json": "b92eb11c26432002daa51e8c463dbdfbaf27c5bc9b8b7c444ad51016c27f4ae8", "groups-vectors.json": "46ebd308bf71332c3026320d4978e44e96e14e57a1f88aab614c47934b566c5c", "class-vectors.json": "46522ae03176f6891a83c6a834af24fb7c16dfd4825ac83a5163bfdcf872f994", "holders-vectors.json": "d7bd9ecdcd826b13a743a85b1875b8fc976c587ae37aa89a847b37b9d4152ad8"}
 	sum := fmt.Sprintf("%x", sha256.Sum256(raw))
 	if sum != hashes[file] {
 		t.Fatalf("pinned R1 fixture differs: %s", file)

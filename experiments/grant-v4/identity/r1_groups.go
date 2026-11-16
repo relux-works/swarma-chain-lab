@@ -90,14 +90,15 @@ func limitMap(limits []RowLimit) (map[RowLimitKey]*big.Int, bool) {
 	return out, true
 }
 
-// CheckRowGroups checks R8.2-R8.6 and limit-key uniqueness. It deliberately
+// CheckRowGroups checks the decided range/pool/disjointness predicates.
+// R1DraftLab additionally enforces R8.4 and witness-key-hash scripts. It deliberately
 // does not check templates or a parent size: use CheckR1Parent for templates;
 // size awaits parent octets. It never expands every coin or reads a node.
 func CheckRowGroups(profile R1Profile, p RowGroups) (uint64, error) {
-	if profile != R1DraftLab {
+	if profile != R1DraftLab && profile != R1InForce051 {
 		return 0, ErrR1Profile
 	}
-	if len(p.Groups) < 1 || len(p.Groups) > 16 {
+	if len(p.Groups) < 1 && profile == R1DraftLab || profile == R1DraftLab && len(p.Groups) > 16 {
 		return 0, R1RuleError("R8.4")
 	}
 	if !rowTxID(p.Seal.TxID) {
@@ -111,7 +112,7 @@ func CheckRowGroups(profile R1Profile, p RowGroups) (uint64, error) {
 	var ranges []RowRange
 	var total uint64
 	for _, g := range p.Groups {
-		if len(g.Ranges) < 1 || len(g.Ranges) > 16 {
+		if profile == R1DraftLab && (len(g.Ranges) < 1 || len(g.Ranges) > 16) {
 			return 0, R1RuleError("R8.4")
 		}
 		limits, ok := limitMap(g.Template.Limits)
@@ -120,10 +121,10 @@ func CheckRowGroups(profile R1Profile, p RowGroups) (uint64, error) {
 		}
 		var rows uint64
 		for _, r := range g.Ranges {
-			if r.Count > 4096 {
+			if profile == R1DraftLab && r.Count > 4096 {
 				return 0, R1RuleError("R8.4")
 			}
-			if !rowTxID(r.TxID) || r.Count == 0 || r.First > 4294967295 || r.Count-1 > 4294967295-r.First || len(r.Script) != 22 || !bytes.Equal(r.Script[:2], []byte{0, 20}) {
+			if !rowTxID(r.TxID) || r.Count == 0 || r.First > 4294967295 || r.Count-1 > 4294967295-r.First || (profile == R1DraftLab && (len(r.Script) != 22 || !bytes.Equal(r.Script[:2], []byte{0, 20}))) {
 				return 0, R1RuleError("R8.2")
 			}
 			end := r.First + r.Count - 1
@@ -136,7 +137,13 @@ func CheckRowGroups(profile R1Profile, p RowGroups) (uint64, error) {
 				}
 			}
 			ranges = append(ranges, r)
+			if ^uint64(0)-rows < r.Count {
+				return 0, ErrR1FactRange
+			}
 			rows += r.Count
+		}
+		if ^uint64(0)-total < rows {
+			return 0, ErrR1FactRange
 		}
 		total += rows
 		for key, amount := range limits {
@@ -160,6 +167,9 @@ func CheckRowGroups(profile R1Profile, p RowGroups) (uint64, error) {
 // SelectRow checks the one-based ordinal before reading a selected template.
 // The returned script is a copy. Invalid parents return no selected row.
 func SelectRow(profile R1Profile, p RowGroups, ordinal uint64) (SelectedRow, error) {
+	if err := RequireR1Rule(profile, R1OrdinalOrder); err != nil {
+		return SelectedRow{}, err
+	}
 	total, err := CheckRowGroups(profile, p)
 	if err != nil {
 		return SelectedRow{}, err

@@ -2,7 +2,7 @@
  "schema": "swarma-link-spec/lip-0010-holders-vectors/1",
  "lip": "LIP-0010",
  "section": "10",
- "note": "Draft vectors for LIP-0010 section 10, the holders of a landlord (J11; the co-author's agreement is pending). A value is the exact text of a name value. Keys are multiples of the generator of secp256k1 and belong to nobody. A refused vector holds one defect, states the rule that refuses and names a valid neighbour that differs from it in that defect. The file holds no grant and no name of a chain, and it binds nothing until both owners accept the rules that it follows.",
+ "note": "Draft vectors for LIP-0010 section 10, the holders of a landlord (J11, in force since version 0.1.51; the co-author's answer is folded in by amendment). A value is the exact text of a name value. Keys are multiples of the generator of secp256k1 and belong to nobody. A refused vector holds one defect, states the rule that refuses and names a valid neighbour that differs from it in that defect. The file holds no grant and no name of a chain, and it binds nothing until both owners accept the rules that it follows.",
  "rules": [
   {
    "rule": "10.1",

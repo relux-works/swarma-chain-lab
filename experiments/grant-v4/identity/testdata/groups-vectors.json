@@ -2,7 +2,7 @@
  "schema": "swarma-link-spec/lip-0026-groups-vectors/1",
  "lip": "LIP-0026",
  "section": "8",
- "note": "Draft vectors for LIP-0026 section 8, groups of rows (J12; the co-author's agreement is pending). No vector holds a grant or a transaction: groups, ranges, limits and pools are stated facts, and transaction ids and scripts are placeholders. The largest size of a parent has no vector, because a parent has no octets yet. A refused parent holds one defect, states the rule that it breaks and names a valid neighbour that differs from it in that defect; its refusal has no code. An ordinal vector names the valid parent whose rows it counts.",
+ "note": "Draft vectors for LIP-0026 section 8, groups of rows (J12, in force since version 0.1.51; the co-author's answer is folded in by amendment). No vector holds a grant or a transaction: groups, ranges, limits and pools are stated facts, and transaction ids and scripts are placeholders. The largest size of a parent has no vector, because a parent has no octets yet. A refused parent holds one defect, states the rule that it breaks and names a valid neighbour that differs from it in that defect; its refusal has no code. An ordinal vector names the valid parent whose rows it counts.",
  "fields": {
   "parents": "parent.seal is the seal of the parent. A group states the limits of its template and its ranges; the executor, the recipient and the certifier of a template are not stated here (the class vectors hold them). A range states txid, first, count and script_hex. pools states one amount for a limit key; a key is kind, resource and unit.",
   "ordinals": "parent_of names a vector of the group parents. expect is CHILD_ORDINAL, or the group and the range, counted from 1, and the coin of the row."

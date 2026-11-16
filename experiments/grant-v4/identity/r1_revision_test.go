@@ -194,9 +194,13 @@ func TestR1LandlordStatusEnums(t *testing.T) {
 	}
 }
 
-// All exported R1 entry points require precisely the draft enum, including omitted/null/zero JSON configuration.
+// All 256 profile values retain closed defaults. The explicit 051 enum enables
+// only decided predicates; composed draft operations remain unavailable.
 func TestRev375EveryProfile(t *testing.T) {
 	parent, child, observation := r1FullParent(t)
+	for i := range observation.Landlords {
+		observation.Landlords[i].Checkpoint = At(500)
+	}
 	template := parent.Rows.Groups[0].Template
 	parsed, ok := ParseNameScript(observation.Recipient.Script)
 	if !ok {
@@ -204,7 +208,7 @@ func TestRev375EveryProfile(t *testing.T) {
 	}
 	check := func(t *testing.T, profile R1Profile) {
 		expected := error(ErrR1Profile)
-		if profile == R1DraftLab {
+		if profile == R1DraftLab || profile == R1InForce051 {
 			expected = nil
 		}
 		if _, err := ReadR1Value(profile, parsed.Value); err != expected {
@@ -213,19 +217,23 @@ func TestRev375EveryProfile(t *testing.T) {
 		if _, err := CheckRowGroups(profile, parent.Rows); err != expected {
 			t.Fatalf("groups profile=%d: %v", profile, err)
 		}
-		if _, err := SelectRow(profile, parent.Rows, child.Ordinal); err != expected {
+		draftExpected := expected
+		if profile == R1InForce051 {
+			draftExpected = ErrR1DraftRule
+		}
+		if _, err := SelectRow(profile, parent.Rows, child.Ordinal); err != draftExpected {
 			t.Fatalf("select profile=%d: %v", profile, err)
 		}
 		if err := CheckRowTemplate(profile, parent.Issuer, parent.Notaries, template); err != expected {
 			t.Fatalf("template profile=%d: %v", profile, err)
 		}
-		if err := CheckR1Parent(profile, parent); err != expected {
+		if err := CheckR1Parent(profile, parent); err != draftExpected {
 			t.Fatalf("parent profile=%d: %v", profile, err)
 		}
 		if _, err := CheckRowRecipient(profile, parent.Issuer, template, child.Recipient, observation); err != expected {
 			t.Fatalf("recipient profile=%d: %v", profile, err)
 		}
-		if _, err := CheckR1Child(profile, parent, child, observation); err != expected {
+		if _, err := CheckR1Child(profile, parent, child, observation); err != draftExpected {
 			t.Fatalf("child profile=%d: %v", profile, err)
 		}
 	}

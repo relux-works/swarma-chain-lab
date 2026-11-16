@@ -1,0 +1,205 @@
+{
+  "spec_tag": "v0.1.51",
+  "spec_commit": "bd3bc80e5543d8a563343ec05abd1a5f3f67284c",
+  "profiles": [
+    {
+      "name": "zero",
+      "value": 0
+    },
+    {
+      "name": "legacy-in-force",
+      "value": 1
+    },
+    {
+      "name": "draft",
+      "value": 2
+    },
+    {
+      "name": "in-force-051",
+      "value": 3
+    },
+    {
+      "name": "unknown",
+      "value": 99
+    }
+  ],
+  "rules": [
+    {
+      "rule": "groups",
+      "status": "IN FORCE"
+    },
+    {
+      "rule": "ranges",
+      "status": "IN FORCE"
+    },
+    {
+      "rule": "pools",
+      "status": "IN FORCE"
+    },
+    {
+      "rule": "distinct-coins",
+      "status": "IN FORCE"
+    },
+    {
+      "rule": "templates",
+      "status": "IN FORCE"
+    },
+    {
+      "rule": "row-fit",
+      "status": "IN FORCE"
+    },
+    {
+      "rule": "class",
+      "status": "IN FORCE"
+    },
+    {
+      "rule": "holders",
+      "status": "IN FORCE"
+    },
+    {
+      "rule": "capacity",
+      "status": "IN FORCE"
+    },
+    {
+      "rule": "no-certifier",
+      "status": "IN FORCE"
+    },
+    {
+      "rule": "group-bounds",
+      "status": "DRAFT"
+    },
+    {
+      "rule": "range-witness",
+      "status": "DRAFT"
+    },
+    {
+      "rule": "ordinal-order",
+      "status": "DRAFT"
+    },
+    {
+      "rule": "parent-atomic",
+      "status": "DRAFT"
+    },
+    {
+      "rule": "holder-order",
+      "status": "DRAFT"
+    },
+    {
+      "rule": "recent-checkpoint",
+      "status": "DRAFT"
+    },
+    {
+      "rule": "landlord-writer",
+      "status": "DRAFT"
+    },
+    {
+      "rule": "class-codes-order",
+      "status": "DRAFT"
+    },
+    {
+      "rule": "exact-shortcut",
+      "status": "DRAFT"
+    },
+    {
+      "rule": "ignore-attestation",
+      "status": "DRAFT"
+    }
+  ],
+  "in_force_overrides": {
+    "group-11": {
+      "outcome": "valid",
+      "rows": 0
+    },
+    "group-12": {
+      "outcome": "valid",
+      "rows": 513
+    },
+    "group-13": {
+      "outcome": "valid",
+      "rows": 0
+    },
+    "group-14": {
+      "outcome": "valid",
+      "rows": 17
+    },
+    "group-16": {
+      "outcome": "valid",
+      "rows": 4099
+    },
+    "group-18": {
+      "outcome": "valid",
+      "rows": 1
+    },
+    "ordinal-01": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-02": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-03": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-04": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-05": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-06": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-07": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-08": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-09": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-10": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-11": "R1_DRAFT_RULE_UNAVAILABLE",
+    "ordinal-12": "R1_DRAFT_RULE_UNAVAILABLE",
+    "class-16": {
+      "outcome": "pass",
+      "attestation": "required"
+    },
+    "class-24": {
+      "outcome": "pass",
+      "attestation": "required"
+    },
+    "class-33": {
+      "outcome": "CLASS_LANDLORD_PENDING"
+    },
+    "certifier-01": {
+      "outcome": "pass",
+      "attestation": "not required"
+    },
+    "certifier-02": {
+      "outcome": "pass",
+      "attestation": "not required"
+    },
+    "certifier-03": {
+      "outcome": "pass",
+      "attestation": "not required"
+    },
+    "certifier-09": {
+      "outcome": "pass",
+      "attestation": "not required"
+    },
+    "certifier-10": {
+      "outcome": "pass",
+      "attestation": "not required"
+    },
+    "certifier-11": {
+      "outcome": "pass",
+      "attestation": "not required"
+    },
+    "value-23": {
+      "outcome": "valid",
+      "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+      "holders": [
+        "022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01",
+        "022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01"
+      ]
+    },
+    "value-24": {
+      "outcome": "valid",
+      "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+      "holders": [
+        "022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
+        "022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01"
+      ]
+    }
+  },
+  "override_basis": {
+    "group-11/12/13/14/16": "LIP-0026 \u00a78 L520,529,578-579: no decided count bounds",
+    "group-18": "LIP-0026 \u00a78 L520-522: witness script added by draft",
+    "ordinal-*": "LIP-0026 \u00a78 L520-522: traversal order added by draft",
+    "class-16/33;certifier-10/11": "LIP-0026 \u00a79 L623-627: landlord writer added by draft",
+    "class-24;value-23/24": "LIP-0010 \u00a710 L415-418,431-435: holder order/uniqueness proposed",
+    "certifier-01/02/03/09/10/11": "LIP-0026 \u00a710 L769-772: not-required decided, no-read proposed"
+  }
+}

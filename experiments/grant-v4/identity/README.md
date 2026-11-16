@@ -1,32 +1,47 @@
 # Grant v4 identity checks and history
 
 Experimental functions for [LIP-0021 draft sections 2–7](https://github.com/relux-works/swarma-link-spec/blob/45054797ee9ad3e38213e067051dfbd3eb2a21a1/lips/LIP-0021-name-ownership-and-history.md).
-All profile rules remain **Draft**, with co-author agreement pending. This
+The older identity profile remains **Draft**. J9–J12 have the separate
+explicit in-force profile described below. This
 module decides only on stated octets, heights and history facts. It grants no authority,
 reads no node and verifies no transaction signature.
 
 ## R1 decision map and compatibility
 
 The R1 experiment is pinned to public specification tag
-[`v0.1.49`](https://github.com/relux-works/swarma-link-spec/tree/v0.1.49),
-commit `1c3bcafc8bfc1450c3c0cefb69a122f6a97a448e`. The tag signature was
-verified. J9 is in force, but J10/J11/J12 and the profile details remain
-pending at this pin. No production or whole-grant admission is provided.
+[`v0.1.51`](https://github.com/relux-works/swarma-link-spec/tree/v0.1.51),
+commit `bd3bc80e5543d8a563343ec05abd1a5f3f67284c` (verified signed tag).
+J9 is agreed by both owners. J10, J11 and J12 are in force on the owner's
+2026-11-16 decision. The sections also contain explicitly undecided additions.
+The [complete decided/draft rule and vector-family map](R1-DECISIONS-051.md)
+cites the exact sections and lines and records conservative open questions.
 
-| Decision | Pinned section | Implementation | Version boundary |
-| --- | --- | --- | --- |
-| J12 rows in groups | LIP-0026 §8 R8.1–R8.8; §2 R2; LIP-0014 §9.1 | `CheckRowGroups`, `SelectRow`, `CheckR1Parent`, `CheckR1Child` | V4 stated facts only; no v3 groups or row wire schema |
-| J10 landlord class, checks (a)–(d) | LIP-0026 §9 R9.1–R9.10; LIP-0021 §§2–7; LIP-0008 §3.1 | `CheckRowTemplate`, `CheckRowRecipient`; existing script/writer/walk primitives | Explicit `R1DraftLab` profile only |
-| J11 holders | LIP-0010 §§2–5,10; LIP-0026 R9.6–R9.7 | `ReadR1Value`; current holder plus holder-written current value | V4 draft reader; v3 name parsers remain unchanged |
-| J9 same-owner row without a certifier | LIP-0014 §8.3 J9.1–J9.4; LIP-0026 §10 | Exact issuer name/registration/owner singleton or exact recipient name, class checks, no stop coin | No attestation is read; a certified row still requires the later certifier pipeline |
+| Rules | Status | `R1InForce051` behavior |
+| --- | --- | --- |
+| J12 group/range facts, weighted exact pools, distinct coins | IN FORCE | Checks decided predicates; scripts are opaque; no proposed count bounds |
+| J10 class modes, ordered (a) pointer, (b) pinned history/pending, (c) holder, (d) recipient writer | IN FORCE | Requires an explicit per-landlord checkpoint; computes channel from the checked value |
+| J11 holder shape, compressed pins, absent/empty list; 520-byte envelope | IN FORCE | Reads lists without enforcing draft order or uniqueness |
+| J9 issuer-only no-certifier rows, certifier policy and no stop coin | IN FORCE | Returns whether attestation is required; exact names run full decided class checks |
+| R2 ordinal/executor/recipient/typed ceiling checks | IN FORCE dependency | `CheckR1Fit` checks independently established selected facts |
+| Bounds, range witness script, ordinal traversal, holder order | DRAFT | Rule availability returns `R1_DRAFT_RULE_UNAVAILABLE` |
+| Recent-block checkpoint derivation, landlord-value writer, proposed class code/inner order | DRAFT | No derivation or writer enforcement; existing strings are local diagnostics |
+| R10.3 shortcut; R10.4 no-read guarantee | DRAFT | No shortcut; API has no attestation input and asserts only not-required |
+| Whole-parent atomic refusal | DRAFT, conservative open question | `CheckR1Parent`/`CheckR1Child` unavailable in this profile |
 
-`R1InForce`, zero and unknown profiles refuse these experimental entry points.
-This resolves a specification boundary conservatively: the pin says that no
-uncertified child is admitted until J10 and J11 are decided. Only the explicitly
-selected draft lab evaluates those proposed checks. Nothing enables them in
-`grantcheck`, changes an earlier signature domain or adds an earlier API member.
-The row predicates live beside their identity dependencies in this module;
-there is no new internal module requirement or selected snapshot.
+`R1DraftLab` retains all decided and draft checks. `R1InForce051` selects
+exactly the decided subset at `R1SpecTag`/`R1SpecCommit`. Zero/default,
+unknown profiles and the legacy refusal-only `R1InForce` remain closed with
+`R1_PROFILE_UNAVAILABLE`. No behavior becomes the default. `RequireR1Rule`
+reports availability, not success of facts; unknown rules refuse.
+
+`SelectRow` is unavailable under `R1InForce051`: the detailed traversal order
+is explicitly draft. `CheckR1Fit` takes a separately established selected
+template and row count, and cannot prove their signed binding. The composed
+parent/child methods remain draft-only pending the atomic-refusal question.
+The in-force functions establish individual predicates and never whole-grant
+admission. Node/coin/anchor reads, signatures, parent admission, channel
+request authentication and required attestations remain external duties.
+Nothing enables these rules in `grantcheck` or changes its bytes or modules.
 
 The row types are Go stated facts. `CheckRowGroups` checks group/range counts,
 32-bit output bounds, overlap/seal exclusion and exact, unbounded integer pool
@@ -48,7 +63,7 @@ Signer adoption policy cannot be inferred by this verifier.
 
 The channel key is parsed from the same recipient output value whose owner and
 writer were checked. A certified exact-name row makes no class read and needs
-no `swarma` binding; its owned name still supplies the channel key. For an exact
+no `swarma` binding; its owned name still supplies the channel key. In `R1DraftLab`, for an exact
 name without a certifier, R10.3 requires independently established parent
 admission and checks the issuer's current writer and pending spend. The parent
 issuer pipeline must establish unchanged issuer `swarma`, including `holders`.
@@ -72,6 +87,15 @@ remain mandatory outside this slice. The module performs none of those effects.
 
 ### R1 vectors, independent reader and limits
 
+`testdata/profile-vectors.json` pins the decision profile, lists all profile and
+rule-family rows, and records only the deliberate changes to the original
+vector verdicts with normative reasons. The three upstream fixtures are copied byte-for-byte from v0.1.51.
+Only their top-level notes changed since v0.1.49; all vector data and verdicts
+are unchanged. The fixture adapter
+explicitly supplies checkpoint 500 for each class pin. Separate Go/Python
+controls change Recent, remove the checkpoint and place it after the tip.
+This convention establishes no production checkpoint derivation.
+
 Three unmodified files are copied from the verified specification commit:
 `groups-vectors.json` (38), `class-vectors.json` (65), and
 `holders-vectors.json` (28 values plus 5 capacity rows). Their SHA-256 identities
@@ -79,8 +103,9 @@ are enforced in the Go vector harness and independent Python reader. Their
 [licence and upstream attribution](testdata/R1-NOTICE.md) are retained separately.
 `row-fit-vectors.json` adds 15 local R2 controls: fit, both ordinal bounds,
 executor name/key, recipient mode, typed limits and compound refusal order.
-The independent reader agrees with the actual Go results for all **440** R1
-cases: **151** vectors (38 groups/ordinals, 65 class, 28 holder values,
+The independent reader additionally compares **855** profile cases (five
+profiles × 151 vectors and 20 rule families), for **1,295** total R1 results.
+Its earlier **440** R1 cases remain: **151** vectors (38 groups/ordinals, 65 class, 28 holder values,
 5 capacity and 15 row-fit), **276** earlier revision controls and **13**
 additional absence/leading-whitespace controls. It reuses the independent Python O3/O4 primitives, never Go parsing or
 Go-derived intermediate results. Both implementations are by one producer;
@@ -95,7 +120,7 @@ from its raw octets. Placeholders do not establish signature/chain validity.
 
 `TestR1Groups`, `TestR1Holders`, `TestR1Class` and
 `TestR1RowFitVectors` emit all results with no skips. Additional tests cover
-in-force/unknown profile rejection, duplicate/aliased read members, exact-name
+zero/legacy/unknown profile rejection and the v0.1.51 profile matrix, duplicate/aliased read members, exact-name
 and key modes, R2 compound order, whole-parent refusal, absent observations,
 changed channel keys, input preservation and returned-byte ownership.
 `test_r1_reader.py` checks known wrong expectations, both Go disagreement
@@ -333,16 +358,16 @@ positive neighbour inside the same named subtest. Every positive executes the
 negative vectors declaring it, plus an explicit negative neighbour if provided.
 Neighbours must exist and have opposite outcomes; their exact expected results
 are asserted without emitting duplicate reader records. Unlinked admission,
-ordinal and row-fit negatives execute an explicit valid setup. The upstream
-fixture bytes and hashes are unchanged.
+ordinal and row-fit negatives execute an explicit valid setup. The upstream vector facts and expectations are unchanged; hashes now bind
+the released v0.1.51 copies, including their amended top-level notes.
 
 The retained review probes include paired suffix refusals through both name
 paths, all 256 recipient statuses, landlord absence/unknown/undefined controls,
-all 256 draft profile values, maximum topology and named-neighbour execution.
+all 256 profile values, maximum topology and named-neighbour execution.
 The R1 reader compares all 151 pinned/local vectors plus 276 earlier revision
 cases (5 suffix, 10 child suffix, 5 landlord status and 256 recipient status)
-and 13 new cases (4 prefix, 8 child prefix and 1 cross-path absence) with Go
-(440 total). Additional caller-status tests cover all byte values and the
+and 13 new cases (4 prefix, 8 child prefix and 1 cross-path absence), plus
+855 cross-profile cases with Go (1,295 total). Additional caller-status tests cover all byte values and the
 negative/out-of-byte values of int-backed `Reading` and `Writer`.
 
 Eight additional narrowing plants restore leading/trailing whitespace acceptance,
@@ -358,8 +383,12 @@ below; evidence includes each named failing test and command exit.
 | Map recipient absence to UNAVAILABLE | Both ownership paths retain O7.2 row 1's NOT_HELD meaning | `TestR1RecipientAbsenceAgreesWithOwner` |
 | Accept leading JSON whitespace | The value starts at byte zero with `{` | `TestR1TopLevelPrefix/prefix_20` |
 
-The complete runner now requires **40/40** killed mutants (39 Go overlays and
-one isolated Python digest plant), including all 38 earlier plants.
+The complete runner now requires **42/42** killed mutants (41 Go overlays and
+one isolated Python digest plant), including all 40 earlier plants.
+The two v0.1.51 plants enable the draft landlord writer in the in-force
+profile (`TestR1Profiles/in-force-051/class-16`) and disable its decided holder
+check (`TestR1Profiles/in-force-051/class-37`). Both must fail their named
+assertions.
 
 ## Tools and commands
 

@@ -1,7 +1,8 @@
 # Open boundaries
 
 - LIP-0021 and LIP-0022 remain Draft; owners' acceptance and co-author agreement
-  remain pending. All functions implement proposals on stated facts only.
+  remain pending. The older ownership predicates implement proposals on stated facts only.
+  The decided R1 subset is separately gated by the v0.1.51 profile.
 - Node reads and observation consistency await a run on the pinned build;
   transaction validity and the provenance of stated inputs are caller duties.
 - Grant/notary/pointer pin members, action profiles, evidence classes and
@@ -18,11 +19,15 @@
 - Measurement-dependent observation numbers remain parameters in their future
   module, without production defaults in this identity module.
 
-## R1 at specification v0.1.49
+## R1 at specification v0.1.51
 
-- J9 is in force; J10/J11/J12 and R8/R9/R10 profile proposals remain pending.
-  The stricter interpretation enables them only in `R1DraftLab`; zero,
-  unknown and `R1InForce` profiles refuse. No production admission is claimed.
+- J9–J12 are in force. Additions explicitly marked as the draft's remain
+  unavailable in `R1InForce051`; `R1DraftLab` retains all prior behavior.
+  Zero, unknown and the legacy `R1InForce` placeholder remain closed.
+- OPEN QUESTIONS Q1–Q4 and exact normative line references are recorded in
+  [the decided/draft map](R1-DECISIONS-051.md#open-questions). They concern
+  whole-parent atomic refusal, ordinal traversal, checkpoint derivation and
+  proposed class diagnostic codes/inner precedence. Ambiguities stay DRAFT.
 - Group, template, row and full-grant octets remain undefined, so the 65536-byte
   parent bound is unverified. Stop coins of certified groups are not placed.
 - The class fixture uses a compressed request key, while Nostr authenticates an

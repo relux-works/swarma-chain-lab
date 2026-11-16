@@ -9,16 +9,17 @@ import (
 )
 
 // R1Profile selects a stated-fact experiment, never production grant admission.
-// At v0.1.49 J10/J11/J12 are pending; neither zero nor R1InForce enables them.
+// Zero and the legacy R1InForce placeholder remain closed.
 type R1Profile uint8
 
 const (
 	R1InForce R1Profile = iota + 1
 	R1DraftLab
+	R1InForce051
 )
 
 var (
-	ErrR1Profile = errors.New("identity: R1 draft lab profile required")
+	ErrR1Profile = errors.New("R1_PROFILE_UNAVAILABLE")
 	ErrR1Value   = errors.New("identity: invalid R1 name value")
 )
 
@@ -118,12 +119,13 @@ func r1Channel(raw []byte) string {
 	return key
 }
 
-// ReadR1Value implements LIP-0010 §§2-5,10 for the explicit draft lab.
+// ReadR1Value implements LIP-0010 §§2-5,10. The in-force profile reads
+// holder pins without enforcing the draft-only order/uniqueness proposal.
 // Legacy agent shapes are left to the existing v3 reader, never mixed here.
 // Refusal returns no partially parsed key, holder list or binding.
 func ReadR1Value(profile R1Profile, raw []byte) (R1Value, error) {
 	fail := func() (R1Value, error) { return R1Value{}, ErrR1Value }
-	if profile != R1DraftLab {
+	if profile != R1DraftLab && profile != R1InForce051 {
 		return R1Value{}, ErrR1Profile
 	}
 	swarma, nostr, err := r1ValueMembers(raw)
@@ -166,7 +168,7 @@ func ReadR1Value(profile R1Profile, raw []byte) (R1Value, error) {
 			}
 			for i, p := range pins {
 				pin, e := ParsePin(p)
-				if e != nil || (i > 0 && pins[i-1] >= p) {
+				if e != nil || (profile == R1DraftLab && i > 0 && pins[i-1] >= p) {
 					return fail()
 				}
 				result.Holders = append(result.Holders, pin)

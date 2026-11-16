@@ -15,7 +15,33 @@ class R1ReaderControls(unittest.TestCase):
 
     def test_all_vectors(self):
         # All pinned and revision independent results agree with the pinned expectations.
-        self.assertEqual(len(reader.calculate(self.files)), 440)
+        self.assertEqual(len(reader.calculate(self.files)), 1295)
+
+    def test_profile_checkpoint(self):
+        # Explicit checkpoint remains authoritative when Recent differs. A
+        # missing/future checkpoint refuses beside that valid control.
+        row = copy.deepcopy(self.files["class-vectors.json"]["admissions"][0])
+        for state in row["node"]["landlords"].values():
+            state["pinned_checkpoint"] = 500
+        row["context"]["recent_block_height"] = 0
+        self.assertEqual(reader.admission_decision(row, "in-force-051")["outcome"], "pass")
+        for checkpoint in (None, 900):
+            changed = copy.deepcopy(row)
+            for state in changed["node"]["landlords"].values():
+                if checkpoint is None:
+                    del state["pinned_checkpoint"]
+                else:
+                    state["pinned_checkpoint"] = checkpoint
+            self.assertEqual(reader.admission_decision(changed, "in-force-051")["outcome"], "CLASS_HISTORY_UNAVAILABLE")
+
+    def test_profile_decision_boundaries(self):
+        # Actual predicates exclude the landlord-writer and holder-order
+        # proposals; core gifted-recipient rejection remains in force.
+        results = reader.profile_vectors(self.files, "in-force-051")
+        self.assertEqual(results["class-16"]["outcome"], "pass")
+        self.assertEqual(results["class-25"]["outcome"], "CLASS_WRITER")
+        self.assertEqual(results["value-24"]["outcome"], "valid")
+        self.assertEqual(results["ordinal-01"], reader.DRAFT_ERROR)
 
     def test_both_disagreement_directions(self):
         # A false acceptance and a false refusal each fail agreement, beside a

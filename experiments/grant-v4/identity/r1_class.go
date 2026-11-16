@@ -57,7 +57,7 @@ func validRowRecipient(r RowRecipient) bool {
 // establish the parent's pinned notaries; their names here are checked identities,
 // not an alternate notary identity resolver. Empty Certifier explicitly means none.
 func CheckRowTemplate(profile R1Profile, issuer LandlordPin, notaries []string, t RowTemplate) error {
-	if profile != R1DraftLab {
+	if profile != R1DraftLab && profile != R1InForce051 {
 		return ErrR1Profile
 	}
 	if !validLandlord(issuer) || !validRowRecipient(t.Recipient) {
@@ -98,6 +98,9 @@ type ClassNameEvidence struct {
 // PendingKnown=false proves no absence. Value must be the current output's value
 // extracted by the observation adapter; this module has no node adapter.
 type ClassLandlordEvidence struct {
+	// Checkpoint is independently pinned for R1InForce051; it is never
+	// inferred from the parent recent block. Unknown refuses.
+	Checkpoint            Height
 	Binding               LandlordPin
 	Name                  StatedName
 	RegistrationID        string
@@ -123,7 +126,14 @@ type RowRecipientResult struct {
 	AttestationRequired bool
 }
 
-func classLandlordHistory(e ClassLandlordEvidence, o ClassObservation, exact bool) error {
+func classLandlordHistory(profile R1Profile, e ClassLandlordEvidence, o ClassObservation, exact bool) error {
+	if profile == R1InForce051 {
+		if !e.Checkpoint.known {
+			return ClassHistoryUnavailable
+		}
+		o.Recent = e.Checkpoint
+		exact = false // The R10.3 shortcut is draft-only.
+	}
 	s := e.Name
 	if !validLandlord(e.Binding) || string(s.Name) != e.Binding.Name || s.Owner != e.Binding.Owner || s.Tip != o.Tip || s.Depth != o.Depth || !o.Tip.known || !o.Recent.known || o.Recent.h > o.Tip.h {
 		return ClassHistoryUnavailable
@@ -179,12 +189,14 @@ func classLandlordHistory(e ClassLandlordEvidence, o ClassObservation, exact boo
 	if !s.Transactions || len(s.Outputs) == 0 || !s.Outputs[0].Available {
 		return ClassHistoryUnavailable
 	}
-	switch s.Outputs[0].Writer {
-	case WrittenByAnother:
-		return ClassValueUnauthorized
-	case WrittenByOwner:
-	default:
-		return ClassHistoryUnavailable
+	if profile == R1DraftLab {
+		switch s.Outputs[0].Writer {
+		case WrittenByAnother:
+			return ClassValueUnauthorized
+		case WrittenByOwner:
+		default:
+			return ClassHistoryUnavailable
+		}
 	}
 	if !e.PendingKnown {
 		return ClassHistoryUnavailable
@@ -200,7 +212,7 @@ func classLandlordHistory(e ClassLandlordEvidence, o ClassObservation, exact boo
 // Use CheckR1Child to place executor/limit comparisons before these node facts.
 func CheckRowRecipient(profile R1Profile, issuer LandlordPin, t RowTemplate, child Recipient, o ClassObservation) (RowRecipientResult, error) {
 	fail := func(err error) (RowRecipientResult, error) { return RowRecipientResult{}, err }
-	if profile != R1DraftLab {
+	if profile != R1DraftLab && profile != R1InForce051 {
 		return fail(ErrR1Profile)
 	}
 	if !validLandlord(issuer) || !validRowRecipient(t.Recipient) {
@@ -304,7 +316,7 @@ func CheckRowRecipient(profile R1Profile, issuer LandlordPin, t RowTemplate, chi
 	if landlord == nil {
 		return fail(ClassHistoryUnavailable)
 	}
-	if err := classLandlordHistory(*landlord, o, exact); err != nil {
+	if err := classLandlordHistory(profile, *landlord, o, exact); err != nil {
 		return fail(err)
 	}
 	lv, err := ReadR1Value(profile, landlord.Value)
@@ -362,6 +374,9 @@ type R1Child struct {
 }
 
 func CheckR1Parent(profile R1Profile, p R1Parent) error {
+	if err := RequireR1Rule(profile, R1ParentAtomic); err != nil {
+		return err
+	}
 	if _, err := CheckRowGroups(profile, p.Rows); err != nil {
 		return err
 	}
