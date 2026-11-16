@@ -24,6 +24,11 @@ func rendered(n ast.Node) string {
 }
 
 var fields = map[string]string{
+	// Ephemeral use input and opening draw; Token redacts fmt, JSON and text.
+	"experiments/model-proxy/session/session.go:Facts.Token":  "Token",
+	"experiments/model-proxy/session/session.go:Facts.Random": "Token",
+	// One-time opening return; *Token has the same redacting value methods.
+	"experiments/model-proxy/session/session.go:Result.Token":                       "*Token",
 	"experiments/model-proxy/types.go:Config.APIKey":                                "UpstreamKey",
 	"experiments/rental-gateway/station/station.go:Station.TrackBToken":             "TrackBToken",
 	"experiments/rental-gateway/station/trackbadmin.go:trackBMintReply.Token":       "TrackBToken",
@@ -69,7 +74,7 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 			case *ast.StructType:
 				for _, field := range v.Fields.List {
 					for _, name := range field.Names {
-						if name.Name == "APIKey" || name.Name == "TrackBToken" || name.Name == "Token" || (owner == "FakeExec" && name.Name == "Inputs") {
+						if name.Name == "APIKey" || name.Name == "TrackBToken" || name.Name == "Token" || (owner == "FakeExec" && name.Name == "Inputs") || (path == "experiments/model-proxy/session/session.go" && owner == "Facts" && name.Name == "Random") {
 							gotFields[path+":"+owner+"."+name.Name] = rendered(field.Type)
 						}
 					}
