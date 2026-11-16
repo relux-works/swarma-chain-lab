@@ -184,7 +184,11 @@ def main():
             if info.get("Origin", {}).get("Hash") != commit:
                 raise RuntimeError(f"{case.name} {label}: resolved revision mismatch")
             version = info["Version"]
-            manifest = f"module example.invalid/{case.name}-consumer\n\ngo 1.26.0\n\nrequire {case.module} {version}\n"
+            # Use the resolved module's declared minimum. A newer published
+            # module can require a patch toolchain; starting below that minimum
+            # makes Go update the go directive during metadata warmup. The
+            # unchanged-manifest assertion below must still catch graph drift.
+            manifest = f"module example.invalid/{case.name}-consumer\n\ngo {info['GoVersion']}\n\nrequire {case.module} {version}\n"
             if case.tool:
                 manifest += f"\ntool {case.tool}\n"
             (cwd / "go.mod").write_text(manifest)
