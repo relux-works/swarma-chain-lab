@@ -4,6 +4,7 @@
   "snapshot_time": "20261115082735",
   "modules": {
     "github.com/relux-works/swarma-chain-lab/experiments/grant-store": "v0.1.1-0.20261115082735-f1936aa1117a",
+    "github.com/relux-works/swarma-chain-lab/experiments/grant-v4/wire": "v0.0.0-20261115082735-f1936aa1117a",
     "github.com/relux-works/swarma-chain-lab/experiments/grantcheck": "v0.1.2-0.20261115082735-f1936aa1117a",
     "github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke": "v0.3.1-0.20261115082735-f1936aa1117a",
     "github.com/relux-works/swarma-chain-lab/experiments/model-proxy": "v0.4.1-0.20261115082735-f1936aa1117a",

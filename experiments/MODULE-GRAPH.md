@@ -34,7 +34,7 @@ is not a semantic proof against arbitrary future source rewrites. A later
 snapshot must pass both ancestry and source checks; version order never waives
 them. The earlier audit below records why coherent snapshot floors matter.
 
-The current inventory covers all 24 `go.mod` files and all 101 internal require edges.
+The current inventory covers all 25 `go.mod` files and all 102 internal require edges.
 The initial audit covered 20 manifests across 19 consumer modules at base
 `288d63e191fefac885d6a39aa65f0a5fbb6ed7ee`.
 Every edge previously named `v0.1.0`; directory replacements supplied current
@@ -43,7 +43,7 @@ A concrete external consumer of `single-use/configguard` fails because
 `single-use/policy.go` calls `sealwatch.ValidateJSON`, absent from `sealwatch v0.1.0`.
 The new bootstrap/model packages are also absent from `single-use v0.1.0`.
 
-All 101 internal require edges, in standalone `require` lines, `require (...)`
+All 102 internal require edges, in standalone `require` lines, `require (...)`
 blocks and `// indirect` entries alike, now select versions at or above the
 published source snapshot. The first revision of this audit counted 96: it missed the two
 standalone `single-use` requires in `deploy/go.mod` and
@@ -97,6 +97,7 @@ grant module.
 | `experiments/grant-store/go.mod` | 5 |
 | `experiments/grant-v4/chainview/go.mod` | 0 |
 | `experiments/grant-v4/identity/go.mod` | 0 |
+| `experiments/grant-v4/vectors/go.mod` | 1 |
 | `experiments/grant-v4/wire/go.mod` | 0 |
 | `experiments/grantcheck/go.mod` | 6 |
 | `experiments/m5-host-smoke/go.mod` | 6 |
@@ -116,7 +117,7 @@ grant module.
 | `experiments/station-lifecycle/gatewaybind/go.mod` | 7 |
 | `experiments/station-lifecycle/go.mod` | 2 |
 | `experiments/station-payload/go.mod` | 8 |
-| **Total: 24 manifests / 19 consumers** | **101** |
+| **Total: 25 manifests / 20 consumers** | **102** |
 <!-- /module-graph-inventory -->
 
 ## Qualification boundary

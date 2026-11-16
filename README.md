@@ -16,6 +16,13 @@ Experiments live in `experiments/<name>/`:
   LIP-0020 canonical bytes, typed hashes, strict signatures and defined objects;
   all 205 pinned vectors, with no chain reads or whole-grant admission.
 
+- [Grant v4 primitive vectors](experiments/grant-v4/vectors/VECTORS.md): Go-generated
+  primitive and stated-fact fixtures with an independent stdlib Python checker;
+  no valid swarma-grant/4 vectors until B0. Run
+  `go -C experiments/grant-v4/vectors test ./...` and
+  `python3 -I experiments/grant-v4/vectors/scripts/check-vectors.py` in isolated
+  scratch; generator output and logs go under `.temp/`.
+
 - [Grant v4 observation decisions](experiments/grant-v4/chainview/README.md):
   LIP-0022 Draft sections 1–6 comparisons, durable first sightings and clock
   marks, all 97 pinned vectors and an independent second reader; stated inputs
