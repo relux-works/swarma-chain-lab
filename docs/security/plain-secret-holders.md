@@ -35,10 +35,11 @@ exercise their real loaders, in addition to frozen plain-string route vectors.
 The single-use Route has additional consumers in agent-wallet, signer-service
 and rental-executor. Their existing transports delegate header construction to
 the holder, preserving the sole accessor call site. Length predicates retain
-16..256 bounds, or the broadcaster's existing stricter 32..256 bounds. No new cross-module dependency or replacement was added. The existing
-agent-wallet requirement on single-use is advanced to the first signed commit
-of this PR so published wallet builds select the new holder API; local replaces
-otherwise hide that compatibility requirement.
+16..256 bounds, or the broadcaster's existing stricter 32..256 bounds. No new cross-module dependency or replacement was added. Existing single-use requirements in agent-wallet, signer-service, rental-executor
+and rental-gateway advance to the first signed commit of this PR so published
+builds select the new holder API. All four runtime Route consumers build with
+every local replace removed; local replacements otherwise hide that compatibility
+requirement.
 
 ## Encoder audit
 
