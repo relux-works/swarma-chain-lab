@@ -3,6 +3,7 @@ package chaingateway
 import (
 	"bytes"
 	"context"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -78,7 +79,10 @@ func verifyWhitelist(c Configuration, p custody) error {
 	return nil
 }
 func (r *rpcClient) denied(ctx context.Context) bool {
-	req, e := http.NewRequestWithContext(ctx, "POST", r.endpoint, bytes.NewBufferString(`{"jsonrpc":"1.0","id":1,"method":"getrpcinfo","params":[]}`))
+	if e := r.pacer.take(ctx); e != nil {
+		return false
+	}
+	req, e := http.NewRequestWithContext(ctx, "POST", r.endpoint, bytes.NewBufferString(`{"jsonrpc":"1.0","id":"probe","method":"getrpcinfo","params":[]}`))
 	if e != nil {
 		return false
 	}
@@ -128,4 +132,78 @@ func cleanupTemps(path string, p custody) error {
 		}
 	}
 	return dir.Sync()
+}
+
+// Installed node inputs must explicitly bind and allow only numeric loopback.
+// Effective argv, service identity exclusivity and namespaces remain Q6 qualification.
+func verifyNodeLoopback(c Configuration, p custody) error {
+	owner := p
+	owner.uid = c.NodeUID
+	b, _, e := owner.read(c.NodeConfig, 65536, 0600, 0644)
+	if e != nil {
+		b, _, e = p.read(c.NodeConfig, 65536, 0600, 0644)
+		if e != nil {
+			return e
+		}
+	}
+	binds, allows := 0, 0
+	section := ""
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(strings.SplitN(line, "#", 2)[0])
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "includeconf") {
+			return bad("included node config")
+		}
+		if strings.HasPrefix(line, "[") {
+			if !strings.HasSuffix(line, "]") {
+				return bad("node section")
+			}
+			section = strings.TrimSpace(line[1 : len(line)-1])
+			continue
+		}
+		if section != "" && section != c.Network {
+			continue
+		}
+		key, val, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		val = strings.TrimSpace(val)
+		switch key {
+		case "rpcbind":
+			host := val
+			if h, _, err := net.SplitHostPort(val); err == nil {
+				host = h
+			}
+			ip := net.ParseIP(host)
+			if ip == nil || !ip.IsLoopback() {
+				return bad("node bind")
+			}
+			binds++
+		case "rpcallowip":
+			ip := net.ParseIP(val)
+			if strings.Contains(val, "/") {
+				base, network, err := net.ParseCIDR(val)
+				if err != nil {
+					return bad("node allow")
+				}
+				ones, bits := network.Mask.Size()
+				if !base.IsLoopback() || (bits == 32 && ones < 8) || (bits == 128 && ones != 128) {
+					return bad("node allow")
+				}
+				ip = base
+			}
+			if ip == nil || !ip.IsLoopback() {
+				return bad("node allow")
+			}
+			allows++
+		}
+	}
+	if binds == 0 || allows == 0 {
+		return bad("explicit node loopback policy")
+	}
+	return nil
 }

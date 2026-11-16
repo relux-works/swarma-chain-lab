@@ -1,185 +1,41 @@
-# Read-only chain view and observe-only snapshot helper
+# Read-only chain gateway contract and snapshot helper
 
-[CONTRACT.md](CONTRACT.md) defines CG1 for G1 T4.6 and D29.
-[OPEN.md](OPEN.md) keeps consumer adoption, gateway witness qualification,
-watcher/journal, book/spec and installation gates distinct. Source acceptance
-`$Omp4AzWq`, backed by the lead, permits ordinary brackets for §5 OBSERVE ONLY.
-The gateway (a) is not implemented here; its §4 witness requirement stays in full.
+[CONTRACT.md](CONTRACT.md) is the normative candidate for G1 T4.6 and D29's
+live ChainView. [OPEN.md](OPEN.md) lists acceptance/build gates. This directory
+contains the shared contract corpus and a Linux direct-RPC snapshot helper;
+the gateway listener (a) is not implemented.
+Source accepted part (B) for helper build in answers r1. Tip.time is a requested
+pre-freeze delta; Source's delta acceptance and review remain pending. Q3's
+transition-witness feasibility gate applies to (a) and enforcement only.
 
-The Linux `snapshot-refresh` binary is a root oneshot. An operator scheduler
-invokes it on startup, new blocks, same-height reorgs and at least every 30 s.
-No daemon, scheduler, systemd unit or installation is included. Infra's proposed
-snapshot and lock locations are quoted in the contract's INSTALL PROFILE.
-Scheduling, read-only user provisioning and installed qualification belong to
-Infra; fake-RPC evidence does not prove a deployed node's behavior or custody.
+## Tools and commands
 
-Before credentials are loaded, dump hardening sets PR_SET_DUMPABLE=0 and
-RLIMIT_CORE=0. After taking a nonblocking exclusive flock, the helper
-authenticates the loopback listener and the connected reverse TCP tuple using
-NETLINK_SOCK_DIAG and the pinned node UID, requiring unambiguous kernel evidence.
-Every HTTP connection repeats this check before any HTTP/Authorization byte.
-The initial user namespace is required. IPv4 and IPv6 are queried in their
-respective families; a cross-family dual-stack listener without matching
-listener evidence fails closed. Missing, denied, stale or ambiguous
-evidence fails closed. A reverse socket with no accepted inode is incomplete
-evidence (older kernels report UID zero before accept); authentication may wait
-within the same one-second deadline for its accepted inode, preserving the
-observed socket cookie and sending no application bytes. An attached wrong-UID
-peer, changed cookie, missing/ambiguous evidence or timeout closes immediately.
-UID ownership trusts that service account; this is not
-binary attestation. Real-node/replacement-UID installation qualification remains Q6.
-
-Each run reads the credential file fresh,
-checks genesis/network/IBD, and reads COMPLETE Tip {hash,height,time} before and
-after every name and outpoint in the configured set. Only equal brackets write.
-N=3 total attempts with 100 ms and 200 ms backoff; each RPC has a 1 s timeout
-and the entire RPC collection has a 20 s monotonic context deadline, shared
-across attempts and backoffs. Up to 16 concurrent RPCs preserve configured
-array order. Reserved gateway pacing applies when using gateway (a); this
-helper reads the node directly. A retry recollects all records. Each tip combines `getblockchaininfo` with `getblockheader` for
-that hash. Names use `name_show` with `allowExpired:true`, hex names and hex
-values, plus `getblockhash` for the operation height. Values become exact
-base64 octets. The fixed `gettxout` pair uses include-mempool=false then true. Confirmed
-and not mempool-spent is `unspent`; mempool-only is `unconfirmed`; a confirmed
-output missing from the mempool-inclusive view is `spend_pending`; both null
-is `not_in_utxo_set`. Present records include confirmations and exact script
-bytes and bind bestblock to the bracket tip. Inconsistent views exit 11.
-No state creates permanent journal/enforcement output here. Never-seen absence
-is an observation of this invocation only. High vout above 2147483647 exits 11
-without gettxout until the signed-index/absence profile is qualified.
-
-The writer emits only canonical v1 `consistency:"bracketed"` snapshots. Missing,
-unknown and `"witnessed"` consistency are invalid in v1. Brackets cannot detect
-hidden A→B→A excursions. The consumer LABELS only and NEVER refuses on a
-snapshot. Observed closures go only to an observe journal and are NEVER
-imported into enforcement state. Enforcement closures require the Q10 watcher
-journal or a qualified witnessed read. A helper cannot elevate its own claim.
-
-## Operator configuration
-
-Invoke `snapshot-refresh -config "$CONFIG"`. The config is one UTF-8 JSON
-object, at most 65536 bytes; whitespace/key order are allowed. All the fields
-below are required and closed. Duplicate/folded/escaped keys, null members,
-unknown fields, invalid typed numbers and trailing data are rejected. No
-credentials are accepted through arguments, environment or inline JSON fields.
-
-| Field | Required value |
-| --- | --- |
-| `profile` | Exactly `cg1-v1` |
-| `node_uid` | Pinned numeric local node service UID |
-| `node_config` | Protected root- or node-owned Core configuration used to inspect the helper verifier whitelist |
-| `verifier_user` | Dedicated helper username, matching its client credential |
-| `gateway_verifier_user` | Distinct dedicated gateway username; cannot equal the helper user |
-| `cookie_source` | `none` with verifier mode; explicit `live` or `admitted-root-copy` with cookie mode |
-| `rpc_url` | HTTP loopback **IP literal** and explicit port, no userinfo, path, query or fragment. Proxy environment is ignored; redirects are rejected. |
-| `network` | `main` or `regtest` |
-| `genesis` | 64 lowercase display-order hex characters; checked with `getblockhash(0)` |
-| `credential_mode` | `cookie` or `rpcauth-user` |
-| `credential_file` | Protected absolute clean path, reopened each run |
-| `credential_group` | Exact numeric GID of the credential file |
-| `output` | Protected absolute clean snapshot path |
-| `lock` | Protected absolute clean lock path; stable across runs |
-| `names` | 1..16 CG1 names in strict ASCII order, no duplicates |
-| `seals` | 1..256 objects with exactly `txid` and `vout`; sorted by lowercase 64-hex txid then uint32 vout, no duplicates |
-
-All five file paths (config, credential, node config, snapshot and lock) must be distinct.
-Configuration is root-owned regular mode 0600 or 0644; verifier credentials are root-owned
-regular 0600 or 0640 with the configured GID, within protected ancestry. A live
-cookie is node-owned regular 0600, single-link; an explicitly admitted root copy
-is root-owned 0600. Both reopen on every run; neither falls back to another mode.
-The copy selector records an installation exception, not proof of its admission
-or restart synchronization. That qualification remains Q7. Infra
-must provision the 0640 group exclusively. File links and group/world writes
-are rejected, as are extended POSIX access ACLs. Symlinks are never followed;
-all path components are traversed descriptor-relatively from the trusted root.
-The existing snapshot, if present, must be root-owned regular mode 0644 and have
-one link. Its preprovisioned parent is root-owned 0755. Other ancestors must be
-root-owned and not group/world writable. The helper creates no directories.
-
-Cookie mode reads `__cookie__:PASSWORD` with an optional final LF. The
-`rpcauth-user` mode reads `USERNAME:PASSWORD` with an optional final LF: the
-client password of a dedicated read-only RPC user, **never** the node's
-`rpcauth=...` verifier. Cookie usernames and verifier-shaped salt/hash strings
-are rejected in that mode. No wallet/write method exists in this helper. The
-operator must restrict this user to exactly:
-
-```
-rpcwhitelistdefault=1
-rpcwhitelist=snapshot-observer:getblockchaininfo,getblockhash,getblockheader,name_show,gettxout
-```
-
-Replace `snapshot-observer` with the configured helper verifier user. Method
-order is immaterial; duplicates, unions, extras or missing methods refuse. Global
-and active-network sections are inspected; uninspected `includeconf` refuses.
-The file must match the node's effective startup configuration, including argv;
-installed qualification must establish that binding. After endpoint authentication,
-verifier startup requires HTTP 403 for fixed harmless `getrpcinfo`, discarding
-its body. One probe does not prove every denial or loaded configuration. Cookie
-mode is explicitly broader authority, and makes no least-privilege claim.
-
-Publication creates a fresh 0600 O_EXCL temp in the output directory, writes
-and validates the entire payload, chmods 0644, fsyncs the file, closes it,
-renames atomically, and fsyncs the directory. While holding the writer lock, the next run also removes only recognized
-owned regular single-link crash temps with that exact name shape in the
-validated output directory. Unknown files remain; matching symlinks or hardlinks
-fail publication. Only this run's active temporary file is otherwise removed. A pre-rename failure retains the previous snapshot. If directory fsync
-fails after rename, the new complete file may already be visible, but durability
-is not claimed; crash recovery can retain either complete version. The stable
-lock file is never unlinked. Lock/config/credential errors never replace output.
-
-| Exit | Meaning |
-| --- | --- |
-| 0 | Complete bracketed snapshot published and directory synced |
-| 10 | Arguments, root requirement, config, or input/lock custody invalid |
-| 11 | Credential, node, malformed response, binding or collection deadline failure; previous file untouched |
-| 12 | Three moved brackets; previous file **UNTOUCHED** (bytes, inode, mtime); let it age to stale |
-| 13 | Another writer owns the lock; no credential read or node call |
-| 14 | Publication failure; see the post-rename directory-sync limitation above |
-
-Diagnostics are fixed strings, with no paths, credential values, HTTP headers,
-upstream bodies or reflected errors. Projected name bytes matching the complete
-raw credential, its RFC 4648 base64 or complete Basic header suppress the whole
-publication, including when
-those bytes would otherwise be hidden by base64. This suppression is not an
-enforcement decision or a claim to general data-loss prevention.
-
-## Tools and validation
-
-Use Go 1.26.10 with `GOTOOLCHAIN=local`, `GOWORK=off`, `GOPROXY=off`,
-`GOSUMDB=off`, `GOENV=off`, telemetry off, and a physical task-owned checkout
-with absolute scratch HOME/config/cache and a short task-owned TMPDIR. There
-are no external module dependencies. Run from this module in that checkout:
+Use Go 1.26.10, `GOTOOLCHAIN=local`, `GOWORK=off`, `GOPROXY=off`, `GOENV=off`
+and a physical task-owned checkout with absolute scratch HOME/cache/config.
+Keep TMPDIR short and task-owned. No dependencies, credentials, node or network
+are required. Run from this module in that isolated checkout:
 
 ```sh
-go test -count=1 -timeout=90s -v ./...
+go test -count=1 -timeout=60s ./...
 go vet ./...
 go test -race -count=1 -timeout=120s ./...
 go test -run '^TestSharedVectors$' -count=1 ./...
 python3 -B omission_analysis_test.py fixtures/vectors.json
-go build -o "$ARTIFACT_DIR/snapshot-refresh" ./cmd/snapshot-refresh
-go test -race -count=1 -timeout=120s ./...
-gofmt -w *.go cmd/snapshot-refresh/*.go
 ```
 
-Tests run **unprivileged**, against an in-process loopback fake RPC server with
-synthetic credentials. Internal tests anchor custody at a task-owned fixture
-root; the public CLI has no override for root ownership/ancestry and refuses
-unprivileged calls. No test contacts a real node or exercises root installation.
-The fake server asserts hex name/value options, both mempool views, exact
-outpoints, authentication, fixed method inventory and outer bracket order. Schema vectors remain shared consumer inputs;
-D29 must bind them to its own real decoder, not copy this parser as agreement.
-The named tests cover both accepted output and forbidden updates:
+`gofmt -w *.go cmd/snapshot-refresh/*.go` formats the module. From the repository root, stage scoped
+new files, then run `python3 -B .github/scripts/check-public-hygiene.py`.
+Evidence and controls belong in task-scoped `.temp/`; caches and short temporary
+directories are task-owned and removed after evidence capture.
 
-| Claim/control | Named test |
-| --- | --- |
-| Equal complete brackets, canonical snapshot, unspent/absent observation | `TestBracketEqualWrites` |
-| Every Tip member matters; N=3/backoff/untouched previous file | `TestBracketMovedKeepsPrevious` |
-| A moved first set is discarded and recollected | `TestBracketMovedRetriesThenWrites` |
-| Errors/malformed responses/wrong bindings retain output | `TestNodeErrorKeepsPrevious` |
-| Old open reader sees old bytes; new reader sees new inode/valid complete file | `TestAtomicPublication` |
-| Second writer excluded during first writer's blocked read | `TestLockExcludesSecondWriter` |
-| Both auth modes, fresh rotation, output/error/projection secrecy | `TestCredentialsNeverAppearInOutput` |
-| Config and filesystem negative controls | `TestConfigNegatives`, `TestConfigExactOutpointFields`, `TestCustodyNegatives`, `TestMainRequiresRoot` |
+To prove the fixture gate detects a violation, copy this module into owned
+scratch, change the `valid` verdict of `request_write_method` in
+`fixtures/vectors.json` to true, and run
+`go test -run '^TestSharedVectors/request_write_method$' -count=1 ./...`.
+It MUST exit nonzero with `verdict mismatch`, not a setup/build failure; then
+revert only the scratch fixture and rerun green. This is a fixture expectation
+plant, not a gateway implementation mutant. The cross-side mirror obligations
+and the limits of schema-only evidence are specified in CONTRACT.md §6.
 
 The r2 fixture control plants an invalid tip time: in an isolated scratch copy,
 set `response_tip_time_negative`'s `valid` to true and run
@@ -189,20 +45,7 @@ and rerun green. Shared vectors include Tip.time bounds/invalid spellings on
 all success types and the snapshot; observation vectors include mismatched tip
 time and the consumer's default lag boundary at 7200/7201 seconds. Same-hash
 header-time disagreement is backend inconsistency, not genuine tip movement.
-For narrowing controls in an isolated source copy or Go overlay, (1) replace
-the after-tip read with the before tip, or (2) bypass the mismatch branch:
-`go test -run '^TestBracketMovedKeepsPrevious$' -count=1 ./...` must fail with
-`expected tip exhaustion exit 12`. (3) Replace rename with an in-place write:
-`go test -run '^TestAtomicPublication$' -count=1 ./...` must fail with
-`atomic replacement violated`. (4) Bypass flock:
-`go test -run '^TestLockExcludesSecondWriter$' -count=1 ./...` must fail with
-`second writer was not excluded`. These controls do not qualify crash durability.
 
-For the planted leak control, add a diagnostic in `runReport` that reads and
-prints the synthetic credential file. Run
-`go test -run '^TestCredentialsNeverAppearInOutput$' -count=1 ./...` and require
-exit 1 with `credential disclosure in output`, not a timeout or build failure.
-Restore source and rerun the complete baseline. No real secret is planted.
 
 ## Accepted observe-only amendment
 
@@ -229,7 +72,7 @@ Require exit 1 with `verdict mismatch`, restore the fixture, and rerun green.
 
 Both credential-holding v1 paths are Linux-only; no platform proof means no
 publication. The Darwin owner decision and CGW-D1 dependency remain open in
-OPEN.md. There is no live gateway/helper implementation in this module.
+OPEN.md. The helper is an offline-tested implementation, not an installed or qualified service.
 
 `fixtures/inventory.txt` pins EVERY scenario/vector name and kind; fixture
 readers reject trailing data and unknown/mistyped inner fields. The omission aid
@@ -256,32 +99,136 @@ complete control contains both configured name and seal reads. Pure configured
 name/seal omissions have a complete multi-record label control.
 These remain contract oracles, not operating-system, live-node or publication
 fault-injection qualification.
-For the schema invalid control, mark `snapshot_consistency_witnessed` valid
-in an isolated fixture copy, then run
-`go test -run '^TestSharedVectors/snapshot_consistency_witnessed$' -count=1 ./...`.
-Require exit 1 with `verdict mismatch`; restore and rerun green. The existing
-invalid tip-time and forbidden-method fixtures remain unchanged.
 
-From the repository root, run
-`python3 -B .github/scripts/check-public-hygiene.py` after staging the reviewed
-scope. Logs, real exits, source hashes and mutation evidence belong under
-task-scoped `.temp/`. Remove owned HOME/config/caches/TMPDIR after capture.
 
-Additional adoption evidence is exercised by `TestEndpointAuthenticationBeforeCredential`
-(real kernel, zero impostor bytes and no credential open),
-`TestEndpointReverseTupleEvidence` (synthetic missing/UID/tuple/cookie/ambiguity
-controls), `TestVerifierWhitelistAndDenial`, `TestVerifierNetworkSections`,
-`TestSnapshotF5StatesNeverPermanent`, `TestFailedRecordReadExit11KeepsPrevious`,
-`TestEitherUTXOReadFailureKeepsPrevious`, `TestF5InconsistentViewsKeepPrevious`,
-`TestHexNameValueAndExpiredRecord`, `TestExactCredentialReflection`,
-`TestOwnedCrashTempCleanup`, `TestMaximalWatchSetAndSerializedBound`,
-`TestTotalCollectionDeadlineAcrossAttempts`, `TestRPCDeadlineKeepsPrevious`,
-`TestUnqualifiedHighVoutKeepsPrevious`, `TestHelperMethodSetClosed` and
-`TestDumpHardening`. The maximal fake set and twenty-second cancellation checks
-do not qualify real node cadence, root custody, namespace deployment or install GO.
+## Linux snapshot helper
 
-`TestKernelEndpointUnderCollectionLoad` retains the hosted maximal-collection
-regression. `TestUnacceptedPeerIsNotRootOwnership` refuses pre-accept UID zero
-as ownership evidence, pairs it with accepted-root and attached-wrong-UID
-controls, and `TestAuthenticateWaitsForAcceptedInode` checks delayed accept,
-zero bytes and bounded refusal when accept never occurs.
+`snapshot-refresh -config "$CONFIG"` is a root-only oneshot. It emits an
+OBSERVE-GRADE, `observe_only`, `consistency:"bracketed"` file. There is no Darwin
+implementation or platform fallback. No proof means no credential load, RPC or
+publication. It is a NON-WITNESS: neither a fresh label, a bracketed snapshot nor
+a qualified witnessed gateway read creates an enforcement closure. Only the
+separately admitted CGW-J1 watcher/journal can supply enforcement closures
+([CONTRACT.md §§1,4–5](CONTRACT.md)). No journal or supervisor is installed here.
+
+Each invocation takes a nonblocking exclusive lock, verifies protected node
+configuration and initial user/network namespace descriptors against host PID 1,
+and applies `PR_SET_DUMPABLE=0` / `RLIMIT_CORE=0` before credential load. Every
+HTTP connection authenticates the numeric loopback listener and connected reverse
+socket tuple by kernel UID/inode/cookie before any application byte. Missing,
+denied, wildcard, ambiguous or wrong-owner evidence fails closed. PID 1 must be
+the host initial namespace authority; establishing that deployment binding is Q6.
+
+The protected config is one UTF-8 JSON object of at most 65536 bytes. Every field
+below is required and closed; duplicates/fold aliases/escaped keys, null, unknown
+members and trailing data refuse. No secret is accepted in argv or environment.
+
+| Field | Requirement |
+| --- | --- |
+| `profile` | Exactly `cg1-v1` |
+| `node_uid` | Dedicated unprivileged node UID; reject 0, 65534, 65535, 4294967295 and every identity overlap |
+| `server_uid` | Dedicated gateway service UID, different from node |
+| `allowed_uids` | Complete protected gateway client UID list, including any root-helper exception |
+| `workload_uids` | Complete helper, consumer and other non-node workload UID list |
+| `node_dedicated` | Explicit true assertion of the exclusive account; installation must qualify it |
+| `node_config` | Protected node- or root-owned config; explicit numeric loopback `rpcbind` AND `rpcallowip`; included files are not accepted |
+| `gateway_verifier_user`, `verifier_user` | Distinct dedicated service usernames |
+| `cookie_source` | `none` for verifier mode; explicit `live` or separately admitted `admitted-root-copy` for cookie mode |
+| `rpc_url` | Numeric loopback HTTP IP literal and explicit port; no userinfo, path, query, fragment, proxy, redirect or compression |
+| `network`, `genesis` | Protected `main` or `regtest` and exact lowercase 64-hex genesis; no discovery |
+| `credential_mode` | `rpcauth-user` or explicitly admitted same-host root-only `cookie` exception |
+| `credential_file`, `credential_group` | Absolute protected path and exact GID; reopened each run with descriptor-relative no-follow traversal |
+| `output`, `lock` | Distinct protected absolute clean paths; parent preprovisioned, output parent exactly 0755 |
+| `names` | 1..16 names, strictly sorted ASCII bytes |
+| `seals` | 1..256 exact `{txid,vout}` objects sorted by txid then uint32 vout |
+
+Config, credential, node-config, output and lock paths must all differ. Config is
+regular 0600/0644; root credentials 0600/0640, live cookie node-owned 0600, admitted
+root copy root-owned 0600. Every file is single-link with protected ancestry and
+no writable ACLs or symlinks. The output is regular 0644; the lock is regular
+0600 and is never unlinked. No directory is created or repaired by this helper.
+
+Verifier mode reads `USERNAME:PASSWORD` (optional final LF), never an rpcauth
+verifier. It inspects exactly one node-enforced five-method whitelist with
+`rpcwhitelistdefault=1`, then requires 403 for the fixed `getrpcinfo` denial
+probe. Cookie mode reads a fresh `__cookie__:SECRET`; no fallback or copied-cookie
+admission is inferred. The probe closes its response without reading/projecting
+its body. Cookie authority is broader, never described as least privilege.
+
+The fixed upstream set is `getblockchaininfo,getblockhash,getblockheader,name_show,gettxout`.
+Whole-entity cap+1 streaming and per-method token depth enforce
+[the bounded upstream profile](CONTRACT.md#bounded-upstream-profile); selected
+fields and the exact JSON-RPC 1.0 string id/envelope/status mapping are checked
+before projection. Oversize streams close without draining. Projection limits
+remain separate. Names require allowExpired and exact hex transport; seals use
+both fixed false/true views and retain all four states/metadata. Unqualified
+signed vout above 2147483647 refuses without a gettxout call.
+
+Every complete collection binds all configured records once to their request,
+network, method and echo. Known middle bestblocks participate even when outer
+brackets agree. Same-hash header contradictions are terminal throughout the
+invocation. Concurrent failures use terminal > rate limiting > movement > success.
+Starting an opening bracket consumes an attempt; its refusal permits no later
+reads. A failed attempt contributes no record to its successor. There are three
+attempts and one 20-second monotonic budget, with one-second RPC deadlines.
+Movement-only waits are at least 100/200 ms by ordinal; any rate limiting waits
+at least one second. Attempt 3 alone decides retry exhaustion. A 512-token,
+128/s invocation-local reservation and at most sixteen active RPCs pace reads.
+
+Supervisors must use the single normative
+[helper outcome table](CONTRACT.md#helper-outcome-classification): 0 durable
+publication; 11 failure with old bytes untouched; 12 final movement-only
+exhaustion; 13 successful rename with durability unconfirmed; 14 lock-contention
+skip with no reads or writes. Exit 10 is no longer emitted. These are candidate
+helper semantics; external supervisor acceptance remains OPEN.
+
+Publication writes and re-reads a validated exclusive same-directory temp,
+sets/validates 0644 ownership/mode, fsyncs and closes the file, then renames and
+opens/fsyncs/closes the directory. Pre-rename failures retain previous bytes,
+inode and mtime. A post-rename directory failure returns 13 without rollback.
+Cleanup under the held lock removes only recognized validated owned crash temps;
+unknown files and active writers remain untouched. Whole raw credential, Basic
+base64/header and secret-component equality are checked on projected strings and
+decoded name-value octets. Fragments and embedded values do not trigger substring
+heuristics. Diagnostics are fixed and expose no upstream text or secret values.
+
+## Helper validation and OPEN qualification
+
+The helper uses `fixtures/vectors.json`, `fixtures/observations.json` and their
+strict inventory directly in this module; there are no helper fixture copies.
+`TestHelperSharedSnapshotOutcomes`, `TestHelperSharedUpstream`,
+`TestHelperSharedReflection` and `TestHelperPublicationStageFailures` bind the
+contract's controls to helper entry points. Existing schema, observation, label,
+fixture decoder, domain and omission tests remain. Unprivileged kernel tests use
+an in-process loopback fake and synthetic credentials; custody fixtures pin their
+own PID/UID/ancestry, with no public CLI override. They are not node qualification.
+
+Build after tests with `go build -o "$ARTIFACT_DIR/snapshot-refresh" ./cmd/snapshot-refresh`.
+The existing module CI runs race/tests, vet, build and omission analysis under
+Go 1.26.10. From repository root run the module-graph and consumer scripts listed
+in the root README. Logs/artifacts belong in task-scoped `.temp/`, with absolute
+HOME/config/caches/TMPDIR; remove only owned caches after capture.
+
+The following remain OPEN, by [OPEN.md](OPEN.md), not locally invented:
+
+- Darwin/CGW-D1 platform/dump/endpoint profile or explicit owner-accepted residual;
+  v1 remains Linux-only with no fallback (OPEN gate Darwin profile).
+- Q3/Q6: exact Core 28.0 binary/config/status semantics, hidden A→B→A and negative
+  witness feasibility, exclusive accounts and effective argv/config, initial
+  namespaces, endpoint replacement, coherent mempool pair, signed-vout range and
+  bounded competing-traffic fair progress. Fake replies and config assertions are
+  not that qualification.
+- Q5: maximal set serialization, real pacing/refill, one-second versus gateway
+  five/six-second budget composition and 20-second completion/cadence under load;
+  no oracle wait value claims elapsed-time qualification.
+- Q7/S8: protected credential group membership, rotation/restart-synchronized copy
+  invalidation, installed custody, provisioning and installation GO.
+- Upstream owner, Opus R9 / Muse R6: accepted HTTP status/header/chunk/trailer and
+  denial-probe profile; requested-name/network/genesis oracle extensions and
+  null-in-ignored-extension oracle hardening. No new HTTP framing cap is chosen.
+- Consumer/journal owner, Opus R10 / Muse R5: retention/eviction and durable
+  per-hash/restart/multi-key state, same-check independent live-tip provenance.
+  (b)-only is never fresh; the helper asserts neither freshness nor enforcement.
+- Opus R11 / Muse R7: full legacy annotation/control hardening. Q8 book/spec and
+  script-binding acceptance, separate Q10 CGW-J1 admission/qualification, amended
+  exact-head consumer/supervisor acceptance and production adoption remain OPEN.

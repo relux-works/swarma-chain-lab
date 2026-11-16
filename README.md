@@ -709,7 +709,7 @@ tests do not establish real-node qualification or installation.
 
 ## Observe-only snapshot refresh helper
 
-The [chain-gateway helper tools](experiments/chain-gateway/README.md#tools-and-validation)
+The [chain-gateway helper tools](experiments/chain-gateway/README.md#tools-and-commands)
 include a Linux root oneshot with fresh cookie or read-only RPC-user file
 authentication, bounded complete-tip brackets, flock and atomic snapshot
 publication. Run `go -C experiments/chain-gateway test -count=1 ./...` and

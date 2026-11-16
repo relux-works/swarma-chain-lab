@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -155,7 +156,7 @@ func verifySocketEvidence(rows []socketEvidence, server, client *net.TCPAddr, ui
 			continue
 		}
 		if r.state == 10 && (r.local.Equal(server.IP) || r.local.IsUnspecified()) {
-			if r.uid != uid {
+			if r.uid != uid || !r.local.IsLoopback() {
 				return peer, bad("listener uid")
 			}
 			listeners++
@@ -204,6 +205,30 @@ func hardenDumps() error {
 	var limit syscall.Rlimit
 	if e != 0 || v != 0 || syscall.Getrlimit(syscall.RLIMIT_CORE, &limit) != nil || limit.Cur != 0 || limit.Max != 0 {
 		return bad("dump hardening")
+	}
+	return nil
+}
+
+// Public execution pins host PID 1's namespace descriptors. Tests use their own
+// PID as part of the existing unprivileged custody fixture, never a CLI override.
+func (p custody) verifyNamespaces() error {
+	mapping, e := os.ReadFile("/proc/self/uid_map")
+	if e != nil || strings.Join(strings.Fields(string(mapping)), " ") != "0 0 4294967295" {
+		return bad("initial user namespace")
+	}
+	pid := p.namespacePID
+	if pid == 0 {
+		pid = 1
+	}
+	for _, kind := range []string{"user", "net"} {
+		current, e := os.Stat("/proc/self/ns/" + kind)
+		if e != nil {
+			return bad("namespace proof")
+		}
+		initial, e := os.Stat("/proc/" + strconv.Itoa(pid) + "/ns/" + kind)
+		if e != nil || !os.SameFile(current, initial) {
+			return bad("initial namespace proof")
+		}
 	}
 	return nil
 }

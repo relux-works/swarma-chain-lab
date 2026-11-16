@@ -1,4 +1,4 @@
-package chaingateway_test
+package chaingateway
 
 import (
 	"encoding/json"

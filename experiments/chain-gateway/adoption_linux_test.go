@@ -114,7 +114,7 @@ func TestVerifierWhitelistAndDenial(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			x := makeFixture(t, "rpcauth-user")
 			old, b := x.previous(t)
-			if e := os.WriteFile(x.c.NodeConfig, []byte(config), 0600); e != nil {
+			if e := os.WriteFile(x.c.NodeConfig, []byte(loopbackPolicy+config), 0600); e != nil {
 				t.Fatal(e)
 			}
 			want := ExitNode
@@ -211,16 +211,20 @@ func TestFailedRecordReadExit11KeepsPrevious(t *testing.T) {
 	}
 }
 
-// Inconsistent view metadata fails closed, while valid two-view controls above
-// prove the adapter does not merely reject every pair.
+// Inconsistent metadata fails terminally; a different known bestblock exhausts
+// movement retries. Valid two-view controls prove the adapter admits good pairs.
 func TestF5InconsistentViewsKeepPrevious(t *testing.T) {
 	for _, invalid := range []string{"bestblock", "script_disagrees", "zero_confirmed", "count_disagrees", "confirmed_missing"} {
 		t.Run(invalid, func(t *testing.T) {
 			x := makeFixture(t, "cookie")
 			old, b := x.previous(t)
 			x.rpc.invalid = invalid
-			if code, _ := x.execute(); code != ExitNode {
-				t.Fatalf("inconsistent views accepted: %d", code)
+			want := ExitNode
+			if invalid == "bestblock" {
+				want = ExitTipMoved
+			}
+			if code, _ := x.execute(); code != want {
+				t.Fatalf("inconsistent views classification: %d want %d", code, want)
 			}
 			x.unchanged(t, old, b)
 		})
@@ -426,7 +430,7 @@ func TestVerifierNetworkSections(t *testing.T) {
 				section = "regtest"
 				want = 0
 			}
-			os.WriteFile(x.c.NodeConfig, []byte("rpcwhitelistdefault=1\n["+section+"]\nrpcwhitelist=snapshot-observer:"+verifierMethods+"\n"), 0600)
+			os.WriteFile(x.c.NodeConfig, []byte(loopbackPolicy+"rpcwhitelistdefault=1\n["+section+"]\nrpcwhitelist=snapshot-observer:"+verifierMethods+"\n"), 0600)
 			if code, _ := x.execute(); code != want {
 				t.Fatalf("section exit %d want %d", code, want)
 			}

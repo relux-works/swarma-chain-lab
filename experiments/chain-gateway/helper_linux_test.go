@@ -47,7 +47,7 @@ func tipFixture() map[string]any {
 }
 func (f *fakeRPC) serve(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ID     int               `json:"id"`
+		ID     string            `json:"id"`
 		Method string            `json:"method"`
 		Params []json.RawMessage `json:"params"`
 	}
@@ -199,15 +199,15 @@ func (f *fakeRPC) serve(w http.ResponseWriter, r *http.Request) {
 		<-release
 	}
 	if fail == req.Method {
-		fmt.Fprintf(w, `{"result":null,"error":{"code":-1,"message":%q},"id":1}`, reflection)
+		fmt.Fprintf(w, `{"result":null,"error":{"code":-1,"message":%q},"id":"snapshot"}`, reflection)
 		return
 	}
 	if invalid == "duplicate" {
-		io.WriteString(w, `{"result":null,"result":{},"error":null,"id":1}`)
+		io.WriteString(w, `{"result":null,"result":{},"error":null,"id":"snapshot"}`)
 		return
 	}
 	if invalid == "alias" {
-		io.WriteString(w, `{"result":{},"Result":{},"error":null,"id":1}`)
+		io.WriteString(w, `{"result":{},"Result":{},"error":null,"id":"snapshot"}`)
 		return
 	}
 	if invalid == "oversize" {
@@ -239,15 +239,15 @@ func makeFixture(t *testing.T, mode string) *fixture {
 	f := &fakeRPC{auth: "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+secret))}
 	srv := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(srv.Close)
-	c := Configuration{GatewayVerifierUser: "gateway-observer", NodeUID: uint32(os.Getuid()), Profile: "cg1-v1", NodeConfig: filepath.Join(root, "node.conf"), VerifierUser: "snapshot-observer", CookieSource: "live", RPCURL: srv.URL, Network: "regtest", Genesis: strings.Repeat("0", 64), CredentialMode: mode, CredentialFile: filepath.Join(root, "credential"), CredentialGroup: uint32(os.Getgid()), Output: filepath.Join(root, "snapshot.json"), Lock: filepath.Join(root, "writer.lock"), Names: []string{"id/example"}, Seals: []Outpoint{{strings.Repeat("a", 64), 2}}}
+	c := Configuration{ServerUID: 2001, AllowedUIDs: []uint32{0, 2002}, WorkloadUIDs: []uint32{0, 2003}, NodeDedicated: true, GatewayVerifierUser: "gateway-observer", NodeUID: uint32(os.Getuid()), Profile: "cg1-v1", NodeConfig: filepath.Join(root, "node.conf"), VerifierUser: "snapshot-observer", CookieSource: "live", RPCURL: srv.URL, Network: "regtest", Genesis: strings.Repeat("0", 64), CredentialMode: mode, CredentialFile: filepath.Join(root, "credential"), CredentialGroup: uint32(os.Getgid()), Output: filepath.Join(root, "snapshot.json"), Lock: filepath.Join(root, "writer.lock"), Names: []string{"id/example"}, Seals: []Outpoint{{strings.Repeat("a", 64), 2}}}
 	if e := os.WriteFile(c.CredentialFile, []byte(user+":"+secret+"\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
-	x := &fixture{root: root, path: filepath.Join(root, "config.json"), c: c, p: custody{uid: uint32(os.Getuid()), anchor: root}, rpc: f}
+	x := &fixture{root: root, path: filepath.Join(root, "config.json"), c: c, p: custody{uid: uint32(os.Getuid()), anchor: root, namespacePID: os.Getpid()}, rpc: f}
 	if mode == "rpcauth-user" {
 		x.c.CookieSource = "none"
 	}
-	if e := os.WriteFile(c.NodeConfig, []byte("rpcwhitelistdefault=1\nrpcwhitelist=snapshot-observer:"+verifierMethods+"\n"), 0600); e != nil {
+	if e := os.WriteFile(c.NodeConfig, []byte(loopbackPolicy+"rpcwhitelistdefault=1\nrpcwhitelist=snapshot-observer:"+verifierMethods+"\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
 	x.config(t)
@@ -359,13 +359,17 @@ func TestBracketMovedKeepsPrevious(t *testing.T) {
 			}
 			x.rpc.tips = []map[string]any{a, z}
 			start := time.Now()
-			if code, _ := x.execute(); code != ExitTipMoved {
+			want := ExitTipMoved
+			if field != "hash" {
+				want = ExitNode
+			}
+			if code, _ := x.execute(); code != want {
 				t.Fatalf("expected tip exhaustion exit 12; got %d", code)
 			}
-			if x.rpc.tipCalls != 6 {
+			if field == "hash" && x.rpc.tipCalls != 6 {
 				t.Fatalf("expected six bracket reads, got %d", x.rpc.tipCalls)
 			}
-			if time.Since(start) < 300*time.Millisecond {
+			if field == "hash" && time.Since(start) < 300*time.Millisecond {
 				t.Fatal("retry backoff omitted")
 			}
 			x.unchanged(t, old, b)
@@ -491,7 +495,14 @@ func TestLockExcludesSecondWriter(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("writer did not finish")
 	}
-	if code != ExitLocked {
+	// Bind the supervisor result to the shared contract rather than a local constant.
+	var expected map[string]any
+	for _, v := range observations(t) {
+		if v.Name == "snapshot_stage_lock_busy" {
+			expected = v.Expected
+		}
+	}
+	if expected == nil || code != int(uintValue(expected["exit"])) {
 		t.Fatalf("lock failed: second code=%d", code)
 	}
 	if n > 0 || watchError != syscall.EAGAIN {

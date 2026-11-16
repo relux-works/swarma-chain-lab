@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -24,16 +25,21 @@ import (
 )
 
 const (
-	ExitConfig   = 10
-	ExitNode     = 11
-	ExitTipMoved = 12
-	ExitLocked   = 13
-	ExitPublish  = 14
+	ExitConfig     = 11
+	ExitNode       = 11
+	ExitTipMoved   = 12
+	ExitLocked     = 14
+	ExitPublish    = 11
+	ExitDurability = 13
 )
 
 // Configuration contains operator-selected paths and watch bindings, never secrets.
 // Its JSON is closed; all fields are required (including an explicit credential mode).
 type Configuration struct {
+	ServerUID           uint32     `json:"server_uid"`
+	AllowedUIDs         []uint32   `json:"allowed_uids"`
+	WorkloadUIDs        []uint32   `json:"workload_uids"`
+	NodeDedicated       bool       `json:"node_dedicated"`
 	NodeUID             uint32     `json:"node_uid"`
 	Profile             string     `json:"profile"`
 	NodeConfig          string     `json:"node_config"`
@@ -57,8 +63,9 @@ type Outpoint struct {
 }
 
 type custody struct {
-	uid    uint32
-	anchor string
+	uid          uint32
+	anchor       string
+	namespacePID int
 }
 
 // Main is a root-only oneshot. Only fixed diagnostics cross this boundary.
@@ -71,7 +78,7 @@ func Main(args []string, output io.Writer) int {
 }
 func runReport(path string, p custody, output io.Writer) int { return report(run(path, p), output) }
 func report(code int, output io.Writer) int {
-	messages := map[int]string{0: "snapshot refreshed (observe only)", 10: "invalid configuration or custody", 11: "node or credential unavailable", 12: "tip moved; previous snapshot retained", 13: "writer already active", 14: "publication failed"}
+	messages := map[int]string{0: "snapshot refreshed (observe only)", 11: "snapshot unavailable; previous file retained", 12: "tip moved; previous snapshot retained", 13: "snapshot renamed; durability unconfirmed", 14: "writer already active; skipped"}
 	fmt.Fprintln(output, messages[code])
 	return code
 }
@@ -159,7 +166,7 @@ func loadConfig(path string, p custody) (Configuration, error) {
 	if e != nil {
 		return c, e
 	}
-	if _, e = fields(m, "gateway_verifier_user", "node_uid", "profile", "node_config", "verifier_user", "cookie_source", "rpc_url", "network", "genesis", "credential_mode", "credential_file", "credential_group", "output", "lock", "names", "seals"); e != nil {
+	if _, e = fields(m, "server_uid", "allowed_uids", "workload_uids", "node_dedicated", "gateway_verifier_user", "node_uid", "profile", "node_config", "verifier_user", "cookie_source", "rpc_url", "network", "genesis", "credential_mode", "credential_file", "credential_group", "output", "lock", "names", "seals"); e != nil {
 		return c, e
 	}
 	points, ok := m["seals"].([]any)
@@ -178,6 +185,9 @@ func loadConfig(path string, p custody) (Configuration, error) {
 	d.DisallowUnknownFields()
 	if e = d.Decode(&c); e != nil {
 		return c, e
+	}
+	if !exclusiveNode(c) {
+		return c, bad("exclusive node identity")
 	}
 	u, e := url.Parse(c.RPCURL)
 	if e != nil || u.Scheme != "http" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" || u.RawPath != "" || u.Port() == "" {
@@ -238,10 +248,17 @@ type rpcClient struct {
 	auth     string
 	secrets  []string
 	client   *http.Client
+	pacer    *rpcPacer
 }
 
 func newRPC(c Configuration, p custody) (*rpcClient, error) {
+	if e := p.verifyNamespaces(); e != nil {
+		return nil, e
+	}
 	if e := hardenDumps(); e != nil {
+		return nil, e
+	}
+	if e := verifyNodeLoopback(c, p); e != nil {
 		return nil, e
 	}
 	u, _ := url.Parse(c.RPCURL)
@@ -252,6 +269,9 @@ func newRPC(c Configuration, p custody) (*rpcClient, error) {
 		return nil, e
 	}
 	conn.Close()
+	if e := admitCredentialHolder(c, platformEvidence{platform: runtime.GOOS, endpoint: true, dump: true, user: true, network: true, bind: true, allow: true}); e != nil {
+		return nil, e
+	}
 	owner := p
 	modes := []uint32{0600, 0640}
 	if c.CredentialMode == "cookie" {
@@ -275,16 +295,22 @@ func newRPC(c Configuration, p custody) (*rpcClient, error) {
 		}
 	}
 	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(s))
-	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true, DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true, DisableCompression: true, DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 		return authenticatedDial(ctx, network, address, c.NodeUID)
 	}}
-	return &rpcClient{c.RPCURL, auth, []string{s, base64.StdEncoding.EncodeToString([]byte(s)), auth}, &http.Client{Timeout: time.Second, Transport: tr, CheckRedirect: func(*http.Request, []*http.Request) error { return bad("redirect") }}}, nil
+	return &rpcClient{endpoint: c.RPCURL, auth: auth, secrets: []string{s, base64.StdEncoding.EncodeToString([]byte(s)), auth, pass}, client: &http.Client{Timeout: time.Second, Transport: tr, CheckRedirect: func(*http.Request, []*http.Request) error { return bad("redirect") }}, pacer: newPacer()}, nil
 }
 func (r *rpcClient) call(ctx context.Context, method string, params []any) (any, error) {
+	return r.callWithID(ctx, method, params, "snapshot")
+}
+func (r *rpcClient) callWithID(ctx context.Context, method string, params []any, id string) (any, error) {
 	if !slices.Contains(strings.Split(verifierMethods, ","), method) {
 		return nil, bad("forbidden method")
 	}
-	b, _ := json.Marshal(map[string]any{"jsonrpc": "1.0", "id": 1, "method": method, "params": params})
+	if e := r.pacer.take(ctx); e != nil {
+		return nil, e
+	}
+	b, _ := json.Marshal(map[string]any{"jsonrpc": "1.0", "id": id, "method": method, "params": params})
 	req, e := http.NewRequestWithContext(ctx, "POST", r.endpoint, bytes.NewReader(b))
 	if e != nil {
 		return nil, bad("rpc")
@@ -296,19 +322,18 @@ func (r *rpcClient) call(ctx context.Context, method string, params []any) (any,
 		return nil, bad("rpc")
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return nil, bad("rpc status")
-	}
-	b, e = io.ReadAll(io.LimitReader(resp.Body, 65537))
-	if e != nil {
+	bound := upstreamBounds[method]
+	b, e = upstreamRead(resp.Body, bound.bytes)
+	if e != nil || resp.Header.Get("Content-Encoding") != "" {
 		return nil, bad("rpc read")
 	}
-	m, e := parseJSON(b, 65536, false, true)
+	class := upstreamClass(upstreamInput{Method: method, Status: resp.StatusCode, ID: id, Body: string(b)})
+	if class != "ok" && class != "absent" {
+		return nil, readFailure(class)
+	}
+	m, e := upstreamParse(b, bound.depth)
 	if e != nil {
 		return nil, bad("rpc json")
-	}
-	if _, e = fields(m, "result", "error", "id"); e != nil || m["id"] != json.Number("1") || m["error"] != nil {
-		return nil, bad("rpc envelope")
 	}
 	return m["result"], nil
 }
@@ -345,8 +370,8 @@ func (r *rpcClient) collect(ctx context.Context, c Configuration, at map[string]
 	ss := make([]any, len(c.Seals))
 	jobs := make(chan int)
 	var wg sync.WaitGroup
-	var once sync.Once
 	var failure error
+	var failureMu sync.Mutex
 	for worker := 0; worker < 16; worker++ {
 		wg.Go(func() {
 			for i := range jobs {
@@ -358,7 +383,9 @@ func (r *rpcClient) collect(ctx context.Context, c Configuration, at map[string]
 					value, e = r.readSeal(ctx, c.Seals[i-len(ns)], at)
 				}
 				if e != nil {
-					once.Do(func() { failure = e })
+					failureMu.Lock()
+					failure = strongerFailure(failure, e)
+					failureMu.Unlock()
 				} else if i < len(ns) {
 					ns[i] = value
 				} else {
@@ -417,6 +444,7 @@ func (r *rpcClient) readSeal(ctx context.Context, s Outpoint, at map[string]any)
 	if e != nil {
 		return nil, e
 	}
+	var evidence error
 	var c, m map[string]any
 	for i, v := range []any{cv, mv} {
 		if v == nil {
@@ -427,8 +455,11 @@ func (r *rpcClient) readSeal(ctx context.Context, s Outpoint, at map[string]any)
 			return nil, e
 		}
 		script, ok := view["scriptPubKey"].(map[string]any)
-		if !ok || view["bestblock"] != at["hash"] || !integer(view["confirmations"], maxInteger) {
+		if !ok || !hash(view["bestblock"]) || !integer(view["confirmations"], maxInteger) {
 			return nil, bad("utxo")
+		}
+		if view["bestblock"] != at["hash"] {
+			evidence = readFailure("tip_moved")
 		}
 		if _, ok = script["hex"].(string); !ok {
 			return nil, bad("script")
@@ -466,19 +497,45 @@ func (r *rpcClient) readSeal(ctx context.Context, s Outpoint, at map[string]any)
 	if sealRecord(record, at) != nil {
 		return nil, bad("seal schema")
 	}
-	return record, nil
+	return record, evidence
 }
 
 func (r *rpcClient) leaks(b []byte, ns []any) bool {
-	for _, s := range r.secrets {
-		if bytes.Contains(b, []byte(s)) {
+	m, e := parseJSON(b, 65536, false, false)
+	if e != nil {
+		return true
+	}
+	var match func(any) bool
+	match = func(v any) bool {
+		switch x := v.(type) {
+		case string:
+			return slices.Contains(r.secrets, x)
+		case map[string]any:
+			for _, v := range x {
+				if match(v) {
+					return true
+				}
+			}
+		case []any:
+			for _, v := range x {
+				if match(v) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if match(m) {
+		return true
+	}
+	for _, v := range ns {
+		record, ok := v.(map[string]any)
+		if !ok {
 			return true
 		}
-		for _, v := range ns {
-			raw, _ := base64.StdEncoding.DecodeString(v.(map[string]any)["value_b64"].(string))
-			if bytes.Contains(raw, []byte(s)) {
-				return true
-			}
+		raw, e := base64.StdEncoding.DecodeString(str(record["value_b64"]))
+		if e != nil || slices.Contains(r.secrets, string(raw)) {
+			return true
 		}
 	}
 	return false
@@ -507,13 +564,13 @@ func run(path string, p custody) int {
 	if e = cleanupTemps(c.Output, p); e != nil {
 		return ExitPublish
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 	r, e := newRPC(c, p)
 	if e != nil {
 		return ExitNode
 	}
 	defer r.client.CloseIdleConnections()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
 	if c.CredentialMode == "rpcauth-user" && !r.denied(ctx) {
 		return ExitNode
 	}
@@ -521,26 +578,51 @@ func run(path string, p custody) int {
 	if e != nil || genesis != c.Genesis {
 		return ExitNode
 	}
+	headers := map[string]map[string]any{}
 	for attempt := 0; attempt < 3; attempt++ {
 		before, e := r.tip(ctx, c.Network)
-		if e != nil {
-			return ExitNode
+		var ns, ss []any
+		var after map[string]any
+		if e == nil {
+			ns, ss, e = r.collect(ctx, c, before)
+			var closing error
+			after, closing = r.tip(ctx, c.Network)
+			e = strongerFailure(e, closing)
 		}
-		ns, ss, e := r.collect(ctx, c, before)
-		if e != nil {
-			return ExitNode
-		}
-		after, e := r.tip(ctx, c.Network)
-		if e != nil {
-			return ExitNode
-		}
-		if !equalTip(before, after) {
-			if attempt < 2 {
-				select {
-				case <-time.After(time.Duration(attempt+1) * 100 * time.Millisecond):
-				case <-ctx.Done():
-					return ExitNode
+		a := collectionAttempt{Before: before, After: after, Failure: e}
+		if before != nil && after != nil && e == nil {
+			a.Requests = configuredReads(c)
+			for _, v := range ns {
+				a.Replies = append(a.Replies, projectedReply(c, "name_show", v, before))
+			}
+			for _, v := range ss {
+				a.Replies = append(a.Replies, projectedReply(c, "gettxout", v, before))
+			}
+			e = assessCollection(c, a, headers)
+		} else {
+			// Refused reads carry no record data. Retain successful bracket headers.
+			for _, at := range []map[string]any{before, after} {
+				if at != nil {
+					h := str(at["hash"])
+					if old := headers[h]; old != nil && !equalTip(old, at) {
+						e = bad("inconsistent header")
+					}
+					headers[h] = at
 				}
+			}
+		}
+		code, wait := retryOutcome(e, attempt+1)
+		if ctx.Err() != nil {
+			return ExitNode
+		}
+		if code > 0 {
+			return code
+		}
+		if code < 0 {
+			select {
+			case <-time.After(wait):
+			case <-ctx.Done():
+				return ExitNode
 			}
 			continue
 		}
@@ -564,10 +646,7 @@ func run(path string, p custody) int {
 		if validate("snapshot", b) != nil || r.leaks(b, ns) {
 			return ExitNode
 		}
-		if e = publish(c.Output, b, p); e != nil {
-			return ExitPublish
-		}
-		return 0
+		return publicationExit(publish(c.Output, b, p))
 	}
 	return ExitTipMoved
 }
@@ -575,7 +654,14 @@ func equalTip(a, b map[string]any) bool {
 	return a["hash"] == b["hash"] && a["height"] == b["height"] && a["time"] == b["time"]
 }
 
+// publicationStep permits bounded syscall-failure controls without changing the CLI.
+type publicationStep func(string, func() error) error
+
+func publicationAction(_ string, action func() error) error { return action() }
 func publish(path string, b []byte, p custody) error {
+	return publishWith(path, b, p, publicationAction)
+}
+func publishWith(path string, b []byte, p custody, step publicationStep) (result error) {
 	dir, e := p.openProtected(filepath.Dir(path), syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
 	if e != nil {
 		return e
@@ -602,27 +688,107 @@ func publish(path string, b []byte, p custody) error {
 		return e
 	}
 	tmp := ".snapshot-" + hex.EncodeToString(nonce)
-	fd, e := syscall.Openat(int(dir.Fd()), tmp, syscall.O_WRONLY|syscall.O_CREAT|syscall.O_EXCL|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0600)
+	var f *os.File
+	if e = step("temp_create", func() error {
+		fd, err := syscall.Openat(int(dir.Fd()), tmp, syscall.O_RDWR|syscall.O_CREAT|syscall.O_EXCL|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0600)
+		if err == nil {
+			f = os.NewFile(uintptr(fd), tmp)
+		}
+		return err
+	}); e != nil {
+		return e
+	}
+	renamed := false
+	defer func() {
+		f.Close()
+		if !renamed {
+			cleanup := step("own_temp_cleanup", func() error {
+				fd, err := syscall.Openat(int(dir.Fd()), tmp, syscall.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0)
+				if err != nil {
+					return err
+				}
+				own := os.NewFile(uintptr(fd), tmp)
+				defer own.Close()
+				if _, err = regular(own, p.uid, 0600, 0644); err != nil {
+					return err
+				}
+				return syscall.Unlinkat(int(dir.Fd()), tmp)
+			})
+			if cleanup != nil {
+				result = bad("own temp cleanup")
+			}
+		}
+	}()
+	if e = step("temp_write", func() error { return writeSnapshot(f, b) }); e != nil {
+		return e
+	}
+	if e = step("temp_validate", func() error {
+		if _, err := f.Seek(0, 0); err != nil {
+			return err
+		}
+		raw, err := io.ReadAll(io.LimitReader(f, 65537))
+		if err != nil || !bytes.Equal(raw, b) {
+			return bad("temp content")
+		}
+		return validate("snapshot", raw)
+	}); e != nil {
+		return e
+	}
+	if e = step("temp_metadata", func() error {
+		if err := f.Chmod(0644); err != nil {
+			return err
+		}
+		_, err := regular(f, p.uid, 0644)
+		return err
+	}); e != nil {
+		return e
+	}
+	if e = step("file_sync", f.Sync); e != nil {
+		return e
+	}
+	if e = step("file_close", f.Close); e != nil {
+		return e
+	}
+	if e = step("rename", func() error { return syscall.Renameat(int(dir.Fd()), tmp, int(dir.Fd()), name) }); e != nil {
+		return e
+	}
+	renamed = true
+	// Open/sync/close failures here describe an actual successful rename.
+	var durable *os.File
+	if e = step("directory_open", func() error {
+		var err error
+		durable, err = p.openProtected(filepath.Dir(path), syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
+		return err
+	}); e != nil {
+		return renamedError{e}
+	}
+	defer durable.Close()
+	if e = step("directory_sync", durable.Sync); e != nil {
+		return renamedError{e}
+	}
+	if e = step("directory_close", durable.Close); e != nil {
+		return renamedError{e}
+	}
+	return nil
+}
+
+func writeSnapshot(w io.Writer, b []byte) error {
+	n, e := w.Write(b)
 	if e != nil {
 		return e
 	}
-	f := os.NewFile(uintptr(fd), tmp)
-	defer f.Close()
-	defer syscall.Unlinkat(int(dir.Fd()), tmp)
-	if _, e = f.Write(b); e != nil {
-		return e
+	if n != len(b) {
+		return io.ErrShortWrite
 	}
-	if e = f.Chmod(0644); e != nil {
-		return e
+	return nil
+}
+
+func publicationExit(e error) int {
+	if e == nil {
+		return 0
 	}
-	if e = f.Sync(); e != nil {
-		return e
+	if publicationRenamed(e) {
+		return ExitDurability
 	}
-	if e = f.Close(); e != nil {
-		return e
-	}
-	if e = syscall.Renameat(int(dir.Fd()), tmp, int(dir.Fd()), name); e != nil {
-		return e
-	}
-	return dir.Sync()
+	return ExitPublish
 }
