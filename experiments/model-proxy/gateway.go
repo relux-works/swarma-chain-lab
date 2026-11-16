@@ -33,10 +33,14 @@ func singleBearer(r *http.Request) (Secret, bool) {
 // every credential version issued so far, so an issued value is caught even as
 // the bearer itself, beside several Authorization headers, with an invalid
 // bearer, on an unknown slot, or while the source is down. With a valid binding
-// on the route the account is blocked as for any leak; without one no block is
-// possible, the client sees a plain 401 AUTH and the audit records
-// LEAK_CREDENTIAL. The version the source issues for this very request is not
-// known yet here; admit scans again once it is.
+// on the route the account is blocked as for any leak. When the bearer belongs
+// to ANOTHER binding, that binding is held to account exactly as a foreign
+// bearer without the leak would be: a run binding's account is blocked under
+// LEAK_BEARER and a rental binding's own record is frozen. Only a bearer no
+// binding owns leaves nothing to block. Outside the own-binding case the client
+// sees a plain 401 AUTH and the audit records LEAK_CREDENTIAL. The version the
+// source issues for this very request is not known yet here; admit scans again
+// once it is.
 func (s *Service) screen(w http.ResponseWriter, r *http.Request) bool {
 	if !s.tripwire.request(r) {
 		return false
@@ -49,6 +53,8 @@ func (s *Service) screen(w http.ResponseWriter, r *http.Request) bool {
 		s.mu.Unlock()
 		if e == nil {
 			status, code = s.inspect(id, true)
+		} else if verdict := s.foreignLeak(id, bearer); verdict != "" {
+			status, code = 503, verdict
 		}
 	}
 	s.refuse(w, id, status, code)

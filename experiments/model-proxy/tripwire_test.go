@@ -129,8 +129,8 @@ func TestTripwireForms(t *testing.T) {
 // bearer count and authorize. An issued credential presented as the bearer
 // itself, beside a second Authorization header, with an invalid bearer, on an
 // unknown slot or on a malformed route is refused 401 with the plain AUTH body,
-// audited LEAK_CREDENTIAL on the route's slot with no account block (none is
-// possible without a valid binding) and no upstream call; the valid binding
+// audited LEAK_CREDENTIAL on the route's slot with no account block (no binding
+// owns the presented bearer) and no upstream call; the valid binding
 // keeps serving afterwards. The same shapes without the credential are today's
 // AUTH and ROUTE refusals, the negative control. The bound case, a valid bearer
 // with the leak, is TestTripwireForms.
@@ -176,8 +176,8 @@ func TestTripwireBeforeAuthorize(t *testing.T) {
 			h.Set("Authorization", "Bearer not-the-bearer")
 			return debug(h, leak)
 		}},
-		// A valid bearer on another slot would be the foreign-bearer verdict,
-		// so the unknown-slot and malformed-route shapes carry an invalid one.
+		// A bearer owned by another slot is TestTripwireScreenForeign, so the
+		// unknown-slot and malformed-route shapes carry an unowned one.
 		{"unknown-slot", "/slots/" + unknown + "/v1/messages", unknown, "AUTH", 401, func(leak bool) http.Header {
 			h := http.Header{}
 			h.Set("Authorization", "Bearer not-the-bearer")
@@ -214,6 +214,88 @@ func TestTripwireBeforeAuthorize(t *testing.T) {
 	}
 	if w := g.send(request(false)); w.Code != 200 || g.calls.Load() != 2 {
 		t.Fatal("valid binding affected by unbound leaks", w.Code, w.Body.String(), g.calls.Load())
+	}
+}
+
+// A leaked credential beside a bearer that belongs to ANOTHER binding holds
+// that binding to account exactly as the foreign bearer alone would: a foreign
+// run bearer blocks its account under LEAK_BEARER in the ledger, a foreign
+// rental bearer freezes its own record and blocks no account, and a bearer no
+// binding owns blocks and freezes nothing (the control). Every shape is refused
+// 401 with the plain AUTH body, audited LEAK_CREDENTIAL on the route's slot
+// without the value, makes no upstream call, and leaves the route's own binding
+// serving. The held binding is then refused on its own route.
+func TestTripwireScreenForeign(t *testing.T) {
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
+	other := runBinding("5", "b")
+	otherCred, e := g.s.Prepare(other)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = g.s.Activate(other); e != nil {
+		t.Fatal(e)
+	}
+	rental := rentalBinding("6")
+	rentalCred, e := g.s.Prepare(rental)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = g.s.Activate(rental); e != nil {
+		t.Fatal(e)
+	}
+	if g.send(request(false)).Code != 200 || g.sendAs(request(false), other.SlotID, otherCred.Bearer.Reveal(), nil).Code != 200 || g.sendAs(request(false), rental.SlotID, rentalCred.Bearer.Reveal(), nil).Code != 200 {
+		t.Fatal("screen-foreign positive neighbors refused")
+	}
+	calls := g.calls.Load()
+	leak := map[string]string{"X-Client-Debug": sourceMarker}
+	screened := func(name string, bearer Secret) {
+		t.Helper()
+		w := g.sendAs(request(false), g.b.SlotID, bearer, leak)
+		a := g.lastAudit()
+		if w.Code != 401 || w.Body.String() != `{"error":"AUTH"}` || a.Code != "LEAK_CREDENTIAL" || a.HTTPStatus != 401 || a.SlotID != g.b.SlotID || g.calls.Load() != calls {
+			t.Fatal(name, "not refused as 401 LEAK_CREDENTIAL", w.Code, w.Body.String(), a, g.calls.Load())
+		}
+		if strings.Contains(g.auditLog(), sourceMarker) {
+			t.Fatal(name, "audit carried the credential")
+		}
+	}
+	phase := func(id string) string {
+		t.Helper()
+		v, e := g.s.Status(id)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return v.Phase
+	}
+	// Control: a bearer no binding owns blocks and freezes nothing.
+	screened("unowned", Secret("not-a-bearer"))
+	if len(persistedBlocks(t, g)) != 0 || phase(other.SlotID) != "active" || phase(rental.SlotID) != "active" {
+		t.Fatal("unowned bearer with a leak blocked or froze a binding")
+	}
+	// Foreign run bearer: its account is blocked under LEAK_BEARER, the route's
+	// own account is not, and the bearer is refused on its own route.
+	screened("foreign-run", otherCred.Bearer.Reveal())
+	if blocks := persistedBlocks(t, g); len(blocks) != 1 || blocks[other.Run.Account] != "LEAK_BEARER" {
+		t.Fatal("foreign run bearer with a leak did not block its account", blocks)
+	}
+	if w := g.sendAs(request(false), other.SlotID, otherCred.Bearer.Reveal(), nil); w.Code != 403 || w.Body.String() != `{"error":"ACCOUNT_BLOCKED"}` {
+		t.Fatal("blocked account still served", w.Code, w.Body.String())
+	}
+	// Foreign rental bearer: no account to block, so its own record is frozen
+	// and the bearer is refused on its own route as any inactive record.
+	screened("foreign-rental", rentalCred.Bearer.Reveal())
+	if blocks := persistedBlocks(t, g); len(blocks) != 1 || phase(rental.SlotID) != "frozen" {
+		t.Fatal("foreign rental bearer with a leak blocked an account or left the record live", blocks, phase(rental.SlotID))
+	}
+	if w := g.sendAs(request(false), rental.SlotID, rentalCred.Bearer.Reveal(), nil); w.Code != 401 || w.Body.String() != `{"error":"AUTH"}` {
+		t.Fatal("frozen rental still served", w.Code, w.Body.String())
+	}
+	g.reopen(t)
+	if phase(rental.SlotID) != "frozen" || persistedBlocks(t, g)[other.Run.Account] != "LEAK_BEARER" {
+		t.Fatal("foreign-leak verdicts not durable")
+	}
+	if w := g.send(request(false)); w.Code != 200 || g.calls.Load() != calls+1 {
+		t.Fatal("route's own binding affected by foreign leaks", w.Code, w.Body.String(), g.calls.Load())
 	}
 }
 
@@ -544,6 +626,7 @@ func TestGatewayRevealInventory(t *testing.T) {
 		"registry.go:newService:r.Bearer.Reveal()":                4,
 		"responses.go:Responses.Headers:key.Reveal()":             1,
 		"tripwire.go:Service.foreignBearer:r.Bearer.Reveal()":     1,
+		"tripwire.go:Service.foreignLeak:r.Bearer.Reveal()":       1,
 		"types.go:Credential.Equal:c.Bearer.Reveal()":             1,
 		"types.go:Credential.Equal:other.Bearer.Reveal()":         1,
 	}

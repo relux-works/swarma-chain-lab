@@ -46,6 +46,7 @@ var reveals = map[string]int{
 	"experiments/model-proxy/credential.go:Service.issued:c.Value.Reveal()":                       1,
 	"experiments/model-proxy/credential.go:authenticate:c.Value.Reveal()":                         1,
 	"experiments/model-proxy/tripwire.go:Service.foreignBearer:r.Bearer.Reveal()":                 1,
+	"experiments/model-proxy/tripwire.go:Service.foreignLeak:r.Bearer.Reveal()":                   1,
 	"experiments/rental-gateway/station/localtest.go:LocalTestDriver.Create:token.Reveal()":       1,
 	"experiments/rental-gateway/station/linuxuser.go:LinuxUserDriver.Create:token.Reveal()":       1,
 	"experiments/rental-gateway/station/trackbadmin.go:TrackBAdminClient.Mint:out.Token.Reveal()": 1,

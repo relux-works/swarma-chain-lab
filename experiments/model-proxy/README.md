@@ -345,11 +345,11 @@ run binding with `RUN_REQUIRES_MANAGED`. A run window is bounded only by
 `run_max_window_seconds` from sealed configuration: above it `Prepare` refuses
 `RUN_WINDOW`, and a value above 12 h (43200) is refused at decode and by `New`
 with `CONFIG_RUN_WINDOW`. Zero or omitted admits no run binding. Both
-conditions are re-checked at every use, in `authorize` and in the in-flight
-liveness poll, not only at Prepare: a managed state dir reopened in
-`development` mode refuses its run bearers with `RUN_REQUIRES_MANAGED`, and a
-sealed maximum lowered below an active run window refuses that bearer with
-`RUN_WINDOW` on the next use. Neither field enters the ledger fingerprint, so
+conditions are re-checked at Activate and at every use, in `authorize` and in
+the in-flight liveness poll, not only at Prepare: a managed state dir reopened
+in `development` mode refuses its run bearers with `RUN_REQUIRES_MANAGED`, and
+a sealed maximum lowered below a prepared or active run window refuses that
+binding with `RUN_WINDOW` at Activate or on the next use. Neither field enters the ledger fingerprint, so
 lowering the cap stays an ordinary, reversible operator action. One live binding
 exists per (`generation`, `run_id`, `account`): a second slot for the tuple of a
 prepared or active binding refuses `CONFLICT`, the exact retry of the same slot
@@ -373,8 +373,11 @@ frozen instead. The request-line and header scan is the first verdict on every
 request, before the route, the bearer count and authorize, with every version
 issued so far: an issued value is caught even as the bearer itself, beside
 several `Authorization` headers, with an invalid bearer, or while the source is
-down. Without a valid binding on the route no block is possible; the client then
-sees a plain 401 `AUTH` and only the audit names `LEAK_CREDENTIAL`. Matched
+down. When that bearer belongs to another binding, that binding is held to
+account as for a foreign bearer: a run binding's account is blocked under
+`LEAK_BEARER` and a rental binding's record is frozen. Only a bearer no binding
+owns leaves nothing to block. Outside the own-binding case the client sees a
+plain 401 `AUTH` and only the audit names `LEAK_CREDENTIAL`. Matched
 spellings: raw, base64 and base64url
 with and without padding, lower and upper hex, percent-encoding and JSON string
 escaping, across body chunk boundaries within a window bounded by the longest

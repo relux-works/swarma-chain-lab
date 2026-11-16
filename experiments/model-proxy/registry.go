@@ -407,6 +407,9 @@ func (s *Service) Activate(b Binding) error {
 	if now < b.NotBefore || now >= b.NotAfter || r.Phase == "revoked" || r.Phase == "frozen" {
 		return fail("TERMINAL")
 	}
+	if e := s.runRefusal(b); e != nil {
+		return e
+	}
 	if s.isBlocked(b) {
 		return fail("ACCOUNT_BLOCKED")
 	}
@@ -474,7 +477,8 @@ func (s *Service) authorize(id string, bearer Secret) (record, error) {
 	return r, nil
 }
 
-// runRefusal is the run-kind admission that Prepare and every use share: a run
+// runRefusal is the run-kind admission that Prepare, Activate and every use
+// share: a run
 // binding exists only behind the broker-backed managed mode, and only while its
 // window fits the CURRENT sealed maximum, where zero admits none. Re-checking
 // at use is what lets an operator lower the maximum, or reopen the state in

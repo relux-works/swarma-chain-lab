@@ -248,6 +248,42 @@ func (s *Service) foreignBearer(id string, bearer Secret) string {
 	return ""
 }
 
+// foreignLeak applies the credential-leak verdict to the binding that owns a
+// bearer presented on another route beside a leaked credential. A run binding
+// is handled by foreignBearer and keeps its LEAK_BEARER account block. A rental
+// binding has no account, so its own record is frozen, as for a leak on its own
+// route; a foreign rental bearer without the leak still freezes nothing. The
+// own slot and a bearer no binding owns leave nothing to block. It returns ""
+// or the persistence code of a failed save.
+func (s *Service) foreignLeak(id string, bearer Secret) string {
+	if verdict := s.foreignBearer(id, bearer); verdict != "" {
+		if verdict == "LEAK_BEARER" {
+			return ""
+		}
+		return verdict
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.poisoned {
+		return ""
+	}
+	for other, r := range s.state.Records {
+		if other == id || r.Binding.Kind() == KindRun || subtle.ConstantTimeCompare([]byte(bearer), []byte(r.Bearer.Reveal())) != 1 {
+			continue
+		}
+		r.Phase = "frozen"
+		s.state.Records[other] = r
+		if cancel := s.cancel[other]; cancel != nil {
+			cancel()
+		}
+		if e := s.save(); e != nil {
+			return e.Error()
+		}
+		return ""
+	}
+	return ""
+}
+
 // ClearBlock is the explicit owner operation that lifts an account block. It
 // is reached only through the peer-checked admin socket, like Prepare.
 func (s *Service) ClearBlock(account string) error {

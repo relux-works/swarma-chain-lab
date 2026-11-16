@@ -631,6 +631,70 @@ func TestRunRecheckedAtUse(t *testing.T) {
 	}
 }
 
+// Activate re-checks the run admission like every use: a run binding prepared
+// in managed mode is refused RUN_REQUIRES_MANAGED by the same state dir
+// reopened in development with a static key, and RUN_WINDOW by a sealed maximum
+// lowered below its window; the record stays prepared and nothing is blocked.
+// The restored configuration activates it and the bearer serves, the positive
+// control. A rental binding activates in every configuration.
+func TestRunActivateRechecked(t *testing.T) {
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
+	g.accept(sourceMarker, keyMarker)
+	run := runBinding("5", "b")
+	runCred, e := g.s.Prepare(run)
+	if e != nil {
+		t.Fatal(e)
+	}
+	rental := rentalBinding("6")
+	if _, e = g.s.Prepare(rental); e != nil {
+		t.Fatal(e)
+	}
+	window := uint64(run.NotAfter - run.NotBefore)
+	for _, tc := range []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{"development-static", func(c *Config) { c.Mode, c.Source, c.APIKey = ModeDevelopment, nil, NewAPIKey(keyMarker) }, "RUN_REQUIRES_MANAGED"},
+		{"lowered-cap", func(c *Config) { c.RunMaxWindowSeconds = window - 1 }, "RUN_WINDOW"},
+	} {
+		g.s.Close()
+		c := g.c
+		tc.mutate(&c)
+		s, e := New(c)
+		if e != nil {
+			t.Fatal(tc.name, "reopen refused", e)
+		}
+		g.s = s
+		if e = g.s.Activate(run); e == nil || e.Error() != tc.want {
+			t.Fatal(tc.name, "run binding activated or misreported", e)
+		}
+		if v, e := g.s.Status(run.SlotID); e != nil || v.Phase != "prepared" {
+			t.Fatal(tc.name, "refused Activate changed the record", v, e)
+		}
+		if len(persistedBlocks(t, g)) != 0 {
+			t.Fatal(tc.name, "refused Activate blocked an account")
+		}
+	}
+	// The rental binding is indifferent to both fields; activate it last here so
+	// the restored configuration below proves only the run re-check.
+	if e = g.s.Activate(rental); e != nil {
+		t.Fatal("rental Activate refused under a lowered cap", e)
+	}
+	g.s.Close()
+	s, e := New(g.c)
+	if e != nil {
+		t.Fatal("restore refused", e)
+	}
+	g.s = s
+	if e = g.s.Activate(run); e != nil {
+		t.Fatal("restored configuration refused Activate", e)
+	}
+	if w := g.sendAs(request(false), run.SlotID, runCred.Bearer.Reveal(), nil); w.Code != 200 || g.calls.Load() != 1 {
+		t.Fatal("activated run binding refused", w.Code, w.Body.String(), g.calls.Load())
+	}
+}
+
 // One live binding per (generation, run_id, account): a second slot for the
 // tuple of an active binding refuses CONFLICT and persists nothing; the exact
 // retry of the same slot returns the same credential; after Revoke, and after
