@@ -69,7 +69,7 @@ func TestCoreActionStartup(t *testing.T) {
 	if e := os.WriteFile(sc.ReceiptKeyFile, keyHex, 0600); e != nil {
 		t.Fatal(e)
 	}
-	if e := os.WriteFile(sc.WalletConfig, canonical(c), 0600); e != nil {
+	if e := os.WriteFile(sc.WalletConfig, canonical(privateWalletFixture(c)), 0600); e != nil {
 		t.Fatal(e)
 	}
 	refused("old plain-WriteFile setup (0600 files, 0700 directory)", "DK5_DIRECTORY_MODE")
@@ -77,7 +77,7 @@ func TestCoreActionStartup(t *testing.T) {
 		t.Fatal(e)
 	}
 	refused("0600 installed files in a 0750 directory", "DK5_FILE_MODE")
-	writeInstalled(t, sc.WalletConfig, canonical(c))
+	writeInstalled(t, sc.WalletConfig, canonical(privateWalletFixture(c)))
 	refused("0600 receipt key beside an installed configuration", "DK5_FILE_MODE")
 	writeInstalled(t, sc.ReceiptKeyFile, keyHex)
 	open := func() {

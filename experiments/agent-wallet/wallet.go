@@ -153,9 +153,9 @@ func openWallet(c Config) (*Wallet, error) {
 	}
 	// Rotating an RPC password does not change the logical wallet/state binding.
 	binding := c
-	binding.Observer.Password = ""
-	binding.Wallet.Route.Password = ""
-	binding.Broadcast.Password = ""
+	binding.Observer.Password = su.RPCPassword{}
+	binding.Wallet.Route.Password = su.RPCPassword{}
+	binding.Broadcast.Password = su.RPCPassword{}
 	w.state = state{Version: 1, Binding: Hash(canonical(binding)), Records: []Record{}}
 	b, e := w.store.Read("wallet.json", 65536)
 	if e == nil && b != nil {

@@ -52,7 +52,7 @@ func (h *Host) Start(ctx context.Context, s lifecycle.Slot, record func(lifecycl
 			return failure("SLOTD_FENCE_WRITE")
 		}
 		until := time.Unix(s.NotAfter, 0).UTC().Format(time.RFC3339)
-		bootstrap := base64.StdEncoding.EncodeToString(s.Bootstrap.Reveal())
+		bootstrap := NewBootstrap(base64.StdEncoding.EncodeToString(s.Bootstrap.Reveal()))
 		r, e = h.call(ctx, Request{V: 1, Op: "create", Slot: s.ID, BootID: &fence.BootID, IssuedBoottimeNS: &fence.IssuedBoottimeNS, NotAfter: &until, Bootstrap: &bootstrap})
 		if e != nil {
 			return e

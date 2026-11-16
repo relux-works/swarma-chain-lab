@@ -5,11 +5,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
-	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	"strconv"
 	"strings"
 	"testing"
@@ -83,7 +83,7 @@ func TestCoreServe(t *testing.T) {
 	now := time.Now().Unix()
 	cfg := booking.ConfigV2{StateDir: mkdir("booking"), AgentPubkey: agent.PubKeyHex(), ProviderPubkey: provider.PubKeyHex(), HoldSeconds: 1200, PriceUSDCents: 100, Template: tmpl, TemplateSHA256: booking.Hash(jsonCanonical(tmpl)), Slots: []booking.Slot{{ID: "one", StationName: e2eAgentName, NotBefore: now + 45, NotAfter: now + 600, PaymentPolicy: "advance"}}, Coins: map[string]booking.CoinConfig{"nmc": {PublicBranch: public.String(), PublicBranchSHA256: booking.Hash([]byte(public.String())), USDMicrosPerCoin: 100000000, RateAsOf: now, MaxRateAgeSeconds: 7200, MinConfirmations: 2}}, Limits: booking.Limits{MaxBlocks: 512, MaxMempool: 2000, MaxCalls: 10000, MaxBytes: 64 << 20}}
 	pk, _ := btcec.PrivKeyFromBytes(provider.Bytes())
-	paymentNode, e := pc.NewRPC(pc.Route{Host: l.route.Host, Port: l.route.Port, Username: "payment-observer", Password: l.route.Password})
+	paymentNode, e := pc.NewRPC(pc.Route{Host: l.route.Host, Port: l.route.Port, Username: "payment-observer", Password: pc.NewRPCPassword(l.route.Password.RevealForBasicAuth())})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -141,7 +141,7 @@ func TestCoreServe(t *testing.T) {
 	c.Station.Root = filepath.Join(l.private, "stations")
 	c.Station.StubAgent = true
 	write(c.AgentKeyFile, []byte(hex.EncodeToString(agent.Bytes())), 0600)
-	write(c.Kernel.RPCRouteFile, jsonCanonical(l.route), 0400)
+	write(c.Kernel.RPCRouteFile, privateRouteFixtureJSON(l.route), 0400)
 	configPath := filepath.Join(l.private, "gateway.json")
 	write(configPath, jsonCanonical(c), 0600)
 	logPath := filepath.Join(l.private, "gateway.log")
@@ -395,7 +395,7 @@ func TestCoreServe(t *testing.T) {
 			l.pids[pid] = true
 		}
 	}
-	if strings.Contains(string(data), "DATA RACE") || strings.Contains(string(data), hex.EncodeToString(agent.Bytes())) || strings.Contains(string(data), l.route.Password) {
+	if strings.Contains(string(data), "DATA RACE") || strings.Contains(string(data), hex.EncodeToString(agent.Bytes())) || strings.Contains(string(data), l.route.Password.RevealForBasicAuth()) {
 		t.Fatal("race or credential logging")
 	}
 	t.Log("actual CLI: exchange, foreign-consent refusal, real V2 payment/exporter/SG1 issuance, station echo and fresh spent-seal closure pass")

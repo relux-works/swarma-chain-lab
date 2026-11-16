@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"io"
 	"net"
 	"net/http"
-	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
-	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"strconv"
 	"time"
 )
@@ -24,7 +24,7 @@ type RPCBroadcaster struct {
 // It holds no wallet RPC capability. Core config must enforce the same whitelist.
 func NewBroadcaster(r singleuse.Route) (*RPCBroadcaster, error) {
 	ip := net.ParseIP(r.Host)
-	if ip == nil || !ip.IsLoopback() || r.Port < 1 || r.Port > 65535 || r.Username != "m4a-broadcast" || len(r.Password) < 32 || len(r.Password) > 256 {
+	if ip == nil || !ip.IsLoopback() || r.Port < 1 || r.Port > 65535 || r.Username != "m4a-broadcast" || !r.Password.ValidLength(32, 256) {
 		return nil, fail("BROADCAST_ROUTE")
 	}
 	return &RPCBroadcaster{r, &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return fail("REDIRECT") }}}, nil
@@ -38,7 +38,7 @@ func (b *RPCBroadcaster) Broadcast(ctx context.Context, raw []byte) (string, err
 	if e != nil {
 		return "", fail("BROADCAST_REQUEST")
 	}
-	req.SetBasicAuth(b.route.Username, b.route.Password)
+	b.route.Password.SetBasicAuth(req, b.route.Username)
 	req.Header.Set("Content-Type", "application/json")
 	resp, e := b.client.Do(req)
 	if e != nil {

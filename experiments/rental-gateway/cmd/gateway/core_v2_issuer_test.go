@@ -85,7 +85,7 @@ func (l *coreLab) issueBookingV2(b booking.BookingV2, provider, sourceDir, prese
 	if e != nil {
 		t.Fatal(e)
 	}
-	paymentNode, e := pc.NewIssuerRPC(pc.Route{Host: l.route.Host, Port: l.route.Port, Username: "payment-issuer", Password: l.route.Password})
+	paymentNode, e := pc.NewIssuerRPC(pc.Route{Host: l.route.Host, Port: l.route.Port, Username: "payment-issuer", Password: pc.NewRPCPassword(l.route.Password.RevealForBasicAuth())})
 	if e != nil {
 		t.Fatal(e)
 	}

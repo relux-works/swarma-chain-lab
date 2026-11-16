@@ -109,7 +109,7 @@ func TestCoreActionCrash(t *testing.T) {
 			_, grantee := testKey(2)
 			sc := ServiceConfig{Version: 1, Service: WalletServiceID, Socket: filepath.Join(l.root, "crash.sock"), SocketGID: uint32(os.Getgid()), PeerUID: uint32(os.Getuid()), Grantee: grantee, SkewSeconds: 60, TimeoutSeconds: 2, StateDir: root, WalletConfig: filepath.Join(root, "wallet-config.json"), ReceiptKeyFile: filepath.Join(root, "key")}
 			fixture := filepath.Join(root, "fixture.json")
-			if e := os.WriteFile(fixture, canonical(actionCrashFixture{sc, c, stage}), 0600); e != nil {
+			if e := os.WriteFile(fixture, canonical(privateWalletFixture(actionCrashFixture{sc, c, stage})), 0600); e != nil {
 				t.Fatal(e)
 			}
 			request := actionFixture(t, "spend")

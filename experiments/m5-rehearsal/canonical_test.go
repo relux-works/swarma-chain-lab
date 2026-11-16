@@ -60,7 +60,7 @@ func (l *lab) startObservers() {
 			mac := hmac.New(sha256.New, []byte(salt))
 			mac.Write([]byte(pass))
 			fmt.Fprintf(&auth, "rpcauth=%s:%s$%x\nrpcwhitelist=%s:%s\n", v.name, salt, mac.Sum(nil), v.name, v.methods)
-			*v.route = su.Route{Host: "127.0.0.1", Port: port, Username: v.name, Password: pass}
+			*v.route = su.Route{Host: "127.0.0.1", Port: port, Username: v.name, Password: su.NewRPCPassword(pass)}
 		}
 		// Payment issuer has a different fixed client principal and also needs gettxout.
 		if role == "issuer" {
@@ -73,7 +73,7 @@ func (l *lab) startObservers() {
 			mac := hmac.New(sha256.New, []byte(salt))
 			mac.Write([]byte(secret))
 			fmt.Fprintf(&auth, "rpcauth=payment-issuer:%s$%x\nrpcwhitelist=payment-issuer:getnetworkinfo,getblockchaininfo,getblockhash,getblockheader,getrawtransaction,getrawmempool,getblock,gettxout\n", salt, mac.Sum(nil))
-			n.Payment = su.Route{Host: "127.0.0.1", Port: port, Username: "payment-issuer", Password: secret}
+			n.Payment = su.Route{Host: "127.0.0.1", Port: port, Username: "payment-issuer", Password: su.NewRPCPassword(secret)}
 		}
 		n.Config = filepath.Join(n.Dir, "namecoin.conf")
 		conf := "server=1\nlisten=1\ndnsseed=0\ndiscover=0\nnetworkactive=1\ntxindex=1\npersistmempool=0\nacceptnonstdtxn=1\nnameencoding=ascii\nvalueencoding=ascii\nrpcwhitelistdefault=0\n" + auth.String() + "[regtest]\nrpcbind=127.0.0.1\nrpcallowip=127.0.0.1\nrpcport=" + strconv.Itoa(port) + "\nbind=" + n.P2P + "\nport=" + strings.Split(n.P2P, ":")[1] + "\nconnect=" + l.minerP2P + "\n"

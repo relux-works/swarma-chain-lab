@@ -131,7 +131,7 @@ func newCore(t *testing.T) *coreLab {
 		salt := hex.EncodeToString(random[:8])
 		mac := hmac.New(sha256.New, []byte(salt))
 		mac.Write([]byte(pass))
-		return su.Route{Host: "127.0.0.1", Port: port, Username: user, Password: pass}, fmt.Sprintf("rpcauth=%s:%s$%x\n", user, salt, mac.Sum(nil))
+		return su.Route{Host: "127.0.0.1", Port: port, Username: user, Password: su.NewRPCPassword(pass)}, fmt.Sprintf("rpcauth=%s:%s$%x\n", user, salt, mac.Sum(nil))
 	}
 	var ra, sa string
 	l.read, ra = rpcAuth("w3-observer")

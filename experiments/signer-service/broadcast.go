@@ -37,7 +37,7 @@ func NewRPCBroadcastForNetwork(route su.Route, observerRoute su.Route, network, 
 		return nil, fail("BROADCAST_NODE_PIN")
 	}
 	ip := net.ParseIP(route.Host)
-	if ip == nil || !ip.IsLoopback() || route.Port < 1 || route.Port > 65535 || route.Username != "sg1-broadcaster" || len(route.Password) < 16 || len(route.Password) > 256 || node == nil {
+	if ip == nil || !ip.IsLoopback() || route.Port < 1 || route.Port > 65535 || route.Username != "sg1-broadcaster" || !route.Password.Valid() || node == nil {
 		return nil, fail("BROADCAST_ROUTE")
 	}
 	return &RPCBroadcast{network, genesis, route, node, &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return fail("REDIRECT") }}}, nil
@@ -62,7 +62,7 @@ func (b *RPCBroadcast) Send(ctx context.Context, raw []byte) (string, error) {
 	if e != nil {
 		return "", fail("BROADCAST_REQUEST")
 	}
-	req.SetBasicAuth(b.route.Username, b.route.Password)
+	b.route.Password.SetBasicAuth(req, b.route.Username)
 	req.Header.Set("Content-Type", "application/json")
 	resp, e := b.client.Do(req)
 	if e != nil {

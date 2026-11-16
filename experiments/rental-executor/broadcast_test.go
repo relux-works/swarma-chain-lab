@@ -3,10 +3,10 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,7 +30,7 @@ func TestBroadcastReply(t *testing.T) {
 	defer srv.Close()
 	host, port, _ := net.SplitHostPort(strings.TrimPrefix(srv.URL, "http://"))
 	p, _ := strconv.Atoi(port)
-	b, e := NewBroadcaster(singleuse.Route{Host: host, Port: p, Username: "m4a-broadcast", Password: strings.Repeat("x", 32)})
+	b, e := NewBroadcaster(singleuse.Route{Host: host, Port: p, Username: "m4a-broadcast", Password: singleuse.NewRPCPassword(strings.Repeat("x", 32))})
 	if e != nil {
 		t.Fatal(e)
 	}

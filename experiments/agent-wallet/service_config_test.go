@@ -64,7 +64,7 @@ func TestActionServiceConfig(t *testing.T) {
 		t.Fatal("socket parent alias guard")
 	}
 	path := filepath.Join(root, "service.json")
-	writeInstalled(t, path, canonical(c))
+	writeInstalled(t, path, canonical(privateWalletFixture(c)))
 	if _, e = LoadServiceConfig(path); e != nil {
 		t.Fatal("private config neighbor", e)
 	}

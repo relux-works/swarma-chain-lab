@@ -133,9 +133,9 @@ func newCoreLab(t *testing.T) *coreLab {
 	salt := hex.EncodeToString(random[:8])
 	mac := hmac.New(sha256.New, []byte(salt))
 	mac.Write([]byte(password))
-	l.route = Route{"127.0.0.1", port, "w3-observer", password}
+	l.route = Route{"127.0.0.1", port, "w3-observer", NewRPCPassword(password)}
 	l.routePath = filepath.Join(l.private, "observer-route.json")
-	route, _ := json.Marshal(l.route)
+	route, _ := json.Marshal(privateRouteFixture(l.route))
 	if e = os.WriteFile(l.routePath, route, 0600); e != nil {
 		t.Fatal(e)
 	}

@@ -87,7 +87,7 @@ func TestCoreCLI(t *testing.T) {
 		return path
 	}
 	pb, _ := json.Marshal(p)
-	rb, _ := json.Marshal(l.route)
+	rb, _ := json.Marshal(privateRouteFixture(l.route))
 	policyPath := write("policy.json", pb)
 	routePath := write("route.json", rb)
 	certPath := write("certificate.json", raw)

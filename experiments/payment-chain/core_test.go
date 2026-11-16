@@ -203,11 +203,11 @@ func newCoreLab(t *testing.T, coin string) *coreLab {
 	if !ready {
 		t.Fatal("Core startup timeout; private node.log retained")
 	}
-	l.read, e = NewRPC(Route{Host: "127.0.0.1", Port: port, Username: "payment-observer", Password: password})
+	l.read, e = NewRPC(Route{Host: "127.0.0.1", Port: port, Username: "payment-observer", Password: NewRPCPassword(password)})
 	if e != nil {
 		t.Fatal(e)
 	}
-	l.issuer, e = NewIssuerRPC(Route{Host: "127.0.0.1", Port: port, Username: "payment-issuer", Password: issuerPassword})
+	l.issuer, e = NewIssuerRPC(Route{Host: "127.0.0.1", Port: port, Username: "payment-issuer", Password: NewRPCPassword(issuerPassword)})
 	if e != nil {
 		t.Fatal(e)
 	}

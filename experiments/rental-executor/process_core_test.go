@@ -37,9 +37,9 @@ func TestCoreServiceProcess(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	config := map[string]any{"executor": conf, "state_dir": root, "socket": filepath.Join(sockets, "exec.sock"), "observer": l.route, "broadcast": l.broadcastRoute, "trackb_state": bRoot, "trackb_admin_socket": filepath.Join(sockets, "admin.sock"), "trackb_claim_socket": filepath.Join(sockets, "claim.sock"), "prize_b_keys": prizes()}
+	config := map[string]any{"executor": conf, "state_dir": root, "socket": filepath.Join(sockets, "exec.sock"), "observer": privateRouteFixture(l.route), "broadcast": privateRouteFixture(l.broadcastRoute), "trackb_state": bRoot, "trackb_admin_socket": filepath.Join(sockets, "admin.sock"), "trackb_claim_socket": filepath.Join(sockets, "claim.sock"), "prize_b_keys": prizes()}
 	cfg := filepath.Join(l.private, "executor-config.json")
-	if e := os.WriteFile(cfg, canonical(config), 0600); e != nil {
+	if e := os.WriteFile(cfg, privateProcessConfigFixture(config), 0600); e != nil {
 		t.Fatal(e)
 	}
 	log, e := os.OpenFile(filepath.Join(l.private, "executor.log"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)

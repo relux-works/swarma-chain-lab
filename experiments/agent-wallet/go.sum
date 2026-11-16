@@ -94,6 +94,8 @@ github.com/relux-works/swarma-chain-lab/experiments/signer-service v0.3.1-0.2026
 github.com/relux-works/swarma-chain-lab/experiments/signer-service v0.3.1-0.20261115082735-f1936aa1117a/go.mod h1:OaVnTIns8WwUld92VHkw3bZt9QdJ1gV9qao26qQF7kQ=
 github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115220730-8928bda29253 h1:bdW0g8rENU8d+d6DylkfEf1vZ15DiZajlQK3v/EnRw0=
 github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115220730-8928bda29253/go.mod h1:N801KpBg+hqKx6H2kaFVFvq06OQ9RH9yStcGvVZfRgk=
+github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261116084028-6fb17070638c h1:ctANyBeaouaE+1RHeSfRrqm2IgVk/TASYJVU7ERhaew=
+github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261116084028-6fb17070638c/go.mod h1:N801KpBg+hqKx6H2kaFVFvq06OQ9RH9yStcGvVZfRgk=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.5.0 h1:1zr/of2m5FGMsad5YfcqgdqdWrIhu+EBEJRhR1U7z/c=
 github.com/stretchr/objx v0.5.0/go.mod h1:Yh+to48EsGEfYuaHDzXPcE3xhTkx73EhmCGUpEOglKo=

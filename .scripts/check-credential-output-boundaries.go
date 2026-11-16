@@ -24,6 +24,14 @@ func rendered(n ast.Node) string {
 }
 
 var fields = map[string]string{
+	// PLAIN-SECRETS-2: approved retained fields. This inventory extension keeps
+	// the existing carrier-name and Reveal* detection rules intact.
+	"experiments/single-use/node.go:Route.Password":                              "RPCPassword",
+	"experiments/payment-chain/rpc.go:Route.Password":                            "RPCPassword",
+	"experiments/rental-gateway/journal/private.go:slotPrivate.ChannelSecretHex": "codec.Secret[string]",
+	"experiments/rental-gateway/journal/journal.go:Slot.ChannelSecretHex":        "codec.Secret[string]",
+	"experiments/station-lifecycle/slotd/wire.go:Request.Bootstrap":              "*Bootstrap",
+
 	// Ephemeral use input and opening draw; Token redacts fmt, JSON and text.
 	"experiments/model-proxy/session/session.go:Facts.Token":  "Token",
 	"experiments/model-proxy/session/session.go:Facts.Random": "Token",
@@ -47,6 +55,13 @@ var fields = map[string]string{
 // Declarations on every receiver type register a key, even without callers.
 var reveals = map[string]map[string]int{
 	"RevealForOpen": {},
+	"RevealForBasicAuth": {
+		"experiments/single-use/rpc_password.go:RPCPassword.SetBasicAuth:p.RevealForBasicAuth()":    1,
+		"experiments/payment-chain/rpc_password.go:RPCPassword.SetBasicAuth:p.RevealForBasicAuth()": 1,
+	},
+	"RevealForRequest": {
+		"experiments/station-lifecycle/slotd/wire.go:encodePrivateRequest:bootstrap.RevealForRequest()": 1,
+	},
 	"Reveal": {
 		// N6 audit: RPC password leaves its holder only for HTTP Basic Auth.
 		"experiments/notary-checker/node.go:NodeNameReader.rpc:n.password.Reveal()":                                1,
@@ -76,7 +91,7 @@ var reveals = map[string]map[string]int{
 		"experiments/rental-gateway/gateway/inbound.go:Gateway.stationAuth:slot.ChannelSecretHex.Reveal()":         2,
 		"experiments/rental-gateway/gateway/inbound.go:Gateway.stationHello:slot.ChannelSecretHex.Reveal()":        1,
 		"experiments/rental-gateway/journal/journal.go:Store.SetChannelCredential:credential.Reveal()":             1,
-		"experiments/rental-gateway/journal/private.go:slotPrivateValue:s.ChannelSecretHex.Reveal()":               1,
+		"experiments/rental-gateway/journal/private.go:EncodePrivateSlot:value.ChannelSecretHex.Reveal()":          1,
 		"experiments/single-use/payloadbootstrap/codec/codec.go:Valid:b.ChannelSecret.Reveal()":                    1,
 		"experiments/single-use/payloadbootstrap/codec/codec.go:Valid:b.ModelBearer.Reveal()":                      2,
 		"experiments/single-use/payloadbootstrap/codec/codec.go:privateWire:b.ChannelSecret.Reveal()":              1,
@@ -130,7 +145,7 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 			case *ast.StructType:
 				for _, field := range v.Fields.List {
 					for _, name := range field.Names {
-						if name.Name == "APIKey" || name.Name == "TrackBToken" || name.Name == "Token" || (owner == "FakeExec" && name.Name == "Inputs") || (path == "experiments/model-proxy/session/session.go" && owner == "Facts" && name.Name == "Random") || (owner == "UpstreamCredential" && name.Name == "Value") || (owner == "staticSource" && name.Name == "value") || (owner == "FileSource" && name.Name == "current") {
+						if fields[path+":"+owner+"."+name.Name] != "" || name.Name == "APIKey" || name.Name == "TrackBToken" || name.Name == "Token" || (owner == "FakeExec" && name.Name == "Inputs") || (path == "experiments/model-proxy/session/session.go" && owner == "Facts" && name.Name == "Random") || (owner == "UpstreamCredential" && name.Name == "Value") || (owner == "staticSource" && name.Name == "value") || (owner == "FileSource" && name.Name == "current") {
 							gotFields[path+":"+owner+"."+name.Name] = rendered(field.Type)
 						}
 					}

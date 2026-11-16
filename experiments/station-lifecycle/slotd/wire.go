@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -24,13 +23,13 @@ const MaxWire = 8192
 const ProtocolSHA256 = "8c09cc17b8e0bdd9f7482f4ea2e1b553213fb94c20002bfb9d3f15ed61a7fe15"
 
 type Request struct {
-	V                int     `json:"v"`
-	Op               string  `json:"op"`
-	Slot             string  `json:"slot"`
-	BootID           *string `json:"boot_id,omitempty"`
-	IssuedBoottimeNS *string `json:"issued_boottime_ns,omitempty"`
-	NotAfter         *string `json:"not_after,omitempty"`
-	Bootstrap        *string `json:"bootstrap,omitempty"`
+	V                int        `json:"v"`
+	Op               string     `json:"op"`
+	Slot             string     `json:"slot"`
+	BootID           *string    `json:"boot_id,omitempty"`
+	IssuedBoottimeNS *string    `json:"issued_boottime_ns,omitempty"`
+	NotAfter         *string    `json:"not_after,omitempty"`
+	Bootstrap        *Bootstrap `json:"bootstrap,omitempty"`
 }
 type Response struct {
 	V               int    `json:"v"`
@@ -61,6 +60,22 @@ func validSlot(s string) bool {
 	return e == nil && n >= 0 && n <= 9999 && strconv.Itoa(n) == s
 }
 func canonical(v any) []byte { b, _ := json.Marshal(v); return b }
+
+// encodePrivateRequest contains the sole RevealForRequest call. Bootstrap is last
+// in v1; append its JSON scalar without constructing a raw-secret carrier.
+func encodePrivateRequest(r Request) []byte {
+	bootstrap := r.Bootstrap
+	r.Bootstrap = nil
+	raw := canonical(r)
+	if bootstrap == nil {
+		return raw
+	}
+	secret, _ := json.Marshal(bootstrap.RevealForRequest())
+	raw = append(raw[:len(raw)-1], []byte(`,"bootstrap":`)...)
+	raw = append(raw, secret...)
+	return append(raw, '}')
+}
+
 func ValidRequest(r Request) bool {
 	if r.V != 1 || !validSlot(r.Slot) {
 		return false
@@ -77,8 +92,7 @@ func ValidRequest(r Request) bool {
 		if e != nil || t.Nanosecond() != 0 {
 			return false
 		}
-		b, e := base64.StdEncoding.DecodeString(*r.Bootstrap)
-		return e == nil && len(b) <= 4096 && base64.StdEncoding.EncodeToString(b) == *r.Bootstrap
+		return r.Bootstrap.valid()
 	case "start", "stop", "status", "destroy":
 		return r.NotAfter == nil && r.Bootstrap == nil && r.BootID == nil && r.IssuedBoottimeNS == nil
 	default:
@@ -139,7 +153,7 @@ func (c *Client) Call(ctx context.Context, r Request) (Response, error) {
 	if !ValidRequest(r) {
 		return Response{}, failure("SLOTD_REQUEST")
 	}
-	raw := append(canonical(r), '\n')
+	raw := append(encodePrivateRequest(r), '\n')
 	if len(raw) > MaxWire {
 		return Response{}, failure("SLOTD_REQUEST")
 	}
@@ -170,3 +184,12 @@ func (c *Client) Call(ctx context.Context, r Request) (Response, error) {
 	}
 	return decodeResponse(raw, r.Slot)
 }
+
+// MarshalJSON keeps the public object shape while each holder redacts.
+func (v Request) MarshalJSON() ([]byte, error) {
+	type public Request
+	return json.Marshal(public(v))
+}
+
+// MarshalText projects the same redacted object for text consumers.
+func (v Request) MarshalText() ([]byte, error) { return v.MarshalJSON() }

@@ -52,7 +52,7 @@ func TestCoreBookingComposition(t *testing.T) {
 	cc.MaxRateAgeSeconds = 600
 	cfg.Coins["btc"] = cc
 	routes := filepath.Join(l.private, "payment-route.json")
-	write(t, routes, encode(lab.readRoute))
+	write(t, routes, encode(privateRouteFixture(lab.readRoute)))
 	configPath := filepath.Join(l.private, "booking-config.json")
 	write(t, configPath, encode(map[string]any{"service_version": 2, "config": cfg, "payment_route_files": map[string]string{"btc": routes}}))
 	profilePath := filepath.Join(l.private, "profile.txt")

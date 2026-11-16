@@ -124,7 +124,7 @@ func runComposition(t *testing.T, partial bool, dialect ...string) {
 		bookingRead, bookingDir = l.bookingRead, l.bookingDir
 	}
 	observer := filepath.Join(l.private, "booking-node.conf")
-	l.write(observer, []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", bookingRead.Username, bookingRead.Password, bookingRead.Port)), 0600)
+	l.write(observer, []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", bookingRead.Username, bookingRead.Password.RevealForBasicAuth(), bookingRead.Port)), 0600)
 	operator := su.OperatorRoute{Network: "regtest", Genesis: su.RegtestGenesis, NodeCLI: l.cli, NodeCLISHA256: cliPin, NodeConfig: observer, NodeDataDir: bookingDir}
 	var bookingBarrier *rpcBarrier
 	if l.canonical {

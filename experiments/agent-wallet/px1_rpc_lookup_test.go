@@ -37,7 +37,7 @@ func px1rServer(t *testing.T, status int, body, user string) su.Route {
 		t.Fatal(e)
 	}
 	p, _ := strconv.Atoi(port)
-	return su.Route{Host: host, Port: p, Username: user, Password: "observer-password-0123"}
+	return su.Route{Host: host, Port: p, Username: user, Password: su.NewRPCPassword("observer-password-0123")}
 }
 
 func px1rCode(e error) string {
@@ -117,7 +117,7 @@ func TestPX1TxLookupNoSuchTx(t *testing.T) {
 	if _, e := n.Call(context.Background(), "gettxout", txid, 0, true); px1rCode(e) != "RPC_METHOD_FORBIDDEN" {
 		t.Fatalf("lookup route method set: %v", e)
 	}
-	if _, e := newTxLookupRPC(su.Route{Host: "127.0.0.1", Port: 1, Username: "w1-wallet", Password: "observer-password-0123"}); px1rCode(e) != "RPC_ROUTE" {
+	if _, e := newTxLookupRPC(su.Route{Host: "127.0.0.1", Port: 1, Username: "w1-wallet", Password: su.NewRPCPassword("observer-password-0123")}); px1rCode(e) != "RPC_ROUTE" {
 		t.Fatalf("lookup route user: %v", e)
 	}
 }
@@ -207,7 +207,7 @@ func TestPX1TxLookupMalformedTxID(t *testing.T) {
 		t.Fatal(e)
 	}
 	p, _ := strconv.Atoi(port)
-	lookup, e := newTxLookupRPC(su.Route{Host: host, Port: p, Username: "w3-observer", Password: "observer-password-0123"})
+	lookup, e := newTxLookupRPC(su.Route{Host: host, Port: p, Username: "w3-observer", Password: su.NewRPCPassword("observer-password-0123")})
 	if e != nil {
 		t.Fatal(e)
 	}

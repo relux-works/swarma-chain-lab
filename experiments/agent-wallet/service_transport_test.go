@@ -147,7 +147,7 @@ func TestCoreActionClient(t *testing.T) {
 	os.WriteFile(keyPath, []byte(hex.EncodeToString(key.Serialize())), 0600)
 	cfg := ActionClientConfig{Version: 1, Service: WalletServiceID, Socket: s.config.Socket, ServiceUID: uint32(os.Getuid()), ReceiptKey: s.pub, KeyFile: keyPath}
 	cfgPath := filepath.Join(l.root, "client.json")
-	os.WriteFile(cfgPath, canonical(cfg), 0600)
+	os.WriteFile(cfgPath, canonical(privateWalletFixture(cfg)), 0600)
 	r := actionFixture(t, "balance")
 	rqPath := filepath.Join(l.root, "request.json")
 	os.WriteFile(rqPath, canonical(r), 0600)
@@ -167,7 +167,7 @@ func TestCoreActionClient(t *testing.T) {
 		}
 	}
 	var obj map[string]any
-	json.Unmarshal(canonical(cfg), &obj)
+	json.Unmarshal(canonical(privateWalletFixture(cfg)), &obj)
 	obj["rpc_password"] = "do-not-echo"
 	os.WriteFile(cfgPath, canonical(obj), 0600)
 	b, e = exec.Command(bin, args...).CombinedOutput()

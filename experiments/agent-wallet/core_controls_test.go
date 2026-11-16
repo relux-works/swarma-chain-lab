@@ -210,7 +210,7 @@ func TestCoreWalletCrash(t *testing.T) {
 	if e := os.Mkdir(fixture, 0700); e != nil {
 		t.Fatal(e)
 	}
-	for name, b := range map[string][]byte{"config.json": canonical(c), "grant.json": raw, "terms.json": canonical(terms), "request.json": request} {
+	for name, b := range map[string][]byte{"config.json": canonical(privateWalletFixture(c)), "grant.json": raw, "terms.json": canonical(terms), "request.json": request} {
 		if e := os.WriteFile(filepath.Join(fixture, name), b, 0600); e != nil {
 			t.Fatal(e)
 		}

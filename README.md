@@ -582,8 +582,9 @@ Track B tokens and upstream model keys use opaque credential holders. Their
 [carrier and explicit-reveal inventory](docs/security/credential-output-n1b.md)
 records private wire/authentication boundaries and output regression coverage.
 Run `go run .scripts/check-credential-output-boundaries.go` from the repository
-root to check 14 storage fields and the nested exact `Reveal*` inventory:
-`Reveal` has 53 sites / 67 calls; `RevealForOpen` has an empty set. The guard
+root to check 18 storage fields and the nested exact `Reveal*` inventory:
+`Reveal` has 53 sites / 67 calls; `RevealForBasicAuth` has 2 sites / 2 calls;
+`RevealForRequest` has 1 site / 1 call; `RevealForOpen` has an empty set. The guard
 includes package-level initializers, method values and declarations on any type.
 The linked document lists reflection, casts and test-file exclusions. Capture
 its JSON under `.temp/`. Run
@@ -596,6 +597,19 @@ local evidence, separate from hosted CI. Run `go -C experiments/model-proxy test
 ./...`, `go -C experiments/rental-executor test ./...` and `go -C
 experiments/rental-gateway test ./...` for the fmt, slog, generic JSON and private
 wire regressions; use the same module paths with `vet ./...` for static checks.
+
+The retained RPC passwords, private journal channel field, and private socket
+request bootstrap also use opaque holders. Plain-string route configurations
+keep their schema and load through the strict input checker; generic formatting,
+JSON and text redact. Explicit journal/socket encoders retain the original bytes.
+See [the holder audit](docs/security/plain-secret-holders.md) for the four fields,
+consumer migration, private encoder audit and negative tests. Calibrate the four
+output tests with `python3 -I .scripts/check-plain-secret-holders.py
+.temp/plain-secret-controls .tmp/plain-secret-overlays` from an isolated task
+checkout with the pinned Go toolchain and task-owned absolute HOME/caches/TMPDIR.
+The first argument receives command/PID/exit/hash evidence and logs; the second
+must be a new directory and receives Go overlays. Each mutant removes generic
+JSON redaction and must fail its named output test with the disclosure assertion.
 
 The [regtest envelope grant-admission bench](experiments/agent-wallet/g1bench/README.md)
 reuses the wallet Core harness, verifies native-shaped Ed25519 envelopes plus

@@ -61,7 +61,7 @@ func TestCoreMalformedRPCEnvelopeRetryable(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				rpc, err := su.NewRPC(su.Route{Host: host, Port: number, Username: "w3-observer", Password: "regtest-fixture-only"})
+				rpc, err := su.NewRPC(su.Route{Host: host, Port: number, Username: "w3-observer", Password: su.NewRPCPassword("regtest-fixture-only")})
 				if err != nil {
 					t.Fatal(err)
 				}

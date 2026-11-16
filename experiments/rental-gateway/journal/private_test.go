@@ -96,3 +96,23 @@ func TestJournalPrivateWireCompatibility(t *testing.T) {
 		t.Fatal("ended journal retained credential")
 	}
 }
+
+// Empty/escaped credentials, neighboring optional fields, and arbitrary text
+// retain the frozen raw schema's exact escaping, order and omission behavior.
+func TestSlotPrivateWireGoldenVariants(t *testing.T) {
+	for _, marker := range []string{"", "synthetic-quote-\"-slash-\\-newline-\n-<>&", "synthetic-nonempty"} {
+		old := legacySlot{ID: "fixture", StationName: "visible-control", ChannelSecretHex: marker, TokenSHA256: "after-credential", StationHome: "fixture-home", StationUser: "fixture-user"}
+		before, err := json.Marshal(old)
+		if err != nil {
+			t.Fatal("legacy fixture refused")
+		}
+		var slot Slot
+		if json.Unmarshal(before, &slot) != nil {
+			t.Fatal("private fixture decode refused")
+		}
+		after, err := EncodePrivateSlot(&slot)
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatal("private field ordering, omission or escaping changed")
+		}
+	}
+}

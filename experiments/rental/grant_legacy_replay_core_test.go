@@ -66,7 +66,7 @@ func TestCoreGrantLegacyReplay(t *testing.T) {
 	}
 	reqPath := write("old-request.json", json.RawMessage(req))
 	eventPath := write("old-event.json", json.RawMessage(event))
-	args := []string{"--policy", write("old-policy.json", policy), "--route", write("old-route.json", l.route), "--request", reqPath, "--package-event", eventPath, "--seal", write("old-seal.json", seal), "--spec", write("old-spec.json", oldSpec), "--grant-key-file", key, "--at", "500"}
+	args := []string{"--policy", write("old-policy.json", policy), "--route", write("old-route.json", privateRouteFixture(l.route)), "--request", reqPath, "--package-event", eventPath, "--seal", write("old-seal.json", seal), "--spec", write("old-spec.json", oldSpec), "--grant-key-file", key, "--at", "500"}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, oldPath, args...)

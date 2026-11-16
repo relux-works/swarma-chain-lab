@@ -11,11 +11,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"strings"
 	"testing"
 	"time"
@@ -175,7 +175,7 @@ func newCore(t *testing.T) *coreLab {
 	salt := hex.EncodeToString(random[:8])
 	mac := hmac.New(sha256.New, []byte(salt))
 	mac.Write([]byte(password))
-	l.route = su.Route{Host: "127.0.0.1", Port: port, Username: "w3-observer", Password: password}
+	l.route = su.Route{Host: "127.0.0.1", Port: port, Username: "w3-observer", Password: su.NewRPCPassword(password)}
 	l.observer, e = su.NewRPC(l.route)
 	if e != nil {
 		t.Fatal(e)
@@ -187,7 +187,7 @@ func newCore(t *testing.T) *coreLab {
 	bpassword := hex.EncodeToString(broadcastPassword)
 	bmac := hmac.New(sha256.New, []byte(salt))
 	bmac.Write([]byte(bpassword))
-	l.broadcastRoute = su.Route{Host: "127.0.0.1", Port: port, Username: "m4a-broadcast", Password: bpassword}
+	l.broadcastRoute = su.Route{Host: "127.0.0.1", Port: port, Username: "m4a-broadcast", Password: su.NewRPCPassword(bpassword)}
 	l.conf = filepath.Join(l.private, "namecoin.conf")
 	cfg := fmt.Sprintf("server=1\ndeprecatedrpc=create_bdb\nlisten=0\ndnsseed=0\ndiscover=0\nnetworkactive=0\ntxindex=1\npersistmempool=0\nfallbackfee=0.002\nacceptnonstdtxn=1\nnameencoding=ascii\nvalueencoding=ascii\nrpcwhitelistdefault=0\nrpcauth=w3-observer:%s$%x\nrpcwhitelist=w3-observer:getblockchaininfo,getblockhash,getblockheader,getrawtransaction,gettxout,name_show,getrawmempool,getblock\n[regtest]\nrpcbind=127.0.0.1\nrpcallowip=127.0.0.1\nrpcport=%d\n", salt, mac.Sum(nil), port)
 	cfg += fmt.Sprintf("rpcauth=m4a-broadcast:%s$%x\nrpcwhitelist=m4a-broadcast:sendrawtransaction\n", salt, bmac.Sum(nil))

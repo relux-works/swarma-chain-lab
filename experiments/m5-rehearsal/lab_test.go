@@ -81,7 +81,7 @@ func (l *lab) write(path string, b []byte, mode os.FileMode) {
 }
 func (l *lab) json(name string, v any, mode os.FileMode) string {
 	p := filepath.Join(l.private, name)
-	l.write(p, encoded(v), mode)
+	l.write(p, privateRouteFixtureJSON(v), mode)
 	return p
 }
 func (l *lab) secret(b []byte) {
@@ -370,7 +370,7 @@ func (l *lab) startCore(agent, issuer string) {
 		fmt.Fprintf(&auth, "rpcauth=%s:%s$%x\nrpcwhitelist=%s:%s\n", entry.name, salt, mac.Sum(nil), entry.name, entry.methods)
 		var n int
 		fmt.Sscan(port, &n)
-		*entry.dest = su.Route{Host: "127.0.0.1", Port: n, Username: entry.name, Password: pass}
+		*entry.dest = su.Route{Host: "127.0.0.1", Port: n, Username: entry.name, Password: su.NewRPCPassword(pass)}
 	}
 	l.conf = filepath.Join(l.nodeDir, "namecoin.conf")
 	conf := "server=1\ndeprecatedrpc=create_bdb\nlisten=0\ndnsseed=0\ndiscover=0\nnetworkactive=0\ntxindex=1\npersistmempool=0\nfallbackfee=0.002\nacceptnonstdtxn=1\nnameencoding=ascii\nvalueencoding=ascii\nrpcwhitelistdefault=0\n" + auth.String() + "[regtest]\nrpcbind=127.0.0.1\nrpcallowip=127.0.0.1\nrpcport=" + port + "\n"

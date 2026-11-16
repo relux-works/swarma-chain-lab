@@ -50,13 +50,13 @@ func px1ServiceUnitConfig(t *testing.T) ServiceConfig {
 	serviceState := mk("service-state", 0700)
 	password := strings.Repeat("p", 24)
 	route := func(user string) su.Route {
-		return su.Route{Host: "127.0.0.1", Port: 9, Username: user, Password: password}
+		return su.Route{Host: "127.0.0.1", Port: 9, Username: user, Password: su.NewRPCPassword(password)}
 	}
 	wc := Config{Version: 1, Network: "regtest", Genesis: su.RegtestGenesis, Policy: rental.Policy{ConstructionProfile: su.WitnessProfile, Network: "regtest", Genesis: su.RegtestGenesis, AgentName: "id/wallet-agent-test", LandlordName: "id/wallet-landlord-test", StateDir: filepath.Join(root, "kernel")},
 		Observer: route("w3-observer"), Wallet: WalletRoute{Route: route("w1-wallet"), Wallet: "agent"}, Broadcast: route("w1-broadcast"), StateDir: walletState, ObjectsDir: objects, ChangeAddress: testAddress(6), FeeRate: 110, WalletDir: filepath.Join(root, "wallets/agent"), MemoryZone: filepath.Join(root, "memory")}
 	configPath := filepath.Join(installed, "wallet.json")
 	keyPath := filepath.Join(installed, "receipt.key")
-	writeInstalled(t, configPath, canonical(wc))
+	writeInstalled(t, configPath, canonical(privateWalletFixture(wc)))
 	key, _ := testKey(9)
 	writeInstalled(t, keyPath, []byte(hex.EncodeToString(key.Serialize())))
 	_, grantee := testKey(2)
@@ -240,7 +240,7 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 	installed := mk("installed", 0750)
 	configPath := filepath.Join(installed, "wallet.json")
 	keyPath := filepath.Join(installed, "receipt.key")
-	writeInstalled(t, configPath, canonical(grant.config))
+	writeInstalled(t, configPath, canonical(privateWalletFixture(grant.config)))
 	key, _ := testKey(9)
 	writeInstalled(t, keyPath, []byte(hex.EncodeToString(key.Serialize())))
 	installActionObjects(t, grant.config, grant.raw, terms)

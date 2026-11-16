@@ -48,10 +48,10 @@ type Node interface {
 	Call(context.Context, string, ...any) (json.RawMessage, error)
 }
 type Route struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Host     string      `json:"host"`
+	Port     int         `json:"port"`
+	Username string      `json:"username"`
+	Password RPCPassword `json:"password"`
 }
 type RPC struct {
 	route  Route
@@ -60,7 +60,7 @@ type RPC struct {
 
 func NewRPC(r Route) (*RPC, error) {
 	ip := net.ParseIP(r.Host)
-	if ip == nil || !ip.IsLoopback() || r.Port < 1 || r.Port > 65535 || r.Username != "w3-observer" || len(r.Password) < 16 || len(r.Password) > 256 {
+	if ip == nil || !ip.IsLoopback() || r.Port < 1 || r.Port > 65535 || r.Username != "w3-observer" || !r.Password.Valid() {
 		return nil, fail("READ_ONLY_ROUTE")
 	}
 	return &RPC{r, &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil, MaxIdleConns: 2}, CheckRedirect: func(*http.Request, []*http.Request) error { return fail("REDIRECT") }}}, nil
@@ -80,7 +80,7 @@ func (n *RPC) Call(ctx context.Context, method string, args ...any) (json.RawMes
 	if e != nil {
 		return nil, fail("RPC_REQUEST")
 	}
-	req.SetBasicAuth(n.route.Username, n.route.Password)
+	n.route.Password.SetBasicAuth(req, n.route.Username)
 	req.Header.Set("Content-Type", "application/json")
 	res, e := n.client.Do(req)
 	if e != nil {
@@ -525,3 +525,10 @@ func publicError(e error) string {
 	}
 	return fmt.Sprint(e)
 }
+
+// MarshalJSON preserves Route's object shape with a redacted password.
+func (r Route) MarshalJSON() ([]byte, error) {
+	type public Route
+	return json.Marshal(public(r))
+}
+func (r Route) MarshalText() ([]byte, error) { return r.MarshalJSON() }
