@@ -15,7 +15,7 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261115082735-f1936aa1117a // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115220730-8928bda29253
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261116084028-6fb17070638c
 	golang.org/x/sys v0.47.0 // indirect
 )
 

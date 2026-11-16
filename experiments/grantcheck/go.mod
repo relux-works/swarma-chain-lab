@@ -8,7 +8,7 @@ require (
 	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway v0.4.1-0.20261115082735-f1936aa1117a
 	github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernelbind v0.1.1-0.20261115082735-f1936aa1117a
 	github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261115082735-f1936aa1117a
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115220730-8928bda29253
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261116084028-6fb17070638c
 )
 
 require (
