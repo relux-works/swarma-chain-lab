@@ -2,7 +2,7 @@
 
 ## NOTARY-REL r2 release verifier (2026-11-16)
 
-Verifier implementation: `36945bbf246f02a8ee5abea4e2a876f4c61f4ba2`.
+Verifier implementation: `515f96622cdd735165bc814cd77f66342ff937f2`.
 This supersedes the historical 25-test and 34-test verifier records below.
 The interface is eight required arguments:
 
@@ -20,7 +20,7 @@ pinned verifier checkout and independent exported-source build example.
 | Command / control | Actual exit / result |
 | --- | --- |
 | `bash -n scripts/verify-release.sh` | 0 |
-| `python3 -B scripts/test-verify-release.py` | 0; 46 tests, all 34 prior names retained |
+| `python3 -B scripts/test-verify-release.py` | 0; 47 tests, all 34 prior names retained |
 | `python3 -B scripts/check-release-mutant.py --work-dir WORK` | 0; both named controls killed, valid neighbors exit 0 |
 | Real v0.1.1 assets, fixed verifier | 0; `PASS RELEASE_VERIFIED` |
 | Go 1.26.10 exported-source builds, twice | 0 / 0; Linux/amd64, `CGO_ENABLED=0`, `GOAMD64=v1`, documented reproducible flags |
@@ -34,7 +34,7 @@ pinned verifier checkout and independent exported-source build example.
 | `test_ambient_only_tag_key` (local, global, parameters, count) | 1 / `FAIL TAG_SIGNATURE`; raw Git accepts the same ambient-trusted tag as a fixture precondition |
 | `test_non_ssh_tag_signature` | 1 / `FAIL TAG_SIGNATURE`; controlled ambient OpenPGP backend accepts the fixture in raw Git but is never invoked by the verifier |
 | `test_relative_trust_path` (both roles, distinct caller cwd) | 1 / `FAIL ARGUMENTS` |
-| `test_wrong_signed_tag_name` | 1 / `FAIL TAG_IDENTITY` |
+| `test_wrong_signed_tag_name`, `test_signed_tag_name_with_carriage_return` | 1 / `FAIL TAG_IDENTITY`; exact signed bytes, including CR, are preserved |
 | `test_ref_moved_after_resolution` | 1 / `FAIL TAG_COMMIT`; wrong pinned target stays refused when ref moves to a valid target; inverse valid control exits 0 |
 | `test_merged_signer_roles` | 1 / `FAIL SIGNER_ROLE_SEPARATION` |
 | `test_download_as_rebuild`, `test_download_hardlink_as_rebuild` | 1 / `FAIL ARGUMENTS` |

@@ -5,9 +5,9 @@
 The current release verifier requires eight arguments: `SOURCE_ROOT`,
 `RELEASE_COMMIT`, `RELEASE_TAG`, `RELEASE_DIR`, `REBUILT_BINARY`,
 `TAG_ALLOWED_SIGNERS`, `MANIFEST_ALLOWED_SIGNERS`, `MANIFEST_SIGNER_ID`.
-Implementation revision: `36945bbf246f02a8ee5abea4e2a876f4c61f4ba2`.
+Implementation revision: `515f96622cdd735165bc814cd77f66342ff937f2`.
 
-The current release suite is **46 tests** (all 34 prior names retained),
+The current release suite is **47 tests** (all 34 prior names retained),
 exit 0. `bash -n` exits 0; both named release mutation controls are killed
 (test exit 1, valid control exit 0). The guarded cross-signer fixture refuses
 `SIGNER_ROLE_SEPARATION` (exit 1), while its guard-only mutant reaches

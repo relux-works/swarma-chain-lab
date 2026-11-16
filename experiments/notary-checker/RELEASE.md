@@ -122,7 +122,7 @@ Obtain the signed tag in a local source checkout. The combined verifier resolves
 `refs/tags/$RELEASE_TAG^{tag}` exactly once to an immutable annotated-tag object.
 It requires SSH armor, verifies that object's payload directly with
 `ssh-keygen -Y verify -f "$TAG_ALLOWED_SIGNERS" -n git`, and compares the signed
-`tag` header with `RELEASE_TAG`. The signed direct commit target must equal
+`tag` header byte for byte with `RELEASE_TAG`, without newline normalization. The signed direct commit target must equal
 `RELEASE_COMMIT`. Every subsequent Git read uses an object ID, never the mutable
 ref. Git only reads objects in a cleared environment; Git signature backends,
 user keyrings and inherited `gpg.*` configuration cannot choose a trust source
@@ -207,7 +207,7 @@ are distinct, and neither follows a moving branch during verification.
 
 ```sh
 set -eu
-VERIFIER_COMMIT=36945bbf246f02a8ee5abea4e2a876f4c61f4ba2
+VERIFIER_COMMIT=515f96622cdd735165bc814cd77f66342ff937f2
 # Choose an operator-owned parent; mkdir refuses to reuse an existing run.
 mkdir -p .temp
 WORK_ROOT="$(pwd -P)/.temp/notary-v0.1.1"
@@ -264,9 +264,10 @@ as `TAG_COMMIT`; v0.1.0 is superseded and must not be deployed.
 ### Verifier controls
 
 `python3 -B scripts/test-verify-release.py` uses two disposable local keys and
-signed fixture tags outside the source repository. The 46 tests retain all
+signed fixture tags outside the source repository. The 47 tests retain all
 34 previous test names. New controls reject ambient-only tag trust, non-SSH
-armor, relative trust paths, a wrong signed tag name, a moved ref attempting
+armor, relative trust paths, wrong signed tag names (including a CR suffix),
+and a moved ref attempting
 to replace a wrong pinned target, copied merged trust files, and downloaded
 rebuild aliases. Positive controls assert physical trust paths, ignore ambient
 verifier programs, and retain a valid pinned target despite a moved ref.
