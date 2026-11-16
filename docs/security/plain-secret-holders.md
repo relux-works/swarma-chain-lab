@@ -4,7 +4,7 @@ PLAIN-SECRETS-2 implements the existing [credential output boundary](credential-
 for four additional retained fields. Private wire/config schemas are unchanged;
 generic formatting and automatic JSON/text projections redact.
 
-| Retained field | Holder | Sole production Reveal* call | Tests |
+| Retained field | Holder | Production Reveal* call sites | Tests |
 | --- | --- | --- | --- |
 | single-use `Route.Password` | module-local `RPCPassword` | `RPCPassword.SetBasicAuth`, at header construction | `TestRPCPasswordHolderRedaction`, `TestRPCPasswordConfigCompatibility`, `TestRPCPasswordStrictConfigNegative` |
 | payment-chain `Route.Password` | module-local `RPCPassword` | `RPCPassword.SetBasicAuth`, at header construction | same names in the payment-chain module |
@@ -121,7 +121,7 @@ every verb or logging handler.
 The credential guard retains its existing rules and adds five exact audited
 field keys, including the already-opaque retained Slot.ChannelSecretHex. Its
 controls require the complete expected inventory delta, including
-raw substitutions for those fields. Graph/snapshot checks validate unchanged
+raw substitutions for those fields. Graph/snapshot checks validate selected
 module metadata; hygiene checks publication content. Producer evidence records
 actual commands, exits and skips, and does not imply hosted CI or review acceptance.
 
