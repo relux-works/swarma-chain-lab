@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -113,6 +114,118 @@ class ReleaseVerification(unittest.TestCase):
     def test_all_good(self):
         self.verify()
 
+    # A cwd shadow module cannot execute or change either a good or a bad verdict.
+    def test_python_cwd_shadow(self):
+        self.verify(cwd=self.root)
+        marker = self.root / 'python-executed'
+        (self.root / 're.py').write_text(
+            'open(' + repr(str(marker)) + ', "w").close()\n'
+            'raise RuntimeError("shadow module executed")\n')
+        # Positive attack control: non-isolated Python really imports this module.
+        probe = subprocess.run([sys.executable, '-B', '-c', 'import re'],
+                               cwd=self.root, env=self.env, capture_output=True, timeout=20)
+        self.assertEqual(probe.returncode, 1)
+        self.assertTrue(marker.exists())
+        print(f'{self._testMethodName}: non-isolated Python exit {probe.returncode}; marker present', flush=True)
+        marker.unlink()
+        self.verify(cwd=self.root)
+        self.verify('TAG_COMMIT', cwd=self.root, commit='0' * 40)
+        self.assertFalse(marker.exists())
+
+    # PYTHONPATH and user startup injection cannot execute inside any interpreter.
+    def test_python_environment_shadow(self):
+        self.verify()
+        marker = self.root / 'python-startup-executed'
+        modules = self.root / 'modules'
+        modules.mkdir()
+        (modules / 'sitecustomize.py').write_text(
+            'open(' + repr(str(marker)) + ', "w").close()\n')
+        self.env['PYTHONPATH'] = str(modules)
+        probe = subprocess.run([sys.executable, '-B', '-c', 'pass'],
+                               cwd=self.repo, env=self.env, capture_output=True, timeout=20)
+        self.assertEqual(probe.returncode, 0)
+        self.assertTrue(marker.exists())
+        print(f'{self._testMethodName}: non-isolated Python exit {probe.returncode}; marker present', flush=True)
+        marker.unlink()
+        self.verify()
+        self.assertFalse(marker.exists())
+
+    # A malformed repository-local include is never parsed by the object reader.
+    def test_repository_config_is_not_read(self):
+        self.verify()
+        included = self.root / 'included-config'
+        included.write_text('[invalid config syntax\n')
+        self.command('git', 'config', 'include.path', str(included))
+        probe = subprocess.run(['git', 'rev-parse', '--verify', 'refs/tags/' + TAG],
+                               cwd=self.repo, env=self.env, capture_output=True, timeout=20)
+        self.assertNotEqual(probe.returncode, 0)
+        self.verify()
+
+    def configure_promisor(self):
+        marker = self.root / 'uploadpack-executed'
+        program = self.root / 'uploadpack'
+        program.write_text('#!/bin/sh\n: > "' + str(marker) + '"\nexit 1\n')
+        program.chmod(0o700)
+        # Only a local path and a disposable failing stub: never contact a network.
+        for key, value in [('remote.fixture.url', str(self.root / 'absent-remote')),
+                           ('remote.fixture.promisor', 'true'),
+                           ('remote.fixture.uploadpack', str(program)),
+                           ('extensions.partialClone', 'fixture'),
+                           ('protocol.file.allow', 'always'),
+                           ('core.fsmonitor', str(program)),
+                           ('core.sshCommand', str(program)),
+                           ('core.hooksPath', str(self.root / 'hooks'))]:
+            self.command('git', 'config', key, value)
+        ref = self.repo / '.git' / 'refs' / 'tags' / TAG
+        good = ref.read_bytes()
+        ref.write_text('1' * 40 + '\n')
+        # Positive attack control: raw Git launches this exact local uploadpack.
+        probe = subprocess.run(['git', 'rev-parse', '--verify', 'refs/tags/' + TAG + '^{tag}'],
+                               cwd=self.repo, env=dict(self.env, GIT_NO_LAZY_FETCH='0',
+                                                      GIT_ALLOW_PROTOCOL='file'),
+                               capture_output=True, timeout=20)
+        self.assertNotEqual(probe.returncode, 0)
+        self.assertTrue(marker.exists())
+        print(f'{self._testMethodName}: raw Git exit {probe.returncode}; uploadpack marker present', flush=True)
+        marker.unlink()
+        ref.write_bytes(good)
+        return ref, marker
+
+    # A missing tag cannot launch the configured promisor uploadpack or transport.
+    def test_promisor_missing_tag(self):
+        self.verify()
+        ref, marker = self.configure_promisor()
+        self.verify()
+        self.assertFalse(marker.exists())
+        ref.write_text('1' * 40 + '\n')
+        self.verify('TAG_SIGNATURE')
+        self.assertFalse(marker.exists())
+
+    # A missing signed target cannot trigger lazy fetching during cat-file either.
+    def test_promisor_missing_commit(self):
+        self.verify()
+        _, marker = self.configure_promisor()
+        self.verify()
+        self.assertFalse(marker.exists())
+        (self.repo / '.git' / 'objects' / self.commit[:2] / self.commit[2:]).unlink()
+        self.verify('TAG_COMMIT')
+        self.assertFalse(marker.exists())
+
+    # Config-free object views preserve bare, packed-ref and linked-worktree inputs.
+    def test_repository_layouts(self):
+        self.verify()
+        original = self.repo
+        bare = self.root / 'bare'
+        linked = self.root / 'linked'
+        self.command('git', 'clone', '--bare', '--quiet', str(original), str(bare))
+        self.command('git', 'pack-refs', '--all')
+        self.command('git', 'worktree', 'add', '--detach', str(linked), self.commit)
+        for repo in (original, bare, linked):
+            with self.subTest(layout=repo.name):
+                self.repo = repo
+                self.verify()
+        self.repo = original
+
     # Canonical boundary and multi-digit versions work without a hard-coded release.
     def test_other_canonical_versions(self):
         for tag in ['notary-service/v0.0.0', 'notary-service/v12.34.56']:
@@ -122,13 +235,17 @@ class ReleaseVerification(unittest.TestCase):
 
     # A well-formed absent tag still needs a trusted signature.
     def test_missing_tag(self):
+        self.verify()
         self.verify('TAG_SIGNATURE', tag='notary-service/v99.0.0')
 
     # Version input is required and canonical; shell syntax remains inert data.
     def test_missing_tag_parameter(self):
+        self.verify()
         self.verify('ARGUMENTS', tag=None)
 
+    # Noncanonical versions and shell syntax refuse without executing injected text.
     def test_malformed_tag_parameter(self):
+        self.verify()
         for tag in ['', 'v0.1.1', 'notary-service/v0.1',
                     'notary-service/v01.1.1', 'notary-service/v0.1.1-rc1',
                     'notary-service/v0.1.1\n', 'notary-service/v*',
@@ -139,31 +256,41 @@ class ReleaseVerification(unittest.TestCase):
                 self.verify('ARGUMENTS', tag=tag)
                 self.assertFalse((self.repo / 'injected').exists())
 
+    # A trusted previous tag cannot authenticate the current release commit.
     def test_old_tag_with_current_assets(self):
+        self.verify()
         self.verify('TAG_COMMIT', tag=OLD_TAG)
 
     # Cross-role signatures refuse even though each key is trusted for its own role.
     def test_bot_signed_manifest(self):
+        self.verify()
         self.manifest.with_suffix('.sig').unlink()
         self.command('ssh-keygen', '-Y', 'sign', '-f', str(self.tag_key),
                      '-n', 'swarma-release', str(self.manifest))
         self.verify('MANIFEST_SIGNATURE')
 
+    # The manifest authority cannot authorize a Git tag.
     def test_release_key_signed_tag(self):
+        self.verify()
         self.command('git', 'tag', '-d', TAG)
         self.command('git', '-c', 'user.signingkey=' + str(self.key),
                      'tag', '-s', TAG, '-m', 'wrong signing role')
         self.verify('TAG_SIGNATURE')
 
+    # One inode cannot supply both operator trust roles.
     def test_shared_allowed_signers(self):
+        self.verify()
         self.verify('ARGUMENTS', manifest_allowed=self.tag_allowed)
 
+    # Swapping distinct trust files cannot authorize the tag under the manifest role.
     def test_swapped_allowed_signers(self):
+        self.verify()
         self.verify('TAG_SIGNATURE', tag_allowed=self.allowed,
                     manifest_allowed=self.tag_allowed)
 
     # Explicit trust wins over each ambient Git config layer, even for valid SSH tags.
     def test_ambient_only_tag_key(self):
+        self.verify()
         other = self.root / 'ambient-signer'
         self.command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(other))
         ambient = self.root / 'ambient-allowed'
@@ -207,6 +334,7 @@ class ReleaseVerification(unittest.TestCase):
 
     # Non-SSH armor cannot reach an ambient OpenPGP verifier/keyring.
     def test_non_ssh_tag_signature(self):
+        self.verify()
         raw = self.command('git', 'cat-file', 'tag', 'refs/tags/' + TAG)
         payload = raw.split('-----BEGIN SSH SIGNATURE-----')[0]
         raw = payload + '-----BEGIN PGP SIGNATURE-----\nfixture\n-----END PGP SIGNATURE-----\n'
@@ -232,6 +360,7 @@ class ReleaseVerification(unittest.TestCase):
 
     # Reject caller-relative trust paths even when both cwd locations have a file.
     def test_relative_trust_path(self):
+        self.verify(cwd=self.root)
         for path, kw in ((self.tag_allowed, 'tag_allowed'), (self.allowed, 'manifest_allowed')):
             shutil.copyfile(path, self.repo / path.name)
             with self.subTest(role=kw):
@@ -271,6 +400,7 @@ class ReleaseVerification(unittest.TestCase):
 
     # A signature over another component's name cannot authorize this release name.
     def test_wrong_signed_tag_name(self):
+        self.verify()
         other = 'component/v0.1.1'
         self.command('git', 'tag', '-s', other, '-m', 'other component')
         oid = self.command('git', 'rev-parse', 'refs/tags/' + other)
@@ -279,6 +409,7 @@ class ReleaseVerification(unittest.TestCase):
 
     # Signed tag identity is byte-exact: CR cannot be normalized out of its header.
     def test_signed_tag_name_with_carriage_return(self):
+        self.verify()
         raw = self.command('git', 'cat-file', 'tag', 'refs/tags/' + TAG)
         payload = raw.split('-----BEGIN SSH SIGNATURE-----')[0]
         payload = payload.replace('tag ' + TAG + '\n', 'tag ' + TAG + '\r\n', 1).encode()
@@ -294,6 +425,73 @@ class ReleaseVerification(unittest.TestCase):
         self.command('git', 'update-ref', 'refs/tags/' + TAG, result.stdout.decode().strip())
         self.command('git', 'verify-tag', 'refs/tags/' + TAG)
         self.verify('TAG_IDENTITY')
+
+    def install_signed_tag(self, payload):
+        message = self.root / 'literal-tag-payload'
+        message.write_bytes(payload)
+        message.with_suffix('.sig').unlink(missing_ok=True)
+        self.command('ssh-keygen', '-Y', 'sign', '-f', str(self.tag_key),
+                     '-n', 'git', str(message))
+        raw = payload + message.with_suffix('.sig').read_bytes()
+        result = subprocess.run(['git', 'hash-object', '--literally', '-t', 'tag', '-w', '--stdin'],
+                                input=raw, cwd=self.repo, env=self.env,
+                                capture_output=True, check=True, timeout=20)
+        self.command('git', 'update-ref', 'refs/tags/' + TAG, result.stdout.decode().strip())
+        # Positive signature precondition: raw Git accepts these exact signed bytes.
+        self.command('git', 'verify-tag', 'refs/tags/' + TAG)
+
+    def tag_payload(self):
+        raw = self.command('git', 'cat-file', 'tag', 'refs/tags/' + TAG)
+        return raw.split('-----BEGIN SSH SIGNATURE-----')[0].encode()
+
+    # Duplicate tag names refuse in either order, despite a valid trusted signature.
+    def test_duplicate_tag_headers(self):
+        self.verify()
+        payload = self.tag_payload()
+        for first, second in (('component/v0.1.1', TAG), (TAG, 'component/v0.1.1'), (TAG, TAG)):
+            with self.subTest(first=first, second=second):
+                altered = payload.replace(('tag ' + TAG + '\n').encode(),
+                                          ('tag ' + first + '\ntag ' + second + '\n').encode(), 1)
+                self.install_signed_tag(altered)
+                self.verify('TAG_IDENTITY')
+
+    # Even identical duplicate object headers cannot select an ambiguous target.
+    def test_duplicate_object_headers(self):
+        self.verify()
+        payload = self.tag_payload()
+        line = ('object ' + self.commit + '\n').encode()
+        # Keep Git's first three headers canonical; append the extra signed header.
+        self.install_signed_tag(payload.replace(b'\n\n', b'\n' + line + b'\n', 1))
+        self.verify('TAG_COMMIT')
+
+    # Even identical duplicate type headers cannot authorize a direct commit tag.
+    def test_duplicate_type_headers(self):
+        self.verify()
+        self.install_signed_tag(self.tag_payload().replace(b'\n\n', b'\ntype commit\n\n', 1))
+        self.verify('TAG_COMMIT')
+
+    # A signed non-commit type refuses even when its object ID names the right commit.
+    def test_signed_non_commit_type(self):
+        self.verify()
+        self.install_signed_tag(self.tag_payload().replace(b'type commit\n', b'type blob\n', 1))
+        self.verify('TAG_COMMIT')
+
+    # A trusted signed outer tag is not a direct commit tag and is never peeled.
+    def test_signed_tag_of_tag(self):
+        self.verify()
+        inner = self.command('git', 'rev-parse', 'refs/tags/' + TAG)
+        self.command('git', 'tag', '-d', TAG)
+        self.command('git', 'tag', '-s', TAG, inner, '-m', 'signed outer tag')
+        self.command('git', 'verify-tag', 'refs/tags/' + TAG)
+        self.verify('TAG_COMMIT')
+
+    # An unsigned outer tag cannot borrow the trusted signature of its inner tag.
+    def test_unsigned_tag_of_tag(self):
+        self.verify()
+        inner = self.command('git', 'rev-parse', 'refs/tags/' + TAG)
+        self.command('git', 'tag', '-d', TAG)
+        self.command('git', 'tag', '-a', TAG, inner, '-m', 'unsigned outer tag')
+        self.verify('TAG_SIGNATURE')
 
     # Moving a ref after resolution cannot replace the pinned object's wrong target.
     # The inverse control keeps a valid pinned object valid despite the same move.
@@ -334,12 +532,27 @@ class ReleaseVerification(unittest.TestCase):
         self.command('ssh-keygen', '-Y', 'sign', '-f', str(self.tag_key),
                      '-n', 'swarma-release', str(self.manifest))
 
+    # Only the manifest key in tag trust must trigger its own role-separation check.
+    def test_manifest_key_in_tag_role(self):
+        self.verify()
+        self.tag_allowed.write_text(self.tag_allowed.read_text() + self.allowed.read_text())
+        self.verify('SIGNER_ROLE_SEPARATION')
+
+    # Only the tag key in manifest trust must trigger the other separation check.
+    def test_tag_key_in_manifest_role(self):
+        self.verify()
+        self.allowed.write_text(self.allowed.read_text() + self.tag_allowed.read_text())
+        self.verify('SIGNER_ROLE_SEPARATION')
+
+    # Copied merged role files refuse even with a tag-key-signed manifest.
     def test_merged_signer_roles(self):
+        self.verify()
         self.merged_roles()
         self.verify('SIGNER_ROLE_SEPARATION', signer='tag-test')
 
     # Removing only the separation guard makes the exact forbidden fixture succeed.
     def test_role_separation_mutant(self):
+        self.verify()
         self.merged_roles()
         self.verify('SIGNER_ROLE_SEPARATION', signer='tag-test')
         source = SCRIPT.read_text()
@@ -356,77 +569,108 @@ class ReleaseVerification(unittest.TestCase):
 
     # The downloaded inode cannot stand in for an independent build, even via hardlink.
     def test_download_as_rebuild(self):
+        self.verify()
         self.rebuilt = self.binary
         self.verify('ARGUMENTS')
 
+    # A hardlink outside downloads still cannot stand in for an independent rebuild.
     def test_download_hardlink_as_rebuild(self):
+        self.verify()
         self.rebuilt.unlink()
         self.rebuilt.hardlink_to(self.binary)
         self.verify('ARGUMENTS')
 
     # Exact membership includes hidden names; no directory entry may be a link,
     # directory or special file. lstat must reject even links to valid inputs.
+    # An unlisted visible file refuses even beside otherwise valid downloads.
     def test_extra_file(self):
+        self.verify()
         (self.release / 'unlisted').write_text('extra\n')
         self.verify('UNEXPECTED_RELEASE_FILE')
 
+    # Hidden unlisted files count towards exact download-directory membership.
     def test_extra_hidden_file(self):
+        self.verify()
         (self.release / '.unlisted').write_text('extra\n')
         self.verify('UNEXPECTED_RELEASE_FILE')
 
+    # A subdirectory refuses without recursive traversal.
     def test_subdirectory(self):
+        self.verify()
         (self.release / 'extra-directory').mkdir()
         self.verify('RELEASE_SUBDIRECTORY')
 
+    # A downloaded binary symlink refuses even when its target has the right bytes.
     def test_binary_symlink(self):
+        self.verify()
         self.binary.unlink()
         self.binary.symlink_to(self.rebuilt)
         self.verify('RELEASE_SYMLINK')
 
+    # A manifest symlink refuses before authentication.
     def test_manifest_symlink(self):
+        self.verify()
         target = self.root / 'manifest'
         self.manifest.rename(target)
         self.manifest.symlink_to(target)
         self.verify('RELEASE_SYMLINK')
 
+    # An extra FIFO refuses promptly without opening it for reading.
     def test_fifo(self):
+        self.verify()
         os.mkfifo(self.release / 'extra-fifo', 0o600)
         self.verify('RELEASE_NON_REGULAR_FILE')
 
     # Neighboring required-path variants must refuse before any read can block.
+    # A FIFO at the required binary path refuses without blocking.
     def test_binary_fifo(self):
+        self.verify()
         self.binary.unlink()
         os.mkfifo(self.binary, 0o600)
         self.verify('RELEASE_NON_REGULAR_FILE')
 
+    # A directory at the required binary path is not a downloadable artifact.
     def test_binary_directory(self):
+        self.verify()
         self.binary.unlink()
         self.binary.mkdir()
         self.verify('RELEASE_SUBDIRECTORY')
 
+    # A detached-signature symlink refuses before OpenSSH reads it.
     def test_signature_symlink(self):
+        self.verify()
         signature = self.manifest.with_suffix('.sig')
         target = self.root / 'signature'
         signature.rename(target)
         signature.symlink_to(target)
         self.verify('RELEASE_SYMLINK')
 
+    # Changed download bytes cannot match an authenticated manifest hash.
     def test_tampered_binary(self):
+        self.verify()
         self.binary.write_bytes(b'tampered\n')
         self.verify('BINARY_SHA256')
 
+    # A changed manifest refuses authentication even with unchanged downloads.
     def test_tampered_sha256sums(self):
+        self.verify()
         self.manifest.write_text('0' * 64 + '  notary-service-linux-amd64\n')
         self.verify('MANIFEST_SIGNATURE')
 
+    # A valid manifest signature in another SSH namespace is not release authority.
     def test_wrong_namespace(self):
+        self.verify()
         self.sign_manifest('wrong-namespace')
         self.verify('MANIFEST_SIGNATURE')
 
+    # A different principal cannot consume the operator-approved manifest entry.
     def test_wrong_signer(self):
+        self.verify()
         self.verify('MANIFEST_SIGNATURE', signer='wrong-signer')
 
+    # A manifest signed by an unapproved key refuses despite the right namespace.
     def test_wrong_signing_key(self):
+        self.verify()
         other = self.root / 'other'
         self.command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(other))
         self.manifest.with_suffix('.sig').unlink()
@@ -434,7 +678,9 @@ class ReleaseVerification(unittest.TestCase):
                      '-n', 'swarma-release', str(self.manifest))
         self.verify('MANIFEST_SIGNATURE')
 
+    # Signed extra newlines, a missing LF and embedded NUL are not canonical manifests.
     def test_signed_malformed_manifest(self):
+        self.verify()
         valid = self.manifest.read_bytes()
         for malformed in [valid + b'\n', valid[:-1], valid[:-1] + b'\x00\n']:
             with self.subTest(size=len(malformed)):
@@ -445,38 +691,52 @@ class ReleaseVerification(unittest.TestCase):
         self.sign_manifest()
         self.verify()
 
+    # Missing detached signature refuses before manifest verification.
     def test_missing_signature(self):
+        self.verify()
         self.manifest.with_suffix('.sig').unlink()
         self.verify('MISSING_SIGNATURE')
 
     # Tag authentication, exact target, rebuild and manifest paths are independent gates.
+    # A lightweight unsigned tag cannot authenticate the recorded release.
     def test_unsigned_tag(self):
+        self.verify()
         self.command('git', 'tag', '-d', TAG)
         self.command('git', 'tag', TAG)
         self.verify('TAG_SIGNATURE')
 
+    # A trusted signed tag still needs the exact operator-recorded commit.
     def test_wrong_tag_commit(self):
+        self.verify()
         self.verify('TAG_COMMIT', commit='0' * 40)
 
+    # A tag signed by a key absent from the explicit tag trust input refuses.
     def test_wrong_tag_key(self):
+        self.verify()
         other = self.root / 'other'
         self.command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(other))
         self.command('git', 'tag', '-d', TAG)
         self.command('git', '-c', 'user.signingkey=' + str(other), 'tag', '-s', TAG, '-m', 'wrong key')
         self.verify('TAG_SIGNATURE')
 
+    # Different independent rebuild bytes refuse even when all downloads authenticate.
     def test_wrong_rebuild(self):
+        self.verify()
         self.rebuilt.write_bytes(b'wrong rebuild\n')
         self.verify('REBUILD_SHA256')
 
+    # A trusted signed manifest cannot redirect hashing to a parent-directory path.
     def test_signed_foreign_manifest_path(self):
+        self.verify()
         self.manifest.write_text(hashlib.sha256(self.binary.read_bytes()).hexdigest()
                                  + '  ../outside\n')
         self.sign_manifest()
         self.verify('MANIFEST_FORMAT')
 
     # Read failures must remain named verdicts, with no raw tool diagnostics.
+    # An unreadable manifest refuses with a named verdict; restored bytes still pass.
     def test_unreadable_manifest(self):
+        self.verify()
         self.manifest.chmod(0)
         try:
             self.verify('MANIFEST_SIGNATURE')
@@ -484,7 +744,9 @@ class ReleaseVerification(unittest.TestCase):
             self.manifest.chmod(0o600)
         self.verify()
 
+    # An unreadable download refuses with a named verdict; restored bytes still pass.
     def test_unreadable_binary(self):
+        self.verify()
         self.binary.chmod(0)
         try:
             self.verify('BINARY_SHA256')
@@ -492,7 +754,9 @@ class ReleaseVerification(unittest.TestCase):
             self.binary.chmod(0o600)
         self.verify()
 
+    # Each missing required input has its exact verdict, and restoring it preserves success.
     def test_missing_files(self):
+        self.verify()
         for path, verdict in [(self.binary, 'MISSING_BINARY'),
                               (self.manifest, 'MISSING_SHA256SUMS'),
                               (self.rebuilt, 'MISSING_REBUILD'),

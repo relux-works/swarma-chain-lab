@@ -12,6 +12,9 @@ tag=refs/tags/$version
 for tool in git ssh-keygen sha256sum cmp python3 env mktemp rm; do
     command -v "$tool" >/dev/null 2>&1 || fail TOOL_MISSING
 done
+# Resolve the interpreter once; isolated mode excludes cwd, user site and PYTHON*.
+python3=$(command -v python3)
+[[ $python3 == /* ]] || fail TOOL_MISSING
 [[ $commit =~ ^[0-9a-f]{40}$ && -n $signer ]] || fail ARGUMENTS
 # Relative paths could make the caller and Git inspect different trust files.
 for path in "$repo" "$release" "$rebuilt" "$tag_allowed" "$manifest_allowed"; do
@@ -21,7 +24,7 @@ done
 # BEGIN RELEASE_DIRECTORY_CHECK
 # Enumerate only this directory, including dotfiles. lstat never follows links;
 # no trust input or independent rebuild belongs beside the three downloads.
-python3 - "$release" <<'PY'
+"$python3" -I - "$release" <<'PY'
 import os
 import stat
 import sys
@@ -65,7 +68,7 @@ PY
 physical() {
     local canonical
     # A slash sentinel preserves even trailing newlines through command substitution.
-    canonical=$(python3 -c 'import os,sys; sys.stdout.write(os.path.realpath(sys.argv[1]) + "/")' "${!1}") || fail ARGUMENTS
+    canonical=$("$python3" -I -c 'import os,sys; sys.stdout.write(os.path.realpath(sys.argv[1]) + "/")' "${!1}") || fail ARGUMENTS
     printf -v "$1" '%s' "${canonical%/}"
 }
 for input in repo release rebuilt tag_allowed manifest_allowed; do
@@ -74,19 +77,58 @@ done
 [[ $rebuilt != "$release/"* && ! $rebuilt -ef $release/notary-service-linux-amd64 ]] || fail ARGUMENTS
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/nv.XXXXXXXX") || fail ARGUMENTS
 trap 'rm -rf -- "$scratch"' EXIT
-# Git only reads objects. No inherited environment/config selects a signature
-# verifier or trust store: SSH verification below calls ssh-keygen directly.
+# Build a config-free bare view: share only the object store and snapshot the
+# release ref/packed refs, never the source config, includes, hooks or remotes.
+# Read gitdir/commondir as data to support ordinary, bare and linked worktrees.
+"$python3" -I - "$repo" "$scratch/git" "$tag" <<'PYREPO'
+from pathlib import Path
+import shutil
+import sys
+
+try:
+    repo, view = map(Path, sys.argv[1:3])
+    gitdir = repo / '.git'
+    if gitdir.is_file():
+        text = gitdir.read_text().rstrip('\n')
+        if not text.startswith('gitdir: '):
+            raise ValueError('invalid gitdir')
+        gitdir = repo / text[8:]
+    elif not gitdir.is_dir():
+        gitdir = repo
+    common = gitdir
+    if (gitdir / 'commondir').is_file():
+        common = gitdir / (gitdir / 'commondir').read_text().rstrip('\n')
+    common = common.resolve(strict=True)
+    if not (common / 'objects').is_dir():
+        raise ValueError('missing object store')
+    view.mkdir()
+    (view / 'HEAD').write_text('ref: refs/heads/unborn\n')
+    (view / 'objects').symlink_to(common / 'objects', target_is_directory=True)
+    ref = Path(sys.argv[3])
+    (view / ref).parent.mkdir(parents=True)
+    for name in (ref, Path('packed-refs')):
+        if (common / name).is_file():
+            shutil.copyfile(common / name, view / name)
+except (OSError, ValueError):
+    print('FAIL TAG_SIGNATURE')
+    sys.exit(1)
+PYREPO
+# Git only reads this private view. No source config is loaded, even via include.
+# Protocol denial also protects Git versions predating GIT_NO_LAZY_FETCH.
 git_object() {
     env -i PATH="$PATH" LC_ALL=C HOME="$scratch" GIT_CONFIG_NOSYSTEM=1 \
         GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=0 GIT_NO_REPLACE_OBJECTS=1 \
-        git -C "$repo" "$@"
+        GIT_NO_LAZY_FETCH=1 GIT_ALLOW_PROTOCOL=none GIT_TERMINAL_PROMPT=0 \
+        git --git-dir="$scratch/git" -c core.bare=true -c core.fsmonitor=false \
+        -c core.hooksPath=/dev/null -c core.sshCommand=false \
+        -c uploadpack.packObjectsHook= -c protocol.allow=never "$@"
 }
 # Resolve the mutable ref exactly once. All later reads use immutable object IDs.
 tag_object=$(git_object rev-parse --verify "$tag^{tag}" 2>/dev/null) || fail TAG_SIGNATURE
 [[ $tag_object =~ ^[0-9a-f]{40}$ ]] || fail TAG_SIGNATURE
 git_object cat-file tag "$tag_object" > "$scratch/tag" 2>/dev/null || fail TAG_SIGNATURE
 # Only SSH armor is admitted; never dispatch to an ambient GPG backend.
-python3 - "$scratch" "$version" <<'PYTAG'
+"$python3" -I - "$scratch" "$version" <<'PYTAG'
 from pathlib import Path
 import re
 import sys
@@ -135,10 +177,16 @@ pass MANIFEST_SIGNATURE
 # BEGIN SIGNER_ROLE_SEPARATION
 # Check the actual signature keys against the opposite trust input, including
 # copied merged files. find-principals checks key membership, not namespace.
-if ssh-keygen -Y find-principals -f "$tag_allowed" -s "$release/SHA256SUMS.sig" >/dev/null 2>&1 ||
-    ssh-keygen -Y find-principals -f "$manifest_allowed" -s "$scratch/signature" >/dev/null 2>&1; then
+# BEGIN MANIFEST_KEY_IN_TAG_ROLE
+if ssh-keygen -Y find-principals -f "$tag_allowed" -s "$release/SHA256SUMS.sig" >/dev/null 2>&1; then
     fail SIGNER_ROLE_SEPARATION
 fi
+# END MANIFEST_KEY_IN_TAG_ROLE
+# BEGIN TAG_KEY_IN_MANIFEST_ROLE
+if ssh-keygen -Y find-principals -f "$manifest_allowed" -s "$scratch/signature" >/dev/null 2>&1; then
+    fail SIGNER_ROLE_SEPARATION
+fi
+# END TAG_KEY_IN_MANIFEST_ROLE
 # END SIGNER_ROLE_SEPARATION
 # Accept precisely the one published artifact, never manifest-controlled paths.
 { IFS= read -r manifest < "$release/SHA256SUMS"; } 2>/dev/null || fail MANIFEST_FORMAT

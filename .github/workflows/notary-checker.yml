@@ -56,8 +56,20 @@ jobs:
         run: python3 -B scripts/check-service-mutant.py --work-dir .temp/service-mutant
       - name: Offline release verifier controls
         run: |
+          scratch=$(mktemp -d /tmp/notary-release.XXXXXXXX)
+          trap 'rm -rf -- "$scratch"' EXIT
+          export HOME="$scratch/home" GOCACHE="$scratch/go-build"
+          export GOMODCACHE="$scratch/go-mod" GOPATH="$scratch/go-path" TMPDIR="$scratch/tmp"
+          export XDG_CONFIG_HOME="$scratch/config" XDG_CACHE_HOME="$scratch/cache"
+          export GOTOOLCHAIN=local GOFLAGS=-mod=readonly GOPROXY=off GOSUMDB=off
+          mkdir -p "$HOME" "$GOCACHE" "$GOMODCACHE" "$GOPATH" "$TMPDIR" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
           bash -n scripts/verify-release.sh
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck scripts/verify-release.sh
+          else
+            printf '%s\n' 'shellcheck is not installed'
+          fi
           python3 -B scripts/test-verify-release.py
-          python3 -B scripts/check-release-mutant.py --work-dir .temp/release-mutants
+          python3 -B scripts/check-release-mutant.py --work-dir "$scratch/release-mutants"
       - name: Independent vectors
         run: python3 -B scripts/reference.py
