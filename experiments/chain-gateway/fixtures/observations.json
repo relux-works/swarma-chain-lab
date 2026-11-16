@@ -15108,46 +15108,10 @@
   {
     "name": "snapshot_duplicate_read",
     "kind": "snapshot_attempts",
-    "config": {
-      "network": "regtest",
-      "names": [
-        "id/example"
-      ],
-      "seals": [
-        {
-          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
-        }
-      ]
-    },
+    "claim": "Only a repeated configured request occurs; exit 11, previous unchanged.",
+    "control": "snapshot_correlation_control",
     "snapshot_attempts": [
       {
-        "before": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        "after": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        "requests": [
-          {
-            "method": "name_show",
-            "params": {
-              "name": "id/example"
-            },
-            "v": 1
-          },
-          {
-            "method": "name_show",
-            "params": {
-              "name": "id/example"
-            },
-            "v": 1
-          }
-        ],
         "replies": [
           {
             "method": "name_show",
@@ -15157,103 +15121,6 @@
               "expired": false,
               "height": 90,
               "name": "id/example",
-              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
-              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
-              "vout": 0
-            },
-            "tip": {
-              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-              "height": 100,
-              "time": 1699999990
-            },
-            "v": 1
-          },
-          {
-            "method": "name_show",
-            "network": "regtest",
-            "ok": true,
-            "result": {
-              "expired": false,
-              "height": 90,
-              "name": "id/example",
-              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
-              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
-              "vout": 0
-            },
-            "tip": {
-              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-              "height": 100,
-              "time": 1699999990
-            },
-            "v": 1
-          }
-        ]
-      }
-    ],
-    "expected": {
-      "exit": 11,
-      "write": false,
-      "previous": "unchanged",
-      "wait_ms": []
-    },
-    "claim": "Only duplicate_read violates complete configured per-read correlation; exit 11, previous untouched.",
-    "control": "snapshot_complete_control"
-  },
-  {
-    "name": "snapshot_unconfigured_read",
-    "kind": "snapshot_attempts",
-    "config": {
-      "network": "regtest",
-      "names": [
-        "id/example"
-      ],
-      "seals": [
-        {
-          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
-        }
-      ]
-    },
-    "snapshot_attempts": [
-      {
-        "before": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        "after": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        "requests": [
-          {
-            "method": "name_show",
-            "params": {
-              "name": "id/other"
-            },
-            "v": 1
-          },
-          {
-            "method": "gettxout",
-            "params": {
-              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              "vout": 2
-            },
-            "v": 1
-          }
-        ],
-        "replies": [
-          {
-            "method": "name_show",
-            "network": "regtest",
-            "ok": true,
-            "result": {
-              "expired": false,
-              "height": 90,
-              "name": "id/other",
               "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
               "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
@@ -15283,46 +15150,28 @@
               "time": 1699999990
             },
             "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
           }
-        ]
-      }
-    ],
-    "expected": {
-      "exit": 11,
-      "write": false,
-      "previous": "unchanged",
-      "wait_ms": []
-    },
-    "claim": "Only unconfigured_read violates complete configured per-read correlation; exit 11, previous untouched.",
-    "control": "snapshot_complete_control"
-  },
-  {
-    "name": "snapshot_wrong_network",
-    "kind": "snapshot_attempts",
-    "config": {
-      "network": "regtest",
-      "names": [
-        "id/example"
-      ],
-      "seals": [
-        {
-          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
-        }
-      ]
-    },
-    "snapshot_attempts": [
-      {
-        "before": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        "after": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
+        ],
         "requests": [
           {
             "method": "name_show",
@@ -15338,8 +15187,203 @@
               "vout": 2
             },
             "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
           }
         ],
+        "before_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        },
+        "after_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": []
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "snapshot_unconfigured_read",
+    "kind": "snapshot_attempts",
+    "claim": "Only one unconfigured extra read occurs; exit 11, previous unchanged.",
+    "control": "snapshot_correlation_control",
+    "snapshot_attempts": [
+      {
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "confirmations": 1,
+              "script_pubkey": "51",
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/other",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ],
+        "requests": [
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/other"
+            },
+            "v": 1
+          }
+        ],
+        "before_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        },
+        "after_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": []
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "snapshot_wrong_network",
+    "kind": "snapshot_attempts",
+    "claim": "Only the first middle reply network differs from protected regtest; exit 11.",
+    "control": "snapshot_correlation_control",
+    "snapshot_attempts": [
+      {
         "replies": [
           {
             "method": "name_show",
@@ -15379,7 +15423,48 @@
             },
             "v": 1
           }
-        ]
+        ],
+        "requests": [
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          }
+        ],
+        "before_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        },
+        "after_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        }
       }
     ],
     "expected": {
@@ -15388,36 +15473,68 @@
       "previous": "unchanged",
       "wait_ms": []
     },
-    "claim": "Only wrong_network violates complete configured per-read correlation; exit 11, previous untouched.",
-    "control": "snapshot_complete_control"
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "snapshot_wrong_method",
     "kind": "snapshot_attempts",
-    "config": {
-      "network": "regtest",
-      "names": [
-        "id/example"
-      ],
-      "seals": [
-        {
-          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
-        }
-      ]
-    },
+    "claim": "Only the second middle reply method differs; its txid/vout echo still matches request 2; exit 11.",
+    "control": "snapshot_correlation_control",
     "snapshot_attempts": [
       {
-        "before": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        "after": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 2
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ],
         "requests": [
           {
             "method": "name_show",
@@ -15435,44 +15552,30 @@
             "v": 1
           }
         ],
-        "replies": [
-          {
-            "method": "gettxout",
-            "network": "regtest",
-            "ok": true,
-            "result": {
-              "confirmations": 1,
-              "script_pubkey": "51",
-              "state": "unspent",
-              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              "vout": 2
-            },
-            "tip": {
-              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-              "height": 100,
-              "time": 1699999990
-            },
-            "v": 1
+        "before_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
           },
-          {
-            "method": "gettxout",
-            "network": "regtest",
-            "ok": true,
-            "result": {
-              "confirmations": 1,
-              "script_pubkey": "51",
-              "state": "unspent",
-              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              "vout": 2
-            },
-            "tip": {
-              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-              "height": 100,
-              "time": 1699999990
-            },
-            "v": 1
-          }
-        ]
+          "v": 1
+        },
+        "after_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        }
       }
     ],
     "expected": {
@@ -15481,12 +15584,6 @@
       "previous": "unchanged",
       "wait_ms": []
     },
-    "claim": "Only wrong_method violates complete configured per-read correlation; exit 11, previous untouched.",
-    "control": "snapshot_complete_control"
-  },
-  {
-    "name": "snapshot_wrong_name",
-    "kind": "snapshot_attempts",
     "config": {
       "network": "regtest",
       "names": [
@@ -15498,36 +15595,15 @@
           "vout": 2
         }
       ]
-    },
+    }
+  },
+  {
+    "name": "snapshot_wrong_name",
+    "kind": "snapshot_attempts",
+    "claim": "Only the name echo differs from the requested name; exit 11.",
+    "control": "snapshot_correlation_control",
     "snapshot_attempts": [
       {
-        "before": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        "after": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        "requests": [
-          {
-            "method": "name_show",
-            "params": {
-              "name": "id/example"
-            },
-            "v": 1
-          },
-          {
-            "method": "gettxout",
-            "params": {
-              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              "vout": 2
-            },
-            "v": 1
-          }
-        ],
         "replies": [
           {
             "method": "name_show",
@@ -15567,45 +15643,7 @@
             },
             "v": 1
           }
-        ]
-      }
-    ],
-    "expected": {
-      "exit": 11,
-      "write": false,
-      "previous": "unchanged",
-      "wait_ms": []
-    },
-    "claim": "Only wrong_name violates complete configured per-read correlation; exit 11, previous untouched.",
-    "control": "snapshot_complete_control"
-  },
-  {
-    "name": "snapshot_wrong_txid",
-    "kind": "snapshot_attempts",
-    "config": {
-      "network": "regtest",
-      "names": [
-        "id/example"
-      ],
-      "seals": [
-        {
-          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
-        }
-      ]
-    },
-    "snapshot_attempts": [
-      {
-        "before": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        "after": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
+        ],
         "requests": [
           {
             "method": "name_show",
@@ -15623,6 +15661,58 @@
             "v": 1
           }
         ],
+        "before_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        },
+        "after_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": []
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "snapshot_wrong_txid",
+    "kind": "snapshot_attempts",
+    "claim": "Only the txid echo differs from the requested outpoint; exit 11.",
+    "control": "snapshot_correlation_control",
+    "snapshot_attempts": [
+      {
         "replies": [
           {
             "method": "name_show",
@@ -15662,45 +15752,7 @@
             },
             "v": 1
           }
-        ]
-      }
-    ],
-    "expected": {
-      "exit": 11,
-      "write": false,
-      "previous": "unchanged",
-      "wait_ms": []
-    },
-    "claim": "Only wrong_txid violates complete configured per-read correlation; exit 11, previous untouched.",
-    "control": "snapshot_complete_control"
-  },
-  {
-    "name": "snapshot_wrong_vout",
-    "kind": "snapshot_attempts",
-    "config": {
-      "network": "regtest",
-      "names": [
-        "id/example"
-      ],
-      "seals": [
-        {
-          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
-        }
-      ]
-    },
-    "snapshot_attempts": [
-      {
-        "before": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        "after": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
+        ],
         "requests": [
           {
             "method": "name_show",
@@ -15718,6 +15770,58 @@
             "v": 1
           }
         ],
+        "before_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        },
+        "after_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": []
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "snapshot_wrong_vout",
+    "kind": "snapshot_attempts",
+    "claim": "Only the vout echo differs from the requested outpoint; exit 11.",
+    "control": "snapshot_correlation_control",
+    "snapshot_attempts": [
+      {
         "replies": [
           {
             "method": "name_show",
@@ -15757,7 +15861,48 @@
             },
             "v": 1
           }
-        ]
+        ],
+        "requests": [
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          }
+        ],
+        "before_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        },
+        "after_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        }
       }
     ],
     "expected": {
@@ -15766,8 +15911,18 @@
       "previous": "unchanged",
       "wait_ms": []
     },
-    "claim": "Only wrong_vout violates complete configured per-read correlation; exit 11, previous untouched.",
-    "control": "snapshot_complete_control"
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "snapshot_wire_control",
@@ -16794,15 +16949,10 @@
   {
     "name": "snapshot_wrong_bracket_method",
     "kind": "snapshot_attempts",
-    "claim": "Only the opening reply method differs from getblockcount; terminal exit 11.",
-    "control": "snapshot_complete_control",
+    "claim": "Only the opening bracket reply method differs from getblockcount; exit 11.",
+    "control": "snapshot_correlation_control",
     "snapshot_attempts": [
       {
-        "after": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
         "replies": [
           {
             "method": "name_show",
@@ -16873,6 +17023,18 @@
             "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
             "vout": 0
           },
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        },
+        "after_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
           "tip": {
             "hash": "1111111111111111111111111111111111111111111111111111111111111111",
             "height": 100,
@@ -17092,5 +17254,654 @@
         }
       ]
     }
+  },
+  {
+    "name": "snapshot_substituted_read",
+    "kind": "snapshot_attempts",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "requests": [
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/other"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          }
+        ],
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/other",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "confirmations": 1,
+              "script_pubkey": "51",
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": []
+    },
+    "claim": "A substituted unconfigured name also omits the configured name; exit 11, previous unchanged.",
+    "control": "snapshot_complete_control"
+  },
+  {
+    "name": "snapshot_correlation_control",
+    "kind": "snapshot_attempts",
+    "claim": "The complete configured name/seal set and both bracket replies match protected regtest; publish exit 0.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "confirmations": 1,
+              "script_pubkey": "51",
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ],
+        "requests": [
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          }
+        ],
+        "before_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        },
+        "after_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 0,
+      "write": true,
+      "previous": "replaced",
+      "wait_ms": []
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "snapshot_wrong_bracket_network",
+    "kind": "snapshot_attempts",
+    "claim": "Only the opening bracket reply network differs from protected regtest; exit 11.",
+    "control": "snapshot_correlation_control",
+    "snapshot_attempts": [
+      {
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "confirmations": 1,
+              "script_pubkey": "51",
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ],
+        "requests": [
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          }
+        ],
+        "before_reply": {
+          "method": "getblockcount",
+          "network": "main",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        },
+        "after_reply": {
+          "method": "getblockcount",
+          "network": "regtest",
+          "ok": true,
+          "result": {},
+          "tip": {
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "height": 100,
+            "time": 1699999990
+          },
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": []
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "snapshot_moved_moved_limited",
+    "kind": "snapshot_attempts",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "snapshot_attempts": [
+      {
+        "before_reply": {
+          "error": {
+            "code": "tip_moved"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "tip_moved"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "rate_limited"
+          },
+          "ok": false,
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": [
+        100,
+        200
+      ]
+    },
+    "claim": "Only the retryable exhaustion order is MML: attempt 3 alone selects exit 11; earlier classes set waits [100, 200].",
+    "control": "snapshot_complete_control"
+  },
+  {
+    "name": "snapshot_moved_limited_moved",
+    "kind": "snapshot_attempts",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "snapshot_attempts": [
+      {
+        "before_reply": {
+          "error": {
+            "code": "tip_moved"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "rate_limited"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "tip_moved"
+          },
+          "ok": false,
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 12,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": [
+        100,
+        1000
+      ]
+    },
+    "claim": "Only the retryable exhaustion order is MLM: attempt 3 alone selects exit 12; earlier classes set waits [100, 1000].",
+    "control": "snapshot_complete_control"
+  },
+  {
+    "name": "snapshot_moved_limited_limited",
+    "kind": "snapshot_attempts",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "snapshot_attempts": [
+      {
+        "before_reply": {
+          "error": {
+            "code": "tip_moved"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "rate_limited"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "rate_limited"
+          },
+          "ok": false,
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": [
+        100,
+        1000
+      ]
+    },
+    "claim": "Only the retryable exhaustion order is MLL: attempt 3 alone selects exit 11; earlier classes set waits [100, 1000].",
+    "control": "snapshot_complete_control"
+  },
+  {
+    "name": "snapshot_limited_moved_moved",
+    "kind": "snapshot_attempts",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "snapshot_attempts": [
+      {
+        "before_reply": {
+          "error": {
+            "code": "rate_limited"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "tip_moved"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "tip_moved"
+          },
+          "ok": false,
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 12,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": [
+        1000,
+        200
+      ]
+    },
+    "claim": "Only the retryable exhaustion order is LMM: attempt 3 alone selects exit 12; earlier classes set waits [1000, 200].",
+    "control": "snapshot_complete_control"
+  },
+  {
+    "name": "snapshot_limited_moved_limited",
+    "kind": "snapshot_attempts",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "snapshot_attempts": [
+      {
+        "before_reply": {
+          "error": {
+            "code": "rate_limited"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "tip_moved"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "rate_limited"
+          },
+          "ok": false,
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": [
+        1000,
+        200
+      ]
+    },
+    "claim": "Only the retryable exhaustion order is LML: attempt 3 alone selects exit 11; earlier classes set waits [1000, 200].",
+    "control": "snapshot_complete_control"
+  },
+  {
+    "name": "snapshot_limited_limited_moved",
+    "kind": "snapshot_attempts",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "snapshot_attempts": [
+      {
+        "before_reply": {
+          "error": {
+            "code": "rate_limited"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "rate_limited"
+          },
+          "ok": false,
+          "v": 1
+        }
+      },
+      {
+        "before_reply": {
+          "error": {
+            "code": "tip_moved"
+          },
+          "ok": false,
+          "v": 1
+        }
+      }
+    ],
+    "expected": {
+      "exit": 12,
+      "write": false,
+      "previous": "unchanged",
+      "wait_ms": [
+        1000,
+        1000
+      ]
+    },
+    "claim": "Only the retryable exhaustion order is LLM: attempt 3 alone selects exit 12; earlier classes set waits [1000, 1000].",
+    "control": "snapshot_complete_control"
   }
 ]

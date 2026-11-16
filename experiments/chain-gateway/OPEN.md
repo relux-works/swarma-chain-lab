@@ -78,10 +78,12 @@ The INSTALL PROFILE is an attributed proposal under S8 GO, never installed code.
 The consumer acceptance event, backed by the lead in the supplied brief,
 authorizes §5 ordinary RPC bracketing for OBSERVE ONLY. Complete Tip equality,
 three attempts with minimum 100/200 ms movement-only backoff, untouched previous
-file and exit 12 on movement-only exhaustion, and required closed
-`consistency:bracketed` are normative. The current §5 table supersedes ambiguous
-mixed-refusal wording: terminal > rate limiting > movement > success; rate
-limiting uses minimum 1000 ms waits and exhaustion 11. Directory durability
+file and exit 12 on exhaustion whose third attempt is movement-only, and required
+closed `consistency:bracketed` are normative. The current §5 table supersedes
+ambiguous mixed-refusal wording: terminal > rate limiting > movement > success.
+After attempt 3 the exit is decided by attempt 3's row alone: rate-limit evidence
+in attempt 3 exits 11, movement-only evidence exits 12. Earlier attempts' classes
+affect only the waits; rate limiting uses minimum 1000 ms waits. Directory durability
 failure after rename is 13; benign lock contention is 14. V1
 rejects `witnessed` as invalid; it cannot be self-asserted. Bracketed closures
 belong only to an observe journal, never enforcement state. Neither a bracketed

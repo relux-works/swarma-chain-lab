@@ -51,9 +51,12 @@ header-time disagreement is backend inconsistency, not genuine tip movement.
 Consumer acceptance and the lead's HELPER-B r3 brief amend §5.
 The helper may bracket all reads with complete Tip comparisons, N=3 total
 attempts, minimum 100/200 ms movement-only backoff; exit 12 retains the previous
-file untouched on movement-only exhaustion. The current §5 table resolves mixed
-refusals (terminal > rate limiting > movement), uses ordinal minimum waits,
-reserves 13 for post-rename durability failure and 14 for lock-contention skip.
+file untouched on exhaustion whose third attempt is movement-only. After attempt
+3 the exit is decided by attempt 3's row alone: rate-limit evidence in attempt 3
+exits 11, movement-only evidence exits 12. Earlier attempts' classes affect only
+the waits. The current §5 table resolves mixed refusals
+(terminal > rate limiting > movement), uses ordinal minimum waits, reserves 13
+for post-rename durability failure and 14 for lock-contention skip.
 Snapshots require `consistency:"bracketed"`; missing, unknown and `witnessed`
 are invalid in v1. Hidden A→B→A cannot be detected: labels and observe-journal
 closures never enter enforcement state. §4's witness gate stays for (a) and

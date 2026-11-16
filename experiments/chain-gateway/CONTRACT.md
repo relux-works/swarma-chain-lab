@@ -647,6 +647,11 @@ are terminal across the ENTIRE invocation, not just within one attempt.
 For retry after attempt ordinal 1 or 2, movement-only waits at least 100 or
 200 ms respectively; ANY rate limiting waits at least 1000 ms, even when mixed
 with movement. The ordinal counts all attempts, not just movement events.
+After attempt 3 the exit is decided by attempt 3's row alone: rate-limit evidence
+in attempt 3 exits 11, movement-only evidence exits 12. Earlier attempts' classes
+affect only the waits. In the exhaustion rows below, M means movement-only and
+L means rate-limit evidence with or without movement; all three attempts are
+retryable, with no terminal failure or success in the sequence.
 These are minima: the root client MUST also pace to its own reservation tokens
 and active slots before each read/attempt, within the unchanged total deadline.
 It must not induce `rate_limited` by overrunning its own reservation. Q5 must
@@ -660,8 +665,16 @@ invented timestamp. Missing expected file means unavailable for observation.
 | Event/stage | Action and final exit | Published path |
 | --- | --- | --- |
 | Terminal collection evidence: deadline/RPC/backoff timeout, authentication/platform failure, same hash with different height/time, wire/schema/projection failure, missing/duplicate/unconfigured read, wrong network/method/name/outpoint echo, or `unavailable`/`not_found`/`malformed`/`unauthorized` on ANY read; regardless of retryable evidence | Terminal failure, 11; not_found never means seal absence | Previous untouched |
-| No terminal evidence; `rate_limited` on ANY read, with OR without different-hash Tip/bestblock or `tip_moved` evidence | Discard attempt; wait >=1000 ms before next attempt; after attempt 3 exit 11 | Previous untouched |
-| Movement only: different-hash bracket/middle Tip/bestblock or `tip_moved` on ANY read, with NO terminal or rate-limit evidence | Discard attempt; wait >=100/200 ms by inter-attempt ordinal; after attempt 3 exit 12 | Previous untouched |
+| Attempt 1 or 2, no terminal evidence; `rate_limited` on ANY read, with OR without different-hash Tip/bestblock or `tip_moved` evidence | Discard attempt; wait >=1000 ms before next attempt | Previous untouched |
+| Attempt 1 or 2, movement only: different-hash bracket/middle Tip/bestblock or `tip_moved` on ANY read, with NO terminal or rate-limit evidence | Discard attempt; wait >=100/200 ms by inter-attempt ordinal | Previous untouched |
+| Retryable exhaustion: M, M, M | Exit 12; preceding minimum waits [100,200] ms | Previous untouched |
+| Retryable exhaustion: M, M, L | Exit 11; preceding minimum waits [100,200] ms | Previous untouched |
+| Retryable exhaustion: M, L, M | Exit 12; preceding minimum waits [100,1000] ms | Previous untouched |
+| Retryable exhaustion: M, L, L | Exit 11; preceding minimum waits [100,1000] ms | Previous untouched |
+| Retryable exhaustion: L, M, M | Exit 12; preceding minimum waits [1000,200] ms | Previous untouched |
+| Retryable exhaustion: L, M, L | Exit 11; preceding minimum waits [1000,200] ms | Previous untouched |
+| Retryable exhaustion: L, L, M | Exit 12; preceding minimum waits [1000,1000] ms | Previous untouched |
+| Retryable exhaustion: L, L, L | Exit 11; preceding minimum waits [1000,1000] ms | Previous untouched |
 | No terminal, rate-limit or movement evidence: complete equal brackets and all known middle Tips/bestblocks match | Proceed to persistence; if all stages succeed, publish, 0 | New complete durable file on success |
 | Before collection: lock contention only | No waiting invocation; benign skip, 14 | Previous untouched |
 | Before collection: lock open/validation/acquisition error (not contention), bad config, UID/namespace/bind overlap, unsafe ancestry or installed inputs | Terminal failure, 11 | Previous untouched |
@@ -669,8 +682,9 @@ invented timestamp. Missing expected file means unavailable for observation.
 | AFTER explicit successful rename: directory open/fsync/close failure | Durability unconfirmed, 13; NEVER roll back/unlink final file | New complete file visible; crash recovery may select old or new |
 
 Exit meanings are disjoint: 0 = durable publication; 11 = unsuccessful invocation
-with previous bytes untouched (including rate-limit exhaustion); 12 = movement-only
-exhaustion with previous bytes untouched; 13 = renamed but directory durability
+with previous bytes untouched (including rate-limit evidence in attempt 3);
+12 = exhaustion whose third attempt is movement-only, with previous bytes
+untouched; 13 = renamed but directory durability
 unconfirmed; 14 = lock-contention skip with no reads or writes. Exit 0 requires
 directory durability. Each failed read follows this table, never fabricates
 presence or absence. All pre-rename branches leave previous published bytes
