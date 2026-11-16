@@ -39,6 +39,11 @@
   later slice. Until the adapter type implements the unexported managed-mode
   marker, `New` refuses managed mode with `CONFIG_MODE_NO_BROKER` and the CLI
   with `CREDENTIAL_SOURCE`; only the package's test double passes the marker.
+- Qualification slice (S3c): oauth-bearer traffic needs the provider's oauth
+  beta header, which this slice does not add. `authenticate` sends only
+  `Authorization: Bearer` and the client's `anthropic-beta` is stripped, so a
+  subscription credential through the gateway is expected to 401 and burn one
+  `Renew` per request until that header is pinned in the qualification work.
 - Existing installations need an admin-approved migration preserving credentials,
   outstanding exposure and the admission-day bucket before enabling the new
   ceiling. Automatic ledger initialization on startup and state reset are

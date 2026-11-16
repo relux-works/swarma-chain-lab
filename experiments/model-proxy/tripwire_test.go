@@ -11,7 +11,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
-	"io"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -53,26 +53,6 @@ func spellings(value string) map[string]string {
 	}
 }
 
-// pieces delivers a body in fixed Read-sized pieces so the handler sees it as
-// several chunks, including one that splits the planted value.
-type pieces struct{ parts [][]byte }
-
-func (p *pieces) Read(out []byte) (int, error) {
-	if len(p.parts) == 0 {
-		return 0, io.EOF
-	}
-	n := copy(out, p.parts[0])
-	if n == len(p.parts[0]) {
-		p.parts = p.parts[1:]
-	} else {
-		p.parts[0] = p.parts[0][n:]
-	}
-	return n, nil
-}
-func split(body string, at int) io.Reader {
-	return &pieces{parts: [][]byte{[]byte(body[:at]), []byte(body[at:])}}
-}
-
 func persistedBlocks(t *testing.T, g *gatewayHarness) map[string]string {
 	t.Helper()
 	raw, e := g.s.disk.Read("registry.json", MaxBody)
@@ -84,9 +64,11 @@ func persistedBlocks(t *testing.T, g *gatewayHarness) map[string]string {
 }
 
 // Every listed spelling of an issued credential is caught in a header and in a
-// body split across chunks, refusing LEAK_CREDENTIAL before any upstream call,
-// durably blocking the run account and recording an audit without the value.
-// The same request without the value is forwarded first.
+// body where the spelling straddles the scanner's 4096-byte chunk boundary
+// (the handler reassembles transfer chunks before the scan, so that boundary is
+// the only split the proxy path can prove), refusing LEAK_CREDENTIAL before any
+// upstream call, durably blocking the run account and recording an audit
+// without the value. The same request without the value is forwarded first.
 func TestTripwireForms(t *testing.T) {
 	forms := spellings(sourceMarker)
 	if len(forms) != 12 || forms["json-html"] == forms["json-plain"] || forms["percent-query"] == forms["raw"] {
@@ -109,10 +91,13 @@ func TestTripwireForms(t *testing.T) {
 				if where == "header" {
 					w = g.sendAs(request(false), g.b.SlotID, g.cred.Bearer.Reveal(), map[string]string{"X-Client-Debug": form})
 				} else {
-					body := strings.Replace(request(false), "private-prompt-marker", form, 1)
-					at := strings.Index(body, form) + len(form)/2
-					w = httptest.NewRecorder()
-					g.sendTo(w, split(body, at), g.b.SlotID, g.cred.Bearer.Reveal(), nil)
+					head := strings.Index(request(false), "private-prompt-marker")
+					pad := strings.Repeat("x", tripwireChunk-len(form)/2-head)
+					body := strings.Replace(request(false), "private-prompt-marker", pad+form, 1)
+					if at := strings.Index(body, form); at >= tripwireChunk || at+len(form) <= tripwireChunk {
+						t.Fatal("spelling does not straddle the chunk boundary", at)
+					}
+					w = g.send(body)
 				}
 				if w.Code != 403 || w.Body.String() != `{"error":"LEAK_CREDENTIAL"}` || g.calls.Load() != 1 {
 					t.Fatal("leaked credential forwarded", w.Code, w.Body.String())
@@ -137,6 +122,178 @@ func TestTripwireForms(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// The leak scan is the first verdict on every request, before the route, the
+// bearer count and authorize. An issued credential presented as the bearer
+// itself, beside a second Authorization header, with an invalid bearer, on an
+// unknown slot or on a malformed route is refused 401 with the plain AUTH body,
+// audited LEAK_CREDENTIAL on the route's slot with no account block (none is
+// possible without a valid binding) and no upstream call; the valid binding
+// keeps serving afterwards. The same shapes without the credential are today's
+// AUTH and ROUTE refusals, the negative control. The bound case, a valid bearer
+// with the leak, is TestTripwireForms.
+func TestTripwireBeforeAuthorize(t *testing.T) {
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
+	if g.send(request(false)).Code != 200 {
+		t.Fatal("tripwire positive neighbor refused")
+	}
+	valid := "Bearer " + string(g.cred.Bearer.Reveal())
+	route := "/slots/" + g.b.SlotID + "/v1/messages"
+	unknown := strings.Repeat("9", 64)
+	debug := func(h http.Header, leak bool) http.Header {
+		if leak {
+			h.Set("X-Client-Debug", sourceMarker)
+		}
+		return h
+	}
+	for _, tc := range []struct {
+		name, path, slot, plain string
+		status                  int
+		headers                 func(leak bool) http.Header
+	}{
+		{"own-bearer", route, g.b.SlotID, "AUTH", 401, func(leak bool) http.Header {
+			h := http.Header{}
+			h.Set("Authorization", "Bearer not-the-bearer")
+			if leak {
+				h.Set("Authorization", "Bearer "+sourceMarker)
+			}
+			return h
+		}},
+		{"two-authorization", route, g.b.SlotID, "AUTH", 401, func(leak bool) http.Header {
+			h := http.Header{}
+			h.Add("Authorization", valid)
+			second := valid
+			if leak {
+				second = "Bearer " + sourceMarker
+			}
+			h.Add("Authorization", second)
+			return h
+		}},
+		{"invalid-bearer", route, g.b.SlotID, "AUTH", 401, func(leak bool) http.Header {
+			h := http.Header{}
+			h.Set("Authorization", "Bearer not-the-bearer")
+			return debug(h, leak)
+		}},
+		// A valid bearer on another slot would be the foreign-bearer verdict,
+		// so the unknown-slot and malformed-route shapes carry an invalid one.
+		{"unknown-slot", "/slots/" + unknown + "/v1/messages", unknown, "AUTH", 401, func(leak bool) http.Header {
+			h := http.Header{}
+			h.Set("Authorization", "Bearer not-the-bearer")
+			return debug(h, leak)
+		}},
+		{"bad-route", "/slots/" + g.b.SlotID + "/v1/other", g.b.SlotID, "ROUTE", 404, func(leak bool) http.Header {
+			h := http.Header{}
+			h.Set("Authorization", "Bearer not-the-bearer")
+			return debug(h, leak)
+		}},
+	} {
+		for _, leak := range []bool{false, true} {
+			r := httptest.NewRequest("POST", "https://proxy.example"+tc.path, strings.NewReader(request(false)))
+			r.Header = tc.headers(leak)
+			w := httptest.NewRecorder()
+			g.s.ServeHTTP(w, r)
+			a := g.lastAudit()
+			if !leak {
+				if w.Code != tc.status || w.Body.String() != `{"error":"`+tc.plain+`"}` || a.Code != tc.plain {
+					t.Fatal("control refusal changed", tc.name, w.Code, w.Body.String(), a)
+				}
+				continue
+			}
+			if w.Code != 401 || w.Body.String() != `{"error":"AUTH"}` || a.Code != "LEAK_CREDENTIAL" || a.HTTPStatus != 401 || a.SlotID != tc.slot || a.Usage != (Usage{}) {
+				t.Fatal("unbound leak not refused as 401 LEAK_CREDENTIAL", tc.name, w.Code, w.Body.String(), a)
+			}
+			if len(persistedBlocks(t, g)) != 0 {
+				t.Fatal("unbound leak blocked an account", tc.name)
+			}
+			if strings.Contains(g.auditLog(), sourceMarker) {
+				t.Fatal("audit carried the credential", tc.name)
+			}
+		}
+	}
+	if w := g.send(request(false)); w.Code != 200 || g.calls.Load() != 2 {
+		t.Fatal("valid binding affected by unbound leaks", w.Code, w.Body.String(), g.calls.Load())
+	}
+}
+
+// While the source is down an echoed issued version is still caught with the
+// needles already known: the request is refused LEAK_CREDENTIAL and the account
+// is blocked, not refused CREDENTIAL_UNAVAILABLE. The same request without the
+// value is the plain CREDENTIAL_UNAVAILABLE with no block, and the request that
+// issued the version was served first.
+func TestTripwireSourceDown(t *testing.T) {
+	src := newFakeSource(sourceMarker)
+	g := gatewayFixture(t, ModeManaged, src)
+	if g.send(request(false)).Code != 200 {
+		t.Fatal("source positive neighbor refused")
+	}
+	src.mu.Lock()
+	src.fail = "CREDENTIAL_EXPIRED"
+	src.mu.Unlock()
+	if w := g.send(request(false)); w.Code != 503 || w.Body.String() != `{"error":"CREDENTIAL_UNAVAILABLE"}` || len(persistedBlocks(t, g)) != 0 {
+		t.Fatal("unavailable source control changed", w.Code, w.Body.String())
+	}
+	w := g.sendAs(request(false), g.b.SlotID, g.cred.Bearer.Reveal(), map[string]string{"X-Client-Debug": sourceMarker})
+	if w.Code != 403 || w.Body.String() != `{"error":"LEAK_CREDENTIAL"}` || g.calls.Load() != 1 || persistedBlocks(t, g)[g.b.Run.Account] != "LEAK_CREDENTIAL" {
+		t.Fatal("echoed version not caught while the source is down", w.Code, w.Body.String())
+	}
+	if a := g.lastAudit(); a.Code != "LEAK_CREDENTIAL" || a.HTTPStatus != 403 {
+		t.Fatal("leak verdict not audited", a)
+	}
+}
+
+// A loaded Blocked entry whose account is not a canonical digest, or whose
+// verdict is not a tripwire code, refuses New with STATE and leaves the file
+// bytes unchanged, so a plant that drops that validation fails here. The
+// unmodified ledger with the same block reopens and still refuses the account,
+// the positive control.
+func TestTripwireBlockedLoad(t *testing.T) {
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
+	if w := g.sendAs(request(false), g.b.SlotID, g.cred.Bearer.Reveal(), map[string]string{"X-Client-Debug": sourceMarker}); w.Code != 403 {
+		t.Fatal("leak not refused")
+	}
+	g.s.Close()
+	path := filepath.Join(g.c.StateDir, "registry.json")
+	raw, e := os.ReadFile(path)
+	if e != nil {
+		t.Fatal(e)
+	}
+	entry := `"blocked":{"` + g.b.Run.Account + `":"LEAK_CREDENTIAL"}`
+	if !strings.Contains(string(raw), entry) {
+		t.Fatal("block entry not persisted as expected")
+	}
+	for _, bad := range []string{
+		`"blocked":{"` + strings.ToUpper(g.b.Run.Account) + `":"LEAK_CREDENTIAL"}`,
+		`"blocked":{"` + g.b.Run.Account[:63] + `":"LEAK_CREDENTIAL"}`,
+		`"blocked":{"` + g.b.Run.Account + `":"LEAK_OTHER"}`,
+		`"blocked":{"` + g.b.Run.Account + `":""}`,
+	} {
+		corrupt := []byte(strings.Replace(string(raw), entry, bad, 1))
+		if bytes.Equal(corrupt, raw) {
+			t.Fatal("plant missing")
+		}
+		if e := os.WriteFile(path, corrupt, 0600); e != nil {
+			t.Fatal(e)
+		}
+		if s, e := New(g.c); e == nil || e.Error() != "STATE" || s != nil {
+			t.Fatal("corrupt block admitted", bad, e)
+		}
+		after, e := os.ReadFile(path)
+		if e != nil || !bytes.Equal(after, corrupt) {
+			t.Fatal("refusal rewrote the ledger", e)
+		}
+	}
+	if e := os.WriteFile(path, raw, 0600); e != nil {
+		t.Fatal(e)
+	}
+	s, e := New(g.c)
+	if e != nil {
+		t.Fatal("valid blocked ledger refused", e)
+	}
+	g.s = s
+	if w := g.send(request(false)); w.Code != 403 || w.Body.String() != `{"error":"ACCOUNT_BLOCKED"}` || g.calls.Load() != 0 {
+		t.Fatal("reloaded block not enforced", w.Code, w.Body.String())
 	}
 }
 

@@ -344,7 +344,17 @@ proxy, whether backed by a static key or a `FileSource`, refuses `Prepare` of a
 run binding with `RUN_REQUIRES_MANAGED`. A run window is bounded only by
 `run_max_window_seconds` from sealed configuration: above it `Prepare` refuses
 `RUN_WINDOW`, and a value above 12 h (43200) is refused at decode and by `New`
-with `CONFIG_RUN_WINDOW`. Zero or omitted admits no run binding. Prepare,
+with `CONFIG_RUN_WINDOW`. Zero or omitted admits no run binding. Both
+conditions are re-checked at every use, in `authorize` and in the in-flight
+liveness poll, not only at Prepare: a managed state dir reopened in
+`development` mode refuses its run bearers with `RUN_REQUIRES_MANAGED`, and a
+sealed maximum lowered below an active run window refuses that bearer with
+`RUN_WINDOW` on the next use. Neither field enters the ledger fingerprint, so
+lowering the cap stays an ordinary, reversible operator action. One live binding
+exists per (`generation`, `run_id`, `account`): a second slot for the tuple of a
+prepared or active binding refuses `CONFLICT`, the exact retry of the same slot
+returns the same credential as before, and a revoked, frozen or expired tuple is
+`TERMINAL` and is never re-prepared. Prepare,
 Activate and Revoke, the daily ceiling and the tripwire apply to run bindings
 exactly as to rental ones. Revoke on every end path (End, Destroy, failure,
 abandonment) is the caller's duty; the proxy does not infer an end. `NotAfter`
@@ -354,10 +364,18 @@ call is cancelled even if the Revoke was lost.
 **Leak tripwire.** Two durable, fail-closed checks run before any upstream I/O.
 A bearer presented on another binding's route is refused as before and, when
 it belongs to a run binding, blocks that binding's account (`LEAK_BEARER` in
-the audit). Any upstream credential value issued in this process, every
-version, found in the client's plaintext request line, headers or body refuses
-`LEAK_CREDENTIAL` and blocks the account; a rental binding has no account, so
-its own record is frozen instead. Matched spellings: raw, base64 and base64url
+the audit). A revoked bearer on its own route is a plain `AUTH` and blocks
+nothing, so a request racing the end-of-run Revoke cannot block the account.
+Any upstream credential value issued in this process, every version, found in
+the client's plaintext request line, headers or body refuses `LEAK_CREDENTIAL`
+and blocks the account; a rental binding has no account, so its own record is
+frozen instead. The request-line and header scan is the first verdict on every
+request, before the route, the bearer count and authorize, with every version
+issued so far: an issued value is caught even as the bearer itself, beside
+several `Authorization` headers, with an invalid bearer, or while the source is
+down. Without a valid binding on the route no block is possible; the client then
+sees a plain 401 `AUTH` and only the audit names `LEAK_CREDENTIAL`. Matched
+spellings: raw, base64 and base64url
 with and without padding, lower and upper hex, percent-encoding and JSON string
 escaping, across body chunk boundaries within a window bounded by the longest
 spelling. Values shorter than 16 bytes are never matched. The verdict is an
@@ -367,7 +385,10 @@ then on every Prepare, Activate and use for that account refuses
 `ACCOUNT_BLOCKED` until the owner sends `clear_block` with the account digest
 on the peer-checked admin socket (`Client.ClearBlock`).
 
-Limits, stated plainly: the tripwire cannot see inside an opaque CONNECT
+Limits, stated plainly: the tripwire is a leak detector, not an exfiltration
+barrier, and it does not match over-escaped JSON (`\u` spellings of ordinary
+characters) or base64 of the value at a non-zero byte offset. It cannot see
+inside an opaque CONNECT
 tunnel; splitting a value across requests, compression, encryption, an
 encoding outside the list or a slow trickle defeat it. Its set of issued
 versions lives only in memory: after a restart it matches only the versions

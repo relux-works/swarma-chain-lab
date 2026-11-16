@@ -5,12 +5,62 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strings"
 )
 
+// routeSlot names the slot of a well-formed route for the audit record only;
+// every other request keeps the empty id of the early refusals.
+func routeSlot(path string) string {
+	parts := strings.Split(path, "/")
+	if len(parts) == 5 && parts[1] == "slots" && parts[3] == "v1" && digest(parts[2]) {
+		return parts[2]
+	}
+	return ""
+}
+
+// singleBearer returns the one Authorization bearer a request carries; any
+// other shape is not a valid binding presentation.
+func singleBearer(r *http.Request) (Secret, bool) {
+	h := r.Header.Values("Authorization")
+	if len(h) != 1 || !strings.HasPrefix(h[0], "Bearer ") {
+		return "", false
+	}
+	return Secret(strings.TrimPrefix(h[0], "Bearer ")), true
+}
+
+// screen is the first verdict on every request, before the route, the bearer
+// count and authorize: the request line and every header are scanned against
+// every credential version issued so far, so an issued value is caught even as
+// the bearer itself, beside several Authorization headers, with an invalid
+// bearer, on an unknown slot, or while the source is down. With a valid binding
+// on the route the account is blocked as for any leak; without one no block is
+// possible, the client sees a plain 401 AUTH and the audit records
+// LEAK_CREDENTIAL. The version the source issues for this very request is not
+// known yet here; admit scans again once it is.
+func (s *Service) screen(w http.ResponseWriter, r *http.Request) bool {
+	if !s.tripwire.request(r) {
+		return false
+	}
+	id := routeSlot(r.URL.Path)
+	status, code := 401, "LEAK_CREDENTIAL"
+	if bearer, ok := singleBearer(r); ok && id != "" {
+		s.mu.Lock()
+		_, e := s.authorize(id, bearer)
+		s.mu.Unlock()
+		if e == nil {
+			status, code = s.inspect(id, true)
+		}
+	}
+	s.refuse(w, id, status, code)
+	return true
+}
+
 // admit runs the gateway checks both routes share before the body is read:
-// bearer authorization including the account block, the foreign-bearer
-// tripwire, the per-use credential and the request-line/header leak scan.
-// A returned code is a refusal that made no reservation and no upstream call.
+// bearer authorization including the account block and the run re-check, the
+// foreign-bearer tripwire, the per-use credential and the request-line/header
+// leak scan against the version just issued (screen already scanned with the
+// versions known before it). A returned code is a refusal that made no
+// reservation and no upstream call.
 func (s *Service) admit(r *http.Request, id string, bearer Secret) (UpstreamCredential, int, string) {
 	s.mu.Lock()
 	_, e := s.authorize(id, bearer)
@@ -20,7 +70,7 @@ func (s *Service) admit(r *http.Request, id string, bearer Secret) (UpstreamCred
 		if accountingCode(code) {
 			return UpstreamCredential{}, 503, code
 		}
-		if code == "ACCOUNT_BLOCKED" {
+		if code == "ACCOUNT_BLOCKED" || code == "RUN_REQUIRES_MANAGED" || code == "RUN_WINDOW" {
 			return UpstreamCredential{}, 403, code
 		}
 		switch verdict := s.foreignBearer(id, bearer); verdict {
@@ -48,11 +98,12 @@ func (s *Service) inspectBody(id string, raw []byte) (int, string) {
 	return s.inspect(id, s.tripwire.body(raw))
 }
 
-// refuse writes a gateway refusal. A foreign bearer is refused exactly as any
-// other bad bearer; only the audit names the verdict.
+// refuse writes a gateway refusal. A foreign bearer, and a leak with no valid
+// binding behind it, are refused exactly as any other bad bearer; only the
+// audit names the verdict.
 func (s *Service) refuse(w http.ResponseWriter, id string, status int, code string) {
 	body := code
-	if code == "LEAK_BEARER" {
+	if code == "LEAK_BEARER" || (code == "LEAK_CREDENTIAL" && status == 401) {
 		body = "AUTH"
 	}
 	refusal(w, status, body)

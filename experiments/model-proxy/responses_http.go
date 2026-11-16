@@ -64,7 +64,7 @@ func (s *Service) serveResponses(w http.ResponseWriter, r *http.Request) {
 	call, cancel, e := s.reserve(r.Context(), id, bearer, p)
 	if e != nil {
 		code := e.Error()
-		if code != "CAP" && code != "MODEL" && code != "BUSY" && code != "DAILY_COST_CEILING" && code != "ACCOUNT_BLOCKED" && !accountingCode(code) {
+		if code != "CAP" && code != "MODEL" && code != "BUSY" && code != "DAILY_COST_CEILING" && code != "ACCOUNT_BLOCKED" && code != "RUN_REQUIRES_MANAGED" && code != "RUN_WINDOW" && !accountingCode(code) {
 			code = "AUTH"
 		}
 		status := 403

@@ -23,6 +23,10 @@ func (s *Service) audit(id string, status int, code string, u Usage) {
 	}
 }
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// The leak scan is the first verdict on every request, on either route.
+	if s.screen(w, r) {
+		return
+	}
 	if strings.HasSuffix(r.URL.Path, "/responses") {
 		s.serveResponses(w, r)
 		return
@@ -75,7 +79,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	call, cancel, e := s.reserve(r.Context(), id, bearer, p)
 	if e != nil {
 		code := e.Error()
-		if code != "BUSY" && code != "MODEL" && code != "CAP" && code != "DAILY_COST_CEILING" && code != "ACCOUNT_BLOCKED" && !accountingCode(code) {
+		if code != "BUSY" && code != "MODEL" && code != "CAP" && code != "DAILY_COST_CEILING" && code != "ACCOUNT_BLOCKED" && code != "RUN_REQUIRES_MANAGED" && code != "RUN_WINDOW" && !accountingCode(code) {
 			code = "AUTH"
 		}
 		status := 403

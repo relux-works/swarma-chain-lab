@@ -557,6 +557,128 @@ func TestRunRequiresManaged(t *testing.T) {
 	}
 }
 
+// A run binding is re-checked at every use, not only at Prepare. The same
+// managed state dir reopened in development mode with a static key refuses the
+// active run bearer with RUN_REQUIRES_MANAGED; a sealed maximum lowered below
+// an active run window refuses it with RUN_WINDOW; both make zero upstream
+// calls and block no account, while the rental neighbor keeps serving. The
+// exact window as the maximum still serves, and the restored configuration
+// serves the run bearer again: lowering the cap is a reversible operator action
+// that takes effect on the next use, not a fingerprint change.
+func TestRunRecheckedAtUse(t *testing.T) {
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
+	g.accept(sourceMarker, keyMarker)
+	rental := rentalBinding("6")
+	rentalCred, e := g.s.Prepare(rental)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = g.s.Activate(rental); e != nil {
+		t.Fatal(e)
+	}
+	calls := int32(0)
+	serve := func(name string, id string, bearer Secret) {
+		t.Helper()
+		calls++
+		if w := g.sendAs(request(false), id, bearer, nil); w.Code != 200 || g.calls.Load() != calls {
+			t.Fatal(name, w.Code, w.Body.String(), g.calls.Load())
+		}
+	}
+	serve("run positive neighbor refused", g.b.SlotID, g.cred.Bearer.Reveal())
+	window := uint64(g.b.NotAfter - g.b.NotBefore)
+	for _, tc := range []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{"development-static", func(c *Config) { c.Mode, c.Source, c.APIKey = ModeDevelopment, nil, NewAPIKey(keyMarker) }, "RUN_REQUIRES_MANAGED"},
+		{"lowered-cap", func(c *Config) { c.RunMaxWindowSeconds = window - 1 }, "RUN_WINDOW"},
+		{"zero-cap", func(c *Config) { c.RunMaxWindowSeconds = 0 }, "RUN_WINDOW"},
+		{"exact-cap", func(c *Config) { c.RunMaxWindowSeconds = window }, ""},
+	} {
+		g.s.Close()
+		c := g.c
+		tc.mutate(&c)
+		s, e := New(c)
+		if e != nil {
+			t.Fatal(tc.name, "reopen refused", e)
+		}
+		g.s = s
+		if tc.want == "" {
+			serve(tc.name+": exact maximum refused the run bearer", g.b.SlotID, g.cred.Bearer.Reveal())
+		} else {
+			w := g.send(request(false))
+			if w.Code != 403 || w.Body.String() != `{"error":"`+tc.want+`"}` || g.calls.Load() != calls {
+				t.Fatal(tc.name, "run bearer served or misreported", w.Code, w.Body.String(), g.calls.Load())
+			}
+			if a := g.lastAudit(); a.Code != tc.want || a.SlotID != g.b.SlotID {
+				t.Fatal(tc.name, "re-check not audited", a)
+			}
+			if len(persistedBlocks(t, g)) != 0 {
+				t.Fatal(tc.name, "re-check blocked an account")
+			}
+			if v := g.status(t); v.Phase != "active" {
+				t.Fatal(tc.name, "re-check changed the record", v)
+			}
+		}
+		serve(tc.name+": rental neighbor refused", rental.SlotID, rentalCred.Bearer.Reveal())
+		g.s.Close()
+		if s, e = New(g.c); e != nil {
+			t.Fatal(tc.name, "restore refused", e)
+		}
+		g.s = s
+		serve(tc.name+": restored configuration refused the run bearer", g.b.SlotID, g.cred.Bearer.Reveal())
+	}
+}
+
+// One live binding per (generation, run_id, account): a second slot for the
+// tuple of an active binding refuses CONFLICT and persists nothing; the exact
+// retry of the same slot returns the same credential; after Revoke, and after
+// expiry without any Revoke, the tuple is TERMINAL for a new slot; a different
+// account with the same generation and run is unaffected before and after.
+func TestRunTupleUnique(t *testing.T) {
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
+	second := runBinding("5", "a")
+	if second.Run != g.b.Run || second.SlotID == g.b.SlotID {
+		t.Fatal("tuple fixture calibration failed")
+	}
+	if _, e := g.s.Prepare(second); e == nil || e.Error() != "CONFLICT" {
+		t.Fatal("second slot for an active tuple prepared", e)
+	}
+	if _, e := g.s.Status(second.SlotID); e == nil {
+		t.Fatal("refused duplicate persisted")
+	}
+	retry, e := g.s.Prepare(g.b)
+	if e != nil || !retry.Equal(g.cred) {
+		t.Fatal("exact retry changed", e)
+	}
+	other := runBinding("5", "b")
+	if _, e = g.s.Prepare(other); e != nil {
+		t.Fatal("different account refused", e)
+	}
+	if e = g.s.Revoke(g.b); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = g.s.Prepare(runBinding("6", "a")); e == nil || e.Error() != "TERMINAL" {
+		t.Fatal("revoked tuple re-prepared", e)
+	}
+	if _, e = g.s.Status(strings.Repeat("6", 64)); e == nil {
+		t.Fatal("refused terminal tuple persisted")
+	}
+	// Slot 5 (account b) expires without any Revoke; the tuple stays terminal.
+	g.now.Store(other.NotAfter)
+	late := runBinding("7", "b")
+	late.NotAfter = other.NotAfter + 3000
+	if _, e = g.s.Prepare(late); e == nil || e.Error() != "TERMINAL" {
+		t.Fatal("expired tuple re-prepared", e)
+	}
+	fresh := runBinding("8", "c")
+	fresh.NotAfter = other.NotAfter + 3000
+	if _, e = g.s.Prepare(fresh); e != nil {
+		t.Fatal("unrelated tuple refused after expiry", e)
+	}
+}
+
 // A run window above the sealed maximum refuses RUN_WINDOW at Prepare without
 // persisting; the exact maximum admits; a zero sealed maximum admits no run
 // binding; the rental 3600 s cap is unchanged beside a 7200 s run maximum.

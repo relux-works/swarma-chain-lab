@@ -337,18 +337,24 @@ func (s *Service) Prepare(b Binding) (Credential, error) {
 		return Credential{}, fail("BINDING")
 	}
 	if b.Kind() == KindRun {
-		// Run bindings exist only behind the broker-backed managed mode; a
-		// development proxy with a static key or a file never mints one.
-		if s.cfg.Mode != ModeManaged {
-			return Credential{}, fail("RUN_REQUIRES_MANAGED")
-		}
-		// The run window ceiling comes only from sealed configuration; zero
-		// means no run binding is admitted at all.
-		if s.cfg.RunMaxWindowSeconds == 0 || b.NotAfter-b.NotBefore > int64(s.cfg.RunMaxWindowSeconds) {
-			return Credential{}, fail("RUN_WINDOW")
+		if e := s.runRefusal(b); e != nil {
+			return Credential{}, e
 		}
 		if s.isBlocked(b) {
 			return Credential{}, fail("ACCOUNT_BLOCKED")
+		}
+		// One live binding per (generation, run_id, account): another slot for
+		// the tuple conflicts while that binding is prepared or active, and a
+		// revoked, frozen or expired tuple is terminal and never re-prepared.
+		// The exact retry of the same slot keeps its existing rule below.
+		for other, r := range s.state.Records {
+			if other == b.SlotID || r.Binding.Run != b.Run {
+				continue
+			}
+			if r.Phase == "revoked" || r.Phase == "frozen" || r.Binding.NotAfter <= now {
+				return Credential{}, fail("TERMINAL")
+			}
+			return Credential{}, fail("CONFLICT")
 		}
 	}
 	if r, ok := s.state.Records[b.SlotID]; ok {
@@ -459,10 +465,32 @@ func (s *Service) authorize(id string, bearer Secret) (record, error) {
 	if !ok || subtle.ConstantTimeCompare([]byte(r.Bearer.Reveal()), []byte(bearer)) != 1 || r.Phase != "active" || now < r.Binding.NotBefore || now >= r.Binding.NotAfter {
 		return record{}, fail("AUTH")
 	}
+	if e := s.runRefusal(r.Binding); e != nil {
+		return record{}, e
+	}
 	if s.isBlocked(r.Binding) {
 		return record{}, fail("ACCOUNT_BLOCKED")
 	}
 	return r, nil
+}
+
+// runRefusal is the run-kind admission that Prepare and every use share: a run
+// binding exists only behind the broker-backed managed mode, and only while its
+// window fits the CURRENT sealed maximum, where zero admits none. Re-checking
+// at use is what lets an operator lower the maximum, or reopen the state in
+// development mode, and have it take effect on the next request; neither Mode
+// nor the maximum enters the ledger fingerprint for that reason.
+func (s *Service) runRefusal(b Binding) error {
+	if b.Kind() != KindRun {
+		return nil
+	}
+	if _, broker := s.source.(brokerSource); s.cfg.Mode != ModeManaged || !broker {
+		return fail("RUN_REQUIRES_MANAGED")
+	}
+	if s.cfg.RunMaxWindowSeconds == 0 || b.NotAfter-b.NotBefore > int64(s.cfg.RunMaxWindowSeconds) {
+		return fail("RUN_WINDOW")
+	}
+	return nil
 }
 func (s *Service) reserve(ctx context.Context, id string, bearer Secret, p Prepared) (context.Context, context.CancelFunc, error) {
 	s.mu.Lock()
@@ -523,7 +551,7 @@ func (s *Service) alive(id string) bool {
 	defer s.mu.Unlock()
 	now, e := s.clock()
 	r, ok := s.state.Records[id]
-	return e == nil && ok && r.Phase == "active" && now >= r.Binding.NotBefore && now < r.Binding.NotAfter && !s.isBlocked(r.Binding)
+	return e == nil && ok && r.Phase == "active" && now >= r.Binding.NotBefore && now < r.Binding.NotAfter && s.runRefusal(r.Binding) == nil && !s.isBlocked(r.Binding)
 }
 func (s *Service) settle(id string, u *Usage) error {
 	s.mu.Lock()

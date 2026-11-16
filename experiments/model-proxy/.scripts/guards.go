@@ -61,6 +61,7 @@ var plants = []plant{
 	{"paid_profile", "proxy", "messages.go", "m[\"service_tier\"] = json.RawMessage(`\"standard_only\"`)", "m[\"service_tier\"] = json.RawMessage(`\"auto\"`)", ".", "TestRegistryAndUsage", "priced upstream profile not pinned"},
 	{"body_log", "proxy", "http.go", "p, e := s.cfg.Dialect.Parse(raw)", "s.audit(id, 200, string(raw), Usage{}); p, e := s.cfg.Dialect.Parse(raw)", ".", "TestStreamAccounting/valid", "private content logged"},
 	{"peer", "proxy", "admin.go", "if valid, ok := r.Context().Value(peerKey{}).(bool); !ok || !valid {", "if valid, ok := r.Context().Value(peerKey{}).(bool); (!ok || !valid) && false {", ".", "TestAdminBoundary", "unverified peer accepted"},
+	{"blocked_load", "proxy", "registry.go", "if !digest(account) || !blockCode(code) {", "if false && (!digest(account) || !blockCode(code)) {", ".", "TestTripwireBlockedLoad", "corrupt block admitted"},
 	{"activate_order", "binding", "driver.go", "e = d.cfg.ModelRegistrar.Activate(call, binding)", "_ = call; _ = binding; e = nil", ".", "TestModelLifecycle", "start omitted model activation"},
 	{"revoke", "binding", "driver.go", "revokeErr = d.cfg.ModelRegistrar.Revoke(call, binding)", "_ = call; _ = binding; revokeErr = nil", ".", "TestModelLifecycle", "end omitted model revoke"},
 }
