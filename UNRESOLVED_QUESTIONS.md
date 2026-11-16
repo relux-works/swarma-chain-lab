@@ -34,8 +34,10 @@ No adapter or passing placeholder supplies those gaps.
 
 ## Chain gateway contract candidate
 
-[OPEN.md](experiments/chain-gateway/OPEN.md) records consumer acceptance,
-UTXO-absence semantics, coherent backend feasibility, D29 snapshot compatibility,
-freshness, install settings, helper custody, documentation follow-ups, draft
-policy interpretation and continuous seal observation. Enforcement over the
-snapshot remains prohibited without a separate owner decision.
+[OPEN.md](experiments/chain-gateway/OPEN.md) records Source's accepted answers,
+Infra's install proposals and remaining Q3 feasibility, Q8 book/spec/policy and
+Q10 continuous watcher/journal gates. Part (B)'s format is accepted for helper
+build; tip-time delta acceptance and D29 parser adoption remain separate exact-
+head obligations. Enforcement over the snapshot remains prohibited without a
+separate owner decision. No ordinary RPC bracket satisfies §4's hidden-transition
+witness; §5 imports that guarantee for the snapshot helper too.

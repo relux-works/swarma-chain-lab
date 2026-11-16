@@ -30,16 +30,22 @@ Those follow-ups are listed in OPEN.md and are not silently declared accepted.
 | Exact name-value bytes, confirmed name operation, 520-byte value | same | [LIP-0010 §§1–2, 8, 11 SH3](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/lips/LIP-0010-name-value.md); [LIP-0029 §§3.2–3.3, 11 steps 4–5](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/lips/LIP-0029-owner-control.md). Gateway transports octets; consumer interprets the pin and hashes the list. |
 | Node network/genesis pinned; no initial block download | same | [protocol/names.md §1.1](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/protocol/names.md). This wrapper does not replace consumer name or application verification. |
 | Mempool-inclusive seal observation and durable consumer refusal | same | LIP-0029 §8 O8.3–O8.5, O8.9 and §11 step 8. A later unspent answer never clears an existing closure. |
-| UTXO absence is not proof of a spending transaction | refines | LIP-0029 §8.3 names `gettxout`; it cannot distinguish spent from never-created. This contract exposes `not_in_utxo_set` and prohibits inventing spend evidence. Consumer mapping needs acceptance and spec clarification. |
+| UTXO absence is not proof of a spending transaction | refines | LIP-0029 §8.3 names `gettxout`; it cannot distinguish spent from never-created. This contract exposes `not_in_utxo_set` and prohibits inventing spend evidence. Consumer mapping accepted in answers r1 below; policy-owner spec clarification remains Q8. |
 | Compare observations at a named chain state | same | Book ch. 26, [“Лёгкое чтение и проверяемый индекс”](https://github.com/relux-works/swarma-docs/blob/b57a9be633c245373b448c3786bcbd49d636fe8a/book/ru/26-cepochka.md#лёгкое-чтение-и-проверяемый-индекс): compare the same height and rules. This trusted full-node projection supplies no light-client proof or consensus qualification. |
 | Coherent tip binding, cross-call comparison and bounded retries | refines | LIP-0029 §11 steps 4 and 8; [LIP-0008 §5.1](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/lips/LIP-0008-grant-v4.md) distinguishes inconsistent observations from proven closure. CG1 makes the read guarantee explicit. |
 | Recursive duplicate, escaped-key and case-alias refusal | same | [STRICT-JSON.md SJ1](../STRICT-JSON.md), including exact typed names. Opaque name-value octets retain their own LIP-0010 parser boundary. |
 | Wire ordering, framing, budgets, enums, schema and version | new | Host-local CG1 decisions in §§2–6; no existing book gateway wire is replaced. Consumer acceptance and book PR required. |
 | Pin filesystem integrity and 64 KiB read bound | same | [a2a-swarm docs/e2ee.md §3 “Host-written trust artifact”](https://github.com/relux-works/a2a-swarm/blob/479eeddb45a784e52db0e2356871b6494a03e40a/docs/e2ee.md), `internal/e2ee/pin.go` (`ReadHostPin`, `pinStatSafe`), `pin_types.go` (`MaxPin`). Reuse safety rules, not its cross-signing JSON format. |
-| Snapshot schema, refresh cadence, stale labels; observe-only | new | Supplied lead ruling and D29 brief r2, ChainView/snapshot scope. Compatibility with the actual D29 pin schema awaits Source; no claim of drop-in compatibility. |
+| Snapshot schema, refresh cadence, stale labels; observe-only | new | Supplied lead ruling and D29 brief r2, ChainView/snapshot scope. Source accepted part (B) as D29's final snapshot format in consumer answers r1; D29 parser adoption still needs its own exact-head evidence. |
 
-No conflict is resolved locally. The draft policy tension about absent seals and
-the unverified D29 file format are explicitly pending in OPEN.md.
+Source's consumer answers r1 (2026-11-16, answering head
+`3f50b9b257fcc9e337a440146d1330b6f08ef6c7`) accept Q1, Q2, Q4 and Q5
+and confirm Q9, with the qualifications below. Part (B) is the accepted final
+snapshot format for the helper build; D29's parser must adopt it and report its
+own exact head. This delta adds Source's requested tip time before the v1
+freeze; Source's delta acceptance and the review of record remain pending.
+Q8's policy/spec approval is distinct from consumer acceptance. No install or
+enforcement is authorized by these answers. Answer events are recorded in OPEN.md.
 
 ## 2. Transport, custody and resource bounds
 
@@ -150,7 +156,13 @@ Types used below:
   0..520 exact bytes. It is not base64url. Empty value is `""`. The octets are
   neither parsed nor rewritten by the gateway; even invalid application JSON
   is transported exactly for the consumer to refuse at its own boundary.
-- `Tip`: exactly `{"hash":H,"height":N}`.
+- `Tip`: exactly `{"hash":H,"height":N,"time":N}`. `time` is that block's
+  header timestamp in POSIX UTC seconds, not acquisition time, median time past,
+  helper write time or a freshness verdict. All three successful methods bind
+  this complete Tip, and the snapshot carries the same type. Refusals carry no
+  Tip. Zero and 9007199254740991 are schema boundaries, not claims about a real
+  block; invalid/missing times MUST refuse. Hash, height and time MUST describe
+  the same block.
 
 All object fields below are REQUIRED and CLOSED; no optional extensions.
 Examples in fixtures are the exact compact payloads, with no LF in `wire`.
@@ -180,15 +192,19 @@ Network is `main` or `regtest` and MUST equal protected client configuration.
 | --- | --- |
 | `name_show` | `{"expired":boolean,"height":N,"name":Name,"name_block_hash":H,"txid":H,"value_b64":Value,"vout":O}`. `height` and `name_block_hash` locate the last confirmed name operation in the active chain, height <= tip height. If height equals tip height, name_block_hash MUST equal tip hash. Value, outpoint and expiry are from that same name state. Expiry is evaluated by the node's consensus rules at Tip, not guessed from a local fixed interval. Expired names can be returned with `expired:true` if the backend can supply their exact record; otherwise `not_found`. They never establish a live pin. An unconfirmed registration is not found; a pending update does not replace the last confirmed value (SH3). |
 | `gettxout` | `{"state":"unspent" or "not_in_utxo_set","txid":H,"vout":O}`. Node view MUST include validated mempool effects, fixed true. `unspent` means present and not spent by that mempool at the observation instant; outputs created in the mempool can appear. `not_in_utxo_set` means absent from that view: spent, never created, unknown or unspendable are indistinguishable. It is a successful negative observation, NOT `not_found`, and never proof of a spending transaction. |
-| `getblockcount` | `{}`. Tip contains BOTH height and hash; the method's familiar name does not imply a scalar response. |
+| `getblockcount` | `{}`. Tip contains height, hash and block header time; the method's familiar name does not imply a scalar response. |
 
 A consumer MUST refuse admission unless a seal is positively `unspent`; absent
 UTXO cannot authorize. Mapping absence to `DEVICE_REVOKED` for that command is
-conservative refusal, not a claim that a spend was proved. Whether absence alone
-permanently closes a device is OPEN Q2; this contract does not manufacture that
-policy. The consumer retains all previously proved/journaled closures across
-reorgs, restarts, unavailable reads and later unspent observations. Gateway
-errors never themselves create permanent revocation evidence.
+conservative refusal, not a claim that a spend was proved. Under Source's
+accepted Q2 mapping, the consumer MUST journal a permanent closure only when
+this reader previously journaled the seal as positively `unspent` and now sees
+it absent. Never-seen absence MUST refuse that command only; it MUST NOT
+permanently close a device (for example, an unbroadcast seal or wrong outpoint).
+A journaled closure MUST never be lifted across reorgs, restarts, unavailable
+reads or later unspent observations. Gateway errors MUST NOT create permanent
+closures. This is the accepted consumer mapping; LIP-0029 §8's policy-owner
+clarification remains Q8. Observe mode changes labels only.
 
 ### Refusals
 
@@ -229,8 +245,10 @@ not permission to label an ordinary RPC bracket atomic. No node calls are made
 by this unit, so the exact backend capability remains Q3.
 
 The three methods do not provide a multi-request transaction. For a logical D29
-check the consumer reads tip, name, all seals, then tip again; ALL successful
-answers MUST have identical network, tip height and hash, matching requested
+check the consumer reads tip, name, the ONE seal of the signing device, then
+tip again: four connections per command, all charged to the UID bucket. The
+consumer MUST NOT require all device seals per command. ALL successful answers
+MUST have identical network and complete Tip (hash, height and time), matching requested
 names/outpoints. Any mismatch or refusal discards the entire collected set and
 retries the logical check at most twice (3 rounds total), then refuses. That
 comparison is necessary but cannot prove mempool immutability or detect a tip
@@ -244,7 +262,53 @@ An answer states a local node observation, not global finality, trusted wall
 clock, independent proof of creation, proof of a seal script, spend branch,
 wallet authority or proof that the node is on the globally best chain. Wrong
 network, stale node, revoked client UID and node trust are host/consumer gates.
-A fresh final tip query does not reveal that a node itself is lagging peers.
+A fresh final tip query alone does not establish the node's global currency.
+Source's consumer policy MUST compare trusted check-time with Tip.time against
+a host-configured maximum lag, default 7200 seconds. Exceeding that bound means
+unavailable-class refusal, never DEVICE_REVOKED; in observe mode it labels the
+observation stale. The 7200-second default is consumer policy, not a gateway
+rejection threshold, wire limit or claim that block time proves peer agreement.
+A lag exactly at the configured bound is permitted by this policy.
+
+### Accepted v1 consumer limits (Q1 and Q9)
+
+The listener is Linux-only. Darwin/ivmbp uses snapshot (b) only for v1, with no
+live gateway; a darwin peer-credential profile requires separate work. Multiple
+agents sharing one UID share the same 8/s bucket (including ivmbp's shared-UID
+context); per-agent UID isolation is an S1 follow-up, not a gateway distinction.
+An active-chain membership read for the journaled SH5 block is a v2 candidate,
+not a fourth method in v1.
+
+SH3 requires the last confirmed name operation; a pending update MUST NOT
+change the head. Confirmation depth is tip height minus name height plus one;
+Source's v1 minimum is 1, with a larger minimum allowed in host configuration.
+The consumer MUST check SH4, SH6 and O3.4–O3.6 on the opaque name-value octets:
+exact member spelling, no duplicate or fold alias, owner/network binding and
+sequence/hash against the pin. The gateway MUST transport the bytes unchanged.
+
+For SH5 the consumer MUST journal the highest sequence, name-operation txid,
+height and block hash, and every refusal. Refusals MUST never be lifted. With
+v1's limited reads, a lower sequence at a height above the journaled height
+MUST refuse DEVICE_LIST_ROLLBACK. A lower sequence at the same or lower height,
+or another block hash at the journaled height, is treated as a reorganisation:
+take the confirmed head and retain every journaled refusal. This is an explicit
+approximation: v1 cannot establish whether the journaled operation remains in
+the active chain, so a deep reorganisation can cause a false refusal until the
+owner publishes a higher sequence. The error is in the safe direction. Adapter
+docs MUST keep the Draft/co-author status of LIP-0010 §11 and LIP-0029 visible.
+
+### Enforcement precondition (Q10; separate unit)
+
+Per-command polling MUST NOT be described as continuous O8.3 observation.
+Before enforcement a host-owned watcher, running as a service account rather
+than an agent UID, MUST follow blocks and mempool for the watch set and append
+closures to a root-owned append-only journal readable but unwritable by agents,
+under the snapshot filesystem profile. The same journal MUST carry SH5's
+highest sequence and name-operation txid outside agent write authority. The
+consumer MUST refuse if either the journal names the device or live gettxout
+is not `unspent`; a missing/unreadable journal MUST refuse. The watcher/journal
+writer and consumer reader require a separate accepted unit and qualification.
+This contract does not implement them, and enforcement remains off.
 
 ## 5. Root snapshot file (b): OBSERVE ONLY
 
@@ -305,13 +369,17 @@ Adapter labels every accepted snapshot **OBSERVE ONLY** even when fresh:
 
 | Label | Condition (evaluated by consumer, not a field the helper asserts) |
 | --- | --- |
-| `fresh` | age in 0..60 seconds, independently known live tip exactly equals snapshot Tip, and all configured bindings match |
-| `stale` | age >60 seconds, snapshot height behind known live tip, equal height with different hash, or snapshot height ahead of known live tip |
+| `fresh` | age in 0..60 seconds, consumer's configured tip-lag bound holds, independently known live tip exactly equals snapshot Tip, and all configured bindings match |
+| `stale` | age >60 seconds, consumer tip-lag policy exceeded, or complete snapshot Tip differs from independently known live Tip |
 | `unknown` | no independently known live tip or trustworthy clock; tip height alone cannot establish freshness |
 | `invalid` | written_at is in the future, schema/filesystem/network/watch-set failure; no usable snapshot |
 
 Label precedence is: invalid schema/bindings; unknown clock; future time invalid;
-age stale; unknown live tip; mismatching tip stale; otherwise fresh.
+age or consumer tip-lag stale; unknown live tip; mismatching tip stale;
+otherwise fresh. Source obtains the independent live Tip through its own
+getblockcount over (a) at check-time. On a (b)-only host there is no independent
+live source: the label MUST be unknown (or stale by age/consumer lag policy),
+never fresh.
 
 A mempool-only spend can be absent from any snapshot labelled fresh. No label,
 short age or atomic replace authorizes enforcement. Freshness of a root file is
@@ -350,3 +418,47 @@ provisioning, wallet/write methods, list distribution/cache implementation,
 cryptographic device/list/seal validation, durable journal implementation,
 continuous watches, historical spend proofs, multi-call atomicity, enforcement
 switches and live qualification. See OPEN.md for acceptance and build gates.
+
+
+## Annex: INSTALL PROFILE — Infra proposal, subject to S8 owner GO
+
+This annex records Infra's Q3/Q6/Q7 proposals, not code, installed state,
+feasibility evidence or permission to install. S8's owner GO and the lead's
+review gate are required. The normative transport/filesystem requirements above
+still apply; unresolved proposal conflicts require an S8 decision, not a local
+workaround. Infra's reported Core 28.0 host inventory is attributed data only;
+no real node was contacted for this contract.
+
+- Dedicated mainnet node adjacent to the gateway: txindex=1, disablewallet,
+  listen=0, local-only RPC, network/genesis pinned. Proposed rpcwhitelist:
+  name_show, gettxout, getblockcount, getbestblockhash, getblockhash, getchaintips.
+  Q5's new block-header time and the network/IBD gates require the exact ancillary
+  read set to be settled under Q3; the proposed list is not claimed sufficient.
+- Proposed ZMQ sequence stream on a Unix/loopback endpoint witnesses block
+  connect/disconnect and sequence gaps. Q3 remains open: qualify real-adapter
+  A→B→A and same-height reorg behaviour on regtest with invalidateblock and
+  reconsiderblock against the shared observation vectors. No end-tip equality
+  or unqualified notification stream substitutes for §4's witness.
+- Proposed socket `/run/swarma-chaingw/gateway.sock`: directory
+  root:swarma-chain-read 0750, socket 0660. This parent-owner proposal differs
+  from §2's daemon-owned bind directory; S8 must resolve socket provisioning
+  before install. It does not amend the normative Linux listener profile.
+- Proposed snapshot `/var/lib/swarma-chain-snapshot/snapshot.json`:
+  root:root 0644, directory 0755, root-owned protected ancestry, no group/world
+  write, symlinks, hard links or writable ACLs; same-directory atomic rename.
+- Credential stays with the node user. On the same host, Infra proposes a
+  root-owned 0640 cookie copy, exclusive group swarma-chaingw. Otherwise a
+  per-service RPC user with rpcauth; the verifier itself is not a client secret.
+  Exact endpoints, service IDs and protected ancestry are install inputs.
+- Peer UID allow-list is exactly the G1.0 W UID and a2a service-user UID from
+  S8's accounts list, still to be posted for review; no numeric UIDs are guessed.
+  Retirement removes the UID from the allow-list file, restarts and reads back
+  the effective list. Reader group access alone never admits a UID.
+- Watch names/outpoints come from the owner's pin in operator configuration,
+  never from clients. Helper (b) is a root-run oneshot per observed block,
+  startup and same-height reorg, with a 30-second heartbeat (blocknotify trigger
+  or timer). Proposed lock `/run/swarma-chain-snapshot/helper.lock` uses flock;
+  a second writer exits without writing. Read the cookie fresh on every run.
+  Publish a whole set with same-directory tmp + fsync + rename + directory fsync.
+  When (a) exists, root helper access through an explicitly allow-listed UID is
+  accepted by Infra. No systemd unit or installation is supplied here.

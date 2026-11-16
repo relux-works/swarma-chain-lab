@@ -1,0 +1,46 @@
+name: Chain gateway contract and helper
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/chain-gateway/**'
+      - '.github/workflows/chain-gateway.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/chain-gateway/**'
+      - '.github/workflows/chain-gateway.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  chain-gateway:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.10'
+          check-latest: false
+          cache: false
+      - name: Validate fixtures and helper without a node
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch=$(mktemp -d "$RUNNER_TEMP/chain-gateway.XXXXXXXX")
+          trap 'rm -rf -- "$scratch"' EXIT
+          mkdir -p "$scratch"/{home,config,cache,go-build,go-mod,go-path,tmp,work}
+          cp -a experiments/chain-gateway "$scratch/work/"
+          export HOME="$scratch/home" USERPROFILE="$scratch/home"
+          export XDG_CONFIG_HOME="$scratch/config" XDG_CACHE_HOME="$scratch/cache"
+          export GOCACHE="$scratch/go-build" GOMODCACHE="$scratch/go-mod" GOPATH="$scratch/go-path"
+          export TMPDIR="$scratch/tmp" TMP="$scratch/tmp" TEMP="$scratch/tmp"
+          export GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off GOENV=off GOTELEMETRY=off
+          unset GOTELEMETRYDIR
+          cd "$scratch/work/chain-gateway"
+          go test -count=1 -timeout=120s ./...
+          go vet ./...

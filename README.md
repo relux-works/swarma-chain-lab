@@ -10,7 +10,8 @@ Experiments live in `experiments/<name>/`:
 
 - [Read-only chain view contract](experiments/chain-gateway/README.md): candidate
   gateway and observe-only snapshot wire for G1 T4.6/D29, with shared fixtures
-  and a schema-only Go harness; consumer acceptance is pending.
+  and a schema-only Go harness. Source accepted snapshot part (B); tip-time
+  delta acceptance and transition-witness feasibility remain pending.
 
 - [Grant v4 identity checks](experiments/grant-v4/identity/README.md): experimental
   owner pins, script/writer checks, expiry, issuer/notary history verdicts,
@@ -695,5 +696,7 @@ The [contract-only module](experiments/chain-gateway/README.md) uses Go 1.26.10
 with `GOTOOLCHAIN=local` and an isolated task-owned HOME/cache/TMPDIR. From the
 repository root, run `go -C experiments/chain-gateway test -count=1 ./...` and
 `go -C experiments/chain-gateway vet ./...`; evidence belongs in `.temp/`.
-The module README describes the planted invalid-fixture check. No gateway,
+The module README describes the planted invalid-fixture and invalid-tip-time
+checks. `.github/workflows/chain-gateway.yml` runs the module test/vet commands
+on hosted Linux CI with Go 1.26.10 and isolated scratch. No gateway,
 helper, node read or installation is implemented by these tests.

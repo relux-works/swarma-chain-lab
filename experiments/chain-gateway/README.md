@@ -3,7 +3,9 @@
 [CONTRACT.md](CONTRACT.md) is the normative candidate for G1 T4.6 and D29's
 live ChainView. [OPEN.md](OPEN.md) lists acceptance/build gates. This directory
 contains a schema-only test harness and shared vectors, no gateway or helper.
-The consumer must accept an exact head before either side builds.
+Source accepted part (B) for helper build in answers r1. Tip.time is a requested
+pre-freeze delta; Source's delta acceptance and review remain pending. Q3's
+transition-witness feasibility gate applies to both read paths.
 
 ## Tools and commands
 
@@ -31,3 +33,12 @@ It MUST exit nonzero with `verdict mismatch`, not a setup/build failure; then
 revert only the scratch fixture and rerun green. This is a fixture expectation
 plant, not a gateway implementation mutant. The cross-side mirror obligations
 and the limits of schema-only evidence are specified in CONTRACT.md §6.
+
+
+The r2 fixture control plants an invalid tip time: in an isolated scratch copy,
+set `response_tip_time_negative`'s `valid` to true and run
+`go test -run '^TestSharedVectors/response_tip_time_negative$' -count=1 ./...`.
+It must exit 1 with `verdict mismatch` and `validation=tip`; restore the fixture
+and rerun green. Shared vectors include Tip.time bounds/invalid spellings on
+all success types and the snapshot; observation vectors include mismatched tip
+time and the consumer's default lag boundary at 7200/7201 seconds.

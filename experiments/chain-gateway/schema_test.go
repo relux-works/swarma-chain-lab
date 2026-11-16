@@ -156,11 +156,11 @@ func network(v any) bool     { return v == "main" || v == "regtest" }
 func boolean(v any) bool     { _, ok := v.(bool); return ok }
 func uintValue(v any) uint64 { u, _ := strconv.ParseUint(fmt.Sprint(v), 10, 64); return u }
 func tip(v any) error {
-	m, e := fields(v, "hash", "height")
+	m, e := fields(v, "hash", "height", "time")
 	if e != nil {
 		return e
 	}
-	if !hash(m["hash"]) || !integer(m["height"], maxInteger) {
+	if !hash(m["hash"]) || !integer(m["height"], maxInteger) || !integer(m["time"], maxInteger) {
 		return bad("tip")
 	}
 	return nil

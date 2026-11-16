@@ -203,7 +203,10 @@ func snapshotLabel(raw []byte, now uint64, known map[string]any, clock bool) str
 	if written > now {
 		return "invalid"
 	}
-	if now-written > 60 {
+	// This oracle mirrors Source's default consumer lag policy, not a gateway limit.
+	at := m["tip"].(map[string]any)
+	tipTime := uintValue(at["time"])
+	if now-written > 60 || (now > tipTime && now-tipTime > 7200) {
 		return "stale"
 	}
 	if known == nil {
@@ -219,7 +222,7 @@ func snapshotLabel(raw []byte, now uint64, known map[string]any, clock bool) str
 }
 
 // MIRROR: Labels are derived, preserve observe-only mode, and distinguish stale,
-// future time, unknown tip and unknown clock at the 60-second boundary.
+// future time, unknown tip/clock, and consumer 7200-second lag boundaries.
 func TestSnapshotLabels(t *testing.T) {
 	for _, v := range observations(t) {
 		if v.Kind != "label" {
