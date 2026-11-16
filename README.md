@@ -628,3 +628,9 @@ From the repository root, run `go -C experiments/grant-v4/chainview test -race .
 the module README gives the exact vector-export, second-reader and mutation
 commands. Evidence belongs in `.temp/chainview/`. The dependency-free module
 reads no node and assigns no action/evidence classes or production thresholds.
+
+The [notary checker service](experiments/notary-checker/README.md#notary-service-regtest-laboratory)
+adds a bounded regtest signing endpoint and exclusive host key generation around
+the pinned checker. Its build, node harness and validation entry points are in
+that module’s tools section; funding, broadcast, network ACLs and deployment
+remain operator responsibilities.

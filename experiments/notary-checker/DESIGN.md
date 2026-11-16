@@ -12,7 +12,8 @@ an **unsigned attestation candidate and signing digest**. `ATTEST` is the
 CLI spelling of that offline decision. It is not a signed attestation, an
 `attestation_id`, live admission, or permission to sign without the remaining
 checks. LIP-0014 section 6.2 explicitly calls a pre-clearance no attestation.
-No key enters the production API, and nothing is signed by this module.
+No key enters the checker API. The separate service package described below
+adds signing only after this function accepts.
 
 ## Exact inputs
 
@@ -210,10 +211,10 @@ booleans a request can assert to bypass a check:
   assertion that work follows text and never emits `textual:within`
   (LIP-0014 sections 3.3–3.4 J5; LIP-0013 section 2.3).
 
-A future public endpoint must construct trusted policy, name observations,
-statement claims and time itself, and perform the outstanding node/journal
-steps before using the candidate. It must not expose this CLI's trusted
-inputs as an unchecked public signing API.
+The service below provisions policy, observes names/tip and supplies system
+time. Its statement seal remains a presenter claim, and the outstanding
+node/journal obligations above remain explicit limits. A public live-admission
+deployment must establish those obligations before claiming qualification.
 
 ## OPEN QUESTIONS and conservative choices
 
@@ -289,7 +290,7 @@ attestation signatures. Wrong signatures or noncurrent keys refuse
 **OFFLINE VECTOR PRECONDITION:** all supplied observations are assumed to be
 an accurate, complete snapshot of the pinned synthetic chain view. They are
 fabricated test inputs, not authenticated chain evidence. The LAB's observation
-is supplied input; no node read is implemented in this unit. The reproducible
+is supplied input; these offline vectors do not exercise the implemented RPC reader. The reproducible
 `testdata/mvp-names.json` is the pinned positive fixture, while each negative
 vector pins its own deliberate counterexample. A file is permitted only under
 this offline precondition, never as running-mode evidence.
@@ -298,12 +299,11 @@ The CLI requires `-offline-name-fixture FILE` to supply these observations. It
 prints a `LAB/OFFLINE` banner and appends `offline-fixture` to its `ATTEST` line.
 The fixture implementation is unexported inside the CLI's offline path; test
 fixtures are unexported test-only types. The running entry point `CheckRunning`
-rejects **any** injected source and uses the declared `NodeNameReader`. That
-adapter is unwired pending N3 and always returns `MVP_CHAIN_READ_REQUIRED`.
-Running MVP therefore refuses without a chain read and never falls back to a
-fixture. N3 must implement current-value/registration reads and consistent-view
-validation on its own node before enabling the running mode. Strict default
-checking requires neither a source nor an offline flag.
+rejects **any** injected source and uses the declared `NodeNameReader`. Its zero value still returns `MVP_CHAIN_READ_REQUIRED`. The service now
+constructs the concrete RPC adapter through `NewNodeNameReader` and calls
+`CheckRunningWithNode`; this path rejects an injected `Input.Names` source.
+Running MVP never falls back to a fixture. Strict default checking requires
+neither a source nor an offline flag.
 
 Approvals without a mode refuse `POLICY_MODE_REQUIRED`. Wrong grant bindings,
 designation and owner pins retain `OWNER_EVIDENCE_REQUIRED`,
@@ -341,3 +341,76 @@ The intervening spec revisions also add the pending client-session direction
 J13 (LIP-0028), landlord holder entries (LIP-0010 section 10), and their
 service/key registry cross-references. They add no v3 child-grant, request or
 notary byte changes for this module. The request-side snapshot is preserved.
+
+
+## Service boundary
+
+The service uses this module, without a second module or dependency fork. A
+single typed POST request supplies the checker's presentations, contracts,
+request, text and statement. A SHA-256 policy reference selects only the one
+policy loaded at startup. It cannot supply policy bytes, name observations,
+clock time, keys, node URLs or file paths. The operator authenticates/provisions
+the deployment policy outside the endpoint. Config and requests reject unknown,
+duplicate and case-aliased fields, trailing JSON and nesting beyond 64 levels.
+Protocol RawMessages retain exact canonical octets for Check.
+
+`keygen` uses the operating system CSPRNG through the pinned curve library,
+create-exclusive 0600 output and a versioned binary key file. It prints only
+the x-only public key. There is no import/export endpoint, command or secret
+logging. Runtime checks reject symlinks, nonregular files, other-user ownership
+and any mode other than 0600 for keys and RPC credentials. Named errors contain
+no file locations or remote diagnostics. Memory clearing is best effort; this
+is not hardware custody or protection from the process owner.
+
+The RPC reader uses explicit loopback HTTP, no environment proxy or redirects,
+Basic authentication from the credential file, a 1 MiB response cap and the
+request deadline. Each lookup checks `getblockchaininfo` (`chain=regtest`,
+height, best hash) and `getblockhash(statement.tip_height)`, then `name_show`
+and `name_history`, then the view again. The service also checks the view
+immediately before signing. A moved tip refuses rather than retrying against
+a different view. No stale cache or presenter observation substitutes for RPC.
+This brackets finite reads; it is not an atomic chain snapshot or a guarantee
+against a reorg after response. Node transport/JSON failures are
+`NODE_RPC_FAILURE`; mismatched tip coordinates are `NODE_TIP_MISMATCH`.
+Never-registered/expired names are `NODE_NAME_UNREGISTERED`, invalid name/value
+observations `NODE_NAME_VALUE`, and inconsistent history `NODE_NAME_HISTORY`.
+The checker's existing malformed authority refusals remain unchanged.
+
+`name_show.txid/vout` denotes the latest update, not necessarily registration.
+The reader derives the earliest outpoint of the current unexpired stretch
+from ordered `name_history`, resetting after an expired stretch. The notary's
+registration must equal its signed contract pin, and the chain notary key must
+equal the generated service key. MVP additionally verifies both current
+owner-name grant keys and signed registration identities in the landed Check.
+These named registrations distinguish identities, not natural persons.
+
+Only a successful Check reaches the signer, which signs the returned digest
+using BIP-340. `SignedAttestation` independently verifies that signature and
+constructs the envelope; `AnchorScript` binds its ID, child ID and parent ID.
+Every refusal omits all signed material. Tests include an instrumented signer
+and a narrowing mutation that attempts a signature in the refusal branch.
+The reader's named failures survive the MVP boundary; generic offline sources
+retain `MVP_NAME_UNREADABLE`. Unconfigured MVP still refuses
+`MVP_CHAIN_READ_REQUIRED`.
+
+Bounds are specified in README: global token bucket, fixed concurrent slots,
+request bytes, JSON depth, HTTP header/body/read/write deadlines, RPC response
+bytes and request-wide context. The service uses system time and checks the
+deadline before signing. A shutdown closes its HTTP server, drains active handlers and clears
+its key;
+there is no persisted replay, rate or equivocation journal. The endpoint is
+loopback-only and performs no node write RPCs.
+
+**Out of scope:** broadcasting/funding seal or anchor transactions (treasury
+and owner gated), network ACL configuration (operator owned), and deployment
+(infrastructure owned, only from a signed reviewed release). This unit also
+retains the checker's documented issuance, live-seal, historical checkpoint,
+owner-affiliation provisioning, row-journal and withdrawal limitations. The
+regtest harness registers real synthetic name values and verifies two signed
+responses, but its grants' issuance, seal and checkpoint locators are synthetic.
+It proves service/name/tip/signature behavior, not full live admission.
+
+The exact reproducible-build flags and target are in README. Two independent
+builds must compare byte-for-byte and have identical SHA-256. Candidate-bound
+checks, official Core archive provenance, named regtest outcomes and the
+mutation table are recorded in SERVICE-VALIDATION.md.

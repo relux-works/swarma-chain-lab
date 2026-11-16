@@ -1,5 +1,10 @@
 package notarycheck
 
+import (
+	"context"
+	"net/http"
+)
+
 // NameObservation is the current value and registration at one explicit chain
 // view. A source must fail rather than substitute its latest or cached view.
 type NameObservation struct {
@@ -15,16 +20,16 @@ type NameSource interface {
 	Lookup(name string, height int64, blockhash string) (NameObservation, error)
 }
 
-// NodeNameReader reserves the running adapter for N3. It has no file, fixture or
-// caller-observation fallback. N3 must implement node reads and view validation.
-type NodeNameReader struct{}
-
-func (*NodeNameReader) Lookup(string, int64, string) (NameObservation, error) {
-	return NameObservation{}, refuse("MVP_CHAIN_READ_REQUIRED")
+// NodeNameReader is the running RPC adapter. Its zero value fails closed.
+type NodeNameReader struct {
+	endpoint, user, password string
+	client                   *http.Client
+	ctx                      context.Context
 }
 
 // CheckRunning never accepts an injected fixture or operator-supplied source.
-// The strict default needs no name source. MVP refuses until N3 wires the node.
+// The strict default needs no name source. This unconfigured MVP path refuses;
+// the service uses CheckRunningWithNode with the concrete RPC adapter.
 func CheckRunning(in Input) (Result, error) {
 	if in.Names != nil {
 		return Result{}, refuse("MVP_CHAIN_READ_REQUIRED")

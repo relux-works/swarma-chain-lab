@@ -44,7 +44,7 @@ func modeApproved(p Policy, in Input) error {
 		}
 		observation, e := in.Names.Lookup(a.Name, st.TipHeight, st.TipHash)
 		if e != nil {
-			if e == Refusal("MVP_CHAIN_READ_REQUIRED") {
+			if e == Refusal("MVP_CHAIN_READ_REQUIRED") || e == Refusal("NODE_RPC_FAILURE") || e == Refusal("NODE_TIP_MISMATCH") || e == Refusal("NODE_NETWORK") || e == Refusal("NODE_NAME_UNREGISTERED") || e == Refusal("NODE_NAME_VALUE") || e == Refusal("NODE_NAME_HISTORY") {
 				return e
 			}
 			return refuse("MVP_NAME_UNREADABLE")
