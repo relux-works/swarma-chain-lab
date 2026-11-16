@@ -11,7 +11,8 @@ the draft's additions await acceptance. A v4 service still admits signed
 invocations alone. `session.Draft` explicitly selects this laboratory profile;
 the zero value and every other profile refuse. Nothing here enables sessions in
 the running proxy. All pre-existing proxy source, configuration, dependencies
-and CI definitions remain unchanged.
+and CI definitions remain unchanged. The root credential guard inventory also
+audits this package’s three ephemeral carriers.
 
 ## Boundary and use
 
@@ -25,7 +26,15 @@ a supplied upstream refusal is preserved. They do not extend LIP-0028 §8.
 
 `DrawToken` uses `crypto/rand` to produce 32 octets. The pure reducer consumes a
 successful draw as a fact. The resulting state holds only SHA-256, and the open
-result carries the token once. Formatting a `Token` redacts it. Neither replay,
+result carries the token once. `Facts.Random` holds that exact token value,
+not a seed; `Facts.Token`, `Facts.Random` and `Result.Token` are audited carriers.
+`Token` redacts fmt verbs (including numeric/hex), JSON and text marshaling.
+`RevealForOpen` is the sole explicit raw output accessor, for delivery of the
+successful opening reply. The reducer reads raw bytes internally only to draw
+entropy and compute SHA-256. No caller should cast/index/slice the array for
+output; this value model does not prevent deliberate casts or erase copies.
+The one-time guarantee is issuance by `Apply`, not consuming/zeroing the caller’s
+value, and there is no token wire encoder in this laboratory. Neither replay,
 extension, close nor restart returns a token. A lost opening reply leaves its
 session standing; a fresh signed close and a new open are the recovery path.
 Synthetic entropy in the fixtures is public test data, never a usable credential.
@@ -135,7 +144,8 @@ precision, independently of the Go unsigned bounds. It prints a compact JSON
 verdict histogram. Mutation controls use Go compiler overlays against only this
 package, preserving the candidate source. They cover all eleven refusal codes,
 window arithmetic, expiry, extension, token storage/replay, the profile gate,
-closure validation/races, atomicity and recovery fencing. Each killed control
+closure validation/races, atomicity, recovery fencing and fmt/JSON/text custody
+(including removal of each redaction method and a corrupted explicit return). Each killed control
 requires a named failing test and assertion; a build failure, panic, timeout or
 survivor is not a detection. Logs, PIDs, hashes, commands, exits and witnesses
 are written only to the supplied `.temp/` output directory.

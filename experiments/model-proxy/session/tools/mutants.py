@@ -65,6 +65,15 @@ MUTANTS = [
  ('absent-session-limit', 'missing session limit has ceiling zero', 'TestVectors/session-missing-limit',
   [('if !fits(used[l.Key], l.Amount, r.Limits[l.Key]) {',
     'ceiling, present := r.Limits[l.Key]; if !present { ceiling = ^uint64(0) }; if !fits(used[l.Key], l.Amount, ceiling) {')]),
+ ('token-format', 'all fmt verbs redact numeric and hex token arrays', 'TestTokenOutputFormat',
+  [('func (Token) Format(s fmt.State, _ rune)', 'func (Token) removedFormat(s fmt.State, _ rune)')]),
+ ('token-json', 'Token implements the explicit JSON redaction boundary', 'TestTokenOutputJSON',
+  [('func (Token) MarshalJSON()', 'func (Token) removedMarshalJSON()')]),
+ ('token-text', 'Token implements the explicit text redaction boundary', 'TestTokenOutputText',
+  [('func (Token) MarshalText()', 'func (Token) removedMarshalText()')]),
+ ('token-return', 'explicit opening accessor preserves the issued token', 'TestTokenExplicitReturn',
+  [('return [32]byte(t)', 'return [32]byte{}')]),
+
 ]
 
 

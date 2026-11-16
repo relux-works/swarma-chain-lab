@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"net/netip"
 	"slices"
 )
@@ -39,6 +40,16 @@ func Refusals() []Code {
 
 // Token is ephemeral. Only its digest enters State. Formatting always redacts it.
 type Token [32]byte
+
+// Format ignores every verb and flag, including numeric/hex array formatting.
+func (Token) Format(s fmt.State, _ rune)   { _, _ = io.WriteString(s, "[session token]") }
+func (Token) MarshalJSON() ([]byte, error) { return []byte(`"[session token]"`), nil }
+func (Token) MarshalText() ([]byte, error) { return []byte("[session token]"), nil }
+
+// RevealForOpen is the sole explicit plaintext output boundary. Use it only to
+// deliver the successful opening result once; never for logs or serialization.
+// Apply enforces one-time issuance, not erasure of copies held by the caller.
+func (t Token) RevealForOpen() [32]byte { return [32]byte(t) }
 
 func (Token) String() string   { return "[session token]" }
 func (Token) GoString() string { return "[session token]" }
@@ -95,7 +106,7 @@ type Facts struct {
 	GrantLimits, RowLimits, OperatorLimits map[string]uint64
 	Spend                                  []Limit
 	Token                                  Token
-	Random                                 Token
+	Random                                 Token // The opening token itself, not a derived seed; also redacts.
 	RandomReady                            bool
 	Closures                               []Closure
 	FinalObservation                       bool
