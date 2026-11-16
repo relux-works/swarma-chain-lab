@@ -76,6 +76,10 @@ jobs:
         run: |
           go mod download
           go mod verify
+          # Grantcheck now consumes published siblings without replacements;
+          # later policy steps enter that module with GOPROXY=off.
+          go -C ../grantcheck mod download
+          go -C ../grantcheck mod verify
       - name: Unit, durable state and protocol checks
         env:
           GOPROXY: 'off'
@@ -128,6 +132,10 @@ jobs:
         run: |
           go mod download
           go mod verify
+          # Grantcheck now consumes published siblings without replacements;
+          # later policy steps enter that module with GOPROXY=off.
+          go -C ../grantcheck mod download
+          go -C ../grantcheck mod verify
       - name: Gate checker controls (a skipped required T-id must fail the gate)
         working-directory: .
         run: python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v
@@ -401,6 +409,10 @@ jobs:
         run: |
           go mod download
           go mod verify
+          # Grantcheck now consumes published siblings without replacements;
+          # later policy steps enter that module with GOPROXY=off.
+          go -C ../grantcheck mod download
+          go -C ../grantcheck mod verify
       - name: Gate checker controls (known-bad W2 streams must fail the gate)
         working-directory: .
         run: python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v
