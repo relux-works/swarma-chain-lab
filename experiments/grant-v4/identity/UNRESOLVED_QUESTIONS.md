@@ -17,3 +17,20 @@
   priority and are exposed as a set, rather than assigning a new order.
 - Measurement-dependent observation numbers remain parameters in their future
   module, without production defaults in this identity module.
+
+## R1 at specification v0.1.49
+
+- J9 is in force; J10/J11/J12 and R8/R9/R10 profile proposals remain pending.
+  The stricter interpretation enables them only in `R1DraftLab`; zero,
+  unknown and `R1InForce` profiles refuse. No production admission is claimed.
+- Group, template, row and full-grant octets remain undefined, so the 65536-byte
+  parent bound is unverified. Stop coins of certified groups are not placed.
+- The class fixture uses a compressed request key, while Nostr authenticates an
+  x-only key. R2 compares opaque established identities exactly, without key
+  conversion or authentication. Name-mode channel keys still validate as x-only.
+- Signer adoption of gifted names, row-account custody, coin funding, issuer
+  pre-sign checks and persistent accounting require their own implementations.
+- `ClassObservation` is stated coherent node evidence. No adapter proves that
+  a value, opaque registration ID, history and signed pin belong together yet.
+  Whole-parent issuer admission, observation provenance, coin/anchor reads and
+  certified-row attestation verification are mandatory external prerequisites.

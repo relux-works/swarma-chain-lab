@@ -1,0 +1,589 @@
+{
+ "schema": "swarma-link-spec/lip-0010-holders-vectors/1",
+ "lip": "LIP-0010",
+ "section": "10",
+ "note": "Draft vectors for LIP-0010 section 10, the holders of a landlord (J11; the co-author's agreement is pending). A value is the exact text of a name value. Keys are multiples of the generator of secp256k1 and belong to nobody. A refused vector holds one defect, states the rule that refuses and names a valid neighbour that differs from it in that defect. The file holds no grant and no name of a chain, and it binds nothing until both owners accept the rules that it follows.",
+ "rules": [
+  {
+   "rule": "10.1",
+   "title": "the members of landlord: grant, then at most holders",
+   "state": "proposed",
+   "vectors": [
+    "value-01",
+    "value-02",
+    "value-03",
+    "value-09",
+    "value-10",
+    "value-11",
+    "value-12",
+    "value-13",
+    "value-25",
+    "value-27"
+   ]
+  },
+  {
+   "rule": "10.2",
+   "title": "holders is an array of owner pins",
+   "state": "proposed",
+   "vectors": [
+    "value-03",
+    "value-04",
+    "value-07",
+    "value-14",
+    "value-15",
+    "value-16",
+    "value-17",
+    "value-18",
+    "value-19",
+    "value-20",
+    "value-21",
+    "value-22"
+   ]
+  },
+  {
+   "rule": "10.3",
+   "title": "the pins are different and ascending",
+   "state": "proposed",
+   "vectors": [
+    "value-04",
+    "value-05",
+    "value-07",
+    "value-23",
+    "value-24"
+   ]
+  },
+  {
+   "rule": "10.4",
+   "title": "absent and empty say the same",
+   "state": "proposed",
+   "vectors": [
+    "value-01",
+    "value-02"
+   ]
+  },
+  {
+   "rule": "10.5",
+   "title": "a holder is a name-owner key; equal keys are permitted",
+   "state": "proposed",
+   "vectors": [
+    "value-08"
+   ]
+  },
+  {
+   "rule": "10.6",
+   "title": "holders confers no authority",
+   "state": "proposed",
+   "vectors": [],
+   "not_covered": "A statement about what the list is used for; LIP-0026 section 9 reads it."
+  },
+  {
+   "rule": "10.7",
+   "title": "holders is part of swarma",
+   "state": "proposed",
+   "vectors": [],
+   "not_covered": "A statement about rules of LIP-0008; no vector of this file holds a grant."
+  },
+  {
+   "rule": "10.8",
+   "title": "the value fits 520 bytes: at most five holders",
+   "state": "proposed",
+   "vectors": [
+    "value-05",
+    "value-06",
+    "value-26",
+    "value-28",
+    "capacity-01",
+    "capacity-02",
+    "capacity-03",
+    "capacity-04",
+    "capacity-05"
+   ]
+  }
+ ],
+ "values": [
+  {
+   "id": "value-01",
+   "rules": [
+    "10.1",
+    "10.4"
+   ],
+   "claim": "A landlord value without the member holders: 100 bytes, and no holder.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\"}}}",
+   "bytes": 100,
+   "expect": {
+    "outcome": "valid",
+    "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+    "holders": []
+   }
+  },
+  {
+   "id": "value-02",
+   "rules": [
+    "10.1",
+    "10.4"
+   ],
+   "claim": "The same landlord with an empty list. It is valid and says the same as value-01.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[]}}}",
+   "bytes": 113,
+   "expect": {
+    "outcome": "valid",
+    "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+    "holders": []
+   }
+  },
+  {
+   "id": "value-03",
+   "rules": [
+    "10.1",
+    "10.2"
+   ],
+   "claim": "One holder.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"]}}}",
+   "bytes": 181,
+   "expect": {
+    "outcome": "valid",
+    "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+    "holders": [
+     "022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01"
+    ]
+   }
+  },
+  {
+   "id": "value-04",
+   "rules": [
+    "10.2",
+    "10.3"
+   ],
+   "claim": "Two holders in the ascending order of their characters.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\",\"022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4\"]}}}",
+   "bytes": 250,
+   "expect": {
+    "outcome": "valid",
+    "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+    "holders": [
+     "022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01",
+     "022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4"
+    ]
+   }
+  },
+  {
+   "id": "value-05",
+   "rules": [
+    "10.3",
+    "10.8"
+   ],
+   "claim": "Five holders in a value without nostr: 457 bytes, the most that a landlord value holds.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\",\"022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4\",\"025cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc\",\"02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13\",\"03acd484e2f0c7f65309ad178a9f559abde09796974c57e714c35f110dfc27ccbe\"]}}}",
+   "bytes": 457,
+   "expect": {
+    "outcome": "valid",
+    "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+    "holders": [
+     "022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01",
+     "022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
+     "025cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc",
+     "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13",
+     "03acd484e2f0c7f65309ad178a9f559abde09796974c57e714c35f110dfc27ccbe"
+    ]
+   }
+  },
+  {
+   "id": "value-06",
+   "rules": [
+    "10.8"
+   ],
+   "claim": "Four holders beside a NIP-05 object: 479 bytes.",
+   "value": "{\"nostr\":{\"names\":{\"_\":\"f28773c2d975288bc7d1d205c3748651b075fbc6610e58cddeeddf8f19405aa8\"}},\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\",\"022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4\",\"025cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc\",\"02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13\"]}}}",
+   "bytes": 479,
+   "expect": {
+    "outcome": "valid",
+    "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+    "holders": [
+     "022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01",
+     "022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
+     "025cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc",
+     "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    ]
+   }
+  },
+  {
+   "id": "value-07",
+   "rules": [
+    "10.2",
+    "10.3"
+   ],
+   "claim": "Two holders with one x coordinate and the two parities. They are two keys.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13\",\"03e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13\"]}}}",
+   "bytes": 250,
+   "expect": {
+    "outcome": "valid",
+    "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+    "holders": [
+     "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13",
+     "03e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    ]
+   }
+  },
+  {
+   "id": "value-08",
+   "rules": [
+    "10.5"
+   ],
+   "claim": "A holder whose x coordinate is the grant key. A reader permits equal keys.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\"]}}}",
+   "bytes": 181,
+   "expect": {
+    "outcome": "valid",
+    "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+    "holders": [
+     "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
+    ]
+   }
+  },
+  {
+   "id": "value-09",
+   "rules": [
+    "10.1"
+   ],
+   "claim": "Holders in a value that also carries a member of the owner.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\",\"022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4\"]}},\"email\":\"owner@example.org\"}",
+   "bytes": 278,
+   "expect": {
+    "outcome": "valid",
+    "grant": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+    "holders": [
+     "022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01",
+     "022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4"
+    ]
+   }
+  },
+  {
+   "id": "value-10",
+   "rules": [
+    "10.1"
+   ],
+   "claim": "The member holders stands before grant.",
+   "value": "{\"swarma\":{\"landlord\":{\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"],\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\"}}}",
+   "bytes": 181,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.1"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-11",
+   "rules": [
+    "10.1"
+   ],
+   "claim": "A third member after holders.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"],\"note\":\"x\"}}}",
+   "bytes": 192,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.1"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-12",
+   "rules": [
+    "10.1"
+   ],
+   "claim": "The member holders twice.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"],\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"]}}}",
+   "bytes": 262,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.1"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-13",
+   "rules": [
+    "10.1"
+   ],
+   "claim": "A member Holders, which is a fold alias of holders.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"Holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"]}}}",
+   "bytes": 181,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.1"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-14",
+   "rules": [
+    "10.2"
+   ],
+   "claim": "The list is a string and no array.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"}}}",
+   "bytes": 179,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.2"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-15",
+   "rules": [
+    "10.2"
+   ],
+   "claim": "The list is null.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":null}}}",
+   "bytes": 115,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.2"
+   },
+   "valid_neighbour": "value-02"
+  },
+  {
+   "id": "value-16",
+   "rules": [
+    "10.2"
+   ],
+   "claim": "An element is a number.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[7]}}}",
+   "bytes": 114,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.2"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-17",
+   "rules": [
+    "10.2"
+   ],
+   "claim": "An element is an x coordinate of 64 characters and no pin.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"2f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"]}}}",
+   "bytes": 179,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.2"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-18",
+   "rules": [
+    "10.2"
+   ],
+   "claim": "An element begins with 04.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"042f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"]}}}",
+   "bytes": 181,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.2"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-19",
+   "rules": [
+    "10.2"
+   ],
+   "claim": "An element in uppercase.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022F01E5E15CCA351DAFF3843FB70F3C2F0A1BDD05E5AF888A67784EF3E10A2A01\"]}}}",
+   "bytes": 181,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.2"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-20",
+   "rules": [
+    "10.2"
+   ],
+   "claim": "An element of the right form whose 64 characters are the x coordinate of no point of the curve.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"020000000000000000000000000000000000000000000000000000000000000005\"]}}}",
+   "bytes": 181,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.2"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-21",
+   "rules": [
+    "10.2"
+   ],
+   "claim": "An element with a character outside 0 to 9 and a to f.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a0g\"]}}}",
+   "bytes": 181,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.2"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-22",
+   "rules": [
+    "10.2"
+   ],
+   "claim": "An element that is an array.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"]]}}}",
+   "bytes": 183,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.2"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-23",
+   "rules": [
+    "10.3"
+   ],
+   "claim": "One pin twice.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\",\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"]}}}",
+   "bytes": 250,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.3"
+   },
+   "valid_neighbour": "value-04"
+  },
+  {
+   "id": "value-24",
+   "rules": [
+    "10.3"
+   ],
+   "claim": "The two pins of value-04 in the other order.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4\",\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"]}}}",
+   "bytes": 250,
+   "expect": {
+    "outcome": "refused",
+    "rule": "10.3"
+   },
+   "valid_neighbour": "value-04"
+  },
+  {
+   "id": "value-25",
+   "rules": [
+    "10.1"
+   ],
+   "claim": "The value of value-04 with a space after the comma of the list: the span of swarma is not the compact encoding.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\", \"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\", \"022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4\"]}}}",
+   "bytes": 252,
+   "expect": {
+    "outcome": "refused",
+    "rule": "3"
+   },
+   "valid_neighbour": "value-04"
+  },
+  {
+   "id": "value-26",
+   "rules": [
+    "10.8"
+   ],
+   "claim": "Six holders: 526 bytes, above the 520 of a value.",
+   "value": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\",\"022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4\",\"025cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc\",\"02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13\",\"03acd484e2f0c7f65309ad178a9f559abde09796974c57e714c35f110dfc27ccbe\",\"03fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556\"]}}}",
+   "bytes": 526,
+   "expect": {
+    "outcome": "refused",
+    "rule": "2"
+   },
+   "valid_neighbour": "value-05"
+  },
+  {
+   "id": "value-27",
+   "rules": [
+    "10.1"
+   ],
+   "claim": "An agent binding with a member holders.",
+   "value": "{\"swarma\":{\"agent\":{\"landlord\":\"id/example\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\"]}}}",
+   "bytes": 127,
+   "expect": {
+    "outcome": "refused",
+    "rule": "3"
+   },
+   "valid_neighbour": "value-03"
+  },
+  {
+   "id": "value-28",
+   "rules": [
+    "10.8"
+   ],
+   "claim": "Five holders beside a NIP-05 object: 548 bytes.",
+   "value": "{\"nostr\":{\"names\":{\"_\":\"f28773c2d975288bc7d1d205c3748651b075fbc6610e58cddeeddf8f19405aa8\"}},\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\",\"holders\":[\"022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01\",\"022f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4\",\"025cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc\",\"02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13\",\"03acd484e2f0c7f65309ad178a9f559abde09796974c57e714c35f110dfc27ccbe\"]}}}",
+   "bytes": 548,
+   "expect": {
+    "outcome": "refused",
+    "rule": "2"
+   },
+   "valid_neighbour": "value-06"
+  }
+ ],
+ "capacity": [
+  {
+   "id": "capacity-01",
+   "rules": [
+    "10.8"
+   ],
+   "claim": "No nostr.",
+   "value_without_holders": "{\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\"}}}",
+   "bytes_without_holders": 100,
+   "most_holders": 5,
+   "bytes_with_most": 457,
+   "bytes_with_one_more": 526
+  },
+  {
+   "id": "capacity-02",
+   "rules": [
+    "10.8"
+   ],
+   "claim": "The key string form of nostr.",
+   "value_without_holders": "{\"nostr\":\"f28773c2d975288bc7d1d205c3748651b075fbc6610e58cddeeddf8f19405aa8\",\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\"}}}",
+   "bytes_without_holders": 175,
+   "most_holders": 4,
+   "bytes_with_most": 463,
+   "bytes_with_one_more": 532
+  },
+  {
+   "id": "capacity-03",
+   "rules": [
+    "10.8"
+   ],
+   "claim": "The NIP-05 object.",
+   "value_without_holders": "{\"nostr\":{\"names\":{\"_\":\"f28773c2d975288bc7d1d205c3748651b075fbc6610e58cddeeddf8f19405aa8\"}},\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\"}}}",
+   "bytes_without_holders": 191,
+   "most_holders": 4,
+   "bytes_with_most": 479,
+   "bytes_with_one_more": 548
+  },
+  {
+   "id": "capacity-04",
+   "rules": [
+    "10.8"
+   ],
+   "claim": "The NIP-05 object with one relay.",
+   "value_without_holders": "{\"nostr\":{\"names\":{\"_\":\"f28773c2d975288bc7d1d205c3748651b075fbc6610e58cddeeddf8f19405aa8\"},\"relays\":{\"f28773c2d975288bc7d1d205c3748651b075fbc6610e58cddeeddf8f19405aa8\":[\"wss://relay.example/\"]}},\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\"}}}",
+   "bytes_without_holders": 294,
+   "most_holders": 3,
+   "bytes_with_most": 513,
+   "bytes_with_one_more": 582
+  },
+  {
+   "id": "capacity-05",
+   "rules": [
+    "10.8"
+   ],
+   "claim": "The NIP-05 object with two relays.",
+   "value_without_holders": "{\"nostr\":{\"names\":{\"_\":\"f28773c2d975288bc7d1d205c3748651b075fbc6610e58cddeeddf8f19405aa8\"},\"relays\":{\"f28773c2d975288bc7d1d205c3748651b075fbc6610e58cddeeddf8f19405aa8\":[\"wss://relay.example/\",\"wss://relay2.example/\"]}},\"swarma\":{\"landlord\":{\"grant\":\"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5\"}}}",
+   "bytes_without_holders": 318,
+   "most_holders": 2,
+   "bytes_with_most": 468,
+   "bytes_with_one_more": 537
+  }
+ ]
+}

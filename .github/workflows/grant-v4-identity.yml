@@ -61,6 +61,8 @@ jobs:
         run: |
           python3 -B experiments/grant-v4/identity/scripts/second-reader.py --go-results "$RUNNER_TEMP/identity-tests.json" --output "$RUNNER_TEMP/identity-independent.json"
           python3 -B -m unittest discover -s experiments/grant-v4/identity/scripts -p 'test_second_reader.py' -v
+          python3 -B experiments/grant-v4/identity/scripts/r1_reader.py --go-results "$RUNNER_TEMP/identity-tests.json" --output "$RUNNER_TEMP/r1-independent.json"
+          python3 -B -m unittest discover -s experiments/grant-v4/identity/scripts -p 'test_r1_reader.py' -v
       - name: Narrowing mutants
         env:
           GOPROXY: 'off'
@@ -74,5 +76,6 @@ jobs:
             ${{ runner.temp }}/identity-head.txt
             ${{ runner.temp }}/identity-tests.json
             ${{ runner.temp }}/identity-independent.json
+            ${{ runner.temp }}/r1-independent.json
             ${{ runner.temp }}/identity-mutants/
           if-no-files-found: error

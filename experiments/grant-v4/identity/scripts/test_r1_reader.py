@@ -1,0 +1,69 @@
+"""Bounded R1 reader controls: input parsing and both disagreement directions."""
+import copy
+import json
+from pathlib import Path
+import unittest
+
+import r1_reader as reader
+
+
+class R1ReaderControls(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        root = Path(__file__).resolve().parents[1] / "testdata"
+        cls.files = {name: json.loads((root / name).read_text()) for name in reader.HASHES}
+
+    def test_all_vectors(self):
+        # All 151 independent results agree with the pinned expectations.
+        self.assertEqual(len(reader.calculate(self.files)), 151)
+
+    def test_both_disagreement_directions(self):
+        # A false acceptance and a false refusal each fail agreement, beside a
+        # valid control. Equality of two broken readers is not the expectation.
+        independent = reader.calculate(self.files)
+        reader.agree(independent, dict(independent))
+        for key, changed in (("class-25", {"outcome": "pass", "attestation": "required"}),
+                             ("class-01", {"outcome": "CLASS_WRITER"})):
+            with self.subTest(vector=key):
+                go = copy.deepcopy(independent)
+                go[key] = changed
+                with self.assertRaisesRegex(ValueError, "R1_GO_DISAGREEMENT"):
+                    reader.agree(independent, go)
+
+    def test_missing_and_duplicate_go_results(self):
+        # A partial or duplicate test stream is never an agreement result.
+        with self.assertRaisesRegex(ValueError, "missing"):
+            reader.go_results("")
+        event = json.dumps({"Output": 'R1_RESULT {"id":"class-01","result":{}}\n'})
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            reader.go_results(event + "\n" + event)
+        independent = reader.calculate(self.files)
+        go = dict(independent)
+        del go["class-25"]
+        with self.assertRaisesRegex(ValueError, "R1_GO_DISAGREEMENT"):
+            reader.agree(independent, go)
+
+    def test_expectation_tamper(self):
+        # Replacing the gift's expected rejection with pass cannot alter the
+        # independent calculation. This control plants the intended violation.
+        changed = copy.deepcopy(self.files)
+        gift = next(v for v in changed["class-vectors.json"]["admissions"] if v["id"] == "class-25")
+        gift["expect"] = {"outcome": "pass", "attestation": "required"}
+        with self.assertRaisesRegex(ValueError, "R1_VECTOR_DISAGREEMENT class-25"):
+            reader.calculate(changed)
+
+    def test_value_read_member_boundaries(self):
+        # Ignored owner duplicates are allowed; read-member duplicates/aliases
+        # and noncompact bindings refuse beside the canonical landlord control.
+        key = "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
+        binding = '{"landlord":{"grant":"' + key + '"}}'
+        self.assertEqual(reader.value_read('{"unused":1,"unused":2,"swarma":' + binding + '}')["grant"], key)
+        for raw in ('{"Swarma":' + binding + '}',
+                    '{"swarma":' + binding + ',"swarma":' + binding + '}',
+                    '{"swarma":' + binding.replace(':', ': ', 1) + '}'):
+            with self.subTest(raw=raw), self.assertRaises((KeyError, ValueError)):
+                reader.value_read(raw)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,6 +1,37 @@
 # Grant check boundary for a2a daemon (a2ad) (CG1)
 
 
+## R1 specification pin and v3 compatibility
+
+The R1 delta is pinned to public spec tag
+[`v0.1.49`](https://github.com/relux-works/swarma-link-spec/tree/v0.1.49),
+commit `1c3bcafc8bfc1450c3c0cefb69a122f6a97a448e` (tag signature verified).
+Its new constructs are implemented only in the
+[v4 identity lab](../grant-v4/identity/README.md#r1-decision-map-and-compatibility).
+
+| Decision | Spec section | Module / compatibility |
+| --- | --- | --- |
+| J12 grouped rows and R2 row fit | LIP-0026 §§2,8; LIP-0014 §9.1 | V4 lab only; no new group/member in v3 |
+| J10 landlord class and holder-written value (d) | LIP-0026 §9; LIP-0021 §§2–7; LIP-0008 §3.1 | V4 lab only; v3 `grantee_key` keeps its existing meaning |
+| J11 holders in landlord values | LIP-0010 §10, including its compatibility paragraph | **Compatibility item:** accepting holders would widen this verifier's current name parser. Existing rejection is preserved |
+| J9 no certifier within one owner | LIP-0014 §8.3; LIP-0026 §10 and conformance impact | V4 only. V3 contract rows still name a notary and v3 children remain certified |
+
+J10/J11/J12 remain pending at the pin, and J9 admits no uncertified child
+until J10/J11 are decided. The explicit v4 draft profile is never selected by
+this module. Its exported API, existing proof bytes, constructors, name readers
+and internal requirement selections are unchanged. No draft rule widens v3
+acceptance and no new profile parameter is added to the consumer API.
+
+`TestR1V3NameCompatibility` pairs valid legacy values with refusals for
+holders (empty and populated) and the new agent shape.
+`TestR1V3ProofCompatibility` pairs a valid routing control with v4 version,
+group, class and no-certifier proof plants. Each refuses before the backend,
+with admitted cache and durable state bytes unchanged. These are offline
+boundary tests; the unit backend is no evidence of chain qualification.
+Run `go test -race -count=1 -run '^TestR1V3' .` from this module, with the
+same Go/cache environment as the commands below. Node-backed Core qualification
+remains a separate opt-in gate and must not be claimed from a skipped run.
+
 ## Required executor and interim node policy
 
 `New` and `NewForTransport` now require `Config.ExecutorKey`, `Config.Terms`

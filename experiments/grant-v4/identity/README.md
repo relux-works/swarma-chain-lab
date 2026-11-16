@@ -5,6 +5,109 @@ All profile rules remain **Draft**, with co-author agreement pending. This
 module decides only on stated octets, heights and history facts. It grants no authority,
 reads no node and verifies no transaction signature.
 
+## R1 decision map and compatibility
+
+The R1 experiment is pinned to public specification tag
+[`v0.1.49`](https://github.com/relux-works/swarma-link-spec/tree/v0.1.49),
+commit `1c3bcafc8bfc1450c3c0cefb69a122f6a97a448e`. The tag signature was
+verified. J9 is in force, but J10/J11/J12 and the profile details remain
+pending at this pin. No production or whole-grant admission is provided.
+
+| Decision | Pinned section | Implementation | Version boundary |
+| --- | --- | --- | --- |
+| J12 rows in groups | LIP-0026 §8 R8.1–R8.8; §2 R2; LIP-0014 §9.1 | `CheckRowGroups`, `SelectRow`, `CheckR1Parent`, `CheckR1Child` | V4 stated facts only; no v3 groups or row wire schema |
+| J10 landlord class, checks (a)–(d) | LIP-0026 §9 R9.1–R9.10; LIP-0021 §§2–7; LIP-0008 §3.1 | `CheckRowTemplate`, `CheckRowRecipient`; existing script/writer/walk primitives | Explicit `R1DraftLab` profile only |
+| J11 holders | LIP-0010 §§2–5,10; LIP-0026 R9.6–R9.7 | `ReadR1Value`; current holder plus holder-written current value | V4 draft reader; v3 name parsers remain unchanged |
+| J9 same-owner row without a certifier | LIP-0014 §8.3 J9.1–J9.4; LIP-0026 §10 | Exact issuer name/registration/owner singleton or exact recipient name, class checks, no stop coin | No attestation is read; a certified row still requires the later certifier pipeline |
+
+`R1InForce`, zero and unknown profiles refuse these experimental entry points.
+This resolves a specification boundary conservatively: the pin says that no
+uncertified child is admitted until J10 and J11 are decided. Only the explicitly
+selected draft lab evaluates those proposed checks. Nothing enables them in
+`grantcheck`, changes an earlier signature domain or adds an earlier API member.
+The row predicates live beside their identity dependencies in this module;
+there is no new internal module requirement or selected snapshot.
+
+The row types are Go stated facts. `CheckRowGroups` checks group/range counts,
+32-bit output bounds, overlap/seal exclusion and exact, unbounded integer pool
+sums without expanding the coins. `CheckR1Parent` additionally checks **every**
+template before any child fits. `CheckR1Child` follows R2: ordinal, exact service
+name/key, recipient identity/mode, typed limit ceilings, then current recipient
+proof and class predicates. A valid attestation cannot override row widening.
+The opaque period identity must already be established by its type profile;
+this module does not invent period arithmetic or a rule for floors.
+
+The class pipeline proves recipient ownership before reading its pointer, then
+checks (a) the selected landlord, (b) its ordered history/checkpoint/writer/pending
+facts, (c) the current holder, and (d) the current operation's name input and
+hash type. Both holder checks use **only** the current list of the landlord
+named by that value, never the union of a class. The writer may be a different
+listed holder from the current owner. A gift written by another key refuses;
+a holder's later update of that gift passes, the explicit limit of R9.11.
+Signer adoption policy cannot be inferred by this verifier.
+
+The channel key is parsed from the same recipient output value whose owner and
+writer were checked. A certified exact-name row makes no class read and needs
+no `swarma` binding; its owned name still supplies the channel key. For an exact
+name without a certifier, R10.3 requires independently established parent
+admission and checks the issuer's current writer and pending spend. The parent
+issuer pipeline must establish unchanged issuer `swarma`, including `holders`.
+Changing that list therefore cannot be treated as keeping an earlier parent
+live. Existing issuer-history predicates remain unchanged.
+
+`ClassObservation` is a coherent observation asserted by the calling adapter,
+not presenter proof. It includes explicit heights, consensus depth, witness
+activation, transaction availability and a known/unknown pending read.
+`ClassLandlordEvidence.Binding` ties the exact signed pin to the opaque
+registration ID and the stated walk; its value is the current output's value.
+The adapter must establish those connections and validate transactions.
+Missing, bounded, unsupported or incoherent facts refuse with no key or
+certifier policy and no writes. Returned byte spans/scripts are copies.
+`RowRecipientResult` is only a resolved key and a statement of whether the
+attestation pipeline **remains required**. It is never whole-child admission.
+There is no attestation argument or callback, so a no-certifier row cannot
+read a supplied attestation. Grant signatures, issuer admission, coin/anchor
+reads, notary identity/attestation verification and request authentication
+remain mandatory outside this slice. The module performs none of those effects.
+
+### R1 vectors, independent reader and limits
+
+Three unmodified files are copied from the verified specification commit:
+`groups-vectors.json` (38), `class-vectors.json` (65), and
+`holders-vectors.json` (28 values plus 5 capacity rows). Their SHA-256 identities
+are enforced in the Go vector harness and independent Python reader. Their
+[licence and upstream attribution](testdata/R1-NOTICE.md) are retained separately.
+`row-fit-vectors.json` adds 15 local R2 controls: fit, both ordinal bounds,
+executor name/key, recipient mode, typed limits and compound refusal order.
+The independent reader agrees with the actual Go results for all **151** R1
+cases. It reuses the independent Python O3/O4 primitives, never Go parsing or
+Go-derived intermediate results. Both implementations are by one producer;
+this is implementation independence, not independent authorship.
+
+The pinned class fixture abstracts recipient confirmation and input heights.
+Its adapter supplies recipient confirmation at the stated tip and spent-input
+height 1 with witness activation 0; these are fixture conventions, not chain
+parameters. Production predicates require explicit facts. History readings and
+writers are stated in the fixture; recipient script and writer are computed
+from its raw octets. Placeholders do not establish signature/chain validity.
+
+`TestR1Groups`, `TestR1Holders`, `TestR1Class` and
+`TestR1RowFitVectors` emit all results with no skips. Additional tests cover
+in-force/unknown profile rejection, duplicate/aliased read members, exact-name
+and key modes, R2 compound order, whole-parent refusal, absent observations,
+changed channel keys, input preservation and returned-byte ownership.
+`test_r1_reader.py` checks known wrong expectations, both Go disagreement
+directions, incomplete/duplicate results and value-reader boundaries.
+
+**Open boundaries:** groups/templates/rows and attestation composition have no
+grant octets; R8.4's 65536-byte parent bound awaits them. Request keys in the
+class fixture are compressed, whereas Nostr authentication uses x-only keys:
+R2.3 compares an independently validated opaque identity exactly and never
+normalizes it or claims authentication. Name-mode channel keys are validated
+as x-only keys. R8.9–R8.10, R9.11–R9.12 and all signer/ledger/node duties stay
+outside this pure slice. Stop-coin placement in certified groups is open.
+See [open questions](UNRESOLVED_QUESTIONS.md).
+
 - `ParsePin`: lowercase compressed secp256k1 key, form and point checked
   separately. `SameKeyAsSigning` compares the x coordinate with a validated
   signing key (O2.1–O2.3).
@@ -157,6 +260,45 @@ subprocess calls and `hashlib.new` while computing the known answer and all
 84 decisions. There is no alternate backend to exercise. These are bounded
 instrument controls, not proof against a shared misunderstanding of the draft.
 
+### R1 mutation controls
+
+The existing runner adds 24 R1 Go overlays to its seven identity overlays and
+one Python digest plant: **32 intended kills**, no accepted survivors. Each Go
+plant requires exit 1 and its exact named failing assertion; a compilation,
+setup failure or skip is not a kill. The complete unplanted suite must pass
+first. Reader agreement controls also plant a false acceptance, a false refusal
+and an incorrect gift expectation beside valid results.
+
+| Mutant | Property narrowed | Named failing test |
+| --- | --- | --- |
+| `r1-enable-in-force` | The in-force/zero profile never enables the draft reader | `TestR1ProfileGate/0` |
+| `r1-unweighted-pool` | Each template amount is multiplied by its row count | `TestR1Groups/group-19` |
+| `r1-wrapped-pool` | A 2^64 sum cannot wrap into a small pool | `TestR1Groups/group-22` |
+| `r1-overlapping-ranges` | Ranges in different groups cannot share a coin | `TestR1Groups/group-24` |
+| `r1-zero-based-ordinal` | Ordinal 1 selects the first output | `TestR1Groups/ordinal-01` |
+| `r1-unordered-holders` | Holder pins have strict ascending order | `TestR1Holders/value-24` |
+| `r1-cross-owner-no-certifier` | A foreign singleton requires a certifier | `TestR1Class/template-12` |
+| `r1-same-name-issuer-pin` | The registration and owner are part of issuer identity | `TestR1Class/template-13` |
+| `r1-drop-certifier-requirement` | A certified row retains its attestation requirement | `TestR1Class/class-01` |
+| `r1-no-certifier-stop-coin` | An uncertified row states no stop coin | `TestR1CertifierBoundary` |
+| `r1-current-owner-only` | A transfer-and-return on the constrained stretch refuses | `TestR1Class/class-14` |
+| `r1-check-writer-before-history` | History change precedes current-writer refusal | `TestR1Class/class-14` |
+| `r1-ignore-landlord-writer` | Exact-name rows also check the issuer value writer | `TestR1Class/certifier-10` |
+| `r1-ignore-pending` | Pending landlord spend precedes holder comparison | `TestR1Class/class-31` |
+| `r1-ignore-holder` | A co-listed landlord holder cannot hold this landlord agent | `TestR1Class/class-37` |
+| `r1-ignore-value-writer` | A gifted value written by another key refuses | `TestR1Class/class-25` |
+| `r1-only-current-holder-writes` | A different listed holder may write the value | `TestR1Class/class-02` |
+| `r1-ignore-unsupported-writer` | Unsupported hash type reports unavailable evidence | `TestR1Class/class-28` |
+| `r1-ignore-recipient-owner` | The child owner proof is checked before class facts | `TestR1Class/class-34` |
+| `r1-executor-after-recipient` | Executor refusal precedes recipient refusal | `TestR1ChildOrder/executor-before-recipient` |
+| `r1-budget-before-recipient` | Recipient refusal precedes the limit ceiling | `TestR1ChildOrder/recipient-before-budget` |
+| `r1-union-class-holders` | A co-listed landlord cannot supply a value writer | `TestR1Class/class-36` |
+| `r1-prefix-class-holders` | Earlier class entries cannot supply holders for a later landlord | `TestR1Class/class-38` |
+| `r1-partial-parent` | An invalid later template refuses the whole parent | `TestR1ParentAtomic/later-template` |
+
+These controls bound the named properties; they do not establish complete
+mutation coverage, observation provenance or transaction-signature validity.
+
 ## Tools and commands
 
 Use Go 1.26.10 and Python 3.14.4 from the repository root.
@@ -173,6 +315,8 @@ go -C experiments/grant-v4/identity vet ./...
 go -C experiments/grant-v4/identity test -race -count=1 -json ./... > .temp/identity-tests.json
 go -C experiments/grant-v4/identity build ./...
 python3 -B experiments/grant-v4/identity/scripts/second-reader.py --go-results .temp/identity-tests.json --output .temp/identity-independent.json
+python3 -B experiments/grant-v4/identity/scripts/r1_reader.py --go-results .temp/identity-tests.json --output .temp/r1-independent.json
+python3 -B -m unittest discover -s experiments/grant-v4/identity/scripts -p test_r1_reader.py -v
 python3 -B -m unittest discover -s experiments/grant-v4/identity/scripts -p 'test_second_reader.py' -v
 python3 -B experiments/grant-v4/identity/scripts/check-mutants.py --scratch .temp/identity-mutants
 python3 -B .scripts/check-module-graph.py

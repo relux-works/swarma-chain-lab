@@ -1,0 +1,391 @@
+{
+  "note": "Local LIP-0026 R2 stated-fact controls; no grant or signature octets. The class observation uses the pinned class-01 control. These test the row fit before class facts.",
+  "row": {
+    "ordinal": 1,
+    "executor": {
+      "name": "service.example",
+      "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+    },
+    "recipient": {
+      "name": "id/acme-worker-7",
+      "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    "limits": [
+      {
+        "kind": "model",
+        "resource": "tokens",
+        "unit": "token",
+        "amount": 10
+      }
+    ]
+  },
+  "row_count": 1,
+  "vectors": [
+    {
+      "id": "row-fit-fit",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "service.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 10
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "pass"
+      }
+    },
+    {
+      "id": "row-fit-ordinal-zero",
+      "child": {
+        "ordinal": 0,
+        "executor": {
+          "name": "service.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 10
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_ORDINAL"
+      }
+    },
+    {
+      "id": "row-fit-ordinal-high",
+      "child": {
+        "ordinal": 2,
+        "executor": {
+          "name": "service.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 10
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_ORDINAL"
+      }
+    },
+    {
+      "id": "row-fit-executor-name",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "other.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 10
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_AGENT_NOT_ALLOWED"
+      }
+    },
+    {
+      "id": "row-fit-executor-key",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "service.example",
+          "key": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 10
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_AGENT_NOT_ALLOWED"
+      }
+    },
+    {
+      "id": "row-fit-recipient-key",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "service.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "request_public_key": "opaque-established-key"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 10
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_GRANTEE_NOT_ALLOWED"
+      }
+    },
+    {
+      "id": "row-fit-budget-over",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "service.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 11
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_BUDGET_OVER"
+      }
+    },
+    {
+      "id": "row-fit-new-resource",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "service.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "other",
+            "unit": "token",
+            "amount": 10
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_BUDGET_OVER"
+      }
+    },
+    {
+      "id": "row-fit-new-period",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "service.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 10,
+            "period": "other"
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_BUDGET_OVER"
+      }
+    },
+    {
+      "id": "row-fit-zero-budget",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "service.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 0
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "pass"
+      }
+    },
+    {
+      "id": "row-fit-no-limits",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "service.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": []
+      },
+      "expect": {
+        "outcome": "pass"
+      }
+    },
+    {
+      "id": "row-fit-order-1-3",
+      "child": {
+        "ordinal": 0,
+        "executor": {
+          "name": "other.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 10
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_ORDINAL"
+      }
+    },
+    {
+      "id": "row-fit-order-3-5",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "other.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "request_public_key": "opaque-established-key"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 10
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_AGENT_NOT_ALLOWED"
+      }
+    },
+    {
+      "id": "row-fit-order-5-6",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "service.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "request_public_key": "opaque-established-key"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 11
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_GRANTEE_NOT_ALLOWED"
+      }
+    },
+    {
+      "id": "row-fit-order-3-6",
+      "child": {
+        "ordinal": 1,
+        "executor": {
+          "name": "other.example",
+          "key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        },
+        "recipient": {
+          "name": "id/acme-worker-7",
+          "owner_public_key": "02e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+        },
+        "limits": [
+          {
+            "kind": "model",
+            "resource": "tokens",
+            "unit": "token",
+            "amount": 11
+          }
+        ]
+      },
+      "expect": {
+        "outcome": "CHILD_AGENT_NOT_ALLOWED"
+      }
+    }
+  ]
+}

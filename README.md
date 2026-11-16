@@ -615,7 +615,12 @@ an application code; malformed envelopes remain retryable node failures.
 The [identity module commands](experiments/grant-v4/identity/README.md#tools-and-commands)
 cover Go formatting, dependency verification, vet, race tests and build, an
 independent Python reader for all 140 identity vectors (including all 56 walks),
-agreement controls and Go overlay mutants.
+agreement controls and Go overlay mutants. The same module contains the
+explicitly gated [R1 draft lab](experiments/grant-v4/identity/README.md#r1-decision-map-and-compatibility),
+pinned to spec `v0.1.49`, with a separate independent reader for 151 grouped-row,
+landlord-class, holders and row-fit cases. Its commands are listed with the
+identity tools and write evidence under `.temp/`; the v3 grantcheck API and
+acceptance boundary are unchanged.
 Run them from the repository root; test and mutation evidence goes under
 `.temp/`. The module-graph and public-hygiene tools above cover its registration.
 
