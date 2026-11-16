@@ -61,7 +61,7 @@ def main():
     positive = inventory(text)
     require(code == 0, 'positive tree must pass')
     require({key: positive[key] for key in expected} == expected, 'exact listed positive inventory')
-    require(len(expected['carrier_fields']) == 14, 'carrier count')
+    require(len(expected['carrier_fields']) == 34, 'carrier count')
     require(set(expected['explicit_reveals']) == {'Reveal', 'RevealForOpen'}, 'accessor keys')
     require(len(expected['explicit_reveals']['Reveal']) == 53 and
             sum(expected['explicit_reveals']['Reveal'].values()) == 67, 'call counts')
@@ -74,7 +74,7 @@ def main():
     proxy = 'experiments/model-proxy/custody_control.go'
     controls = []
 
-    def reveal(name, path, plant, accessor, owner, expression, legacy=False):
+    def reveal(name, path, plant, accessor, owner, expression, legacy=True):
         controls.append(dict(name=name, path=path, plant=plant, accessor=accessor,
                              witness=path + ':' + owner + ':' + expression, legacy=legacy))
 
@@ -112,7 +112,7 @@ def main():
          'package codec\nfunc (s Secret[T]) RevealBytes() []byte { return nil }\n', 'RevealBytes'),
     ]:
         controls.append(dict(name=name, path=path, plant=plant, accessor=accessor,
-                             witness=None, legacy=False))
+                             witness=None, legacy=True))
     for name, plant, owner in [
         ('extra-carrier', 'package proxy\ntype CustodyControl struct { APIKey string }\n', 'CustodyControl'),
         ('package-anonymous-carrier', 'package proxy\nvar holder = struct { Token string }{}\n', 'var'),
@@ -120,16 +120,58 @@ def main():
         field = 'APIKey' if name == 'extra-carrier' else 'Token'
         controls.append(dict(name=name, path=proxy, plant=plant,
                              field=proxy + ':' + owner + '.' + field, value='string',
-                             legacy=name == 'extra-carrier'))
+                             legacy=True))
     controls.append(dict(name='nested-carrier', path=proxy,
                          plant='package proxy\ntype CustodyControl struct { Nested struct { APIKey string } }\n',
                          field=proxy + ':CustodyControl.APIKey', value='string', legacy=True))
+    # Type discovery is independent of owner, field spelling and package: each
+    # plant below adds exactly one carrier on an unlisted struct, with no call.
+    typed = 'experiments/station-lifecycle/custody_control.go'
+    for name, plant, field, value in [
+        ('secret-type-field', 'type CustodyBox struct { Material codec.Secret[string] }', 'Material', 'codec.Secret[string]'),
+        ('secret-type-alias', 'type CustodyAlias = codec.Secret[string]; type CustodyBox struct { Material CustodyAlias }', 'Material', 'CustodyAlias'),
+        ('secret-type-container', 'type CustodyBox struct { Material map[string][]*codec.Secret[string] }', 'Material', 'map[string][]*codec.Secret[string]'),
+        ('secret-generic-embedded', 'type CustodyBox struct { Holder[codec.Secret[string]] }', 'Holder', 'Holder[codec.Secret[string]]'),
+        ('secret-type-embedded', 'type CustodyBox struct { PrivateBytes }', 'PrivateBytes', 'PrivateBytes'),
+        ('discovered-secret-type', 'type CustodySecret struct{}; func (CustodySecret) Reveal() string { return "" }; type CustodyBox struct { Material CustodySecret }', 'Material', 'CustodySecret'),
+        ('interface-secret-field', 'type CustodyReader interface { Reveal() string }; type CustodyBox struct { Material CustodyReader }', 'Material', 'CustodyReader'),
+        ('embedded-secret-interface', 'type CustodyReader interface { Reveal() string }; type CustodyOuter interface { CustodyReader }; type CustodyBox struct { Material CustodyOuter }', 'Material', 'CustodyOuter'),
+        ('anonymous-secret-interface', 'type CustodyBox struct { Material interface { Reveal() string } }', 'Material', 'interface{ Reveal() string }'),
+        ('secret-name-field', 'type CustodyBox struct { ChannelSecretHex string }', 'ChannelSecretHex', 'string'),
+        ('secret-type-map-key', 'type CustodyBox struct { Material map[codec.Secret[string]]bool }', 'Material', 'map[codec.Secret[string]]bool'),
+        ('secret-type-chan', 'type CustodyBox struct { Material chan codec.Secret[string] }', 'Material', 'chan codec.Secret[string]'),
+        ('secret-name-bearer', 'type CustodyBox struct { Bearer string }', 'Bearer', 'string'),
+        ('nested-collision', 'type CustodyBox struct { A struct{ APIKey string }; B struct{ APIKey CustodyKey } }; type CustodyKey = codec.Secret[string]', 'APIKey', 'string | CustodyKey'),
+    ]:
+        controls.append(dict(name=name, path=typed, plant='package lifecycle\n' + plant + '\n',
+                             field=typed + ':CustodyBox.' + field, value=value, legacy=False))
+    controls.append(dict(name='interface-accessor', path=typed,
+                         plant='package lifecycle\ntype CustodyReader interface { RevealX() []byte }\n',
+                         accessor='RevealX', witness=None, legacy=False))
     types = 'experiments/model-proxy/types.go'
     raw = (fixture / types).read_text()
     replaced, count = re.subn(r'(\bAPIKey\s+)UpstreamKey\b', r'\1string', raw)
     require(count == 1, 'raw field control anchor')
     controls.append(dict(name='raw-retained-field', path=types, plant=replaced,
                          field=types + ':Config.APIKey', value='string', legacy=True))
+    # Each retained owner/path name rule is now shadowed by the type rule on
+    # the positive tree; a raw retype must still be seen by its name rule.
+    for name, rel, pattern, owner_field, raw_type in [
+        ('raw-fakeexec-inputs', 'experiments/rental-gateway/station/linuxuser.go', r'(\bInputs\s+)\[\]codec\.Secret\[\[\]byte\]', 'FakeExec.Inputs', '[][]byte'),
+        ('raw-facts-random', 'experiments/model-proxy/session/session.go', r'(\bRandom\s+)Token\b', 'Facts.Random', '[32]byte'),
+        ('raw-upstream-value', 'experiments/model-proxy/credential.go', r'(\bValue\s+)UpstreamKey\b', 'UpstreamCredential.Value', 'string'),
+        ('raw-static-value', 'experiments/model-proxy/credential.go', r'(\{\s*value\s+)UpstreamKey\b', 'staticSource.value', 'string'),
+        ('raw-file-current', 'experiments/model-proxy/credential.go', r'(\bcurrent\s+)UpstreamKey\b', 'FileSource.current', 'string'),
+    ]:
+        replaced, count = re.subn(pattern, lambda m: m.group(1) + raw_type, (fixture / rel).read_text())
+        require(count == 1, name + ': anchor')
+        controls.append(dict(name=name, path=rel, plant=replaced, field=rel + ':' + owner_field, value=raw_type, legacy=True))
+    private_bytes = 'experiments/station-lifecycle/private_bytes.go'
+    raw = (fixture / private_bytes).read_text()
+    require(raw.count('value codec.Secret[Secret]') == 1, 'type erasure anchor')
+    controls.append(dict(name='secret-type-erasure', path=private_bytes,
+                         plant=raw.replace('value codec.Secret[Secret]', 'value []byte'),
+                         field=private_bytes + ':PrivateBytes.value', value=None, legacy=False))
     registry = 'experiments/model-proxy/registry.go'
     raw = (fixture / registry).read_text()
     for name, before, after, witness, delta in [
@@ -151,8 +193,11 @@ def main():
         path.write_text(control['plant'])
         want = copy.deepcopy(baseline)
         if 'field' in control:
-            want['carrier_fields'][control['field']] = control['value']
-            witness = control['field'] + '=' + control['value']
+            if control['value'] is None:
+                del want['carrier_fields'][control['field']]
+            else:
+                want['carrier_fields'][control['field']] = control['value']
+            witness = control['field'] + '=' + str(control['value'])
         else:
             sites = want['explicit_reveals'].setdefault(control['accessor'], {})
             key = control['witness']
@@ -179,6 +224,22 @@ def main():
     for control in controls:
         check_control(control, candidate, expected)
 
+    # Ordinary containers and non-Reveal interfaces must not create carriers;
+    # these positive controls prevent discovery that simply matches every type.
+    for name, plant in [
+        ('plain-container', 'type CustodyBox struct { Material map[string][]*string; Events chan string }'),
+        ('plain-embedded-interface', 'type CustodyReader interface { Read() string }; type CustodyOuter interface { CustodyReader }; type CustodyBox struct { Material CustodyOuter }'),
+        ('plain-anonymous-interface', 'type CustodyBox struct { Material interface { Read() string } }'),
+    ]:
+        path = fixture / typed
+        path.write_text('package lifecycle\n' + plant + '\n')
+        try:
+            code, text = run(name, [str(candidate)])
+            require(code == 0 and inventory(text) == positive, name + ': exact positive inventory')
+            rows[-1]['witness'] = 'unchanged positive inventory'
+        finally:
+            path.unlink()
+
     # Excluded test files and name-free conversions/reflection remain accepted;
     # this documents the detector's boundary, not the safety of those operations.
     excluded = fixture / session.replace('.go', '_test.go')
@@ -204,21 +265,24 @@ def main():
         if old_reveals and all(isinstance(value, int) for value in old_reveals.values()):
             old_reveals = {'Reveal': old_reveals}
         baseline = dict(carrier_fields=old['carrier_fields'], explicit_reveals=old_reveals)
-        require(baseline['carrier_fields'] == expected['carrier_fields'], 'carrier inventory unchanged')
+        require(all(expected['carrier_fields'].get(k) == v for k, v in baseline['carrier_fields'].items()),
+                'every legacy carrier and its exact type retained')
         for accessor, sites in old_reveals.items():
             require(accessor in expected['explicit_reveals'], 'legacy accessor retained')
             require(all(expected['explicit_reveals'][accessor].get(k) == v for k, v in sites.items()),
                     'all legacy sites and multiplicities unchanged')
-        require(len(old_reveals['Reveal']) == 17 and sum(old_reveals['Reveal'].values()) == 23,
-                'legacy 17-site/23-call set')
+        require(len(old_reveals['Reveal']) == 53 and sum(old_reveals['Reveal'].values()) == 67,
+                'legacy a6575851 53-site/67-call set')
+        require(len(baseline['carrier_fields']) == 14, 'legacy a6575851 carrier count')
         for control in controls:
-            # Landed main retains prefix calls and carrier declarations too.
-            if control['legacy'] or ('RevealForOpen' in old_reveals and
-                                     control['name'] in {'reveal-for-open', 'new-reveal-method', 'unused-carrier-method', 'method-expression', 'tagged-source'}):
+            # The a6575851 detector must still refuse every previous control.
+            if control['legacy']:
                 check_control(control, executable, baseline, prefix)
         rows[-1]['legacy_positive_inventory'] = baseline
     (out / 'results.json').write_text(json.dumps(rows, indent=2) + '\n')
-    print('positive: exit=0; exact 14 carriers; Reveal 53 sites/67 calls; RevealForOpen {}; all controls passed')
+    print(str(sum(control['legacy'] for control in controls)) + ' legacy negative controls per comparison')
+    print(str(len(controls)) + ' candidate negative controls; positive and explicit-limits controls; legacy comparisons=' + str(len(sys.argv[3:])))
+    print('positive: exit=0; exact 34 carriers; Reveal 53 sites/67 calls; RevealForOpen {}; all controls passed')
 
 
 if __name__ == '__main__':

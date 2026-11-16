@@ -136,7 +136,7 @@ go vet ./...
 go test -race -count=1 ./...
 go build ./...
 python3 -I session/tools/second_reader.py
-python3 -I session/tools/guard_controls.py .temp/reveal-controls "$CUSTODY_FIXTURE"
+python3 -I session/tools/guard_controls.py .temp/reveal-controls .tmp/reveal-fixture
 python3 -I session/tools/mutants.py .temp/session-mutants
 ```
 
@@ -149,12 +149,18 @@ requirement-derived expectations. Agreement alone is not the oracle. Both check
 that a refusal makes no partial debit or session/request-identity allocation.
 The Go tests also check input immutability and token custody.
 
-`guard_controls.py` copies the source into the caller-supplied, absent
-`CUSTODY_FIXTURE` path in task-owned scratch. Its `.temp/reveal-controls` logs pin
-14 carriers, 17 plain `Reveal` sites (23 calls) and no `RevealForOpen` calls,
-then require exact witnesses for planted `RevealForOpen`, new `RevealX` and
-plain `Reveal` production calls. The guard inventories `Reveal*` accessors;
-suffixed calls are conservatively checked regardless of receiver spelling.
+`guard_controls.py` takes output and absent fixture paths as positional argv;
+no environment fixture setting is used. From the module, the command above
+writes logs to `.temp/reveal-controls` and copies the tree to `.tmp/reveal-fixture`.
+Configure absolute task-owned HOME, caches and a short TMPDIR before running.
+The positive pins 34 tree-wide carriers, 53 `Reveal` sites / 67 calls and an
+empty `RevealForOpen` set. All 43 negative controls require exit 1 plus exact
+whole-inventory witnesses; positive and explicit-limit controls require exit 0.
+Secret-type discovery, aliases/containers/embedding, interface declarations,
+package initializers, method values, name rules and type erasure are covered.
+Optional trailing legacy guard source paths compare the preserved old rules;
+all 27 legacy controls use the guard from main `a6575851` (14 carriers, 53 sites / 67 calls).
+See the [complete inventory and limits](../../../docs/security/credential-output-n1b.md).
 
 The independent reader uses the standard library, requires isolated mode (`-I`),
 imports no implementation code and invokes no Go code. Its arithmetic uses arbitrary
