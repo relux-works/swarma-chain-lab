@@ -2,13 +2,13 @@ package service
 
 import (
 	"fmt"
-	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/diagnosticcheck"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	check "github.com/relux-works/swarma-chain-lab/experiments/notary-checker"
+	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/diagnosticcheck"
 )
 
 // Claim: the real Service cannot expose the credential through its unexported

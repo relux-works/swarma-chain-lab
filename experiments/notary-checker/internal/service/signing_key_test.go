@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -84,6 +85,19 @@ func serviceDiagnosticForms(t *testing.T) ([]diagnosticcheck.Form, []byte, []dia
 		t.Fatal("reader fixture")
 	}
 	s := &Service{key: holder, node: n}
+	// The same synthetic key and password through the real Load: every field
+	// Load populates (not only key and node) enters the battery.
+	dir := t.TempDir()
+	put(t, filepath.Join(dir, "key"), append([]byte(keyHeader), raw[:]...))
+	put(t, filepath.Join(dir, "credential"), []byte("synthetic-user:synthetic-diagnostic-password"))
+	put(t, filepath.Join(dir, "policy"), []byte(fixture(t).Policy))
+	c := Config{Listen: "127.0.0.1:0", KeyFile: filepath.Join(dir, "key"), RPCEndpoint: "http://127.0.0.1:1", RPCCredentialFile: filepath.Join(dir, "credential"), DeploymentPolicyFile: filepath.Join(dir, "policy"), Limits: Limits{RequestBytes: 65536, RequestsPerSecond: 100, Burst: 100, TimeoutMS: 1000, Concurrent: 2}}
+	put(t, filepath.Join(dir, "config"), encode(t, c))
+	loaded, err := Load(filepath.Join(dir, "config"))
+	if err != nil {
+		t.Fatal("loaded service fixture")
+	}
+	t.Cleanup(loaded.Close)
 	// Reflective value copies exercise fmt's value path without copying locks
 	// in ordinary Go assignments. The fixture never serves concurrent work.
 	value := reflect.ValueOf(s).Elem().Interface()
@@ -118,7 +132,7 @@ func serviceDiagnosticForms(t *testing.T) ([]diagnosticcheck.Form, []byte, []dia
 		{Name: "reflect/storage", Value: reflect.ValueOf(holder).Elem().Field(0)},
 		{Name: "holder/double-pointer", Value: &holder},
 		{Name: "array/service-value", Value: [1]any{value}},
-		{Name: "interface/service", Value: any(s)}, {Name: "interface/service-value", Value: any(value)},
+		{Name: "loaded/pointer", Value: loaded}, {Name: "loaded/value", Value: reflect.ValueOf(loaded).Elem().Interface()},
 	}
 	controls := []diagnosticcheck.Form{
 		{Name: "plain-key", Value: &struct{ key *btcec.PrivateKey }{key}},
@@ -128,7 +142,7 @@ func serviceDiagnosticForms(t *testing.T) ([]diagnosticcheck.Form, []byte, []dia
 	return forms, raw[:], controls
 }
 
-// Claim: the real Service, value copies, wrappers, interfaces, reflection,
+// Claim: a Load-built Service, value copies, wrappers, interfaces, reflection,
 // arrays and maps expose no key through the full 43-sink battery. Plain
 // *struct/inline keys and bytes calibrate the same detector and sinks.
 func TestSigningKeyServiceContainer(t *testing.T) {
@@ -136,12 +150,15 @@ func TestSigningKeyServiceContainer(t *testing.T) {
 	diagnosticcheck.Check(t, forms, controls, diagnosticcheck.NewDetector(raw, true))
 }
 
-// Claim: the same real Service forms also keep its RPC password contained.
+// Claim: the same Load-built Service forms also keep its RPC password contained.
 func TestRPCPasswordServiceDiagnostics(t *testing.T) {
 	forms, _, _ := serviceDiagnosticForms(t)
 	raw := []byte("synthetic-diagnostic-password")
 	controls := []diagnosticcheck.Form{{Name: "plain-password", Value: struct{ p *[]byte }{&raw}}}
 	diagnosticcheck.Check(t, forms, controls, diagnosticcheck.NewDetector(raw, false))
+	// The derived Basic-Auth credential is secret too.
+	basic := []byte(base64.StdEncoding.EncodeToString([]byte("synthetic-user:" + string(raw))))
+	diagnosticcheck.Check(t, forms, []diagnosticcheck.Form{{Name: "plain-basic", Value: struct{ h string }{string(basic)}}}, diagnosticcheck.NewDetector(basic, false))
 }
 
 // Claim: actual runtime panic printing is safe for every listed Service form.
@@ -228,4 +245,29 @@ func TestSigningKeyVectors(t *testing.T) {
 		t.Fatal("positive signature vector coverage changed")
 	}
 	t.Logf("byte-identical signature/public-key vectors=%d", count)
+}
+
+// Claim: per-element bad verbs and flag/width variants expose plain key
+// controls and are detected, while the same sinks contain the actual holder.
+func TestSigningKeyElementFormats(t *testing.T) {
+	raw := sha256.Sum256([]byte("synthetic-element-key"))
+	key, _ := btcec.PrivKeyFromBytes(raw[:])
+	t.Cleanup(key.Zero)
+	d := diagnosticcheck.NewDetector(raw[:], true)
+	plain := struct{ key btcec.PrivateKey }{*key}
+	safe := struct{ key signingKey }{*newSigningKey(key)}
+	for _, verb := range []string{"%s", "%t", "%e", "%w", "%z", "%U", "%O", "%+q", "%+p", "%10.3s", "%-30p"} {
+		t.Run(verb, func(t *testing.T) {
+			control := any(plain)
+			if verb == "%+q" {
+				control = &struct{ key *btcec.PrivateKey }{key}
+			}
+			if !d.Leaks(fmt.Sprintf(verb, control)) {
+				t.Fatal("plain scalar control was not detected")
+			}
+			if d.Leaks(fmt.Sprintf(verb, safe)) {
+				t.Fatal("holder exposes scalar element")
+			}
+		})
+	}
 }

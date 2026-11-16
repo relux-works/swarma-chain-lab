@@ -1,6 +1,88 @@
 # Service validation
 
-## N7 signing-key containment (2026-11-16)
+## N7 follow-up diagnostic battery (2026-11-16)
+
+This test-only follow-up starts at landed N7 `8a47f1a9`. Production Go,
+`go.mod` and `go.sum` are byte-identical to that base. The test helper remains
+absent from the service dependency graph. Toolchain: `go1.26.10`, with
+`GOTOOLCHAIN=local`, `GOWORK=off`, `GOENV=off` and `GOFLAGS=-modcacherw`.
+Tests run in a disposable module copy with absolute HOME, caches, config,
+GOPATH and short TMPDIR under one task-owned workbench scratch root.
+
+`TestSigningKeyServiceContainer` now includes a Load-built Service from
+synthetic key/password files. Its pointer and value replace the two duplicate
+interface forms: **36 forms × 43 sinks = 1548 pairs** is unchanged.
+`TestServiceStorageTypes` walks Service and NodeNameReader types, rejecting
+private scalar types outside signingKey and rpcPassword outside
+NodeNameReader.password. The walk follows declared container elements and
+function signatures; runtime interface payloads and closure captures are
+covered only by the finite live diagnostic battery.
+
+Both `TestRPCPasswordDiagnostics` and `TestRPCPasswordServiceDiagnostics`
+also run the detector on the derived `base64(user + ":" + password)` value.
+The scalar detector adds eight-byte windows and digit-bounded individual limb
+patterns. `TestDetectorScalarFormats`, `TestDetectorWindows` and
+`TestSigningKeyElementFormats` calibrate partial, per-element and flag/width
+renderings beside safe controls. Password passes retain whole-value needles:
+shared public fixture labels are not partial-secret evidence.
+`TestDiagnosticCalibrationControls` verifies that each calibration control
+leaks independently, rejecting silent controls in either order and no controls.
+
+| Probe | Adapted N6 base | N7 follow-up head |
+| --- | --- | --- |
+| Strengthened producer battery | **436/1548** key leaks | **0/1548** |
+| Independent review forms with the stronger detector | **421/1548** | **0/1548** |
+| Independent pairs missed by the old detector | **93/93 now detected** | **0** |
+| Password/reader and Service password, each raw and derived pass | not replayed on N6 | **0/1548 per pass** |
+
+The earlier **341** producer figure is a lower bound from the old detector.
+The 436 result uses the current producer forms, including the two Load-built
+slots, on the N6 tree with a type-alias adapter. That intentional diagnostic
+run exits **1**, with the named battery failing on leaks. The independent
+421 result uses the review's different 36-form set and its raw-Service adapter;
+its coverage test exits **0** after asserting all 93 earlier misses are caught.
+The two counts measure different form sets and are not interchangeable.
+
+Individual key calibration counts are **15 / 34 / 28** (plain pointer,
+inline key, bytes); reader-password counts are **37 / 14 / 13** (inline,
+aggregate pointer, byte pointer). Service-password control: **13**.
+Each derived-credential control: **37**. Every control is asserted separately.
+
+| Validation | Result |
+| --- | --- |
+| Module tests; vet; build; module verification; gofmt | exit 0; six test packages, 8499 passing tests/subtests, no skips |
+| `go test -race -count=1 -timeout 120s -json ./...` | exit 0; **one invocation**, same final test/helper source |
+| Checker / revision / service runners | **73/73 / 36/36 / 1/1** named kills |
+| Storage runner | **9/9** named kills; seven originals plus X1 and X2 |
+| Independent review X1–X5 replay | all five killed by named tests; comment-only control passes |
+| Two README release builds; `cmp` | exits 0 / 0 / 0; unchanged hash below |
+
+| Added mutant | Narrows gate to | Named failing tests | Result / surviving bound |
+| --- | --- | --- | --- |
+| X1-second-key-carrier | Load cannot populate an alternate private scalar | TestServiceStorageTypes; TestSigningKeyServiceContainer | KILLED, exit 1; no survivor |
+| X2-cached-authorization | Derived Basic Auth cannot be cached in reader diagnostics | TestRPCPasswordDiagnostics; TestRPCPasswordServiceDiagnostics | KILLED, exit 1; no survivor |
+
+The seven original storage rows remain in the historical table below, with
+unchanged named shape and diagnostic tests. No panic, build/setup failure,
+timeout or unapplied mutation counts as a kill. All prior test names remain.
+
+Both Linux/amd64 static builds are 8,020,094 bytes and retain the released
+v0.1.1 SHA-256:
+`9e63953c112b0cf0426a2db4ddc048faff053088d5cd1d447f1e6f598c91f7f5`.
+Flags: `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 GOWORK=off` and
+`go build -trimpath -buildvcs=false -ldflags='-s -w -buildid='`.
+
+The applicable diagnostic standard is
+[credential-output-n1b](../../docs/security/credential-output-n1b.md),
+especially live-state probes and encoded substring controls. No protocol,
+platform rule or production behavior changes. No formal surface table was
+supplied; this brief gap is declared. All requested F1–F4 rows are covered;
+no requested row is classified out of contract. Evidence and diagnostic-run
+failures are recorded in the separately delivered producer report. This
+follow-up performs no review, merge, tag, release or live-node qualification.
+
+
+## Historical N7 signing-key containment (2026-11-16)
 
 Current base: `22cdfd7c0ba132510c4d0baf8094714bb272c309`. The signing key is
 now behind one unexported `**btcec.PrivateKey` field in `signingKey`; the
@@ -12,7 +94,7 @@ algorithm, module dependency or production wire behavior changed.
 The candidate's 61 non-Markdown module inputs have sorted path/SHA-256
 manifest digest
 `09a6464f258a0fc3bb10b5aa6cf85771f1b9534947ba0917bc2b4e3208a297f0`.
-Go `/home/agent/sdk/go1.26.10/bin/go`, `GOTOOLCHAIN=local`, `GOWORK=off`,
+Toolchain `go1.26.10`, `GOTOOLCHAIN=local`, `GOWORK=off`,
 `GOENV=off`, `GOFLAGS=-modcacherw` and pinned cached modules were used.
 HOME, config, caches, GOPATH, fixture cwd and short TMPDIR all live inside
 the owned workbench `.tmp/n7`; TMPDIR is its absolute `t` subdirectory.
@@ -21,7 +103,7 @@ No real node, cookie, credential or private key was used.
 | Probe | Base leaks / pairs | N7 leaks / pairs |
 | --- | --- | --- |
 | Original Service key probe (constructor adapter only) | 21 / 92 | **0 / 92** |
-| Full Service/key/holder battery, 36 forms × 43 sinks | 341 / 1548 | **0 / 1548** |
+| Original full Service/key/holder battery, 36 forms × 43 sinks | 341 / 1548 (lower bound; strengthened replay: 436) | **0 / 1548** |
 | Full password/reader battery, 36 forms × 43 sinks | 0 / 1548 | **0 / 1548** |
 | Full Service password battery, 36 forms × 43 sinks | 0 / 1548 | **0 / 1548** |
 | Actual runtime panic output | not recaptured | **0 / 72** (36 password forms + 36 Service forms) |

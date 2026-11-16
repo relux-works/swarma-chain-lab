@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Calibrate holder-shape and diagnostic tests against unsafe storage.
 
-Each control must fail BOTH its named shape assertion and its named full
-diagnostic test. Panics, compilation errors, timeouts and non-applied edits
+Each control must fail BOTH its designated named assertions (shape and
+diagnostic tests for storage; both password batteries for cached Authorization).
+Panics, compilation errors, timeouts and non-applied edits
 are never kills. Only disposable module copies are changed.
 """
 import argparse
@@ -80,6 +81,29 @@ def service_storage(copy, inline):
     path.write_text(source.replace('s.key.privateKey().Key', 's.key.Key'))
 
 
+def additional_carrier(copy, name):
+    """Reproduce the two plausible Load/reader regressions from the review."""
+    if name == 'X1-second-key-carrier':
+        path = copy / 'internal/service/service.go'
+        source = path.read_text()
+        source = replacement(source, '"github.com/btcsuite/btcd/btcec/v2/schnorr"',
+                             '"github.com/btcsuite/btcd/btcec/v2"\n"github.com/btcsuite/btcd/btcec/v2/schnorr"')
+        source = replacement(source, 'key          *signingKey', 'key          *signingKey\n signer *btcec.PrivateKey')
+        source = replacement(source, 'key: newSigningKey(k),', 'key: newSigningKey(k), signer: k,')
+        path.write_text(source)
+    elif name == 'X2-cached-authorization':
+        path = copy / 'namesource.go'
+        path.write_text(replacement(path.read_text(), 'password       rpcPassword', 'password       rpcPassword\n auth string'))
+        path = copy / 'node.go'
+        source = replacement(path.read_text(), '"encoding/json"', '"encoding/base64"\n"encoding/json"')
+        source = replacement(source, 'password: newRPCPassword(password),',
+                             'password: newRPCPassword(password), auth: "Basic " + base64.StdEncoding.EncodeToString([]byte(string(user)+":"+string(password))),')
+        source = replacement(source, 'req.SetBasicAuth(n.user, n.password.Reveal())', 'req.Header.Set("Authorization", n.auth)')
+        path.write_text(source)
+    else:
+        raise RuntimeError('unknown additional carrier')
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--work-dir', type=Path, required=True)
@@ -87,6 +111,8 @@ def main():
     work.mkdir(parents=True, exist_ok=False)
     rows = []
     cases = [
+        ('X1-second-key-carrier', 'additional', './internal/service', 'TestServiceStorageTypes', 'TestSigningKeyServiceContainer', 'Load cannot populate a second private-scalar carrier'),
+        ('X2-cached-authorization', 'additional', '. ./internal/service', 'TestRPCPasswordDiagnostics', 'TestRPCPasswordServiceDiagnostics', 'derived Basic-Auth credential cannot be cached in reader diagnostics'),
         ('service-key-inline', None, './internal/service', 'TestSigningKeyStorage', 'TestSigningKeyServiceContainer', 'Service cannot store an inline private scalar'),
         ('service-key-struct-pointer', None, './internal/service', 'TestSigningKeyStorage', 'TestSigningKeyServiceContainer', 'exact base Service *PrivateKey exposure is detected'),
         ('signing-key-inline', 'internal/service/signing_key.go', './internal/service', 'TestSigningKeyStorage', 'TestSigningKeyServiceContainer', 'inline scalar never enters diagnostics'),
@@ -99,12 +125,14 @@ def main():
     for name, file, package, shape, diagnostic, bound in cases:
         copy = work / name
         shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns('.temp', '.tmp', '__pycache__'))
-        if file is None:
+        if file == 'additional':
+            additional_carrier(copy, name)
+        elif file is None:
             service_storage(copy, inline=name == 'service-key-inline')
         else:
             path = copy / file
             path.write_text(mutate(path.read_text(), name))
-        command = [env.get('GO', 'go'), 'test', '-count=1', '-timeout', '60s', '-run', '^(' + shape + '|' + diagnostic + ')$', package]
+        command = [env.get('GO', 'go'), 'test', '-count=1', '-timeout', '60s', '-run', '^(' + shape + '|' + diagnostic + ')$'] + package.split()
         with (work / (name + '.log')).open('wb') as log:
             proc = subprocess.Popen(command, cwd=copy, env=env, stdout=log, stderr=subprocess.STDOUT)
             (work / (name + '.pid')).write_text(str(proc.pid) + '\n')

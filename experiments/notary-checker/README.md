@@ -101,6 +101,7 @@ LIP-0010 extension rules; its authority span remains canonical.
 | Python stdlib reader | `python3 scripts/reference.py` | Independently verifies all signed-bundle and isolated row vectors, exact candidate bytes and digest; no Go calls |
 | Python fixture writer | `python3 scripts/make-fixtures.py` | Reproduces `testdata/vectors.json` and `testdata/positive/` using only public fixed test secrets; no randomness or real keys |
 | Python mutation controls | `python3 scripts/check-mutants.py --work-dir .temp/mutants-01` | Named-test table, individual logs and `mutation-results.md`; nonzero on any survivor, panic, timeout, non-applied mutation or compile failure |
+| Python storage controls | `python3 -B scripts/check-storage-mutants.py --work-dir .temp/storage-controls-01` | Nine controls; named-test failures, exact exits, logs, PIDs, `results.json` and `mutation-results.md`; no panic/build-only kills |
 | Python revision controls | `python3 -B scripts/check-revision-mutants.py --work-dir .temp/revision-mutants-01` | Service, custody and bounds controls plus private/operator FIFO and strict-default controls; per-control logs, PIDs and `results.json`; every kill requires its specific named test |
 | Bash, Python 3 stdlib, Git, OpenSSH, coreutils | `bash -n scripts/verify-release.sh`; `git verify-tag`; `ssh-keygen -Y verify`; `sha256sum`; `cmp` | Exact download-directory membership and `os.lstat` file types, local release authentication and checksum verdicts; exact combined command below |
 | Target operator tools | `install`, `stat`, `namei -l` as in [RELEASE.md](RELEASE.md#install-the-verified-executable) | Installed checksum, owner/mode and directory-chain checks on the target |
@@ -329,7 +330,11 @@ shutdown still use and clear the original key object.
 
 On the original 92-pair Service probe, key leaks fall from **21 to 0**.
 The full **36 forms × 43 sinks = 1548 pairs** report **0** key leaks,
-against **341** on the base. The password holder/reader battery and the
+against **436** on the N6 base with the same strengthened battery and a
+type-alias adapter. The earlier **341** figure was a lower bound from whole-value
+needles. The independent review forms report **421/1548** at base: all **93**
+pairs missed by the earlier detector are now detected, with **0** at head.
+The password holder/reader battery and the
 Service password battery each report **0/1548** leaks. The forms cover
 values, pointers, copies, zero/nil values, nested containers, arrays, maps,
 interfaces and `reflect.Value`; sinks include bad verbs, slog, JSON, XML,
@@ -338,11 +343,21 @@ for all **36 password forms and 36 Service forms**. Encoders' refusal errors
 and text/template's recovered unexported-reflection diagnostics are scanned.
 
 The detector checks raw/plaintext, lower/upper hex, decimal bytes and the
-key's eight uint32 limbs. Plain inline, `*struct` and `*[]byte` controls
-calibrate it. `TestSigningKeyStorage` and `TestRPCPasswordStorage` pin each
+contiguous limb array, eight-byte scalar windows (also hex/base64), and
+individual limbs with digit boundaries in decimal/hex/octal/binary, including
+per-element bad verbs and flag/width forms. Password tests run a second pass
+for `base64(user + ":" + password)`. Each plain inline, `*struct` and `*[]byte`
+control must independently calibrate the detector. `TestSigningKeyStorage`
+and `TestRPCPasswordStorage` pin each
 holder to its exact one-field pointer shape; formatting methods alone are
-insufficient. All **seven storage controls** are killed by both a named
-shape test and a named full diagnostic test, without panic-only kills.
+insufficient. A reflection type walk over `Service` and `NodeNameReader`
+rejects private-scalar
+types outside `signingKey` and `rpcPassword` outside `NodeNameReader.password`.
+The two former duplicate interface slots now exercise a Load-built Service
+from synthetic key/password files, keeping the count at 36. All **nine storage
+controls** are killed by their named tests: the seven original shape/battery
+pairs, a second key carrier populated by `Load`, and cached Basic Auth in both
+password batteries. Panic-only kills are rejected.
 Run `python3 -B scripts/check-storage-mutants.py --work-dir .temp/storage-controls`
 from this module with a fresh task-owned work directory; it records logs,
 PIDs, exact exits, `results.json` and `mutation-results.md` there.

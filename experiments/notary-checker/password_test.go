@@ -9,7 +9,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/diagnosticcheck"
 	"io"
 	"log/slog"
 	"net/http"
@@ -19,6 +18,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/diagnosticcheck"
 )
 
 // Claim: populated holder/reader values and pointers redact every listed fmt

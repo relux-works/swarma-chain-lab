@@ -1,6 +1,22 @@
 # Bounded validation evidence
 
-## N7 signing-key containment (2026-11-16)
+## N7 follow-up diagnostic battery (2026-11-16)
+
+The test-only follow-up to landed N7 preserves all production Go and the
+released binary hash. The strengthened producer battery detects 436/1548
+pairs on the adapted N6 base (341 was a lower bound), with zero at head.
+The independent review forms detect 421/1548 at base, covering all 93 formerly
+missed pairs, and zero at head. All prior test names remain; the module tests,
+vet and single race invocation pass on the final test/helper source.
+
+The checker/revision/service runners kill 73/36/1 controls; storage controls
+now kill 9/9, including a Load-populated second key and cached Basic Auth.
+See [Service validation](SERVICE-VALIDATION.md#n7-follow-up-diagnostic-battery-2026-11-16)
+for named tests, individual calibration counts, mutation bounds, exact build
+flags and the unchanged go1.26.10 build hash. The original N7 measurements
+below are historical.
+
+## Historical N7 signing-key containment (2026-11-16)
 
 Current base: `22cdfd7c0ba132510c4d0baf8094714bb272c309`. The signing key is
 now behind one unexported `**btcec.PrivateKey` field in `signingKey`; the
@@ -12,7 +28,7 @@ algorithm, module dependency or production wire behavior changed.
 The candidate's 61 non-Markdown module inputs have sorted path/SHA-256
 manifest digest
 `09a6464f258a0fc3bb10b5aa6cf85771f1b9534947ba0917bc2b4e3208a297f0`.
-Go `/home/agent/sdk/go1.26.10/bin/go`, `GOTOOLCHAIN=local`, `GOWORK=off`,
+Toolchain `go1.26.10`, `GOTOOLCHAIN=local`, `GOWORK=off`,
 `GOENV=off`, `GOFLAGS=-modcacherw` and pinned cached modules were used.
 HOME, config, caches, GOPATH, fixture cwd and short TMPDIR all live inside
 the owned workbench `.tmp/n7`; TMPDIR is its absolute `t` subdirectory.
@@ -21,7 +37,7 @@ No real node, cookie, credential or private key was used.
 | Probe | Base leaks / pairs | N7 leaks / pairs |
 | --- | --- | --- |
 | Original Service key probe (constructor adapter only) | 21 / 92 | **0 / 92** |
-| Full Service/key/holder battery, 36 forms × 43 sinks | 341 / 1548 | **0 / 1548** |
+| Original full Service/key/holder battery, 36 forms × 43 sinks | 341 / 1548 (lower bound; strengthened replay: 436) | **0 / 1548** |
 | Full password/reader battery, 36 forms × 43 sinks | 0 / 1548 | **0 / 1548** |
 | Full Service password battery, 36 forms × 43 sinks | 0 / 1548 | **0 / 1548** |
 | Actual runtime panic output | not recaptured | **0 / 72** (36 password forms + 36 Service forms) |
