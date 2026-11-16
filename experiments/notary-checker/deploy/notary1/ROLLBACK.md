@@ -19,8 +19,12 @@ On unknown ownership or a failed check, abort removal and escalate to Infra.
    against the receipt before unlinking
    `/etc/systemd/system/notary-service.service` and
    `/etc/systemd/system/namecoind-regtest.service`. Abort on unknown overrides
-   or a hash mismatch. Run `systemctl daemon-reload`; check both fragments and
-   enablement links are absent and `systemctl cat` finds no substitute unit.
+   or a hash mismatch. If commissioning reached the wallet-enabled phase,
+   compare `/etc/systemd/system/namecoind-regtest.service.d/commissioning.conf`
+   with its receipt/pack hash and unlink **only that matched file**; abort on
+   unknown overrides. This also applies to failure before the positive smoke.
+   Run `systemctl daemon-reload`; check both fragments, the commissioning
+   override and enablement links are absent and `systemctl cat` finds no substitute unit.
    Do not remove files in shared systemd directories by wildcard.
 
 3. **Choose retained state explicitly (default: KEEP).** Record `KEEP` in the
@@ -28,7 +32,12 @@ On unknown ownership or a failed check, abort removal and escalate to Infra.
    `/var/lib/notary-service`, the private key, config, verified binaries and
    locked accounts. Check their owners/modes against accounts.md and record
    that services remain stopped/disabled. Keeping the files is a successful
-   rollback of execution, not a key erasure claim.
+   rollback of execution, not a key erasure claim. Keep the private-regtest
+   wallet and chain/name history, protected smoke artifacts, one-shot marker
+   and both recorded outcomes. If the absent-binding control failed before
+   restoration, record binding state as UNKNOWN (or the privately verified
+   state); do not restart a wallet/node merely to change it during rollback.
+   Never export the receipt, chain values or signed responses as evidence.
 
 4. **Optional wipe requires the owner's explicit word and exact scope.**
    Record the decision reference and exact approved paths in the receipt
@@ -40,6 +49,9 @@ On unknown ownership or a failed check, abort removal and escalate to Infra.
    no mount/bind-mount/shared data underneath the selected state. If the
    owner selects node-only wipe, remove only `/var/lib/namecoind-regtest`
    after those checks and verify absence; preserve the entire service state.
+   Node-only wipe includes its generated throwaway wallet/control keys and
+   private name history, so the decision must explicitly cover that loss.
+   Do not transfer the binding or publish any name/key as a rollback step.
    For an expressly authorized key wipe, unlink exactly the key path and
    verify absence without reading it. Do not claim physical secure erasure:
    VM snapshots, filesystem journals, storage and backups require the owner's

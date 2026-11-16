@@ -13,8 +13,8 @@ User=namecoin-node
 Group=namecoin-cookie
 # Keep default relative node operations inside its sole persistent state directory.
 WorkingDirectory=/var/lib/namecoind-regtest
-# Use the Infra-pinned binary, fixed regtest network, no wallet or peers, and explicit loopback RPC.
-ExecStart=/opt/namecoin/28.0/bin/namecoind -conf=/etc/namecoin/notary1-regtest.conf -datadir=/var/lib/namecoind-regtest -nosettings -regtest=1 -server=1 -daemon=0 -disablewallet=1 -listen=0 -connect=0 -dnsseed=0 -fixedseeds=0 -discover=0 -upnp=0 -natpmp=0 -onion=0 -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -rpcport=18443 -rpccookiefile=/run/namecoind-regtest/.cookie -rpccookieperms=group -namehistory=1 -txindex=1
+# Use the pinned binary, regtest only, no wallet/peers, loopback RPC, and no name-value logs.
+ExecStart=/opt/namecoin/28.0/bin/namecoind -conf=/etc/namecoin/notary1-regtest.conf -datadir=/var/lib/namecoind-regtest -nosettings -regtest=1 -server=1 -daemon=0 -disablewallet=1 -listen=0 -connect=0 -dnsseed=0 -fixedseeds=0 -discover=0 -upnp=0 -natpmp=0 -onion=0 -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -rpcport=18443 -rpccookiefile=/run/namecoind-regtest/.cookie -rpccookieperms=group -namehistory=1 -txindex=1 -nodebuglogfile -printtoconsole=0
 # Delay successful unit startup until authenticated loopback RPC answers, without printing the cookie.
 ExecStartPost=/opt/namecoin/28.0/bin/namecoin-cli -conf=/etc/namecoin/notary1-regtest.conf -datadir=/var/lib/namecoind-regtest -regtest=1 -rpcconnect=127.0.0.1 -rpcport=18443 -rpccookiefile=/run/namecoind-regtest/.cookie -rpcwait -rpcwaittimeout=60 getblockchaininfo
 # Bound readiness failure; do not start the dependent notary on a failed node start.
