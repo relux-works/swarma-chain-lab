@@ -190,13 +190,43 @@ func nameRecord(v any, at map[string]any) error {
 	}
 	return nil
 }
-func sealRecord(v any) error {
-	m, e := fields(v, "state", "txid", "vout")
+func sealRecord(v any, at map[string]any) error {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return bad("seal object")
+	}
+	keys := []string{"confirmations", "script_pubkey", "state", "txid", "vout"}
+	if m["state"] == "not_in_utxo_set" {
+		keys = []string{"state", "txid", "vout"}
+	}
+	m, e := fields(v, keys...)
 	if e != nil {
 		return e
 	}
-	if !outpoint(m) || (m["state"] != "unspent" && m["state"] != "not_in_utxo_set") {
-		return bad("seal record")
+	if !outpoint(m) {
+		return bad("seal outpoint")
+	}
+	switch m["state"] {
+	case "not_in_utxo_set":
+		return nil
+	case "unspent", "spend_pending", "unconfirmed":
+	default:
+		return bad("seal state")
+	}
+	if !integer(m["confirmations"], maxInteger) {
+		return bad("confirmations")
+	}
+	n := uintValue(m["confirmations"])
+	if m["state"] == "unconfirmed" {
+		if n != 0 {
+			return bad("unconfirmed confirmations")
+		}
+	} else if n < 1 || n > uintValue(at["height"])+1 {
+		return bad("confirmed confirmations")
+	}
+	script, ok := m["script_pubkey"].(string)
+	if !ok || len(script) > 20000 || len(script)%2 != 0 || strings.IndexFunc(script, func(r rune) bool { return !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f') }) >= 0 {
+		return bad("script hex")
 	}
 	return nil
 }
@@ -263,7 +293,7 @@ func response(m map[string]any) error {
 	case "name_show":
 		e = nameRecord(m["result"], at)
 	case "gettxout":
-		e = sealRecord(m["result"])
+		e = sealRecord(m["result"], at)
 	default:
 		e = bad("closed method set")
 	}
@@ -302,7 +332,7 @@ func snapshot(m map[string]any) error {
 	}
 	var previous map[string]any
 	for _, s := range ss {
-		if e = sealRecord(s); e != nil {
+		if e = sealRecord(s, at); e != nil {
 			return e
 		}
 		cur := s.(map[string]any)
@@ -334,6 +364,8 @@ func validate(kind string, raw []byte) error {
 	case "response":
 	case "snapshot":
 		limit = 65536
+	case "lexical", "integer_n", "integer_o":
+		limit = 1024
 	default:
 		return bad("unknown fixture kind")
 	}
@@ -342,6 +374,21 @@ func validate(kind string, raw []byte) error {
 		return e
 	}
 	switch kind {
+	case "lexical":
+		return nil
+	case "integer_n", "integer_o":
+		m, e = fields(m, "n")
+		if e != nil {
+			return e
+		}
+		max := maxInteger
+		if kind == "integer_o" {
+			max = 4294967295
+		}
+		if !integer(m["n"], max) {
+			return bad("integer")
+		}
+		return nil
 	case "request":
 		return request(m)
 	case "response":

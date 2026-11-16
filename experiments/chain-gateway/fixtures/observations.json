@@ -286,7 +286,9 @@
         "result": {
           "state": "unspent",
           "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
         },
         "tip": {
           "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -308,7 +310,19 @@
         "v": 1
       }
     ],
-    "accepted": true
+    "accepted": true,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "same_height_reorg",
@@ -380,7 +394,9 @@
         "result": {
           "state": "unspent",
           "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
         },
         "tip": {
           "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -402,7 +418,19 @@
         "v": 1
       }
     ],
-    "accepted": false
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "height_advance",
@@ -474,7 +502,9 @@
         "result": {
           "state": "unspent",
           "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
         },
         "tip": {
           "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -496,7 +526,19 @@
         "v": 1
       }
     ],
-    "accepted": false
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "mixed_network",
@@ -568,7 +610,9 @@
         "result": {
           "state": "unspent",
           "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
         },
         "tip": {
           "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -590,7 +634,19 @@
         "v": 1
       }
     ],
-    "accepted": false
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "refusal_discards_all",
@@ -675,7 +731,19 @@
         "v": 1
       }
     ],
-    "accepted": false
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "wrong_name",
@@ -747,7 +815,9 @@
         "result": {
           "state": "unspent",
           "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
         },
         "tip": {
           "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -769,7 +839,19 @@
         "v": 1
       }
     ],
-    "accepted": false
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "wrong_outpoint",
@@ -841,7 +923,9 @@
         "result": {
           "state": "unspent",
           "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 3
+          "vout": 3,
+          "confirmations": 1,
+          "script_pubkey": "51"
         },
         "tip": {
           "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -863,7 +947,19 @@
         "v": 1
       }
     ],
-    "accepted": false
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "wrong_method",
@@ -953,7 +1049,19 @@
         "v": 1
       }
     ],
-    "accepted": false
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "absent_seal_no_admission",
@@ -1047,12 +1155,24 @@
         "v": 1
       }
     ],
-    "accepted": false
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "fresh",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000060,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1060,12 +1180,24 @@
       "time": 1699999990
     },
     "clock": true,
-    "label": "fresh"
+    "label": "fresh",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "stale_age",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000061,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1073,12 +1205,24 @@
       "time": 1699999990
     },
     "clock": true,
-    "label": "stale"
+    "label": "stale",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "future_time",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1699999999,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1086,21 +1230,45 @@
       "time": 1699999990
     },
     "clock": true,
-    "label": "invalid"
+    "label": "invalid",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "unknown_tip",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000001,
     "known_tip": null,
     "clock": true,
-    "label": "unknown"
+    "label": "unknown",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "unknown_clock",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000001,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1108,12 +1276,24 @@
       "time": 1699999990
     },
     "clock": false,
-    "label": "unknown"
+    "label": "unknown",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "reorg",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000001,
     "known_tip": {
       "hash": "2222222222222222222222222222222222222222222222222222222222222222",
@@ -1121,12 +1301,24 @@
       "time": 1699999990
     },
     "clock": true,
-    "label": "stale"
+    "label": "stale",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "behind",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000001,
     "known_tip": {
       "hash": "2222222222222222222222222222222222222222222222222222222222222222",
@@ -1134,12 +1326,24 @@
       "time": 1699999990
     },
     "clock": true,
-    "label": "stale"
+    "label": "stale",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "ahead",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000001,
     "known_tip": {
       "hash": "2222222222222222222222222222222222222222222222222222222222222222",
@@ -1147,12 +1351,24 @@
       "time": 1699999990
     },
     "clock": true,
-    "label": "stale"
+    "label": "stale",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "consumer_default_tip_lag_7200",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699992860},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699992860},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000060,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1160,12 +1376,24 @@
       "time": 1699992860
     },
     "clock": true,
-    "label": "fresh"
+    "label": "fresh",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "consumer_default_tip_lag_7201",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699992859},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699992859},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000060,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1173,7 +1401,19 @@
       "time": 1699992859
     },
     "clock": true,
-    "label": "stale"
+    "label": "stale",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "mismatching_tip_time",
@@ -1245,7 +1485,9 @@
         "result": {
           "state": "unspent",
           "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 2
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
         },
         "tip": {
           "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1267,7 +1509,19 @@
         "v": 1
       }
     ],
-    "accepted": false
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "bracket_equal",
@@ -1420,7 +1674,7 @@
   {
     "name": "label_consistency_witnessed",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"witnessed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"witnessed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "clock": true,
     "now": 1700000001,
     "known_tip": {
@@ -1428,12 +1682,24 @@
       "height": 100,
       "time": 1699999990
     },
-    "label": "invalid"
+    "label": "invalid",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "label_consistency_other",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"other\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"other\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "clock": true,
     "now": 1700000001,
     "known_tip": {
@@ -1441,12 +1707,24 @@
       "height": 100,
       "time": 1699999990
     },
-    "label": "invalid"
+    "label": "invalid",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
   },
   {
     "name": "label_consistency_None",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "clock": true,
     "now": 1700000001,
     "known_tip": {
@@ -1454,6 +1732,4579 @@
       "height": 100,
       "time": 1699999990
     },
-    "label": "invalid"
+    "label": "invalid",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "middle_tip_differs",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "expired_name_not_live",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": true,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "no_name_or_seal_reads",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1700000000
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "configured_network_mismatch",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "main",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "configured_name_mismatch",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/other"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "configured_seal_mismatch",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 3
+        }
+      ]
+    }
+  },
+  {
+    "name": "middle_seal_tip_differs",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
+        },
+        "tip": {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "unconfirmed_seal_no_admission",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2,
+          "confirmations": 0,
+          "script_pubkey": "51"
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "pending_seal_no_admission",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2,
+          "confirmations": 1,
+          "script_pubkey": "51"
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "not_found_not_utxo_absence",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "error": {
+          "code": "not_found"
+        },
+        "ok": false,
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "logical_round_2",
+    "kind": "rounds",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "rounds": [
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      },
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "name": "logical_round_3",
+    "kind": "rounds",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "rounds": [
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      },
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      },
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "name": "logical_round_4",
+    "kind": "rounds",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "rounds": [
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      },
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      },
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      },
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "accepted": false
+  },
+  {
+    "name": "logical_three_rounds_exhausted",
+    "kind": "rounds",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "rounds": [
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      },
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      },
+      {
+        "requests": [
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "params": {
+              "name": "id/example"
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "params": {
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "params": {},
+            "v": 1
+          }
+        ],
+        "responses": [
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "gettxout",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "state": "unspent",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "vout": 2,
+              "confirmations": 1,
+              "script_pubkey": "51"
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          },
+          {
+            "method": "getblockcount",
+            "network": "regtest",
+            "ok": true,
+            "result": {},
+            "tip": {
+              "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "accepted": false
+  },
+  {
+    "name": "label_foreign_network",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "clock": true,
+    "label": "invalid",
+    "config": {
+      "network": "main",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "label_foreign_owner",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "clock": true,
+    "label": "invalid",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/other"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "label_missing_seal",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "clock": true,
+    "label": "invalid",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": []
+    }
+  },
+  {
+    "name": "label_extra_seal",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "clock": true,
+    "label": "invalid",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 3
+        }
+      ]
+    }
+  },
+  {
+    "name": "label_binding_before_unknown_clock",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "clock": false,
+    "label": "invalid",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/other"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "label_unknown_clock_future",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "now": 1699999999,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "clock": false,
+    "label": "unknown",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "label_stale_without_tip",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000061,
+    "known_tip": null,
+    "clock": true,
+    "label": "stale",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "label_invalid_schema_before_clock",
+    "kind": "label",
+    "snapshot": "{}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "clock": false,
+    "label": "invalid",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "seal_unspent_to_unspent",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "seal_unspent_to_unconfirmed",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "seal_unspent_to_spend_pending",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "seal_unspent_to_not_in_utxo_set",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": false,
+        "closed": true,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "seal_unspent_to_unavailable",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "seal_unconfirmed_to_unspent",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "seal_unconfirmed_to_unconfirmed",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_unconfirmed_to_spend_pending",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_unconfirmed_to_not_in_utxo_set",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_unconfirmed_to_unavailable",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_spend_pending_to_unspent",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "seal_spend_pending_to_unconfirmed",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_spend_pending_to_spend_pending",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_spend_pending_to_not_in_utxo_set",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_spend_pending_to_unavailable",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_not_in_utxo_set_to_unspent",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "seal_not_in_utxo_set_to_unconfirmed",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_not_in_utxo_set_to_spend_pending",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_not_in_utxo_set_to_not_in_utxo_set",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_not_in_utxo_set_to_unavailable",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_unavailable_to_unspent",
+    "kind": "seal_history",
+    "history": [
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "seal_unavailable_to_unconfirmed",
+    "kind": "seal_history",
+    "history": [
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_unavailable_to_spend_pending",
+    "kind": "seal_history",
+    "history": [
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_unavailable_to_not_in_utxo_set",
+    "kind": "seal_history",
+    "history": [
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "seal_unavailable_to_unavailable",
+    "kind": "seal_history",
+    "history": [
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      },
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      }
+    ]
+  },
+  {
+    "name": "pending_evicted_then_live",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "unconfirmed_evicted_never_closes",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 0,
+          "script_pubkey": "51",
+          "state": "unconfirmed",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": false
+      },
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "pending_confirms_then_absent_closes",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": false,
+        "closed": true,
+        "seen_unspent": true
+      },
+      {
+        "admit": false,
+        "closed": true,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "pending_error_never_closes",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "spend_pending",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": false,
+        "closed": false,
+        "seen_unspent": true
+      },
+      {
+        "admit": true,
+        "closed": false,
+        "seen_unspent": true
+      }
+    ]
+  },
+  {
+    "name": "views_confirmed_live",
+    "kind": "utxo_views",
+    "confirmed": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "mempool": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "method": "gettxout",
+      "network": "regtest",
+      "ok": true,
+      "result": {
+        "confirmations": 1,
+        "script_pubkey": "51",
+        "state": "unspent",
+        "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "vout": 2
+      },
+      "tip": {
+        "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "height": 100,
+        "time": 1699999990
+      },
+      "v": 1
+    }
+  },
+  {
+    "name": "views_mempool_created",
+    "kind": "utxo_views",
+    "confirmed": null,
+    "mempool": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 0,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "method": "gettxout",
+      "network": "regtest",
+      "ok": true,
+      "result": {
+        "confirmations": 0,
+        "script_pubkey": "51",
+        "state": "unconfirmed",
+        "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "vout": 2
+      },
+      "tip": {
+        "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "height": 100,
+        "time": 1699999990
+      },
+      "v": 1
+    }
+  },
+  {
+    "name": "views_confirmed_pending",
+    "kind": "utxo_views",
+    "confirmed": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "mempool": null,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "method": "gettxout",
+      "network": "regtest",
+      "ok": true,
+      "result": {
+        "confirmations": 1,
+        "script_pubkey": "51",
+        "state": "spend_pending",
+        "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "vout": 2
+      },
+      "tip": {
+        "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "height": 100,
+        "time": 1699999990
+      },
+      "v": 1
+    }
+  },
+  {
+    "name": "views_confirmed_absent",
+    "kind": "utxo_views",
+    "confirmed": null,
+    "mempool": null,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "method": "gettxout",
+      "network": "regtest",
+      "ok": true,
+      "result": {
+        "state": "not_in_utxo_set",
+        "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "vout": 2
+      },
+      "tip": {
+        "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "height": 100,
+        "time": 1699999990
+      },
+      "v": 1
+    }
+  },
+  {
+    "name": "views_confirmed_missing_from_C",
+    "kind": "utxo_views",
+    "confirmed": null,
+    "mempool": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "error": {
+        "code": "unavailable"
+      },
+      "ok": false,
+      "v": 1
+    }
+  },
+  {
+    "name": "views_zero_in_C",
+    "kind": "utxo_views",
+    "confirmed": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 0,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "mempool": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 0,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "error": {
+        "code": "unavailable"
+      },
+      "ok": false,
+      "v": 1
+    }
+  },
+  {
+    "name": "views_wrong_bestblock",
+    "kind": "utxo_views",
+    "confirmed": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "mempool": {
+      "bestblock": "2222222222222222222222222222222222222222222222222222222222222222",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "error": {
+        "code": "unavailable"
+      },
+      "ok": false,
+      "v": 1
+    }
+  },
+  {
+    "name": "views_script_disagrees",
+    "kind": "utxo_views",
+    "confirmed": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "mempool": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "52"
+      }
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "error": {
+        "code": "unavailable"
+      },
+      "ok": false,
+      "v": 1
+    }
+  },
+  {
+    "name": "views_confirmations_disagree",
+    "kind": "utxo_views",
+    "confirmed": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "mempool": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 2,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "error": {
+        "code": "unavailable"
+      },
+      "ok": false,
+      "v": 1
+    }
+  },
+  {
+    "name": "views_missing_script",
+    "kind": "utxo_views",
+    "confirmed": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1
+    },
+    "mempool": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "error": {
+        "code": "unavailable"
+      },
+      "ok": false,
+      "v": 1
+    }
+  },
+  {
+    "name": "views_invalid_script",
+    "kind": "utxo_views",
+    "confirmed": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "A0"
+      }
+    },
+    "mempool": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "A0"
+      }
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "error": {
+        "code": "unavailable"
+      },
+      "ok": false,
+      "v": 1
+    }
+  },
+  {
+    "name": "views_impossible_confirmations",
+    "kind": "utxo_views",
+    "confirmed": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 102,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "mempool": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 102,
+      "scriptPubKey": {
+        "hex": "51"
+      }
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "error": {
+        "code": "unavailable"
+      },
+      "ok": false,
+      "v": 1
+    }
+  },
+  {
+    "name": "views_ignore_unrelated_script_fields",
+    "kind": "utxo_views",
+    "confirmed": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "51",
+        "asm": "public asm"
+      }
+    },
+    "mempool": {
+      "bestblock": "1111111111111111111111111111111111111111111111111111111111111111",
+      "confirmations": 1,
+      "scriptPubKey": {
+        "hex": "51",
+        "desc": "public descriptor"
+      }
+    },
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "expected": {
+      "method": "gettxout",
+      "network": "regtest",
+      "ok": true,
+      "result": {
+        "confirmations": 1,
+        "script_pubkey": "51",
+        "state": "unspent",
+        "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "vout": 2
+      },
+      "tip": {
+        "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "height": 100,
+        "time": 1699999990
+      },
+      "v": 1
+    }
   }
 ]

@@ -4,14 +4,20 @@ CHAINGW-C1 / G1 T4.6. This is a contract-first candidate for acceptance by the
 consumer maintainer (Source), not an implemented service or activation approval.
 MUST, MUST NOT and SHOULD are normative. Version 1 is frozen only after consumer
 acceptance of an exact Git head. Both implementations MUST pin that head and the
-same fixtures. The gateway belongs in chain-lab; the live and snapshot adapters
+same fixtures. This freezes the interface, not its feasibility: “enforcement-ready”
+requires Q3 qualification of coherent `name_show` and negative `gettxout`, plus
+Q10's CGW-J1 journal. Until qualified, (a) returns `unavailable` for any read
+whose guarantee it cannot establish. The gateway belongs in chain-lab; the live
+and snapshot adapters
 belong in a2a-swarm behind D29's ChainView interface.
 
 ## 1. Authority, sources and decision register
 
 The supplied lead ruling authorizes (b), a root helper refreshing a pin at every
 block, for OBSERVE ONLY, then (a), a secret-free read-only chain gateway after
-contract acceptance. Device-list enforcement MUST use (a). Enforcing over (b)
+contract acceptance. Device-list enforcement requires BOTH (a) per-command reads
+and the separately admitted CGW-J1 watcher journal (§4); (a) alone is
+insufficient. Enforcing over (b)
 requires a separate owner decision. No passing fixture enables enforcement.
 
 Pinned spec: [swarma-link-spec v0.1.51, bd3bc80e](https://github.com/relux-works/swarma-link-spec/tree/bd3bc80e5543d8a563343ec05abd1a5f3f67284c).
@@ -29,7 +35,8 @@ Those follow-ups are listed in OPEN.md and are not silently declared accepted.
 | New chain-read service class, no forwarding of arbitrary RPC | new | Book ch. 11, “Шлюз учётных данных и адаптеры сервисов” requires separate owner admission and qualification for another service class. The supplied ruling authorizes this contract, not an install. Book PR remains required. |
 | Exact name-value bytes, confirmed name operation, 520-byte value | same | [LIP-0010 §§1–2, 8, 11 SH3](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/lips/LIP-0010-name-value.md); [LIP-0029 §§3.2–3.3, 11 steps 4–5](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/lips/LIP-0029-owner-control.md). Gateway transports octets; consumer interprets the pin and hashes the list. |
 | Node network/genesis pinned; no initial block download | same | [protocol/names.md §1.1](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/protocol/names.md). This wrapper does not replace consumer name or application verification. |
-| Mempool-inclusive seal observation and durable consumer refusal | same | LIP-0029 §8 O8.3–O8.5, O8.9 and §11 step 8. A later unspent answer never clears an existing closure. |
+| Mempool-inclusive seal observation and durable consumer refusal | refines | LIP-0029 §8 O8.3–O8.5, O8.9 and §11 step 8; Source's binding F5 decision: confirmed AND not mempool-spent, with separate transient states (§3). A later unspent answer never clears an existing closure. The additional confirmation requirement and confirmed-set absence rule need Q8's spec clarification. |
+| Seal script transport, no invented script policy | refines | LIP-0029 §3.1 field 6 binds only the outpoint; §8.3 O8.8 binds fresh-key custody, but its following paragraph explicitly leaves the script open. Return `script_pubkey` bytes; no script validation is claimed for this pinned revision. Q8 must define the expected script or an accepted list-record extension before claiming a script check. |
 | UTXO absence is not proof of a spending transaction | refines | LIP-0029 §8.3 names `gettxout`; it cannot distinguish spent from never-created. This contract exposes `not_in_utxo_set` and prohibits inventing spend evidence. Consumer mapping accepted in answers r1 below; policy-owner spec clarification remains Q8. |
 | Compare observations at a named chain state | same | Book ch. 26, [“Лёгкое чтение и проверяемый индекс”](https://github.com/relux-works/swarma-docs/blob/b57a9be633c245373b448c3786bcbd49d636fe8a/book/ru/26-cepochka.md#лёгкое-чтение-и-проверяемый-индекс): compare the same height and rules. This trusted full-node projection supplies no light-client proof or consensus qualification. |
 | Coherent tip binding, cross-call comparison and bounded retries | refines | LIP-0029 §11 steps 4 and 8; [LIP-0008 §5.1](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/lips/LIP-0008-grant-v4.md) distinguishes inconsistent observations from proven closure. CG1 makes the read guarantee explicit. |
@@ -54,7 +61,17 @@ selected in root-owned host configuration. No discovery, environment fallback,
 TCP listener, HTTP, user-provided URL, node selection or redirects exist.
 The server MUST authenticate `SO_PEERCRED` UID against the explicit allow-list
 before parsing input or contacting the node. No client-supplied identity counts.
-UID 0 is allowed only when explicitly listed for a root helper. Unsupported or
+UID 0 is allowed only when explicitly listed for a root helper. Gateway and
+clients MUST run in the initial user namespace; `PrivateUsers=` or translated
+UIDs are unsupported. Agent allow-lists MUST reject 0, 65534, 65535 and
+4294967295; the separately configured root-helper exception is the only use of 0.
+The daemon MUST bind/listen itself: inherited listeners and socket activation
+are prohibited. `SO_PEERCRED` records connect-time identity, so an authorized
+process can delegate a connected fd; this is accepted for public reads only and
+must be reassessed for any future non-public method. On restart the service
+manager removes only its own stopped service's socket and recreates its private
+runtime directory after confirming no live listener; unknown sockets fail
+closed. Unsupported or
 unreadable peer credentials fail closed. Clients MUST validate every socket-path
 component, socket type/owner, and connected server UID against host configuration.
 A pre-existing socket MUST NOT be unlinked to seize an unknown listener.
@@ -63,26 +80,89 @@ Install model (requirements only): binary and configuration root-owned, not
 agent-writable; gateway process runs as the dedicated unprivileged `chain-gateway`
 user, with no login shell, a private primary service group, and membership
 only in the dedicated socket-reader group in addition to that private group.
-The root-owned credential file is regular, mode 0640, group readable only
-by that exclusive service group; protected root-owned parent directories are
-0750. No symlinks, agent ACLs, agent group membership, environment or argv secret
-is allowed. Root provisions a cookie or a client username/password for a node
-configured with rpcauth; the rpcauth verifier string itself is NOT an RPC client
-credential. Cookie rotation reopens and revalidates the same host-configured
-file. No credential-management RPC exists.
+Gateway (a) MUST use a dedicated verifier-only rpcauth client user/password,
+never a cookie, including on the same host. The root-owned credential file is
+regular, mode 0640, group readable only by that exclusive service group;
+protected root-owned parent directories are 0750. No symlinks, agent ACLs,
+agent group membership, environment or argv secret is allowed. The rpcauth
+verifier string is NOT an RPC client credential. Rotation reopens and
+revalidates the same protected file; there is no credential-management RPC.
+This adopts the G2 node precedent (`deploy/g2_pay.go`, `rpcwhitelist`) and the
+owner's ivmbp verifier-user rule: ivmbp uses a verifier user, never a cookie.
 
-Only the gateway service reads that file for path (a); neither clients nor
-adapters can read it. Logs, errors, metrics, crashes and wire responses MUST NOT
-contain its value, encodings, HTTP auth headers, upstream error bodies or dumps.
-There is no debug passthrough. Responses are constructed from the closed schema.
-An upstream reflection of the credential in a projected string MUST cause
-`unavailable`, no data and no reflected diagnostics, before bytes reach clients.
-The gateway's egress is restricted to the configured local node. Its upstream
-adapter accepts a typed enum only, with fixed read operations; it has no generic
-method dispatcher, wallet API, signing/broadcast code, shell or plugin interface.
-Ancillary tip reads are internal fixed read operations, never caller-selected.
-Read-only capability must be qualified separately from a node credential that
-might itself authorize writes.
+Helper (b) normally has its own dedicated rpcauth verifier user, with the same
+closed read set. ONLY an explicitly selected same-host Linux root helper may
+instead read the node-generated cookie. It opens the live node-owned regular
+0600, single-link cookie afresh each run with descriptor-relative no-follow
+traversal, pinned node UID, and protected ancestry; no agent, reader group or
+gateway gets access. Core owns creation/rotation at restart. No stale root copy,
+copying daemon or fallback from a failed verifier credential is implied. If an
+installation chooses Infra's copied-cookie option, a separately admitted root
+installer must validate that live source, atomically replace a root-owned 0600
+copy on every node restart BEFORE enabling the helper, and invalidate the copy
+on failure; cookie-generation/copy qualification remains Q7. The cookie can
+have broader RPC authority: this exception is install-only, root-helper-only,
+not a least-privilege credential and never an option on ivmbp.
+
+Only the gateway service reads (a)'s file; neither clients nor adapters can
+read it. Both processes MUST set `PR_SET_DUMPABLE=0` and `RLIMIT_CORE=0` before
+loading credentials; inability to do so fails closed. Logs, errors, metrics,
+crashes and wire responses MUST NOT contain credentials, encodings, HTTP auth
+headers, upstream error bodies or dumps. There is no debug passthrough.
+Reflection checking compares exact bytes of the complete raw client credential
+(`user:password` or cookie), its RFC 4648 Basic-auth base64 and complete
+`Basic <base64>` header against projected strings and decoded name-value
+octets, before constructing output. A complete occurrence refuses `unavailable`
+with no data/diagnostics. Matching fragments, usernames or short substrings of
+the password is not the reflection rule. This bounded check does not claim to
+detect arbitrary encodings or fragmented application-level exfiltration.
+
+**Authenticate the upstream before credentials.** Root configuration pins the
+local numeric loopback endpoint AND node service UID. On EVERY TCP connection,
+before writing any HTTP/request/Authorization byte, gateway and direct-RPC
+helper MUST obtain kernel socket ownership and require the listening socket's
+owner UID to equal that configured node UID. On Linux use `NETLINK_SOCK_DIAG`,
+`SOCK_DIAG_BY_FAMILY` / `inet_diag_req_v2`, and `inet_diag_msg.idiag_uid`
+([sock_diag(7)](https://www.man7.org/linux/man-pages/man7/sock_diag.7.html)).
+Query the exact endpoint in the same network/initial user namespace and also
+verify the server-side connected TCP socket by the reverse connected tuple
+(and socket cookie when available). A port-only pre-connect lookup is
+insufficient: listener replacement must not authenticate an already connected
+impostor. Missing, ambiguous, stale, denied or unsupported kernel evidence,
+UID mismatch, mixed-owner reuse-port listeners or namespace mismatch MUST
+close without sending a credential and return `unavailable` (helper exits 11,
+old file untouched). No DNS, proxy, redirect or remote-node fallback is allowed.
+Network/genesis RPC is performed only AFTER this authentication and is not an
+authenticator. Pinned-UID ownership is not binary attestation; the node account
+and root remain trusted. Q6 qualification pairs the genuine node control with
+an impostor UID listener that receives zero Authorization bytes.
+
+The closed upstream read set for BOTH gateway and direct-RPC helper is EXACTLY:
+
+```
+getblockchaininfo getblockhash getblockheader name_show gettxout
+```
+
+`getblockchaininfo` supplies network/IBD and tip hash/height; `getblockheader`
+supplies bound header time; `getblockhash` binds genesis and name-operation
+height. `name_show` and the two fixed `gettxout` views supply records. No
+`getchaintips`, wallet, write, arbitrary dispatcher, shell or plugin exists.
+Each rpcauth user MUST have an explicit node-enforced entry:
+
+```
+rpcwhitelist=<verifier-user>:getblockchaininfo,getblockhash,getblockheader,name_show,gettxout
+```
+
+Separate verifier users are required for (a) and (b), without unions with
+broader whitelist entries. In rpcauth mode, at startup after endpoint
+authentication, send the
+fixed harmless out-of-set probe `getrpcinfo` and require HTTP 403 with no
+projected body; it is a denial probe, never an allowed operation. Otherwise
+remain unavailable. Node configuration inspection plus this negative probe
+qualifies the complete allow-list; one probe alone does not prove every denial.
+The install-only root-cookie exception MUST be explicitly recorded instead of
+claiming it passed least-privilege qualification. Any Q3 design needing more
+upstream RPCs requires a reviewed contract revision before implementation.
 
 Socket parent: `chain-gateway`-owned 0750, group the dedicated socket-reader
 group; its higher ancestors are protected and root-owned. The daemon creates
@@ -94,7 +174,7 @@ access to connect only; the UID allow-list still decides. Agent accounts cannot
 replace either object. The client pins the connected server UID to the
 configured unprivileged service UID, not to a claimed request field.
 Root-owned configuration pins network (`main` or `regtest`), node endpoint,
-genesis hash, server UID, allowed UIDs, socket path and watched snapshot set.
+genesis hash, node UID, server UID, allowed UIDs, socket path and watched snapshot set.
 The backend MUST verify configured network/genesis and refuse initial block
 download or a mismatching chain as unavailable before returning observations.
 No request changes configuration. All installed-input ancestry excludes symlinks and writable ACLs.
@@ -110,12 +190,22 @@ refusal. Framing checks precede JSON/schema checks.
 
 | Bound | Requirement |
 | --- | --- |
-| Per UID request admission | Token bucket: capacity 16, refill 8 tokens/second by monotonic time, initially full; one token per authenticated connection, including malformed input. No retry refund. |
-| Global request admission | Token bucket: capacity 64, refill 32 tokens/second, same accounting. |
-| Active reads | At most 2 per UID and 8 globally; no waiting work queue. Excess refuses `rate_limited`. |
-| Accepted connections | At most 32, including partial and refusal frames. At capacity, close immediately; clients treat missing response as unavailable. Kernel backlog is not an admitted work queue. |
-| Deadlines | Request frame plus EOF: 1 second from accept. Each upstream read attempt: at most 1 second. Entire server request including retries/write: 5 seconds from accept; response write: at most 1 second within that total. Client total deadline: 6 seconds from connect. |
-| Retries | At most 3 read attempts total, only for a moved tip; bounded by the same total deadline. No unbounded retries, reconnect loops or cached success fallback. |
+| Per agent UID admission | Capacity 16, refill 8 tokens/second by monotonic time, initially full; one token per accepted connection, before allow-list authorization, including refusals/malformed input. No refund. At most 8 configured agent UIDs. |
+| Agent aggregate | Capacity 128, refill 64/second, partitioned into the eight UID buckets; unused shares are not borrowed. One UID cannot consume another's share. |
+| Frame-read connections | At most 2 per configured agent UID, separate from active reads; 1-second frame/EOF deadline. Slow frames consume only that UID's reserved slots. |
+| Active reads | Start ONLY after complete EOF, canonical schema and authorization; at most 2 per agent UID, 16 agent slots total, reserved per UID. No waiting work queue. Excess refuses `rate_limited`. |
+| Unauthorized peers | Charge by kernel peer UID before authorization, capacity 16/refill 8/s; all unlisted peers also share a separate global 16/8 bucket and at most 2 refusal/frame slots. No authorized capacity is consumed. |
+| Explicit root-helper reservation | Separate 512-token burst, 128/s refill, 16 frame slots and 16 active slots, unavailable to agents/unlisted root. Never consumes an agent share. Root client paces at or below these bounds. |
+| Accepted connections | At most 66: 8 × (2 frame + 2 active), 32 root-helper and 2 unauthorized; unused reserved slots are not borrowed. At capacity close immediately; clients treat no response as unavailable. Kernel backlog is not an admitted queue. |
+| Deadlines | Frame plus EOF: 1 second from accept. Each upstream attempt: at most 1 second. Entire server request including retries/write: 5 seconds from accept; write: at most 1 second within that total. Client total: 6 seconds from connect. |
+| Retries | At most 3 read attempts total, only for moved tip, within the same deadline. No unbounded loop or cached-success fallback. |
+
+Peer credentials are obtained immediately at accept to select the pre-auth
+bucket/compartment; unreadable credentials use the unauthorized compartment.
+These partitions bound cross-tenant application-level starvation: another UID
+cannot consume a tenant's tokens, frame slots or active slots. They do not
+qualify host/kernel scheduling under connection floods; Q6 must test the
+configured host's fair progress under bounded competing UID traffic.
 
 Unauthorized connections get `unauthorized` if a complete bounded refusal can
 be sent within the deadlines; otherwise close. Framing timeout maps to
@@ -143,6 +233,13 @@ applies to the wrapper, never to the decoded name-value bytes. Upstream node
 replies MUST pass SJ1 recursive lexical checks and exact selected-field
 projection checks before use; unrelated upstream extension fields may be
 ignored, never aliases of selected fields (STRICT-JSON.md, sealwatch row).
+`name_show` MUST request `allowExpired:true`, `nameEncoding:"hex"` and
+`valueEncoding:"hex"`. Decode and verify the exact requested name octets, then
+encode the exact decoded value octets as canonical `value_b64`. If the pinned
+Core cannot select both encodings per call, its protected node configuration
+MUST require hex for both and qualification must verify that response encoding;
+no ascii/utf8 fallback or string-to-UTF-8 re-encoding is permitted. Q3 includes
+an opaque 00/ff value round trip.
 
 Types used below:
 
@@ -156,6 +253,12 @@ Types used below:
   0..520 exact bytes. It is not base64url. Empty value is `""`. The octets are
   neither parsed nor rewritten by the gateway; even invalid application JSON
   is transported exactly for the consumer to refuse at its own boundary.
+- `Script`: lowercase even-length hex encoding of exact upstream
+  `scriptPubKey.hex` octets, 0..10000 bytes; no assembly, address or inferred
+  script. The complete response/snapshot byte limit also applies. Oversize
+  projections refuse `unavailable` (helper exits 11), never truncate. Snapshot
+  count caps are maxima, not a promise that every combination fits 64 KiB;
+  installation must qualify the complete configured set within that byte bound.
 - `Tip`: exactly `{"hash":H,"height":N,"time":N}`. `time` is that block's
   header timestamp in POSIX UTC seconds, not acquisition time, median time past,
   helper write time or a freshness verdict. All three successful methods bind
@@ -190,21 +293,52 @@ Network is `main` or `regtest` and MUST equal protected client configuration.
 
 | M | R, exact fields and semantics |
 | --- | --- |
-| `name_show` | `{"expired":boolean,"height":N,"name":Name,"name_block_hash":H,"txid":H,"value_b64":Value,"vout":O}`. `height` and `name_block_hash` locate the last confirmed name operation in the active chain, height <= tip height. If height equals tip height, name_block_hash MUST equal tip hash. Value, outpoint and expiry are from that same name state. Expiry is evaluated by the node's consensus rules at Tip, not guessed from a local fixed interval. Expired names can be returned with `expired:true` if the backend can supply their exact record; otherwise `not_found`. They never establish a live pin. An unconfirmed registration is not found; a pending update does not replace the last confirmed value (SH3). |
-| `gettxout` | `{"state":"unspent" or "not_in_utxo_set","txid":H,"vout":O}`. Node view MUST include validated mempool effects, fixed true. `unspent` means present and not spent by that mempool at the observation instant; outputs created in the mempool can appear. `not_in_utxo_set` means absent from that view: spent, never created, unknown or unspendable are indistinguishable. It is a successful negative observation, NOT `not_found`, and never proof of a spending transaction. |
+| `name_show` | `{"expired":boolean,"height":N,"name":Name,"name_block_hash":H,"txid":H,"value_b64":Value,"vout":O}`. `height` and `name_block_hash` locate the last confirmed name operation in the active chain, height <= tip height. If height equals tip height, name_block_hash MUST equal tip hash. Value, outpoint and expiry are from that same name state. Expiry is evaluated by the node's consensus rules at Tip, not guessed from a local fixed interval. Expired names MUST return their exact confirmed record with `expired:true` (`allowExpired:true`); a backend unable to retrieve it returns `unavailable`, never a backend-dependent `not_found`. They never establish a live pin. An unconfirmed registration is not found; a pending update does not replace the last confirmed value (SH3). |
+| `gettxout` | For `unspent`, `unconfirmed`, `spend_pending`: exactly `{"confirmations":N,"script_pubkey":Script,"state":State,"txid":H,"vout":O}`. For `not_in_utxo_set`: exactly `{"state":"not_in_utxo_set","txid":H,"vout":O}` (no fabricated confirmation/script). The fixed two-read projection below distinguishes confirmed absence from a pending spend. This is a successful negative observation, NOT `not_found` or proof of a spending transaction. |
 | `getblockcount` | `{}`. Tip contains height, hash and block header time; the method's familiar name does not imply a scalar response. |
 
-A consumer MUST refuse admission unless a seal is positively `unspent`; absent
-UTXO cannot authorize. Mapping absence to `DEVICE_REVOKED` for that command is
-conservative refusal, not a claim that a spend was proved. Under Source's
-accepted Q2 mapping, the consumer MUST journal a permanent closure only when
-this reader previously journaled the seal as positively `unspent` and now sees
-it absent. Never-seen absence MUST refuse that command only; it MUST NOT
-permanently close a device (for example, an unbroadcast seal or wrong outpoint).
-A journaled closure MUST never be lifted across reorgs, restarts, unavailable
-reads or later unspent observations. Gateway errors MUST NOT create permanent
-closures. This is the accepted consumer mapping; LIP-0029 §8's policy-owner
-clarification remains Q8. Observe mode changes labels only.
+**Two reads, fixed by v1:** read `gettxout(txid,vout,false)` (confirmed
+set, C) AND `gettxout(txid,vout,true)` (mempool-inclusive, M). Both views and the
+Tip must satisfy §4's coherent instant guarantee for (a), including mempool
+changes across the pair; merely equal bestblock values do not prove it.
+For (b), the same two reads use §5's weaker bracketed label semantics.
+
+| C | M | State and returned source |
+| --- | --- | --- |
+| present, confirmations >=1 | present, same confirmations/script | `unspent`; confirmations/script from that confirmed output |
+| absent | present, confirmations =0 | `unconfirmed`; confirmations 0 and script from M |
+| present, confirmations >=1 | absent | `spend_pending`; confirmations/script from C; confirmed output is NOT absent |
+| absent | absent | `not_in_utxo_set`; absent from the CONFIRMED set and current mempool-inclusive view |
+
+Present answers MUST bind `bestblock` to the complete Tip's hash; confirmations
+must be possible at that height (1..height+1 for confirmed states). Conflicting
+scripts/counts, C with zero confirmations, or M confirmed when C is absent
+are inconsistent and return `unavailable`; no partial record escapes. Vout
+above 2147483647 is deterministically `not_in_utxo_set` without an upstream
+gettxout call, after qualifying the pinned Core's signed-index range and
+obtaining §4's absence witness; a backend without that qualification is
+unavailable for the profile, never a different success for the same input.
+
+A consumer MUST refuse unless the seal is positively `unspent`: CONFIRMED
+(confirmations >=1 at Tip) AND not spent by any mempool transaction.
+`unconfirmed` and `spend_pending` both refuse that command as DEVICE_REVOKED-class,
+journal NOTHING permanent and NEVER count as confirmed-set absence. Mempool
+transactions can be evicted/replaced. Under Source's binding F5/Q2 mapping, the
+consumer MUST journal a permanent closure from these reads precisely when this
+reader previously journaled `unspent` with its new meaning and later sees
+`not_in_utxo_set`, absent from the CONFIRMED set. Never-seen absence refuses only the command. A journaled closure
+never lifts across reorgs, restarts or later states; errors create none. This
+per-command mapping does not weaken CGW-J1's independently witnessed actual-spend
+closure rule under O8.3. Policy-owner spec clarification remains Q8.
+
+The consumer checks `script_pubkey` against an expected seal script ONLY when
+an accepted spec clause or the verified list record actually defines it. At
+pinned LIP-0029 §3.1 field 6 the record defines only txid/vout; §8.3 O8.8 and its
+following paragraph leave the script open. Thus this revision transports exact
+script bytes but claims NO seal-script validation; Q8 explicitly remains open.
+A later defined script binding must cite its clause and gain new shared vectors;
+no locally invented script is accepted. Under (b) all states/closures are labels
+and observe-journal entries only, never enforcement decisions.
 
 ### Refusals
 
@@ -220,10 +354,15 @@ Exactly `{"error":{"code":Code},"ok":false,"v":1}`. No `method`, `network`,
 | `unauthorized` | Peer UID not allowed or credentials unsupported. No upstream read; no fallback identity. |
 | `tip_moved` | Three attempts discarded because the tip moved, including a same-height hash change. No data survives. Restart the entire logical observation; no closure evidence. |
 
-Refusal precedence: peer authentication; admission caps; frame/deadline;
-canonical schema; node read. Once admitted, backend failure is unavailable;
+Refusal precedence: kernel peer UID and pre-auth budget/frame reservation;
+peer authorization; frame/EOF/deadline; canonical schema; active-read reservation;
+node authentication/read. No active slot is held while waiting for a frame.
+Once admitted, backend failure is unavailable;
 three observed movements yield tip_moved unless a deadline expires first.
 Unsupported v values use malformed, not a partially decoded future version.
+A schema-invalid, noncanonical, truncated or otherwise invalid RESPONSE is
+`unavailable` to the consumer; discard the whole collection and journal no
+closure. Never salvage a valid-looking subset.
 
 ## 4. Coherent observations and limits
 
@@ -242,12 +381,24 @@ transition. Reading the same tip before and after ordinary RPC calls is
 insufficient: an A→B→A transition can hide an inconsistent observation. Without
 a proven witness, return unavailable. This is an implementation feasibility gate,
 not permission to label an ordinary RPC bracket atomic. No node calls are made
-by this unit, so the exact backend capability remains Q3.
+by this unit, so the exact backend capability remains Q3. Positive gettxout has
+`bestblock`; a null result has no such witness. `name_show` does not supply the
+complete bound Tip/name-operation block hash itself. Both negative gettxout and
+name_show need a qualified witness beyond ordinary RPC brackets, including the
+two-view mempool coherence requirement. Interface freeze is not enforcement
+readiness. Confirmed fields at one active tip hash form one confirmed view;
+mempool effects remain non-atomic across connections.
 
 The three methods do not provide a multi-request transaction. For a logical D29
 check the consumer reads tip, name, the ONE seal of the signing device, then
 tip again: four connections per command, all charged to the UID bucket. The
-consumer MUST NOT require all device seals per command. ALL successful answers
+consumer MUST NOT require all device seals per command. V1 permits exactly ONE
+name and ONE expected signing-device seal per logical check. Pace the shared
+UID at <=8 connections/s, burst <=16 and <=2 active requests, including all
+retry rounds; three full rounds consume 12 tokens from an idle bucket. On
+rate_limited wait at least one second within the unchanged three-round budget.
+A fourth round is forbidden; after three failed rounds refuse without closure.
+ALL successful answers
 MUST have identical network and complete Tip (hash, height and time), matching requested
 names/outpoints. Any mismatch or refusal discards the entire collected set and
 retries the logical check at most twice (3 rounds total), then refuses. That
@@ -299,6 +450,13 @@ docs MUST keep the Draft/co-author status of LIP-0010 §11 and LIP-0029 visible.
 
 ### Enforcement precondition (Q10; separate unit)
 
+CGW-J1 is a separately admitted host-owned watcher/journal service next to the
+node in chain-lab, plus Source's journal reader. It uses the sealwatch design
+(`experiments/sealwatch/README.md`): node-enforced dedicated read credential for
+`getblockchaininfo,getblockhash,getrawtransaction,getrawmempool,gettxout,getblock`
+to inspect actual spending inputs. These methods belong to CGW-J1, NOT the
+v1 gateway credential/interface; v1 gains no fourth method. CGW-J1 needs its own
+service-class admission, exact contract, durable-journal and live qualification.
 Per-command polling MUST NOT be described as continuous O8.3 observation.
 Before enforcement a host-owned watcher, running as a service account rather
 than an agent UID, MUST follow blocks and mempool for the watch set and append
@@ -314,7 +472,9 @@ This contract does not implement them, and enforcement remains off.
 
 A separate absolute clean path is host-configured, without discovery or
 fallback into the agent's config/home. Helper runs as root; file and every
-protected ancestor are root-owned, directories 0755, regular file exactly 0644,
+protected ancestor are root-owned, directories have no group/other write bits
+(stricter traversal modes such as 0711 are permitted), output parent exactly
+0755, regular file exactly 0644,
 no agent-writable ACLs, symlink components, special files or hard links
 (`nlink` MUST equal 1). Reader is non-root and never creates or repairs the path.
 Reuse U2a §3 and `ReadHostPin`: descriptor-relative no-follow traversal from a
@@ -329,26 +489,45 @@ existing first. Once (a) is installed, root may be an explicitly allowed gateway
 client. Helper authentication configuration is not part of the public snapshot.
 Neither helper nor gateway accepts arbitrary RPC from agents.
 
-One complete CG1 canonical object, at most 65536 payload bytes (no LF):
+One complete CG1 canonical object, at most 65536 payload bytes. The file is
+EXACTLY that payload: no trailing LF. Reader consumes at most 65537 bytes from
+the validated descriptor and rejects overflow or a trailing LF:
 
 `{"consistency":"bracketed","mode":"observe_only","names":[NameRecord...],"network":"main" or "regtest","seals":[SealRecord...],"tip":Tip,"v":1,"written_at":N}`
 
 `NameRecord` is exactly the `name_show` result above. `SealRecord` is exactly the
 `gettxout` result above. All records share the SINGLE top-level Tip; name heights
 <= tip height. `written_at` is POSIX UTC seconds measured after the complete
-coherent collection, before persistence; no time zone strings or nanoseconds.
+bracketed collection, before persistence; no time zone strings or nanoseconds.
 Names array: 1..16, sorted strictly by name ASCII bytes. Seals: 1..256, sorted
 strictly by txid ASCII bytes, then numeric vout. No duplicates or omissions from
 the host-configured watch set. The consumer verifies the exact expected watch
 set and network against protected configuration; a plausible foreign owner's
 snapshot is not acceptable. Value bytes carry the pin; no separately supplied
 list hash can override them. Device-list bytes and private keys never enter this
-file. Schema validity alone does not prove watch-set completeness.
+file. Schema validity alone does not prove watch-set completeness. A watched
+name with no confirmed record (`not_found`) prevents whole-set publication:
+retain the previous file, exit 11, and let it age. Q4 records that the file alone
+cannot distinguish a vanished name from helper failure. Watch sets are static
+operator configuration: a list update introducing a new seal requires root
+reconfiguration; until complete, consumers label the mismatching set invalid.
+No inferred/partial watch-set update is allowed.
 
 Helper refreshes on startup, each observed new block OR same-height tip hash
 change, and at least every 30 seconds to label write liveness during a long block
 interval. It may also refresh on mempool change; no cadence makes it enforceable.
-The helper collects a complete set, not a patch. For (b) only, read the COMPLETE
+The helper collects a complete set, not a patch. It uses its separate root
+bucket and at most 16 concurrent reads when calling (a): 16 names + 256 seals
++ 2 brackets = 274 requests, within its 512-token burst, independent of agents.
+Direct-RPC helper uses at most 16 concurrent RPCs and the same fixed read set;
+its two-view seal projection is not one RPC. Each invocation has a 20-second
+monotonic total collection deadline across all attempts/backoffs and a 1-second
+per-RPC deadline; on total timeout exit 11 and retain the file. It never queues
+overlapping invocations (flock); the 30-second timer is a target cadence, not a
+promise under node failures or repeated movement. Q5 qualifies the maximal
+configured set's actual 20-second completion under competing traffic. Both
+record-count and serialized-byte bounds must pass before publication. For (b)
+only, read the COMPLETE
 Tip {hash, height, time} BEFORE and AFTER all name and outpoint reads. Publish
 only if all three members are identical. Otherwise discard the entire attempt
 and retry: N=3 total attempts, with 100 ms then 200 ms backoff. On exhaustion,
@@ -367,20 +546,26 @@ A `"bracketed"` snapshot cannot rule out a hidden A→B→A excursion between th
 bracket reads. The consumer LABELS only and NEVER refuses on it. A closure
 observed through a bracketed snapshot is OBSERVE-GRADE: it labels, goes to an
 observe journal, and is NEVER imported into enforcement state. Enforcement
-closures come only from the Q10 watcher journal or a witnessed read. §4's
+closures come only from the Q10 watcher journal or a witnessed read. A
+witnessed read does not waive the CGW-J1 enforcement precondition. §4's
 witness requirement stays IN FULL for gateway (a) and for any enforcement.
 Ordinary bracketing does not claim coherent per-read chain state or an atomic
 multi-record mempool snapshot; observations can differ even at the same Tip.
 These requirements are Source's acceptance points ($Omp4AzWq), accepted by the
 consumer and backed by the lead in the HELPER-B r3 amendment.
 
-Publication: create a fresh same-directory temp file with O_EXCL and no symlink
-following, mode 0600; write all bytes and validate; set root ownership and 0644;
+Publication: create a fresh same-directory temp file named `.snapshot-` plus
+24 random lowercase hex characters, with O_EXCL and no symlink following, mode 0600; write all bytes and validate; set root ownership and 0644;
 fsync file; atomically rename over the configured final file; fsync containing
 directory. Sync newly created ancestors before use. Serialize writers; on error
 remove only that writer's temp file, retain old published bytes. A crash after
 rename before directory fsync may recover either old or new complete snapshot;
-publication durability is not claimed until directory sync succeeds.
+publication durability is not claimed until directory sync succeeds. On a later
+run, while holding the exclusive writer lock, clean only recognized helper temp
+files in that validated directory after no-follow, regular-file, root-owner,
+single-link and exact temp-name checks. Never delete unknown files or another
+active writer's files; cleanup failure fails publication rather than broadens
+cleanup scope.
 
 Adapter labels every accepted snapshot **OBSERVE ONLY** even when fresh:
 
@@ -404,23 +589,41 @@ not an exemption from the lead's observe-only ruling.
 
 ## 6. Versioning, fixture obligations and scope
 
+This fix round includes the owner's explicit F5 amendment to the candidate v1
+seal projection; earlier-head acceptance does not carry over. Source must accept
+this exact amended head. The interface freeze does not depend on waiving Q3.
 `v:1` identifies this exact closed schema/profile. Adding fields, methods,
 refusal codes, networks or changing canonical bytes requires a new version,
 consumer acceptance and new shared vectors. Unknown versions fail closed.
 A host config change cannot reinterpret v1; limits may be tightened only if
-reported as a distinct deployment profile accepted by both parties.
+reported as a distinct deployment profile accepted by both parties. V1's
+protected configuration identifier is exactly `profile:"cg1-v1"`; it is not a
+new wire field. Any tighter profile needs a new explicit identifier and consumer
+acceptance, never an implicit host override.
 
 The contract schema harness consists of: `schema_test.go` and
 `contract_test.go`. Its executable schema validates wrappers, types, limits,
 canonical bytes and fixture relationships. `fixtures/vectors.json` stores exact
 payloads as JSON strings so duplicates, whitespace and malformed inputs remain
 visible. `wire_b64` carries non-UTF-8 controls. `kind` selects request, response,
-`snapshot`, `snapshot_size`, `frame_request` or `frame_response`. Frame-only
+`snapshot`, `snapshot_size`, `frame_request`, `frame_response`, `lexical`,
+`integer_n` or `integer_o`. Lexical vectors isolate recursive parser rules;
+integer vectors isolate minimal integer spelling and N/O bounds. Frame-only
 vectors test size/LF/EOF
 independently of payload schema; they do not claim that arbitrary bounded bytes
 are a valid request. Snapshot-size vectors likewise isolate the payload bound
 from the full snapshot schema. `fixtures/observations.json` records tip
-movement and cross-call correlation scenarios, including A→B→A and same-height reorgs.
+movement, exact configuration bindings, two-view seal projection and every
+seal-state transition (plus unavailable), round budgets and label precedence,
+including A→B→A and same-height reorgs. `utxo_views` inputs model selected
+upstream fields at an already coherent instant; they do not supply a witness.
+
+The omission aid, adapted with credit from review 5920320803, runs as
+`python3 -B omission_analysis_test.py fixtures/vectors.json` from this module;
+it exits nonzero for baseline mismatches or unpinned rules. Explicit redundant
+guards are reported as single-rule survivors and require named grouped controls,
+not misreported as individual kills. Its scope is schema vectors, not runtime
+custody/witness qualification; output is retained in task-scoped `.temp/`.
 
 The consumer MUST mirror `TestSharedVectors`, `TestObservationVectors`,
 `TestSnapshotLabels` and the valid/invalid controls in `TestSchemaControls` in
@@ -432,7 +635,8 @@ upstream adapter. Pure schema tests prove neither implementation exists.
 
 Out of scope: gateway/helper code, node/RPC calls, install or root work, credential
 provisioning, wallet/write methods, list distribution/cache implementation,
-cryptographic device/list/seal validation, durable journal implementation,
+cryptographic device/list validation or policy-level seal-script validation,
+durable journal implementation,
 continuous watches, historical spend proofs, multi-call atomicity, enforcement
 switches and live qualification. See OPEN.md for acceptance and build gates.
 
@@ -449,8 +653,10 @@ no real node was contacted for this contract.
 - Dedicated mainnet node adjacent to the gateway: txindex=1, disablewallet,
   listen=0, local-only RPC, network/genesis pinned. Proposed rpcwhitelist:
   name_show, gettxout, getblockcount, getbestblockhash, getblockhash, getchaintips.
-  Q5's new block-header time and the network/IBD gates require the exact ancillary
-  read set to be settled under Q3; the proposed list is not claimed sufficient.
+  This original proposal is superseded for gateway/helper verifier users by §2's
+  EXACT five-method whitelist, adding getblockchaininfo/getblockheader and
+  excluding unused getblockcount/getbestblockhash/getchaintips. Q3 must qualify
+  the proposed witness without silently broadening that credential.
 - Proposed ZMQ sequence stream on a Unix/loopback endpoint witnesses block
   connect/disconnect and sequence gaps. Q3 remains open: qualify real-adapter
   A→B→A and same-height reorg behaviour on regtest with invalidateblock and
@@ -466,7 +672,10 @@ no real node was contacted for this contract.
 - Credential stays with the node user. On the same host, Infra proposes a
   root-owned 0640 cookie copy, exclusive group swarma-chaingw. Otherwise a
   per-service RPC user with rpcauth; the verifier itself is not a client secret.
-  Exact endpoints, service IDs and protected ancestry are install inputs.
+  Owner F1/F2 disposition supersedes gateway cookie access: (a) is verifier-only,
+  (b)'s same-host root-cookie exception follows §2 custody/rotation. ivmbp is
+  verifier-user-only. Endpoint kernel owner verification precedes either mode.
+  Exact endpoints, node/service IDs and protected ancestry are install inputs.
 - Peer UID allow-list is exactly the G1.0 W UID and a2a service-user UID from
   S8's accounts list, still to be posted for review; no numeric UIDs are guessed.
   Retirement removes the UID from the allow-list file, restarts and reads back
@@ -479,3 +688,11 @@ no real node was contacted for this contract.
   Publish a whole set with same-directory tmp + fsync + rename + directory fsync.
   When (a) exists, root helper access through an explicitly allow-listed UID is
   accepted by Infra. No systemd unit or installation is supplied here.
+
+## Review-input credit
+
+Fix 1 incorporates the Opus review of record (PR review 5920320803), including
+its proposed vectors/observations adapted to Tip.time, bracketed snapshots and
+Source's binding F5 decision. Its independent omission-analysis aid is rerun
+against this revision; it is separate from the Go harness and runtime
+qualification. OPEN.md records the remaining qualification/adoption gates.

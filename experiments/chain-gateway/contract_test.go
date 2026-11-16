@@ -82,6 +82,12 @@ type observation struct {
 	KnownTip  map[string]any     `json:"known_tip,omitempty"`
 	Clock     bool               `json:"clock,omitempty"`
 	Label     string             `json:"label,omitempty"`
+	Config    map[string]any     `json:"config,omitempty"`
+	Rounds    []collectionRound  `json:"rounds,omitempty"`
+	History   []map[string]any   `json:"history,omitempty"`
+	Decisions []map[string]any   `json:"decisions,omitempty"`
+	Confirmed map[string]any     `json:"confirmed,omitempty"`
+	Mempool   map[string]any     `json:"mempool,omitempty"`
 }
 
 func observations(t *testing.T) []observation {
@@ -134,34 +140,133 @@ func attemptOracle(attempts [][]map[string]any) (map[string]any, error) {
 	return map[string]any{"error": map[string]any{"code": "tip_moved"}, "ok": false, "v": json.Number("1")}, nil
 }
 
-// The consumer oracle checks correlation, one network/tip, and positive seal
-// liveness. It makes no atomic-mempool, journal or application-pin claim.
-func collectionOracle(requests, responses []map[string]any) bool {
-	if len(requests) < 4 || len(requests) != len(responses) {
+type collectionRound struct {
+	Requests  []map[string]any `json:"requests"`
+	Responses []map[string]any `json:"responses"`
+}
+
+// The oracle requires the configured ONE name/seal and every answer at one tip.
+// It proves fixture correlation only, not mempool atomicity or application pins.
+func collectionOracle(config map[string]any, requests, responses []map[string]any) bool {
+	if len(requests) != 4 || len(responses) != 4 || !network(config["network"]) {
 		return false
 	}
-	if requests[0]["method"] != "getblockcount" || requests[len(requests)-1]["method"] != "getblockcount" {
+	names, nok := config["names"].([]any)
+	seals, sok := config["seals"].([]any)
+	if !nok || !sok || len(names) != 1 || len(seals) != 1 {
 		return false
 	}
+	methods := []string{"getblockcount", "name_show", "gettxout", "getblockcount"}
 	for i, r := range requests {
 		s := responses[i]
-		if request(r) != nil || response(s) != nil || s["ok"] != true || r["method"] != s["method"] || !same(s["tip"], responses[0]["tip"]) || s["network"] != responses[0]["network"] {
+		if request(r) != nil || response(s) != nil || s["ok"] != true || r["method"] != methods[i] || r["method"] != s["method"] || !same(s["tip"], responses[0]["tip"]) || s["network"] != config["network"] {
 			return false
 		}
 		p := r["params"].(map[string]any)
 		result := s["result"].(map[string]any)
 		switch r["method"] {
 		case "name_show":
-			if p["name"] != result["name"] || result["expired"] != false {
+			if p["name"] != names[0] || p["name"] != result["name"] || result["expired"] != false {
 				return false
 			}
 		case "gettxout":
-			if p["txid"] != result["txid"] || p["vout"] != result["vout"] || result["state"] != "unspent" {
+			if !same(p, seals[0]) || p["txid"] != result["txid"] || p["vout"] != result["vout"] || result["state"] != "unspent" {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+// At most three complete logical rounds; an attempted fourth round is refused
+// even if it would succeed. No round's partial data survives into another.
+func roundsOracle(config map[string]any, rounds []collectionRound) bool {
+	if len(rounds) < 1 || len(rounds) > 3 {
+		return false
+	}
+	for i, r := range rounds {
+		if collectionOracle(config, r.Requests, r.Responses) {
+			return i == len(rounds)-1
+		}
+	}
+	return false
+}
+
+// This models only Source F5/Q2 per-command state. Actual-spend CGW-J1 closures
+// are independent; the fixture does not simulate a real durable journal.
+func historyOracle(history []map[string]any) ([]map[string]any, error) {
+	seen, closed := false, false
+	out := []map[string]any{}
+	for _, event := range history {
+		if response(event) != nil {
+			return nil, bad("invalid history response")
+		}
+		admit := false
+		if event["ok"] == true {
+			if event["method"] != "gettxout" {
+				return nil, bad("history method")
+			}
+			state := event["result"].(map[string]any)["state"]
+			if state == "unspent" {
+				seen = true
+				admit = !closed
+			}
+			if state == "not_in_utxo_set" && seen {
+				closed = true
+			}
+		}
+		out = append(out, map[string]any{"admit": admit, "closed": closed, "seen_unspent": seen})
+	}
+	return out, nil
+}
+
+// The fixed two-view table classifies confirmed and mempool-only observations.
+// The fixture supplies a coherent instant; this does not manufacture a witness.
+func projectionOracle(at, point, c, m map[string]any) map[string]any {
+	refusal := map[string]any{"error": map[string]any{"code": "unavailable"}, "ok": false, "v": json.Number("1")}
+	if tip(at) != nil || !outpoint(point) {
+		return refusal
+	}
+	for _, view := range []map[string]any{c, m} {
+		if view == nil {
+			continue
+		}
+		script, ok := view["scriptPubKey"].(map[string]any)
+		if !ok || view["bestblock"] != at["hash"] || !integer(view["confirmations"], maxInteger) {
+			return refusal
+		}
+		if _, ok := script["hex"].(string); !ok {
+			return refusal
+		}
+	}
+	result := map[string]any{"state": "not_in_utxo_set", "txid": point["txid"], "vout": point["vout"]}
+	source := c
+	if c != nil {
+		if uintValue(c["confirmations"]) < 1 {
+			return refusal
+		}
+		result["state"] = "spend_pending"
+		if m != nil {
+			if !same(c["confirmations"], m["confirmations"]) || !same(c["scriptPubKey"].(map[string]any)["hex"], m["scriptPubKey"].(map[string]any)["hex"]) {
+				return refusal
+			}
+			result["state"] = "unspent"
+		}
+	} else if m != nil {
+		if uintValue(m["confirmations"]) != 0 {
+			return refusal
+		}
+		source = m
+		result["state"] = "unconfirmed"
+	}
+	if source != nil {
+		result["confirmations"] = source["confirmations"]
+		result["script_pubkey"] = source["scriptPubKey"].(map[string]any)["hex"]
+	}
+	if sealRecord(result, at) != nil {
+		return refusal
+	}
+	return map[string]any{"method": "gettxout", "network": "regtest", "ok": true, "result": result, "tip": at, "v": json.Number("1")}
 }
 
 // MIRROR: Witnessed movement discards an attempt, ABA is detected, and mismatched
@@ -202,8 +307,31 @@ func TestObservationVectors(t *testing.T) {
 					t.Fatal("bracket verdict mismatch")
 				}
 			case "collection":
-				if collectionOracle(v.Requests, v.Responses) != v.Accepted {
+				if collectionOracle(v.Config, v.Requests, v.Responses) != v.Accepted {
 					t.Fatal("collection verdict mismatch")
+				}
+			case "utxo_views":
+				points, ok := v.Config["seals"].([]any)
+				if !ok || len(points) != 1 {
+					t.Fatal("projection point")
+				}
+				point, ok := points[0].(map[string]any)
+				if !ok {
+					t.Fatal("projection point shape")
+				}
+				got := projectionOracle(v.KnownTip, point, v.Confirmed, v.Mempool)
+				if response(v.Expected) != nil || !same(got, v.Expected) {
+					t.Fatalf("two-view verdict mismatch: got %s", wire(got))
+				}
+
+			case "rounds":
+				if roundsOracle(v.Config, v.Rounds) != v.Accepted {
+					t.Fatal("round budget verdict mismatch")
+				}
+			case "seal_history":
+				got, e := historyOracle(v.History)
+				if e != nil || !same(got, v.Decisions) {
+					t.Fatalf("history verdict mismatch: %v got %s", e, wire(got))
 				}
 			default:
 				t.Fatal("unknown observation kind")
@@ -211,11 +339,23 @@ func TestObservationVectors(t *testing.T) {
 		})
 	}
 }
-func snapshotLabel(raw []byte, now uint64, known map[string]any, clock bool) string {
+func snapshotLabel(raw []byte, now uint64, known map[string]any, clock bool, config map[string]any) string {
 	if validate("snapshot", raw) != nil {
 		return "invalid"
 	}
 	m, _ := parse(raw, 65536)
+	names := []any{}
+	for _, n := range m["names"].([]any) {
+		names = append(names, n.(map[string]any)["name"])
+	}
+	seals := []any{}
+	for _, x := range m["seals"].([]any) {
+		point := x.(map[string]any)
+		seals = append(seals, map[string]any{"txid": point["txid"], "vout": point["vout"]})
+	}
+	if m["network"] != config["network"] || !same(names, config["names"]) || !same(seals, config["seals"]) {
+		return "invalid"
+	}
 	if !clock {
 		return "unknown"
 	}
@@ -249,7 +389,7 @@ func TestSnapshotLabels(t *testing.T) {
 			continue
 		}
 		t.Run(v.Name, func(t *testing.T) {
-			if got := snapshotLabel([]byte(v.Snapshot), v.Now, v.KnownTip, v.Clock); got != v.Label {
+			if got := snapshotLabel([]byte(v.Snapshot), v.Now, v.KnownTip, v.Clock, v.Config); got != v.Label {
 				t.Fatalf("label=%s want %s", got, v.Label)
 			}
 		})
@@ -259,40 +399,28 @@ func TestSnapshotLabels(t *testing.T) {
 // MIRROR: Paired controls independently exercise exact integer limits and strict
 // parsing. The planted fixture experiment separately verifies runner failure.
 func TestSchemaControls(t *testing.T) {
-	for _, x := range []struct {
-		value string
-		max   uint64
-		valid bool
-	}{
-		{"0", 4294967295, true}, {"4294967295", 4294967295, true}, {"4294967296", 4294967295, false},
-		{"9007199254740991", maxInteger, true}, {"9007199254740992", maxInteger, false},
-		{"-0", maxInteger, false}, {"1e0", maxInteger, false}, {"1.0", maxInteger, false},
-	} {
-		if integer(json.Number(x.value), x.max) != x.valid {
-			t.Errorf("integer boundary %s", x.value)
+	var vs []vector
+	readJSON(t, "fixtures/vectors.json", &vs)
+	for _, v := range vs {
+		if v.Kind != "lexical" && v.Kind != "integer_n" && v.Kind != "integer_o" {
+			continue
 		}
-	}
-	for _, x := range []struct {
-		raw   string
-		valid bool
-	}{
-		{`{"a":{"b":1}}`, true}, {`{"a":{"b":1,"b":2}}`, false},
-		{`{"a":[{"b":1}]}`, true}, {`{"a":[{"b":1,"B":2}]}`, false},
-		{`{"a":{"\u0062":1}}`, false}, {`{"a":{"s":1,"ſ":2}}`, false},
-		{`{"a":"x/y"}`, true}, {`{"a":"x\/y"}`, false},
-		{`{"a":{}}`, true}, {`{"a":{}} {}`, false},
-	} {
-		_, e := parse([]byte(x.raw), 1024)
-		if (e == nil) != x.valid {
-			t.Errorf("strict control %s: %v", x.raw, e)
-		}
-	}
-	for _, arrays := range []int{6, 7} {
-		raw := `{"a":` + strings.Repeat("[", arrays) + `{}` + strings.Repeat("]", arrays) + `}`
-		_, err := parse([]byte(raw), 1024)
-		if (err == nil) != (arrays == 6) {
-			t.Errorf("depth boundary: arrays=%d err=%v", arrays, err)
-		}
+		t.Run(v.Name, func(t *testing.T) {
+			raw := []byte("")
+			if v.Wire != nil {
+				raw = []byte(*v.Wire)
+			} else {
+				var e error
+				raw, e = base64.StdEncoding.Strict().DecodeString(*v.WireBase64)
+				if e != nil {
+					t.Fatal(e)
+				}
+			}
+			e := validate(v.Kind, raw)
+			if (e == nil) != v.Valid {
+				t.Fatalf("shared control mismatch: %v", e)
+			}
+		})
 	}
 	for _, limit := range []int{1024, 4096, 65536} {
 		for _, delta := range []int{-1, 0, 1} {
@@ -321,7 +449,7 @@ func TestFixtureInventory(t *testing.T) {
 			t.Fatal("missing or duplicate scenario")
 		}
 		seen[v.Name] = true
-		if !slices.Contains([]string{"attempts", "collection", "label", "bracket"}, v.Kind) {
+		if !slices.Contains([]string{"attempts", "collection", "label", "bracket", "rounds", "seal_history", "utxo_views"}, v.Kind) {
 			t.Fatal("uncovered scenario kind")
 		}
 	}

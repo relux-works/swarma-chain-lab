@@ -15,25 +15,38 @@ A changed head still requires Source's delta acceptance and the review of record
   SHA256: `e51a5e222292fd7a676e16e7d2b708f0c5492d0e00f4df748be5d6958c4b5ee5`.
   Host facts are attributed; install proposals require S8 owner GO.
 
+- **R147-FIX1**: Opus review of record 5920320803 on `3f50b9b2`;
+  owner accepted ALL twelve findings for the current-head fix round. F1/F2
+  require kernel endpoint-owner authentication before credentials and verifier
+  users; only a same-host root helper may select the cookie install exception.
+  Reviewer proposed vectors/observations and omission-analysis aid are credited
+  in CONTRACT.md and incorporated with the new schema fields.
+- **S-F5**: Source's binding F5 decision, `source-F5-decision.txt`:
+  confirmed AND not mempool-spent, separate transient states, exact script and
+  confirmations, no transient permanent closure. This supersedes S-r1 Q2's
+  ambiguous “absent” wording. The new exact head needs Source's delta acceptance.
+
 ## Answered questions
 
 | ID | Answer event and disposition |
 | --- | --- |
 | Q1 | S-r1 Q1: accepted for v1 with four connections per command, shared-UID 8/s bucket, Linux listener and SH5 approximation. For this delta, darwin/ivmbp is snapshot-only v1; active-chain membership is a v2 candidate. Normative §4. |
-| Q2 | S-r1 Q2: accepted not_in_utxo_set. Absence refuses each command; permanent closure only after this reader journaled unspent, never-seen absence is per-command. Closures never lift, gateway errors create none. Consumer mapping closed; policy-owner spec clarification remains Q8. Normative §3. |
-| Q4 | S-r1 Q4: part (B) final, accepted for the helper build now; D29 retargets its parser and later identifies its adoption head. No claim of installed adoption. Normative §5. |
+| Q2 | S-F5 supersedes the old projection: two fixed gettxout views (false/true); unspent is confirmed >=1 AND not mempool-spent. unconfirmed and spend_pending refuse the command, journal nothing permanent, and are never confirmed-set absence. Only prior journaled unspent followed by confirmed-set absence permits permanent closure from these reads. Errors never close; existing closures never lift. Q8 policy-owner approval remains separate. Normative §3. |
+| Q4 | S-r1 accepted part (B) for helper build; HELPER-B r3 accepted bracketed observe-only amendment. Fix 1 adds seal metadata/states and exact byte/binding rules, needing Source's new-head acceptance. Missing confirmed names prevent whole-file publication (exit 11, old file ages); file alone cannot distinguish vanished name/helper failure. Static watch set requires root reconfiguration after a list adds seals; incomplete sets label invalid. D29 adoption needs its own head. |
 | Q5 | S-r1 Q5: 30-second heartbeat/60-second observe labels accepted. Requested block-header Tip.time added to all successes and snapshot. Default lag 7200 s is consumer policy, not gateway policy; (b)-only has no independent live tip and never labels fresh. Normative §§3–5; changed-head acceptance pending. |
 | Q6 | I-Q367 Q6: install settings proposed in INSTALL PROFILE, with S8 accounts list/GO and socket-parent provisioning decision still required. Answer closed as proposal, not install approval. |
-| Q7 | I-Q367 Q7: root oneshot, flock, fresh cookie each run, tmp/fsync/rename, explicitly allow-listed root after gateway install accepted by Infra. Normative §5; paths/custody in INSTALL PROFILE remain an S8 proposal. |
+| Q7 | Owner F1/F2 supersedes gateway-cookie proposal: gateway verifier user only, enumerated five-method rpcwhitelist; ivmbp verifier user only. Helper normally uses its own verifier user. Only explicitly configured same-host Linux root helper may read the fresh node-owned cookie, or an independently admitted restart-synchronized root copy under §2 custody; no gateway/agent access or fallback. Root oneshot/flock/atomic publication remain. Cookie exception is broader authority, not a least-privilege claim; rotation/copy qualification and S8 GO remain required. |
 | Q9 | S-r1 Q9: confirmed SH3/4/5/6 and O3.4–O3.6; deep-reorg false refusal approximation and Draft/co-author status preserved. Normative §4. |
 
 ## Open gates
 
 | ID | Decision/input needed | Owner | Gate |
 | --- | --- | --- | --- |
-| Q3 | Qualify an exact node/read adapter that witnesses all tip transitions, including hidden A→B→A and same-height reorgs, coherent name binding and mempool-inclusive gettxout. Infra proposes Core 28.0, dedicated node, rpcwhitelist and ZMQ sequence; no feasibility evidence yet. Settle ancillary reads for header time and network/IBD validation. Ordinary RPC bracketing is insufficient for §4 gateway (a) and any enforcement. The accepted §5 amendment permits bracketed OBSERVE ONLY snapshots without a witness. | Gateway implementer and node owner | Gateway (a) and enforcement consistency; live qualification |
-| Q8 | Assign book PR for new service/wire/snapshot profile and spec PR for coherent observations and accepted UTXO-absence mapping; obtain policy-owner approval for permanent closure rule. | Lead and documentation/spec owners | Production adoption |
-| Q10 | S-r1 Q10 states D29 is observe-only and per-command polling is insufficient. Separate host-owned watcher/journal writer and consumer reader must be accepted and qualified, including SH5 state, missing-journal refusal and durable closures outside agent authority. §4 records these enforcement preconditions; this contract implements none. | Lead, Source and host-side implementer | Enforcement remains off |
+| Q3 | Qualify exact node/read adapter for ALL tip transitions including hidden A→B→A, name_show (no complete tip/hash witness), and negative gettxout (null has no bestblock). Positive gettxout has bestblock but the fixed false/true pair also needs coherent mempool state. Require name/value hex round trip, header-time/network/IBD ancillary reads using EXACTLY getblockchaininfo,getblockhash,getblockheader,name_show,gettxout; qualify expired-record retrieval and signed vout range. Infra proposes Core 28.0/ZMQ sequence, with no feasibility evidence yet. Freeze is interface-only; “enforcement-ready” requires this qualification. Ordinary brackets remain insufficient for (a); §5 is observe-only. | Gateway implementer and node owner | Gateway (a) and enforcement; unqualified reads unavailable |
+| Q8 | Book PR for new service/wire/snapshot/profile/resource reservations; spec PR for coherent observations, confirmed-only unspent and Source F5/Q2 permanent-closure policy. Pinned LIP-0029 §3.1 field 6 defines only outpoint; §8.3 O8.8 and following paragraph leave seal script open. No seal-script validation is claimed: define an expected script in an accepted clause/list extension before claiming it. | Lead and documentation/spec owners | Production adoption and any script-check claim |
+| Q10 | CGW-J1: separately admitted chain-lab host-owned watcher/journal next to the node, and Source journal reader. Reference sealwatch, with dedicated node-enforced getblockchaininfo,getblockhash,getrawtransaction,getrawmempool,gettxout,getblock credential for actual spending inputs. No new v1 gateway method. Qualify durable closures, SH5 state and missing-journal refusal outside agent authority. Per-command (a) alone is insufficient; owner scope is 1 LU for watcher/journal, with consumer work and owner approval separate. | Lead, Source and host-side implementer | Enforcement remains off |
+| Q5 qualification | Maximal configured snapshot must fit 65536 bytes and finish within the 20-second total collection budget before the 30-second heartbeat. Root gets reserved 512-token burst/128 tokens per second and 16 active slots; agent traffic cannot spend them. A slow/moving node may legitimately leave an old file stale. (b)-only has no independent live tip: never fresh. | Helper implementer, Infra and Source | Cadence/fresh-label qualification |
+| Q6 qualification | Verify kernel-owned listener AND connected reverse-tuple node UID before ANY credential bytes, with genuine-node positive and wrong-UID listener/no-Authorization negative. Same network/initial user namespace, no PrivateUsers, reserved agent IDs rejected (root helper explicit exception), no socket activation, connect-time fd delegation documented, owned restart cleanup only. Qualify per-UID reservations/fair progress under competing traffic. | Infra and gateway implementer | S8 install/host qualification |
 
 Enforcing over snapshot (b) remains prohibited without a new owner decision.
 The INSTALL PROFILE is an attributed proposal under S8 GO, never installed code.
@@ -48,3 +61,26 @@ rejects `witnessed` as invalid; it cannot be self-asserted. Bracketed closures
 belong only to an observe journal, never enforcement state. Q3 remains in full
 for (a) and enforcement; Q10 and installation/adoption remain separate gates.
 The helper build blocker from r2 is resolved by this explicit amendment.
+
+## Fix 1 current-head finding assessment
+
+Compared against `b435906cc0528ceda3c1b527d133bb6f48e6325c`, not only the
+review's older head. F1–F10 remain open at that base; F11 is partly superseded
+by the accepted bracketed amendment and (b)-only unknown labels, but still lacks
+exact LF/read bound, missing-name/static-watch-set, directory and crash-temp
+rules. F12 already has a dedicated Go 1.26.10 test/vet workflow, so its CI/toolchain
+subitems are closed at base; expiry/range/error/profile/reflection ambiguities
+remain open. Fix 1 addresses the open contract/schema/fixture items; these are
+not live qualification results or Source acceptance of the new head.
+
+## Stacked helper adoption required (PR #149)
+
+Do not treat the helper at `414c1294` as conforming to this new contract head.
+It must adopt the seal schema/two-view projection and fixtures, node UID/profile
+configuration and authenticated pre-write dial, exact verifier whitelist plus
+safe forbidden-method probe, dump hardening and cookie rotation custody,
+name/value hex, bounded concurrent collection and the 20-second budget, and
+owned crash-temp cleanup. Its schema extraction must preserve the new controls
+and label/config oracles. Review its current substring reflection matcher against
+the exact full-credential rule. New fake-RPC/kernel/custody/negative tests and
+exact-head CI are required there. Fix 1 does not edit or rebase #149.
