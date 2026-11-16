@@ -181,6 +181,26 @@ func TestObservationVectors(t *testing.T) {
 				if response(v.Expected) != nil || !same(got, v.Expected) {
 					t.Fatal("attempt result differs from shared expectation")
 				}
+			case "bracket":
+				write := false
+				for _, pair := range v.Attempts {
+					if len(pair) != 2 || tip(pair[0]) != nil || tip(pair[1]) != nil {
+						t.Fatal("bad bracket")
+					}
+					if same(pair[0], pair[1]) {
+						write = true
+						break
+					}
+				}
+				code := 12
+				if write {
+					code = 0
+				} else if len(v.Attempts) != 3 {
+					t.Fatal("premature exhaustion")
+				}
+				if v.Expected["write"] != write || v.Expected["exit"] != json.Number(fmt.Sprint(code)) {
+					t.Fatal("bracket verdict mismatch")
+				}
 			case "collection":
 				if collectionOracle(v.Requests, v.Responses) != v.Accepted {
 					t.Fatal("collection verdict mismatch")
@@ -301,7 +321,7 @@ func TestFixtureInventory(t *testing.T) {
 			t.Fatal("missing or duplicate scenario")
 		}
 		seen[v.Name] = true
-		if !slices.Contains([]string{"attempts", "collection", "label"}, v.Kind) {
+		if !slices.Contains([]string{"attempts", "collection", "label", "bracket"}, v.Kind) {
 			t.Fatal("uncovered scenario kind")
 		}
 	}

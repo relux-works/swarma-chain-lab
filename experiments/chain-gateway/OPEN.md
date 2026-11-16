@@ -31,9 +31,20 @@ A changed head still requires Source's delta acceptance and the review of record
 
 | ID | Decision/input needed | Owner | Gate |
 | --- | --- | --- | --- |
-| Q3 | Qualify an exact node/read adapter that witnesses all tip transitions, including hidden A→B→A and same-height reorgs, coherent name binding and mempool-inclusive gettxout. Infra proposes Core 28.0, dedicated node, rpcwhitelist and ZMQ sequence; no feasibility evidence yet. Settle ancillary reads for header time and network/IBD validation. Ordinary RPC bracketing is insufficient for §4 and §5. Without a proven witness, unavailable is required. | Gateway implementer and node owner | Both read paths' consistency; live feasibility qualification |
+| Q3 | Qualify an exact node/read adapter that witnesses all tip transitions, including hidden A→B→A and same-height reorgs, coherent name binding and mempool-inclusive gettxout. Infra proposes Core 28.0, dedicated node, rpcwhitelist and ZMQ sequence; no feasibility evidence yet. Settle ancillary reads for header time and network/IBD validation. Ordinary RPC bracketing is insufficient for §4 gateway (a) and any enforcement. The accepted §5 amendment permits bracketed OBSERVE ONLY snapshots without a witness. | Gateway implementer and node owner | Gateway (a) and enforcement consistency; live qualification |
 | Q8 | Assign book PR for new service/wire/snapshot profile and spec PR for coherent observations and accepted UTXO-absence mapping; obtain policy-owner approval for permanent closure rule. | Lead and documentation/spec owners | Production adoption |
 | Q10 | S-r1 Q10 states D29 is observe-only and per-command polling is insufficient. Separate host-owned watcher/journal writer and consumer reader must be accepted and qualified, including SH5 state, missing-journal refusal and durable closures outside agent authority. §4 records these enforcement preconditions; this contract implements none. | Lead, Source and host-side implementer | Enforcement remains off |
 
 Enforcing over snapshot (b) remains prohibited without a new owner decision.
 The INSTALL PROFILE is an attributed proposal under S8 GO, never installed code.
+
+## Accepted HELPER-B r3 amendment
+
+Source acceptance event `$Omp4AzWq`, backed by the lead in the supplied brief,
+authorizes §5 ordinary RPC bracketing for OBSERVE ONLY. Complete Tip equality,
+three attempts with 100/200 ms backoff, untouched previous file and exit 12 on
+exhaustion, and required closed `consistency:bracketed` are normative. V1
+rejects `witnessed` as invalid; it cannot be self-asserted. Bracketed closures
+belong only to an observe journal, never enforcement state. Q3 remains in full
+for (a) and enforcement; Q10 and installation/adoption remain separate gates.
+The helper build blocker from r2 is resolved by this explicit amendment.

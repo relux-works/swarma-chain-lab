@@ -270,11 +270,11 @@ func response(m map[string]any) error {
 	return e
 }
 func snapshot(m map[string]any) error {
-	m, e := fields(m, "mode", "names", "network", "seals", "tip", "v", "written_at")
+	m, e := fields(m, "consistency", "mode", "names", "network", "seals", "tip", "v", "written_at")
 	if e != nil {
 		return e
 	}
-	if m["mode"] != "observe_only" || m["v"] != json.Number("1") || !network(m["network"]) || !integer(m["written_at"], maxInteger) {
+	if m["consistency"] != "bracketed" || m["mode"] != "observe_only" || m["v"] != json.Number("1") || !network(m["network"]) || !integer(m["written_at"], maxInteger) {
 		return bad("snapshot envelope")
 	}
 	if e = tip(m["tip"]); e != nil {

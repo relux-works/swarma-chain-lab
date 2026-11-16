@@ -40,4 +40,4 @@ Q10 continuous watcher/journal gates. Part (B)'s format is accepted for helper
 build; tip-time delta acceptance and D29 parser adoption remain separate exact-
 head obligations. Enforcement over the snapshot remains prohibited without a
 separate owner decision. No ordinary RPC bracket satisfies §4's hidden-transition
-witness; §5 imports that guarantee for the snapshot helper too.
+witness; The accepted HELPER-B r3 §5 amendment permits bracketed observe-only snapshots; the witness gate remains for (a) and enforcement.

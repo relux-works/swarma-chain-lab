@@ -1052,7 +1052,7 @@
   {
     "name": "fresh",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000060,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1065,7 +1065,7 @@
   {
     "name": "stale_age",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000061,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1078,7 +1078,7 @@
   {
     "name": "future_time",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1699999999,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1091,7 +1091,7 @@
   {
     "name": "unknown_tip",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000001,
     "known_tip": null,
     "clock": true,
@@ -1100,7 +1100,7 @@
   {
     "name": "unknown_clock",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000001,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1113,7 +1113,7 @@
   {
     "name": "reorg",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000001,
     "known_tip": {
       "hash": "2222222222222222222222222222222222222222222222222222222222222222",
@@ -1126,7 +1126,7 @@
   {
     "name": "behind",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000001,
     "known_tip": {
       "hash": "2222222222222222222222222222222222222222222222222222222222222222",
@@ -1139,7 +1139,7 @@
   {
     "name": "ahead",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000001,
     "known_tip": {
       "hash": "2222222222222222222222222222222222222222222222222222222222222222",
@@ -1152,7 +1152,7 @@
   {
     "name": "consumer_default_tip_lag_7200",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699992860},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699992860},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000060,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1165,7 +1165,7 @@
   {
     "name": "consumer_default_tip_lag_7201",
     "kind": "label",
-    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699992859},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699992859},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000060,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1268,5 +1268,192 @@
       }
     ],
     "accepted": false
+  },
+  {
+    "name": "bracket_equal",
+    "kind": "bracket",
+    "attempts": [
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        }
+      ]
+    ],
+    "expected": {
+      "write": true,
+      "exit": 0
+    }
+  },
+  {
+    "name": "bracket_moved_retry",
+    "kind": "bracket",
+    "attempts": [
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100,
+          "time": 1699999990
+        }
+      ],
+      [
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100,
+          "time": 1699999990
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100,
+          "time": 1699999990
+        }
+      ]
+    ],
+    "expected": {
+      "write": true,
+      "exit": 0
+    }
+  },
+  {
+    "name": "bracket_moved_keep_previous",
+    "kind": "bracket",
+    "attempts": [
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100,
+          "time": 1699999990
+        }
+      ],
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100,
+          "time": 1699999990
+        }
+      ],
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100,
+          "time": 1699999990
+        }
+      ]
+    ],
+    "expected": {
+      "write": false,
+      "exit": 12
+    }
+  },
+  {
+    "name": "bracket_time_moved_keep_previous",
+    "kind": "bracket",
+    "attempts": [
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999991
+        }
+      ],
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999991
+        }
+      ],
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999991
+        }
+      ]
+    ],
+    "expected": {
+      "write": false,
+      "exit": 12
+    }
+  },
+  {
+    "name": "label_consistency_witnessed",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"witnessed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "clock": true,
+    "now": 1700000001,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "label": "invalid"
+  },
+  {
+    "name": "label_consistency_other",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"other\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "clock": true,
+    "now": 1700000001,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "label": "invalid"
+  },
+  {
+    "name": "label_consistency_None",
+    "kind": "label",
+    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "clock": true,
+    "now": 1700000001,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "label": "invalid"
   }
 ]

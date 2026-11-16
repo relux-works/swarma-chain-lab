@@ -331,7 +331,7 @@ Neither helper nor gateway accepts arbitrary RPC from agents.
 
 One complete CG1 canonical object, at most 65536 payload bytes (no LF):
 
-`{"mode":"observe_only","names":[NameRecord...],"network":"main" or "regtest","seals":[SealRecord...],"tip":Tip,"v":1,"written_at":N}`
+`{"consistency":"bracketed","mode":"observe_only","names":[NameRecord...],"network":"main" or "regtest","seals":[SealRecord...],"tip":Tip,"v":1,"written_at":N}`
 
 `NameRecord` is exactly the `name_show` result above. `SealRecord` is exactly the
 `gettxout` result above. All records share the SINGLE top-level Tip; name heights
@@ -348,14 +348,31 @@ file. Schema validity alone does not prove watch-set completeness.
 Helper refreshes on startup, each observed new block OR same-height tip hash
 change, and at least every 30 seconds to label write liveness during a long block
 interval. It may also refresh on mempool change; no cadence makes it enforceable.
-The helper collects a complete set, not a patch, using the per-read
-§4 guarantees and requiring one common Tip for every record and both end
-checks. It does not claim an atomic multi-record mempool snapshot; observations
-can be separated in time even at the same Tip. A failed
-read or publication MUST NOT replace the last valid file with partial records,
-empty arrays or an invented current timestamp. Unavailable/missing records are
-not representable as successful records: keep the previous complete snapshot
-and let its age become stale. Missing expected file means unavailable.
+The helper collects a complete set, not a patch. For (b) only, read the COMPLETE
+Tip {hash, height, time} BEFORE and AFTER all name and outpoint reads. Publish
+only if all three members are identical. Otherwise discard the entire attempt
+and retry: N=3 total attempts, with 100 ms then 200 ms backoff. On exhaustion,
+keep the previous file UNTOUCHED and exit 12 (`tip_moved`); the consumer sees it
+age to stale. A node/read failure exits 11 without replacing the file. There is
+never a partial or best-effort file, nor an invented current timestamp.
+Missing expected file means unavailable for observation.
+
+`consistency` is REQUIRED with a CLOSED set. V1 writers produce `"bracketed"`
+only, and the v1 consumer accepts EXACTLY `"bracketed"`. Any other value,
+`"witnessed"` included, is `invalid` until the consumer is updated against a
+qualified witness; a helper cannot raise its own claim. `"witnessed"` is named
+only as a future value and is INVALID in v1.
+
+A `"bracketed"` snapshot cannot rule out a hidden A→B→A excursion between the
+bracket reads. The consumer LABELS only and NEVER refuses on it. A closure
+observed through a bracketed snapshot is OBSERVE-GRADE: it labels, goes to an
+observe journal, and is NEVER imported into enforcement state. Enforcement
+closures come only from the Q10 watcher journal or a witnessed read. §4's
+witness requirement stays IN FULL for gateway (a) and for any enforcement.
+Ordinary bracketing does not claim coherent per-read chain state or an atomic
+multi-record mempool snapshot; observations can differ even at the same Tip.
+These requirements are Source's acceptance points ($Omp4AzWq), accepted by the
+consumer and backed by the lead in the HELPER-B r3 amendment.
 
 Publication: create a fresh same-directory temp file with O_EXCL and no symlink
 following, mode 0600; write all bytes and validate; set root ownership and 0644;
@@ -393,7 +410,7 @@ consumer acceptance and new shared vectors. Unknown versions fail closed.
 A host config change cannot reinterpret v1; limits may be tightened only if
 reported as a distinct deployment profile accepted by both parties.
 
-The gateway-side package contains tests only: `schema_test.go` and
+The contract schema harness consists of: `schema_test.go` and
 `contract_test.go`. Its executable schema validates wrappers, types, limits,
 canonical bytes and fixture relationships. `fixtures/vectors.json` stores exact
 payloads as JSON strings so duplicates, whitespace and malformed inputs remain

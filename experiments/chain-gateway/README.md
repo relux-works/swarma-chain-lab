@@ -5,7 +5,7 @@ live ChainView. [OPEN.md](OPEN.md) lists acceptance/build gates. This directory
 contains a schema-only test harness and shared vectors, no gateway or helper.
 Source accepted part (B) for helper build in answers r1. Tip.time is a requested
 pre-freeze delta; Source's delta acceptance and review remain pending. Q3's
-transition-witness feasibility gate applies to both read paths.
+transition-witness feasibility gate applies to (a) and enforcement only.
 
 ## Tools and commands
 
@@ -43,19 +43,17 @@ all success types and the snapshot; observation vectors include mismatched tip
 time and the consumer's default lag boundary at 7200/7201 seconds.
 
 
-## Helper build blocker
+## Accepted observe-only amendment
 
-Part (B) §5 requires §4's per-read transition witness. A helper using only
-ordinary RPC tip reads before/after a collection cannot distinguish a stable A
-from an A→B→A excursion inside a read. The shared `hidden_tip_return` and
-`hidden_tip_return_exhausted` scenarios require an actual witness, not endpoint
-equality. Infra's ZMQ sequence proposal is unqualified and specifies no RPC/
-stream synchronization or loss/restart recovery contract yet. A fake-only
-witness or a helper that always refuses would not supply the requested build.
+Source acceptance `$Omp4AzWq` and the lead's HELPER-B r3 brief amend §5.
+The helper may bracket all reads with complete Tip comparisons, N=3 total
+attempts, 100/200 ms backoff; exit 12 retains the previous file untouched.
+Snapshots require `consistency:"bracketed"`; missing, unknown and `witnessed`
+are invalid in v1. Hidden A→B→A cannot be detected: labels and observe-journal
+closures never enter enforcement state. §4's witness gate stays for (a) and
+enforcement. No installation or live-node qualification is claimed.
 
-To resume, supply a realizable witness contract and its Q3 qualification, or
-obtain an explicit owner/consumer contract amendment allowing weaker RPC
-bracketing for observe-only snapshots, with the limitation stated and tested.
-Until then the helper build is blocked; no helper binary, systemd unit or
-installation is included. This does not reopen Source's acceptance of the
-snapshot file format.
+The amendment control sets `snapshot_consistency_witnessed` to valid in an
+isolated fixture copy, then runs
+`go test -run '^TestSharedVectors/snapshot_consistency_witnessed$' -count=1 ./...`.
+Require exit 1 with `verdict mismatch`, restore the fixture, and rerun green.
