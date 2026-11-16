@@ -251,8 +251,9 @@ func (s *Service) foreignBearer(id string, bearer Secret) string {
 // foreignLeak applies the credential-leak verdict to the binding that owns a
 // bearer presented on another route beside a leaked credential. A run binding
 // is handled by foreignBearer and keeps its LEAK_BEARER account block. A rental
-// binding has no account, so its own record is frozen, as for a leak on its own
-// route; a foreign rental bearer without the leak still freezes nothing. The
+// binding has no account, so its live record is frozen, as for a leak on its own
+// route; terminal phases are preserved. A foreign rental bearer without the
+// leak still freezes nothing. The
 // own slot and a bearer no binding owns leave nothing to block. It returns ""
 // or the persistence code of a failed save.
 func (s *Service) foreignLeak(id string, bearer Secret) string {
@@ -270,6 +271,9 @@ func (s *Service) foreignLeak(id string, bearer Secret) string {
 	for other, r := range s.state.Records {
 		if other == id || r.Binding.Kind() == KindRun || subtle.ConstantTimeCompare([]byte(bearer), []byte(r.Bearer.Reveal())) != 1 {
 			continue
+		}
+		if r.Phase == "revoked" || r.Phase == "frozen" {
+			return ""
 		}
 		r.Phase = "frozen"
 		s.state.Records[other] = r

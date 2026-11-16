@@ -299,6 +299,120 @@ func TestTripwireScreenForeign(t *testing.T) {
 	}
 }
 
+// A foreign rental bearer beside a leak freezes prepared/active records while
+// preserving revoked/frozen phases, on both routes and across restart. Every
+// leak is refused without provider I/O or an account block; the route owner
+// continues serving. The active rental also has a successful pre-leak control.
+func TestTripwireScreenForeignRentalPhase(t *testing.T) {
+	for _, route := range []string{"messages", "responses"} {
+		for _, phase := range []string{"prepared", "active", "revoked", "frozen"} {
+			t.Run(route+"/"+phase, func(t *testing.T) {
+				g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
+				if g.send(request(false)).Code != 200 {
+					t.Fatal("route owner positive control refused")
+				}
+				rental := rentalBinding("6")
+				cred, e := g.s.Prepare(rental)
+				if e != nil {
+					t.Fatal(e)
+				}
+				if phase != "prepared" {
+					if e = g.s.Activate(rental); e != nil {
+						t.Fatal(e)
+					}
+				}
+				switch phase {
+				case "active":
+					if g.sendAs(request(false), rental.SlotID, cred.Bearer.Reveal(), nil).Code != 200 {
+						t.Fatal("rental positive control refused")
+					}
+				case "revoked":
+					if e = g.s.Revoke(rental); e != nil {
+						t.Fatal(e)
+					}
+				case "frozen":
+					if e = g.s.block(rental.SlotID, "LEAK_CREDENTIAL"); e != nil {
+						t.Fatal(e)
+					}
+				}
+				calls := g.calls.Load()
+				r := httptest.NewRequest("POST", "https://proxy.example/slots/"+g.b.SlotID+"/v1/"+route, strings.NewReader(request(false)))
+				r.Header.Set("Authorization", "Bearer "+string(cred.Bearer.Reveal()))
+				r.Header.Set("X-Client-Debug", sourceMarker)
+				w := httptest.NewRecorder()
+				g.s.ServeHTTP(w, r)
+				if w.Code != 401 || w.Body.String() != `{"error":"AUTH"}` || g.lastAudit().Code != "LEAK_CREDENTIAL" || g.calls.Load() != calls {
+					t.Fatal("foreign rental leak not refused before provider I/O")
+				}
+				want := "frozen"
+				if phase == "revoked" {
+					want = "revoked"
+				}
+				check := func() {
+					t.Helper()
+					v, e := g.s.Status(rental.SlotID)
+					if e != nil || v.Phase != want || len(persistedBlocks(t, g)) != 0 {
+						t.Fatal("foreign rental leak changed terminal phase or blocked account", phase, v.Phase, e)
+					}
+				}
+				check()
+				g.reopen(t)
+				check()
+				if w := g.sendAs(request(false), rental.SlotID, cred.Bearer.Reveal(), nil); w.Code != 401 || w.Body.String() != `{"error":"AUTH"}` || g.calls.Load() != calls {
+					t.Fatal("terminal rental still served")
+				}
+				if g.send(request(false)).Code != 200 || g.calls.Load() != calls+1 {
+					t.Fatal("foreign leak affected route owner")
+				}
+			})
+		}
+	}
+}
+
+// The route's own bearer on a prepared, revoked or expired record beside a
+// known leak is refused and audited without blocking either binding kind.
+// A successful request first establishes the issued credential being matched.
+func TestTripwireScreenOwnNonActive(t *testing.T) {
+	for _, kind := range []string{"run", "rental"} {
+		for _, phase := range []string{"prepared", "revoked", "expired"} {
+			t.Run(kind+"/"+phase, func(t *testing.T) {
+				g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
+				if g.send(request(false)).Code != 200 {
+					t.Fatal("issued credential positive control refused")
+				}
+				b := rentalBinding("6")
+				if kind == "run" {
+					b = runBinding("6", "b")
+				}
+				cred, e := g.s.Prepare(b)
+				if e != nil {
+					t.Fatal(e)
+				}
+				want := "prepared"
+				if phase != "prepared" {
+					if e = g.s.Activate(b); e != nil {
+						t.Fatal(e)
+					}
+					want = "active"
+				}
+				if phase == "revoked" {
+					if e = g.s.Revoke(b); e != nil {
+						t.Fatal(e)
+					}
+					want = "revoked"
+				} else if phase == "expired" {
+					g.now.Store(b.NotAfter)
+				}
+				w := g.sendAs(request(false), b.SlotID, cred.Bearer.Reveal(), map[string]string{"X-Client-Debug": sourceMarker})
+				v, e := g.s.Status(b.SlotID)
+				if w.Code != 401 || w.Body.String() != `{"error":"AUTH"}` || g.lastAudit().Code != "LEAK_CREDENTIAL" || g.calls.Load() != 1 || len(persistedBlocks(t, g)) != 0 || e != nil || v.Phase != want {
+					t.Fatal("own non-active bearer blocked or changed a record", phase, v.Phase, e)
+				}
+			})
+		}
+	}
+}
+
 // While the source is down an echoed issued version is still caught with the
 // needles already known: the request is refused LEAK_CREDENTIAL and the account
 // is blocked, not refused CREDENTIAL_UNAVAILABLE. The same request without the

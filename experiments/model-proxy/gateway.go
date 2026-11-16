@@ -36,8 +36,9 @@ func singleBearer(r *http.Request) (Secret, bool) {
 // on the route the account is blocked as for any leak. When the bearer belongs
 // to ANOTHER binding, that binding is held to account exactly as a foreign
 // bearer without the leak would be: a run binding's account is blocked under
-// LEAK_BEARER and a rental binding's own record is frozen. Only a bearer no
-// binding owns leaves nothing to block. Outside the own-binding case the client
+// LEAK_BEARER and a rental binding's live record is frozen. A bearer no binding
+// owns, or the route's own bearer on a non-active record, leaves nothing to
+// block. Outside the own-binding case the client
 // sees a plain 401 AUTH and the audit records LEAK_CREDENTIAL. The version the
 // source issues for this very request is not known yet here; admit scans again
 // once it is.

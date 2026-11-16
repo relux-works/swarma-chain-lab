@@ -375,9 +375,11 @@ issued so far: an issued value is caught even as the bearer itself, beside
 several `Authorization` headers, with an invalid bearer, or while the source is
 down. When that bearer belongs to another binding, that binding is held to
 account as for a foreign bearer: a run binding's account is blocked under
-`LEAK_BEARER` and a rental binding's record is frozen. Only a bearer no binding
-owns leaves nothing to block. Outside the own-binding case the client sees a
-plain 401 `AUTH` and only the audit names `LEAK_CREDENTIAL`. Matched
+`LEAK_BEARER` and a rental binding's live record is frozen; an already revoked
+or frozen record keeps its terminal phase. Only a bearer no binding owns, or the
+route's own bearer on a non-active record, leaves nothing to block. Outside the
+own-binding case the client sees a plain 401 `AUTH` and only the audit names
+`LEAK_CREDENTIAL`. Matched
 spellings: raw, base64 and base64url
 with and without padding, lower and upper hex, percent-encoding and JSON string
 escaping, across body chunk boundaries within a window bounded by the longest

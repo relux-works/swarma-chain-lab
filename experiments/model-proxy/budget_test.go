@@ -306,10 +306,20 @@ func TestDailyAccountingFailsClosed(t *testing.T) {
 			}
 			bad := []byte("corrupt")
 			want := "DAILY_ACCOUNTING_CORRUPT"
-			if kind == "missing" {
-				if e = os.Remove(path); e != nil {
+			// ServeHTTP can return before its liveness watcher exits. Serialize
+			// the plant with that watcher's integrity read: deletion between
+			// lstat and open correctly reports CORRUPT, not the MISSING tested
+			// here. Release mu before exercising every public fail-closed path.
+			tamper := func(edit func() error) {
+				t.Helper()
+				h.s.mu.Lock()
+				defer h.s.mu.Unlock()
+				if e := edit(); e != nil {
 					t.Fatal(e)
 				}
+			}
+			if kind == "missing" {
+				tamper(func() error { return os.Remove(path) })
 				want = "DAILY_ACCOUNTING_MISSING"
 			} else {
 				if kind != "corrupt" {
@@ -331,9 +341,7 @@ func TestDailyAccountingFailsClosed(t *testing.T) {
 					}
 					bad = privateCanonical(v)
 				}
-				if e = os.WriteFile(path, bad, 0600); e != nil {
-					t.Fatal(e)
-				}
+				tamper(func() error { return os.WriteFile(path, bad, 0600) })
 			}
 			// Valid-shaped tampering is caught by the live integrity check as well as restart validation.
 			if w := h.send(request(false)); w.Code != 503 || w.Body.String() != `{"error":"`+want+`"}` || h.calls.Load() != 1 {
