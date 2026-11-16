@@ -53,12 +53,16 @@ func validRowRecipient(r RowRecipient) bool {
 	return modes == 1
 }
 
-// CheckRowTemplate implements R9.1, R10.1, R10.2 and J9.4. The caller must
-// establish the parent's pinned notaries; their names here are checked identities,
-// not an alternate notary identity resolver. Empty Certifier explicitly means none.
+// CheckRowTemplate implements R8.1's executor shape, R9.1, R10.1, R10.2 and J9.4.
+// The caller must establish the parent's pinned notaries; their names here are
+// checked identities, not an alternate notary identity resolver. Empty Certifier
+// explicitly means none.
 func CheckRowTemplate(profile R1Profile, issuer LandlordPin, notaries []string, t RowTemplate) error {
 	if profile != R1DraftLab && profile != R1InForce051 {
 		return ErrR1Profile
+	}
+	if t.Executor.Name == "" || !validSigningKey(t.Executor.Key) {
+		return R1RuleError("R8.1")
 	}
 	if !validLandlord(issuer) || !validRowRecipient(t.Recipient) {
 		return R1RuleError("R9.1")
@@ -381,9 +385,6 @@ func CheckR1Parent(profile R1Profile, p R1Parent) error {
 		return err
 	}
 	for _, g := range p.Rows.Groups {
-		if g.Template.Executor.Name == "" || !validSigningKey(g.Template.Executor.Key) {
-			return R1RuleError("R8.1")
-		}
 		if err := CheckRowTemplate(profile, p.Issuer, p.Notaries, g.Template); err != nil {
 			return err
 		}

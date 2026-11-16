@@ -15,7 +15,18 @@ class R1ReaderControls(unittest.TestCase):
 
     def test_all_vectors(self):
         # All pinned and revision independent results agree with the pinned expectations.
-        self.assertEqual(len(reader.calculate(self.files)), 1295)
+        self.assertEqual(len(reader.calculate(self.files)), 1309)
+
+    def test_executor_shape(self):
+        # R8.1 requires both fields, including an actual curve key. The valid
+        # synthetic fixture neighbour passes; each single defect refuses R8.1.
+        template = reader.fixture_template(self.files["class-vectors.json"]["templates"][0]["template"])
+        self.assertEqual(reader.template_decision(template), {"outcome": "valid"})
+        for executor in ({"name": "", "key": template["executor"]["key"]},
+                         {"name": "service.example", "key": "0"*64}):
+            with self.subTest(executor=executor):
+                self.assertEqual(reader.template_decision(dict(template, executor=executor)),
+                                 {"outcome": "refused", "rule": "R8.1"})
 
     def test_profile_checkpoint(self):
         # Explicit checkpoint remains authoritative when Recent differs. A
@@ -49,7 +60,9 @@ class R1ReaderControls(unittest.TestCase):
         independent = reader.calculate(self.files)
         reader.agree(independent, dict(independent))
         for key, changed in (("class-25", {"outcome": "pass", "attestation": "required"}),
-                             ("class-01", {"outcome": "CLASS_WRITER"})):
+                             ("class-01", {"outcome": "CLASS_WRITER"}),
+                             ("a3-executor/in-force-051/empty-name", "valid"),
+                             ("a3-executor/in-force-051/valid", "R8.1")):
             with self.subTest(vector=key):
                 go = copy.deepcopy(independent)
                 go[key] = changed

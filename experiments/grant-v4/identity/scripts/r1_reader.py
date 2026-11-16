@@ -172,7 +172,16 @@ def ordinal_decision(parent, ordinal):
     raise ValueError("unreachable ordinal")
 
 
+def fixture_template(template):
+    # The upstream class fixtures omit executor facts. Match the Go fixture
+    # adapter's explicitly synthetic valid executor, without changing fixtures.
+    return dict(template, executor={"name": "service.example", "key": "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"})
+
+
 def template_decision(template):
+    executor = template.get("executor", {})
+    if not executor.get("name") or not signing_key(executor.get("key")):
+        return {"outcome": "refused", "rule": "R8.1"}
     r = template["recipient"]
     if sum(k in r for k in ("request_public_key", "name", "class")) != 1:
         return {"outcome": "refused", "rule": "R9.1"}
@@ -381,7 +390,7 @@ def profile_vectors(files, profile):
     for row in groups["ordinals"]:
         result[row["id"]] = PROFILE_ERROR if closed else (DRAFT_ERROR if profile == "in-force-051" else ordinal_decision(parents[row["parent_of"]], row["ordinal"]))
     for row in files["class-vectors.json"]["templates"]:
-        result[row["id"]] = PROFILE_ERROR if closed else template_decision(row["template"])
+        result[row["id"]] = PROFILE_ERROR if closed else template_decision(fixture_template(row["template"]))
     for original in files["class-vectors.json"]["admissions"]:
         row = copy.deepcopy(original)
         # Adapter convention: fixture checkpoint explicitly states 500, also
@@ -453,7 +462,7 @@ def calculate(files):
         actual = ordinal_decision(parents[row["parent_of"]], row["ordinal"])
         record(row, actual, row["expect"])
     for row in classes["templates"]:
-        actual = template_decision(row["template"])
+        actual = template_decision(fixture_template(row["template"]))
         record(row, actual, row["expect"])
     for row in classes["admissions"]:
         actual = admission_decision(row)
@@ -490,6 +499,26 @@ def calculate(files):
         raise ValueError("R1 inventory differs")
     decisions.update(revision_decisions(files))
     decisions.update(profile_calculate(files))
+    template = fixture_template(classes["templates"][0]["template"])
+    # r1FullParent's A3 controls use the first admission's issuer key as the
+    # executor key. Exercise those same key octets, including the short form.
+    key = classes["admissions"][0]["issuer"]["owner_public_key"][2:]
+    # R8.1 is decided in both profiles (LIP-0026 L510/L526). Expectations
+    # follow that shape contract, independently of Go verdicts.
+    for profile in ("draft", "in-force-051"):
+        for identifier, name, candidate, expected in (
+            ("valid", "service.example", key, "valid"),
+            ("empty-name", "", key, "R8.1"),
+            ("empty-key", "service.example", "", "R8.1"),
+            ("short-key", "service.example", key[1:], "R8.1"),
+            ("uppercase-key", "service.example", key.upper(), "R8.1"),
+            ("off-curve-key", "service.example", "0"*64, "R8.1"),
+            ("nonhex-key", "service.example", "g"*64, "R8.1"),
+        ):
+            row = dict(template, executor={"name": name, "key": candidate})
+            actual = template_decision(row)
+            verdict = "valid" if actual["outcome"] == "valid" else actual["rule"]
+            record({"id": f"a3-executor/{profile}/{identifier}"}, verdict, expected)
     return decisions
 
 

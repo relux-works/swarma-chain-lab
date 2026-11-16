@@ -104,7 +104,8 @@ are enforced in the Go vector harness and independent Python reader. Their
 `row-fit-vectors.json` adds 15 local R2 controls: fit, both ordinal bounds,
 executor name/key, recipient mode, typed limits and compound refusal order.
 The independent reader additionally compares **855** profile cases (five
-profiles × 151 vectors and 20 rule families), for **1,295** total R1 results.
+profiles × 151 vectors and 20 rule families), plus **14** executor-shape
+results under both open profiles, for **1,309** total R1 results.
 Its earlier **440** R1 cases remain: **151** vectors (38 groups/ordinals, 65 class, 28 holder values,
 5 capacity and 15 row-fit), **276** earlier revision controls and **13**
 additional absence/leading-whitespace controls. It reuses the independent Python O3/O4 primitives, never Go parsing or
@@ -367,7 +368,7 @@ all 256 profile values, maximum topology and named-neighbour execution.
 The R1 reader compares all 151 pinned/local vectors plus 276 earlier revision
 cases (5 suffix, 10 child suffix, 5 landlord status and 256 recipient status)
 and 13 new cases (4 prefix, 8 child prefix and 1 cross-path absence), plus
-855 cross-profile cases with Go (1,295 total). Additional caller-status tests cover all byte values and the
+855 cross-profile cases and 14 executor-shape cases with Go (1,309 total). Additional caller-status tests cover all byte values and the
 negative/out-of-byte values of int-backed `Reading` and `Writer`.
 
 Eight additional narrowing plants restore leading/trailing whitespace acceptance,
@@ -383,12 +384,45 @@ below; evidence includes each named failing test and command exit.
 | Map recipient absence to UNAVAILABLE | Both ownership paths retain O7.2 row 1's NOT_HELD meaning | `TestR1RecipientAbsenceAgreesWithOwner` |
 | Accept leading JSON whitespace | The value starts at byte zero with `{` | `TestR1TopLevelPrefix/prefix_20` |
 
-The complete runner now requires **42/42** killed mutants (41 Go overlays and
-one isolated Python digest plant), including all 40 earlier plants.
+The complete runner now requires **48/48** killed mutants (47 Go overlays and
+one isolated Python digest plant), including all 42 earlier plants.
 The two v0.1.51 plants enable the draft landlord writer in the in-force
 profile (`TestR1Profiles/in-force-051/class-16`) and disable its decided holder
 check (`TestR1Profiles/in-force-051/class-37`). Both must fail their named
 assertions.
+
+The A3 executor check lives in `CheckRowTemplate`, reachable in both profiles
+without whole-parent composition. Upstream class fixtures omit executor facts;
+both fixture adapters supply a stated synthetic valid executor. Their pinned
+bytes and recipient expectations are unchanged. `TestR1ExecutorShape` compares
+the valid template with empty-name and malformed-key variants in each profile;
+all 14 results are independently calculated by Python.
+
+`HoldersCapacity(valueWithout)` is a product predicate for a valid landlord
+value with `holders` absent. It returns the maximum count, its byte size and
+the size with one more holder, or `ErrR1Value` and zero results. It uses rule 8's
+`12 + 69 n` for nonempty lists; zero capacity retains the original absent member
+(an explicit empty list would add 13 bytes). It validates the input shape and
+520-byte envelope and rejects an existing `holders` member. Both profile tests
+and the original five capacity vectors call this product function. Boundary
+tests cover exact 520 bytes, no room for one holder, UTF-8 byte counts and invalid
+inputs; the function establishes no universal count limit or authority.
+
+| A3 mutant | Property narrowed | Required failing test |
+| --- | --- | --- |
+| `r1-a3-remove-executor-shape` | In-force templates reject an empty executor name | `TestR1ExecutorShape/in-force-051/empty-name` |
+| `r1-a3-remove-executor-key` | In-force templates reject an off-curve key even with a name | `TestR1ExecutorShape/in-force-051/off-curve-key` |
+| `r1-a3-capacity-off-by-one` | Computed maximum fits exactly within 520 bytes | `TestR1HoldersCapacity/439` |
+| `r1-a3-enable-draft-rule` | In-force never exposes draft parent composition | `TestR1Profiles/in-force-051/rule/parent-atomic` |
+| `r1-a3-disable-explicit-checkpoint` | The explicit checkpoint overrides Recent | `TestR1ExplicitCheckpoint` |
+| `r1-a3-accept-missing-checkpoint` | A missing checkpoint refuses without a result | `TestR1ExplicitCheckpoint` |
+
+The checkpoint-disable plant removes both the initial guard and the checkpoint
+assignment: removing the guard alone leaves the later unknown-Recent guard
+enforcing the same refusal. The second plant independently changes the missing
+checkpoint branch to return success. These are calibration overlays only;
+`LandlordPin` and checkpoint product behavior are unchanged pending the spec
+decision recorded in Q3 of the decision map.
 
 ## Tools and commands
 

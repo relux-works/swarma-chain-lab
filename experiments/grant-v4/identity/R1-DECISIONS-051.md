@@ -15,7 +15,7 @@ Source abbreviations:
 
 | Rule / implemented predicate | Classification | Exact section and lines | Profile family / consequence |
 | --- | --- | --- | --- |
-| R1.1, R8.1 template: executor, recipient, row limits, certifier or none | IN FORCE, J12/J10/J9 | A §1 L197,203–217; §8 L509–518,526 | `templates`, `groups` |
+| R1.1, R8.1 template: executor, recipient, row limits, certifier or none | IN FORCE, J12/J10/J9 | A §1 L197,203–217; §8 L509–518,526 | `CheckRowTemplate` checks nonempty executor name and valid signing key under both profiles, independently of draft whole-parent composition; `TestR1ExecutorShape` and executor-shape/key plants |
 | R1.2 typed limit identity, inherited by R8.1 | IN FORCE as a stated template dependency | A §1 L198; §8 R8.1 L526 | `pools`, `row-fit`; period identity remains externally established |
 | R1.3 / R8.5 exact weighted sums, exactly the used pool keys | IN FORCE, J12 | A §8 L514–515,530,545–549 | `pools` |
 | R1.4 / R8.6 distinct coins, disjoint ranges, parent seal exclusion | IN FORCE, J12 | A §8 L516,531 | `distinct-coins` |
@@ -47,8 +47,10 @@ Source abbreviations:
 | R10.5 no stop coin without certifier | IN FORCE, J9 | A §10 L730–731,767,769 | `no-certifier` |
 | J11 holder shape, compressed owner pins, absent/empty means none; no authority inferred | IN FORCE | B §10 L400–418,420–430,436–451 | `holders` |
 | J11 ascending/different holder pins and corresponding refusals | DRAFT, explicit proposal | B §10 L415–418,431–435 | `holder-order` unavailable; core reader preserves list order and multiplicity |
-| J11 strict value envelope, 520 bytes, computed capacity | IN FORCE dependencies / arithmetic, not a new holder-count rule | B §10 L420–430,461–478; §§2–3 | `holders`, `capacity`; all prior strict envelope tests retained |
+| J11 strict value envelope, 520 bytes, computed capacity | IN FORCE dependencies / product arithmetic, not a new holder-count rule | B §10 L420–430,461–478; §§2–3 | `ReadR1Value`, `HoldersCapacity`; `TestR1Holders`, `TestR1Profiles` capacity fixtures and `TestR1HoldersCapacity`, capacity off-by-one plant; all prior strict envelope tests retained |
 | J11 holder changes alter issuer swarma and existing issuer-history result | IN FORCE dependency; closure recording remains outside #130 | B §10 L452–460 | Existing issuer-history predicates unchanged |
+
+Despite LIP-0010 L417's qualification of rule 3's proposed refusals, the in-force reader refuses “no array” and “element without a pin” because they violate the decided shape in rule 2 (L426–430).
 
 | #130 vector family | Classification at this pin |
 | --- | --- |
@@ -58,7 +60,7 @@ Source abbreviations:
 | 39 class admissions | Mixed: four class predicates IN FORCE; recent-checkpoint derivation, landlord writer, proposed code/inner-order claims DRAFT. |
 | 11 certifier admissions | Mixed: scope/attestation requirement IN FORCE; exact shortcut and no-read guarantee DRAFT. |
 | 28 holder values | Mixed: shape/pins/envelope IN FORCE; duplicate/descending-holder refusals DRAFT (value-23/24). |
-| 5 holder capacity rows | IN FORCE arithmetic of decided shape and existing 520-byte envelope; no universal count cap. |
+| 5 holder capacity rows | IN FORCE product arithmetic through `HoldersCapacity` in both profile tests, independently computed by Python; no universal count cap. |
 | 15 local row-fit rows | IN FORCE comparisons; composed group-selection path depends on DRAFT order. Test selected facts separately. |
 | 276 revision controls and 13 absence/whitespace controls | IN FORCE envelope/absence/unsupported-fact dependencies; exact shortcut and local class diagnostic claims retain their DRAFT qualification. |
 

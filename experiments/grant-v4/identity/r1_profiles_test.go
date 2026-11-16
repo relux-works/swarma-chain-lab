@@ -154,8 +154,11 @@ func profileCases(t *testing.T) map[string]profileCase {
 				return err.Error()
 			}
 			size := len([]byte(v.Value))
-			most := (520 - size - 12) / 69
-			return map[string]any{"without": size, "most": most, "with": size + 12 + 69*most, "more": size + 12 + 69*(most+1)}
+			most, with, more, err := HoldersCapacity([]byte(v.Value))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return map[string]any{"without": size, "most": most, "with": with, "more": more}
 		}, map[string]any{"without": v.Without, "most": v.Most, "with": v.With, "more": v.More}}
 	}
 	var fit struct {

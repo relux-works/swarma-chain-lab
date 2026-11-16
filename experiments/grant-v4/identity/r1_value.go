@@ -33,6 +33,27 @@ type R1Value struct {
 	Swarma     []byte
 }
 
+// HoldersCapacity computes LIP-0010 section 10 rule 8 for a valid landlord
+// value with holders absent. It returns the maximum count and the byte sizes
+// with that count and one more. A zero count retains the original value (no
+// holders member); an explicit empty list would instead add 13 bytes.
+// This is shared decided arithmetic, not a profile or an admission check.
+// Invalid input, including an existing holders member, returns zero results.
+func HoldersCapacity(valueWithout []byte) (most, with, more int, err error) {
+	value, err := ReadR1Value(R1InForce051, valueWithout)
+	if err != nil || value.Grant == "" || !bytes.Equal(value.Swarma,
+		[]byte(`{"landlord":{"grant":"`+value.Grant+`"}}`)) {
+		return 0, 0, 0, ErrR1Value
+	}
+	size := len(valueWithout)
+	most = max(0, (520-size-12)/69)
+	with = size
+	if most > 0 {
+		with += 12 + 69*most
+	}
+	return most, with, size + 12 + 69*(most+1), nil
+}
+
 // objectMembers preserves duplicate names and exact RawMessage spans.
 func objectMembers(raw []byte) ([]string, []json.RawMessage, error) {
 	// The strict top-level reading forbids leading JSON whitespace.

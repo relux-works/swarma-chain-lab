@@ -138,6 +138,9 @@ func r1Parent(p r1FixtureParent) RowGroups {
 }
 func r1Template(t *testing.T, v r1FixtureTemplate) RowTemplate {
 	out := RowTemplate{Recipient: r1Recipient(t, v.Recipient)}
+	// The upstream recipient-only fixtures omit executor facts. Supply a
+	// synthetic valid executor; dedicated executor vectors exercise R8.1.
+	out.Executor = RowExecutor{"service.example", "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"}
 	if v.Certifier != nil {
 		out.Certifier = *v.Certifier
 	}
@@ -397,11 +400,11 @@ func TestR1Holders(t *testing.T) {
 	for _, v := range f.Capacity {
 		t.Run(v.ID, func(t *testing.T) {
 			base := len([]byte(v.Value))
-			extra := func(n int) int { return 12 + 69*n }
-			if base != v.Without || base+extra(v.Most) != v.With || base+extra(v.Most+1) != v.More || v.With > 520 || v.More <= 520 {
+			most, with, more, err := HoldersCapacity([]byte(v.Value))
+			if err != nil || base != v.Without || most != v.Most || with != v.With || more != v.More || with > 520 || more <= 520 {
 				t.Fatal("R1 capacity boundary")
 			}
-			r1Record(t, v.ID, map[string]any{"without": base, "most": v.Most, "with": base + extra(v.Most), "more": base + extra(v.Most+1)})
+			r1Record(t, v.ID, map[string]any{"without": base, "most": most, "with": with, "more": more})
 		})
 	}
 }

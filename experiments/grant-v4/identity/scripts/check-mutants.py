@@ -11,6 +11,15 @@ import sys
 
 MODULE = Path(__file__).resolve().parents[1]
 PLANTS = [
+    ('r1-a3-remove-executor-shape', 'r1_class.go', 'if t.Executor.Name == "" || !validSigningKey(t.Executor.Key) {', 'if false {', 'TestR1ExecutorShape/in-force-051/empty-name', 'a3-executor/in-force-051/empty-name: R1 got'),
+    ('r1-a3-remove-executor-key', 'r1_class.go', 'if t.Executor.Name == "" || !validSigningKey(t.Executor.Key) {', 'if t.Executor.Name == "" {', 'TestR1ExecutorShape/in-force-051/off-curve-key', 'a3-executor/in-force-051/off-curve-key: R1 got'),
+    ('r1-a3-capacity-off-by-one', 'r1_value.go', 'most = max(0, (520-size-12)/69)', 'most = max(0, (520-size-12)/69) + 1', 'TestR1HoldersCapacity/439', 'capacity got'),
+    ('r1-a3-enable-draft-rule', 'r1_profile.go', '\t\treturn ErrR1DraftRule\n\tdefault:', '\t\treturn nil\n\tdefault:', 'TestR1Profiles/in-force-051/rule/parent-atomic', 'profile/in-force-051/rule/parent-atomic: R1 got'),
+    # Disable the explicit checkpoint requirement and its binding together.
+    # Removing only the first guard is redundant: the subsequent unknown
+    # Recent check also refuses an unknown checkpoint after the assignment.
+    ('r1-a3-disable-explicit-checkpoint', 'r1_class.go', 'if !e.Checkpoint.known {\n\t\t\treturn ClassHistoryUnavailable\n\t\t}\n\t\to.Recent = e.Checkpoint', '// explicit checkpoint requirement disabled', 'TestR1ExplicitCheckpoint', 'explicit checkpoint:'),
+    ('r1-a3-accept-missing-checkpoint', 'r1_class.go', 'if !e.Checkpoint.known {\n\t\t\treturn ClassHistoryUnavailable', 'if !e.Checkpoint.known {\n\t\t\treturn nil', 'TestR1ExplicitCheckpoint', 'missing/future checkpoint:'),
     ('r1-051-enable-draft-landlord-writer', 'r1_class.go', 'if profile == R1DraftLab {', 'if profile == R1DraftLab || profile == R1InForce051 {', 'TestR1Profiles/in-force-051/class-16', 'class-16: R1 got'),
     ('r1-051-disable-in-force-holder', 'r1_class.go', 'if !held {', 'if !held && profile != R1InForce051 {', 'TestR1Profiles/in-force-051/class-37', 'class-37: R1 got'),
     ('r3-recipient-absence-unavailable', 'r1_class.go', 'case NoLiveOutput:\n\t\treturn fail(RecipientNameNotHeld)', 'case NoLiveOutput:\n\t\treturn fail(RecipientNameUnavailable)', 'TestR1RecipientAbsenceAgreesWithOwner', 'same proved absence must be NOT_HELD:'),
