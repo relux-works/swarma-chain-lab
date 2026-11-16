@@ -36,7 +36,9 @@
   `TestGatewayRevealInventory` both pin the reveal sites in `credential.go` and
   `tripwire.go`; a new reveal must be added to both after review.
 - The broker-backed `CredentialSource` and the managed-mode CLI start are a
-  later slice; managed mode currently refuses to start.
+  later slice. Until the adapter type implements the unexported managed-mode
+  marker, `New` refuses managed mode with `CONFIG_MODE_NO_BROKER` and the CLI
+  with `CREDENTIAL_SOURCE`; only the package's test double passes the marker.
 - Existing installations need an admin-approved migration preserving credentials,
   outstanding exposure and the admission-day bucket before enabling the new
   ceiling. Automatic ledger initialization on startup and state reset are

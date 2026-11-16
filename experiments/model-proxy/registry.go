@@ -101,10 +101,15 @@ func newService(c Config, initialize bool) (*Service, error) {
 	switch c.Mode {
 	case "", ModeDevelopment:
 	case ModeManaged:
-		// Managed mode admits only a non-file source: the proxy must never be
-		// able to read a provider token from this host.
-		if _, file := c.Source.(*FileSource); static || file {
+		// Managed mode allow-lists the broker adapter: the proxy must never be
+		// able to read a provider token from this host. A static key is the
+		// wrong origin for the mode; any other source, wrapped or not, is not
+		// the broker, and until the adapter type exists nothing qualifies.
+		if static {
 			return nil, fail("CONFIG_MODE")
+		}
+		if _, broker := c.Source.(brokerSource); !broker {
+			return nil, fail("CONFIG_MODE_NO_BROKER")
 		}
 	default:
 		return nil, fail("CONFIG_MODE")
@@ -332,6 +337,11 @@ func (s *Service) Prepare(b Binding) (Credential, error) {
 		return Credential{}, fail("BINDING")
 	}
 	if b.Kind() == KindRun {
+		// Run bindings exist only behind the broker-backed managed mode; a
+		// development proxy with a static key or a file never mints one.
+		if s.cfg.Mode != ModeManaged {
+			return Credential{}, fail("RUN_REQUIRES_MANAGED")
+		}
 		// The run window ceiling comes only from sealed configuration; zero
 		// means no run binding is admitted at all.
 		if s.cfg.RunMaxWindowSeconds == 0 || b.NotAfter-b.NotBefore > int64(s.cfg.RunMaxWindowSeconds) {

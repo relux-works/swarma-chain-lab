@@ -327,20 +327,29 @@ headers: api-key keeps each dialect's own header, oauth-bearer sends
 `development`; omitted means development) and `run_max_window_seconds`.
 `LoadGatewayConfig` decodes them with the same canonical rules and the
 published decoder for the rest of the file; the fields are hashed in the
-manifest like every other sealed byte. In `managed` mode `New` refuses a
-`FileSource` and a static key with `CONFIG_MODE` and accepts only a non-file
-source; the CLI therefore refuses to start in managed mode (`CREDENTIAL_SOURCE`)
-until the broker adapter is wired. `development` keeps today's behavior.
+manifest like every other sealed byte. `managed` mode allow-lists the broker
+source rather than deny-listing files: a static key refuses `New` with
+`CONFIG_MODE`, and any other source, including a `FileSource` or any wrapper
+around one, refuses `CONFIG_MODE_NO_BROKER`. The allow-list is an unexported
+marker only a type in this package can carry, so until the broker adapter
+lands managed mode cannot be constructed at all, and the CLI refuses to start
+in managed mode (`CREDENTIAL_SOURCE`) before reading any key. `development`
+keeps today's behavior and never mints a run binding.
 
 **Run bindings.** A `Binding` whose `run` object carries `generation`,
 `run_id` and `account`, each a strict 32-byte hex digest, is the run kind; an
 omitted `run` is the rental kind with unchanged wire bytes and its unchanged
-3600 s window cap. A run window is bounded only by `run_max_window_seconds`
-from sealed configuration: above it `Prepare` refuses `RUN_WINDOW`, and a value
-above 12 h (43200) is refused at decode and by `New` with `CONFIG_RUN_WINDOW`.
-Zero or omitted admits no run binding. Prepare, Activate and Revoke, `NotAfter`
-as a hard stop, the daily ceiling and the tripwire apply to run bindings
-exactly as to rental ones.
+3600 s window cap. Run bindings exist only in `managed` mode: a development
+proxy, whether backed by a static key or a `FileSource`, refuses `Prepare` of a
+run binding with `RUN_REQUIRES_MANAGED`. A run window is bounded only by
+`run_max_window_seconds` from sealed configuration: above it `Prepare` refuses
+`RUN_WINDOW`, and a value above 12 h (43200) is refused at decode and by `New`
+with `CONFIG_RUN_WINDOW`. Zero or omitted admits no run binding. Prepare,
+Activate and Revoke, the daily ceiling and the tripwire apply to run bindings
+exactly as to rental ones. Revoke on every end path (End, Destroy, failure,
+abandonment) is the caller's duty; the proxy does not infer an end. `NotAfter`
+is the proxy's hard stop: once it passes, the bearer is refused and an in-flight
+call is cancelled even if the Revoke was lost.
 
 **Leak tripwire.** Two durable, fail-closed checks run before any upstream I/O.
 A bearer presented on another binding's route is refused as before and, when
@@ -360,8 +369,11 @@ on the peer-checked admin socket (`Client.ClearBlock`).
 
 Limits, stated plainly: the tripwire cannot see inside an opaque CONNECT
 tunnel; splitting a value across requests, compression, encryption, an
-encoding outside the list or a slow trickle defeat it. It is a second line
-behind the secret-free design, not the boundary.
+encoding outside the list or a slow trickle defeat it. Its set of issued
+versions lives only in memory: after a restart it matches only the versions
+the source issues again, not values an earlier process once held. Account
+blocks, by contrast, are durable. It is a second line behind the secret-free
+design, not the boundary.
 
 **Pricing.** No code change. A subscription model is configured with the
 existing pinned price fields using a notional list price; that notional price

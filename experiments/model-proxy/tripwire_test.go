@@ -101,7 +101,7 @@ func TestTripwireForms(t *testing.T) {
 		form := forms[name]
 		for _, where := range []string{"header", "body"} {
 			t.Run(name+"/"+where, func(t *testing.T) {
-				g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker))
+				g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 				if g.send(request(false)).Code != 200 {
 					t.Fatal("tripwire positive neighbor refused")
 				}
@@ -178,7 +178,7 @@ func TestTripwireScannerChunks(t *testing.T) {
 // request with a 16-byte credential is refused.
 func TestTripwireShortValue(t *testing.T) {
 	for _, value := range []string{"short-marker-15", "short-marker-16!"} {
-		g := gatewayFixture(t, ModeDevelopment, newFakeSource(Secret(value)))
+		g := gatewayFixture(t, ModeManaged, newFakeSource(Secret(value)))
 		g.accept(value)
 		body := strings.Replace(request(false), "private-prompt-marker", value, 1)
 		w := g.sendAs(body, g.b.SlotID, g.cred.Bearer.Reveal(), map[string]string{"X-Client-Debug": value})
@@ -196,7 +196,7 @@ func TestTripwireShortValue(t *testing.T) {
 // and use for that account only; another account's run binding keeps serving;
 // only the peer-checked clear_block operation lifts it and restores service.
 func TestTripwireRestartAndClear(t *testing.T) {
-	g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker))
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 	other := runBinding("5", "b")
 	otherCred, e := g.s.Prepare(other)
 	if e != nil {
@@ -273,7 +273,7 @@ func TestTripwireRestartAndClear(t *testing.T) {
 // route's own binding keeps serving; a rental binding's foreign bearer keeps
 // today's refusal without any block.
 func TestTripwireForeignBearer(t *testing.T) {
-	g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker))
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 	other := runBinding("5", "b")
 	otherCred, e := g.s.Prepare(other)
 	if e != nil {
@@ -319,7 +319,7 @@ func TestTripwireForeignBearer(t *testing.T) {
 // upstream call, the ledger bytes stay unchanged and the process poisons closed,
 // so later requests for any binding fail instead of serving an unrecorded leak.
 func TestTripwirePersistenceFailure(t *testing.T) {
-	g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker))
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 	if g.send(request(false)).Code != 200 {
 		t.Fatal("persistence positive neighbor refused")
 	}

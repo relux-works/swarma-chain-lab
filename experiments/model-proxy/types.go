@@ -155,7 +155,8 @@ type Config struct {
 	// and Source must be set; the static key becomes an internal source.
 	Source CredentialSource
 	// Mode is the sealed gateway mode: ModeDevelopment (also the empty default)
-	// keeps today's behavior; ModeManaged refuses static keys and FileSource.
+	// keeps today's behavior and admits no run binding; ModeManaged admits only
+	// the broker source and is the only mode that mints run bindings.
 	Mode string
 	// RunMaxWindowSeconds is the sealed maximum run-binding window, at most
 	// MaxRunWindow. Zero refuses every run binding; rental bindings ignore it.

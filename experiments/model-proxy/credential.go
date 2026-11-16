@@ -67,6 +67,17 @@ type CredentialSource interface {
 	Renew(ctx context.Context, rejected string) (UpstreamCredential, error)
 }
 
+// brokerSource is the allow-list for managed mode. The marker method is
+// unexported, so only a type declared in this package can implement it: no
+// wrapper, file-reading source or static key qualifies from outside. The broker
+// adapter implements it when it lands; until then managed mode refuses to
+// construct with CONFIG_MODE_NO_BROKER, and tests reach it only through an
+// unexported double.
+type brokerSource interface {
+	CredentialSource
+	brokerCredentialSource()
+}
+
 // staticSource wraps the existing Config.APIKey as a single-version source.
 type staticSource struct{ value UpstreamKey }
 

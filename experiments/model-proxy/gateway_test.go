@@ -67,6 +67,10 @@ func (f *fakeSource) Renew(_ context.Context, rejected string) (UpstreamCredenti
 	}
 	return f.current(), nil
 }
+
+// brokerCredentialSource is the unexported, test-only seam into managed mode's
+// allow-list; production code outside this package cannot implement it.
+func (*fakeSource) brokerCredentialSource() {}
 func (f *fakeSource) renewed() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -90,10 +94,25 @@ type gatewayHarness struct {
 func runBinding(slot, account string) Binding {
 	return Binding{SlotID: strings.Repeat(slot, 64), GrantID: strings.Repeat("2", 64), NotBefore: 90, NotAfter: 1000, Caps: Caps{1000, 1000, 10, 10, 10000, 0}, Run: RunBinding{Generation: strings.Repeat("3", 64), RunID: strings.Repeat("4", 64), Account: strings.Repeat(account, 64)}}
 }
+func rentalBinding(slot string) Binding {
+	return Binding{SlotID: strings.Repeat(slot, 64), GrantID: strings.Repeat("2", 64), NotBefore: 90, NotAfter: 1000, Caps: Caps{1000, 1000, 10, 10, 10000, 0}}
+}
 
-// gatewayFixture serves one run binding through a source-backed proxy. The
-// loopback upstream answers 401 to any key it was not told to accept, so a
-// renewal is observable without a real provider.
+// wrappedSource hides another source behind a plain CredentialSource, the way
+// any adapter outside this package would look to the allow-list.
+type wrappedSource struct{ inner CredentialSource }
+
+func (w wrappedSource) Credential(ctx context.Context) (UpstreamCredential, error) {
+	return w.inner.Credential(ctx)
+}
+func (w wrappedSource) Renew(ctx context.Context, rejected string) (UpstreamCredential, error) {
+	return w.inner.Renew(ctx, rejected)
+}
+
+// gatewayFixture serves one binding through a source-backed proxy: a run
+// binding in managed mode, a rental binding otherwise. The loopback upstream
+// answers 401 to any key it was not told to accept, so a renewal is observable
+// without a real provider.
 func gatewayFixture(t *testing.T, mode string, src CredentialSource, ceiling ...uint64) *gatewayHarness {
 	t.Helper()
 	g := &gatewayHarness{keys: map[string]bool{string(sourceMarker): true}}
@@ -152,6 +171,9 @@ func gatewayFixture(t *testing.T, mode string, src CredentialSource, ceiling ...
 	}
 	t.Cleanup(func() { g.s.Close() })
 	g.b = runBinding("1", "a")
+	if mode != ModeManaged {
+		g.b = rentalBinding("1")
+	}
 	g.cred, e = g.s.Prepare(g.b)
 	if e != nil {
 		t.Fatal(e)
@@ -234,7 +256,7 @@ func keyFile(t *testing.T, value string) string {
 // Config admits exactly one credential origin: neither and both are the named
 // CONFIG_CREDENTIAL refusal, while a source alone and a static key alone start.
 func TestGatewayCredentialOrigin(t *testing.T) {
-	g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker))
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 	if w := g.send(request(false)); w.Code != 200 || g.calls.Load() != 1 {
 		t.Fatal("source-only neighbor refused", w.Code, w.Body.String())
 	}
@@ -254,6 +276,7 @@ func TestGatewayCredentialOrigin(t *testing.T) {
 	c := g.c
 	c.Source = nil
 	c.APIKey = NewAPIKey(keyMarker)
+	c.Mode = ModeDevelopment
 	s, e := New(c)
 	if e != nil {
 		t.Fatal("static-only neighbor refused", e)
@@ -261,13 +284,16 @@ func TestGatewayCredentialOrigin(t *testing.T) {
 	s.Close()
 }
 
-// Managed mode refuses a FileSource and a static key with CONFIG_MODE and
-// starts with a non-file source; an unknown mode is refused; development mode
-// still accepts a FileSource.
+// Managed mode allow-lists the broker source: the unexported test double
+// starts and serves; a FileSource, a wrapper around a FileSource, a wrapper
+// around the double itself and any non-broker source refuse
+// CONFIG_MODE_NO_BROKER; a static key refuses CONFIG_MODE; a nil source with
+// no key is the existing CONFIG_CREDENTIAL; an unknown mode is refused;
+// development mode still accepts a FileSource and a static key.
 func TestGatewayManagedMode(t *testing.T) {
 	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 	if w := g.send(request(false)); w.Code != 200 || g.calls.Load() != 1 {
-		t.Fatal("managed non-file source refused", w.Code, w.Body.String())
+		t.Fatal("managed broker double refused", w.Code, w.Body.String())
 	}
 	g.s.Close()
 	file := NewFileSource(keyFile(t, sourceMarker))
@@ -277,8 +303,11 @@ func TestGatewayManagedMode(t *testing.T) {
 		static     bool
 		want       string
 	}{
-		{"managed-file", ModeManaged, file, false, "CONFIG_MODE"},
+		{"managed-file", ModeManaged, file, false, "CONFIG_MODE_NO_BROKER"},
+		{"managed-wrapped-file", ModeManaged, wrappedSource{file}, false, "CONFIG_MODE_NO_BROKER"},
+		{"managed-wrapped-double", ModeManaged, wrappedSource{newFakeSource(sourceMarker)}, false, "CONFIG_MODE_NO_BROKER"},
 		{"managed-static", ModeManaged, nil, true, "CONFIG_MODE"},
+		{"managed-nil", ModeManaged, nil, false, "CONFIG_CREDENTIAL"},
 		{"unknown-mode", "staging", newFakeSource(sourceMarker), false, "CONFIG_MODE"},
 		{"development-file", ModeDevelopment, file, false, ""},
 		{"default-static", "", nil, true, ""},
@@ -324,7 +353,13 @@ func TestGatewayCredentialUnavailable(t *testing.T) {
 				path = filepath.Join(root, "absent")
 				src = NewFileSource(path)
 			}
-			g := gatewayFixture(t, ModeDevelopment, src)
+			// A FileSource exists only in development mode, so that case runs
+			// on a rental binding; the broker double runs in managed mode.
+			mode := ModeManaged
+			if kind == "unreadable" {
+				mode = ModeDevelopment
+			}
+			g := gatewayFixture(t, mode, src)
 			w := g.send(request(false))
 			if w.Code != 503 || w.Body.String() != `{"error":"CREDENTIAL_UNAVAILABLE"}` || g.calls.Load() != 0 || g.status(t).Exposure != (Counts{}) {
 				t.Fatal("unavailable credential forwarded or charged", w.Code, w.Body.String())
@@ -357,7 +392,7 @@ func TestGatewayRenewal(t *testing.T) {
 	t.Run("renewed", func(t *testing.T) {
 		src := newFakeSource(sourceMarker)
 		src.next = &issuedValue{sourceMarker2, "version-marker-2"}
-		g := gatewayFixture(t, ModeDevelopment, src)
+		g := gatewayFixture(t, ModeManaged, src)
 		g.accept(sourceMarker2)
 		w := g.send(request(false))
 		if w.Code != 200 || g.calls.Load() != 2 || strings.Join(src.renewed(), ",") != sourceVersion {
@@ -369,7 +404,7 @@ func TestGatewayRenewal(t *testing.T) {
 	})
 	t.Run("same-version", func(t *testing.T) {
 		src := newFakeSource(sourceMarker)
-		g := gatewayFixture(t, ModeDevelopment, src)
+		g := gatewayFixture(t, ModeManaged, src)
 		g.accept(sourceMarker2)
 		w := g.send(request(false))
 		if w.Code != 502 || w.Body.String() != `{"error":"CREDENTIAL_REJECTED"}` || g.calls.Load() != 1 || len(src.renewed()) != 1 {
@@ -381,7 +416,7 @@ func TestGatewayRenewal(t *testing.T) {
 	})
 	t.Run("stream-began", func(t *testing.T) {
 		src := newFakeSource(sourceMarker)
-		g := gatewayFixture(t, ModeDevelopment, src)
+		g := gatewayFixture(t, ModeManaged, src)
 		g.upstream = func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/event-stream")
 			_, _ = io.WriteString(w, strings.Split(sse(7, 3), "event: message_stop")[0])
@@ -393,7 +428,7 @@ func TestGatewayRenewal(t *testing.T) {
 	})
 	t.Run("transport", func(t *testing.T) {
 		src := newFakeSource(sourceMarker)
-		g := gatewayFixture(t, ModeDevelopment, src)
+		g := gatewayFixture(t, ModeManaged, src)
 		g.s.cfg.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, errors.New("synthetic transport failure") })
 		w := g.send(request(false))
 		if w.Code != 502 || w.Body.String() != `{"error":"UPSTREAM"}` || g.calls.Load() != 0 || len(src.renewed()) != 0 {
@@ -407,7 +442,7 @@ func TestGatewayRenewal(t *testing.T) {
 // fmt, JSON and slog sink.
 func TestGatewayCredentialNeverStored(t *testing.T) {
 	src := newFakeSource(sourceMarker)
-	g := gatewayFixture(t, ModeDevelopment, src)
+	g := gatewayFixture(t, ModeManaged, src)
 	if g.send(request(false)).Code != 200 {
 		t.Fatal("stored-credential control refused")
 	}
@@ -477,10 +512,48 @@ func TestGatewaySchemeHeaders(t *testing.T) {
 	}
 	src := newFakeSource(sourceMarker)
 	src.scheme = SchemeOAuthBearer
-	g := gatewayFixture(t, ModeDevelopment, src)
+	g := gatewayFixture(t, ModeManaged, src)
 	g.bearer = true
 	if w := g.send(request(false)); w.Code != 200 || g.calls.Load() != 1 {
 		t.Fatal("oauth-bearer Messages request refused", w.Code, w.Body.String())
+	}
+}
+
+// Run bindings exist only in managed mode: a development proxy backed by a
+// static key or by a FileSource refuses Prepare of a run binding with
+// RUN_REQUIRES_MANAGED and persists nothing, while the same proxy still
+// prepares a rental binding; the managed broker-backed proxy prepares the same
+// run binding.
+func TestRunRequiresManaged(t *testing.T) {
+	run := runBinding("5", "b")
+	for _, kind := range []string{"static", "file"} {
+		t.Run(kind, func(t *testing.T) {
+			var src CredentialSource = NewFileSource(keyFile(t, sourceMarker))
+			g := gatewayFixture(t, ModeDevelopment, src)
+			if kind == "static" {
+				g.s.Close()
+				c := g.c
+				c.Source, c.APIKey = nil, NewAPIKey(keyMarker)
+				s, e := New(c)
+				if e != nil {
+					t.Fatal(e)
+				}
+				g.s = s
+			}
+			if _, e := g.s.Prepare(run); e == nil || e.Error() != "RUN_REQUIRES_MANAGED" {
+				t.Fatal("development proxy minted a run binding", e)
+			}
+			if _, e := g.s.Status(run.SlotID); e == nil {
+				t.Fatal("refused run binding persisted")
+			}
+			if _, e := g.s.Prepare(rentalBinding("6")); e != nil {
+				t.Fatal("development rental neighbor refused", e)
+			}
+		})
+	}
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
+	if _, e := g.s.Prepare(run); e != nil {
+		t.Fatal("managed run binding refused", e)
 	}
 }
 
@@ -488,7 +561,7 @@ func TestGatewaySchemeHeaders(t *testing.T) {
 // persisting; the exact maximum admits; a zero sealed maximum admits no run
 // binding; the rental 3600 s cap is unchanged beside a 7200 s run maximum.
 func TestRunBindingWindow(t *testing.T) {
-	g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker))
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 	over := runBinding("5", "b")
 	over.NotAfter = over.NotBefore + 7201
 	if _, e := g.s.Prepare(over); e == nil || e.Error() != "RUN_WINDOW" {
@@ -548,7 +621,7 @@ func TestRunBindingStructure(t *testing.T) {
 	if (Binding{}).Kind() != KindRental || bytes.Contains(privateCanonical(Binding{}), []byte(`"run"`)) {
 		t.Fatal("rental wire bytes changed")
 	}
-	g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker))
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 	g.s.Close()
 	c := g.c
 	c.RunMaxWindowSeconds = MaxRunWindow + 1
@@ -600,7 +673,7 @@ func TestRunBindingStructure(t *testing.T) {
 // Revoke arrived; the daily ceiling admits an exact run reservation and refuses
 // one nano-unit more before any provider call, exactly as for rental bindings.
 func TestRunBindingExpiryAndCeiling(t *testing.T) {
-	g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker))
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 	if g.send(request(false)).Code != 200 {
 		t.Fatal("run binding positive neighbor refused")
 	}
@@ -609,7 +682,7 @@ func TestRunBindingExpiryAndCeiling(t *testing.T) {
 		t.Fatal("expired run binding forwarded", w.Code)
 	}
 	for _, ceiling := range []uint64{230, 229} {
-		g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker), ceiling)
+		g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker), ceiling)
 		g.upstream = fullCostReply
 		w := g.send(request(false))
 		if ceiling == 230 && (w.Code != 200 || g.calls.Load() != 1) {
@@ -645,7 +718,7 @@ func (w *messagesFrameWriter) Flush() {
 func TestRunRevokeMidStream(t *testing.T) {
 	for _, kind := range []string{"pre-header", "established"} {
 		t.Run(kind, func(t *testing.T) {
-			g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker))
+			g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 			g.s.cfg.Timeout = 20 * time.Second
 			entered, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 			// The handler is released on every exit path so a failed assertion
@@ -718,7 +791,7 @@ func TestRunRevokeMidStream(t *testing.T) {
 // with strict canonical bytes; a binding operation with an account and a clear
 // with a binding are refused.
 func TestRunBindingAdminWire(t *testing.T) {
-	g := gatewayFixture(t, ModeDevelopment, newFakeSource(sourceMarker))
+	g := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
 	b := runBinding("5", "b")
 	send := func(raw []byte) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("POST", "http://local/v1/registry", bytes.NewReader(raw))
