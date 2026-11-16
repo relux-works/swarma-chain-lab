@@ -1,0 +1,1 @@
+{"profile":"swarma-trust-contract/9","network":"regtest","landlord_name":"id/landlord-a","agent_name":"id/landlord-a-agent","grantee_key":"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9","actions":["instruct","review"],"repos":[],"spend_budget":0,"not_before":1794528000,"not_after":1797120000,"note":""}

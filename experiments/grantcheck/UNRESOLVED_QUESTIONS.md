@@ -124,3 +124,14 @@ verdicts are not judged. LIP-0014's 39 section-8 delegation-pair verdicts are
 outside the /2 document parser; their documents are enumerated and parsed,
 while the exact 151 contract verdicts are asserted. See the vector README.
 No trust test establishes chain qualification on regtest or mainnet.
+
+## G1.0 identity junction qualification
+
+The identity-interop corpus proves exact issuer-byte acceptance on an offline
+read-only graph. A real regtest issuance/confirmation/spend and independent
+own-node verification remain unexercised. The ceremony operator must run
+`cmd/no-holders` on the real landlord VALUE offline. Notary-checker certifies
+`/2` depth-one pairs, while this target is `/1` depth zero; no complete
+certification is claimed. Its documented 0.1.51 pin and older `SpecCommit`
+constant are separately recorded in the corpus; no pin reconciliation is
+included in this producer unit.

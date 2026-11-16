@@ -667,3 +667,13 @@ adds a bounded regtest signing endpoint and exclusive host key generation around
 the pinned checker. Its build, node harness and validation entry points are in
 that module’s tools section; funding, broadcast, network ACLs and deployment
 remain operator responsibilities.
+
+## Identity junction tools
+
+The [G1.0 issuance corpus](experiments/grantcheck/testdata/identity-interop/README.md)
+contains pinned public issuance bytes and offline verifier tests. From
+`experiments/grantcheck`, `go run ./cmd/no-holders < landlord-value.json` checks
+an operator-supplied VALUE without node access. From the repository root,
+`bash .scripts/regenerate-identity-interop.sh "$PWD/.temp/identity-interop-new"`
+regenerates bytes into a new directory and removes its owned temporary caches.
+These tools establish offline compatibility only; see the corpus for pins and limits.

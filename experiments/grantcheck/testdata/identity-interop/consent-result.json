@@ -1,0 +1,52 @@
+{
+  "consent_event": {
+    "id": "bfe6a422c297616e10d1c57f3b6a5a6333db4b75f0005194d7bfd39a265606a1",
+    "pubkey": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+    "created_at": 1794527000,
+    "kind": 8181,
+    "tags": [
+      [
+        "t",
+        "swarma-rental-consent-v1"
+      ],
+      [
+        "contract",
+        "51c05d8e913f85a8ee23bd42f2df2db6ffb390977ea6b8633fd00652ab7d4ae7"
+      ],
+      [
+        "booking",
+        "7c9153a71bc342a661340dd2710c487d6091e471c70e070519a96b9ae8c49d64"
+      ],
+      [
+        "privacy",
+        "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+      ]
+    ],
+    "content": "",
+    "sig": "7fdb9185c6f12c7966dce1ada80af104fc9a05eab67b6415a18e866079b54b52397723cf9dc22bc9647d2ebd6c8dc3588de68b713e731ca803ea28ca39566897"
+  },
+  "contract": {
+    "actions": [
+      "instruct",
+      "review"
+    ],
+    "agent_name": "id/landlord-a-agent",
+    "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+    "landlord_name": "id/landlord-a",
+    "network": "regtest",
+    "not_after": 1797120000,
+    "not_before": 1794528000,
+    "note": "",
+    "profile": "swarma-trust-contract/1",
+    "repos": [],
+    "spend_budget": 0
+  },
+  "to_sign": [
+    {
+      "signer": "landlord",
+      "key": "dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659",
+      "purpose": "contract_sha256",
+      "digest": "51c05d8e913f85a8ee23bd42f2df2db6ffb390977ea6b8633fd00652ab7d4ae7"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "swarma-identity/result/1",
+  "ok": false,
+  "command": "grant draft",
+  "network": "regtest",
+  "result": null,
+  "error": {
+    "code": "LANDLORD_NOT_V3",
+    "message": "The grant input is refused by the trust-grant contract.",
+    "retryable": false
+  }
+}

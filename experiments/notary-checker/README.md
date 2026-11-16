@@ -354,3 +354,11 @@ These are bounded diagnostic-output guarantees. Explicit accessors,
 reflection traversal or unsafe/process-memory access can read the material.
 RPC passwords are deliberately revealed into the outbound Basic Auth header;
 no secrecy guarantee applies to explicitly formatting that wire request.
+
+The [G1.0 issuance junction](../grantcheck/testdata/identity-interop/README.md)
+adds `TestIdentityInteropRootBoundary` and `TestIdentityInteropReadRefusals`.
+They verify the pinned issuer's exact `/1` v3 signature/consent bytes and
+refusal vectors, while recording `CONTRACT_ENCODING` at this checker's `/2`
+certification boundary. They create no child or attestation. Run
+`go test -run '^TestIdentityInterop' -v .`; node/holders/seal liveness is not
+part of this offline grant parser.

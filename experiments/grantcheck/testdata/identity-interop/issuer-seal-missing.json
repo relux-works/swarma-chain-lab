@@ -1,0 +1,12 @@
+{
+  "schema": "swarma-identity/result/1",
+  "ok": false,
+  "command": "grant anchor",
+  "network": "regtest",
+  "result": null,
+  "error": {
+    "code": "SEAL_MISSING_OR_SPENT",
+    "message": "The grant input is refused by the trust-grant contract.",
+    "retryable": false
+  }
+}

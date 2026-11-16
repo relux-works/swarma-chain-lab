@@ -1,0 +1,43 @@
+{
+  "dry_run": true,
+  "transaction": {
+    "unsigned_tx_hex": "020000000130f5ed7676e10091b12bcda93dfecd6e25c27b870429fe9d35617ba1d198aa040000000000feffffff020000000000000000486a03534c014201ca593407a5cc7fcbef0aaecc78f5b0f335dd7cf881a136a84da3cf1439a23fa401646ce98d7965019585318471f03c37c21c92b650fcefa23528b178a2f0d703a3a29f070000000000160014751e76e8199196d454941c45d1b3a323f1433bd600000000",
+    "unsigned_txid": "1892ae513a9c36d70561025f97f5ee1b5f4b3645d42debf56a368d1d40184638",
+    "psbt_b64": "cHNidP8BAKMCAAAAATD17XZ24QCRsSvNqT3+zW4lwnuHBCn+nTVhe6HRmKoEAAAAAAD+////AgAAAAAAAAAASGoDU0wBQgHKWTQHpcx/y+8Krsx49bDzNd18+IGhNqhNo88UOaI/pAFkbOmNeWUBlYUxhHHwPDfCHJK2UPzvojUosXii8NcDo6KfBwAAAAAAFgAUdR526BmRltRUlBxF0bOjI/FDO9YAAAAAAAEAUwIAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAVH/////ASChBwAAAAAAFgAUdR526BmRltRUlBxF0bOjI/FDO9YAAAAAAQEfIKEHAAAAAAAWABR1HnboGZGW1FSUHEXRs6Mj8UM71gEDBAEAAAAAAAA=",
+    "outputs": [
+      {
+        "vout": 0,
+        "amount_sat": 0,
+        "script_hex": "6a03534c014201ca593407a5cc7fcbef0aaecc78f5b0f335dd7cf881a136a84da3cf1439a23fa401646ce98d7965019585318471f03c37c21c92b650fcefa23528b178a2f0d703a3",
+        "role": "issuance-commitment"
+      },
+      {
+        "vout": 1,
+        "amount_sat": 499618,
+        "script_hex": "0014751e76e8199196d454941c45d1b3a323f1433bd6",
+        "role": "change"
+      }
+    ],
+    "fee_sat": 382,
+    "fee_rate_sat_vbyte": 2,
+    "maximum_signed_vbytes": 191,
+    "required_review": "Unsigned dry run only. Independently recheck current funding prevouts, ownership, fee policy, reservations, seal and exact outputs before external signing. No broadcast or live-grant authority."
+  },
+  "grant_id": "646ce98d7965019585318471f03c37c21c92b650fcefa23528b178a2f0d703a3",
+  "commitment": "ca593407a5cc7fcbef0aaecc78f5b0f335dd7cf881a136a84da3cf1439a23fa4",
+  "frame_hex": "6a03534c014201ca593407a5cc7fcbef0aaecc78f5b0f335dd7cf881a136a84da3cf1439a23fa401646ce98d7965019585318471f03c37c21c92b650fcefa23528b178a2f0d703a3",
+  "seal": {
+    "point": {
+      "txid": "166ce331a09620beea187b03ee23cfbabed34db2f678de59383920347010cafc",
+      "vout": 0
+    },
+    "confirmations": 1,
+    "amount_sat": 100000,
+    "script_hex": "76a91443b0267dec963f3453fc92392e0ec753dad4bb8488ac",
+    "include_mempool": true
+  },
+  "observed_tip": {
+    "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "height": 100
+  }
+}

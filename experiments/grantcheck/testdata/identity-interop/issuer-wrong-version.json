@@ -1,0 +1,12 @@
+{
+  "schema": "swarma-identity/result/1",
+  "ok": false,
+  "command": "grant draft",
+  "network": "regtest",
+  "result": null,
+  "error": {
+    "code": "BAD_INPUT",
+    "message": "The input does not satisfy the selected contract.",
+    "retryable": false
+  }
+}

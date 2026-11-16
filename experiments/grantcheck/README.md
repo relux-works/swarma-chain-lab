@@ -402,3 +402,19 @@ a fresh `CG1_RUN_ROOT`. The fixture pins complete executable pairs: the existing
 macOS Core 28 pair and the official Linux Core 28 release pair already pinned by
 the wallet suite. Mixed or unlisted pairs refuse before node startup. Generated
 vector reports record the hashes of the executables actually used.
+
+## Swarma Identity G1.0 junction and ceremony checker
+
+The [issuance corpus](testdata/identity-interop/README.md) preserves the exact
+public bytes produced by swarma-identity `48a32fb0`: Grant v3, trust-contract
+`/1`, instruct/review, depth zero and legacy landlord values. The offline
+interop tests use the actual kernel with synthetic read-only chain observations;
+they do not qualify a live node. Run `go test -run '^TestIdentityInterop' -v .`.
+
+`go run ./cmd/no-holders < landlord-value.json` is the read-only offline
+ceremony gate: `LEGACY-OK`/exit 0 or `REFUSE <reason>`/exit 1. Input is the
+VALUE, raw JSON or the JSON string from `name_show.value`. It opens no node
+and checks no chain authority. Regenerate bytes from the repository root with
+`bash .scripts/regenerate-identity-interop.sh "$PWD/.temp/identity-interop-new"`;
+the output directory must be new. See the corpus for exact pins, dispatcher
+commands, refusal pairs and limits.

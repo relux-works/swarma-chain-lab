@@ -1,0 +1,18 @@
+{
+  "schema": "swarma-trust/seal/1",
+  "network": "regtest",
+  "landlord_name": "id/landlord-a",
+  "issuer_key": "dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659",
+  "amount_sat": 100000,
+  "funding": {
+    "script_hex": "0014751e76e8199196d454941c45d1b3a323f1433bd6",
+    "inputs": [
+      {
+        "txid": "f2ed34b1a5f1b715e2e76b406ca523da2944ec35e493f8dca356d056820dd412",
+        "vout": 0,
+        "prev_tx_hex": "02000000010000000000000000000000000000000000000000000000000000000000000000010000000151ffffffff0140420f0000000000160014751e76e8199196d454941c45d1b3a323f1433bd600000000"
+      }
+    ],
+    "fee_rate_sat_vbyte": 2
+  }
+}

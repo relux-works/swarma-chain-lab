@@ -1,0 +1,52 @@
+{
+  "expired-window": {
+    "code": "OK",
+    "exit": 0,
+    "reason": "issuer has no ambient clock"
+  },
+  "holders-empty": {
+    "code": "LANDLORD_NOT_V3",
+    "exit": 3
+  },
+  "holders-populated": {
+    "code": "LANDLORD_NOT_V3",
+    "exit": 3
+  },
+  "legacy": {
+    "code": "OK",
+    "exit": 0,
+    "stage": "signed+anchor-plan"
+  },
+  "seal-missing": {
+    "code": "SEAL_MISSING_OR_SPENT",
+    "exit": 3
+  },
+  "seal-spent": {
+    "code": "SEAL_MISSING_OR_SPENT",
+    "exit": 3
+  },
+  "tampered-contract": {
+    "code": "CONTRACT_HASH",
+    "exit": 3
+  },
+  "wrong-consent": {
+    "code": "CONSENT_SIGNATURE",
+    "exit": 3
+  },
+  "wrong-grantee": {
+    "code": "CONSENT_SIGNER",
+    "exit": 3
+  },
+  "wrong-profile": {
+    "code": "CONTRACT_PROFILE",
+    "exit": 3
+  },
+  "wrong-seal": {
+    "code": "SEAL_KEY_MISMATCH",
+    "exit": 3
+  },
+  "wrong-version": {
+    "code": "BAD_INPUT",
+    "exit": 2
+  }
+}

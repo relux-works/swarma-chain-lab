@@ -1,0 +1,35 @@
+{
+  "dry_run": true,
+  "transaction": {
+    "unsigned_tx_hex": "020000000112d40d8256d056a3dcf893e435ec4429da23a56c406be7e215b7f1a5b134edf20000000000feffffff02a0860100000000001976a91443b0267dec963f3453fc92392e0ec753dad4bb8488ac80ba0d0000000000160014751e76e8199196d454941c45d1b3a323f1433bd600000000",
+    "unsigned_txid": "166ce331a09620beea187b03ee23cfbabed34db2f678de59383920347010cafc",
+    "psbt_b64": "cHNidP8BAHQCAAAAARLUDYJW0Faj3PiT5DXsRCnaI6VsQGvn4hW38aWxNO3yAAAAAAD+////AqCGAQAAAAAAGXapFEOwJn3slj80U/ySOS4Ox1Pa1LuEiKyAug0AAAAAABYAFHUedugZkZbUVJQcRdGzoyPxQzvWAAAAAAABAFMCAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAFR/////wFAQg8AAAAAABYAFHUedugZkZbUVJQcRdGzoyPxQzvWAAAAAAEBH0BCDwAAAAAAFgAUdR526BmRltRUlBxF0bOjI/FDO9YBAwQBAAAAAAAA",
+    "outputs": [
+      {
+        "vout": 0,
+        "amount_sat": 100000,
+        "script_hex": "76a91443b0267dec963f3453fc92392e0ec753dad4bb8488ac",
+        "role": "seal"
+      },
+      {
+        "vout": 1,
+        "amount_sat": 899712,
+        "script_hex": "0014751e76e8199196d454941c45d1b3a323f1433bd6",
+        "role": "change"
+      }
+    ],
+    "fee_sat": 288,
+    "fee_rate_sat_vbyte": 2,
+    "maximum_signed_vbytes": 144,
+    "required_review": "Unsigned dry run only. Independently recheck current funding prevouts, ownership, fee policy, reservations, seal and exact outputs before external signing. No broadcast or live-grant authority."
+  },
+  "seal": {
+    "txid": "166ce331a09620beea187b03ee23cfbabed34db2f678de59383920347010cafc",
+    "vout": 0
+  },
+  "issuer_key": "dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659",
+  "observed_tip": {
+    "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "height": 100
+  }
+}
