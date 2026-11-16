@@ -1,4 +1,4 @@
-// Package grantcheck checks regtest rental grants at the a2a daemon's (a2ad) authenticated
+// Package grantcheck checks configured pay or trust grants at the a2a daemon's (a2ad) authenticated
 // per-identity boundary. A verdict is an observation, never a reusable token.
 package grantcheck
 

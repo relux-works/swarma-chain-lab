@@ -18,14 +18,10 @@ const (
 	ContractProfileTrust = "trust"
 )
 
-// MainGenesis is the hash of the Namecoin mainnet genesis block. Source:
-// Namecoin Core, src/kernel/chainparams.cpp (src/chainparams.cpp in older
-// releases), class CMainParams:
-//
-//	assert(consensus.hashGenesisBlock == uint256{"000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770"});
-//
-// TestMainGenesisLiteral checks this constant against the literal hash and
-// against the constant the rental kernel pins.
+// MainGenesis is the hash asserted by Namecoin Core at tag nc29.0,
+// src/kernel/chainparams.cpp:172 (CMainParams):
+// https://github.com/namecoin/namecoin-core/blob/nc29.0/src/kernel/chainparams.cpp#L172
+// TestMainGenesisLiteral checks the literal and the rental kernel pin.
 const MainGenesis = "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770"
 
 // pinnedNetwork admits exactly the two network and genesis pairs. Neither

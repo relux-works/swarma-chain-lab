@@ -10,11 +10,11 @@ import (
 	"testing"
 )
 
-const vectorPath = "testdata/lip-0013-contract-vectors.json"
+const vectorPath = "testdata/trust-vectors.json"
 
 // vectorSHA256 pins the committed file. testdata/README.md states how it is
-// derived from the upstream file and that file's own SHA-256.
-const vectorSHA256 = "d3ae8acc83dc35c33483bff792bf74191b0bd150beb6e28c7e54c7f8e77f68e3"
+// copied verbatim from the upstream file.
+const vectorSHA256 = "9c29cddd739d56c5d15f4663c3cc923c6ea016730fc62634bff4b4214bf27ff8"
 
 type vectorFile struct {
 	Schema   string `json:"schema"`
@@ -48,6 +48,7 @@ type vectorFile struct {
 		Grant       Grant  `json:"grant"`
 		Expect      string `json:"expect"`
 	} `json:"bindings"`
+	Envelopes      []json.RawMessage `json:"envelopes"` // kind-8185 admission is outside this module.
 	EnvelopeGrants []struct {
 		GrantID     string `json:"grant_id"`
 		ContractRef string `json:"contract_ref"`
@@ -98,14 +99,14 @@ func TestVectorFilePinned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fields := strings.Fields(string(record)); len(fields) != 2 || fields[0] != vectorSHA256 || fields[1] != "lip-0013-contract-vectors.json" {
+	if fields := strings.Fields(string(record)); len(fields) != 2 || fields[0] != vectorSHA256 || fields[1] != "trust-vectors.json" {
 		t.Fatalf("recorded sha256 line %q does not name the pinned file", record)
 	}
 	file := loadVectors(t)
 	if file.Schema != "swarma-link-spec/lip-0013-vectors/1" || file.LIP != "LIP-0013" {
 		t.Fatalf("schema %q of %q", file.Schema, file.LIP)
 	}
-	if len(file.ValidContracts) != 4 || len(file.InvalidContracts) != 32 || len(file.Bindings) != 15 || len(file.EnvelopeGrants) != 3 {
+	if len(file.ValidContracts) != 4 || len(file.InvalidContracts) != 32 || len(file.Bindings) != 15 || len(file.EnvelopeGrants) != 3 || len(file.Envelopes) != 26 {
 		t.Fatalf("vector counts %d/%d/%d/%d, want 4/32/15/3", len(file.ValidContracts), len(file.InvalidContracts), len(file.Bindings), len(file.EnvelopeGrants))
 	}
 	for _, k := range file.TestKeys {

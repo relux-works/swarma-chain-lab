@@ -97,7 +97,8 @@ kernel's strict reader, as before. The pay profile's node wrapper is unchanged.
   accepted with their exact bytes, 32 invalid contracts refused with their
   published codes, 15 bindings and the 3 grants of the envelope section. See
   `internal/trustcontract/testdata/README.md` for the committed file, its
-  SHA-256 and why the 26 envelope vectors are not in it.
+  SHA-256. The file is copied verbatim, including the 26 kind-8185
+  envelope vectors, whose admission verdicts are not judged by this module.
 - Profile `/2` is a copy of `experiments/notary-checker` `contract.go` and the
   helpers it calls. It is a copy and not an import because a new requirement
   edge between two modules of this repository changes the published module
@@ -105,17 +106,21 @@ kernel's strict reader, as before. The pay profile's node wrapper is unchanged.
   sources and its release hash. The notary is unchanged.
   `TestNotaryCopyMatchesSource` fails when the notary's two source files
   change, and `TestNotaryCorpusAgrees` runs the notary's own committed vectors
-  through the copy.
+  through the copy. The grantcheck workflow also watches notary-checker
+  paths so notary-only changes run the drift check. The pinned LIP-0014
+  corpus supplies all 151 contract vectors; see testdata for the separate
+  delegation-pair coverage limit.
 
 **Limits.** The tests of this section are offline boundary tests with a
 routing stub in the kernel's place. They are no evidence of chain
 qualification on regtest or on mainnet, which stays a separate gate. The
 checker admits a grant; it admits no instruction: the kind-8185 envelope and
 the admission steps of LIP-0013 section 3.4 are not implemented here. Under
-the trust profile `Config.ExecutorKey` is still required and still part of
-the state binding, and no trust contract is compared with it, because a trust
-contract names no executor key. A `/2` root with a non-empty
-`scope_text_sha256` is admitted; the text is not resolved or checked here.
+the trust profile `Config.ExecutorKey` must be empty; any non-empty value
+refuses at construction with `ErrConfig` before state opens. Pay still requires
+its valid executor key. A `/2` root with a non-empty `scope_text_sha256` refuses
+as `terms_invalid` until a gate resolves and checks the text. The G1.0 holders
+refusal stays `binding_mismatch`, non-retryable; no vocabulary change is made.
 
 Run `go test -race -count=1 ./...` from this module for both packages.
 `go run .scripts/guards.go -out .temp/guards` now also removes each gate of
@@ -123,9 +128,10 @@ this section in an isolated copy and requires its named test to fail.
 
 ## Required executor and interim node policy
 
-`New` and `NewForTransport` now require `Config.ExecutorKey`, `Config.Terms`
-and an explicit `Config.Freshness` policy. Missing/invalid inputs refuse
-construction with `ErrConfig`, including an unset executor pin. Both inbound
+`New` and `NewForTransport` require `Config.Terms` and an explicit
+`Config.Freshness` policy. The pay profile additionally requires
+`Config.ExecutorKey`; the trust profile requires it to be empty. Missing/invalid inputs refuse
+construction with `ErrConfig`, including an unset pay executor pin. Both inbound
 and cached/outbound checks enforce the canonical terms' executor, headers equal
 to blocks, minimum height, maximum tip age and maximum future skew.
 `node_not_synced`, `tip_below_floor` and `tip_stale` are retryable;

@@ -165,6 +165,7 @@ func trustConfig(t *testing.T, network, genesis string, docs ...[]byte) Config {
 	t.Helper()
 	config := unitConfig(t)
 	config.ContractProfile = ContractProfileTrust
+	config.ExecutorKey = ""
 	config.Network, config.Genesis = network, genesis
 	config.Terms = termsOf(docs...)
 	return config

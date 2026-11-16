@@ -43,7 +43,8 @@ def violations(text):
         if match.group('host').isdecimal() and URL_AUTHORITY.search(text[max(0, match.start()-2048):match.start()]):
             continue
         host = match.group('host').lower().rstrip('.')
-        if host not in EXAMPLE_DOMAINS:
+        # RFC 2606 reserves .example and every name beneath it.
+        if host not in EXAMPLE_DOMAINS and host != "example" and not host.endswith(".example"):
             yield text.count('\n', 0, match.start()) + 1
 
 

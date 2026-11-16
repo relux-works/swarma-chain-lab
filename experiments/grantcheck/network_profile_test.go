@@ -74,6 +74,9 @@ func TestNetworkConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config := unitConfig(t)
 			config.ContractProfile, config.Network, config.Genesis = tc.profile, tc.network, tc.genesis
+			if tc.profile == ContractProfileTrust {
+				config.ExecutorKey = ""
+			}
 			profile, network, genesis, resolved := resolveBinding(config)
 			if resolved != tc.ok {
 				t.Fatalf("configuration resolved=%v, want %v", resolved, tc.ok)
@@ -359,7 +362,7 @@ func TestPayProfileUnchanged(t *testing.T) {
 		t.Fatal("explicit pay configuration did not reopen the pay state root", e)
 	}
 	for name, edit := range map[string]func(*Config){
-		"trust-on-pay-root":    func(x *Config) { x.ContractProfile = ContractProfileTrust },
+		"trust-on-pay-root":    func(x *Config) { x.ContractProfile = ContractProfileTrust; x.ExecutorKey = "" },
 		"main-on-regtest-root": func(x *Config) { x.Network, x.Genesis = "main", MainGenesis },
 	} {
 		other := explicit
@@ -383,14 +386,31 @@ func TestPayProfileUnchanged(t *testing.T) {
 // and refuses the pay profile and the other network with ErrState.
 func TestProfileStateBinding(t *testing.T) {
 	config := trustConfig(t, "regtest", su.RegtestGenesis)
-	if _, err := New(config); err != nil {
+	c, err := New(config)
+	if err != nil {
 		t.Fatal(err)
+	}
+	// Isolate the profile pin even though pay also requires a distinct executor.
+	pins := struct {
+		Identity, Agent, Landlord, Issuer, Network, Genesis, Construction string
+		Transport                                                         Transport
+		Executor                                                          string
+		Age, Skew                                                         int64
+		Floor                                                             int64
+	}{config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, "regtest", su.RegtestGenesis, config.ConstructionProfile, NostrNIP17Seal, "", int64(config.Freshness.MaxTipAge), int64(*config.Freshness.MaxFutureSkew), *config.Freshness.MinimumHeight}
+	want := rental.Hash(jsonBytes(t, struct {
+		Contract string
+		Pins     any
+	}{ContractProfileTrust, pins}))
+	if c.binding != want {
+		t.Fatal("state root served both profiles: contract profile missing from binding")
 	}
 	if _, err := New(config); err != nil {
 		t.Fatal("the same trust configuration did not reopen its state root", err)
 	}
 	pay := config
 	pay.ContractProfile = ContractProfilePay
+	pay.ExecutorKey = unitConfig(t).ExecutorKey
 	if got, err := New(pay); got != nil || err != ErrState {
 		t.Fatalf("state root served both profiles: %v", err)
 	}
@@ -398,5 +418,36 @@ func TestProfileStateBinding(t *testing.T) {
 	mainnet.Network, mainnet.Genesis = "main", MainGenesis
 	if got, err := New(mainnet); got != nil || err != ErrState {
 		t.Fatalf("state root served both networks: %v", err)
+	}
+}
+
+// Claim: trust rejects every nonempty executor before state opens, including
+// a valid pay key; the empty trust control constructs in the same untouched
+// directory. Pay still requires its valid key and refuses an empty key.
+func TestTrustExecutorConfig(t *testing.T) {
+	for _, key := range []string{xonly(9), "invalid", " "} {
+		t.Run(key, func(t *testing.T) {
+			config := trustConfig(t, "main", MainGenesis)
+			config.ExecutorKey = key
+			if c, err := New(config); c != nil || !errors.Is(err, ErrConfig) {
+				t.Fatalf("trust executor did not refuse with ErrConfig: %v", err)
+			}
+			if entries, err := os.ReadDir(config.StateDir); err != nil || len(entries) != 0 {
+				t.Fatal("refused executor configuration opened state")
+			}
+			config.ExecutorKey = ""
+			if _, err := New(config); err != nil {
+				t.Fatalf("empty trust executor control refused: %v", err)
+			}
+		})
+	}
+	config := unitConfig(t)
+	config.ExecutorKey = ""
+	if c, err := New(config); c != nil || !errors.Is(err, ErrConfig) {
+		t.Fatalf("pay accepted an empty executor: %v", err)
+	}
+	config.ExecutorKey = xonly(9)
+	if _, err := New(config); err != nil {
+		t.Fatalf("valid pay executor control refused: %v", err)
 	}
 }

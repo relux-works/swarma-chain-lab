@@ -48,6 +48,8 @@ var plants = []plant{
 	{"mempool_closure", "reasons.go", "code := CodeCheckFailed", "if r.Reason == \"SEAL_SPENT\" { r.Verdict = kernel.Live; r.Reason = \"LIVE\"; r.Closed = false }; code := CodeCheckFailed", "TestCoreVectors", "want exchange/seal_spent", true},
 	{"confirmed_rotation", "reasons.go", "code := CodeCheckFailed", "if r.Reason == \"LANDLORD_KEY_ROTATED\" { r.Verdict = kernel.Live; r.Reason = \"LIVE\"; r.Closed = false }; code := CodeCheckFailed", "TestCoreVectors", "want exchange/landlord_rotated", true},
 	{"pending_rotation", "reasons.go", "code = CodeIdentityPending", "code = CodeNoGrant", "TestCoreVectors", "want refused/identity_pending", true},
+	{"trust_executor_config", "checker.go", "(profile == ContractProfileTrust && config.ExecutorKey != \"\")", "false", "TestTrustExecutorConfig", "trust executor did not refuse with ErrConfig", false},
+	{"trust_scope_text", "trust.go", "if bound.ScopeTextSHA256 != \"\" {", "if false {", "TestTrustContractRefusals/v2-scope-text-unchecked", "verdict contract", false},
 	// Trust profile and configured network (T1.0b). One plant per new gate.
 	{"trust_canonical_v1", "internal/trustcontract/v1.go", " || !bytes.Equal(compact(c), raw)", "", "TestTrustContractRefusals/v1-whitespace", "verdict contract", false},
 	{"trust_canonical_v2", "internal/trustcontract/v2.go", "if !lexical(raw, limit) {\n\t\treturn false\n\t}\n\td := json.NewDecoder(bytes.NewReader(raw))\n\td.DisallowUnknownFields()\n\treturn d.Decode(out) == nil && bytes.Equal(canonical(out), raw)", "d := json.NewDecoder(bytes.NewReader(raw))\n\td.DisallowUnknownFields()\n\treturn d.Decode(out) == nil", "TestTrustContractRefusals/v2-whitespace", "verdict contract", false},

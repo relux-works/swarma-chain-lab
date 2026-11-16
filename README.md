@@ -83,7 +83,8 @@ Go JSON evidence belong under `.temp/`.
 ## Public repository hygiene tools
 
 Run `python3 -B .github/scripts/check-public-hygiene.py` from the repository root
-to reject Matrix IDs outside the exact example-domain allowlist. The guard
+to reject Matrix IDs outside the example-domain allowlist (including the
+RFC 2606 reserved `.example` TLD and its subdomains). The guard
 scans Git-tracked filenames and contents, including common URL/JSON/HTML escapes
 and dot obfuscations; stage new files before checking. Diagnostics go to the
 terminal without printing the identifier. It does not scan history or detect

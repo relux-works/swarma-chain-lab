@@ -28,6 +28,15 @@ class HygieneControls(unittest.TestCase):
                 with self.subTest(denied=denied):
                     self.assertEqual(list(hygiene.violations(mxid(denied))), [1])
 
+    # RFC 2606 .example hosts pass; adjacent suffixes and lookalikes refuse.
+    def test_reserved_example_tld(self):
+        for domain in ('example', 'matrix.example', 'nested.matrix.example', 'MATRIX.EXAMPLE', 'matrix.example.:8448'):
+            with self.subTest(allowed=domain):
+                self.assertEqual(list(hygiene.violations(mxid(domain))), [])
+        for domain in ('notexample', 'matrix.example.invalid', 'matrix.example-suffix', 'matrix.exampleé'):
+            with self.subTest(denied=domain):
+                self.assertEqual(list(hygiene.violations(mxid(domain))), [1])
+
     # Literal, URL, JSON, HTML and common obfuscated forms reach the same refusal.
     def test_encoded_forms(self):
         raw = mxid('blocked.invalid')

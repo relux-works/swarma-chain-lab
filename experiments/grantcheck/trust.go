@@ -50,6 +50,10 @@ func trustTerms(g rental.Grant, terms []byte, lookup error) Code {
 	if bound.ParentGrantID != "" || bound.Ordinal != 0 {
 		return CodeTermsInvalid
 	}
+	// G1.0 has no gate that resolves and checks scope text (owner decision).
+	if bound.ScopeTextSHA256 != "" {
+		return CodeTermsInvalid
+	}
 	return CodeLive
 }
 

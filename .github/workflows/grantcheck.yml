@@ -9,6 +9,7 @@ on:
     paths:
       - 'experiments/model-proxy/**'
       - 'experiments/grantcheck/**'
+      - 'experiments/notary-checker/**'
       - 'experiments/rental/**'
       - 'experiments/rental-gateway/**'
       - 'experiments/rental-booking/**'
@@ -21,6 +22,7 @@ on:
     paths:
       - 'experiments/model-proxy/**'
       - 'experiments/grantcheck/**'
+      - 'experiments/notary-checker/**'
       - 'experiments/rental/**'
       - 'experiments/rental-gateway/**'
       - 'experiments/rental-booking/**'

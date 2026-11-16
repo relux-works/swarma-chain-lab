@@ -39,8 +39,9 @@ type Config struct {
 	AgentName           string
 	LandlordName        string
 	IssuerPubkey        string
-	ExecutorKey         string
-	Freshness           *FreshnessPolicy
+	// ExecutorKey is required for pay and must be empty for trust.
+	ExecutorKey string
+	Freshness   *FreshnessPolicy
 	// Terms is a bounded, nonblocking lookup of canonical terms by contract hash.
 	// It must not perform I/O; transport adapters resolve objects before checking.
 	Terms        func(string) ([]byte, error)
@@ -135,7 +136,8 @@ func NewForTransport(config Config, transport Transport) (*Checker, error) {
 	if !bound {
 		return nil, ErrConfig
 	}
-	if !validKey(config.ExecutorKey) || config.Terms == nil || !validFreshness(config.Freshness) {
+	if (profile == ContractProfilePay && !validKey(config.ExecutorKey)) ||
+		(profile == ContractProfileTrust && config.ExecutorKey != "") || config.Terms == nil || !validFreshness(config.Freshness) {
 		return nil, ErrConfig
 	}
 	config.Freshness = cloneFreshness(config.Freshness)

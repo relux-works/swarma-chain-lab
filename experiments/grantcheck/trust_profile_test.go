@@ -51,7 +51,7 @@ func TestTrustValid(t *testing.T) {
 // file, the grantee is the published BIP-340 test key of the vectors, and
 // the network is main.
 func TestTrustVectorsAccepted(t *testing.T) {
-	raw, err := os.ReadFile("internal/trustcontract/testdata/lip-0013-contract-vectors.json")
+	raw, err := os.ReadFile("internal/trustcontract/testdata/trust-vectors.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,6 +131,9 @@ func TestTrustCrossProfile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config := unitConfig(t)
 			config.ContractProfile = tc.profile
+			if tc.profile == ContractProfileTrust {
+				config.ExecutorKey = ""
+			}
 			config.Network, config.Genesis = "regtest", su.RegtestGenesis
 			config.Terms = termsOf(trust, unitTerms(t))
 			c, b := trustChecker(t, config)
@@ -203,6 +206,7 @@ func TestTrustContractRefusals(t *testing.T) {
 		{name: "v2-actions-unsorted", control: v2, contract: replaceOnce(t, v2, `"actions":["instruct","review"]`, `"actions":["review","instruct"]`), like: v2, code: CodeTermsInvalid},
 		{name: "v2-depth-1", control: v2, contract: trustV2(t, "regtest", func(c *trustcontract.V2) { c.Delegate = json.RawMessage(trustDepthOne()) }), code: CodeTermsInvalid},
 		{name: "v2-depth-2", control: v2, contract: replaceOnce(t, v2, `"depth":0`, `"depth":2`), like: v2, code: CodeTermsInvalid},
+		{name: "v2-scope-text-unchecked", control: v2, contract: trustV2(t, "regtest", func(c *trustcontract.V2) { c.ScopeTextSHA256 = strings.Repeat("b", 64) }), code: CodeTermsInvalid},
 		{name: "v2-child", control: v2, contract: trustV2(t, "regtest", func(c *trustcontract.V2) { c.ParentGrantID, c.Ordinal = strings.Repeat("a", 64), 1 }), code: CodeTermsInvalid},
 		{name: "v2-contract-agent-mismatch", control: v2, contract: trustV2(t, "regtest", func(c *trustcontract.V2) { c.AgentName = "id/other-agent" }), like: v2, code: CodeBindingMismatch},
 	}

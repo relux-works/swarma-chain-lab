@@ -410,6 +410,32 @@ conformance on Go 1.26; that integration work belongs to the a2a maintainers.
 Module publication prerequisites are recorded in UNRESOLVED_QUESTIONS.md.
 E1 is not a dependency.
 
+## T1.0b implementation mapping
+
+`profile.go` resolves explicit pay/trust selection and the pinned network pair.
+Trust requires both network and genesis; pay retains regtest for an empty pair.
+`checker.go` preserves presentation/signature checks and the pay decoder, selects
+`trustTerms` only from configuration, requires an empty trust executor, and binds
+state to the profile. `cache.go` revalidates cached proofs against that pair.
+`freshness.go` checks the configured node chain and refuses trust landlord values
+with `holders` as `binding_mismatch`; the kernel judges other landlord details.
+
+`trust.go` maps LIP-0013 section 2.5 binding failures to `binding_mismatch` and
+invalid/hash-unavailable documents, /2 delegation, children and unchecked scope
+text to `terms_invalid`. `internal/trustcontract/v1.go` ports LIP-0013 section 2;
+`v2.go` copies the notary's LIP-0014 section 3.1 parser without changing notary.
+`bind.go` applies the common fields, derived scope, budget and consent in order.
+These refine the grant and contract boundaries described in
+`link-book/ru/04-doverennost.md` and `06-dogovor.md`; the specification pin is
+swarma-link-spec `bd3bc80e5543d8a563343ec05abd1a5f3f67284c`.
+
+`trust_profile_test.go` covers cross-profile rejection, exact refusals and valid
+controls; `network_profile_test.go` covers configuration, state and node binding.
+The internal vector tests pin verbatim upstream corpora and check all document
+and LIP-0013 binding results. Envelope admission and /2 child verification remain
+separate boundaries; see the vector README for exact coverage and exclusions.
+The grantcheck workflow watches notary paths to run the copy-drift check.
+
 ## Source anchors
 
 - Landed authority: `../rental/grant_kernel.go`, `grant_presentation.go`,
