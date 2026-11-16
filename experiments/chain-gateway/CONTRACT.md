@@ -759,7 +759,7 @@ protected configuration identifier is exactly `profile:"cg1-v1"`; it is not a
 new wire field. Any tighter profile needs a new explicit identifier and consumer
 acceptance, never an implicit host override.
 
-The contract schema harness consists of: `schema_test.go` and
+The contract schema harness consists of: `schema.go` and
 `contract_test.go`. Its executable schema validates wrappers, types, limits,
 canonical bytes and fixture relationships. `fixtures/vectors.json` stores exact
 payloads as JSON strings so duplicates, whitespace and malformed inputs remain
@@ -821,7 +821,10 @@ must bind each fixture to its adapter's real entry point when implementation
 exists. The gateway implementer must later bind them to its actual listener and
 upstream adapter. Pure schema tests prove neither implementation exists.
 
-Out of scope: gateway/helper code, node/RPC calls, install or root work, credential
+The separate helper implementation uses the accepted §5 amendment; its fake-RPC
+evidence does not qualify (a), live nodes or installed custody.
+
+Out of scope for this contract harness: gateway code, live-node calls, install or root work, credential
 provisioning, wallet/write methods, list distribution/cache implementation,
 cryptographic device/list validation or policy-level seal-script validation,
 durable journal implementation,

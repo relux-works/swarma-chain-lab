@@ -1,4 +1,4 @@
-package chaingateway_test
+package chaingateway
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 	"unicode/utf8"
 )
 
-// Test-only executable schema. It has no socket, node, credential or helper code.
+// Shared closed CG1 schema for the writer and contract vectors.
 const maxInteger = uint64(9007199254740991)
 
 var namePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9/._-]*$`)
@@ -26,7 +26,9 @@ func bad(s string) error { return errors.New(s) }
 
 // parse rejects ambiguous keys before constructing maps and then compares all
 // canonical bytes. Depth counts objects/arrays, with the root at one.
-func parse(raw []byte, limit int) (map[string]any, error) {
+func parse(raw []byte, limit int) (map[string]any, error) { return parseJSON(raw, limit, true, false) }
+
+func parseJSON(raw []byte, limit int, canonical, nullable bool) (map[string]any, error) {
 	if !payloadSize(raw, limit) || !utf8.Valid(raw) {
 		return nil, bad("size or UTF-8")
 	}
@@ -97,6 +99,9 @@ func parse(raw []byte, limit int) (map[string]any, error) {
 			}
 			return a, nil
 		case nil:
+			if nullable {
+				return nil, nil
+			}
 			return nil, bad("null")
 		default:
 			switch t.(type) {
@@ -119,7 +124,7 @@ func parse(raw []byte, limit int) (map[string]any, error) {
 	if e = enc.Encode(v); e != nil {
 		return nil, e
 	}
-	if !bytes.Equal(bytes.TrimSuffix(b.Bytes(), []byte{'\n'}), raw) {
+	if canonical && !bytes.Equal(bytes.TrimSuffix(b.Bytes(), []byte{'\n'}), raw) {
 		return nil, bad("noncanonical")
 	}
 	m, ok := v.(map[string]any)
@@ -397,3 +402,5 @@ func validate(kind string, raw []byte) error {
 		return snapshot(m)
 	}
 }
+
+func payloadSize(raw []byte, limit int) bool { return len(raw) > 0 && len(raw) <= limit }

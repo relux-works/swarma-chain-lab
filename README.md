@@ -10,8 +10,8 @@ Experiments live in `experiments/<name>/`:
 
 - [Read-only chain view contract](experiments/chain-gateway/README.md): candidate
   gateway and observe-only snapshot wire for G1 T4.6/D29, with shared fixtures
-  and a schema-only Go harness. Source accepted snapshot part (B); tip-time
-  delta acceptance and transition-witness feasibility remain pending.
+  and a shared Go schema. The root helper publishes bracketed observe-only
+  snapshots; live-gateway witness qualification and consumer adoption remain separate.
 
 - [Grant v4 identity checks](experiments/grant-v4/identity/README.md): experimental
   owner pins, script/writer checks, expiry, issuer/notary history verdicts,
@@ -698,11 +698,22 @@ These tools establish offline compatibility only; see the corpus for pins and li
 
 ## Chain gateway contract tools
 
-The [contract-only module](experiments/chain-gateway/README.md) uses Go 1.26.10
+The [contract and helper module](experiments/chain-gateway/README.md) uses Go 1.26.10
 with `GOTOOLCHAIN=local` and an isolated task-owned HOME/cache/TMPDIR. From the
 repository root, run `go -C experiments/chain-gateway test -count=1 ./...` and
 `go -C experiments/chain-gateway vet ./...`; evidence belongs in `.temp/`.
 The module README describes the planted invalid-fixture and invalid-tip-time
 checks. `.github/workflows/chain-gateway.yml` runs the module test/vet commands
-on hosted Linux CI with Go 1.26.10 and isolated scratch. No gateway,
-helper, node read or installation is implemented by these tests.
+on hosted Linux CI with Go 1.26.10 and isolated scratch. Fake-RPC helper
+tests do not establish real-node qualification or installation.
+
+## Observe-only snapshot refresh helper
+
+The [chain-gateway helper tools](experiments/chain-gateway/README.md#tools-and-validation)
+include a Linux root oneshot with fresh cookie or read-only RPC-user file
+authentication, bounded complete-tip brackets, flock and atomic snapshot
+publication. Run `go -C experiments/chain-gateway test -count=1 ./...` and
+`go -C experiments/chain-gateway build -o "$ARTIFACT_DIR/snapshot-refresh" ./cmd/snapshot-refresh`
+in isolated task scratch. The module README specifies configuration, exact
+exit codes, tests and controls. Evidence belongs in task-scoped `.temp/`.
+Bracketed snapshots label only; they never authorize enforcement.

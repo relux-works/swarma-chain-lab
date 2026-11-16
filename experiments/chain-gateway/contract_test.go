@@ -1,4 +1,4 @@
-package chaingateway_test
+package chaingateway
 
 import (
 	"bytes"
@@ -468,7 +468,6 @@ func TestSchemaControls(t *testing.T) {
 		}
 	}
 }
-func payloadSize(raw []byte, limit int) bool { return len(raw) > 0 && len(raw) <= limit }
 
 // Every committed fixture file and observation is accounted for; no silently
 // ignored corpus file or duplicate scenario can masquerade as executed evidence.
