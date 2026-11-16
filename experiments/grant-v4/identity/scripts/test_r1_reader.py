@@ -15,7 +15,7 @@ class R1ReaderControls(unittest.TestCase):
 
     def test_all_vectors(self):
         # All pinned and revision independent results agree with the pinned expectations.
-        self.assertEqual(len(reader.calculate(self.files)), 171)
+        self.assertEqual(len(reader.calculate(self.files)), 427)
 
     def test_both_disagreement_directions(self):
         # A false acceptance and a false refusal each fail agreement, beside a
@@ -51,6 +51,18 @@ class R1ReaderControls(unittest.TestCase):
         gift["expect"] = {"outcome": "pass", "attestation": "required"}
         with self.assertRaisesRegex(ValueError, "R1_VECTOR_DISAGREEMENT class-25"):
             reader.calculate(changed)
+
+    def test_recipient_status_byte_domain(self):
+        # Only CurrentOutput proceeds; the pinned O7.2 refusal table separates
+        # proved absence from unavailable/undefined evidence, beside pass.
+        control = self.files["class-vectors.json"]["admissions"][0]
+        self.assertEqual(reader.admission_decision(control)["outcome"], "pass")
+        for status in range(256):
+            with self.subTest(status=status):
+                row = copy.deepcopy(control)
+                row["node"]["recipient_name"]["current_status"] = status
+                expected = "pass" if status == 1 else "RECIPIENT_NAME_NOT_HELD" if status == 2 else "RECIPIENT_NAME_UNAVAILABLE"
+                self.assertEqual(reader.admission_decision(row)["outcome"], expected)
 
     def test_landlord_current_status(self):
         # R9.5 step 1 distinguishes proved absence from unknown/undefined facts.

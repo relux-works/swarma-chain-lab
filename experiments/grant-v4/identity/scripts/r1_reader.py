@@ -228,6 +228,11 @@ def admission_decision(row):
     exact = "name" in constraint
     if "name" not in child or (exact and child != constraint):
         return {"outcome": "CHILD_GRANTEE_NOT_ALLOWED"}
+    status = row["node"]["recipient_name"].get("current_status", 1)
+    if status == 2:
+        return {"outcome": "RECIPIENT_NAME_NOT_HELD"}
+    if status != 1:
+        return {"outcome": "RECIPIENT_NAME_UNAVAILABLE"}
     raw = bytes.fromhex(row["node"]["recipient_name"]["current_output_script_hex"])
     reading = names.read_script(raw, child["owner_public_key"], row["context"]["tip_height"], 0)
     if reading["reading"] == "unsupported":
@@ -315,6 +320,10 @@ def revision_decisions(files):
         landlord["current_status"] = status
         landlord["history"] = []
         decisions[f"r2-landlord-{status}"] = admission_decision(row)["outcome"]
+    for status in range(256):
+        row = copy.deepcopy(control)
+        row["node"]["recipient_name"]["current_status"] = status
+        decisions[f"r2-recipient-{status}"] = admission_decision(row)["outcome"]
     return decisions
 
 

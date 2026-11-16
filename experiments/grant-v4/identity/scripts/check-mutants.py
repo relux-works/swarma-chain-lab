@@ -11,6 +11,7 @@ import sys
 
 MODULE = Path(__file__).resolve().parents[1]
 PLANTS = [
+    ('r2-unsupported-recipient-status', 'r1_class.go', 'default:\n\t\treturn fail(RecipientNameUnavailable)\n\t}\n\tif !e.Transactions', 'default:\n        if e.Current == CurrentUnknown { return fail(RecipientNameUnavailable) }\n\t}\n\tif !e.Transactions', 'TestRev375RecipientStatus/99', 'recipient current-output fact:'),
     ('r2-holder-reject-all', 'r1_value.go', 'swarma, nostr, err := r1ValueMembers(raw)', 'return fail(); swarma, nostr, err := r1ValueMembers(raw)', 'TestR1Holders/value-10', 'neighbour value-03: R1 got'),
     ('r2-group-reject-all', 'r1_groups.go', 'if len(p.Groups) < 1', 'if true { return 0, R1RuleError("R8.4") }; if len(p.Groups) < 1', 'TestR1Groups/group-11', 'neighbour group-02: R1 got'),
     ('r2-template-reject-all', 'r1_class.go', 'if t.Certifier != "" {', 'if true { return R1RuleError("R9.1") }; if t.Certifier != "" {', 'TestR1Class/template-07', 'neighbour template-01: R1 got'),
@@ -33,7 +34,7 @@ PLANTS = [
     ('r1-same-name-issuer-pin', 'r1_class.go', 'return a.Name == b.Name && a.Registration == b.Registration && a.Owner == b.Owner', 'return a.Name == b.Name', 'TestR1Class/template-13', 'template-13: R1 got'),
     ('r1-drop-certifier-requirement', 'r1_class.go', 'return RowRecipientResult{value.ChannelKey, t.Certifier != ""}, nil', 'return RowRecipientResult{value.ChannelKey, false}, nil', 'TestR1Class/class-01', 'class-01: R1 got'),
     ('r1-no-certifier-stop-coin', 'r1_class.go', 'if t.StopCoin != nil {', 'if t.StopCoin != nil && false {', 'TestR1CertifierBoundary', 'R1 stop coin admitted'),
-    ('r1-current-owner-only', 'r1_class.go', 'if out.Reading == AnotherKey {', 'if out.ID == s.Outputs[0].ID && out.Reading == AnotherKey {', 'TestR1Class/class-14', 'class-14: R1 got'),
+    ('r1-current-owner-only', 'r1_class.go', 'case AnotherKey:\n\t\t\t\treturn ClassLandlordChanged', 'case AnotherKey:\n                if out.ID == s.Outputs[0].ID { return ClassLandlordChanged }', 'TestR1Class/class-14', 'class-14: R1 got'),
     ('r1-check-writer-before-history', 'r1_class.go', 'if reg.Height.h > o.Recent.h {', 'if s.Outputs[0].Writer == WrittenByAnother { return ClassValueUnauthorized }; if reg.Height.h > o.Recent.h {', 'TestR1Class/class-14', 'class-14: R1 got'),
     ('r1-ignore-landlord-writer', 'r1_class.go', 'case WrittenByAnother:\n\t\treturn ClassValueUnauthorized', 'case WrittenByAnother:', 'TestR1Class/certifier-10', 'certifier-10: R1 got'),
     ('r1-ignore-pending', 'r1_class.go', 'if e.Pending {', 'if e.Pending && false {', 'TestR1Class/class-31', 'class-31: R1 got'),
@@ -41,7 +42,7 @@ PLANTS = [
     ('r1-ignore-value-writer', 'r1_class.go', 'if !written {', 'if !written && false {', 'TestR1Class/class-25', 'class-25: R1 got'),
     ('r1-only-current-holder-writes', 'r1_class.go', 'switch CheckWriter(operation, ns.Name, e.Inputs, h, o.Chain) {', 'if h != child.ByName.Owner { continue }; switch CheckWriter(operation, ns.Name, e.Inputs, h, o.Chain) {', 'TestR1Class/class-02', 'class-02: R1 got'),
     ('r1-ignore-unsupported-writer', 'r1_class.go', 'if unsupported {', 'if unsupported && false {', 'TestR1Class/class-28', 'class-28: R1 got'),
-    ('r1-ignore-recipient-owner', 'r1_class.go', 'if reading == AnotherKey {', 'if reading == AnotherKey { reading = Controlled }; if reading == AnotherKey {', 'TestR1Class/class-34', 'class-34: R1 got'),
+    ('r1-ignore-recipient-owner', 'r1_class.go', 'case AnotherKey:\n\t\treturn fail(RecipientNameNotHeld)', 'case AnotherKey:', 'TestR1Class/class-34', 'class-34: R1 got'),
     ('r1-executor-after-recipient', 'r1_class.go', 'if c.Executor != t.Executor {', 'if c.Executor != t.Executor && c.Recipient.ByName != nil {', 'TestR1ChildOrder/executor-before-recipient', 'R1 order got'),
     ('r1-budget-before-recipient', 'r1_class.go', '// Structural R2.3 precedes the limit ceiling, but proof-by-name comes later.', '// Control plant: improperly prefer the budget.\n plantedRow, _ := limitMap(t.Limits); plantedChild, _ := limitMap(c.Limits); for k,a := range plantedChild { if plantedRow[k] == nil || a.Cmp(plantedRow[k]) > 0 { return fail(ChildBudgetOver) } }', 'TestR1ChildOrder/recipient-before-budget', 'R1 order got'),
     ('r1-union-class-holders', 'r1_class.go', 'held := false', 'for _, other := range o.Landlords { if other.Binding.Name != value.Landlord { v, _ := ReadR1Value(profile, other.Value); lv.Holders = append(lv.Holders, v.Holders...) } }; held := false', 'TestR1Class/class-36', 'class-36: R1 got'),

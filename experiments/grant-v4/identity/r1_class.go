@@ -145,8 +145,12 @@ func classLandlordHistory(e ClassLandlordEvidence, o ClassObservation, exact boo
 		if !known {
 			return ClassHistoryUnavailable
 		}
-		if live != Live {
+		switch live {
+		case Live:
+		case Expired:
 			return ClassLandlordChanged
+		default:
+			return ClassHistoryUnavailable
 		}
 		w := walk(s, "")
 		if !w.complete || e.RegistrationID == "" {
@@ -160,10 +164,11 @@ func classLandlordHistory(e ClassLandlordEvidence, o ClassObservation, exact boo
 			return ClassCheckpoint
 		}
 		for _, out := range w.outputs {
-			if out.Reading == AnotherKey {
+			switch out.Reading {
+			case Controlled:
+			case AnotherKey:
 				return ClassLandlordChanged
-			}
-			if out.Reading != Controlled {
+			default:
 				return ClassHistoryUnavailable
 			}
 			if out.Height.h <= o.Recent.h {
@@ -226,11 +231,15 @@ func CheckRowRecipient(profile R1Profile, issuer LandlordPin, t RowTemplate, chi
 	// O7.2 precedes every class check. Current output proof is independent of
 	// the value's parse, pointer and channel key.
 	e := o.Recipient
-	if !o.Tip.known || o.Depth <= 0 || e.Current == CurrentUnknown {
+	if !o.Tip.known || o.Depth <= 0 {
 		return fail(RecipientNameUnavailable)
 	}
-	if e.Current == NoLiveOutput {
+	switch e.Current {
+	case CurrentOutput:
+	case NoLiveOutput:
 		return fail(RecipientNameNotHeld)
+	default:
+		return fail(RecipientNameUnavailable)
 	}
 	if !e.Transactions {
 		return fail(RecipientNameUnavailable)
@@ -239,17 +248,22 @@ func CheckRowRecipient(profile R1Profile, issuer LandlordPin, t RowTemplate, chi
 	if !e.ConfirmedAt.known || err != nil {
 		return fail(RecipientNameUnavailable)
 	}
-	if live != Live {
+	switch live {
+	case Live:
+	case Expired:
 		return fail(RecipientNameNotHeld)
+	default:
+		return fail(RecipientNameUnavailable)
 	}
 	reading, ns := ReadOutput(e.Script, child.ByName.Owner, e.ConfirmedAt, o.Chain)
 	if !bytes.Equal(ns.Name, child.ByName.Name) || (ns.Prefix != PrefixUpdate && ns.Prefix != PrefixRegistration) {
 		return fail(RecipientNameUnavailable)
 	}
-	if reading == AnotherKey {
+	switch reading {
+	case Controlled:
+	case AnotherKey:
 		return fail(RecipientNameNotHeld)
-	}
-	if reading != Controlled {
+	default:
 		return fail(RecipientNameUnavailable)
 	}
 	if exact && t.Certifier != "" {
@@ -315,7 +329,8 @@ func CheckRowRecipient(profile R1Profile, issuer LandlordPin, t RowTemplate, chi
 		switch CheckWriter(operation, ns.Name, e.Inputs, h, o.Chain) {
 		case WrittenByOwner:
 			written = true
-		case WriterUnsupported:
+		case WrittenByAnother:
+		default:
 			unsupported = true
 		}
 	}
