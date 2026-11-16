@@ -2,11 +2,13 @@ package notarycheck
 
 import (
 	"context"
-	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/diagnosticcheck"
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/diagnosticcheck"
 )
 
 const diagnosticPassword = "synthetic-diagnostic-password"
@@ -67,6 +69,9 @@ func TestRPCPasswordDiagnostics(t *testing.T) {
 		{Name: "plain-byte-pointer", Value: struct{ value *[]byte }{&raw}},
 	}
 	diagnosticcheck.Check(t, passwordDiagnosticForms(t), controls, diagnosticcheck.NewDetector(raw, false))
+	// The derived Basic-Auth credential is secret too.
+	basic := []byte(base64.StdEncoding.EncodeToString([]byte("synthetic-user:" + diagnosticPassword)))
+	diagnosticcheck.Check(t, passwordDiagnosticForms(t), []diagnosticcheck.Form{{Name: "plain-basic", Value: struct{ h string }{string(basic)}}}, diagnosticcheck.NewDetector(basic, false))
 }
 
 // Claim: actual runtime panic printing does not expose any tested form.

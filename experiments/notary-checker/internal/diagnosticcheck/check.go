@@ -4,6 +4,7 @@ package diagnosticcheck
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,12 +27,32 @@ type Form struct {
 }
 
 // Detector never reports the matched secret. Its inputs must be synthetic.
-type Detector struct{ needles []string }
+type Detector struct {
+	needles  []string
+	elements []*regexp.Regexp
+}
 
 func NewDetector(raw []byte, scalar bool) Detector {
 	n := []string{string(raw), hex.EncodeToString(raw), strings.ToUpper(hex.EncodeToString(raw)),
 		fmt.Sprint(raw), fmt.Sprintf("%#v", raw), fmt.Sprintf("% x", raw),
 		strconv.Quote(string(raw)), fmt.Sprintf("%q", raw)}
+	// Scalar windows contain no shared user/password fixture labels. Password
+	// detectors retain whole-value needles to avoid treating those labels as secrets.
+	if scalar {
+		// Eight original bytes remain distinctive after encoding; windows catch
+		// partial slice output without treating a short incidental match as a leak.
+		for i := 0; i+8 <= len(raw); i++ {
+			w := raw[i : i+8]
+			n = append(n, string(w))
+			n = append(n, hex.EncodeToString(w), strings.ToUpper(hex.EncodeToString(w)), base64.StdEncoding.EncodeToString(w), base64.RawStdEncoding.EncodeToString(w))
+			for _, verb := range []string{"%v", "%#v", "%x", "%X", "%d", "%o", "%O", "%b", "%U", "%q"} {
+				rendered := fmt.Sprintf(verb, w)
+				// Slice brackets are context, not part of the secret window.
+				n = append(n, strings.TrimSuffix(strings.TrimPrefix(rendered, "["), "]"))
+			}
+		}
+	}
+	var elements []*regexp.Regexp
 	if scalar {
 		if len(raw) != 32 {
 			panic("synthetic scalar must have 32 bytes")
@@ -39,16 +61,36 @@ func NewDetector(raw []byte, scalar bool) Detector {
 		for i := range words {
 			words[i] = binary.BigEndian.Uint32(raw[28-4*i : 32-4*i])
 		}
+		// Match individual scalar limbs with digit boundaries. This catches
+		// per-element bad verbs, Unicode/octal forms and flag/width padding.
+		for _, word := range words {
+			// Short numbers are not distinctive enough for individual matching.
+			if word < 1<<20 {
+				continue
+			}
+			for _, base := range []int{2, 8, 10, 16} {
+				class := map[int]string{2: "01", 8: "0-7", 10: "0-9", 16: "0-9a-fA-F"}[base]
+				digits := strconv.FormatUint(uint64(word), base)
+				for _, text := range []string{digits, strings.ToUpper(digits)} {
+					elements = append(elements, regexp.MustCompile(`(?:^|[^`+class+`])`+regexp.QuoteMeta(text)+`(?:$|[^`+class+`])`))
+				}
+			}
+		}
 		for _, verb := range []string{"%v", "%#v", "%x", "%X", "%d", "%o", "%b"} {
 			n = append(n, fmt.Sprintf(verb, words))
 		}
 	}
-	return Detector{n}
+	return Detector{needles: n, elements: elements}
 }
 
 func (d Detector) Leaks(out string) bool {
 	for _, n := range d.needles {
 		if n != "" && strings.Contains(out, n) {
+			return true
+		}
+	}
+	for _, element := range d.elements {
+		if element.MatchString(out) {
 			return true
 		}
 	}
@@ -132,20 +174,26 @@ func encoded(b []byte, err error) string {
 }
 
 // Check proves zero leaks on every listed form/sink; a plain control must
-// actually leak through this same battery, preventing a vacuous detector.
+// individually leak through this same battery, preventing vacuous controls.
 func Check(t *testing.T, forms []Form, controls []Form, d Detector) {
 	t.Helper()
 	ss := sinks()
 	controlsLeaking := 0
 	for _, f := range controls {
+		controlLeaks := 0
 		for _, s := range ss {
 			if d.Leaks(s.render(f.Value)) {
-				controlsLeaking++
+				controlLeaks++
 			}
 		}
+		if controlLeaks == 0 {
+			t.Fatalf("plain diagnostic control %s did not leak", f.Name)
+		}
+		t.Logf("control=%s leaks=%d", f.Name, controlLeaks)
+		controlsLeaking += controlLeaks
 	}
-	if controlsLeaking == 0 {
-		t.Fatal("plain diagnostic controls did not leak")
+	if len(controls) == 0 {
+		t.Fatal("plain diagnostic controls missing")
 	}
 	leaks := 0
 	for _, f := range forms {
