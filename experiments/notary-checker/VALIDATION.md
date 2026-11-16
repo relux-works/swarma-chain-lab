@@ -1,5 +1,72 @@
 # Bounded validation evidence
 
+## NOTARY-REL r2 release verifier (2026-11-16)
+
+Verifier implementation: `36945bbf246f02a8ee5abea4e2a876f4c61f4ba2`.
+This supersedes the historical 25-test and 34-test verifier records below.
+The interface is eight required arguments:
+
+```sh
+scripts/verify-release.sh SOURCE_ROOT RELEASE_COMMIT RELEASE_TAG RELEASE_DIR \
+  REBUILT_BINARY TAG_ALLOWED_SIGNERS MANIFEST_ALLOWED_SIGNERS MANIFEST_SIGNER_ID
+```
+
+All filesystem inputs must be absolute and are canonicalized physically.
+The verifier checks one resolved SSH tag object, its signed name and direct
+commit target, explicit disjoint tag/manifest trust roles, the signed manifest,
+and separate downloaded/rebuilt files. See [RELEASE.md](RELEASE.md) for the
+pinned verifier checkout and independent exported-source build example.
+
+| Command / control | Actual exit / result |
+| --- | --- |
+| `bash -n scripts/verify-release.sh` | 0 |
+| `python3 -B scripts/test-verify-release.py` | 0; 46 tests, all 34 prior names retained |
+| `python3 -B scripts/check-release-mutant.py --work-dir WORK` | 0; both named controls killed, valid neighbors exit 0 |
+| Real v0.1.1 assets, fixed verifier | 0; `PASS RELEASE_VERIFIED` |
+| Go 1.26.10 exported-source builds, twice | 0 / 0; Linux/amd64, `CGO_ENABLED=0`, `GOAMD64=v1`, documented reproducible flags |
+| `cmp` between builds / against downloaded binary | 0 / 0; different paths and inodes |
+| Public hygiene scanner / six detector controls | 0 / 0 |
+| `git diff --check` | 0 |
+| `shellcheck scripts/verify-release.sh` | Not run: shellcheck unavailable |
+
+| New control | Verifier exit / terminal verdict |
+| --- | --- |
+| `test_ambient_only_tag_key` (local, global, parameters, count) | 1 / `FAIL TAG_SIGNATURE`; raw Git accepts the same ambient-trusted tag as a fixture precondition |
+| `test_non_ssh_tag_signature` | 1 / `FAIL TAG_SIGNATURE`; controlled ambient OpenPGP backend accepts the fixture in raw Git but is never invoked by the verifier |
+| `test_relative_trust_path` (both roles, distinct caller cwd) | 1 / `FAIL ARGUMENTS` |
+| `test_wrong_signed_tag_name` | 1 / `FAIL TAG_IDENTITY` |
+| `test_ref_moved_after_resolution` | 1 / `FAIL TAG_COMMIT`; wrong pinned target stays refused when ref moves to a valid target; inverse valid control exits 0 |
+| `test_merged_signer_roles` | 1 / `FAIL SIGNER_ROLE_SEPARATION` |
+| `test_download_as_rebuild`, `test_download_hardlink_as_rebuild` | 1 / `FAIL ARGUMENTS` |
+| `test_all_good`, `test_other_canonical_versions` | 0 / `PASS RELEASE_VERIFIED` |
+| `test_ambient_verifier_program` | 0 / `PASS RELEASE_VERIFIED`; configured executable never launched |
+| `test_physical_trust_paths`, `test_trust_paths_with_trailing_newline` | 0 / `PASS RELEASE_VERIFIED`; the former records every consumed physical trust filename |
+| `test_role_separation_mutant` | Guarded fixture: 1 / `FAIL SIGNER_ROLE_SEPARATION`; guard-only mutant: 0 / `PASS RELEASE_VERIFIED` |
+
+Every negative requires its exact code, exit 1, empty stderr and no
+`RELEASE_VERIFIED`. The five baseline witnesses for non-SSH fallback, relative
+trust paths, wrong signed name, merged roles and downloaded rebuild alias
+fail their new tests with assertion `0 != 1` at `ab371ba3`: these are intentional
+failing controls, not green gates.
+
+| Mutant | Narrows gate to | Named failing test | Result / survivor bound |
+| --- | --- | --- | --- |
+| release-directory-enumeration-removed | Exact three-file membership | `ReleaseVerification.test_extra_file` | Killed; test exit 1, valid neighbor exit 0; no survivor |
+| signer-role-separation-removed | Actual signature key role disjointness | `ReleaseVerification.test_merged_signer_roles` | Killed; test exit 1, valid neighbor exit 0; no survivor |
+
+The genuine published v0.1.1 assets were downloaded anew. Two builds from a
+fresh `git archive` of `8a47f1a984cd93864402f7fdc09d2eba0d890b90`, into a fresh
+output directory outside the downloads, both match the authenticated binary:
+`9e63953c112b0cf0426a2db4ddc048faff053088d5cd1d447f1e6f598c91f7f5`.
+No downloaded binary was executed or used as a build output. Test/build HOME,
+caches and temporary directories were task-owned absolute physical paths.
+No Go/service code changed; unrelated historical service checks below are
+not claimed as new local runs. Hosted CI now runs this release suite and both
+mutation controls. Review, landing, tag/release editing and deployment remain
+outside this producer unit. No formal surface table was supplied in the brief;
+the finding/control map above records the requested scope, with no F1–F7
+requirement treated as out of contract.
+
 ## N7 signing-key containment (2026-11-16)
 
 Current base: `22cdfd7c0ba132510c4d0baf8094714bb272c309`. The signing key is
@@ -214,12 +281,12 @@ are not claimed anew by N6 r2.
 
 The current corpus contains **144 signed bundles and two isolated row
 vectors**. The v0.1.51 pin is stated above; original v0.1.48-era results later
-in this file remain historical. All current commands below actually ran with
+in this file remain historical. All commands in that historical round ran with
 Go 1.26.10 and `GOTOOLCHAIN=local` against byte-identical source/test inputs;
 [SERVICE-VALIDATION.md](SERVICE-VALIDATION.md#n4n5-evidence-refreshed-in-n5-r2-2026-11-16)
 records the input-manifest digest, environment, FIFO map and build hash.
 
-| Current command | Real exit / result |
+| Historical N5 r2 command | Real exit / result |
 | --- | --- |
 | `go test -race -count=1 -timeout 120s ./...` | 0; one full-module run, five packages, N4 J9 and FIFO tests included |
 | `python3 -B scripts/reference.py` | 0; 144 bundles / two rows |

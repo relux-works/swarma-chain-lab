@@ -1,5 +1,29 @@
 # Service validation
 
+## NOTARY-REL r2 verifier refresh (2026-11-16)
+
+The current release verifier requires eight arguments: `SOURCE_ROOT`,
+`RELEASE_COMMIT`, `RELEASE_TAG`, `RELEASE_DIR`, `REBUILT_BINARY`,
+`TAG_ALLOWED_SIGNERS`, `MANIFEST_ALLOWED_SIGNERS`, `MANIFEST_SIGNER_ID`.
+Implementation revision: `36945bbf246f02a8ee5abea4e2a876f4c61f4ba2`.
+
+The current release suite is **46 tests** (all 34 prior names retained),
+exit 0. `bash -n` exits 0; both named release mutation controls are killed
+(test exit 1, valid control exit 0). The guarded cross-signer fixture refuses
+`SIGNER_ROLE_SEPARATION` (exit 1), while its guard-only mutant reaches
+`RELEASE_VERIFIED` (exit 0). The freshly downloaded real v0.1.1 assets pass the
+fixed verifier, exit 0. Two fresh exported-source Go 1.26.10 builds and both
+byte comparisons exit 0, retaining published binary SHA-256
+`9e63953c112b0cf0426a2db4ddc048faff053088d5cd1d447f1e6f598c91f7f5`.
+Public hygiene and all six detector controls exit 0. Shellcheck is unavailable
+and was not run. No Go/service code changed in this verifier revision.
+
+The exact new negative codes, valid controls, baseline failing witnesses,
+mutant table and limits are recorded in
+[VALIDATION.md](VALIDATION.md#notary-rel-r2-release-verifier-2026-11-16).
+The following 25-test verifier rows are historical N5 r2 evidence, superseded
+by this record; their original counts and results are preserved.
+
 ## N7 signing-key containment (2026-11-16)
 
 Current base: `22cdfd7c0ba132510c4d0baf8094714bb272c309`. The signing key is

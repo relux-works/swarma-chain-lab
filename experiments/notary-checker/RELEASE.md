@@ -1,7 +1,7 @@
 # Building and deploying the notary service
 
 This document prepares a reviewed source revision for deployment. The release
-owner chooses the landed revision, creates the signed tag
+owner chooses the landed revision, authorizes the bot-signed tag
 `notary-service/vMAJOR.MINOR.PATCH` at that exact commit, and publishes the release,
 `SHA256SUMS` and `SHA256SUMS.sig` after review. A candidate PR is not a published release.
 
@@ -101,8 +101,11 @@ ivan-platform-release namespaces="swarma-release" ssh-ed25519 AAAAC3NzaC1lZDI1NT
 ```
 
 Do not combine these entries or substitute one key for the other. Protect both
-files from modification. The verifier rejects the same file supplied twice;
-it trusts the operator to provision each file with only its approved role.
+files from modification. The verifier rejects the same file supplied twice
+and rejects either actual signature key appearing in the opposite role's file,
+even when the operator supplies two copies of a merged file. Namespace options
+alone do not substitute for this key separation. The operator still approves
+the authority of each provisioned key.
 A future key rotation requires a separately approved release record.
 
 ### Version-generic verification
@@ -115,19 +118,24 @@ prefix, wildcard, prerelease suffix, shell expansion or evaluation. Set
 `RELEASE_COMMIT` from the release record, never from a moving branch or by
 inferring it from an unverified tag.
 
-Verify the tag and its recorded target in an already obtained local checkout:
+Obtain the signed tag in a local source checkout. The combined verifier resolves
+`refs/tags/$RELEASE_TAG^{tag}` exactly once to an immutable annotated-tag object.
+It requires SSH armor, verifies that object's payload directly with
+`ssh-keygen -Y verify -f "$TAG_ALLOWED_SIGNERS" -n git`, and compares the signed
+`tag` header with `RELEASE_TAG`. The signed direct commit target must equal
+`RELEASE_COMMIT`. Every subsequent Git read uses an object ID, never the mutable
+ref. Git only reads objects in a cleared environment; Git signature backends,
+user keyrings and inherited `gpg.*` configuration cannot choose a trust source
+or verifier program. Use the combined command below for these checks.
 
-```sh
-git -C "$SOURCE_ROOT" -c gpg.ssh.allowedSignersFile="$TAG_ALLOWED_SIGNERS" \
-  verify-tag "refs/tags/$RELEASE_TAG"
-test "$(git -C "$SOURCE_ROOT" rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$RELEASE_COMMIT"
-```
-
-Rebuild from a clean checkout of that exact commit using the toolchain and
-flags above. Both local build hashes must equal the published binary's
-SHA-256, authenticated by the manifest. A supplied rebuild path alone cannot
-prove how it was built. Run the current verifier from a separate checkout if
-the release revision predates this verifier interface.
+Export that exact release commit into a fresh source directory, and build into
+a separate fresh output directory using the toolchain and flags above. Both
+local build hashes must equal the published binary's SHA-256, authenticated by
+the manifest. The rebuilt file must be outside the download directory and a
+different inode from the download (including hardlinks). Those checks prevent
+a trivial self-comparison; a supplied path alone cannot prove build provenance.
+Run the verifier from the separately pinned `VERIFIER_ROOT` checkout below:
+v0.1.1's source revision contains an older incompatible verifier.
 
 In the download directory, authenticate the manifest before checking hashes:
 
@@ -140,7 +148,7 @@ sha256sum --check --strict SHA256SUMS
 The combined verifier accepts eight positional arguments, in this order:
 
 ```sh
-scripts/verify-release.sh "$SOURCE_ROOT" "$RELEASE_COMMIT" "$RELEASE_TAG" \
+"$VERIFIER_ROOT/experiments/notary-checker/scripts/verify-release.sh" "$SOURCE_ROOT" "$RELEASE_COMMIT" "$RELEASE_TAG" \
   "$RELEASE_DIR" "$REBUILT_BINARY" "$TAG_ALLOWED_SIGNERS" \
   "$MANIFEST_ALLOWED_SIGNERS" "$MANIFEST_SIGNER_ID"
 ```
@@ -148,11 +156,12 @@ scripts/verify-release.sh "$SOURCE_ROOT" "$RELEASE_COMMIT" "$RELEASE_TAG" \
 Verification **FAILS CLOSED**: no install without a good tag signature,
 matching tag target, owner manifest signature, published binary checksum and
 independent rebuild checksum. Any nonzero exit forbids installation. Tag
-verification uses only `TAG_ALLOWED_SIGNERS` in namespace `git`; manifest
-verification uses only `MANIFEST_ALLOWED_SIGNERS` in namespace `swarma-release`.
+verification accepts only SSH signatures and uses only `TAG_ALLOWED_SIGNERS`
+in namespace `git`; manifest verification uses only `MANIFEST_ALLOWED_SIGNERS` in namespace `swarma-release`.
 
-Use absolute paths for all filesystem arguments. The download directory must
-contain only `notary-service-linux-amd64`, `SHA256SUMS` and `SHA256SUMS.sig`.
+All filesystem arguments must be absolute (relative paths refuse as
+`ARGUMENTS`); the verifier canonicalizes them to physical paths before use.
+The download directory must contain only `notary-service-linux-amd64`, `SHA256SUMS` and `SHA256SUMS.sig`.
 Keep rebuilds and trust files outside it. The script enumerates the directory
 non-recursively, including dotfiles, using Python 3's `os.lstat`. Extra regular
 files refuse as `UNEXPECTED_RELEASE_FILE`, subdirectories as
@@ -160,16 +169,20 @@ files refuse as `UNEXPECTED_RELEASE_FILE`, subdirectories as
 `RELEASE_NON_REGULAR_FILE`. Read errors refuse as `RELEASE_DIRECTORY_READ`;
 a non-directory release path refuses as `MISSING_RELEASE_DIRECTORY`.
 
-A missing or malformed tag parameter refuses as `ARGUMENTS`; an absent or
-untrusted tag signature as `TAG_SIGNATURE`; a tag peeling to a different
-recorded commit as `TAG_COMMIT`; an altered or wrongly signed manifest as
-`MANIFEST_SIGNATURE`. Missing trust files refuse as
+A missing or malformed tag parameter refuses as `ARGUMENTS`; an absent,
+untrusted or non-SSH tag signature as `TAG_SIGNATURE`; a different signed
+tag name as `TAG_IDENTITY`; a tag targeting a different recorded commit as
+`TAG_COMMIT`; shared trust files or a downloaded rebuild alias as `ARGUMENTS`;
+actual signature keys trusted across roles as `SIGNER_ROLE_SEPARATION`; an
+altered or wrongly signed manifest as `MANIFEST_SIGNATURE`. Missing trust files refuse as
 `MISSING_TAG_ALLOWED_SIGNERS` or `MISSING_MANIFEST_ALLOWED_SIGNERS`.
 Every refusal prints its exact `FAIL CODE`, exits **1** and never prints
 `PASS RELEASE_VERIFIED`; success exits **0** with that terminal verdict.
 `SHA256SUMS` must have precisely one lowercase SHA-256 entry for the fixed
 artifact basename; other paths refuse as `MANIFEST_FORMAT`. The script makes
-no network request, build, executable launch or install. Use immutable,
+no network request, build, downloaded-executable launch or install. It uses
+Git, OpenSSH, Python and coreutils, with an automatically removed private
+scratch directory under `TMPDIR` (or `/tmp`). Use immutable,
 operator-controlled inputs; concurrent file substitution is outside its claim.
 
 ### Worked example: v0.1.1
@@ -186,14 +199,60 @@ MANIFEST_SIGNER_ID=ivan-platform-release
 Its artifact is `notary-service-linux-amd64`, SHA-256
 `9e63953c112b0cf0426a2db4ddc048faff053088d5cd1d447f1e6f598c91f7f5`.
 The signer principals, public keys, fingerprints and purposes are exactly the
-two approved roles above. After provisioning those trust files, obtaining the
-signed tag locally, and independently rebuilding the recorded commit:
+two approved roles above. Provision the absolute trust-file paths first.
+Use this immutable verifier implementation revision from PR #148 **only after
+its exact implementation has been accepted in review**; a candidate is not
+a deployment approval. The verifier checkout and release source checkout
+are distinct, and neither follows a moving branch during verification.
 
 ```sh
+set -eu
+VERIFIER_COMMIT=36945bbf246f02a8ee5abea4e2a876f4c61f4ba2
+# Choose an operator-owned parent; mkdir refuses to reuse an existing run.
+mkdir -p .temp
+WORK_ROOT="$(pwd -P)/.temp/notary-v0.1.1"
+mkdir "$WORK_ROOT"
+VERIFIER_ROOT="$WORK_ROOT/verifier"
+SOURCE_ROOT="$WORK_ROOT/release-source"
+EXPORT_ROOT="$WORK_ROOT/export"
+BUILD_ROOT="$WORK_ROOT/build"
+RELEASE_DIR="$WORK_ROOT/downloads"
+REBUILT_BINARY="$BUILD_ROOT/notary-service-a"
+git clone --no-checkout https://github.com/relux-works/swarma-chain-lab.git "$VERIFIER_ROOT"
+git -C "$VERIFIER_ROOT" checkout --detach "$VERIFIER_COMMIT"
+test "$(git -C "$VERIFIER_ROOT" rev-parse HEAD)" = "$VERIFIER_COMMIT"
+git clone --no-checkout https://github.com/relux-works/swarma-chain-lab.git "$SOURCE_ROOT"
+git -C "$SOURCE_ROOT" fetch origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+git -C "$SOURCE_ROOT" archive --format=tar -o "$WORK_ROOT/source.tar" "$RELEASE_COMMIT"
+mkdir "$EXPORT_ROOT" "$BUILD_ROOT" "$WORK_ROOT/home" "$WORK_ROOT/config" \
+  "$WORK_ROOT/cache" "$WORK_ROOT/tmp" "$WORK_ROOT/go-build" \
+  "$WORK_ROOT/go-mod" "$WORK_ROOT/go-path"
+tar -xf "$WORK_ROOT/source.tar" -C "$EXPORT_ROOT"
 gh release download "$RELEASE_TAG" --repo relux-works/swarma-chain-lab \
   --dir "$RELEASE_DIR" --pattern notary-service-linux-amd64 \
   --pattern SHA256SUMS --pattern SHA256SUMS.sig
-scripts/verify-release.sh "$SOURCE_ROOT" "$RELEASE_COMMIT" "$RELEASE_TAG" \
+GO_BIN=$(command -v go)
+test "$("$GO_BIN" env GOVERSION)" = go1.26.10
+(
+  export HOME="$WORK_ROOT/home" USERPROFILE="$WORK_ROOT/home"
+  export XDG_CONFIG_HOME="$WORK_ROOT/config" XDG_CACHE_HOME="$WORK_ROOT/cache"
+  export TMPDIR="$WORK_ROOT/tmp" TMP="$WORK_ROOT/tmp" TEMP="$WORK_ROOT/tmp"
+  export GOCACHE="$WORK_ROOT/go-build" GOMODCACHE="$WORK_ROOT/go-mod" GOPATH="$WORK_ROOT/go-path"
+  unset GOTELEMETRYDIR
+  export GOTOOLCHAIN=local GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1
+  cd "$EXPORT_ROOT/experiments/notary-checker"
+  "$GO_BIN" build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' \
+    -o "$REBUILT_BINARY" ./cmd/notary-service
+  "$GO_BIN" build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' \
+    -o "$BUILD_ROOT/notary-service-b" ./cmd/notary-service
+)
+test "$REBUILT_BINARY" != "$RELEASE_DIR/notary-service-linux-amd64"
+test ! "$REBUILT_BINARY" -ef "$RELEASE_DIR/notary-service-linux-amd64"
+sha256sum "$REBUILT_BINARY" "$BUILD_ROOT/notary-service-b" "$RELEASE_DIR/notary-service-linux-amd64"
+cmp "$REBUILT_BINARY" "$BUILD_ROOT/notary-service-b"
+TMPDIR="$WORK_ROOT/tmp" \
+  "$VERIFIER_ROOT/experiments/notary-checker/scripts/verify-release.sh" \
+  "$SOURCE_ROOT" "$RELEASE_COMMIT" "$RELEASE_TAG" \
   "$RELEASE_DIR" "$REBUILT_BINARY" "$TAG_ALLOWED_SIGNERS" \
   "$MANIFEST_ALLOWED_SIGNERS" "$MANIFEST_SIGNER_ID"
 ```
@@ -205,7 +264,13 @@ as `TAG_COMMIT`; v0.1.0 is superseded and must not be deployed.
 ### Verifier controls
 
 `python3 -B scripts/test-verify-release.py` uses two disposable local keys and
-signed fixture tags outside the source repository. It asserts the current
+signed fixture tags outside the source repository. The 46 tests retain all
+34 previous test names. New controls reject ambient-only tag trust, non-SSH
+armor, relative trust paths, a wrong signed tag name, a moved ref attempting
+to replace a wrong pinned target, copied merged trust files, and downloaded
+rebuild aliases. Positive controls assert physical trust paths, ignore ambient
+verifier programs, and retain a valid pinned target despite a moved ref.
+The suite also asserts the current
 version's valid control, missing/malformed tag, wrong target, old-tag/new-assets
 pairing, tampered manifest and binary, both cross-signer refusals, wrong
 namespace/principal/key, missing files, invalid tags, changed rebuild and
@@ -214,8 +279,12 @@ symlink and FIFO controls, and prints each exercised verdict and exit code.
 It proves local verification behavior, not operator custody or deployment.
 
 `python3 -B scripts/check-release-mutant.py --work-dir .temp/release-mutant`
-removes enumeration in a disposable copy: `ReleaseVerification.test_extra_file`
-must fail while `ReleaseVerification.test_all_good` still passes. Logs, PIDs
+removes enumeration and role separation in separate disposable copies:
+`ReleaseVerification.test_extra_file` and `ReleaseVerification.test_merged_signer_roles`
+must respectively fail while `ReleaseVerification.test_all_good` still passes.
+`test_role_separation_mutant` additionally runs the exact cross-signer fixture
+against the guarded verifier (exit 1, `SIGNER_ROLE_SEPARATION`) and the guard-only
+mutant (exit 0, `RELEASE_VERIFIED`); this proves the guard is load-bearing. Logs, PIDs
 and `mutation-results.md` remain in that fresh work directory. Python 3 is a
 verifier dependency for explicit non-following `lstat` checks; no third-party
 Python package is required. If available, run
