@@ -192,16 +192,16 @@ func roundsOracle(config map[string]any, rounds []collectionRound) bool {
 	return false
 }
 
-// This models only Source F5/Q2 per-command state. Actual-spend CGW-J1 closures
-// are independent; the fixture does not simulate a real durable journal.
+// The non-witness reader refuses non-unspent reads and journals only observe-grade closures.
+// CGW-J1 enforcement closures are independent; no durable journal is simulated.
 func historyOracle(history []map[string]any) ([]map[string]any, error) {
-	seen, closed := false, false
+	seen, observeClosed := false, false
 	out := []map[string]any{}
 	for _, event := range history {
 		if response(event) != nil {
 			return nil, bad("invalid history response")
 		}
-		admit := false
+		refuse := true
 		if event["ok"] == true {
 			if event["method"] != "gettxout" {
 				return nil, bad("history method")
@@ -209,13 +209,13 @@ func historyOracle(history []map[string]any) ([]map[string]any, error) {
 			state := event["result"].(map[string]any)["state"]
 			if state == "unspent" {
 				seen = true
-				admit = !closed
+				refuse = false // This read alone is not authorization to admit.
 			}
 			if state == "not_in_utxo_set" && seen {
-				closed = true
+				observeClosed = true
 			}
 		}
-		out = append(out, map[string]any{"admit": admit, "closed": closed, "seen_unspent": seen})
+		out = append(out, map[string]any{"refuse_command": refuse, "observe_closed": observeClosed, "enforcement_closed": false, "seen_unspent": seen})
 	}
 	return out, nil
 }
@@ -269,8 +269,9 @@ func projectionOracle(at, point, c, m map[string]any) map[string]any {
 	return map[string]any{"method": "gettxout", "network": "regtest", "ok": true, "result": result, "tip": at, "v": json.Number("1")}
 }
 
-// MIRROR: Witnessed movement discards an attempt, ABA is detected, and mismatched
-// or negative observations cannot form an admissible consumer collection.
+// MIRROR: Non-witness histories refuse non-unspent reads and never create enforcement closures.
+// Witnessed movement discards attempts, ABA is detected, and mismatched or
+// negative observations cannot form an admissible consumer collection.
 func TestObservationVectors(t *testing.T) {
 	for _, v := range observations(t) {
 		if v.Kind == "label" {

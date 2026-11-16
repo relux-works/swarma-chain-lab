@@ -4226,13 +4226,15 @@
     ],
     "decisions": [
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -4280,13 +4282,15 @@
     ],
     "decisions": [
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -4334,13 +4338,15 @@
     ],
     "decisions": [
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -4386,13 +4392,15 @@
     ],
     "decisions": [
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": false,
-        "closed": true,
+        "refuse_command": true,
+        "observe_closed": true,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -4429,13 +4437,15 @@
     ],
     "decisions": [
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -4483,13 +4493,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -4537,13 +4549,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -4591,13 +4605,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -4643,13 +4659,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -4686,13 +4704,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -4740,13 +4760,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -4794,13 +4816,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -4848,13 +4872,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -4900,13 +4926,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -4943,13 +4971,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -4995,13 +5025,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -5047,13 +5079,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -5099,13 +5133,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -5149,13 +5185,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -5190,13 +5228,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -5233,13 +5273,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -5276,13 +5318,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -5319,13 +5363,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -5360,13 +5406,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -5392,13 +5440,15 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       }
     ]
@@ -5464,18 +5514,21 @@
     ],
     "decisions": [
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -5539,24 +5592,27 @@
     ],
     "decisions": [
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": false
       },
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
   },
   {
-    "name": "pending_confirms_then_absent_closes",
+    "name": "pending_then_confirmed_absence_observe_only",
     "kind": "seal_history",
     "history": [
       {
@@ -5632,23 +5688,27 @@
     ],
     "decisions": [
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": false,
-        "closed": true,
+        "refuse_command": true,
+        "observe_closed": true,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": false,
-        "closed": true,
+        "refuse_command": false,
+        "observe_closed": true,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]
@@ -5721,23 +5781,27 @@
     ],
     "decisions": [
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": false,
-        "closed": false,
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       },
       {
-        "admit": true,
-        "closed": false,
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
         "seen_unspent": true
       }
     ]

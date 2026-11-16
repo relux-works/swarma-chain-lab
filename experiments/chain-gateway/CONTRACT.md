@@ -15,10 +15,13 @@ belong in a2a-swarm behind D29's ChainView interface.
 
 The supplied lead ruling authorizes (b), a root helper refreshing a pin at every
 block, for OBSERVE ONLY, then (a), a secret-free read-only chain gateway after
-contract acceptance. Device-list enforcement requires BOTH (a) per-command reads
-and the separately admitted CGW-J1 watcher journal (§4); (a) alone is
-insufficient. Enforcing over (b)
-requires a separate owner decision. No passing fixture enables enforcement.
+contract acceptance. A gateway-backed reader is a **NON-WITNESS for
+mempool-first closures**: it refuses on anything but `unspent` and creates NO
+enforcement closure. Device-list enforcement requires BOTH (a) per-command
+reads and the separately admitted CGW-J1 watcher journal (§4, Q10 in
+[OPEN.md](OPEN.md)); enforcement closures come ONLY from that journal.
+Enforcing over (b) requires a separate owner decision. No passing fixture enables
+enforcement.
 
 Pinned spec: [swarma-link-spec v0.1.51, bd3bc80e](https://github.com/relux-works/swarma-link-spec/tree/bd3bc80e5543d8a563343ec05abd1a5f3f67284c).
 LIP-0029 remains Draft with co-author agreement pending; released bytes are the
@@ -35,7 +38,7 @@ Those follow-ups are listed in OPEN.md and are not silently declared accepted.
 | New chain-read service class, no forwarding of arbitrary RPC | new | Book ch. 11, “Шлюз учётных данных и адаптеры сервисов” requires separate owner admission and qualification for another service class. The supplied ruling authorizes this contract, not an install. Book PR remains required. |
 | Exact name-value bytes, confirmed name operation, 520-byte value | same | [LIP-0010 §§1–2, 8, 11 SH3](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/lips/LIP-0010-name-value.md); [LIP-0029 §§3.2–3.3, 11 steps 4–5](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/lips/LIP-0029-owner-control.md). Gateway transports octets; consumer interprets the pin and hashes the list. |
 | Node network/genesis pinned; no initial block download | same | [protocol/names.md §1.1](https://github.com/relux-works/swarma-link-spec/blob/bd3bc80e5543d8a563343ec05abd1a5f3f67284c/protocol/names.md). This wrapper does not replace consumer name or application verification. |
-| Mempool-inclusive seal observation and durable consumer refusal | refines | LIP-0029 §8 O8.3–O8.5, O8.9 and §11 step 8; Source's binding F5 decision: confirmed AND not mempool-spent, with separate transient states (§3). A later unspent answer never clears an existing closure. The additional confirmation requirement and confirmed-set absence rule need Q8's spec clarification. |
+| Mempool-inclusive seal observation; non-witness reader | refines | LIP-0029 §8 O8.3–O8.5, O8.9 and §11 step 8; F5's confirmed AND not mempool-spent projection keeps separate transient states (§3). Prior journaled unspent followed by confirmed-set absence yields only an OBSERVE-GRADE closure, never enforcement state. Enforcement closures come only from CGW-J1 (§4, Q10); Q8's spec clarification remains required. |
 | Seal script transport, no invented script policy | refines | LIP-0029 §3.1 field 6 binds only the outpoint; §8.3 O8.8 binds fresh-key custody, but its following paragraph explicitly leaves the script open. Return `script_pubkey` bytes; no script validation is claimed for this pinned revision. Q8 must define the expected script or an accepted list-record extension before claiming a script check. |
 | UTXO absence is not proof of a spending transaction | refines | LIP-0029 §8.3 names `gettxout`; it cannot distinguish spent from never-created. This contract exposes `not_in_utxo_set` and prohibits inventing spend evidence. Consumer mapping accepted in answers r1 below; policy-owner spec clarification remains Q8. |
 | Compare observations at a named chain state | same | Book ch. 26, [“Лёгкое чтение и проверяемый индекс”](https://github.com/relux-works/swarma-docs/blob/b57a9be633c245373b448c3786bcbd49d636fe8a/book/ru/26-cepochka.md#лёгкое-чтение-и-проверяемый-индекс): compare the same height and rules. This trusted full-node projection supplies no light-client proof or consensus qualification. |
@@ -319,17 +322,26 @@ gettxout call, after qualifying the pinned Core's signed-index range and
 obtaining §4's absence witness; a backend without that qualification is
 unavailable for the profile, never a different success for the same input.
 
-A consumer MUST refuse unless the seal is positively `unspent`: CONFIRMED
-(confirmations >=1 at Tip) AND not spent by any mempool transaction.
-`unconfirmed` and `spend_pending` both refuse that command as DEVICE_REVOKED-class,
-journal NOTHING permanent and NEVER count as confirmed-set absence. Mempool
-transactions can be evicted/replaced. Under Source's binding F5/Q2 mapping, the
-consumer MUST journal a permanent closure from these reads precisely when this
-reader previously journaled `unspent` with its new meaning and later sees
-`not_in_utxo_set`, absent from the CONFIRMED set. Never-seen absence refuses only the command. A journaled closure
-never lifts across reorgs, restarts or later states; errors create none. This
-per-command mapping does not weaken CGW-J1's independently witnessed actual-spend
-closure rule under O8.3. Policy-owner spec clarification remains Q8.
+A gateway-backed reader MUST refuse unless the seal is positively `unspent`:
+CONFIRMED (confirmations >=1 at Tip) AND not spent by any mempool transaction.
+It is a **NON-WITNESS for mempool-first closures** and MUST create NO enforcement
+closure from any of these reads. `unconfirmed` and `spend_pending` both refuse
+that command as DEVICE_REVOKED-class, journal NOTHING permanent and NEVER count
+as confirmed-set absence. Mempool transactions can be evicted/replaced.
+
+When this reader previously journaled `unspent` with its new meaning and later
+sees `not_in_utxo_set`, absent from the CONFIRMED set, it MUST label and journal
+an **OBSERVE-GRADE closure** only. The reader validated no spending transaction;
+confirmed-set absence can also result from a reorg that removed the funding
+transaction. This observe-journal entry MUST NEVER be imported into enforcement
+state or used as an enforcement refusal. It remains an observe-grade label
+across reorgs, restarts or later states, even if `unspent` is later observed.
+Never-seen absence refuses only the command; errors create no closure of either
+grade. `unspent` is necessary, not sufficient, for admission: all other consumer
+checks and the independent CGW-J1 journal still apply. Enforcement closures come
+ONLY from CGW-J1, with validated spender evidence, conflict completeness and one
+named tip (§4, Q10 in [OPEN.md](OPEN.md)). Policy-owner spec clarification remains
+Q8; the former F5/Q2 permanent-reader-closure wording is superseded.
 
 The consumer checks `script_pubkey` against an expected seal script ONLY when
 an accepted spec clause or the verified list record actually defines it. At
@@ -405,9 +417,10 @@ retries the logical check at most twice (3 rounds total), then refuses. That
 comparison is necessary but cannot prove mempool immutability or detect a tip
 that left and returned between separate connections. It is not an atomic
 all-seals snapshot and creates no reusable authorization lease. Source MUST
-accept these limits, define freshness at admission, and retain its own closure
-journal and continuous seal watcher before enforcement. No polling RPC can
-prove a spend which entered and left the mempool entirely between polls.
+accept these limits, define freshness at admission, and read CGW-J1's independent
+closure journal with a qualified continuous seal watcher before enforcement
+(Q10 in [OPEN.md](OPEN.md)). No polling RPC can prove a spend which entered and
+left the mempool entirely between polls.
 
 An answer states a local node observation, not global finality, trusted wall
 clock, independent proof of creation, proof of a seal script, spend branch,
@@ -458,10 +471,18 @@ to inspect actual spending inputs. These methods belong to CGW-J1, NOT the
 v1 gateway credential/interface; v1 gains no fourth method. CGW-J1 needs its own
 service-class admission, exact contract, durable-journal and live qualification.
 Per-command polling MUST NOT be described as continuous O8.3 observation.
+Enforcement closures MUST come ONLY from CGW-J1's watcher journal, never from a
+gateway-backed reader, a qualified coherent read alone, or an observe journal.
+Before appending an enforcement closure, CGW-J1 MUST validate the spending
+transaction bytes against the seal script, establish conflict completeness and
+bind that evidence to one named tip. UTXO absence, even at a coherent instant,
+is not validated spender evidence. Q10 in [OPEN.md](OPEN.md) tracks this separate
+acceptance and qualification gate.
 Before enforcement a host-owned watcher, running as a service account rather
 than an agent UID, MUST follow blocks and mempool for the watch set and append
-closures to a root-owned append-only journal readable but unwritable by agents,
-under the snapshot filesystem profile. The same journal MUST carry SH5's
+those validated closures to a root-owned append-only journal readable but
+unwritable by agents, under the snapshot filesystem profile.
+The same journal MUST carry SH5's
 highest sequence and name-operation txid outside agent write authority. The
 consumer MUST refuse if either the journal names the device or live gettxout
 is not `unspent`; a missing/unreadable journal MUST refuse. The watcher/journal
@@ -547,9 +568,11 @@ A `"bracketed"` snapshot cannot rule out a hidden A→B→A excursion between th
 bracket reads. The consumer LABELS only and NEVER refuses on it. A closure
 observed through a bracketed snapshot is OBSERVE-GRADE: it labels, goes to an
 observe journal, and is NEVER imported into enforcement state. Enforcement
-closures come only from the Q10 watcher journal or a witnessed read. A
-witnessed read does not waive the CGW-J1 enforcement precondition. §4's
-witness requirement stays IN FULL for gateway (a) and for any enforcement.
+closures come ONLY from the Q10 CGW-J1 watcher journal (§4 and
+[OPEN.md](OPEN.md)), with validated spending transaction bytes, conflict
+completeness and one named tip. A witnessed read alone creates NO enforcement
+closure. §4's coherent-read witness requirement stays IN FULL for gateway (a);
+it does not make a gateway-backed reader a mempool-first closure witness.
 Ordinary bracketing does not claim coherent per-read chain state or an atomic
 multi-record mempool snapshot; observations can differ even at the same Tip.
 These requirements are Source's acceptance points ($Omp4AzWq), accepted by the
@@ -616,7 +639,12 @@ are a valid request. Snapshot-size vectors likewise isolate the payload bound
 from the full snapshot schema. `fixtures/observations.json` records tip
 movement, exact configuration bindings, two-view seal projection and every
 seal-state transition (plus unavailable), round budgets and label precedence,
-including A→B→A and same-height reorgs. `utxo_views` inputs model selected
+including A→B→A and same-height reorgs. Seal-history decisions explicitly name
+`observe_closed`, always leave `enforcement_closed:false`, and separate the
+current read's `refuse_command` flag from the observe journal. A false refusal
+flag means only that this read is `unspent`, not that admission is authorized.
+Observe-grade closures remain labels and never feed that flag. These are
+fixture-oracle labels, not new wire fields. `utxo_views` inputs model selected
 upstream fields at an already coherent instant; they do not supply a witness.
 
 The omission aid, adapted with credit from review 5920320803, runs as

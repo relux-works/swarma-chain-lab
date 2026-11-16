@@ -25,13 +25,21 @@ A changed head still requires Source's delta acceptance and the review of record
   confirmed AND not mempool-spent, separate transient states, exact script and
   confirmations, no transient permanent closure. This supersedes S-r1 Q2's
   ambiguous “absent” wording. The new exact head needs Source's delta acceptance.
+- **CGW-NW**: The non-witness clarification supersedes F5/Q2's permanent-reader-
+  closure wording. A gateway-backed reader refuses anything but `unspent` and
+  creates NO enforcement closure. Prior journaled `unspent` followed by
+  confirmed-set absence creates only an OBSERVE-GRADE closure, never imported
+  into enforcement: no spender was validated, and a reorg can remove funding.
+  Enforcement closures come ONLY from CGW-J1 (Q10), with spending transaction
+  bytes validated against the seal script, conflict completeness and one named
+  tip. The four states and closed v1 method set are unchanged.
 
 ## Answered questions
 
 | ID | Answer event and disposition |
 | --- | --- |
 | Q1 | S-r1 Q1: accepted for v1 with four connections per command, shared-UID 8/s bucket, Linux listener and SH5 approximation. For this delta, darwin/ivmbp is snapshot-only v1; active-chain membership is a v2 candidate. Normative §4. |
-| Q2 | S-F5 supersedes the old projection: two fixed gettxout views (false/true); unspent is confirmed >=1 AND not mempool-spent. unconfirmed and spend_pending refuse the command, journal nothing permanent, and are never confirmed-set absence. Only prior journaled unspent followed by confirmed-set absence permits permanent closure from these reads. Errors never close; existing closures never lift. Q8 policy-owner approval remains separate. Normative §3. |
+| Q2 | S-F5's two fixed gettxout views (false/true) and four states stay: unspent is confirmed >=1 AND not mempool-spent. CGW-NW makes the gateway-backed reader a NON-WITNESS for mempool-first closures: refuse anything but unspent; create NO enforcement closure. Prior journaled unspent followed by confirmed-set absence yields only an OBSERVE-GRADE closure, never imported into enforcement; absence can be a funding-removal reorg, not a validated spender. Transient states and errors create no closure; observe-grade labels never become enforcement state. Enforcement closures come only from Q10's CGW-J1. Q8 policy-owner approval remains separate. Normative §§3–4. |
 | Q4 | S-r1 accepted part (B) for helper build; HELPER-B r3 accepted bracketed observe-only amendment. Fix 1 adds seal metadata/states and exact byte/binding rules, needing Source's new-head acceptance. Missing confirmed names prevent whole-file publication (exit 11, old file ages); file alone cannot distinguish vanished name/helper failure. Static watch set requires root reconfiguration after a list adds seals; incomplete sets label invalid. D29 adoption needs its own head. |
 | Q5 | S-r1 Q5: 30-second heartbeat/60-second observe labels accepted. Requested block-header Tip.time added to all successes and snapshot. Default lag 7200 s is consumer policy, not gateway policy; (b)-only has no independent live tip and never labels fresh. Normative §§3–5; changed-head acceptance pending. |
 | Q6 | I-Q367 Q6: install settings proposed in INSTALL PROFILE, with S8 accounts list/GO and socket-parent provisioning decision still required. Answer closed as proposal, not install approval. |
@@ -43,8 +51,8 @@ A changed head still requires Source's delta acceptance and the review of record
 | ID | Decision/input needed | Owner | Gate |
 | --- | --- | --- | --- |
 | Q3 | Qualify exact node/read adapter for ALL tip transitions including hidden A→B→A, name_show (no complete tip/hash witness), and negative gettxout (null has no bestblock). Positive gettxout has bestblock but the fixed false/true pair also needs coherent mempool state. Require name/value hex round trip, header-time/network/IBD ancillary reads using EXACTLY getblockchaininfo,getblockhash,getblockheader,name_show,gettxout; qualify expired-record retrieval and signed vout range. Infra proposes Core 28.0/ZMQ sequence, with no feasibility evidence yet. Freeze is interface-only; “enforcement-ready” requires this qualification. Ordinary brackets remain insufficient for (a); §5 is observe-only. | Gateway implementer and node owner | Gateway (a) and enforcement; unqualified reads unavailable |
-| Q8 | Book PR for new service/wire/snapshot/profile/resource reservations; spec PR for coherent observations, confirmed-only unspent and Source F5/Q2 permanent-closure policy. Pinned LIP-0029 §3.1 field 6 defines only outpoint; §8.3 O8.8 and following paragraph leave seal script open. No seal-script validation is claimed: define an expected script in an accepted clause/list extension before claiming it. | Lead and documentation/spec owners | Production adoption and any script-check claim |
-| Q10 | CGW-J1: separately admitted chain-lab host-owned watcher/journal next to the node, and Source journal reader. Reference sealwatch, with dedicated node-enforced getblockchaininfo,getblockhash,getrawtransaction,getrawmempool,gettxout,getblock credential for actual spending inputs. No new v1 gateway method. Qualify durable closures, SH5 state and missing-journal refusal outside agent authority. Per-command (a) alone is insufficient; owner scope is 1 LU for watcher/journal, with consumer work and owner approval separate. | Lead, Source and host-side implementer | Enforcement remains off |
+| Q8 | Book PR for new service/wire/snapshot/profile/resource reservations; spec PR for coherent observations, confirmed-only unspent and CGW-NW's non-witness/OBSERVE-GRADE clarification of F5/Q2. Pinned LIP-0029 §3.1 field 6 defines only outpoint; §8.3 O8.8 and following paragraph leave seal script open. The gateway claims no seal-script validation; Q10 requires an accepted script binding before the watcher can qualify validated spending bytes. Define that expected script in an accepted clause/list extension before claiming it. | Lead and documentation/spec owners | Production adoption and any script-check claim |
+| Q10 | CGW-J1: separately admitted chain-lab host-owned watcher/journal next to the node, and Source journal reader. This is the ONLY source of enforcement closures: spending transaction bytes validated against the seal script, conflict completeness and one named tip are required. Reference sealwatch, with dedicated node-enforced getblockchaininfo,getblockhash,getrawtransaction,getrawmempool,gettxout,getblock credential for actual spending inputs. No new v1 gateway method. Qualify durable closures, SH5 state and missing-journal refusal outside agent authority. Per-command (a) is a NON-WITNESS and creates no enforcement closure, even with a coherent-read witness; owner scope is 1 LU for watcher/journal, with consumer work and owner approval separate. | Lead, Source and host-side implementer | Enforcement remains off |
 | Q5 qualification | Maximal configured snapshot must fit 65536 bytes and finish within the 20-second total collection budget before the 30-second heartbeat. Root gets reserved 512-token burst/128 tokens per second and 16 active slots; agent traffic cannot spend them. A slow/moving node may legitimately leave an old file stale. (b)-only has no independent live tip: never fresh. | Helper implementer, Infra and Source | Cadence/fresh-label qualification |
 | Q6 qualification | Verify kernel-owned listener AND connected reverse-tuple node UID before ANY credential bytes, with genuine-node positive and wrong-UID listener/no-Authorization negative. Same network/initial user namespace, no PrivateUsers, reserved agent IDs rejected (root helper explicit exception), no socket activation, connect-time fd delegation documented, owned restart cleanup only. Qualify per-UID reservations/fair progress under competing traffic. | Infra and gateway implementer | S8 install/host qualification |
 
@@ -58,8 +66,10 @@ authorizes §5 ordinary RPC bracketing for OBSERVE ONLY. Complete Tip equality,
 three attempts with 100/200 ms backoff, untouched previous file and exit 12 on
 exhaustion, and required closed `consistency:bracketed` are normative. V1
 rejects `witnessed` as invalid; it cannot be self-asserted. Bracketed closures
-belong only to an observe journal, never enforcement state. Q3 remains in full
-for (a) and enforcement; Q10 and installation/adoption remain separate gates.
+belong only to an observe journal, never enforcement state. Neither a bracketed
+snapshot nor a witnessed gateway read creates an enforcement closure; only
+Q10's CGW-J1 watcher journal can do that. Q3 remains in full for (a)'s coherent
+reads; Q10 and installation/adoption remain separate gates.
 The helper build blocker from r2 is resolved by this explicit amendment.
 
 ## Fix 1 current-head finding assessment
