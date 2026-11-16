@@ -23,9 +23,13 @@ both member sets, including /1 vectors. D12 is retained: hypothetical delegable
 spend is not enabled. The 39 section-8 parent/child pairs are enumerated and both
 documents are run through the parser. Their pair-level verdicts are NOT JUDGED:
 this copy implements section 3.1, not section 8; G1.0 refuses all /2 children.
-Six pairs describe the hypothetical spend profile with D12 lifted, which is not
-this reader's profile. This is an explicit coverage gap, not conformance proof
-for delegation. No vector expectation has been changed to hide the gap.
+The trust-profile test `TestTrustLIP0014PairScope` additionally checks all 39
+parents against their own §3.1 verdict and refuses every child-slot document
+with `terms_invalid` under D2. Pair-21’s child slot is a root at depth 1,
+which D2 also refuses. Six hypothetical spend parents retain D12’s
+`CONTRACT_DELEGATE`. §8 pair verdicts are not judged by CG1; it refuses all children (D2); the notary judges pairs.
+Pair certification is outside CG1’s scope, not an outstanding CG1 coverage gap.
+The upstream bytes and expectations remain unchanged.
 
 Run document and binding vectors from the module:
 `go test -count=1 -v -run 'TestVectorFilePinned|TestLIP0013|TestLIP0014|TestV2|TestNotary' ./internal/trustcontract`.

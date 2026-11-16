@@ -108,8 +108,14 @@ kernel's strict reader, as before. The pay profile's node wrapper is unchanged.
   change, and `TestNotaryCorpusAgrees` runs the notary's own committed vectors
   through the copy. The grantcheck workflow also watches notary-checker
   paths so notary-only changes run the drift check. The pinned LIP-0014
-  corpus supplies all 151 contract vectors; see testdata for the separate
-  delegation-pair coverage limit.
+  corpus supplies all 151 contract vectors. `TestTrustLIP0014PairScope` checks
+  all 39 pairs: each parent against its own §3.1 contract verdict, and every
+  child-slot document against the trust profile’s `terms_invalid` refusal.
+  §8 pair verdicts are not judged by CG1; it refuses all children (D2); the notary judges pairs.
+  Pair-21’s child slot is a root at depth 1 and refuses by D2’s depth rule;
+  the six hypothetical spend parents retain `CONTRACT_DELEGATE` under D12.
+  The `trust_pair_child_refusal` plant removes D2’s parent-id/ordinal refusal
+  and must fail this test. These checks do not certify delegation pairs.
 
 **Limits.** The tests of this section are offline boundary tests with a
 routing stub in the kernel's place. They are no evidence of chain
