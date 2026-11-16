@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""Offline release controls with disposable local keys; never use a release key.
+
+Each rejection asserts its named verdict and absence of RELEASE_VERIFIED;
+positive neighbors prove that rejection is not a verifier that rejects all.
+No claim is made about operator custody or the provenance of a supplied rebuild.
+"""
+import hashlib
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+SCRIPT = Path(__file__).with_name('verify-release.sh').resolve()
+TAG = 'notary-service/v0.1.0'
+
+
+class ReleaseVerification(unittest.TestCase):
+    def command(self, *args):
+        result = subprocess.run(args, cwd=self.repo, env=self.env,
+                                capture_output=True, timeout=20)
+        # Diagnostics may include ephemeral key material: never print them.
+        self.assertEqual(result.returncode, 0, 'fixture command failed: ' + args[0])
+        return result.stdout.decode().strip()
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='release-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.repo = self.root / 'repo'
+        self.repo.mkdir()
+        self.release = self.root / 'release'
+        self.release.mkdir()
+        self.env = dict(os.environ, GIT_CONFIG_NOSYSTEM='1',
+                        GIT_CONFIG_GLOBAL=os.devnull)
+        self.env.pop('GIT_CONFIG_COUNT', None)
+        self.key = self.root / 'signer'
+        self.command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(self.key))
+        self.allowed = self.root / 'allowed-signers'
+        self.allowed.write_text('release-test ' + self.key.with_suffix('.pub').read_text())
+        self.command('git', 'init', '-q')
+        for key, value in [('user.name', 'Release fixture'),
+                           ('user.email', 'release@example.invalid'),
+                           ('gpg.format', 'ssh'), ('user.signingkey', str(self.key)),
+                           ('gpg.ssh.allowedSignersFile', str(self.allowed))]:
+            self.command('git', 'config', key, value)
+        (self.repo / 'source').write_text('disposable release fixture\n')
+        self.command('git', 'add', 'source')
+        self.command('git', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'fixture')
+        self.commit = self.command('git', 'rev-parse', 'HEAD')
+        self.command('git', 'tag', '-s', TAG, '-m', 'disposable fixture')
+        self.binary = self.release / 'notary-service-linux-amd64'
+        self.binary.write_bytes(b'disposable binary fixture\n')
+        self.rebuilt = self.root / 'rebuilt'
+        shutil.copyfile(self.binary, self.rebuilt)
+        self.manifest = self.release / 'SHA256SUMS'
+        self.manifest.write_text(hashlib.sha256(self.binary.read_bytes()).hexdigest()
+                                 + '  notary-service-linux-amd64\n')
+        self.sign_manifest()
+
+    def sign_manifest(self, namespace='swarma-release'):
+        self.manifest.with_suffix('.sig').unlink(missing_ok=True)
+        self.command('ssh-keygen', '-Y', 'sign', '-f', str(self.key),
+                     '-n', namespace, str(self.manifest))
+
+    def verify(self, refusal=None, signer='release-test', commit=None):
+        result = subprocess.run([str(SCRIPT), str(self.repo), commit or self.commit,
+                                 str(self.release), str(self.rebuilt), str(self.allowed),
+                                 signer], env=self.env, capture_output=True, timeout=20)
+        output = result.stdout.decode()
+        self.assertEqual(result.stderr, b'')
+        self.assertTrue(all(line.startswith(('PASS ', 'FAIL '))
+                            for line in output.splitlines()), output)
+        if refusal:
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(output.splitlines()[-1], 'FAIL ' + refusal)
+            self.assertNotIn('PASS RELEASE_VERIFIED', output)
+        else:
+            self.assertEqual(result.returncode, 0, output)
+            self.assertEqual(output.splitlines()[-1], 'PASS RELEASE_VERIFIED')
+
+    # These controls isolate the five requested fail-closed release failures.
+    def test_all_good(self):
+        self.verify()
+
+    def test_tampered_binary(self):
+        self.binary.write_bytes(b'tampered\n')
+        self.verify('BINARY_SHA256')
+
+    def test_tampered_sha256sums(self):
+        self.manifest.write_text('0' * 64 + '  notary-service-linux-amd64\n')
+        self.verify('MANIFEST_SIGNATURE')
+
+    def test_wrong_namespace(self):
+        self.sign_manifest('wrong-namespace')
+        self.verify('MANIFEST_SIGNATURE')
+
+    def test_wrong_signer(self):
+        self.verify('MANIFEST_SIGNATURE', signer='wrong-signer')
+
+    def test_wrong_signing_key(self):
+        other = self.root / 'other'
+        self.command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(other))
+        self.manifest.with_suffix('.sig').unlink()
+        self.command('ssh-keygen', '-Y', 'sign', '-f', str(other),
+                     '-n', 'swarma-release', str(self.manifest))
+        self.verify('MANIFEST_SIGNATURE')
+
+    def test_signed_malformed_manifest(self):
+        valid = self.manifest.read_bytes()
+        for malformed in [valid + b'\n', valid[:-1], valid[:-1] + b'\x00\n']:
+            with self.subTest(size=len(malformed)):
+                self.manifest.write_bytes(malformed)
+                self.sign_manifest()
+                self.verify('MANIFEST_FORMAT')
+        self.manifest.write_bytes(valid)
+        self.sign_manifest()
+        self.verify()
+
+    def test_missing_signature(self):
+        self.manifest.with_suffix('.sig').unlink()
+        self.verify('MISSING_SIGNATURE')
+
+    # Tag authentication, exact target, rebuild and manifest paths are independent gates.
+    def test_unsigned_tag(self):
+        self.command('git', 'tag', '-d', TAG)
+        self.command('git', 'tag', TAG)
+        self.verify('TAG_SIGNATURE')
+
+    def test_wrong_tag_commit(self):
+        self.verify('TAG_COMMIT', commit='0' * 40)
+
+    def test_wrong_tag_key(self):
+        other = self.root / 'other'
+        self.command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(other))
+        self.command('git', 'tag', '-d', TAG)
+        self.command('git', '-c', 'user.signingkey=' + str(other), 'tag', '-s', TAG, '-m', 'wrong key')
+        self.verify('TAG_SIGNATURE')
+
+    def test_wrong_rebuild(self):
+        self.rebuilt.write_bytes(b'wrong rebuild\n')
+        self.verify('REBUILD_SHA256')
+
+    def test_signed_foreign_manifest_path(self):
+        self.manifest.write_text(hashlib.sha256(self.binary.read_bytes()).hexdigest()
+                                 + '  ../outside\n')
+        self.sign_manifest()
+        self.verify('MANIFEST_FORMAT')
+
+    # Read failures must remain named verdicts, with no raw tool diagnostics.
+    def test_unreadable_manifest(self):
+        self.manifest.chmod(0)
+        try:
+            self.verify('MANIFEST_SIGNATURE')
+        finally:
+            self.manifest.chmod(0o600)
+        self.verify()
+
+    def test_unreadable_binary(self):
+        self.binary.chmod(0)
+        try:
+            self.verify('BINARY_SHA256')
+        finally:
+            self.binary.chmod(0o600)
+        self.verify()
+
+    def test_missing_files(self):
+        for path, verdict in [(self.binary, 'MISSING_BINARY'),
+                              (self.manifest, 'MISSING_SHA256SUMS'),
+                              (self.rebuilt, 'MISSING_REBUILD'),
+                              (self.allowed, 'MISSING_ALLOWED_SIGNERS')]:
+            with self.subTest(verdict=verdict):
+                original = path.read_bytes()
+                path.unlink()
+                self.verify(verdict)
+                path.write_bytes(original)
+        self.verify()
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

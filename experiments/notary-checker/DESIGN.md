@@ -1,8 +1,8 @@
 # Deterministic notary checker (LAB)
 
-Specification: **v0.1.49**, commit
-`1c3bcafc8bfc1450c3c0cefb69a122f6a97a448e` of
-[swarma-link-spec](https://github.com/relux-works/swarma-link-spec/tree/1c3bcafc8bfc1450c3c0cefb69a122f6a97a448e).
+Specification: **v0.1.51**, commit
+`bd3bc80e5543d8a563343ec05abd1a5f3f67284c` of
+[swarma-link-spec](https://github.com/relux-works/swarma-link-spec/tree/bd3bc80e5543d8a563343ec05abd1a5f3f67284c).
 All section references below refer to that immutable tree. The relevant LIPs
 are Draft proposals; the checker pins their bytes without claiming adoption.
 
@@ -107,8 +107,10 @@ executor key pin, named-recipient mode and typed limit keys have no v3
 members. This module implements their **v3 mapping explicitly stated in
 LIP-0014 section 9.1 and LIP-0026's conformance section**, not fabricated v4
 bytes. It refuses every grant version other than 3. Coins, groups, landlord
-classes and v4 optional certifiers are unsupported; J9 is in force, while
-its J10/J11 admission prerequisites remain pending.
+classes and v4 optional certifiers are unsupported. J9 and its J10/J11
+admission prerequisites are in force, as is J12; all concern v4. An eligible
+v4 row without a certifier needs no attestation, so this notary never signs
+for it. This does not extend the checker beyond v3 and profile `/2`.
 
 D9 is in force: any parent-designated notary may certify, even one other
 than the row's `notary`. Pending J2 would narrow that rule; it is not
@@ -334,11 +336,11 @@ signer nor a notary verifier. Its `/2` contract set is already the same
 fifteen/six/four/three-member row/checkpoint set. Pending J2/J4/J5 do not
 silently change its request rules, and it does not require equal text hashes.
 
-This checker independently pins v0.1.49. The profile `/2` contract-vector
+This checker independently pins v0.1.51. The profile `/2` contract-vector
 corpus is byte-identical between the request-side and checker pins. LIP-0026
-describes pending **v4-only** groups and classes and the decided J9 optional
-certifier rule; none changes profile `/2`. The conservative equal-text policy above is deliberately
-narrower than the request side. A valid request can therefore be refused
+describes **v4-only** groups and classes (J10/J12), holders (J11), and the
+J9 optional certifier rule, all in force in this pin; none changes profile `/2`.
+The conservative equal-text policy above is deliberately narrower than the request side. A valid request can therefore be refused
 here for needing text judgement. Issuance, notary history, D8 provisioning,
 attestation signing and durable row checks are not delivered by that request
 side, and are not inferred from possession of its event. No change to that
@@ -425,28 +427,42 @@ checks, official Core archive provenance, named regtest outcomes and the
 mutation table are recorded in SERVICE-VALIDATION.md.
 
 
-## Specification v0.1.49 follow-up
+## Specification v0.1.51 follow-up
 
-The v0.1.49 tag resolves to `1c3bcafc8bfc1450c3c0cefb69a122f6a97a448e`.
-The full v0.1.48..v0.1.49 diff was inspected for every LIP cited here:
-LIP-0004, 0005, 0010, 0012, 0013, 0014, 0026 and 0028. Only LIP-0012,
-0014 and 0026 changed, all to bring J9 into force and explain its limits.
-There is no other change touching this module. The checker admission code
-and its refusal order are unchanged.
+The signed v0.1.51 tag resolves to
+`bd3bc80e5543d8a563343ec05abd1a5f3f67284c` (tag object
+`59e1cb7b09444dfe4e65c951b0f6194175842a1e`); `git verify-tag v0.1.51`
+verifies its signature. The full v0.1.49..v0.1.51 diff was inspected for every
+LIP cited here: LIP-0004, 0005, 0010, 0012, 0013, 0014, 0026 and 0028.
+LIP-0004, 0005, 0012 and 0028 are unchanged. Changes touching the module's
+references are:
 
-LIP-0014 section 8.3 keeps Grant v3 and profile `/2` unchanged. Its summary
-(lines 40–47) admits no child of a row without a certifier before J10 and J11
-are decided. Section 2 (lines 349–351) explicitly preserves every `/2`
-member, including each row's `notary`. Section 8.3 also says that v4 rows
-have no octets yet. Accordingly, `negative-j9-v4-no-certifier` and
-`negative-j9-v4-other-certifier` are synthetic projections into the checker
-input, not invented v4 wire formats: both hit the existing `GRANT_FIELD`
-version refusal. Signed `/2` neighbors refuse `CONTRACT_DELEGATE` for an
-empty row notary and `NOTARY_NOT_DESIGNATED` for a parent pinning only
-another notary. D9 still allows any parent-designated notary as described
-above; pending J2 is not introduced by this change.
+| Cited file | Change and effect on this module |
+| --- | --- |
+| LIP-0010 | J11 landlord `holders` is in force (section 10); the notary authority shape and agent/grant-key reads used here are unchanged. New device-list and statement-head text is Draft and expressly leaves the prior reader rules in force pending agreement. No new authority member is added to this notary's inputs. |
+| LIP-0013 | Draft signed authority frames, owner device commands and levels, and landing refs; the text expressly retains the existing rules pending agreement. No change to profile `/2`, grant/contract bytes or the checker. |
+| LIP-0014 | Summary lines 40–48, decisions lines 133–157, section 8.3 and the row mapping bring J10/J11/J12 into force for v4. Draft section 11.2 adds a v4 child-seal key pending agreement, retaining section 11.1 meanwhile. No v3 change. |
+| LIP-0026 | Sections 8–10 bring groups (J12), landlord classes (J10), holders (J11) and eligible certifier-free v4 admission into force; section 11 updates the vector status. Its v3 conformance paragraph explicitly preserves every `/2` row's grantee key and notary, and changes no section 7 vector. |
 
-`TestJ9BoundaryVectors` sends these inputs to the checker;
-`TestJ9RefusalsNeverSign` sends them through the HTTP handler used by `serve`,
-with a valid v3 positive control. Refusals produce no candidate or signature
-and invoke the service signer zero times.
+LIP-0014 section 8.3 now admits a child of an eligible row without a certifier
+where its recipient passes the landlord/class and holder checks; **no
+attestation is needed**. The former v0.1.49 blanket admission hold pending
+J10/J11 no longer applies. J10/J11/J12 are in force on the recorded decision;
+the co-author's eventual answer is folded in by amendment. The decisions
+paragraph explicitly preserves Grant v3 and profile `/2`: every row names a
+notary, and every v3 child is certified. The checker behavior and refusal
+order therefore stay unchanged; no normative change in this cited diff
+requires a different checker verdict.
+
+`negative-j9-v4-no-certifier` and `negative-j9-v4-other-certifier` remain
+synthetic projections into this v3-only checker, not v4 wire formats or claims
+that valid v4 admission is forbidden. Both hit `GRANT_FIELD`. Signed `/2`
+neighbors still refuse `CONTRACT_DELEGATE` for an empty row notary and
+`NOTARY_NOT_DESIGNATED` for a parent pinning only another notary. D9 still
+allows any parent-designated notary; pending J2 is not introduced.
+
+The unchanged N4 `TestJ9BoundaryVectors` and `TestJ9RefusalsNeverSign` cover
+these boundaries with a valid v3 positive control. They are rerun for this
+pin: refusals produce no candidate or signature and invoke the service
+signer zero times. This remains a notary, not a v4 certifier-free admission
+verifier.

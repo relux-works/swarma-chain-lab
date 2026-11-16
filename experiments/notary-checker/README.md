@@ -1,8 +1,8 @@
 # Deterministic notary checker — LAB
 
 Offline depth-1 mechanical certification for Grant v3 and
-`swarma-trust-contract/2`, pinned to **swarma-link-spec v0.1.49** at
-`1c3bcafc8bfc1450c3c0cefb69a122f6a97a448e`.
+`swarma-trust-contract/2`, pinned to **swarma-link-spec v0.1.51** at
+`bd3bc80e5543d8a563343ec05abd1a5f3f67284c`.
 
 The Go library checks complete signed parent/child grants, contracts, consent,
 the kind-8186 delegation request, row limits, explicit time and trusted local
@@ -23,8 +23,11 @@ table. Read [DESIGN.md](DESIGN.md) for signed octets, rule-by-rule references, r
 order, deferred online obligations and conservative choices. The
 [open questions](UNRESOLVED_QUESTIONS.md) cover pending J5 text semantics and
 D8 affiliation/agreement evidence. Different text hashes refuse; no text is
-interpreted. Every admitted v3 row names a certifier; v4 optional-notary and
-recipient-class proposals are unsupported.
+interpreted. Every admitted v3 row names a certifier. In v0.1.51, J10, J11 and J12
+are in force: an eligible v4 row without a certifier admits a child through
+its landlord/holder checks and needs no attestation. This module supports
+Grant v3 and profile `/2` only; the notary still never signs for a row without
+a certifier. It does not implement v4 admission, classes or groups.
 
 The default service config and zero-valued `Policy.Mode` retain strict D8.
 MVP is reachable only through `"mode":"mvp-pair-owned-notary"` in the operator
@@ -99,6 +102,10 @@ LIP-0010 extension rules; its authority span remains canonical.
 | Python fixture writer | `python3 scripts/make-fixtures.py` | Reproduces `testdata/vectors.json` and `testdata/positive/` using only public fixed test secrets; no randomness or real keys |
 | Python mutation controls | `python3 scripts/check-mutants.py --work-dir .temp/mutants-01` | Named-test table, individual logs and `mutation-results.md`; nonzero on any survivor, panic, timeout, non-applied mutation or compile failure |
 | Python revision controls | `python3 -B scripts/check-revision-mutants.py --work-dir .temp/revision-mutants-01` | Service, custody and bounds controls plus private/operator FIFO and strict-default controls; per-control logs, PIDs and `results.json`; every kill requires its specific named test |
+| Bash, Git, OpenSSH, coreutils | `bash -n scripts/verify-release.sh`; `git verify-tag`; `ssh-keygen -Y verify`; `sha256sum`; `cmp` | Local release authentication and checksum verdicts; exact combined command below |
+| Target operator tools | `install`, `stat`, `namei -l` as in [RELEASE.md](RELEASE.md#install-the-verified-executable) | Installed checksum, owner/mode and directory-chain checks on the target |
+| Offline release verification | `scripts/verify-release.sh SOURCE_ROOT RELEASE_COMMIT RELEASE_DIR REBUILT_BINARY ALLOWED_SIGNERS SIGNER_ID` | Verdicts only; signed fixed tag, exact commit, signed manifest and matching binary/rebuild hashes; see [RELEASE.md](RELEASE.md) |
+| Release controls | `python3 -B scripts/test-verify-release.py` | Named offline positive/negative checks; disposable keys and fixture tags under the configured temporary directory |
 | Git | `git diff --check -- experiments/notary-checker` from the repository root | Whitespace diagnostics only |
 
 The independent Python reader uses its own JSON member/span handling and
