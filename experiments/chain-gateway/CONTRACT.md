@@ -532,7 +532,8 @@ Tip {hash, height, time} BEFORE and AFTER all name and outpoint reads. Publish
 only if all three members are identical. Otherwise discard the entire attempt
 and retry: N=3 total attempts, with 100 ms then 200 ms backoff. On exhaustion,
 keep the previous file UNTOUCHED and exit 12 (`tip_moved`); the consumer sees it
-age to stale. A node/read failure exits 11 without replacing the file. There is
+age to stale. A node/read failure exits 11 without replacing the file.
+A record whose read failed is never written as present or absent; the whole attempt fails with exit 11 and the previous file is kept untouched. There is
 never a partial or best-effort file, nor an invented current timestamp.
 Missing expected file means unavailable for observation.
 

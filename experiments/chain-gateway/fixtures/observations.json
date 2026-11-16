@@ -6306,5 +6306,23 @@
       },
       "v": 1
     }
+  },
+{
+  "name": "snapshot_record_read_failed_keeps_previous",
+  "kind": "snapshot_read_failure",
+  "responses": [
+    {
+      "error": {
+        "code": "unavailable"
+      },
+      "ok": false,
+      "v": 1
+    }
+  ],
+  "expected": {
+    "exit": 11,
+    "write": false,
+    "previous": "unchanged"
   }
+}
 ]

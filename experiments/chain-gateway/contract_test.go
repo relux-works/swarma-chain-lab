@@ -306,6 +306,24 @@ func TestObservationVectors(t *testing.T) {
 				if v.Expected["write"] != write || v.Expected["exit"] != json.Number(fmt.Sprint(code)) {
 					t.Fatal("bracket verdict mismatch")
 				}
+			case "snapshot_read_failure":
+				// A failed record read cannot be projected as either presence or absence.
+				// This contract oracle models publication; runtime tests live with the helper.
+				previous := []byte("previous complete snapshot")
+				current := append([]byte(nil), previous...)
+				code, write := 0, true
+				for _, reply := range v.Responses {
+					if response(reply) != nil || reply["ok"] != true {
+						code, write = 11, false
+						break
+					}
+				}
+				if write {
+					current = []byte("replacement")
+				}
+				if v.Expected["exit"] != json.Number(fmt.Sprint(code)) || v.Expected["write"] != write || v.Expected["previous"] != "unchanged" || !bytes.Equal(previous, current) {
+					t.Fatal("failed read must exit 11 without publication")
+				}
 			case "collection":
 				if collectionOracle(v.Config, v.Requests, v.Responses) != v.Accepted {
 					t.Fatal("collection verdict mismatch")
