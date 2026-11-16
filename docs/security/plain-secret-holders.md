@@ -35,8 +35,10 @@ exercise their real loaders, in addition to frozen plain-string route vectors.
 The single-use Route has additional consumers in agent-wallet, signer-service
 and rental-executor. Their existing transports delegate header construction to
 the holder, preserving the sole accessor call site. Length predicates retain
-16..256 bounds, or the broadcaster's existing stricter 32..256 bounds. No module
-requirements, replacements or new cross-module dependency were added.
+16..256 bounds, or the broadcaster's existing stricter 32..256 bounds. No new cross-module dependency or replacement was added. The existing
+agent-wallet requirement on single-use is advanced to the first signed commit
+of this PR so published wallet builds select the new holder API; local replaces
+otherwise hide that compatibility requirement.
 
 ## Encoder audit
 
@@ -98,3 +100,9 @@ field keys. Its controls require the complete expected inventory delta, includin
 raw substitutions for those fields. Graph/snapshot checks validate unchanged
 module metadata; hygiene checks publication content. Producer evidence records
 actual commands, exits and skips, and does not imply hosted CI or review acceptance.
+
+The detached-v2 consumer manifest re-audits the strict-parser file hash after
+its scalar-schema extension; its identifier behavior and guard rule are unchanged.
+`TestPrivateWalletRouteFixtureBytes` additionally freezes nested private wallet
+config routes beside a redacted public Config control, covering Core fixture
+writers without making a local node call.

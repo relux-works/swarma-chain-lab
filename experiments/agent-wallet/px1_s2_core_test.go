@@ -201,7 +201,7 @@ func (l *coreLab) px1sInstall(g px1CoreGrant, canary CanaryConfig, peerUID uint3
 	installed := mk("inst", 0750)
 	configPath := filepath.Join(installed, "wallet.json")
 	keyPath := filepath.Join(installed, "receipt.key")
-	writeInstalled(l.t, configPath, canonical(g.config))
+	writeInstalled(l.t, configPath, canonical(privateWalletFixture(g.config)))
 	key, _ := testKey(9)
 	writeInstalled(l.t, keyPath, []byte(hex.EncodeToString(key.Serialize())))
 	px1sInstallObjects(l.t, g.config, g)

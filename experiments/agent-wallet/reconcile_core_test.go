@@ -385,7 +385,7 @@ func TestF6CoreRehearsal(t *testing.T) {
 		t.Fatal(e)
 	}
 	configPath := filepath.Join(filepath.Dir(p.config.WalletConfig), "service.json")
-	writeInstalled(t, configPath, canonical(p.config))
+	writeInstalled(t, configPath, canonical(privateWalletFixture(p.config)))
 	note := filepath.Join(l.root, "public-operator-note.txt")
 	os.WriteFile(note, []byte("Private regtest fixture: distinct input conflict confirmed at six; no external node or funds."), 0600)
 	// Function-only diagnostic. Native installed CLI rehearsal belongs to Infra's

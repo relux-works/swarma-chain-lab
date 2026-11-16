@@ -240,7 +240,7 @@ func px1CoreServiceProfile(t *testing.T, g2 bool) {
 	installed := mk("installed", 0750)
 	configPath := filepath.Join(installed, "wallet.json")
 	keyPath := filepath.Join(installed, "receipt.key")
-	writeInstalled(t, configPath, canonical(grant.config))
+	writeInstalled(t, configPath, canonical(privateWalletFixture(grant.config)))
 	key, _ := testKey(9)
 	writeInstalled(t, keyPath, []byte(hex.EncodeToString(key.Serialize())))
 	installActionObjects(t, grant.config, grant.raw, terms)
