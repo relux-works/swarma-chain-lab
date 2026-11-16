@@ -717,3 +717,16 @@ publication. Run `go -C experiments/chain-gateway test -count=1 ./...` and
 in isolated task scratch. The module README specifies configuration, exact
 exit codes, tests and controls. Evidence belongs in task-scoped `.temp/`.
 Bracketed snapshots label only; they never authorize enforcement.
+
+## Grantcheck v4 consumer tools
+
+The [offline v4 document profile](experiments/grantcheck/V4-DOCUMENTS.md)
+consumes the published wire/identity APIs without local replacements. With
+Go 1.26.10 and `GOTOOLCHAIN=local`, run
+`go -C experiments/grantcheck test -count=1 -run '^TestV4' -v ./...`
+for the consumer and all 112 B4a issuer differential rows. Run
+`go -C experiments/grantcheck run .scripts/guards.go -out /absolute/task-scratch/guards`
+for consumer guard controls. Test/guard logs belong under task-owned `.temp/`;
+fixture hashes, issuer source commit and export command are in
+[fixture provenance](experiments/grantcheck/testdata/V4-PROVENANCE.md).
+Every v4 admission remains unavailable; this is separate from G1.0 qualification.

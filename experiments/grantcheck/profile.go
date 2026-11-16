@@ -16,6 +16,8 @@ const (
 	// swarma-trust-contract/1 document (LIP-0013 section 2) or a root
 	// swarma-trust-contract/2 document at depth 0 (LIP-0014 section 3.1).
 	ContractProfileTrust = "trust"
+	// ContractProfileV4 is an offline document profile, never effect admission.
+	ContractProfileV4 = "v4"
 )
 
 // MainGenesis is the hash asserted by Namecoin Core at tag nc29.0,
@@ -43,8 +45,8 @@ func resolveBinding(config Config) (profile, network, genesis string, ok bool) {
 			return ContractProfilePay, "regtest", su.RegtestGenesis, true
 		}
 		profile = ContractProfilePay
-	case ContractProfileTrust:
-		profile = ContractProfileTrust
+	case ContractProfileTrust, ContractProfileV4:
+		profile = config.ContractProfile
 	default:
 		return "", "", "", false
 	}

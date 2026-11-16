@@ -52,8 +52,12 @@ type Config struct {
 
 	// ContractProfile selects how the contract behind contract_sha256 is read:
 	// ContractProfilePay (also selected by the empty string) or
-	// ContractProfileTrust. It is never inferred from a grant or a contract.
+	// ContractProfileTrust, or the offline ContractProfileV4 document profile.
+	// It is never inferred from a grant or a contract.
 	ContractProfile string
+	// HolderSeals is the future holder-seal read seam. There is deliberately
+	// no production implementation; the offline v4 profile never admits effects.
+	HolderSeals HolderSealView
 	// Network and Genesis are the configured chain binding: "regtest" with the
 	// regtest genesis, or "main" with MainGenesis. The trust profile has no
 	// default and refuses construction unless both name one such pair. The
@@ -135,6 +139,11 @@ func NewForTransport(config Config, transport Transport) (*Checker, error) {
 	profile, network, genesis, bound := resolveBinding(config)
 	if !bound {
 		return nil, ErrConfig
+	}
+	if profile == ContractProfileV4 {
+		// No v3 kernel, state, clock, terms or presentation parser is used for
+		// this document-only construction. Admission stays unavailable.
+		return &Checker{config: config, profile: profile, network: network, genesis: genesis, transport: transport}, nil
 	}
 	if (profile == ContractProfilePay && !validKey(config.ExecutorKey)) ||
 		(profile == ContractProfileTrust && config.ExecutorKey != "") || config.Terms == nil || !validFreshness(config.Freshness) {
@@ -348,6 +357,9 @@ func (c *Checker) checkStaged(ctx context.Context, peer string, supplied *Presen
 	fail := func(code Code) Verdict { return route(code, inbound, false) }
 	if ctx == nil || ctx.Err() != nil {
 		return fail(CodeCancelled)
+	}
+	if c != nil && c.profile == ContractProfileV4 {
+		return fail(CodeVerifierUnavailable)
 	}
 	if c == nil || c.backend == nil {
 		return fail(CodeCheckFailed)

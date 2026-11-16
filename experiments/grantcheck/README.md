@@ -1,5 +1,13 @@
 # Grant check boundary for a2a daemon (a2ad) (CG1)
 
+## Explicit offline v4 document profile
+
+The separately configured `"v4"` profile now reads 0.1.53 grant and holders
+**documents only**. It never admits effects and has no production holder-seal
+view. See [the document contract and remaining boundaries](V4-DOCUMENTS.md).
+This addition supersedes the historical statements below that configuration
+cannot select any v4 reader; it does not widen pay/trust admission.
+
 
 ## R1 specification pin and v3 compatibility
 
@@ -348,8 +356,8 @@ never queue a live verdict as a reusable permission token.
 
 
 - From this module: `go test -race ./...`, `go vet ./...`, `go build ./...`,
-  `go mod tidy -diff` and `go mod verify`. Go 1.26 is required; development
-  commands use `GOTOOLCHAIN=local` with the installed Go 1.26 toolchain.
+  `go mod tidy -diff` and `go mod verify`. Go 1.26.10 is required; development
+  commands use `GOTOOLCHAIN=local` with the installed Go 1.26.10 toolchain.
 - `go test -run '^TestRecordedVectors$' -v .` validates the 21 offline recorded
   vectors in `testdata/verdicts-v1.json`. They are public historical observations,
   never a production authority source. See [testdata/README.md](testdata/README.md).
@@ -375,12 +383,12 @@ never queue a live verdict as a reusable permission token.
   a fresh output directory; checked-out source is never mutated.
 - `gofmt -l *.go .scripts/*.go` and `git diff --check` check formatting.
 
-This checkout uses GitHub module paths, sibling v0.1.0 requirements and relative
-replaces for in-repository builds. External consumers ignore those replaces.
-See the [initial tag and consumer procedure](../../README.md#initial-tag-set-and-publication-order).
-Tagged external publication is a release prerequisite owned by the maintainers in
-[UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md); in-tree success alone does not
-prove a remote consumer can resolve the complete transitive module graph.
+This module uses published GitHub pseudo-versions without `replace` directives.
+The v4 wire and identity APIs are pinned to the landed `e56bc61d` snapshot;
+see [the v4 document profile](V4-DOCUMENTS.md) for the exact pins and the B4a
+issuer differential. Unit tests use module-local pinned fixtures and do not
+require sibling checkouts. Public-proxy resolution and the external-consumer
+checks establish published graph compatibility; a local build alone does not.
 
 ## Canonical signatures
 

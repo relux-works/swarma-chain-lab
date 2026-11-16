@@ -41,6 +41,9 @@ func (c *Checker) InboundFrom(ctx context.Context, proof SenderProof, p *Present
 	if ctx == nil || ctx.Err() != nil {
 		return route(CodeCancelled, true, false)
 	}
+	if c != nil && c.profile == ContractProfileV4 {
+		return route(CodeVerifierUnavailable, true, false)
+	}
 	if c == nil || c.backend == nil {
 		return route(CodeCheckFailed, true, false)
 	}
@@ -78,6 +81,9 @@ func (c *Checker) OutboundFrom(ctx context.Context, proof RecipientProof) Verdic
 	fail := func(code Code) Verdict { return route(code, false, false) }
 	if ctx == nil || ctx.Err() != nil {
 		return fail(CodeCancelled)
+	}
+	if c != nil && c.profile == ContractProfileV4 {
+		return fail(CodeVerifierUnavailable)
 	}
 	if c == nil || c.backend == nil {
 		return fail(CodeCheckFailed)

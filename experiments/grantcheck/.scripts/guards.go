@@ -26,6 +26,16 @@ type plant struct {
 }
 
 var plants = []plant{
+	// These plants cover the consumer seam. Published wire/identity sources
+	// retain their own guards; this runner never changes a sibling module.
+	{"v4_missing_holder_view", "v4.go", "if entry.Seal != request.Seal || c.config.HolderSeals == nil {\n\t\treturn ErrV4Unavailable", "if entry.Seal != request.Seal || c.config.HolderSeals == nil {\n\t\treturn nil", "TestV4HolderView/missing", "holder code =", false},
+	{"v4_observe_grade", "v4.go", "!observation.enforcementGrade || ", "", "TestV4HolderView/non-enforcement-grade", "holder code =", false},
+	{"v4_height_end", "v4.go", "tip < end", "tip <= end", "TestV4HeightWindow", "height outside the signed window admitted", false},
+	{"v4_cached_outbound_unavailable", "checker.go", "if c != nil && c.profile == ContractProfileV4 {", "if false {", "TestV4ProfileBoundary", "offline profile became admission", false},
+	{"v4_provision_unavailable", "provision.go", "if c != nil && c.profile == ContractProfileV4 {", "if false {", "TestV4ProfileBoundary", "offline profile became admission", false},
+	{"v4_inbound_unavailable", "sender.go", "return route(CodeVerifierUnavailable, true, false)", "return route(CodeNoGrant, true, false)", "TestV4ProfileBoundary", "offline profile became admission", false},
+	{"v4_outbound_unavailable", "sender.go", "return fail(CodeVerifierUnavailable)", "return fail(CodeNoGrant)", "TestV4ProfileBoundary", "offline profile became admission", false},
+	{"v4_genesis_binding", "v4.go", "p.Genesis == c.genesis", "true", "TestV4GenesisBinding", "genesis binding", false},
 	{"foreign_grantee", "checker.go", "g.GranteeKey != peer || ", "", "TestInputBoundary/foreign", "verdict contract", false},
 	{"explicit_invalid_fallback", "checker.go", "g, code = c.parse(p, peer)\n\t\tif code != CodeLive {\n\t\t\tif provision {\n\t\t\t\treturn c.auditRefusal(ctx, *supplied, fail(code))\n\t\t\t}\n\t\t\treturn fail(code)", "g, code = c.parse(p, peer)\n\t\tif code != CodeLive {\n\t\t\tif provision {\n\t\t\t\treturn c.auditRefusal(ctx, *supplied, fail(code))\n\t\t\t}\n\t\t\treturn c.check(ctx, peer, nil, inbound)", "TestInputBoundary", "verdict contract", false},
 	{"proof_bound", "checker.go", "const MaxPresentationBytes = 16384", "const MaxPresentationBytes = 32768", "TestInputBoundary/oversize", "verdict contract", false},
@@ -214,6 +224,25 @@ func run() error {
 			return fmt.Errorf("plant %s applies %d times", p.Name, n)
 		}
 		mutant := []byte(strings.Replace(string(original), p.Old, p.New, 1))
+		// One actual unified diff per plant is retained alongside its test log.
+		before := filepath.Join(runDir, "before.tmp")
+		after := filepath.Join(runDir, "after.tmp")
+		if e = os.WriteFile(before, original, 0600); e != nil {
+			return e
+		}
+		if e = os.WriteFile(after, mutant, 0600); e != nil {
+			return e
+		}
+		diff, diffErr := exec.Command("diff", "-u", "--label", "a/"+p.File, "--label", "b/"+p.File, before, after).CombinedOutput()
+		var diffExit *exec.ExitError
+		if !errors.As(diffErr, &diffExit) || diffExit.ExitCode() != 1 {
+			return fmt.Errorf("plant %s has no single diff", p.Name)
+		}
+		if e = os.WriteFile(filepath.Join(runDir, p.Name+".diff"), diff, 0600); e != nil {
+			return e
+		}
+		os.Remove(before)
+		os.Remove(after)
 		if e = os.WriteFile(file, mutant, 0600); e != nil {
 			return e
 		}
@@ -235,6 +264,11 @@ func run() error {
 		if !detected {
 			return fmt.Errorf("plant %s did not reach intended assertion", p.Name)
 		}
+		green, restored, greenErr := runTest(p.Name+"-restored", p.Test, p.Core)
+		if greenErr != nil || green != 0 || !bytes.Contains(restored, []byte("--- PASS: "+p.Test)) {
+			return fmt.Errorf("plant %s did not restore green: exit %d: %v", p.Name, green, greenErr)
+		}
+		fmt.Printf("%s restored exit=%d\n", p.Name, green)
 	}
 	fmt.Printf("%d/%d intended guard failures (core=%v)\n", len(results), len(results), *core)
 	return nil

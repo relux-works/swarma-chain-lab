@@ -135,3 +135,13 @@ own-node verification remain unexercised. The ceremony operator must run
 certification is claimed. Its documented 0.1.51 pin and older `SpecCommit`
 constant are separately recorded in the corpus; no pin reconciliation is
 included in this producer unit.
+
+
+## V4 consumer boundary (B3a-2)
+
+The configured v4 profile reads documents only. The child-attenuation evaluator
+is the next unit against spec 0.1.55; no admission behavior is selected here.
+Durable holder journals and an enforcement-grade holder observation adapter
+remain unavailable. No fixture-only observation qualifies live enforcement.
+See [V4-DOCUMENTS.md](V4-DOCUMENTS.md) for the pinned 0.1.53 document contract
+and the B4a differential's scope.

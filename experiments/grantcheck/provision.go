@@ -47,6 +47,9 @@ func validProvisioning(records []ProvisionRecord) bool {
 // No transport assertion or prior inbound message is needed. Every subsequent
 // admission/send rechecks the cache. A durable audit failure never returns Live.
 func (c *Checker) Provision(ctx context.Context, p Presentation) Verdict {
+	if c != nil && c.profile == ContractProfileV4 {
+		return route(CodeVerifierUnavailable, false, false)
+	}
 	if c == nil || c.backend == nil {
 		return route(CodeCheckFailed, false, false)
 	}

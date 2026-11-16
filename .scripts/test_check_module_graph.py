@@ -99,7 +99,7 @@ class ModuleGraphCheck(unittest.TestCase):
     def test_repository_graph_is_at_snapshot(self):
         code, violations, output = self.fixture.run()
         self.assertEqual((code, violations), (0, []), output)
-        self.assertIn(f"{len(tracked_manifests())} manifests, 21 consumers, 104 internal require edges, 0 violations", output)
+        self.assertIn(f"{len(tracked_manifests())} manifests, 21 consumers, 106 internal require edges, 0 violations", output)
 
     # Claim (standalone-require regression, F1 at b516cc21): both standalone
     # single-use requires at v0.1.0 with every block edge current fail with
@@ -173,13 +173,13 @@ class ModuleGraphCheck(unittest.TestCase):
                             for v in violations), output)
 
     # Claim: the audit document cannot overclaim again; the old 96-edge prose
-    # count fails against the current 104-edge inventory.
+    # count fails against the current 106-edge inventory.
     def test_doc_edge_count_drift_fails(self):
-        self.fixture.substitute("experiments/MODULE-GRAPH.md", "all 104 internal require edges",
+        self.fixture.substitute("experiments/MODULE-GRAPH.md", "all 106 internal require edges",
                                 "all 96 internal require edges")
         code, violations, output = self.fixture.run()
         self.assertEqual((code, violations),
-                         (1, ["MODULE-GRAPH.md: claims 96 internal require edges; inventory has 104"]), output)
+                         (1, ["MODULE-GRAPH.md: claims 96 internal require edges; inventory has 106"]), output)
 
     # Claim: the generated per-manifest table cannot drift either; the old
     # `deploy/go.mod | 1` row (MODULE-GRAPH.md:39 at b516) fails.
@@ -191,7 +191,7 @@ class ModuleGraphCheck(unittest.TestCase):
                          (1, ["MODULE-GRAPH.md: inventory table is stale; rerun with --write-doc"]), output)
 
     # Control: a whitespace/block-only line filter, the parser class behind F1,
-    # does not see the two standalone edges (102 block edges, 0 stale),
+    # does not see the two standalone edges (104 block edges, 0 stale),
     # so the regression above discriminates syntax-aware parsing from it.
     def test_line_filter_misses_standalone_edges(self):
         for manifest in STANDALONE:
@@ -207,7 +207,7 @@ class ModuleGraphCheck(unittest.TestCase):
                 elif in_block and line.startswith("\t" + PREFIX):
                     edges += 1
                     stale += " v0.1.0" in line
-        self.assertEqual((edges, stale), (102, 0))
+        self.assertEqual((edges, stale), (104, 0))
         code, violations, _ = self.fixture.run()
         self.assertEqual((code, len(violations)), (1, 2))
 
