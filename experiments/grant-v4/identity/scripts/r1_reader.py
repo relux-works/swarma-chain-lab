@@ -81,6 +81,9 @@ def value_read(raw, profile="draft"):
         result = {"landlord": binding["landlord"]}
     elif list(swarma) == ["landlord"]:
         binding = obj(swarma["landlord"])
+        # LIP-0010 0.1.53 M2: neither form supplies a holder when both occur.
+        if "holders" in binding and any(key == "swarma-holders" for key, _ in top):
+            raise ValueError("CLASS_HOLDER")
         if list(binding) not in (["grant"], ["grant", "holders"]) or not signing_key(binding["grant"]):
             raise ValueError("landlord binding")
         holders = binding.get("holders", [])

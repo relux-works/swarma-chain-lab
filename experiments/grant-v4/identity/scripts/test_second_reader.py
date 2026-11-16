@@ -3,6 +3,8 @@
 import copy
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -13,6 +15,16 @@ SPEC.loader.exec_module(reader)
 
 
 class Ripemd160Vectors(unittest.TestCase):
+    # Both public reader entrypoints load their explicit sibling dependencies
+    # under isolated Python; --help checks startup, not parsing correctness.
+    def test_isolated_entrypoints(self):
+        for name in ("second-reader.py", "r1_reader.py"):
+            with self.subTest(entrypoint=name):
+                result = subprocess.run([sys.executable, "-I", "-B", str(reader.MODULE / "scripts" / name), "--help"],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("usage:", result.stdout)
+
     # The Python digest matches all nine original published answers, including multi-block and million-byte messages.
     def test_published_vectors(self):
         # Source: https://homes.esat.kuleuven.be/~bosselae/ripemd160.html

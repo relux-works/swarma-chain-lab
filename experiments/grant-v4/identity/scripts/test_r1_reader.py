@@ -13,6 +13,25 @@ class R1ReaderControls(unittest.TestCase):
         root = Path(__file__).resolve().parents[1] / "testdata"
         cls.files = {name: json.loads((root / name).read_text()) for name in reader.HASHES}
 
+    # M2 gives no holder by either form in both profiles, including malformed
+    # opposite forms; the inline-only and pinned-only controls still parse.
+    def test_dual_holder_forms(self):
+        key = "022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01"
+        inline = {"swarma": {"landlord": {"grant": key[2:], "holders": [key]}}}
+        pin = {"seq": 3, "sha256": "ab" * 32}
+        encode = lambda value: json.dumps(value, separators=(",", ":"))
+        for profile in ("draft", "in-force-051"):
+            with self.subTest(profile=profile):
+                self.assertEqual(reader.value_read(encode(inline), profile)["holders"], [key])
+                pinned = {"swarma": {"landlord": {"grant": key[2:]}}, "swarma-holders": pin}
+                self.assertEqual(reader.value_read(encode(pinned), profile)["holders"], [])
+                for dual in (dict(inline, **{"swarma-holders": pin}),
+                             {"swarma-holders": pin, **inline},
+                             dict(inline, **{"swarma-holders": None}),
+                             {"swarma": {"landlord": {"grant": key[2:], "holders": None}}, "swarma-holders": pin}):
+                    with self.assertRaisesRegex(ValueError, "^CLASS_HOLDER$"):
+                        reader.value_read(encode(dual), profile)
+
     def test_all_vectors(self):
         # All pinned and revision independent results agree with the pinned expectations.
         self.assertEqual(len(reader.calculate(self.files)), 1870)

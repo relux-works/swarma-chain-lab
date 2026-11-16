@@ -8,13 +8,18 @@ and the actual Go test output. This checks stated facts, never a node/signature.
 
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
 import subprocess
 import sys
 
-from ripemd160 import ripemd160
+# Resolve the sibling backend explicitly so the CLI also works under python -I.
+_hash_spec = importlib.util.spec_from_file_location("ripemd160", Path(__file__).with_name("ripemd160.py"))
+_hash_module = importlib.util.module_from_spec(_hash_spec)
+_hash_spec.loader.exec_module(_hash_module)
+ripemd160 = _hash_module.ripemd160
 
 MODULE = Path(__file__).resolve().parents[1]
 VECTOR_SHA256 = "67e45caabfa4599160e53bd95541db2b02ad8afdc21872776756881a85c97b4c"
@@ -187,10 +192,12 @@ def calculate(vectors):
 
 def calculate_all(vectors):
     """Keep the original octet/height reader separate from history decisions."""
-    from walk_reader import calculate_walks
+    walk_spec = importlib.util.spec_from_file_location("walk_reader", Path(__file__).with_name("walk_reader.py"))
+    walk_module = importlib.util.module_from_spec(walk_spec)
+    walk_spec.loader.exec_module(walk_module)
 
     result = calculate(vectors)
-    walks = calculate_walks(vectors["walks"])
+    walks = walk_module.calculate_walks(vectors["walks"])
     if result.keys() & walks.keys():
         raise ValueError("duplicate walk and octet vector IDs")
     result.update(walks)
