@@ -125,7 +125,15 @@ type RowRecipientResult struct {
 
 func classLandlordHistory(e ClassLandlordEvidence, o ClassObservation, exact bool) error {
 	s := e.Name
-	if !validLandlord(e.Binding) || string(s.Name) != e.Binding.Name || s.Owner != e.Binding.Owner || s.Tip != o.Tip || s.Depth != o.Depth || !o.Tip.known || !o.Recent.known || o.Recent.h > o.Tip.h || s.Current != CurrentOutput {
+	if !validLandlord(e.Binding) || string(s.Name) != e.Binding.Name || s.Owner != e.Binding.Owner || s.Tip != o.Tip || s.Depth != o.Depth || !o.Tip.known || !o.Recent.known || o.Recent.h > o.Tip.h {
+		return ClassHistoryUnavailable
+	}
+	// R9.5 step 1 distinguishes proved absence from an unavailable fact.
+	switch s.Current {
+	case CurrentOutput:
+	case NoLiveOutput:
+		return ClassLandlordChanged
+	default:
 		return ClassHistoryUnavailable
 	}
 	if exact {

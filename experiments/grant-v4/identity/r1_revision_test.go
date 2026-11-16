@@ -79,3 +79,36 @@ func TestRev375ChildTopLevelSuffix(t *testing.T) {
 		})
 	}
 }
+
+// LIP-0026 v0.1.49 R9.5: "`L` is live at the tip of the observation (LIP-0021 O5.1)."
+// Its refusal table: "`L` has no live output at the tip; the walk ended at another registration; an output of the stretch from the checkpoint reads as another key" -> "`CLASS_LANDLORD_CHANGED`".
+// "Nothing was proved at a step" -> "`CLASS_HISTORY_UNAVAILABLE`".
+// The current positive passes beside proved absence, unknown and undefined states;
+// all refusals return no key or policy. This checks stated facts, not node proof.
+func TestRev375LandlordNoLiveOutput(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		status   CurrentStatus
+		expected error
+	}{
+		{"proved_absent", NoLiveOutput, ClassLandlordChanged},
+		{"unavailable", CurrentUnknown, ClassHistoryUnavailable},
+		{"undefined_3", 3, ClassHistoryUnavailable},
+		{"undefined_99", 99, ClassHistoryUnavailable},
+		{"undefined_255", 255, ClassHistoryUnavailable},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			parent, child, observation := r1FullParent(t)
+			if _, err := CheckR1Child(R1DraftLab, parent, child, observation); err != nil {
+				t.Fatalf("positive control: %v", err)
+			}
+			observation.Landlords[0].Name.Current = test.status
+			observation.Landlords[0].Name.Outputs = nil
+			result, err := CheckR1Child(R1DraftLab, parent, child, observation)
+			if err != test.expected || result != (RowRecipientResult{}) {
+				t.Fatalf("R9.5 first step: status=%d expected=%v actual=%v", test.status, test.expected, err)
+			}
+			r1Record(t, fmt.Sprintf("r2-landlord-%d", test.status), err.Error())
+		})
+	}
+}

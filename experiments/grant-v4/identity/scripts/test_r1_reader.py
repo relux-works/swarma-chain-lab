@@ -15,7 +15,7 @@ class R1ReaderControls(unittest.TestCase):
 
     def test_all_vectors(self):
         # All pinned and revision independent results agree with the pinned expectations.
-        self.assertEqual(len(reader.calculate(self.files)), 166)
+        self.assertEqual(len(reader.calculate(self.files)), 171)
 
     def test_both_disagreement_directions(self):
         # A false acceptance and a false refusal each fail agreement, beside a
@@ -51,6 +51,17 @@ class R1ReaderControls(unittest.TestCase):
         gift["expect"] = {"outcome": "pass", "attestation": "required"}
         with self.assertRaisesRegex(ValueError, "R1_VECTOR_DISAGREEMENT class-25"):
             reader.calculate(changed)
+
+    def test_landlord_current_status(self):
+        # R9.5 step 1 distinguishes proved absence from unknown/undefined facts.
+        row = self.files["class-vectors.json"]["admissions"][0]
+        state = next(iter(row["node"]["landlords"].values()))
+        self.assertIsNone(reader.landlord_decision(state, row["context"], False))
+        for status in (0, 2, 3, 99, 255):
+            with self.subTest(status=status):
+                absent = dict(state, current_status=status, history=[])
+                expected = "CLASS_LANDLORD_CHANGED" if status == 2 else "CLASS_HISTORY_UNAVAILABLE"
+                self.assertEqual(reader.landlord_decision(absent, row["context"], False), expected)
 
     def test_post_object_bytes(self):
         # LIP-0010 2.1 forbids every suffix, including JSON whitespace, beside

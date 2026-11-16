@@ -186,7 +186,14 @@ def template_decision(template):
 
 
 def landlord_decision(state, context, exact):
+    status = state.get("current_status", 1)
+    if status == 2:
+        return "CLASS_LANDLORD_CHANGED"
+    if status != 1:
+        return "CLASS_HISTORY_UNAVAILABLE"
     history = state["history"]
+    if not history:
+        return "CLASS_HISTORY_UNAVAILABLE"
     if not exact:
         if context["tip_height"] - history[0]["height"] >= 36000:
             return "CLASS_LANDLORD_CHANGED"
@@ -300,6 +307,14 @@ def revision_decisions(files):
             script = b"\x53" + push(row["child"]["recipient"]["name"].encode()) + push((parsed["value"] + suffix).encode()) + b"\x6d\x75" + address
             row["node"]["recipient_name"]["current_output_script_hex"] = script.hex()
             decisions[f"r2-child-{str(exact).lower()}-{tag}"] = admission_decision(row)["outcome"]
+    for status in (2, 0, 3, 99, 255):
+        row = copy.deepcopy(control)
+        parsed = names.read_script(bytes.fromhex(row["node"]["recipient_name"]["current_output_script_hex"]), row["child"]["recipient"]["owner_public_key"], row["context"]["tip_height"], 0)
+        selected = value_read(parsed["value"])["landlord"]
+        landlord = row["node"]["landlords"][selected]
+        landlord["current_status"] = status
+        landlord["history"] = []
+        decisions[f"r2-landlord-{status}"] = admission_decision(row)["outcome"]
     return decisions
 
 
