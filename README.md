@@ -613,6 +613,10 @@ commands, the public fixture pin and `.temp/` evidence locations are documented
 in the [module README](experiments/grant-v4/wire/README.md#tools-and-commands).
 The existing module-graph and public-hygiene scripts cover its registration.
 
+The [B1 candidate-vector preflight](experiments/grant-v4/vectors/VECTORS.md)
+records the missing grant member schema at v0.1.51. No B1 vector file or
+cross-language agreement is available until that contract is pinned.
+
 Grant identity expiry is reported by name as non-retryable
 `identity_expired` (`closed=true`), including cached re-checks. See
 [grantcheck identity expiry](experiments/grantcheck/README.md#expired-current-identities)
