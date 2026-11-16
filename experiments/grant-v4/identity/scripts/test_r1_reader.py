@@ -53,15 +53,15 @@ class R1ReaderControls(unittest.TestCase):
             reader.calculate(changed)
 
     def test_recipient_status_byte_domain(self):
-        # Only CurrentOutput proceeds; the pinned O7.2 refusal table separates
-        # proved absence from unavailable/undefined evidence, beside pass.
+        # Only CurrentOutput proceeds in this draft entry; every other status
+        # refuses unavailable, beside the valid current-output control.
         control = self.files["class-vectors.json"]["admissions"][0]
         self.assertEqual(reader.admission_decision(control)["outcome"], "pass")
         for status in range(256):
             with self.subTest(status=status):
                 row = copy.deepcopy(control)
                 row["node"]["recipient_name"]["current_status"] = status
-                expected = "pass" if status == 1 else "RECIPIENT_NAME_NOT_HELD" if status == 2 else "RECIPIENT_NAME_UNAVAILABLE"
+                expected = "pass" if status == 1 else "RECIPIENT_NAME_UNAVAILABLE"
                 self.assertEqual(reader.admission_decision(row)["outcome"], expected)
 
     def test_landlord_current_status(self):

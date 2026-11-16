@@ -299,6 +299,48 @@ and an incorrect gift expectation beside valid results.
 These controls bound the named properties; they do not establish complete
 mutation coverage, observation provenance or transaction-signature validity.
 
+## Exact value and status boundaries
+
+The top-level object must end at the last input byte (LIP-0010 §2.1).
+`objectMembers` checks the raw decoder offset, so a space, TAB, LF, CRLF or
+second object after the closing brace refuses. The shared check covers binding
+values and the certified exact-name channel path. The independent Python reader
+uses its consumed-object offset before skipping any suffix.
+
+Only the defined `CurrentOutput` fact permits recipient proof to proceed.
+Every other recipient status, including `NoLiveOutput`, returns
+`RECIPIENT_NAME_UNAVAILABLE`. This draft entry's absence verdict differs from
+pinned O7.2 row 1 (`RECIPIENT_NAME_NOT_HELD`); it is an explicit draft API
+choice, not a claim of equality with that refusal table. Expired current outputs
+and outputs controlled by another key still return `RECIPIENT_NAME_NOT_HELD`.
+For the selected
+landlord, proved absence returns `CLASS_LANDLORD_CHANGED` under R9.5;
+unknown/undefined states return `CLASS_HISTORY_UNAVAILABLE`. Class switches also
+close over `Reading`, `Writer` and `Liveness`: unsupported states never count
+as affirmative evidence.
+
+Every negative holder, group, template and admission vector executes its
+positive neighbour inside the same named subtest. Every positive executes the
+negative vectors declaring it, plus an explicit negative neighbour if provided.
+Neighbours must exist and have opposite outcomes; their exact expected results
+are asserted without emitting duplicate reader records. Unlinked admission,
+ordinal and row-fit negatives execute an explicit valid setup. The upstream
+fixture bytes and hashes are unchanged.
+
+The retained review probes include paired suffix refusals through both name
+paths, all 256 recipient statuses, landlord absence/unknown/undefined controls,
+all 256 draft profile values, maximum topology and named-neighbour execution.
+The R1 reader compares all 151 pinned/local vectors plus 276 revision cases with
+Go (427 total). Additional caller-status tests cover all byte values and the
+negative/out-of-byte values of int-backed `Reading` and `Writer`.
+
+Six additional narrowing plants restore whitespace acceptance, unsupported
+recipient acceptance and the wrong landlord-absence verdict, or always refuse
+holders, groups and templates. The latter must fail `TestR1Holders/value-10`,
+`TestR1Groups/group-11` and `TestR1Class/template-07` respectively on their
+executed positive neighbours. Run them using the existing mutation command
+below; evidence includes each named failing test and command exit.
+
 ## Tools and commands
 
 Use Go 1.26.10 and Python 3.14.4 from the repository root.

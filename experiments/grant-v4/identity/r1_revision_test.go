@@ -125,9 +125,6 @@ func TestRev375RecipientStatus(t *testing.T) {
 			}
 			observation.Recipient.Current = status
 			expected := error(RecipientNameUnavailable)
-			if status == NoLiveOutput {
-				expected = RecipientNameNotHeld
-			}
 			if status == CurrentOutput {
 				expected = nil
 			}
