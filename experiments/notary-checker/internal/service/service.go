@@ -13,13 +13,13 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	check "github.com/relux-works/swarma-chain-lab/experiments/notary-checker"
+	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/operatorfile"
 )
 
 type Limits struct {
@@ -74,16 +74,7 @@ type Service struct {
 }
 
 func readBounded(path string, max int64) ([]byte, error) {
-	f, e := os.Open(path)
-	if e != nil {
-		return nil, errors.New("FILE_READ")
-	}
-	defer f.Close()
-	b, e := io.ReadAll(io.LimitReader(f, max+1))
-	if e != nil || int64(len(b)) > max {
-		return nil, errors.New("FILE_READ")
-	}
-	return b, nil
+	return operatorfile.Read(path, max)
 }
 func Load(path string) (*Service, error) {
 	raw, e := readBounded(path, 16384)

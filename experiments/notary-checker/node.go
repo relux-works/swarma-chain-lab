@@ -23,7 +23,7 @@ func NewNodeNameReader(endpoint, credentialFile string) (*NodeNameReader, error)
 	if e != nil || u.Scheme != "http" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" || !loopback(u.Hostname()) || u.Port() == "" {
 		return nil, refuse("NODE_CONFIG")
 	}
-	f, e := os.OpenFile(credentialFile, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, e := os.OpenFile(credentialFile, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
 	if e != nil {
 		return nil, refuse("NODE_CREDENTIALS")
 	}

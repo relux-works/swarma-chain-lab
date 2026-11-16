@@ -319,3 +319,42 @@ func TestContractRules(t *testing.T) {
 		})
 	}
 }
+
+// J9 projections explicitly carry version 4 and a row with absent/foreign
+// certifier; they are refused as GRANT_FIELD by the unchanged version gate.
+// These are not v4 wire vectors: the spec defines row facts, not their octets.
+// The signed /2 neighbor without a notary still refuses CONTRACT_DELEGATE.
+func TestJ9BoundaryVectors(t *testing.T) {
+	seen := 0
+	for _, v := range readCorpus(t).Vectors {
+		if v.Name != "positive-same-owner" && v.Name != "negative-j9-v3-other-certifier" && v.Name != "negative-j9-v4-no-certifier" && v.Name != "negative-j9-v4-other-certifier" && v.Name != "negative-j9-v3-no-certifier" {
+			continue
+		}
+		seen++
+		t.Run(v.Name, func(t *testing.T) {
+			var p Presentation
+			var c Contract
+			var d Delegate
+			if json.Unmarshal([]byte(v.Parent), &p) != nil || json.Unmarshal([]byte(v.ParentContract), &c) != nil || json.Unmarshal(c.Delegate, &d) != nil {
+				t.Fatal("fixture decode")
+			}
+			if v.Name == "negative-j9-v4-no-certifier" && (p.SignedGrant.Grant.Version != 4 || len(d.Slots) != 1 || d.Slots[0].Notary != "") {
+				t.Fatal("missing v4 no-certifier witness")
+			}
+			if v.Name == "negative-j9-v4-other-certifier" && (p.SignedGrant.Grant.Version != 4 || len(d.Slots) != 1 || d.Slots[0].Notary != "id/other-certifier") {
+				t.Fatal("missing v4 foreign-certifier witness")
+			}
+			got, err := Check(v.input())
+			if v.Expected == "ATTEST" {
+				if err != nil || len(got.Attestation) == 0 || got.Digest == "" {
+					t.Fatalf("positive %v", err)
+				}
+			} else if err == nil || err.Error() != v.Expected || len(got.Attestation) != 0 || got.Digest != "" {
+				t.Fatalf("refusal %v", err)
+			}
+		})
+	}
+	if seen != 5 {
+		t.Fatalf("missing boundary vectors: %d", seen)
+	}
+}

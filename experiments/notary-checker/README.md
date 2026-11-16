@@ -1,8 +1,8 @@
 # Deterministic notary checker — LAB
 
 Offline depth-1 mechanical certification for Grant v3 and
-`swarma-trust-contract/2`, pinned to **swarma-link-spec v0.1.48** at
-`2012ac9155568af80d610bdf9b7683881a46e5cb`.
+`swarma-trust-contract/2`, pinned to **swarma-link-spec v0.1.49** at
+`1c3bcafc8bfc1450c3c0cefb69a122f6a97a448e`.
 
 The Go library checks complete signed parent/child grants, contracts, consent,
 the kind-8186 delegation request, row limits, explicit time and trusted local
@@ -98,7 +98,7 @@ LIP-0010 extension rules; its authority span remains canonical.
 | Python stdlib reader | `python3 scripts/reference.py` | Independently verifies all signed-bundle and isolated row vectors, exact candidate bytes and digest; no Go calls |
 | Python fixture writer | `python3 scripts/make-fixtures.py` | Reproduces `testdata/vectors.json` and `testdata/positive/` using only public fixed test secrets; no randomness or real keys |
 | Python mutation controls | `python3 scripts/check-mutants.py --work-dir .temp/mutants-01` | Named-test table, individual logs and `mutation-results.md`; nonzero on any survivor, panic, timeout, non-applied mutation or compile failure |
-| Python revision controls | `python3 -B scripts/check-revision-mutants.py --work-dir .temp/revision-mutants-01` | 31 adopted rev374 controls plus FIFO and strict-default controls; per-control logs, PIDs and `results.json`; every kill requires its specific named test |
+| Python revision controls | `python3 -B scripts/check-revision-mutants.py --work-dir .temp/revision-mutants-01` | Service, custody and bounds controls plus private/operator FIFO and strict-default controls; per-control logs, PIDs and `results.json`; every kill requires its specific named test |
 | Git | `git diff --check -- experiments/notary-checker` from the repository root | Whitespace diagnostics only |
 
 The independent Python reader uses its own JSON member/span handling and
@@ -202,6 +202,9 @@ to the node. The test harness alone registers disposable synthetic names.
 Slow-body clients can occupy both concurrency slots until the configured read
 deadline. The listener has no connection-count cap; it remains loopback-only.
 
+See [RELEASE.md](RELEASE.md) for the release artifact name, checksum verification,
+target key generation and deployment boundary.
+
 ### Reproducible service build
 
 With **Go 1.26.10**, Linux/amd64, `GOAMD64=v1`, `GOTOOLCHAIN=local`, `GOWORK=off`
@@ -219,8 +222,9 @@ sha256sum .temp/notary-service-a .temp/notary-service-b
 cmp .temp/notary-service-a .temp/notary-service-b
 ```
 
-Two builds of the candidate produce identical SHA-256; see
-[SERVICE-VALIDATION.md](SERVICE-VALIDATION.md) for the measured hash. Stripping
+Two builds of the candidate must produce identical SHA-256.
+[SERVICE-VALIDATION.md](SERVICE-VALIDATION.md) records earlier measured hashes;
+rebuild and verify the exact release candidate as described in RELEASE.md. Stripping
 VCS metadata and build ID and trimming source paths makes repository location
 irrelevant. This claim is bound to that toolchain, target, source and flags.
 
@@ -246,3 +250,14 @@ The complete canonical candidate is limited to 8192 bytes before any digest is
 returned. Oversize composition refuses as `ATTESTATION_TOO_LARGE`; the signature
 helper uses the same candidate limit. See [DESIGN.md](DESIGN.md#produced-object-size-audit)
 for the envelope, ID, anchor-frame and input-encoding audit.
+
+
+Operator input files are opened read-only with no symlink following,
+nonblocking open and close-on-exec. The opened descriptor must be a regular
+file before blocking reads are restored. Config and deployment-policy
+violations retain `CONFIG` and `POLICY_FILE`; checker file flags retain
+`INPUT_READ`. The private key and RPC credential retain their stricter
+ownership/mode checks and existing named refusals. `TestOperatorFileFIFORefusal`,
+`TestServeFIFOAndFixtureFlag` and `TestInputFIFORefusal` pair regular controls
+with bounded FIFO negatives. Revision controls F3/F4 restore a blocking open
+and require those named tests to fail.

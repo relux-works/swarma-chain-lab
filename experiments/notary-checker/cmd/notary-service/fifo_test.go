@@ -23,7 +23,7 @@ func TestServeProcessHelper(t *testing.T) {
 	os.Exit(run(context.Background(), []string{"serve", "-config", os.Getenv("NOTARY_TEST_CONFIG")}, os.Stdout))
 }
 
-// Claim: serve loads regular private files, but promptly refuses a FIFO key or
+// Claim: serve loads regular private files, but promptly refuses a FIFO config, policy, key or
 // credential. A canceled valid configuration exercises the successful load.
 // The fixture flag must be rejected as ARGUMENTS before touching that config.
 func TestServeFIFOAndFixtureFlag(t *testing.T) {
@@ -66,7 +66,7 @@ func TestServeFIFOAndFixtureFlag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, kind := range []string{"key", "credential"} {
+	for _, kind := range []string{"config", "policy", "key", "credential"} {
 		t.Run(kind, func(t *testing.T) {
 			fifo := filepath.Join(t.TempDir(), "fifo")
 			if err := syscall.Mkfifo(fifo, 0600); err != nil {
@@ -74,9 +74,17 @@ func TestServeFIFOAndFixtureFlag(t *testing.T) {
 			}
 			c := cfg
 			want := "KEY_FILE"
-			if kind == "key" {
+			target := path
+			switch kind {
+			case "config":
+				target = fifo
+				want = "CONFIG"
+			case "policy":
+				c.DeploymentPolicyFile = fifo
+				want = "POLICY_FILE"
+			case "key":
 				c.KeyFile = fifo
-			} else {
+			case "credential":
 				c.RPCCredentialFile = fifo
 				want = "NODE_CREDENTIALS"
 			}
@@ -84,7 +92,7 @@ func TestServeFIFOAndFixtureFlag(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, exe, "-test.run=^TestServeProcessHelper$")
-			cmd.Env = append(os.Environ(), "NOTARY_TEST_CHILD=1", "NOTARY_TEST_CONFIG="+path)
+			cmd.Env = append(os.Environ(), "NOTARY_TEST_CHILD=1", "NOTARY_TEST_CONFIG="+target)
 			var output bytes.Buffer
 			cmd.Stdout = &output
 			cmd.Stderr = &output

@@ -8,6 +8,7 @@ import (
 	"os"
 
 	check "github.com/relux-works/swarma-chain-lab/experiments/notary-checker"
+	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/operatorfile"
 )
 
 func run(args []string, out, errs io.Writer) int {
@@ -35,14 +36,8 @@ func run(args []string, out, errs io.Writer) int {
 			}
 			continue
 		}
-		file, e := os.Open(p)
+		b, e := operatorfile.Read(p, 65536)
 		if e != nil {
-			fmt.Fprintln(out, "REFUSED INPUT_READ")
-			return 2
-		}
-		b, e := io.ReadAll(io.LimitReader(file, 65537))
-		closeErr := file.Close()
-		if e != nil || closeErr != nil || len(b) > 65536 {
 			fmt.Fprintln(out, "REFUSED INPUT_READ")
 			return 2
 		}
@@ -51,15 +46,9 @@ func run(args []string, out, errs io.Writer) int {
 	offline := offlinePath != ""
 	if offline {
 		fmt.Fprintln(errs, "LAB/OFFLINE: pinned name fixture; no chain read or live authority")
-		file, e := os.Open(offlinePath)
-		if e != nil {
-			fmt.Fprintln(out, "REFUSED INPUT_READ")
-			return 2
-		}
-		raw, e := io.ReadAll(io.LimitReader(file, 65537))
-		closeErr := file.Close()
+		raw, e := operatorfile.Read(offlinePath, 65536)
 		var source offlineNames
-		if e != nil || closeErr != nil || len(raw) > 65536 || json.Unmarshal(raw, &source) != nil {
+		if e != nil || json.Unmarshal(raw, &source) != nil {
 			fmt.Fprintln(out, "REFUSED INPUT_READ")
 			return 2
 		}

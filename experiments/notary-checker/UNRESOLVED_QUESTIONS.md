@@ -21,3 +21,7 @@ Current values, registration histories and tip coordinates now have a concrete
 regtest reader. Historical owner/checkpoint proof, issuance, live seals and
 durable row/withdrawal journals remain deferred operational obligations, not
 claimed by offline vectors or the bounded service regtest evidence.
+
+J9 is decided in the v0.1.49 pin, but J10/J11 and v4 row octets remain
+unavailable. This module continues to support only Grant v3 and profile `/2`;
+no v4 child admission or certifier-free signing path is added.

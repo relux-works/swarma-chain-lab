@@ -447,6 +447,23 @@ p, c = contracts(); p['network'] = c['network'] = 'main'
 add('positive-main-network-bundle', 'ATTEST', bundle(p, c),
     'A correctly signed synthetic main-network bundle is valid for the pure checker; the regtest-only service must refuse it before signing.')
 
+# J9 supplies v4 row facts but no v4 row octets. These are explicitly
+# synthetic projections into this checker's v3 input shape, never v4 wire vectors.
+for certifier in ('', 'id/other-certifier'):
+    p, c = contracts(); p['delegate']['slots'][0]['notary'] = certifier
+    v = bundle(p, c, parent_patch=lambda g: g.update(version=4))
+    add('negative-j9-v4-' + ('no-certifier' if not certifier else 'other-certifier'),
+        'GRANT_FIELD', v, 'Synthetic v4 row projection: unsupported grant version refuses before any candidate; no claim to define v4 row octets.')
+p, c = contracts(); p['delegate']['slots'][0]['notary'] = ''
+add('negative-j9-v3-no-certifier', 'CONTRACT_DELEGATE', bundle(p, c),
+    'A signed profile /2 row still requires its notary member to name a pinned notary.')
+
+p, c = contracts()
+p['delegate']['slots'][0]['notary'] = 'id/other-certifier'
+p['delegate']['notaries'][0]['name'] = 'id/other-certifier'
+add('negative-j9-v3-other-certifier', 'NOTARY_NOT_DESIGNATED', bundle(p, c),
+    'A signed /2 parent naming only another certifier cannot select this notary.')
+
 (ROOT/'testdata/vectors.json').write_text(json.dumps(dict(schema='notary-checker-lab-vectors/1', warning='Fixed public test keys; fabricated chain locators and policy affiliations; no live authority.', vectors=vectors,row_vectors=rows),indent=2)+'\n')
 mvp_names=next(v['names'] for v in vectors if v['name']=='positive-mvp-issuer-owner')
 (ROOT/'testdata/mvp-names.json').write_bytes(r.octets(mvp_names))

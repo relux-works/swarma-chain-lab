@@ -4,7 +4,7 @@ package notarycheck
 
 import "encoding/json"
 
-const SpecCommit = "2012ac9155568af80d610bdf9b7683881a46e5cb"
+const SpecCommit = "1c3bcafc8bfc1450c3c0cefb69a122f6a97a448e"
 const MaxMoney int64 = 2100000000000000
 const MaxTime int64 = 253402300799
 
