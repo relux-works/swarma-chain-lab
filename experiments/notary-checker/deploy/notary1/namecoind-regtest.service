@@ -1,0 +1,59 @@
+[Unit]
+# Identify this unit as an isolated laboratory node.
+Description=Namecoin Core 28.0 isolated regtest node
+# Start only after local state storage is available.
+After=local-fs.target
+
+[Service]
+# Treat successful exec as process start; ExecStartPost supplies RPC readiness.
+Type=exec
+# Keep node files and process authority under the dedicated node UID.
+User=namecoin-node
+# Let only the dedicated cookie group read the runtime cookie.
+Group=namecoin-cookie
+# Keep default relative node operations inside its sole persistent state directory.
+WorkingDirectory=/var/lib/namecoind-regtest
+# Use the Infra-pinned binary, fixed regtest network, no wallet or peers, and explicit loopback RPC.
+ExecStart=/opt/namecoin/28.0/bin/namecoind -conf=/etc/namecoin/notary1-regtest.conf -datadir=/var/lib/namecoind-regtest -nosettings -regtest=1 -server=1 -daemon=0 -disablewallet=1 -listen=0 -connect=0 -dnsseed=0 -fixedseeds=0 -discover=0 -upnp=0 -natpmp=0 -onion=0 -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 -rpcport=18443 -rpccookiefile=/run/namecoind-regtest/.cookie -rpccookieperms=group -namehistory=1 -txindex=1
+# Delay successful unit startup until authenticated loopback RPC answers, without printing the cookie.
+ExecStartPost=/opt/namecoin/28.0/bin/namecoin-cli -conf=/etc/namecoin/notary1-regtest.conf -datadir=/var/lib/namecoind-regtest -regtest=1 -rpcconnect=127.0.0.1 -rpcport=18443 -rpccookiefile=/run/namecoind-regtest/.cookie -rpcwait -rpcwaittimeout=60 getblockchaininfo
+# Bound readiness failure; do not start the dependent notary on a failed node start.
+TimeoutStartSec=75
+# Allow the node time to flush its indexes after SIGTERM.
+TimeoutStopSec=120
+# Require an operator restart and fresh cookie staging after a failure.
+Restart=no
+# Create an ephemeral cookie directory owned by the unit user and cookie group.
+RuntimeDirectory=namecoind-regtest
+# Permit cookie-group traversal without granting group write.
+RuntimeDirectoryMode=0750
+# Restrict default new files; Core explicitly changes only its cookie to group-readable.
+UMask=0077
+# Prevent privilege acquisition through executable attributes.
+NoNewPrivileges=yes
+# Make the filesystem read-only except the two declared node write locations.
+ProtectSystem=strict
+# Hide home directories, which this node never needs.
+ProtectHome=yes
+# Isolate temporary files from other services.
+PrivateTmp=yes
+# Expose only systemd's minimal private device set.
+PrivateDevices=yes
+# Permit IPv4 loopback RPC and local Unix sockets only.
+RestrictAddressFamilies=AF_INET AF_UNIX
+# Admit IPv4 loopback as the sole IP destination and source.
+IPAddressAllow=127.0.0.1
+# Deny all remaining IP communication, including IPv6.
+IPAddressDeny=any
+# Drop every Linux capability.
+CapabilityBoundingSet=
+# Permit writes only to node state and the ephemeral cookie directory.
+ReadWritePaths=/var/lib/namecoind-regtest /run/namecoind-regtest
+# Prevent switching the process execution personality.
+LockPersonality=yes
+# Limit syscalls to the system service baseline; target startup must verify compatibility.
+SystemCallFilter=@system-service
+
+[Install]
+# Make explicit enablement part of the normal system boot target.
+WantedBy=multi-user.target

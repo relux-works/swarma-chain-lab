@@ -1,5 +1,14 @@
 # Open questions
 
+- **NOTARY1-PACK:** The lead requires the regtest public key in the private
+  install receipt only, with no name binding. v0.1.1's real-node path requires
+  that same key in the selected on-chain name before `ATTEST`; the installed
+  node also disables wallet RPC. Positive host smoke therefore needs an owner
+  decision and a reviewed VM-local registration/request procedure. The release
+  verifier at the pack base also lacks mandatory Python `-I` invocation;
+  installation waits for the reviewed isolated follow-up pin. See the precise
+  abort points and alternatives in [INSTALL.md](deploy/notary1/INSTALL.md).
+
 The detailed readings, conservative choices, and their limits are in
 [DESIGN.md](DESIGN.md#open-questions-and-conservative-choices).
 

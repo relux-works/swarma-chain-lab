@@ -650,3 +650,9 @@ adds a bounded regtest signing endpoint and exclusive host key generation around
 the pinned checker. Its build, node harness and validation entry points are in
 that module’s tools section; funding, broadcast, network ACLs and deployment
 remain operator responsibilities.
+
+The [notary1 regtest pack](experiments/notary-checker/deploy/notary1/INSTALL.md)
+adds accounts, hardened units, complete configuration and rollback for the
+v0.1.1 release. Its module tools table lists loader and offline unit validation
+commands. Installation is gated on the documented owner decision and verifier
+pin; the pack does not claim an installed or positively smoke-tested host.
