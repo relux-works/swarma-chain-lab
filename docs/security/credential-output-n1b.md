@@ -41,20 +41,61 @@ to a bootstrap, model registry, status or audit.
 
 ## Explicit reveals and raw-byte exceptions
 
-The executable inventory lists every target reveal site, expression and count:
-`go run .scripts/check-credential-output-boundaries.go`. It also records the
-four pre-existing model-bearer reveals in `New`, because it checks that entire
-validation function. Source changes adding a named credential carrier, changing
-its type or changing this reveal inventory fail the guard and require re-audit.
-Detector controls cover an added carrier, raw retained field and new reveal
-site. This source-change guard is not an arbitrary-code taint proof.
+The executable inventory uses a nested exact multiset:
+`accessor name -> {path:owner:expression -> count}`. Run
+`go run .scripts/check-credential-output-boundaries.go` from the repository root.
+The independently listed [inventory fixture](../../.scripts/credential-output-inventory.json)
+contains **14 carrier fields**, **53 direct Reveal sites / 67 calls**, and
+exactly two accessor keys: `Reveal` with those 53 entries and `RevealForOpen`
+with the empty set `{}`. There are currently no inventoried method values.
+The former 17-site / 23-call plain-Reveal set is retained with identical counts;
+the larger set also inventories bootstrap, channel-secret, model-bearer and
+private lifecycle codec boundaries. The counts cover source expressions, not
+runtime invocation frequency. Carrier fields include `Facts.Token`,
+`Facts.Random` and the one-time `Result.Token`; the session token's explicit
+opening accessor has no production call sites.
 
-Target reveals are limited to model `New` (three calls), Messages/Responses
-`Headers` (one each), station local/Linux `Create` (one each), admin reply length
-validation (one), gateway token commitment (one), executor `Mint` commitment
-(one), `Claim` validation/commitment (two), and the private mint reply encoder
-(one). There are **13 calls** for these two classes. Constructors copy their
-inputs. Failed wrapper decodes and public mint refusals return no credential.
+Every direct call whose selector starts with `Reveal` is counted on **any
+receiver**, including plain `Reveal`. A selector outside the direct function
+position of a call is also counted as a reveal site (for example,
+`t.RevealForOpen` in `g := t.RevealForOpen; g()`). Direct calls are counted once;
+method expressions are included. Every `Reveal*` method declaration on any type
+in any scanned directory registers its accessor-name key, even without callers.
+A new accessor requires an explicit expected set, empty unless reviewed call
+sites exist. The existing generic `codec.Secret[T].Reveal` and lifecycle
+`PrivateBytes.Reveal` remain unchanged; their actual call expressions are listed
+under `Reveal`. Keys identify selector names, not type-resolved method identities.
+
+The scanner traverses function bodies, named type declarations and package-level
+`ValueSpec` initializers, including anonymous carrier structs and nested function
+literals. Package-level initializers use owner `var`. It scans non-test `.go`
+and `.go.txt` files across the tree, excluding dot directories and `vendor`.
+Build tags do not exclude source from the syntax inventory. Exact carrier types,
+accessor keys, site sets and multiplicities must match or the guard exits 1 with
+`credential storage/reveal inventory changed; re-audit required` and the observed
+inventory. Output consists of expression spellings and types, not revealed values.
+
+This is a source-change guard, not an arbitrary-code taint proof. Explicit limits:
+reflection by string, including `MethodByName("RevealForOpen")`, is not detected;
+casts/conversions such as `[32]byte(t)` and slicing such as `t[:]` bypass name
+matching; `_test.go` files are excluded. Alias/dataflow analysis, arbitrary
+caller logging, dynamic behavior and receiver type resolution are outside scope.
+
+Run the copied-tree controls with an absent fixture directory:
+`python3 -I experiments/model-proxy/session/tools/guard_controls.py .temp/credential-controls .tmp/credential-controls`.
+Use the pinned Go toolchain and task-owned absolute HOME, caches and TMPDIR.
+The positive compares every field, accessor and expression against the listed
+fixture. Every negative requires exit 1, the inventory diagnostic and its exact
+whole-inventory delta, including package-level calls/function literals, method
+values and an unused non-carrier accessor. Optional trailing legacy guard source
+paths compare unchanged carrier and old Reveal multisets and rerun the old
+rules' controls. Logs and PID/exit/witness records go in the first argument;
+fixture and guard binaries stay under the second argument's parent. Controls
+are local evidence; the hosted model-proxy workflow runs the guard and race
+suite, not this Python runner.
+
+Constructors copy their inputs. Failed wrapper decodes and public mint refusals
+return no credential.
 
 Local private decoder DTOs temporarily hold raw strings to preserve the existing
 strict schema: the shared strict checker deliberately does not trust arbitrary
@@ -91,7 +132,7 @@ and decode/copy isolation. Earlier PR85 privacy and wire tests remain in place.
 
 ## Tools
 
-Run from the repository root with Go 1.26.8:
+Run from the repository root with Go 1.26.10 and `GOTOOLCHAIN=local`:
 
 ```sh
 go run .scripts/check-credential-output-boundaries.go > .temp/n1b-boundaries.json
@@ -105,3 +146,90 @@ additional consumer module tested, real exit codes, skips, mutant controls and
 exact commands; task-scoped logs live outside the source checkout in the
 keeper-authorized `.temp/n1b/` evidence directory. No deployment qualification
 or keeper acceptance is inferred from these tests.
+
+## Exact-listed audit notes
+
+The JSON fixture is the executable exact positive. The tables below annotate
+every field, accessor key and source site; counts are source multiplicities.
+Existing operations and their private boundaries are unchanged by this guard.
+
+| Carrier key | Type | Audit note |
+| --- | --- | --- |
+| `experiments/m5-rehearsal/fixtures/registrar.go.txt:rehearsalRegistrar.APIKey` | `proxy.UpstreamKey` | Rehearsal fixture retains the opaque proxy key. |
+| `experiments/model-proxy/credential.go:FileSource.current` | `UpstreamKey` | Retained file-sourced key is an opaque holder. |
+| `experiments/model-proxy/credential.go:UpstreamCredential.Value` | `UpstreamKey` | Private upstream credential remains opaque. |
+| `experiments/model-proxy/credential.go:staticSource.value` | `UpstreamKey` | Retained static upstream key remains opaque. |
+| `experiments/model-proxy/session/session.go:Facts.Random` | `Token` | Opening entropy draw; opaque token with redacting encoders. |
+| `experiments/model-proxy/session/session.go:Facts.Token` | `Token` | Ephemeral use input; opaque token with redacting encoders. |
+| `experiments/model-proxy/session/session.go:Result.Token` | `*Token` | One-time opening result; pointer retains token redaction. |
+| `experiments/model-proxy/types.go:Config.APIKey` | `UpstreamKey` | Retained upstream key is an opaque holder. |
+| `experiments/rental-executor/http.go:decodeTrackBClaim.Token` | `string` | Transient raw private decoder DTO; strict schema preserved, never retained. |
+| `experiments/rental-executor/http.go:trackBClaimRequest.Token` | `TrackBToken` | Decoded private claim request retains an opaque token. |
+| `experiments/rental-gateway/station/linuxuser.go:FakeExec.Inputs` | `[]codec.Secret[[]byte]` | Recorded private stdin is an opaque secret slice. |
+| `experiments/rental-gateway/station/station.go:Station.TrackBToken` | `TrackBToken` | Station handle retains an opaque Track B token. |
+| `experiments/rental-gateway/station/trackbadmin.go:decodeTrackBMintReply.Token` | `string` | Transient raw private response decoder DTO; never retained. |
+| `experiments/rental-gateway/station/trackbadmin.go:trackBMintReply.Token` | `TrackBToken` | Decoded private mint reply retains an opaque token. |
+
+| Accessor key | Registered declarations | Audit note |
+| --- | --- | --- |
+| `Reveal` | `codec.Secret[T].Reveal`; `lifecycle.PrivateBytes.Reveal` | Private consumer access and private bootstrap delegation, including the non-carrier lifecycle wrapper. All 53 sites / 67 calls are listed below; zero current method values. |
+| `RevealForOpen` | `session.Token.RevealForOpen` | Opening-only token conversion; exact empty caller set, no production call. |
+
+Keys are per selector name. A new method sharing an existing key does not
+create a new type-resolved key; receiver identity is outside this syntax guard.
+
+| Reveal site | Calls | Audit note |
+| --- | --- | --- |
+| `experiments/model-proxy/admin.go:Credential.Valid:c.Bearer.Reveal()` | 1 | Validates bearer encoding and endpoint/certificate constraints without publishing bearer bytes. |
+| `experiments/model-proxy/credential.go:FileSource.read:f.current.Reveal()` | 1 | Compares private file bytes with the current key in constant time to update its version. |
+| `experiments/model-proxy/credential.go:Service.issued:c.Value.Reveal()` | 1 | Registers issued private credential spellings with the bounded in-memory tripwire. |
+| `experiments/model-proxy/credential.go:UpstreamCredential.valid:c.Value.Reveal()` | 1 | Checks upstream credential validity without returning raw key bytes. |
+| `experiments/model-proxy/credential.go:authenticate:c.Value.Reveal()` | 1 | Constructs the private OAuth Authorization header after clearing stale authentication headers. |
+| `experiments/model-proxy/messages.go:Messages.Headers:key.Reveal()` | 1 | Constructs the private upstream Messages authentication header. |
+| `experiments/model-proxy/private.go:credentialPrivateValue:s.Bearer.Reveal()` | 1 | Copies bearer into the explicit private credential wire DTO; generic encoders still redact. |
+| `experiments/model-proxy/private.go:recordPrivateValue:s.Bearer.Reveal()` | 1 | Copies bearer into the explicit private registry persistence DTO. |
+| `experiments/model-proxy/registry.go:Service.authorize:r.Bearer.Reveal()` | 1 | Constant-time comparison against the presented bearer before phase/window admission. |
+| `experiments/model-proxy/registry.go:newService:c.APIKey.Reveal()` | 3 | Checks static key presence/validity and registers it with the in-memory credential tripwire. |
+| `experiments/model-proxy/registry.go:newService:r.Bearer.Reveal()` | 4 | Decodes and validates restored private bearer records and checks their uniqueness; no public output. |
+| `experiments/model-proxy/responses.go:Responses.Headers:key.Reveal()` | 1 | Constructs the private upstream Responses Authorization header. |
+| `experiments/model-proxy/tripwire.go:Service.foreignBearer:r.Bearer.Reveal()` | 1 | Compares a supplied credential against other private bearer records for the tripwire. |
+| `experiments/model-proxy/tripwire.go:Service.foreignLeak:r.Bearer.Reveal()` | 1 | Compares the supplied bearer with other private records before applying the leak freeze. |
+| `experiments/model-proxy/types.go:Credential.Equal:c.Bearer.Reveal()` | 1 | Constant-time comparison of the two credential values, returning only equality. |
+| `experiments/model-proxy/types.go:Credential.Equal:other.Bearer.Reveal()` | 1 | Constant-time comparison of the two credential values, returning only equality. |
+| `experiments/rental-executor/http.go:writeTrackBMintReply:token.Reveal()` | 1 | Encodes the token into the intentional private admin mint response. |
+| `experiments/rental-executor/trackb.go:TrackB.Claim:token.Reveal()` | 2 | Validates and hashes the supplied claim token before commitment comparison. |
+| `experiments/rental-executor/trackb.go:TrackB.Mint:token.Reveal()` | 1 | Hashes freshly minted token bytes; token store retains the commitment. |
+| `experiments/rental-gateway/gateway/gateway.go:Gateway.startStation:st.TrackBToken.Reveal()` | 1 | Hashes the private station token; journal retains only its commitment. |
+| `experiments/rental-gateway/gateway/inbound.go:Gateway.stationAuth:slot.ChannelSecretHex.Reveal()` | 2 | Checks credential presence and decodes it for private channel challenge verification. |
+| `experiments/rental-gateway/gateway/inbound.go:Gateway.stationHello:slot.ChannelSecretHex.Reveal()` | 1 | Checks registered credential presence before starting the channel challenge. |
+| `experiments/rental-gateway/journal/journal.go:Store.SetChannelCredential:credential.Reveal()` | 1 | Encodes the channel credential for the existing private journal setter. |
+| `experiments/rental-gateway/journal/private.go:slotPrivateValue:s.ChannelSecretHex.Reveal()` | 1 | Writes channel credential only through the explicit private journal DTO. |
+| `experiments/rental-gateway/station/linuxuser.go:LinuxUserDriver.Create:token.Reveal()` | 1 | Supplies token bytes through private driver stdin for station creation. |
+| `experiments/rental-gateway/station/localtest.go:LocalTestDriver.Create:token.Reveal()` | 1 | Writes the private station token file using the existing local driver boundary. |
+| `experiments/rental-gateway/station/trackbadmin.go:TrackBAdminClient.Mint:out.Token.Reveal()` | 1 | Validates the private mint response before returning its opaque token. |
+| `experiments/single-use/payloadbootstrap/codec/codec.go:Valid:b.ChannelSecret.Reveal()` | 1 | Checks channel-secret length and version-specific model-bearer validity; returns a boolean. |
+| `experiments/single-use/payloadbootstrap/codec/codec.go:Valid:b.ModelBearer.Reveal()` | 2 | Checks channel-secret length and version-specific model-bearer validity; returns a boolean. |
+| `experiments/single-use/payloadbootstrap/codec/codec.go:privateWire:b.ChannelSecret.Reveal()` | 1 | Extracts channel/model credentials for the intentional private bootstrap wire format. |
+| `experiments/single-use/payloadbootstrap/codec/codec.go:privateWire:b.ModelBearer.Reveal()` | 1 | Extracts channel/model credentials for the intentional private bootstrap wire format. |
+| `experiments/station-lifecycle/broker.go:Broker.Credential:r.Credential.Reveal()` | 2 | Checks length and returns a copied private credential to the authorized broker consumer. |
+| `experiments/station-lifecycle/broker.go:NewBroker:r.Credential.Reveal()` | 2 | Validates persisted stopped/live private credential and bootstrap consistency. |
+| `experiments/station-lifecycle/broker.go:NewBroker:v.Bootstrap.Reveal()` | 2 | Validates persisted stopped/live private credential and bootstrap consistency. |
+| `experiments/station-lifecycle/gatewaybind/driver.go:Driver.Create:bootstrap.ChannelSecret.Reveal()` | 1 | Decodes private bootstrap and compares its channel credential before driver creation. |
+| `experiments/station-lifecycle/gatewaybind/driver.go:Driver.Create:v.Bootstrap.Reveal()` | 1 | Decodes private bootstrap and compares its channel credential before driver creation. |
+| `experiments/station-lifecycle/gatewaybind/driver.go:Driver.StartSession:bootstrap.ChannelSecret.Reveal()` | 1 | Decodes private bootstrap and compares channel credentials before starting a session. |
+| `experiments/station-lifecycle/gatewaybind/driver.go:Driver.StartSession:st.ChannelSecret.Reveal()` | 1 | Decodes private bootstrap and compares channel credentials before starting a session. |
+| `experiments/station-lifecycle/gatewaybind/driver.go:Driver.StartSession:v.Bootstrap.Reveal()` | 1 | Decodes private bootstrap and compares channel credentials before starting a session. |
+| `experiments/station-lifecycle/gatewaybind/driver.go:New:credential.Bearer.Reveal()` | 1 | Copies the model bearer into an explicit private bootstrap during provisioning. |
+| `experiments/station-lifecycle/manager.go:Manager.Apply:c.Slot.Bootstrap.Reveal()` | 1 | Hashes bootstrap bytes to check/create the persisted command binding. |
+| `experiments/station-lifecycle/manager.go:Manager.Apply:s.Bootstrap.Reveal()` | 1 | Hashes bootstrap bytes to check/create the persisted command binding. |
+| `experiments/station-lifecycle/manager.go:Manager.Start:s.Bootstrap.Reveal()` | 2 | Hashes bootstrap bytes for incoming binding and the starting record commitment. |
+| `experiments/station-lifecycle/manager.go:New:v.Bootstrap.Reveal()` | 2 | Validates restored bootstrap presence/hash against persisted lifecycle state. |
+| `experiments/station-lifecycle/private.go:brokerRecordPrivateValue:s.Credential.Reveal()` | 1 | Copies the broker credential into its explicit private persistence DTO. |
+| `experiments/station-lifecycle/private.go:slotPrivateValue:s.Bootstrap.Reveal()` | 1 | Copies bootstrap bytes into the explicit private slot persistence DTO. |
+| `experiments/station-lifecycle/private_bytes.go:PrivateBytes.Reveal:p.value.Reveal()` | 1 | Delegates the explicit reveal to the opaque generic holder, retaining nil/empty behavior. |
+| `experiments/station-lifecycle/slotd/host.go:Host.Start:s.Bootstrap.Reveal()` | 1 | Base64-encodes bootstrap into the private slot-host creation request. |
+| `experiments/station-lifecycle/slotd/host.go:bound:s.Bootstrap.Reveal()` | 1 | Hashes bootstrap to verify the private host response binding. |
+| `experiments/station-lifecycle/types.go:Range.validateSlot:s.Bootstrap.Reveal()` | 2 | Checks only bootstrap length against the existing slot-policy bounds. |
+| `experiments/station-payload/client.go:Client.generate:c.bootstrap.ModelBearer.Reveal()` | 1 | Constructs the authenticated private upstream Authorization header. |
+| `experiments/station-payload/responses.go:Client.generateResponses:c.bootstrap.ModelBearer.Reveal()` | 1 | Constructs the authenticated private Responses Authorization header. |
+| `experiments/station-payload/session.go:Client.Run:b.ChannelSecret.Reveal()` | 1 | Supplies channel credential to the private station-link handshake. |

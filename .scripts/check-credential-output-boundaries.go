@@ -43,28 +43,64 @@ var fields = map[string]string{
 }
 
 // Keep an exact call-site multiset per accessor, including unused accessors.
-// Suffixed Reveal methods are conservatively inventoried at every call site;
-// plain Reveal retains the reviewed carrier/scope inventory below.
+// Every Reveal* call and non-call selector is inventoried on any receiver.
+// Declarations on every receiver type register a key, even without callers.
 var reveals = map[string]map[string]int{
 	"RevealForOpen": {},
 	"Reveal": {
-		"experiments/model-proxy/registry.go:newService:r.Bearer.Reveal()":                            4,
-		"experiments/model-proxy/registry.go:newService:c.APIKey.Reveal()":                            3,
-		"experiments/model-proxy/messages.go:Messages.Headers:key.Reveal()":                           1,
-		"experiments/model-proxy/responses.go:Responses.Headers:key.Reveal()":                         1,
-		"experiments/model-proxy/credential.go:UpstreamCredential.valid:c.Value.Reveal()":             1,
-		"experiments/model-proxy/credential.go:FileSource.read:f.current.Reveal()":                    1,
-		"experiments/model-proxy/credential.go:Service.issued:c.Value.Reveal()":                       1,
-		"experiments/model-proxy/credential.go:authenticate:c.Value.Reveal()":                         1,
-		"experiments/model-proxy/tripwire.go:Service.foreignBearer:r.Bearer.Reveal()":                 1,
-		"experiments/model-proxy/tripwire.go:Service.foreignLeak:r.Bearer.Reveal()":                   1,
-		"experiments/rental-gateway/station/localtest.go:LocalTestDriver.Create:token.Reveal()":       1,
-		"experiments/rental-gateway/station/linuxuser.go:LinuxUserDriver.Create:token.Reveal()":       1,
-		"experiments/rental-gateway/station/trackbadmin.go:TrackBAdminClient.Mint:out.Token.Reveal()": 1,
-		"experiments/rental-gateway/gateway/gateway.go:Gateway.startStation:st.TrackBToken.Reveal()":  1,
-		"experiments/rental-executor/trackb.go:TrackB.Mint:token.Reveal()":                            1,
-		"experiments/rental-executor/trackb.go:TrackB.Claim:token.Reveal()":                           2,
-		"experiments/rental-executor/http.go:writeTrackBMintReply:token.Reveal()":                     1,
+		"experiments/model-proxy/registry.go:newService:r.Bearer.Reveal()":                                         4,
+		"experiments/model-proxy/registry.go:newService:c.APIKey.Reveal()":                                         3,
+		"experiments/model-proxy/messages.go:Messages.Headers:key.Reveal()":                                        1,
+		"experiments/model-proxy/responses.go:Responses.Headers:key.Reveal()":                                      1,
+		"experiments/model-proxy/credential.go:UpstreamCredential.valid:c.Value.Reveal()":                          1,
+		"experiments/model-proxy/credential.go:FileSource.read:f.current.Reveal()":                                 1,
+		"experiments/model-proxy/credential.go:Service.issued:c.Value.Reveal()":                                    1,
+		"experiments/model-proxy/credential.go:authenticate:c.Value.Reveal()":                                      1,
+		"experiments/model-proxy/tripwire.go:Service.foreignBearer:r.Bearer.Reveal()":                              1,
+		"experiments/model-proxy/tripwire.go:Service.foreignLeak:r.Bearer.Reveal()":                                1,
+		"experiments/rental-gateway/station/localtest.go:LocalTestDriver.Create:token.Reveal()":                    1,
+		"experiments/rental-gateway/station/linuxuser.go:LinuxUserDriver.Create:token.Reveal()":                    1,
+		"experiments/rental-gateway/station/trackbadmin.go:TrackBAdminClient.Mint:out.Token.Reveal()":              1,
+		"experiments/rental-gateway/gateway/gateway.go:Gateway.startStation:st.TrackBToken.Reveal()":               1,
+		"experiments/rental-executor/trackb.go:TrackB.Mint:token.Reveal()":                                         1,
+		"experiments/rental-executor/trackb.go:TrackB.Claim:token.Reveal()":                                        2,
+		"experiments/rental-executor/http.go:writeTrackBMintReply:token.Reveal()":                                  1,
+		"experiments/model-proxy/admin.go:Credential.Valid:c.Bearer.Reveal()":                                      1,
+		"experiments/model-proxy/private.go:credentialPrivateValue:s.Bearer.Reveal()":                              1,
+		"experiments/model-proxy/private.go:recordPrivateValue:s.Bearer.Reveal()":                                  1,
+		"experiments/model-proxy/registry.go:Service.authorize:r.Bearer.Reveal()":                                  1,
+		"experiments/model-proxy/types.go:Credential.Equal:c.Bearer.Reveal()":                                      1,
+		"experiments/model-proxy/types.go:Credential.Equal:other.Bearer.Reveal()":                                  1,
+		"experiments/rental-gateway/gateway/inbound.go:Gateway.stationAuth:slot.ChannelSecretHex.Reveal()":         2,
+		"experiments/rental-gateway/gateway/inbound.go:Gateway.stationHello:slot.ChannelSecretHex.Reveal()":        1,
+		"experiments/rental-gateway/journal/journal.go:Store.SetChannelCredential:credential.Reveal()":             1,
+		"experiments/rental-gateway/journal/private.go:slotPrivateValue:s.ChannelSecretHex.Reveal()":               1,
+		"experiments/single-use/payloadbootstrap/codec/codec.go:Valid:b.ChannelSecret.Reveal()":                    1,
+		"experiments/single-use/payloadbootstrap/codec/codec.go:Valid:b.ModelBearer.Reveal()":                      2,
+		"experiments/single-use/payloadbootstrap/codec/codec.go:privateWire:b.ChannelSecret.Reveal()":              1,
+		"experiments/single-use/payloadbootstrap/codec/codec.go:privateWire:b.ModelBearer.Reveal()":                1,
+		"experiments/station-lifecycle/broker.go:Broker.Credential:r.Credential.Reveal()":                          2,
+		"experiments/station-lifecycle/broker.go:NewBroker:r.Credential.Reveal()":                                  2,
+		"experiments/station-lifecycle/broker.go:NewBroker:v.Bootstrap.Reveal()":                                   2,
+		"experiments/station-lifecycle/gatewaybind/driver.go:Driver.Create:bootstrap.ChannelSecret.Reveal()":       1,
+		"experiments/station-lifecycle/gatewaybind/driver.go:Driver.Create:v.Bootstrap.Reveal()":                   1,
+		"experiments/station-lifecycle/gatewaybind/driver.go:Driver.StartSession:bootstrap.ChannelSecret.Reveal()": 1,
+		"experiments/station-lifecycle/gatewaybind/driver.go:Driver.StartSession:st.ChannelSecret.Reveal()":        1,
+		"experiments/station-lifecycle/gatewaybind/driver.go:Driver.StartSession:v.Bootstrap.Reveal()":             1,
+		"experiments/station-lifecycle/gatewaybind/driver.go:New:credential.Bearer.Reveal()":                       1,
+		"experiments/station-lifecycle/manager.go:Manager.Apply:c.Slot.Bootstrap.Reveal()":                         1,
+		"experiments/station-lifecycle/manager.go:Manager.Apply:s.Bootstrap.Reveal()":                              1,
+		"experiments/station-lifecycle/manager.go:Manager.Start:s.Bootstrap.Reveal()":                              2,
+		"experiments/station-lifecycle/manager.go:New:v.Bootstrap.Reveal()":                                        2,
+		"experiments/station-lifecycle/private.go:brokerRecordPrivateValue:s.Credential.Reveal()":                  1,
+		"experiments/station-lifecycle/private.go:slotPrivateValue:s.Bootstrap.Reveal()":                           1,
+		"experiments/station-lifecycle/private_bytes.go:PrivateBytes.Reveal:p.value.Reveal()":                      1,
+		"experiments/station-lifecycle/slotd/host.go:Host.Start:s.Bootstrap.Reveal()":                              1,
+		"experiments/station-lifecycle/slotd/host.go:bound:s.Bootstrap.Reveal()":                                   1,
+		"experiments/station-lifecycle/types.go:Range.validateSlot:s.Bootstrap.Reveal()":                           2,
+		"experiments/station-payload/client.go:Client.generate:c.bootstrap.ModelBearer.Reveal()":                   1,
+		"experiments/station-payload/responses.go:Client.generateResponses:c.bootstrap.ModelBearer.Reveal()":       1,
+		"experiments/station-payload/session.go:Client.Run:b.ChannelSecret.Reveal()":                               1,
 	},
 }
 
@@ -85,6 +121,8 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 	}
 	var scan func(ast.Node, string)
 	scan = func(n ast.Node, owner string) {
+		// Calls are visited before their selectors; count direct calls once.
+		called := map[*ast.SelectorExpr]bool{}
 		ast.Inspect(n, func(n ast.Node) bool {
 			switch v := n.(type) {
 			case *ast.StructType:
@@ -100,20 +138,17 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 				if !ok || !strings.HasPrefix(selector.Sel.Name, "Reveal") {
 					break
 				}
-				expression := rendered(v)
-				scope := path + ":" + owner + ":"
-				targetScope := false
-				for expected := range reveals[selector.Sel.Name] {
-					if strings.HasPrefix(expected, scope) {
-						targetScope = true
-						break
-					}
+				called[selector] = true
+				if gotReveals[selector.Sel.Name] == nil {
+					gotReveals[selector.Sel.Name] = map[string]int{}
 				}
-				if selector.Sel.Name != "Reveal" || targetScope || strings.Contains(expression, "APIKey") || strings.Contains(expression, "TrackBToken") || strings.Contains(expression, ".Token.") {
-					if gotReveals[selector.Sel.Name] == nil {
-						gotReveals[selector.Sel.Name] = map[string]int{}
+				gotReveals[selector.Sel.Name][path+":"+owner+":"+rendered(v)]++
+			case *ast.SelectorExpr:
+				if !called[v] && strings.HasPrefix(v.Sel.Name, "Reveal") {
+					if gotReveals[v.Sel.Name] == nil {
+						gotReveals[v.Sel.Name] = map[string]int{}
 					}
-					gotReveals[selector.Sel.Name][scope+expression]++
+					gotReveals[v.Sel.Name][path+":"+owner+":"+rendered(v)]++
 				}
 			}
 			return true
@@ -122,23 +157,19 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 	for _, decl := range f.Decls {
 		switch v := decl.(type) {
 		case *ast.FuncDecl:
-			// Register unused accessors on named carriers too: a new Reveal*
-			// declaration requires an explicit expected set, even if empty.
-			if v.Recv != nil && strings.HasPrefix(v.Name.Name, "Reveal") {
-				typ := strings.TrimSuffix(receiver(v), "."+v.Name.Name)
-				for carrier, fieldType := range fields {
-					if filepath.Dir(strings.SplitN(carrier, ":", 2)[0]) == filepath.Dir(path) && strings.TrimPrefix(fieldType, "*") == typ {
-						if gotReveals[v.Name.Name] == nil {
-							gotReveals[v.Name.Name] = map[string]int{}
-						}
-					}
-				}
+			// Register unused Reveal* accessors on any type, including non-carriers.
+			if v.Recv != nil && strings.HasPrefix(v.Name.Name, "Reveal") && gotReveals[v.Name.Name] == nil {
+				gotReveals[v.Name.Name] = map[string]int{}
 			}
 			scan(v, receiver(v))
 		case *ast.GenDecl:
 			for _, s := range v.Specs {
-				if typ, ok := s.(*ast.TypeSpec); ok {
-					scan(typ.Type, typ.Name.Name)
+				switch spec := s.(type) {
+				case *ast.TypeSpec:
+					scan(spec.Type, spec.Name.Name)
+				case *ast.ValueSpec:
+					// Includes anonymous carriers and nested function literals.
+					scan(spec, "var")
 				}
 			}
 		}

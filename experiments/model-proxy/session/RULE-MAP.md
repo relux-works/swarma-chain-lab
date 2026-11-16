@@ -30,6 +30,12 @@ service positive/negative enforcement test**. Their observed limits are tested
 without inventing an origin/run flag. This is the declared out-of-contract
 boundary of row 1, not coverage of the excluded signer implementation.
 
+The `write-commit-order`, `write-reserve-boundary` and
+`write-observation-boundary` references below cite the fixtures landed in
+[PR #135](https://github.com/relux-works/swarma-chain-lab/pull/135), present on
+main `5d8352824661c8096f0c7da2e11763e1eb205c42` in `testdata/lifecycle.json`.
+This follow-up adds citations only; the reducer and those fixtures are unchanged.
+
 | Rule | Function / fact boundary | Positive evidence | Negative / boundary evidence | Status detail / limit |
 | --- | --- | --- | --- | --- |
 | T1.1 | Apply/gate | S13-1 | profile-zero; profile-all-entries | J13.1; type commands proposed |
@@ -43,8 +49,8 @@ boundary of row 1, not coverage of the excluded signer implementation.
 | T2.6 | replay; seen identities | S13-1; S13-21 | S13-2; extend-replay | replay proposal |
 | T2.7 | validBinding | S13-1; binding-address | S13-5; binding-address | J13.4; canonical-IP interpretation |
 | T3.1 | DrawToken; Apply/open | S13-1; TestTokenCustody | entropy-failure | J13.3; random source is a fact in reducer |
-| T3.2 | Apply/open; record | S13-1; TestTokenCustody | write-failure; entropy-failure | J13.3; hash-only storage proposed |
-| T3.3 | Apply/open; Result | S13-1 | S13-2; S13-23; write-failure | one reply/hash proposal; protected channel proposed |
+| T3.2 | Apply/open; record | S13-1; TestTokenCustody | write-failure; entropy-failure; write-commit-order; write-reserve-boundary; write-observation-boundary | J13.3; hash-only storage proposed |
+| T3.3 | Apply/open; Result | S13-1 | S13-2; S13-23; write-failure; write-commit-order; write-reserve-boundary; write-observation-boundary | one reply/hash proposal; protected channel proposed |
 | T3.4 | tokenDigest; CheckUse | S13-7 | S13-8 | hash lookup proposed |
 | T3.5 | replay; abstract restart | lost-opening-reply | S13-2; lost-opening-reply | no lost-answer replay proposed |
 | T4.1 | CheckUse | S13-7 | S13-8; S13-23 | unsigned bearer J13; channel/lookup proposed |
@@ -73,9 +79,9 @@ boundary of row 1, not coverage of the excluded signer implementation.
 | T7.5 | external signer-clock bound | S13-1 illustrates service bound only | S13-3 checks service clock only | external signer clock not supplied or inferred |
 | T7.6 | external run-lifetime extension/close rule | S13-11; S13-19 model requested effects | S13-13 forbids late reopening | external run liveness not observed |
 | T7.7 | external single-origin-per-slot rule | S13-K1/K2 same-slot authority | S13-K3/K4 deliberately accept indistinguishable copies | external; known limitation, not rejected origin |
-| T8.1 | Apply/open pipeline | S13-1 | order-open | proposal; channel before upstream checks |
+| T8.1 | Apply/open pipeline | S13-1 | order-open; write-commit-order; write-reserve-boundary; write-observation-boundary | proposal; channel before upstream checks |
 | T8.2 | Apply/extend/close pipelines | S13-11; S13-19 | order-extend; order-close | proposal; close has no ended/window check |
-| T8.3 | CheckUse/Reserve pipeline | S13-7 | order-use; consumption-order | proposal; channel precedes token |
+| T8.3 | CheckUse/Reserve pipeline | S13-7 | order-use; consumption-order; write-commit-order; write-reserve-boundary; write-observation-boundary | proposal; channel precedes token |
 | T8.4 | no session refusal creates closure | S13-16 live recovery | unvalidated-spend; unvalidated-observation | proposal; separate validated closure fact required |
 
 ## §8 vocabulary and pipelines
