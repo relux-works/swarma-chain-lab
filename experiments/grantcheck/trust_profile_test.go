@@ -112,13 +112,21 @@ func TestTrustVectorsAccepted(t *testing.T) {
 }
 
 // Claim: the profile is selected by configuration and never detected from the
-// contract. A pay grant under the trust profile and a trust grant under the
-// pay profile both refuse as terms_invalid before the backend, although the
-// checker can resolve the contract bytes of both; the grant of the configured
-// profile is admitted by the same checker.
+// contract. A pay grant under trust, and both /1 and /2 depth-zero root grants
+// under pay, refuse as terms_invalid before the backend. Each checker first
+// admits its configured profile's valid control, including genuine PayTermsV2
+// under pay, and keeps that cached proof and durable state after refusal.
+// This uses valid local fixtures and a stub backend; it does not qualify chain
+// verification or child/delegation admission.
 func TestTrustCrossProfile(t *testing.T) {
 	trust := trustV1(t, "regtest", nil)
 	trustProof := trustGrant(t, trustGrantSpec{Network: "regtest", Genesis: su.RegtestGenesis, Contract: trust})
+	trustRoot := trustV2(t, "regtest", nil)
+	root, refusal := trustcontract.Parse(trustRoot)
+	if refusal != "" || root.Profile != trustcontract.ProfileV2 || root.DelegateDepth != 0 || root.ParentGrantID != "" || root.Ordinal != 0 {
+		t.Fatalf("cross-profile /2 fixture must be a valid depth-zero root: %+v, refusal %q", root, refusal)
+	}
+	trustRootProof := trustGrant(t, trustGrantSpec{Network: "regtest", Genesis: su.RegtestGenesis, Contract: trustRoot})
 	payRaw := unitGrant(t)
 	payProof := Presentation{GrantID: proofGrant(t, payRaw).ID(), Bytes: payRaw}
 	for _, tc := range []struct {
@@ -127,6 +135,7 @@ func TestTrustCrossProfile(t *testing.T) {
 	}{
 		{"pay-grant-under-trust", ContractProfileTrust, payProof, trustProof},
 		{"trust-grant-under-pay", ContractProfilePay, trustProof, payProof},
+		{"trust-v2-root-under-pay", ContractProfilePay, trustRootProof, payProof},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			config := unitConfig(t)
@@ -135,13 +144,23 @@ func TestTrustCrossProfile(t *testing.T) {
 				config.ExecutorKey = ""
 			}
 			config.Network, config.Genesis = "regtest", su.RegtestGenesis
-			config.Terms = termsOf(trust, unitTerms(t))
+			config.Terms = termsOf(trust, trustRoot, unitTerms(t))
 			c, b := trustChecker(t, config)
+			assertVerdict(t, c.Inbound(context.Background(), xonly(2), &tc.live), Live, CodeLive, false, false)
+			calls := b.Calls
+			state := filepath.Join(c.config.StateDir, stateName)
+			before, err := os.ReadFile(state)
+			if err != nil {
+				t.Fatal(err)
+			}
 			assertVerdict(t, c.Inbound(context.Background(), xonly(2), &tc.refused), Refused, CodeTermsInvalid, false, false)
-			if b.Calls != 0 {
+			if b.Calls != calls {
 				t.Fatal("a grant of the other profile reached the backend")
 			}
-			assertVerdict(t, c.Inbound(context.Background(), xonly(2), &tc.live), Live, CodeLive, false, false)
+			after, err := os.ReadFile(state)
+			if err != nil || !bytes.Equal(before, after) || !bytes.Equal(cachedBytes(t, c, xonly(2)), tc.live.Bytes) {
+				t.Fatal("a grant of the other profile changed state or replaced the admitted proof")
+			}
 		})
 	}
 }

@@ -67,7 +67,13 @@ var plants = []plant{
 	{"trust_child", "trust.go", "if bound.ParentGrantID != \"\" || bound.Ordinal != 0 {", "if false {", "TestTrustContractRefusals/v2-child", "verdict contract", false},
 	{"trust_pair_child_refusal", "trust.go", "if bound.ParentGrantID != \"\" || bound.Ordinal != 0 {", "if false {", "TestTrustLIP0014PairScope", "D2 child refusal:", false},
 	{"trust_autodetect_pay", "checker.go", "if code := trustTerms(g, terms, err); code != CodeLive {\n\t\t\treturn empty, code\n\t\t}\n\t\treturn g, CodeLive\n\t}", "if code := trustTerms(g, terms, err); code == CodeLive {\n\t\t\treturn g, CodeLive\n\t\t}\n\t}", "TestTrustCrossProfile/pay-grant-under-trust", "verdict contract", false},
+	// Claim: broad PAY fallback admits /1 as well as /2; the retained /1 row
+	// kills it. It cannot isolate the /2-only confusion covered by the next plant.
 	{"pay_autodetect_trust", "checker.go", "\tvar pay rental.PayTermsV2\n", "\tif trustTerms(g, terms, nil) == CodeLive {\n\t\treturn g, CodeLive\n\t}\n\tvar pay rental.PayTermsV2\n", "TestTrustCrossProfile/trust-grant-under-pay", "verdict contract", false},
+	// Claim: only valid /2 roots at depth zero bypass PAY terms parsing; /1
+	// still refuses and genuine pay still passes in the same cross-profile run.
+	// The trust gate remains intact, so this does not probe invalid /2 or children.
+	{"pay_autodetect_trust_v2_root", "checker.go", "\tvar pay rental.PayTermsV2\n", "\tvar trustShape struct { Profile string `json:\"profile\"` }\n\tif json.Unmarshal(terms, &trustShape) == nil && trustShape.Profile == \"swarma-trust-contract/2\" && trustTerms(g, terms, nil) == CodeLive {\n\t\treturn g, CodeLive\n\t}\n\tvar pay rental.PayTermsV2\n", "TestTrustCrossProfile", "verdict contract want refused/terms_invalid closed=false retry=false;", false},
 	{"trust_network_binding", "checker.go", " || g.Network != c.network || g.Genesis != c.genesis {\n\t\treturn empty, CodeBindingMismatch", " {\n\t\treturn empty, CodeBindingMismatch", "TestTrustNetworkBinding/regtest-grant-under-main-config", "verdict contract", false},
 	{"cache_network_binding", "cache.go", " || g.Network != c.network || g.Genesis != c.genesis {", " {", "TestCacheNetworkBinding", "cached proof of another network admitted", false},
 	{"node_chain_config", "freshness.go", "info.Chain != n.chain || ", "", "TestNodeChainFollowsConfig/regtest-node-under-main-config", "node of another chain passed the observation policy", false},
