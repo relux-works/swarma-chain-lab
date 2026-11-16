@@ -84,7 +84,7 @@ func vectorFacts(t *testing.T, base map[string]json.RawMessage, step vectorStep,
 		if err != nil || len(b) != 32 {
 			t.Fatal("entropy fixture must be 32 octets")
 		}
-		copy(f.Random[:], b)
+		f.Random = newToken([32]byte(b))
 		f.Token = f.Random
 	}
 	if step.TokenFrom != "" {
@@ -253,7 +253,7 @@ func TestProfileGate(t *testing.T) {
 // restart, replay and extension cannot disclose it. No real token is logged.
 func TestTokenCustody(t *testing.T) {
 	token, err := DrawToken()
-	if err != nil || len(token) != 32 {
+	if err != nil || len(token.RevealForOpen()) != 32 {
 		t.Fatal("secure random draw failed")
 	}
 	for _, typ := range []reflect.Type{reflect.TypeOf(State{}), reflect.TypeOf(Prepared{})} {
@@ -356,16 +356,17 @@ func TestCaseAndRuleCoverage(t *testing.T) {
 // including if a future change stores a token under an unrelated field type.
 func assertNoPlaintext(t *testing.T, v reflect.Value, token Token) {
 	t.Helper()
+	raw := token.RevealForOpen()
 	switch v.Kind() {
 	case reflect.String:
-		if v.String() == hex.EncodeToString(token[:]) || v.String() == string(token[:]) {
+		if v.String() == hex.EncodeToString(raw[:]) || v.String() == string(raw[:]) {
 			t.Fatal("plaintext token retained in string")
 		}
 	case reflect.Array, reflect.Slice:
 		if v.Len() == 32 && v.Type().Elem().Kind() == reflect.Uint8 {
 			equal := true
 			for i := 0; i < 32; i++ {
-				equal = equal && byte(v.Index(i).Uint()) == token[i]
+				equal = equal && byte(v.Index(i).Uint()) == raw[i]
 			}
 			if equal {
 				t.Fatal("plaintext token retained in octets")

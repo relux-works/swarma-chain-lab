@@ -16,10 +16,11 @@ const tokenMarker = "[session token]"
 func outputToken(t *testing.T) (Token, [32]byte) {
 	t.Helper()
 	// Public synthetic credential; never print its bytes even on failure.
-	var token Token
-	copy(token[:], "0123456789abcdefFEDCBA9876543210!?")
+	var input [32]byte
+	copy(input[:], "0123456789abcdefFEDCBA9876543210!?")
+	token := newToken(input)
 	raw := token.RevealForOpen()
-	if raw == [32]byte{} || Token(raw) != token {
+	if raw == [32]byte{} || raw != input {
 		t.Fatal("token output control is zero or changed")
 	}
 	return token, raw
@@ -38,8 +39,8 @@ func noTokenOutput(t *testing.T, output []byte, raw [32]byte) {
 	}
 }
 
-// All fmt verbs ignore flags and width for both value/pointer tokens and each
-// carrier. Exact marker checks also exclude decimal array and partial disclosure.
+// Formatter-dispatched verbs ignore flags and width for tokens and carriers.
+// Exact markers exclude decimal/partial output; reserved %p is checked for leaks.
 func TestTokenOutputFormat(t *testing.T) {
 	for _, format := range []string{"%v", "%s", "%d", "%x", "%X", "%q", "%#v", "%+v", "%032x", "%.8s", "%b", "%c", "%o", "%U", "%f", "%p"} {
 		t.Run(format, func(t *testing.T) {
@@ -47,7 +48,7 @@ func TestTokenOutputFormat(t *testing.T) {
 			for _, value := range []any{token, &token} {
 				output := fmt.Sprintf(format, value)
 				noTokenOutput(t, []byte(output), raw)
-				// fmt reserves %p for pointer addresses; it never renders token bytes.
+				// fmt reserves %p before method lookup; opaque storage prevents byte disclosure.
 				if format != "%p" && output != tokenMarker {
 					t.Fatal("token formatting did not return the fixed marker")
 				}
@@ -140,7 +141,11 @@ func TestTokenExplicitReturn(t *testing.T) {
 	if reply.Code != Admitted || reply.Token == nil || f.Random == (Token{}) {
 		t.Fatal("non-zero opening token control failed")
 	}
-	if *reply.Token != f.Random || Token(reply.Token.RevealForOpen()) != f.Random {
+	var expected [32]byte
+	for i := range expected {
+		expected[i] = 0x11 // Independent oracle for the synthetic entropy above.
+	}
+	if *reply.Token != f.Random || reply.Token.RevealForOpen() != expected || f.Random.RevealForOpen() != expected {
 		t.Fatal("explicit token return differs from random carrier")
 	}
 	if next.sessions[f.RequestID].Digest != tokenDigest(f.Random) {

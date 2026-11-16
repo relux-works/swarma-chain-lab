@@ -75,8 +75,14 @@ MUTANTS = [
   [('func (Token) MarshalJSON()', 'func (Token) removedMarshalJSON()')]),
  ('token-text', 'Token implements the explicit text redaction boundary', 'TestTokenOutputText',
   [('func (Token) MarshalText()', 'func (Token) removedMarshalText()')]),
+ ('token-inline-storage', 'bad-verb %p cannot reflect inline token octets', 'TestTokenBadVerb/Token/value/fmt/%p',
+  [('type Token struct{ value *string }', 'type Token [32]byte'),
+   ('func newToken(raw [32]byte) Token {\n\tif raw == [32]byte{} {\n\t\treturn Token{}\n\t}\n\tvalue := string(raw[:])\n\treturn Token{value: &value}\n}',
+    'func newToken(raw [32]byte) Token { return Token(raw) }'),
+   ('func tokenBytes(t Token) (raw [32]byte) {\n\tif t.value != nil {\n\t\tcopy(raw[:], *t.value)\n\t}\n\treturn raw\n}',
+    'func tokenBytes(t Token) [32]byte { return [32]byte(t) }')]),
  ('token-return', 'explicit opening accessor preserves the issued token', 'TestTokenExplicitReturn',
-  [('return [32]byte(t)', 'return [32]byte{}')]),
+  [('return tokenBytes(t)', 'return [32]byte{}')]),
 
 ]
 
@@ -121,13 +127,14 @@ def main():
         overlay = out / (name + '.json')
         overlay.write_text(json.dumps({'Replace': {str(SOURCE): str(path)}}))
         run = execute(['go', 'test', '-vet=off', '-count=1', '-overlay=' + str(overlay),
-                       '-run', '^' + target + '$', './session'], out / (name + '.log'))
+                       '-run', '/'.join('^' + re.escape(part) + '$' for part in target.split('/')), './session'], out / (name + '.log'))
         log = (out / run['log']).read_text()
         witness = re.findall(r'--- FAIL: (Test[^\n]+)', log)
         killed = (run['exit'] == 1 and witness and target in log
                   and 'build failed' not in log and 'panic:' not in log
                   and ('verdict=' in log or 'token' in log or 'default profile' in log
-                       or 'refusal partially' in log or 'end of' in log))
+                       or 'refusal partially' in log or 'end of' in log
+                       or 'secret disclosed by output sink' in log))
         row = dict(mutant=name, bound=bound, target=target, witness=witness,
                    status='killed' if killed else 'survived-or-invalid',
                    mutant_sha256=hashlib.sha256(mutated.encode()).hexdigest(), **run)

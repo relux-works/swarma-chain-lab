@@ -28,11 +28,15 @@ a supplied upstream refusal is preserved. They do not extend LIP-0028 §8.
 successful draw as a fact. The resulting state holds only SHA-256, and the open
 result carries the token once. `Facts.Random` holds that exact token value,
 not a seed; `Facts.Token`, `Facts.Random` and `Result.Token` are audited carriers.
+`Token` keeps its immutable bytes behind an unexported scalar `*string`, like
+`codec.Secret`; even fmt's method-bypassing bad-verb reflection can reach only an
+address. An array pointer is insufficient because fmt may dereference it.
 `Token` redacts fmt verbs (including numeric/hex), JSON and text marshaling.
 `RevealForOpen` is the sole explicit raw output accessor, for delivery of the
 successful opening reply. The reducer reads raw bytes internally only to draw
-entropy and compute SHA-256. No caller should cast/index/slice the array for
-output; this value model does not prevent deliberate casts or erase copies.
+entropy and compute SHA-256. The holder no longer exposes array casts/indexing/slicing; the explicit accessor
+returns a copy. This value model does not erase copies or protect against unsafe
+reflection.
 The one-time guarantee is issuance by `Apply`, not consuming/zeroing the caller’s
 value, and there is no token wire encoder in this laboratory. Neither replay,
 extension, close nor restart returns a token. A lost opening reply leaves its
@@ -159,7 +163,8 @@ verdict histogram. Mutation controls use Go compiler overlays against only this
 package, preserving the candidate source. They cover all eleven refusal codes,
 window arithmetic, expiry, extension, token storage/replay, the profile gate,
 closure validation/races, atomicity, recovery fencing, commit-time write precedence
-and fmt/JSON/text custody
+and fmt/JSON/text custody, including an inline-storage regression killed by
+`TestTokenBadVerb/Token/value/fmt/%p`
 (including removal of each redaction method and a corrupted explicit return). Each killed control
 requires a named failing test and assertion; a build failure, panic, timeout or
 survivor is not a detection. Logs, PIDs, hashes, commands, exits and witnesses
@@ -172,3 +177,26 @@ repository `.scripts/check-module-graph.py` and
 `.scripts/check-strict-module-snapshots.py` check dependency/snapshot policy.
 This package imports only Go's standard library and adds no require edge.
 Local verification does not claim a hosted CI result or production qualification.
+
+### Shared redaction battery
+
+`internal/redactcheck` is a reusable test helper for synthetic values. Run
+`go test ./internal/redactcheck ./session -run 'TestInlineControl|TestScalarPointerControl|TestTokenBadVerb|TestTokenStorageSemantics'`
+and `go test . -run '^TestOtherHoldersBadVerb$'` from the module.
+`redactcheck.Check` exercises concrete value/pointer forms, hidden value/pointer
+containers (also by pointer), exported containers, arrays, slices and maps.
+Sinks include `%p`, `%+p`, `%w`, `Errorf("%w")`, ordinary/numeric fmt verbs,
+JSON, applicable `MarshalText`, and slog text/JSON handlers. Facts and Result
+have no text-marshaler contract; their text paths are fmt and slog text.
+The detector rejects caller-supplied secret substrings; `SecretForms` additionally
+builds bounded eight-byte raw/hex/decimal/Go-hex and base64-fragment witnesses.
+The inline synthetic control proves the actual battery detects `%p`, `%w` and
+hidden-field `%v` leaks. Passing tests do not claim every third-party serializer
+or arbitrary encoding is safe. Logs belong in task-owned `.temp/` evidence.
+
+The same battery audits the existing `UpstreamCredential`, `UpstreamKey`,
+`Credential` and a loaded, quiescent `FileSource`; no holder implementation
+outside session changes here. Guard audit: `Token`'s private storage changes,
+but the audited carrier types remain `Facts.Token: Token`, `Facts.Random: Token`
+and `Result.Token: *Token`. No production `RevealForOpen` caller is added, so
+the credential-output inventory remains unchanged.

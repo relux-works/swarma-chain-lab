@@ -38,8 +38,26 @@ func Refusals() []Code {
 	return []Code{Channel, Replay, BindingInvalid, Window, Limits, Unknown, TokenUnknown, PeerMismatch, Ended, Command, LimitOver}
 }
 
-// Token is ephemeral. Only its digest enters State. Formatting always redacts it.
-type Token [32]byte
+// Token is ephemeral. Only its digest enters State. A scalar pointer keeps
+// fmt's method-bypassing bad-verb reflection from reaching the secret bytes.
+// A pointer to an array is insufficient: fmt may dereference it at depth zero.
+// Like codec.Secret, copies share immutable private storage.
+type Token struct{ value *string }
+
+func newToken(raw [32]byte) Token {
+	if raw == [32]byte{} {
+		return Token{}
+	}
+	value := string(raw[:])
+	return Token{value: &value}
+}
+
+func tokenBytes(t Token) (raw [32]byte) {
+	if t.value != nil {
+		copy(raw[:], *t.value)
+	}
+	return raw
+}
 
 // Format ignores every verb and flag, including numeric/hex array formatting.
 func (Token) Format(s fmt.State, _ rune)   { _, _ = io.WriteString(s, "[session token]") }
@@ -49,14 +67,21 @@ func (Token) MarshalText() ([]byte, error) { return []byte("[session token]"), n
 // RevealForOpen is the sole explicit plaintext output boundary. Use it only to
 // deliver the successful opening result once; never for logs or serialization.
 // Apply enforces one-time issuance, not erasure of copies held by the caller.
-func (t Token) RevealForOpen() [32]byte { return [32]byte(t) }
+func (t Token) RevealForOpen() [32]byte { return tokenBytes(t) }
 
 func (Token) String() string   { return "[session token]" }
 func (Token) GoString() string { return "[session token]" }
 
 // DrawToken is the only effectful helper. The reducer receives its result as a fact.
-func DrawToken() (Token, error)    { var t Token; _, err := rand.Read(t[:]); return t, err }
-func tokenDigest(t Token) [32]byte { return sha256.Sum256(t[:]) }
+func DrawToken() (Token, error) {
+	var raw [32]byte
+	_, err := rand.Read(raw[:])
+	return newToken(raw), err
+}
+func tokenDigest(t Token) [32]byte {
+	raw := tokenBytes(t)
+	return sha256.Sum256(raw[:])
+}
 
 type Executor struct{ Name, Key string }
 type Binding struct {
