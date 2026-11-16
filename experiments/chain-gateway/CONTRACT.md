@@ -56,7 +56,8 @@ A pre-existing socket MUST NOT be unlinked to seize an unknown listener.
 Install model (requirements only): binary and configuration root-owned, not
 agent-writable; gateway process runs as the dedicated unprivileged `chain-gateway`
 user, with no login shell, a private primary service group, and membership
-only in the dedicated socket-reader group in addition to that private group. The root-owned credential file is regular, mode 0640, group readable only
+only in the dedicated socket-reader group in addition to that private group.
+The root-owned credential file is regular, mode 0640, group readable only
 by that exclusive service group; protected root-owned parent directories are
 0750. No symlinks, agent ACLs, agent group membership, environment or argv secret
 is allowed. Root provisions a cookie or a client username/password for a node
