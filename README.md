@@ -352,7 +352,7 @@ stream. Both use the commands and pinned Core setup documented in
 
 ## Go modules and releases
 
-The 25 modules use `github.com/relux-works/swarma-chain-lab/<directory>` paths.
+The 26 modules use `github.com/relux-works/swarma-chain-lab/<directory>` paths.
 Each sibling requirement is `v0.1.0`. Relative directory `replace` directives
 are for builds inside this repository: Go ignores a dependency module's replaces
 when another module imports it. External consumers require the published module
