@@ -55,8 +55,8 @@ A pre-existing socket MUST NOT be unlinked to seize an unknown listener.
 
 Install model (requirements only): binary and configuration root-owned, not
 agent-writable; gateway process runs as the dedicated unprivileged `chain-gateway`
-user, with no login shell and no supplementary group except its private service
-group. The root-owned credential file is regular, mode 0640, group readable only
+user, with no login shell, a private primary service group, and membership
+only in the dedicated socket-reader group in addition to that private group. The root-owned credential file is regular, mode 0640, group readable only
 by that exclusive service group; protected root-owned parent directories are
 0750. No symlinks, agent ACLs, agent group membership, environment or argv secret
 is allowed. Root provisions a cookie or a client username/password for a node
@@ -77,9 +77,15 @@ Ancillary tip reads are internal fixed read operations, never caller-selected.
 Read-only capability must be qualified separately from a node credential that
 might itself authorize writes.
 
-Socket parent: root-owned 0750, a dedicated reader group may traverse; socket
-root/service-owned 0660. Reader-group membership grants access to connect only;
-the UID allow-list still decides. Agent accounts cannot replace either object.
+Socket parent: `chain-gateway`-owned 0750, group the dedicated socket-reader
+group; its higher ancestors are protected and root-owned. The daemon creates
+the socket as `chain-gateway`, sets its group to socket-reader and mode 0660.
+This permits the unprivileged daemon to bind without making the directory
+agent-writable. The private credential group MUST be distinct from the reader
+group; agents may belong only to the latter. Reader-group membership grants
+access to connect only; the UID allow-list still decides. Agent accounts cannot
+replace either object. The client pins the connected server UID to the
+configured unprivileged service UID, not to a claimed request field.
 Root-owned configuration pins network (`main` or `regtest`), node endpoint,
 genesis hash, server UID, allowed UIDs, socket path and watched snapshot set.
 The backend MUST verify configured network/genesis and refuse initial block
