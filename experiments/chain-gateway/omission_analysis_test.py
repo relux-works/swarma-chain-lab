@@ -5,7 +5,7 @@
 # It fails for baseline mismatches or any unpinned rule/group. Redundant lexical
 # guards are tested in explicit groups, not silently counted as killed alone.
 # Independent Python mirror of experiments/chain-gateway/schema_test.go for single-rule omission analysis.
-# Usage: python3 -B chaingw-c1-omission-analysis.py <checkout>/experiments/chain-gateway/fixtures/vectors.json
+# Usage: python3 -B omission_analysis_test.py fixtures/vectors.json
 # Prints 'baseline mismatches' (expected: []) and, per rule, whether disabling it flips any shared vector.
 # UNPINNED + non-redundant (see review F4) means a consumer mirror can omit the rule and still pass all vectors.
 import json, re, sys, base64, binascii

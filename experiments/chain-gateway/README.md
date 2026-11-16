@@ -48,9 +48,12 @@ header-time disagreement is backend inconsistency, not genuine tip movement.
 
 ## Accepted observe-only amendment
 
-Source acceptance `$Omp4AzWq` and the lead's HELPER-B r3 brief amend §5.
+Consumer acceptance and the lead's HELPER-B r3 brief amend §5.
 The helper may bracket all reads with complete Tip comparisons, N=3 total
-attempts, 100/200 ms backoff; exit 12 retains the previous file untouched.
+attempts, minimum 100/200 ms movement-only backoff; exit 12 retains the previous
+file untouched on movement-only exhaustion. The current §5 table resolves mixed
+refusals (terminal > rate limiting > movement), uses ordinal minimum waits,
+reserves 13 for post-rename durability failure and 14 for lock-contention skip.
 Snapshots require `consistency:"bracketed"`; missing, unknown and `witnessed`
 are invalid in v1. Hidden A→B→A cannot be detected: labels and observe-journal
 closures never enter enforcement state. §4's witness gate stays for (a) and
@@ -82,5 +85,13 @@ inventory and require `TestFixtureInventory` to fail with
 `required fixture inventory mismatch`; restore and rerun green.
 `TestFixtureDecoderControls`, `TestUpstreamBounds` and
 `TestReflectionRepresentations` each pair refusal controls with valid inputs.
+`TestSnapshotDomainControls` rejects impossible sequences as domain errors, not
+helper exit 11. `TestSnapshotFixtureEnums` checks closed stage/failure enums and
+explicit rename facts. `TestUpstreamCapFixtures` proves every shared cap+1 body
+is valid JSON and differs from its at-cap positive only by one whitespace byte.
+Snapshot outcome inputs now include protected config, per-read requests,
+wire-string middle replies, bracket refusals and explicit rename state. The
+complete control contains both configured name and seal reads. Pure configured
+name/seal omissions have a complete multi-record label control.
 These remain contract oracles, not operating-system, live-node or publication
 fault-injection qualification.

@@ -43,7 +43,7 @@ A changed head still requires Source's delta acceptance and the review of record
 | Q4 | S-r1 accepted part (B) for helper build; HELPER-B r3 accepted bracketed observe-only amendment. Fix 1 adds seal metadata/states and exact byte/binding rules, needing Source's new-head acceptance. Missing confirmed names prevent whole-file publication (exit 11, old file ages); file alone cannot distinguish vanished name/helper failure. Static watch set requires root reconfiguration after a list adds seals; incomplete sets label invalid. D29 adoption needs its own head. |
 | Q5 | S-r1 Q5: 30-second heartbeat/60-second observe labels accepted. Requested block-header Tip.time added to all successes and snapshot. Default lag 7200 s is consumer policy, not gateway policy; (b)-only has no independent live tip and never labels fresh. Normative §§3–5; changed-head acceptance pending. |
 | Q6 | I-Q367 Q6: install settings proposed in INSTALL PROFILE, with S8 accounts list/GO and socket-parent provisioning decision still required. Answer closed as proposal, not install approval. |
-| Q7 | Owner F1/F2 supersedes gateway-cookie proposal: gateway verifier user only, enumerated five-method rpcwhitelist; Verifier-only deployments never use a cookie. Helper normally uses its own verifier user. Only explicitly configured same-host Linux root helper may read the fresh node-owned cookie, or an independently admitted restart-synchronized root copy under §2 custody; no gateway/agent access or fallback. Root oneshot/flock/atomic publication remain. Cookie exception is broader authority, not a least-privilege claim; rotation/copy qualification and S8 GO remain required. |
+| Q7 | Owner F1/F2 supersedes gateway-cookie proposal: gateway verifier user only, enumerated five-method rpcwhitelist; verifier-only deployments never use a cookie. Helper normally uses its own verifier user. Only explicitly configured same-host Linux root helper may read the fresh node-owned cookie, or an independently admitted restart-synchronized root copy under §2 custody; no gateway/agent access or fallback. Root oneshot/flock/atomic publication remain. Cookie exception is broader authority, not a least-privilege claim; rotation/copy qualification and S8 GO remain required. |
 | Q9 | S-r1 Q9: confirmed SH3/4/5/6 and O3.4–O3.6; deep-reorg false refusal approximation and Draft/co-author status preserved. Normative §4. |
 
 ## Current contract corrections
@@ -75,10 +75,14 @@ The INSTALL PROFILE is an attributed proposal under S8 GO, never installed code.
 
 ## Accepted HELPER-B r3 amendment
 
-Source acceptance event `$Omp4AzWq`, backed by the lead in the supplied brief,
+The consumer acceptance event, backed by the lead in the supplied brief,
 authorizes §5 ordinary RPC bracketing for OBSERVE ONLY. Complete Tip equality,
-three attempts with 100/200 ms backoff, untouched previous file and exit 12 on
-exhaustion, and required closed `consistency:bracketed` are normative. V1
+three attempts with minimum 100/200 ms movement-only backoff, untouched previous
+file and exit 12 on movement-only exhaustion, and required closed
+`consistency:bracketed` are normative. The current §5 table supersedes ambiguous
+mixed-refusal wording: terminal > rate limiting > movement > success; rate
+limiting uses minimum 1000 ms waits and exhaustion 11. Directory durability
+failure after rename is 13; benign lock contention is 14. V1
 rejects `witnessed` as invalid; it cannot be self-asserted. Bracketed closures
 belong only to an observe journal, never enforcement state. Neither a bracketed
 snapshot nor a witnessed gateway read creates an enforcement closure; only
@@ -123,6 +127,43 @@ the earlier list below, it must adopt ALL of the following before conformance:
 - Fake-upstream, platform/config, middle-evidence/refusal, cap/depth, reflection
   and per-publication-stage failure controls bound to its REAL entry points;
   adopt the accepted exact contract/fixture head and rerun its own full suite.
+
+## Fix 3 delta-review dispositions and remaining owner items
+
+The six blocking findings are addressed in the contract and shared oracles:
+Opus R1 (neutral Linux-only annex), R2 (pure missing-name/seal labels beside a
+complete multi-record control), R3 (valid JSON at cap and cap+1); Muse R1
+(disjoint mixed-evidence precedence, ordinal waits and bracket refusals), R2
+(domain errors distinct from exits, closed enums, explicit rename), R3 (complete
+configured reads, per-request correlation and wire-invalid middle replies).
+These changes preserve F1–F12, N1–N8, Linux-only v1 and the non-witness ruling;
+no fake fixture is live qualification or consumer exact-head acceptance.
+
+Non-blocking references are tracked individually; unchosen policy remains the
+owner's, not an implicit local acceptance:
+
+| Review reference | Disposition / remaining decision | Gate |
+| --- | --- | --- |
+| Opus R4(i–ii) | §5 now gives post-rename durability failure exit 13 and benign lock contention 14; 11 always means previous bytes untouched. Helper adoption and supervisor acceptance of these codes remain required. | Helper/consumer acceptance |
+| Opus R4(iii), Muse R4 | Backoffs are minima by inter-attempt ordinal; helper must pace its own reservation. Real refill/token state and elapsed total/per-RPC deadlines are NOT modelled by `wait_ms`. Qualify 822-request maximal retries, refill waits, 1-second helper versus 5/6-second gateway/client deadlines under Q5; owner must approve any budget/profile revision. | Q5, no timing proof here |
+| Opus R5 | Closed in shared outcomes: wrong network/method/name/outpoint, missing/duplicate/unconfigured reads are terminal 11 before publication. Actual helper must bind this to every read. | Helper adoption |
+| Opus R6 | Domain errors do not reuse 11; closed enums, whole-invocation hash/header memory, mixed final-attempt precedence and explicit rename are pinned. | Helper mirror adoption |
+| Opus R7 | Corrected name_show allowance: 1550 + 2546 = 4096, not double-counted. | Q3/Q6 real reply size qualification |
+| Opus R8 | UID-0 fixture no longer has allow/workload overlap; 65535 and 4294967295 have isolated negatives beside Linux control. | Q6 real account checks |
+| Opus R9 | OPEN: upstream oracle lacks requested-name and protected network/genesis inputs. Add these and isolated wrong-name/chain/genesis controls in a separately accepted upstream-adapter unit; IBD and selected-float negatives are added here. Status-line/header/chunk-extension/trailer bounds need an owner-approved HTTP profile and helper changes; none is silently chosen here. | Upstream owner, Q3/Q6 |
+| Opus R10 | Confirmations-only contradiction is now isolated. OPEN: choose bounded per-hash retention/eviction and durable restart representation with the consumer owner; do not invent N or silently evict remembered evidence. Shared oracle models one configured seal and one in-memory sequence, not multi-key journal recovery. | Observe-journal/consumer owner |
+| Opus R11 | Fixed capitalization, omission-aid usage and overbroad annotation wording. OPEN: selected-mode credential-loading isolation is not modelled by the reflection oracle (which receives only one public synthetic credential); prove it at real custody entry points. Existing history-control positivity shorthand is not proof of journal persistence. | Credential implementation; fixture annotation hardening |
+| Muse R5 | OPEN: bind asserted independent-tip provenance to a same-check successful live gateway read, never a (b)-only snapshot; test at the real consumer entry point. Pin durable per-hash views together with seen_unspent and restart/multi-key behaviour with the consumer owner (Opus R10). The shared history oracle's single-seal/in-memory scope is explicit above, not a persistence claim. | Consumer/journal owner |
+| Muse R6 | IBD, selected integer float and same-hash/different-height negatives are added beside valid controls. OPEN: bound or close-without-body the startup 403 denial-probe reply, bound HTTP framing (Opus R9), and reject null in ignored upstream extensions outside the permitted envelope/result slots in the upstream oracle and real parser. No new HTTP/probe profile is selected here. | Upstream owner, Q3/Q6 |
+| Muse R7 | Scoped transport retries to gateway backend attempts, made movement different-hash only, softened annotation claim to new correction scenarios, removed deployment/session labels, and isolated pure watch-set omissions. Annotation enforcement for all legacy vectors/history positives is future hardening, not claimed here. | Legacy annotation follow-up |
+
+Fix 3 helper adoption additionally requires explicit attempt consumption on
+opening refusals, bracket correlation, complete configured per-read requests,
+wire-first validation, whole-invocation header memory, deterministic mixed
+precedence and minimum waits, separate domain errors in mirrors, actual rename
+state, exits 13/14 and updated supervisor handling. Import the new cap-boundary,
+watch-set and outcome fixtures at real entry points and rerun exact-head CI.
+Hosted CI cannot run in the producer environment and remains unverified.
 
 ## Earlier stacked helper adoption required (PR #149)
 

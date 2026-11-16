@@ -13,6 +13,12 @@ func (r *countingReader) Read(p []byte) (int, error) {
 	n := min(len(p), r.remaining)
 	for i := 0; i < n; i++ {
 		p[i] = ' '
+		if r.read+i == 0 {
+			p[i] = '{'
+		}
+		if r.read+i == 1 {
+			p[i] = '}'
+		}
 	}
 	r.remaining -= n
 	r.read += n
@@ -24,7 +30,7 @@ func TestUpstreamBounds(t *testing.T) {
 	for method, b := range upstreamBounds {
 		t.Run(method, func(t *testing.T) {
 			// Claim: a cap-byte body is read completely, but an overflowing stream consumes only cap+1 bytes.
-			if raw, e := upstreamRead(strings.NewReader(strings.Repeat(" ", b.bytes)), b.bytes); e != nil || len(raw) != b.bytes {
+			if raw, e := upstreamRead(strings.NewReader("{}"+strings.Repeat(" ", b.bytes-2)), b.bytes); e != nil || len(raw) != b.bytes {
 				t.Fatalf("exact cap: %v", e)
 			}
 			r := &countingReader{remaining: b.bytes * 4}

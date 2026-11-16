@@ -217,7 +217,7 @@ refusal. Framing checks precede JSON/schema checks.
 | Explicit root-helper reservation | Separate 512-token burst, 128/s refill, 16 frame slots and 16 active slots, unavailable to agents/unlisted root. Never consumes an agent share. Root client paces at or below these bounds. |
 | Accepted connections | At most 66: 8 × (2 frame + 2 active), 32 root-helper and 2 unauthorized; unused reserved slots are not borrowed. At capacity close immediately; clients treat no response as unavailable. Kernel backlog is not an admitted queue. |
 | Deadlines | Frame plus EOF: 1 second from accept. Each upstream attempt: at most 1 second. Entire server request including retries/write: 5 seconds from accept; write: at most 1 second within that total. Client total: 6 seconds from connect. |
-| Retries | At most 3 read attempts total, only for moved tip, within the same deadline. No unbounded loop or cached-success fallback. |
+| Gateway read retries | At most 3 backend read attempts per gateway request, only for moved tip, within the same deadline. This is distinct from §5 helper collection retries (which also handle rate limiting). No unbounded loop or cached-success fallback. |
 
 Peer credentials are obtained immediately at accept to select the pre-auth
 bucket/compartment; unreadable credentials use the unauthorized compartment.
@@ -283,7 +283,7 @@ in selected integer fields. No canonical-byte requirement is imposed upstream.
 | `getblockchaininfo` | 8192 / 4 | chain, IBD, 64-hex best hash and safe height are <256 bytes; 7936 bytes for bounded Core metadata |
 | `getblockhash` | 256 / 1 | 64-hex scalar result plus <=190 bytes for envelope/spacing |
 | `getblockheader` (verbose=true) | 4096 / 4 | hash, height, time <256 bytes; 3840 bytes for bounded header metadata |
-| `name_show` | 4096 / 4 | hex name <=510 and value <=1040, txid/index/height/expiry and envelope <2546 bytes; 1550 bytes for bounded metadata |
+| `name_show` | 4096 / 4 | hex name <=510 and value <=1040 (1550 bytes); 2546 bytes for txid/index/height/expiry, envelope and bounded metadata |
 | `gettxout` (each fixed view) | 32768 / 5 | script hex <=20000, bestblock/confirmations <256; 12512 bytes for envelope/script metadata |
 
 These are upstream bounds, not permission to exceed the 4096-byte public
@@ -630,35 +630,51 @@ also match the bracket Tip. A different hash/height anywhere discards the whole
 attempt as movement, even when the brackets are equal. A single hash with
 conflicting height/time is backend inconsistency, NOT movement. Missing witnesses
 in ordinary direct-RPC replies do not establish coherence; §5 stays bracketed.
-N=3 total collection attempts, with 100 ms then 200 ms movement backoff. No
-record from a discarded attempt survives. The following is the ONE helper
-classification table; terminal failures override movement, and an elapsed total
-deadline overrides retries. There is never a partial/best-effort publication or
+N=3 total collection attempts. Starting an opening bracket consumes an attempt,
+even if that read refuses. After an opening refusal do not issue middle or
+closing reads; after a closing refusal discard all collected records. Refusals
+on either bracket follow the SAME classification as middle-read refusals.
+A successful collection requires exactly one correlated reply per configured
+name and outpoint: no duplicate, missing or unconfigured reads. Every successful
+reply, including each bracket reply, MUST match protected network and its own
+request's method and name/outpoint echo BEFORE using any field.
+
+Retry precedence is total: terminal failure (including deadline, wire/schema,
+correlation or completeness failure) overrides rate limiting, which overrides
+movement, which overrides success. The table below partitions these states;
+"only" excludes all higher-precedence evidence. Same-hash header contradictions
+are terminal across the ENTIRE invocation, not just within one attempt.
+For retry after attempt ordinal 1 or 2, movement-only waits at least 100 or
+200 ms respectively; ANY rate limiting waits at least 1000 ms, even when mixed
+with movement. The ordinal counts all attempts, not just movement events.
+These are minima: the root client MUST also pace to its own reservation tokens
+and active slots before each read/attempt, within the unchanged total deadline.
+It must not induce `rate_limited` by overrunning its own reservation. Q5 must
+qualify maximal-set pacing; fixed backoff alone cannot do that.
+No record from a discarded attempt survives. The following is the ONE helper
+classification table. There is never a partial/best-effort publication or
 invented timestamp. Missing expected file means unavailable for observation.
 
 ### Helper outcome classification
 
 | Event/stage | Action and final exit | Published path |
 | --- | --- | --- |
-| Complete equal brackets and all known middle Tips/bestblocks match; all persistence stages succeed | Publish, 0 | New complete file |
-| Bracket or middle Tip/bestblock hash/height differs; gateway `tip_moved` on ANY read | Discard whole attempt, movement backoff 100/200 ms; after attempt 3 exit 12 | Previous untouched |
-| Same hash with different height/time, malformed/invalid response or projection | Terminal read failure, 11 | Previous untouched |
-| Gateway `unavailable`, `not_found`, `malformed`, `unauthorized` | Terminal read failure, 11 (not_found never means seal absence) | Previous untouched |
-| Gateway `rate_limited` | Discard attempt; wait at least 1 second within same 3-attempt/20-second budget; if exhausted exit 11, not 12 | Previous untouched |
-| RPC, collection or backoff timeout; authentication/platform failure | Terminal failure, 11 | Previous untouched |
-| Lock contention or lock open/validation/acquisition error | No waiting invocation, 11 | Previous untouched |
-| Bad config, UID/namespace/bind overlap, unsafe ancestry or installed inputs | Terminal failure, 11 | Previous untouched |
-| Projection, serialization or count/65536-byte overflow | Terminal failure, 11 | Previous untouched |
-| Recognized-temp inspection/removal failure; ancestor creation/sync failure | Terminal failure, 11 | Previous untouched |
-| Temp create, write/short-write, validation, ownership/mode, file fsync or close failure | Stop; remove only own validated temp, 11 | Previous untouched |
-| Rename failure | Remove only own validated temp, 11 | Previous untouched |
-| Directory open/fsync/close failure AFTER successful rename | Report durability failure, 11; NEVER roll back/unlink final file | New complete file visible; crash recovery may select old or new |
-| Own-temp cleanup failure on any pre-rename error | Remain 11; do not broaden deletion scope or rename | Previous untouched |
+| Terminal collection evidence: deadline/RPC/backoff timeout, authentication/platform failure, same hash with different height/time, wire/schema/projection failure, missing/duplicate/unconfigured read, wrong network/method/name/outpoint echo, or `unavailable`/`not_found`/`malformed`/`unauthorized` on ANY read; regardless of retryable evidence | Terminal failure, 11; not_found never means seal absence | Previous untouched |
+| No terminal evidence; `rate_limited` on ANY read, with OR without different-hash Tip/bestblock or `tip_moved` evidence | Discard attempt; wait >=1000 ms before next attempt; after attempt 3 exit 11 | Previous untouched |
+| Movement only: different-hash bracket/middle Tip/bestblock or `tip_moved` on ANY read, with NO terminal or rate-limit evidence | Discard attempt; wait >=100/200 ms by inter-attempt ordinal; after attempt 3 exit 12 | Previous untouched |
+| No terminal, rate-limit or movement evidence: complete equal brackets and all known middle Tips/bestblocks match | Proceed to persistence; if all stages succeed, publish, 0 | New complete durable file on success |
+| Before collection: lock contention only | No waiting invocation; benign skip, 14 | Previous untouched |
+| Before collection: lock open/validation/acquisition error (not contention), bad config, UID/namespace/bind overlap, unsafe ancestry or installed inputs | Terminal failure, 11 | Previous untouched |
+| After successful collection, before rename: serialization or count/65536-byte overflow; recognized-temp inspection/removal, ancestor creation/sync, temp create/write/short-write/validation/ownership/mode/fsync/close, or rename failure | Stop; remove only own validated temp, 11; cleanup failure remains 11 and never broadens deletion scope | Previous untouched |
+| AFTER explicit successful rename: directory open/fsync/close failure | Durability unconfirmed, 13; NEVER roll back/unlink final file | New complete file visible; crash recovery may select old or new |
 
-Exit 12 is reserved for movement at the third attempt; rate limiting at that
-attempt yields 11. Exit 0 requires directory durability. Each failed record
-read follows this table, never fabricates presence or absence. All pre-rename
-branches leave previous published bytes untouched.
+Exit meanings are disjoint: 0 = durable publication; 11 = unsuccessful invocation
+with previous bytes untouched (including rate-limit exhaustion); 12 = movement-only
+exhaustion with previous bytes untouched; 13 = renamed but directory durability
+unconfirmed; 14 = lock-contention skip with no reads or writes. Exit 0 requires
+directory durability. Each failed read follows this table, never fabricates
+presence or absence. All pre-rename branches leave previous published bytes
+untouched. Oracle-domain errors are NOT helper exits and cannot be expected as 11.
 
 `consistency` is REQUIRED with a CLOSED set. V1 writers produce `"bracketed"`
 only, and the v1 consumer accepts EXACTLY `"bracketed"`. Any other value,
@@ -677,8 +693,8 @@ closure. §4's coherent-read witness requirement stays IN FULL for gateway (a);
 it does not make a gateway-backed reader a mempool-first closure witness.
 Ordinary bracketing does not claim coherent per-read chain state or an atomic
 multi-record mempool snapshot; observations can differ even at the same Tip.
-These requirements are Source's acceptance points ($Omp4AzWq), accepted by the
-consumer and backed by the lead in the HELPER-B r3 amendment.
+These requirements are the consumer's acceptance points, backed by the lead in
+the HELPER-B r3 amendment.
 
 Publication: create a fresh same-directory temp file named `.snapshot-` plus
 24 random lowercase hex characters, with O_EXCL and no symlink following, mode 0600; write all bytes and validate; set root ownership and 0644;
@@ -686,7 +702,7 @@ fsync file; atomically rename over the configured final file; fsync containing
 directory. Sync newly created ancestors before use. Serialize writers; on a
 pre-rename error remove only that writer's validated temp file and retain old
 published bytes, using the classification table above. After rename, a directory
-failure cannot promise the old path: return 11 without rollback. A crash after
+failure cannot promise the old path: return 13 without rollback. A crash after
 rename before directory fsync may recover either old or new complete snapshot;
 publication durability is not claimed until directory sync succeeds. On a later
 run, while holding the exclusive writer lock, clean only recognized helper temp
@@ -753,7 +769,8 @@ Observe-grade closures remain labels and never feed that flag. These are
 fixture-oracle labels, not new wire fields. `utxo_views` inputs model selected
 upstream fields at an already coherent instant; they do not supply a witness.
 
-Fixture inputs have required claim/control annotations and an exact checked-in
+New correction scenarios carry claim/control annotations; legacy inputs need not.
+All inputs have an exact checked-in
 name/kind inventory (`fixtures/inventory.txt`): deletion or renaming fails even
 if the remaining scenarios pass. Fixture readers reject trailing data and unknown
 or mistyped inner configuration/Tip/history fields. Wire-string collection and
@@ -762,6 +779,18 @@ used; invalid responses refuse unavailable-class with no new closure. Labels
 carry explicit `enforceable:false` independent of freshness. Label inputs include
 `live_tip_source` (`independent`, `none`, `self`) and `lag_seconds`; a self-derived
 Tip is never independent, even when byte-identical.
+
+Snapshot outcome inputs carry protected `config`, per-attempt `requests` and
+`replies` (or exact `reply_wires`), plus opening/closing Tips or gateway replies.
+An opening refusal consumes one attempt without later reads. Successful
+publication requires the complete configured set with one reply per request.
+`stage` and `failure` are closed enums; `failure` is timeout, authentication or
+platform. Stage fixtures explicitly carry `renamed` and, except early lock/config
+failures, successful collection evidence. A directory-stage label alone proves
+no rename. Unknown enums, contradictory rename facts, attempts outside 1..3,
+retry after a terminal outcome, and premature retry exhaustion are oracle-domain
+errors, never exit 11. Expected `wait_ms` records inter-attempt MINIMUM waits;
+it is not evidence of elapsed time, token availability or filesystem effects.
 
 The omission aid, adapted from the prior independent review, runs in CI as
 `python3 -B omission_analysis_test.py fixtures/vectors.json` from this module;
@@ -818,10 +847,12 @@ no real node was contacted for this contract.
   root-owned 0640 cookie copy, exclusive group swarma-chaingw. Otherwise a
   per-service RPC user with rpcauth; the verifier itself is not a client secret.
   Owner F1/F2 disposition supersedes gateway cookie access: (a) is verifier-only,
-  (b)'s same-host root-cookie exception follows §2 custody/rotation. ivmbp is
-  verifier-user-only. Endpoint kernel owner verification precedes either mode.
+  (b)'s same-host root-cookie exception follows §2 custody/rotation. Verifier-only
+  deployments never use a cookie; a host outside §2's Linux-only profile runs
+  neither credential holder in v1. Endpoint kernel owner verification precedes
+  either admitted mode.
   Exact endpoints, node/service IDs and protected ancestry are install inputs.
-- Peer UID allow-list is exactly the G1.0 W UID and a2a service-user UID from
+- Peer UID allow-list is exactly the designated workload and service-user UIDs from
   S8's accounts list, still to be posted for review; no numeric UIDs are guessed.
   Retirement removes the UID from the allow-list file, restarts and reads back
   the effective list. Reader group access alone never admits a UID.

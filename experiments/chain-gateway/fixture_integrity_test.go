@@ -70,14 +70,13 @@ func observationShape(v observation) error {
 			}
 		}
 	}
-	for _, a := range v.SnapshotAttempts {
-		if tip(a.Before) != nil || tip(a.After) != nil {
-			return bad("fixture snapshot tip")
+	if slices.Contains([]string{"bracket", "snapshot_read_failure", "snapshot_attempts", "snapshot_stage"}, v.Kind) {
+		if v.Stage != "" && v.Renamed == nil {
+			return bad("fixture missing rename fact")
 		}
-		for _, r := range a.Replies {
-			if response(r) != nil {
-				return bad("fixture snapshot reply")
-			}
+		renamed := v.Renamed != nil && *v.Renamed
+		if e := snapshotDomain(v.Config, v.SnapshotAttempts, v.Stage, renamed); e != nil {
+			return e
 		}
 	}
 	for _, h := range v.History {

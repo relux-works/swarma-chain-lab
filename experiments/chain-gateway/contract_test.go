@@ -111,6 +111,7 @@ type observation struct {
 	HistoryWires     []string            `json:"history_wires,omitempty"`
 	SnapshotAttempts []snapshotAttempt   `json:"snapshot_attempts,omitempty"`
 	Stage            string              `json:"stage,omitempty"`
+	Renamed          *bool               `json:"renamed,omitempty"`
 	Admission        *qualificationInput `json:"admission,omitempty"`
 	Upstream         *upstreamInput      `json:"upstream,omitempty"`
 	Reflection       *reflectionInput    `json:"reflection,omitempty"`
@@ -320,20 +321,13 @@ func TestObservationVectors(t *testing.T) {
 					t.Fatal("attempt result differs from shared expectation")
 				}
 			case "bracket", "snapshot_read_failure", "snapshot_attempts", "snapshot_stage":
-				attempts := v.SnapshotAttempts
-				if v.Kind == "bracket" {
-					for _, pair := range v.Attempts {
-						if len(pair) != 2 {
-							t.Fatal("bad bracket")
-						}
-						attempts = append(attempts, snapshotAttempt{Before: pair[0], After: pair[1]})
-					}
+				renamed := v.Renamed != nil && *v.Renamed
+				got, e := snapshotOutcome(v.Config, v.SnapshotAttempts, v.Stage, renamed)
+				if e != nil {
+					t.Fatal(e)
 				}
-				if v.Kind == "snapshot_read_failure" {
-					attempts = []snapshotAttempt{{Before: fixtureTip(), After: fixtureTip(), Replies: v.Responses}}
-				}
-				if got := snapshotOutcome(attempts, v.Stage); !same(got, v.Expected) {
-					t.Fatalf("snapshot verdict mismatch: got %s", wire(got))
+				if !same(got, v.Expected) {
+					t.Fatalf("snapshot verdict mismatch: got %s want %s", wire(got), wire(v.Expected))
 				}
 			case "qualification":
 				if !same(map[string]any{"available": qualificationOracle(*v.Admission)}, v.Expected) {
