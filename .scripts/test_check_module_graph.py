@@ -304,6 +304,18 @@ class FloorProvenance(unittest.TestCase):
         self.snapshot["modules"][self.later] = "v0.0.0-20200104030405-" + self.side[:12]
         self.assertEqual(self.check(), [f"snapshot: {self.later} provenance commit {self.side} is not on origin/main"])
 
+    # Claim: a module already present below the global snapshot cannot lower
+    # its floor; its exact stamp, main ancestry and module presence all pass.
+    def test_provenance_cannot_precede_snapshot(self):
+        self.assertEqual(self.check(), [])
+        self.snapshot["snapshot_commit"] = self.main
+        self.snapshot["snapshot_time"] = "20200103030405"
+        self.snapshot["modules"][self.default] = "v0.0.0-20200103030405-" + self.main[:12]
+        self.assertEqual(self.check(), [])
+        self.snapshot["module_provenance"][self.default] = {"commit": self.base, "time": "20200102030405"}
+        self.snapshot["modules"][self.default] = "v0.0.0-20200102030405-" + self.base[:12]
+        self.assertEqual(self.check(), [f"snapshot: {self.default} provenance commit {self.base} does not descend from snapshot {self.main}"])
+
     # Claim: a genuine main ancestor with matching pseudo-version is refused
     # when the module did not yet exist there; version syntax cannot invent it.
     def test_module_absent_at_commit(self):

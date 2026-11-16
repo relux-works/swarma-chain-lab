@@ -153,6 +153,9 @@ func ReadR1Value(profile R1Profile, raw []byte) (R1Value, error) {
 	if err != nil {
 		return fail()
 	}
+	if holderFormsConflict(raw) {
+		return R1Value{}, ErrHolderFormConflict
+	}
 	sk, sv, err := objectMembers(swarma)
 	if err != nil || len(sk) != 1 {
 		return fail()

@@ -71,7 +71,8 @@ def floor_violations(root, snapshot):
 
     Optional module_provenance maps existing module keys to exactly {commit,
     time}. Undeclared modules retain the global snapshot contract. Explicit
-    sources must exist on origin/main and contain the module at that source.
+    sources must descend from snapshot_commit, exist on origin/main and contain
+    the module at that source.
     """
     floors = snapshot["modules"]
     provenance = snapshot.get("module_provenance", {})
@@ -111,6 +112,11 @@ def floor_violations(root, snapshot):
                                       commit, "origin/main"], capture_output=True, text=True)
             if on_main.returncode:
                 violations.append(f"{prefix} commit {commit} is not on origin/main")
+                continue
+            above_snapshot = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor",
+                                             snapshot["snapshot_commit"], commit], capture_output=True, text=True)
+            if above_snapshot.returncode:
+                violations.append(f"{prefix} commit {commit} does not descend from snapshot {snapshot['snapshot_commit']}")
                 continue
             relative = path.removeprefix(REPO_MODULE).lstrip("/")
             manifest = (relative + "/" if relative else "") + "go.mod"

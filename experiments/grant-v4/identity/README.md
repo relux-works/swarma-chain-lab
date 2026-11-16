@@ -540,3 +540,10 @@ wire grant-vector tests report all four undetermined vectors under both
 mandatory and proposed interpretations. `tools/grantv4` independently
 checks `grant-v4.json` only. Holders-list and wire-vector assertions are
 repository tests, not claims of independent checker coverage.
+
+R7 follows LIP-0010 0.1.53 (`3bef542f`) M2 and section 10.6 step 1:
+all landlord value readers refuse both holder forms with `CLASS_HOLDER` and
+return no partial holder data. `Entries()` returns a copy in document order.
+Seraph review 5928056239 LOW 2 remains deferred: an exact fixture test for
+the specification's 676-byte example (`6d7c3e11…`) needs more than a small edit.
+The independent-checker limit in LOW 4 remains as stated above.

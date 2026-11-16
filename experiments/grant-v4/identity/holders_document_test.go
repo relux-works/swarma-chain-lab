@@ -26,7 +26,7 @@ func holderCode(err error) string {
 	return err.Error()
 }
 
-// TestHoldersDocument proves H1/H2/H5/H6/H10/H53 refuse malformed or mismatched lists with exact codes beside a valid pinned list.
+// TestHoldersDocument checks the listed malformed forms, binding mismatches, and size/hash precedence beside a valid pinned list.
 func TestHoldersDocument(t *testing.T) {
 	base := holderControl()
 	type test struct {
@@ -94,7 +94,7 @@ func TestHoldersDocument(t *testing.T) {
 	}
 }
 
-// TestHolderPins proves H8/H9 reject aliases, duplicates and noncompact pins without interpreting unrelated values.
+// TestHolderPins checks the listed aliases, duplicates and noncompact pins; one unrelated object and a nested pin do not select a pin.
 func TestHolderPins(t *testing.T) {
 	pin := holderTestPin(holderControl())
 	body := string(compactR1(pin))
@@ -238,4 +238,131 @@ func TestInlineHolders053(t *testing.T) {
 	if len(file.Values) != 28 || counts["valid"] != 9 || counts["refused"] != 19 {
 		t.Fatalf("counts: %v", counts)
 	}
+}
+
+// M2 refuses both forms without partial results in each landlord reader; the
+// same inline and pinned forms separately remain valid. No journal is read.
+func TestHolderFormsConflict(t *testing.T) {
+	inline := `{"swarma":{"landlord":{"grant":"` + holderTestKey[2:] + `","holders":["` + holderTestKey + `"]}}}`
+	pin := `"swarma-holders":` + string(compactR1(holderTestPin(holderControl())))
+	for name, read := range map[string]func([]byte) (R1Value, error){
+		"inline":   ReadInlineHolders,
+		"draft":    func(raw []byte) (R1Value, error) { return ReadR1Value(R1DraftLab, raw) },
+		"in-force": func(raw []byte) (R1Value, error) { return ReadR1Value(R1InForce051, raw) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			if v, err := read([]byte(inline)); err != nil || len(v.Holders) != 1 {
+				t.Fatal("inline control", err)
+			}
+			for _, raw := range []string{inline[:len(inline)-1] + `,` + pin + `}`, `{` + pin + `,` + inline[1:], inline[:len(inline)-1] + `,"swarma-holders":null}`} {
+				v, err := read([]byte(raw))
+				if err != ErrHolderFormConflict || v.Grant != "" || v.Holders != nil || v.Swarma != nil || v.ChannelKey != "" || v.Landlord != "" {
+					t.Fatalf("dual form returned partial result: %+v, %v", v, err)
+				}
+			}
+		})
+	}
+	t.Run("pin", func(t *testing.T) {
+		if p, err := ReadHolderPin([]byte(`{` + pin + `}`)); err != nil || p == nil {
+			t.Fatal("pin control", err)
+		}
+		if p, err := ReadHolderPin([]byte(inline)); err != nil || p != nil {
+			t.Fatal("inline selects no pin", err)
+		}
+		for _, raw := range []string{inline[:len(inline)-1] + `,` + pin + `}`, `{` + pin + `,` + inline[1:], strings.Replace(inline[:len(inline)-1]+`,`+pin+`}`, `["`+holderTestKey+`"]`, `null`, 1)} {
+			if p, err := ReadHolderPin([]byte(raw)); p != nil || err != ErrHolderFormConflict {
+				t.Fatal("dual form selected pin", p, err)
+			}
+		}
+	})
+}
+
+// Each boundary negative isolates its named guard beside a valid boundary;
+// list pins are recomputed so a hash or binding mismatch cannot mask form.
+func TestHoldersGuardBoundaries(t *testing.T) {
+	t.Run("null-holders", func(t *testing.T) {
+		base := []byte(`{"schema":"swarma-holders-list/1","network":"main","owner":"id/example","seq":3,"holders":[]}`)
+		if h, err := VerifyHoldersList(base, holderTestPin(base), "main", "id/example"); err != nil || h == nil {
+			t.Fatal("empty control", err)
+		}
+		raw := bytes.Replace(base, []byte(`[]`), []byte(`null`), 1)
+		if h, err := VerifyHoldersList(raw, holderTestPin(raw), "main", "id/example"); h != nil || err != ErrHolderListInvalid {
+			t.Fatal("null admitted", err)
+		}
+	})
+	t.Run("list-seq", func(t *testing.T) {
+		for _, seq := range []uint64{9007199254740991, 9007199254740992} {
+			raw := bytes.Replace(holderControl(), []byte(`"seq":3`), []byte(fmt.Sprintf(`"seq":%d`, seq)), 1)
+			pin := holderTestPin(raw)
+			pin.Seq = seq
+			h, err := VerifyHoldersList(raw, pin, "main", "id/example")
+			if seq == 9007199254740991 {
+				if err != nil || h == nil {
+					t.Fatal("max seq control", err)
+				}
+			} else if h != nil || err != ErrHolderListInvalid {
+				t.Fatal("oversize seq admitted", err)
+			}
+		}
+	})
+	t.Run("pin-seq", func(t *testing.T) {
+		for _, seq := range []uint64{9007199254740991, 9007199254740992} {
+			raw := []byte(fmt.Sprintf(`{"swarma-holders":{"seq":%d,"sha256":"%s"}}`, seq, holderTestPin(holderControl()).SHA256))
+			pin, err := ReadHolderPin(raw)
+			if seq == 9007199254740991 {
+				if err != nil || pin == nil || pin.Seq != seq {
+					t.Fatal("max seq control", err)
+				}
+			} else if pin != nil || err != ErrHolderPinInvalid {
+				t.Fatal("oversize pin seq admitted", err)
+			}
+		}
+	})
+	t.Run("pin-hash", func(t *testing.T) {
+		base := `{"swarma-holders":{"seq":3,"sha256":"%s"}}`
+		for _, bad := range []string{strings.Repeat("ab", 31), strings.Repeat("ab", 33), strings.Repeat("AB", 32), strings.Repeat("gg", 32)} {
+			if p, err := ReadHolderPin([]byte(fmt.Sprintf(base, strings.Repeat("ab", 32)))); p == nil || err != nil {
+				t.Fatal("hash control", err)
+			}
+			if p, err := ReadHolderPin([]byte(fmt.Sprintf(base, bad))); p != nil || err != ErrHolderPinInvalid {
+				t.Fatal("invalid hash admitted", err)
+			}
+		}
+	})
+	t.Run("pin-bytes", func(t *testing.T) {
+		base := `{"swarma-holders":` + string(compactR1(holderTestPin(holderControl()))) + `,"padding":""}`
+		for _, size := range []int{520, 521} {
+			raw := []byte(strings.Replace(base, `"padding":""`, `"padding":"`+strings.Repeat("x", size-len(base))+`"`, 1))
+			if len(raw) != size {
+				t.Fatal("bad size fixture")
+			}
+			p, err := ReadHolderPin(raw)
+			if size == 520 {
+				if err != nil || p == nil {
+					t.Fatal("520 control", err)
+				}
+			} else if p != nil || err != ErrHolderPinInvalid {
+				t.Fatal("oversize pin admitted", err)
+			}
+		}
+	})
+	t.Run("max-vout", func(t *testing.T) {
+		raw := bytes.Replace(holderControl(), []byte(`"vout":0`), []byte(`"vout":4294967295`), 1)
+		h, err := VerifyHoldersList(raw, holderTestPin(raw), "main", "id/example")
+		if err != nil || h == nil {
+			t.Fatal("max vout control", err)
+		}
+		entries := h.Entries()
+		if len(entries) != 1 || entries[0].Seal.Vout != 4294967295 {
+			t.Fatal("entries mismatch")
+		}
+		entries[0].Name = "changed"
+		if h.Entries()[0].Name != "id/example-agent" {
+			t.Fatal("entries alias internal storage")
+		}
+		raw = bytes.Replace(raw, []byte(`4294967295`), []byte(`4294967296`), 1)
+		if h, err := VerifyHoldersList(raw, holderTestPin(raw), "main", "id/example"); h != nil || err != ErrHolderListInvalid {
+			t.Fatal("oversize vout admitted", err)
+		}
+	})
 }

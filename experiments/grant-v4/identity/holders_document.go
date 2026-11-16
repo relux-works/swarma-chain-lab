@@ -22,6 +22,7 @@ func ReadInlineHolders(raw []byte) (R1Value, error) {
 }
 
 var (
+	ErrHolderFormConflict = errors.New("CLASS_HOLDER")
 	ErrHolderPinInvalid   = errors.New("HOLDER_PIN_INVALID")
 	ErrHolderListInvalid  = errors.New("HOLDER_LIST_INVALID")
 	ErrHolderListMismatch = errors.New("HOLDER_LIST_MISMATCH")
@@ -61,6 +62,9 @@ type HoldersList struct {
 }
 
 func (h *HoldersList) Bytes() []byte { return bytes.Clone(h.raw) }
+
+// Entries returns an owned copy in the document's ascending name order.
+func (h *HoldersList) Entries() []HolderEntry { return append([]HolderEntry(nil), h.entries...) }
 func (h *HoldersList) Entry(name string) (HolderEntry, bool) {
 	for _, e := range h.entries {
 		if e.Name == name {
@@ -120,11 +124,42 @@ func holderObject(raw []byte) ([]string, []string, []json.RawMessage, error) {
 	return names, written, values, nil
 }
 
-// ReadHolderPin reads H8/H9 only. A nil pin without error means the exact
-// member is absent: H7 lists no name. Other top-level values are uninterpreted.
+// holderFormsConflict detects the presence of both forms, regardless of their
+// contents. M2 grants no holder by either form, even if one form is malformed.
+func holderFormsConflict(raw []byte) bool {
+	keys, values, _ := objectMembers(raw)
+	inline, pinned := false, false
+	for i, key := range keys {
+		if key == "swarma-holders" {
+			pinned = true
+		}
+		if key != "swarma" {
+			continue
+		}
+		names, bindings, _ := objectMembers(values[i])
+		for j, name := range names {
+			if name != "landlord" {
+				continue
+			}
+			members, _, _ := objectMembers(bindings[j])
+			for _, member := range members {
+				if member == "holders" {
+					inline = true
+				}
+			}
+		}
+	}
+	return inline && pinned
+}
+
+// ReadHolderPin reads M2 and H8/H9. A nil pin without error means the exact
+// member is absent: H7 lists no name. Other members do not select a pin.
 func ReadHolderPin(raw []byte) (*HolderPin, error) {
 	if len(raw) > 520 {
 		return nil, ErrHolderPinInvalid
+	}
+	if holderFormsConflict(raw) {
+		return nil, ErrHolderFormConflict
 	}
 	// Top-level unrelated duplicate names do not select a holders pin. The
 	// existing name-value reader separately applies its own binding rules.
