@@ -21,7 +21,8 @@ env:
 
 jobs:
   notary-checker-service:
-    runs-on: ubuntu-22.04
+    # systemd >= 250 verifies the install-pack units in an unprivileged offline root.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:

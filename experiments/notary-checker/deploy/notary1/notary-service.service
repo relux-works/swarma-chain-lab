@@ -1,0 +1,63 @@
+[Unit]
+# Identify the fixed regtest laboratory signing service.
+Description=Notary service v0.1.1 regtest laboratory
+# Wait for the node's authenticated ExecStartPost readiness check.
+After=namecoind-regtest.service
+# Refuse startup when the node cannot start, and stop when the node is stopped.
+Requires=namecoind-regtest.service
+# Propagate explicit node stop/restart so the runtime cookie is refreshed on restart.
+PartOf=namecoind-regtest.service
+
+[Service]
+# Track the executable directly without a daemonizing wrapper.
+Type=exec
+# Run the signer and cookie-copy operation as the isolated service UID.
+User=notary-service
+# Keep private files in the service's own primary group.
+Group=notary-service
+# Allow reading only the node's group-readable runtime cookie, not its state directory.
+SupplementaryGroups=namecoin-cookie
+# Resolve any incidental relative operations inside the protected service state directory.
+WorkingDirectory=/var/lib/notary-service
+# Make an ephemeral, service-owned credential staging directory.
+RuntimeDirectory=notary-service
+# Prevent other accounts from traversing the staged credential directory.
+RuntimeDirectoryMode=0700
+# Copy without printing secrets, obtaining exactly the service-owned 0600 file required by v0.1.1.
+ExecStartPre=/usr/bin/install -m 0600 /run/namecoind-regtest/.cookie /run/notary-service/rpc.cookie
+# Launch only the release-verified root-owned executable and the reviewed complete config.
+ExecStart=/opt/notary-service/v0.1.1/notary-service serve -config /etc/notary-service/service.json
+# Leave failure diagnosis and restart to the authorized operator.
+Restart=no
+# Bound shutdown; runtime key clearing still depends on normal process shutdown.
+TimeoutStopSec=30
+# Keep every newly created file private by default.
+UMask=0077
+# Prevent executable-based privilege acquisition.
+NoNewPrivileges=yes
+# Keep executable, config and persistent key directories read-only inside the service.
+ProtectSystem=strict
+# Hide home directories; this service has no general-purpose home.
+ProtectHome=yes
+# Isolate temporary files from other services.
+PrivateTmp=yes
+# Deny access to host devices beyond the minimal private device set.
+PrivateDevices=yes
+# Permit only IPv4 and Unix sockets used by this loopback deployment.
+RestrictAddressFamilies=AF_INET AF_UNIX
+# Admit only IPv4 loopback for the HTTP listener and node RPC.
+IPAddressAllow=127.0.0.1
+# Deny all other IP traffic, including IPv6.
+IPAddressDeny=any
+# Drop every Linux capability.
+CapabilityBoundingSet=
+# Only the ephemeral cookie copy is writable; the signing key is read-only at runtime.
+ReadWritePaths=/run/notary-service
+# Prevent execution-personality changes.
+LockPersonality=yes
+# Use the system service syscall baseline; verify it on the target kernel.
+SystemCallFilter=@system-service
+
+[Install]
+# Enable only through the authorized installation step.
+WantedBy=multi-user.target
