@@ -49,7 +49,7 @@ func NewNodeNameReader(endpoint, credentialFile string) (*NodeNameReader, error)
 	if !ok || len(user) == 0 || len(password) == 0 || bytes.ContainsAny(cred, "\r\n") {
 		return nil, refuse("NODE_CREDENTIALS")
 	}
-	return &NodeNameReader{endpoint: endpoint, user: string(user), password: rpcPassword{value: string(password)}, ctx: context.Background(), client: &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{Proxy: nil, MaxConnsPerHost: 32, MaxIdleConnsPerHost: 4}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	return &NodeNameReader{endpoint: endpoint, user: string(user), password: newRPCPassword(password), ctx: context.Background(), client: &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{Proxy: nil, MaxConnsPerHost: 32, MaxIdleConnsPerHost: 4}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func loopback(s string) bool { ip := net.ParseIP(s); return ip != nil && ip.IsLoopback() }
 

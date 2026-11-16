@@ -282,21 +282,34 @@ separate smaller caps. Service config and deployment policy retain their own
 
 ### N6 RPC password diagnostic boundary
 
-The RPC password is retained in `rpcPassword`, loaded directly from trimmed
-credential-file bytes; the temporary read buffer is cleared after loading.
-The holder and `NodeNameReader` redact all fmt verbs, JSON and text output in
-both value and pointer forms. The enclosing reader needs its own formatter
-because fmt reflection does not call formatters on unexported fields.
-`rpcPassword.Reveal` has one call site, the existing `SetBasicAuth` call; this
-changes no RPC request body or Authorization bytes. This is diagnostic
-redaction, not secure memory or protection from a compromised process.
+The RPC password is retained behind a private `*string` in `rpcPassword`,
+following the scalar-pointer pattern in `single-use/payloadbootstrap/codec`.
+`newRPCPassword` makes the single password-bytes-to-string conversion; the
+file read buffer is cleared after loading. The holder and `NodeNameReader`
+redact ordinary fmt, JSON and text output in value, pointer and context-copy
+forms. Bad-verb diagnostics such as `%p` on a value and `%w` bypass formatting
+methods; scalar-pointer storage keeps those paths, unexported containers and
+containing services from printing the password (an address may be printed).
+The reader's `MarshalText` also supplies JSON redaction, so it needs no separate
+`MarshalJSON` method. This protects diagnostic output, not process memory.
 
-`TestRPCPasswordRedaction` pairs nonempty controls with the requested fmt verbs,
-JSON and text. `TestRPCPasswordWireAndErrors` captures exact Basic Auth and RPC
-body bytes at a fake loopback server and checks fixed RPC/transport refusals;
-`TestRPCPasswordCredentialErrors` checks malformed file content without a
-partial reader. The existing `scripts/check-mutants.py` command also removes
-holder fmt and JSON redaction separately and requires their named tests to fail.
+The sole `Reveal` call in production is the existing `SetBasicAuth` call;
+RPC request and Authorization bytes stay unchanged. The holder remains in
+notarycheck: the inventory guard counts `Reveal` calls, not direct same-package
+field access. This is a call-site claim, not an enforced package-access boundary.
+
+`TestRPCPasswordRedaction`, `TestRPCPasswordContainers` and the real
+`TestRPCPasswordServiceContainer` cover the listed fmt/encoding sinks, including
+method-bypassing diagnostics and a slog text handler. The text control uses a
+real XML encoder, and missing text methods fail by a named assertion.
+`TestRPCPasswordWireAndErrors` checks parsed user/password fields as well as
+exact Basic Auth and RPC body bytes, first-colon/Unicode-space neighbors and
+fixed RPC/transport refusals. `TestRPCPasswordCredentialErrors` pairs an
+accepted 4096-byte file with an exact 4097-byte refusal and refuses interior
+CR/LF and an empty first-colon user without a partial reader.
+`scripts/check-mutants.py` exercises holder fmt/JSON/text redaction, inline
+storage reversion (killed by the holder `%p` test), reader text removal and the
+reviewer's R1–R4 parsing/boundary controls; each requires its named failure.
 
 Inventory audit: the root credential-output guard records exactly one new
 `Reveal` call at `NodeNameReader.rpc`. Its existing carrier-name rules do not

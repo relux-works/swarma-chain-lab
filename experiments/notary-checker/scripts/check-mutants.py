@@ -86,6 +86,13 @@ def main():
     cases = list(CASES) + [
       ('rpc-password-format','password.go',None,'TestRPCPasswordRedaction/fmt/holder/value/%v','password holder formatting always redacts'),
       ('rpc-password-json','password.go',None,'TestRPCPasswordRedaction/json/holder/value','password holder JSON always redacts'),
+      ('rpc-password-inline','password.go',None,'TestRPCPasswordRedaction/fmt/holder/value/%p','scalar-pointer storage blocks method-bypassing fmt diagnostics'),
+      ('rpc-password-text','password.go',None,'TestRPCPasswordRedaction/text/holder/value','holder text consumer redacts'),
+      ('rpc-reader-text','password.go',None,'TestRPCPasswordRedaction/text/reader/value','reader retains TextMarshaler without an assertion panic'),
+      ('rpc-password-first-colon','node.go',None,'TestRPCPasswordWireAndErrors/multiple-colons','reviewer R1: first-colon fields, not only equivalent Basic Auth'),
+      ('rpc-password-cap','node.go',None,'TestRPCPasswordCredentialErrors/cap-4096','reviewer R2: full 4096-byte positive remains accepted'),
+      ('rpc-password-cr','node.go',None,'TestRPCPasswordCredentialErrors/interior-cr','reviewer R3: interior CR refuses without a partial reader'),
+      ('rpc-password-unicode-trim','node.go',None,'TestRPCPasswordWireAndErrors/unicode-space','reviewer R4: Unicode edge space is trimmed like base'),
       ('lexical','encoding.go',None,'TestVectors/negative-contract-escape','no normalization of signed string spelling'),
       ('notary-value','name.go',None,'TestVectors/negative-notary-key','notary key must be a curve point'),
       ('row-selection','check.go',None,'TestVectors/negative-other-row-executor','ordinal selects its own row'),
@@ -123,9 +130,27 @@ def main():
                 # an implementation trusting an undesignated name would do.
                 source = source.replace('if designated == nil {', 'if designated == nil {\n designated = &pd.Notaries[0]')
         elif name == 'rpc-password-format':
-            source = source.replace('func (rpcPassword) Format(', 'func (p rpcPassword) Format(', 1).replace('io.WriteString(s, credentialRedacted)', 'io.WriteString(s, p.value)', 1)
+            source = source.replace('func (rpcPassword) Format(', 'func (p rpcPassword) Format(', 1).replace('io.WriteString(s, credentialRedacted)', 'io.WriteString(s, *p.value)', 1)
         elif name == 'rpc-password-json':
-            source = source.replace('func (rpcPassword) MarshalJSON() ([]byte, error)', 'func (p rpcPassword) MarshalJSON() ([]byte, error)').replace('return []byte(`"[REDACTED]"`), nil', 'return []byte(`"` + p.value + `"`), nil', 1)
+            source = source.replace('func (rpcPassword) MarshalJSON() ([]byte, error)', 'func (p rpcPassword) MarshalJSON() ([]byte, error)').replace('return []byte(`"[REDACTED]"`), nil', 'return []byte(`"` + *p.value + `"`), nil', 1)
+        elif name == 'rpc-password-inline':
+            source = source.replace('type rpcPassword struct{ value *string }', 'type rpcPassword struct{ value string }')
+            source = source.replace('return rpcPassword{value: &value}', 'return rpcPassword{value: value}')
+            source = source.replace('\tif p.value == nil {\n\t\treturn ""\n\t}\n\treturn *p.value', '\treturn p.value')
+        elif name == 'rpc-password-text':
+            source = source.replace('func (rpcPassword) MarshalText()', 'func (p rpcPassword) MarshalText()', 1).replace('return []byte(credentialRedacted), nil', 'return []byte(*p.value), nil', 1)
+        elif name == 'rpc-reader-text':
+            source, count = re.subn(r'func \(NodeNameReader\) MarshalText\(\) \(\[\]byte, error\) *\{[^\n]+\}\n', '', source)
+            if count != 1:
+                raise RuntimeError('reader text mutation did not apply exactly once')
+        elif name == 'rpc-password-first-colon':
+            source = source.replace('user, password, ok := bytes.Cut(cred, []byte(":"))', "i := bytes.LastIndexByte(cred, ':'); user, password, ok := cred, []byte(nil), i >= 0; if ok { user, password = cred[:i], cred[i+1:] }")
+        elif name == 'rpc-password-cap':
+            source = source.replace('len(raw) > 4096', 'len(raw) > 4000')
+        elif name == 'rpc-password-cr':
+            source = source.replace('bytes.ContainsAny(cred, "\\r\\n")', 'bytes.ContainsAny(cred, "\\n")')
+        elif name == 'rpc-password-unicode-trim':
+            source = source.replace('cred := bytes.TrimSpace(raw)', 'cred := bytes.Trim(raw, " \\t\\r\\n\\v\\f")')
         elif name == 'lexical':
             start = source.index('func decode(')
             end = source.index('\nfunc sorted', start)
