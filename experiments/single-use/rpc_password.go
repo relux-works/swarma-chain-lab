@@ -45,7 +45,7 @@ func (p RPCPassword) Valid() bool {
 	return p.ValidLength(16, 256)
 }
 
-// SetBasicAuth centralizes the sole legitimate reveal, including route users
+// SetBasicAuth centralizes the sole RevealForBasicAuth call, including route users
 // that provide their own RPC transport. It never returns or retains plain text.
 func (p RPCPassword) SetBasicAuth(r *http.Request, username string) {
 	r.SetBasicAuth(username, p.RevealForBasicAuth())

@@ -4,10 +4,11 @@ PLAIN-SECRETS-2 implements the existing [credential output boundary](credential-
 for four additional retained fields. Private wire/config schemas are unchanged;
 generic formatting and automatic JSON/text projections redact.
 
-| Retained field | Holder | Sole production accessor use | Tests |
+| Retained field | Holder | Sole production Reveal* call | Tests |
 | --- | --- | --- | --- |
 | single-use `Route.Password` | module-local `RPCPassword` | `RPCPassword.SetBasicAuth`, at header construction | `TestRPCPasswordHolderRedaction`, `TestRPCPasswordConfigCompatibility`, `TestRPCPasswordStrictConfigNegative` |
 | payment-chain `Route.Password` | module-local `RPCPassword` | `RPCPassword.SetBasicAuth`, at header construction | same names in the payment-chain module |
+| journal `Slot.ChannelSecretHex` | existing `codec.Secret[string]` | existing explicit private consumers (see full carrier inventory) | existing journal/channel suites; retained field now also inventoried |
 | journal `slotPrivate.ChannelSecretHex` | existing `codec.Secret[string]` | `EncodePrivateSlot` | `TestSlotPrivateHolderRedaction`, `TestJournalPrivateWireCompatibility`, `TestSlotPrivateWireGoldenVariants` |
 | slotd `Request.Bootstrap` | module-local `*Bootstrap` | `encodePrivateRequest` | `TestBootstrapHolderRedaction`, `TestBootstrapPrivateWireGolden`, `TestBootstrapPrivateEncodingVariants`, `TestBootstrapInvalidNeverDials` |
 
@@ -17,9 +18,10 @@ small local holders; the journal reuses its existing generic holder.
 The scalar-pointer storage prevents unsupported-verb diagnostics from walking
 credential bytes through unexported containing fields. Holder/real-container
 matrices cover standard fmt verbs, bad verbs, flags, width and precision, JSON
-and encoding.TextMarshaler, beside populated non-secret controls. The detector
-checks every eight-byte synthetic substring in plain, hex and decimal encodings;
-this is bounded regression evidence, not an arbitrary-code noninterference proof.
+and encoding.TextMarshaler, plus slog text/JSON, beside populated non-secret
+controls. Hidden pointer containers include %s/%q/%t and %+p/%#p. The detector
+checks every eight-byte synthetic substring in plain, compact/space-flag hex
+and decimal encodings; this is bounded regression evidence, not an arbitrary-code noninterference proof.
 
 Each password holder accepts plain JSON strings. `JSONInputString` declares that
 unchanged scalar schema to `singleuse.StrictInput`: lexical duplicate/escaped-key
@@ -34,12 +36,30 @@ exercise their real loaders, in addition to frozen plain-string route vectors.
 
 The single-use Route has additional consumers in agent-wallet, signer-service
 and rental-executor. Their existing transports delegate header construction to
-the holder, preserving the sole accessor call site. Length predicates retain
-16..256 bounds, or the broadcaster's existing stricter 32..256 bounds. No new cross-module dependency or replacement was added. Existing single-use requirements in agent-wallet, signer-service, rental-executor
-and rental-gateway advance to the first signed commit of this PR so published
-builds select the new holder API. All four runtime Route consumers build with
-every local replace removed; local replacements otherwise hide that compatibility
-requirement.
+the holder, preserving the sole RevealForBasicAuth call site. Length predicates
+retain
+16..256 bounds, or the broadcaster's existing stricter 32..256 bounds. No new
+cross-module dependency or replacement was added. The guard inventories the
+sole `RevealForBasicAuth` call per password holder and sole `RevealForRequest`
+call for Bootstrap; same-package field access is outside that source rule.
+The holders remain in their existing packages.
+
+The r2 consumer inventory is **12 go.mod files**, not two disjoint sets:
+agent-wallet, signer-service, rental-executor, rental-gateway,
+rental-gateway/kernelbind, grantcheck, grant-store, relay, m5-rehearsal,
+m5-host-smoke, station-lifecycle/gatewaybind and station-payload. Each requires
+single-use `v0.3.1-0.20261116084028-6fb17070638c`.
+The r3 minimum additionally raises payment-chain, rental, rental-booking and
+model-proxy to that version. Payment-chain's scalar password adapter needs
+that StrictInput walker even when a consumer requires only payment-chain.
+The other raised roots now state the same holder baseline explicitly.
+
+Adapted tests also include rental-booking/regtest_test.go (private operator
+observer configs), rental-gateway/kernelbind/core_e2e_test.go (opaque route
+construction), and relay/delivery_size_test.go (explicit channel handoff).
+The r3 rental-executor/process_core_test.go now projects both private routes;
+its non-gated TestPrivateProcessConfigFixture checks Strict decoding and exact
+password bytes, and demonstrates the old encoder's placeholder/refusal.
 
 ## Encoder audit
 
@@ -90,14 +110,17 @@ python3 -B .github/scripts/check-public-hygiene.py
 ```
 
 The new control runner writes command/PID/exit/source-hash evidence to its first
-argument and Go overlays to the new second directory. Each holder has one
-JSON-redaction removal mutant. A kill requires exit 1, the named output test,
-and its specific disclosure assertion; compilation/setup failures do not count.
-These mutants narrow the generic JSON guarantee. Other formatting/text behavior
-is covered by the full matrix, without a separate mutant claim for each verb.
+argument and Go overlays to the new second directory. Each holder has a
+JSON-redaction removal mutant and an inline-storage revert
+mutant that retains the redacting methods. A kill requires exit 1, the named
+output test, and its specific JSON or fmt disclosure assertion; compilation/setup
+failures do not count. The inline controls calibrate method-bypassing fmt
+reflection through real holders/containers. They do not independently calibrate
+every verb or logging handler.
 
-The credential guard retains its existing rules and adds four exact audited
-field keys. Its controls require the complete expected inventory delta, including
+The credential guard retains its existing rules and adds five exact audited
+field keys, including the already-opaque retained Slot.ChannelSecretHex. Its
+controls require the complete expected inventory delta, including
 raw substitutions for those fields. Graph/snapshot checks validate unchanged
 module metadata; hygiene checks publication content. Producer evidence records
 actual commands, exits and skips, and does not imply hosted CI or review acceptance.

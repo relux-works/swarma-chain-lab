@@ -29,6 +29,7 @@ var fields = map[string]string{
 	"experiments/single-use/node.go:Route.Password":                              "RPCPassword",
 	"experiments/payment-chain/rpc.go:Route.Password":                            "RPCPassword",
 	"experiments/rental-gateway/journal/private.go:slotPrivate.ChannelSecretHex": "codec.Secret[string]",
+	"experiments/rental-gateway/journal/journal.go:Slot.ChannelSecretHex":        "codec.Secret[string]",
 	"experiments/station-lifecycle/slotd/wire.go:Request.Bootstrap":              "*Bootstrap",
 
 	// Ephemeral use input and opening draw; Token redacts fmt, JSON and text.

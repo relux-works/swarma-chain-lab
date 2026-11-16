@@ -45,7 +45,7 @@ The executable inventory uses a nested exact multiset:
 `accessor name -> {path:owner:expression -> count}`. Run
 `go run .scripts/check-credential-output-boundaries.go` from the repository root.
 The independently listed [inventory fixture](../../.scripts/credential-output-inventory.json)
-contains **18 carrier fields**, **53 direct Reveal sites / 67 calls**, and
+contains **19 carrier fields**, **53 direct Reveal sites / 67 calls**, and
 four accessor keys: `Reveal` with those 53 entries, `RevealForBasicAuth` with
 2 sites / 2 calls, `RevealForRequest` with 1 site / 1 call, and `RevealForOpen`
 with the empty set `{}`. There are currently no inventoried method values.
@@ -157,10 +157,11 @@ Existing operations and their private boundaries are unchanged by this guard.
 
 | Carrier key | Type | Audit note |
 | --- | --- | --- |
-| `experiments/single-use/node.go:Route.Password` | `RPCPassword` | Plain-string config decode; sole production accessor call installs the Basic Auth header. |
+| `experiments/single-use/node.go:Route.Password` | `RPCPassword` | Plain-string config decode; sole production Reveal* call installs the Basic Auth header. |
 | `experiments/payment-chain/rpc.go:Route.Password` | `RPCPassword` | Module-local holder; watcher/issuer config and header bytes remain unchanged. |
+| `experiments/rental-gateway/journal/journal.go:Slot.ChannelSecretHex` | `codec.Secret[string]` | Retained channel credential; existing private authentication and persistence consumers are inventoried below. |
 | `experiments/rental-gateway/journal/private.go:slotPrivate.ChannelSecretHex` | `codec.Secret[string]` | Reuses the journal's existing holder; only EncodePrivateSlot emits private bytes. |
-| `experiments/station-lifecycle/slotd/wire.go:Request.Bootstrap` | `*Bootstrap` | Optional base64 holder; sole production accessor call is the Unix request encoder. |
+| `experiments/station-lifecycle/slotd/wire.go:Request.Bootstrap` | `*Bootstrap` | Optional base64 holder; sole production Reveal* call is the Unix request encoder. |
 | `experiments/m5-rehearsal/fixtures/registrar.go.txt:rehearsalRegistrar.APIKey` | `proxy.UpstreamKey` | Rehearsal fixture retains the opaque proxy key. |
 | `experiments/model-proxy/credential.go:FileSource.current` | `UpstreamKey` | Retained file-sourced key is an opaque holder. |
 | `experiments/model-proxy/credential.go:UpstreamCredential.Value` | `UpstreamKey` | Private upstream credential remains opaque. |
@@ -246,8 +247,8 @@ create a new type-resolved key; receiver identity is outside this syntax guard.
 
 [The four-field audit](plain-secret-holders.md) explains the holder and consumer
 changes. The existing carrier-name and Reveal-prefix detection rules are kept;
-four exact audited field keys are additionally selected from the expected
-inventory. Controls pin all 18 field types and all four accessor-name multisets,
+five exact audited field keys are additionally selected from the expected
+inventory. Controls pin all 19 field types and all four accessor-name multisets,
 including raw-field substitutions for each new row. This does not import the
 separate tree-wide carrier-classification rule or change its policy.
 

@@ -3,7 +3,7 @@ module github.com/relux-works/swarma-chain-lab/experiments/model-proxy
 go 1.26.0
 
 require (
-	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115220730-8928bda29253
+	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261116084028-6fb17070638c
 	golang.org/x/sys v0.47.0
 )
 

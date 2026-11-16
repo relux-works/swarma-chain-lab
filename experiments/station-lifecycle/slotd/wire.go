@@ -61,7 +61,7 @@ func validSlot(s string) bool {
 }
 func canonical(v any) []byte { b, _ := json.Marshal(v); return b }
 
-// encodePrivateRequest is the sole socket credential reveal. Bootstrap is last
+// encodePrivateRequest contains the sole RevealForRequest call. Bootstrap is last
 // in v1; append its JSON scalar without constructing a raw-secret carrier.
 func encodePrivateRequest(r Request) []byte {
 	bootstrap := r.Bootstrap
