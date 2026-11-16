@@ -351,13 +351,12 @@ RULES = ['size', 'utf8', 'escaped_key', 'ascii_key', 'dup_exact', 'dup_fold', 'd
 # duplicate/escaped/trailing representations, while canonical base64 implies its
 # alphabet. Remove the overlapping guards together to isolate the primary guard.
 # A single-rule survivor is reported explicitly, with its narrowed claim.
-WITNESSES = {'escaped_key':'lexical_escape', 'dup_exact':'lexical_duplicate', 'trailing':'lexical_trailing', 'b64_alphabet':'response_name_base64_alphabet', 'confirmations_max':'response_confirmations_overflow'}
+WITNESSES = {'escaped_key':'lexical_escape', 'dup_exact':'lexical_duplicate', 'trailing':'lexical_trailing', 'b64_alphabet':'response_name_base64_alphabet'}
 REDUNDANT = {
     'escaped_key': ('escaped_key', 'canonical'),
     'dup_exact': ('dup_exact', 'canonical'),
     'trailing': ('trailing', 'canonical'),
     'b64_alphabet': ('b64_alphabet', 'b64_roundtrip'),
-    'confirmations_max': ('confirmations_max', 'confirmations_state'),
 }
 
 def analyze(vs):

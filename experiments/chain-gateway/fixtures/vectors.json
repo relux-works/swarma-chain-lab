@@ -1450,5 +1450,11 @@
     "kind": "response",
     "wire": "{\"method\":\"name_show\",\"network\":\"regtest\",\"ok\":true,\"result\":{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"QQ==!\",\"vout\":0},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}",
     "valid": false
+  },
+  {
+    "name": "response_confirmations_unsafe_at_max_tip",
+    "kind": "response",
+    "wire": "{\"method\":\"gettxout\",\"network\":\"regtest\",\"ok\":true,\"result\":{\"confirmations\":9007199254740992,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":9007199254740991,\"time\":1699999990},\"v\":1}",
+    "valid": false
   }
 ]
