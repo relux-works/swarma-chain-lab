@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 
 	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -135,7 +136,11 @@ func sealBindingFixture(t *testing.T, owner byte) (sealBindingNode, Policy, Gran
 	if e != nil {
 		t.Fatal(e)
 	}
-	p := Policy{ConstructionProfile: "W", Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: expectedScript, StateDir: t.TempDir()}
+	stateDir := t.TempDir()
+	if e := os.Chmod(stateDir, 0700); e != nil {
+		t.Fatal(e)
+	}
+	p := Policy{ConstructionProfile: "W", Network: g.Network, Genesis: g.Genesis, AgentName: g.AgentName, LandlordName: g.LandlordName, SealScript: expectedScript, StateDir: stateDir}
 	return n, p, g, proof
 }
 
