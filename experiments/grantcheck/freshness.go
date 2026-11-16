@@ -47,21 +47,30 @@ type policyNode struct {
 	info    su.ChainInfo
 	tipTime time.Time
 	seen    bool
+
+	// chain is the configured network name that getblockchaininfo must report.
+	chain string
+	// legacyLandlord is set under the trust profile only: the landlord name
+	// whose value must not carry a holders member (LIP-0010 section 10).
+	legacyLandlord string
 }
 
 func (n *policyNode) reset(now time.Time) { n.now, n.code, n.seen = now, "", false }
 
 func (n *policyNode) Call(ctx context.Context, method string, args ...any) (json.RawMessage, error) {
 	raw, err := n.Node.Call(ctx, method, args...)
-	if err != nil || method != "getblockchaininfo" {
-		return raw, err
-	}
 	refuse := func(code Code) (json.RawMessage, error) {
 		n.code = code
 		return nil, errors.New("grantcheck node observation refused")
 	}
+	if err == nil && method == "name_show" && n.legacyLandlord != "" && len(args) > 0 && args[0] == n.legacyLandlord && landlordHolders(raw) {
+		return refuse(CodeBindingMismatch)
+	}
+	if err != nil || method != "getblockchaininfo" {
+		return raw, err
+	}
 	var info su.ChainInfo
-	if len(raw) > 1<<20 || json.Unmarshal(raw, &info) != nil || info.Chain != "regtest" || info.Blocks < 0 || info.Blocks > 2147483647 || info.Headers < 0 || info.Headers > 2147483647 {
+	if len(raw) > 1<<20 || json.Unmarshal(raw, &info) != nil || info.Chain != n.chain || info.Blocks < 0 || info.Blocks > 2147483647 || info.Headers < 0 || info.Headers > 2147483647 {
 		return refuse(CodeVerifierUnavailable)
 	}
 	n.info = info

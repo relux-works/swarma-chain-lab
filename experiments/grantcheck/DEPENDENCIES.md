@@ -13,7 +13,10 @@ stay in the authenticated a2a daemon (a2ad) engine's private deployment configur
 
 The observer permits only getblockchaininfo, getblockhash, getblockheader,
 getrawtransaction, gettxout, name_show, getrawmempool and getblock. No wallet or
-transaction broadcast method is part of the checker. A custom operator-owned
+transaction broadcast method is part of the checker. Under an explicit `main`
+configuration (README, "Contract profiles and configured network") the observer
+is the verifier's own Namecoin Core mainnet node with the same read-only method
+list; the checker then requires the chain name `main` and the mainnet genesis. A custom operator-owned
 Node implementation must preserve that read-only boundary and honor context
 cancellation; untrusted received data must never select a Node implementation.
 

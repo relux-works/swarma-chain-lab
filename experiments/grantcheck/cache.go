@@ -6,7 +6,6 @@ import (
 
 	"github.com/relux-works/swarma-chain-lab/experiments/rental"
 	"github.com/relux-works/swarma-chain-lab/experiments/rental-gateway/kernel"
-	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"github.com/relux-works/swarma-chain-lab/experiments/single-use/durable"
 )
 
@@ -46,7 +45,7 @@ func (c *Checker) validCache(entries []cachedProof) bool {
 		}
 		proof, err := rental.ParseGrantPresentation(entry.Bytes)
 		g := proof.SignedGrant.Grant
-		if err != nil || entry.GrantID != proof.SignedGrant.ID() || g.GranteeKey != entry.Peer || g.AgentName != c.config.AgentName || g.LandlordName != c.config.LandlordName || g.IssuerKey != c.config.IssuerPubkey || g.Network != "regtest" || g.Genesis != su.RegtestGenesis {
+		if err != nil || entry.GrantID != proof.SignedGrant.ID() || g.GranteeKey != entry.Peer || g.AgentName != c.config.AgentName || g.LandlordName != c.config.LandlordName || g.IssuerKey != c.config.IssuerPubkey || g.Network != c.network || g.Genesis != c.genesis {
 			return false
 		}
 		seen[entry.Peer] = true

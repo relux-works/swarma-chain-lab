@@ -20,7 +20,9 @@ J10/J11/J12 remain pending at the pin, and J9 admits no uncertified child
 until J10/J11 are decided. The explicit v4 draft profile is never selected by
 this module. Its exported API, existing proof bytes, constructors, name readers
 and internal requirement selections are unchanged. No draft rule widens v3
-acceptance and no new profile parameter is added to the consumer API.
+acceptance and no new profile parameter is added to the consumer API. (The
+contract profile of the next section is a later, separate and explicit
+configuration parameter; it selects no v4 rule.)
 
 `TestR1V3NameCompatibility` pairs valid legacy values with refusals for
 holders (empty and populated) and the new agent shape.
@@ -31,6 +33,93 @@ boundary tests; the unit backend is no evidence of chain qualification.
 Run `go test -race -count=1 -run '^TestR1V3' .` from this module, with the
 same Go/cache environment as the commands below. Node-backed Core qualification
 remains a separate opt-in gate and must not be claimed from a skipped run.
+
+## Contract profiles and configured network (T1.0b)
+
+`Config.ContractProfile` selects how the contract behind a grant's
+`contract_sha256` is read. The caller selects it; the checker never detects a
+profile from a grant or from contract bytes, and a grant of the other profile
+refuses as `terms_invalid`.
+
+| `ContractProfile` | Contract | Network binding |
+| --- | --- | --- |
+| `""` or `"pay"` | Canonical `rental.PayTermsV2`, as before. Nothing in this path changed | The fixed regtest pin when `Network` and `Genesis` are both empty, as before; an explicit admitted pair otherwise |
+| `"trust"` | `swarma-trust-contract/1`, or a root `swarma-trust-contract/2` at depth 0 | `Network` and `Genesis` are required. There is no default |
+
+`Network` and `Genesis` admit exactly two pairs: `regtest` with the regtest
+genesis, and `main` with `MainGenesis`. A missing value, an unknown network
+name and a pair of one network with the genesis of the other refuse
+construction with `ErrConfig` before any state opens. `MainGenesis` is the
+hash that Namecoin Core asserts for `CMainParams` in `chainparams.cpp`;
+`TestMainGenesisLiteral` checks it against the literal and against the constant
+the rental kernel pins. The pair binds the grant, the proof cache, the node
+observation (`getblockchaininfo` must report the configured chain) and the
+kernel, and it is part of the durable state binding. The profile G1.0 uses is
+`trust` on `main`; regtest stays for the junction and qualification fixtures.
+
+The specification is swarma-link-spec v0.1.51, commit
+`bd3bc80e5543d8a563343ec05abd1a5f3f67284c`: LIP-0013 section 2 (profile `/1`),
+LIP-0014 sections 3.1 and 3.2 (profile `/2` and the reader of both), LIP-0004
+and LIP-0005 (Grant v3) and LIP-0010 sections 3 and 10 (landlord values). The
+Link book is the primary description of the grant, the consent and the seal
+(`link-book/ru/04-doverennost.md`) and of the contract hash
+(`link-book/ru/06-dogovor.md`).
+
+After the unchanged presentation, signature and pin checks, the trust profile
+applies LIP-0013 section 2.5 with the reader of LIP-0014 section 3.1. The
+member set of the document selects the rules; the profile string is then
+judged by rule 2. Every refusal maps to a code of the existing closed set. No
+code was added.
+
+| Refusal | Code | Why this code |
+| --- | --- | --- |
+| The contract bytes cannot be resolved, or their SHA-256 is not `contract_sha256` | `terms_invalid` | The same meaning as for pay terms |
+| The document breaks a rule that judges it alone: canonical bytes (whitespace, a repeated, unknown, missing, reordered or case-folded member, trailing data, a number or string spelling, more than 8192 bytes), the profile string, a field, the actions (empty, unsorted, repeated or outside the four names), the repositories, the budget, the note, the parent, the delegate | `terms_invalid` | The document is not a valid contract of this profile |
+| A valid `/2` document with a right of re-delegation (`delegate.depth` above 0), or a child (a parent id or an ordinal) | `terms_invalid` | A valid contract that this checker does not serve. A child needs the notary's checks of LIP-0014 section 8, which are not made here |
+| A valid document whose `network`, `landlord_name`, `agent_name`, `grantee_key`, `not_before` or `not_after` is not the grant's | `binding_mismatch` | The contract is about another grant |
+| The grant's scope is not the one LIP-0013 section 2.2 derives, its budget is not `spend_budget`, or its consent tags are not those of section 2.4 | `binding_mismatch` | The grant does not carry what the contract states |
+| The grant's network, genesis, names, issuer or grantee is not the configured or verified one | `binding_mismatch` | As before, now with the configured network |
+| A grant that pairs one network with the genesis of the other | `invalid_presentation` | It is no valid v3 grant; the kernel's parser refuses it |
+| The landlord's name value carries `holders`, empty or populated | `binding_mismatch` | The chain binding of the landlord is not the legacy one that this profile pins |
+
+**Legacy landlord values.** The trust profile is the G1.0 profile: it admits a
+landlord value without `holders` only (LIP-0010 section 10, the compatibility
+paragraph). The checker inspects the `name_show` answer for the configured
+landlord name on its way to the kernel and refuses a `holders` member under
+its own code. Every other departure from the legacy value is refused by the
+kernel's strict reader, as before. The pay profile's node wrapper is unchanged.
+
+**Reuse.** Both parsers live in `internal/trustcontract`.
+
+- Profile `/1` is a port of `tools/trustcheck/contract.go` of the specification
+  at the commit above (the tool is `package main`). It is tested against every
+  contract vector of `vectors/LIP-0013/trust-vectors.json`: 4 valid contracts
+  accepted with their exact bytes, 32 invalid contracts refused with their
+  published codes, 15 bindings and the 3 grants of the envelope section. See
+  `internal/trustcontract/testdata/README.md` for the committed file, its
+  SHA-256 and why the 26 envelope vectors are not in it.
+- Profile `/2` is a copy of `experiments/notary-checker` `contract.go` and the
+  helpers it calls. It is a copy and not an import because a new requirement
+  edge between two modules of this repository changes the published module
+  graph, and not a shared module because that would change the notary's
+  sources and its release hash. The notary is unchanged.
+  `TestNotaryCopyMatchesSource` fails when the notary's two source files
+  change, and `TestNotaryCorpusAgrees` runs the notary's own committed vectors
+  through the copy.
+
+**Limits.** The tests of this section are offline boundary tests with a
+routing stub in the kernel's place. They are no evidence of chain
+qualification on regtest or on mainnet, which stays a separate gate. The
+checker admits a grant; it admits no instruction: the kind-8185 envelope and
+the admission steps of LIP-0013 section 3.4 are not implemented here. Under
+the trust profile `Config.ExecutorKey` is still required and still part of
+the state binding, and no trust contract is compared with it, because a trust
+contract names no executor key. A `/2` root with a non-empty
+`scope_text_sha256` is admitted; the text is not resolved or checked here.
+
+Run `go test -race -count=1 ./...` from this module for both packages.
+`go run .scripts/guards.go -out .temp/guards` now also removes each gate of
+this section in an isolated copy and requires its named test to fail.
 
 ## Required executor and interim node policy
 

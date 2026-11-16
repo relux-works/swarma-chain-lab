@@ -101,3 +101,29 @@ v3 TEST BENCH and is superseded by LIP-0022 once accepted. Production values
 are NOT set here and require a runtime probe on a real Namecoin node before
 any non-bench use. Manual protected provisioning is implemented; automatic
 retrieval/discovery remains outside this library. See [POLICY.md](POLICY.md).
+
+## Open: trust profile and configured network (T1.0b)
+
+- **Pay profile without a network.** The trust profile has no network default.
+  The pay profile still constructs with an empty `Network` and `Genesis` and
+  then keeps its fixed regtest pin, so that existing pay configurations and
+  state roots keep working unchanged. Whether pay should also require an
+  explicit pair is an owner decision; it would change every pay consumer.
+- **Refusal codes.** No code was added. A `holders` landlord value refuses as
+  `binding_mismatch`, which the a2a seam maps to a non-retryable denial. A
+  landlord can remove `holders` later, so a dedicated or retryable code may be
+  wanted; a new code changes the closed vocabulary of every consumer.
+- **`ExecutorKey` under the trust profile.** It stays required and bound into
+  the state, and is compared with nothing, because a trust contract names no
+  executor key.
+- **Scope text.** A `/2` root with a non-empty `scope_text_sha256` is admitted
+  without its text. LIP-0013 section 3.4 puts the text check at the admission
+  gate that builds the authority frame, which is not this module.
+- **Vectors not run.** The 26 envelope vectors of LIP-0013 are not committed
+  (see `internal/trustcontract/testdata/README.md`). The `/2` copy is not run
+  against `vectors/LIP-0014/contract-vectors.json`; the notary's parser, which
+  it copies, pins the specification at v0.1.49.
+- **Drift lane.** `TestNotaryCopyMatchesSource` runs in this module's lane,
+  which a change under `experiments/notary-checker/` alone does not trigger.
+- **Qualification.** No test of the trust profile reads a node. Regtest and
+  mainnet qualification of a trust grant is a separate gate.

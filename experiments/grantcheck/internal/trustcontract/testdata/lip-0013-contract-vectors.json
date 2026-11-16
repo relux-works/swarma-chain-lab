@@ -1,0 +1,973 @@
+{
+  "schema": "swarma-link-spec/lip-0013-vectors/1",
+  "lip": "LIP-0013",
+  "note": "Draft vectors for LIP-0013. Keys are BIP-340 published test keys, never real keys. Grant ids are placeholders, not issued grants. Envelope outcomes cover the offline steps only; PASS still requires a live rental.Check on the receiver's own node.",
+  "test_keys": [
+    {
+      "name": "bip340-0",
+      "source": "BIP-340 test vector index 0 (secret key 3)",
+      "public_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+    },
+    {
+      "name": "bip340-1",
+      "source": "BIP-340 test vector index 1",
+      "public_key": "dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659"
+    }
+  ],
+  "valid_contracts": [
+    {
+      "id": "C-V1-instruct-review",
+      "claim": "instruct and review have no v3 carrier: scope [] and budget 0",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "contract_hex": "7b2270726f66696c65223a22737761726d612d74727573742d636f6e74726163742f31222c226e6574776f726b223a226d61696e222c226c616e646c6f72645f6e616d65223a2269642f6976616e6f70636f6465222c226167656e745f6e616d65223a2269642f6976616e6f70636f64652d6b6565706572222c226772616e7465655f6b6579223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639222c22616374696f6e73223a5b22696e737472756374222c22726576696577225d2c227265706f73223a5b5d2c227370656e645f627564676574223a302c226e6f745f6265666f7265223a313739343532383030302c226e6f745f6166746572223a313739373132303030302c226e6f7465223a22227d",
+      "sha256": "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39",
+      "v3_scope": [],
+      "v3_budget": 0,
+      "consent_tags": [
+        [
+          "t",
+          "swarma-rental-consent-v1"
+        ],
+        [
+          "contract",
+          "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+        ],
+        [
+          "booking",
+          "a7ac2b116389e7442bfe55bdd761254a824d15a5641f59616fa6dc95c2efcb7e"
+        ],
+        [
+          "privacy",
+          "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+        ]
+      ]
+    },
+    {
+      "id": "C-V2-land",
+      "claim": "land with two sorted repositories maps to scope [repository.push], budget 0",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"land\",\"review\"],\"repos\":[\"https://git.example/swarma/alpha\",\"https://git.example/swarma/beta\"],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"test repositories only\"}",
+      "contract_hex": "7b2270726f66696c65223a22737761726d612d74727573742d636f6e74726163742f31222c226e6574776f726b223a226d61696e222c226c616e646c6f72645f6e616d65223a2269642f6976616e6f70636f6465222c226167656e745f6e616d65223a2269642f6976616e6f70636f64652d6b6565706572222c226772616e7465655f6b6579223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639222c22616374696f6e73223a5b22696e737472756374222c226c616e64222c22726576696577225d2c227265706f73223a5b2268747470733a2f2f6769742e6578616d706c652f737761726d612f616c706861222c2268747470733a2f2f6769742e6578616d706c652f737761726d612f62657461225d2c227370656e645f627564676574223a302c226e6f745f6265666f7265223a313739343532383030302c226e6f745f6166746572223a313739373132303030302c226e6f7465223a2274657374207265706f7369746f72696573206f6e6c79227d",
+      "sha256": "5506165b5da09fbd197b0583a0b6c5c7758f1c21d29315c198d9f95cff5093f4",
+      "v3_scope": [
+        "repository.push"
+      ],
+      "v3_budget": 0,
+      "consent_tags": [
+        [
+          "t",
+          "swarma-rental-consent-v1"
+        ],
+        [
+          "contract",
+          "5506165b5da09fbd197b0583a0b6c5c7758f1c21d29315c198d9f95cff5093f4"
+        ],
+        [
+          "booking",
+          "ab32783fd9fc9d6919a133ee87d8b29789e6e12c5e1eda8187345f9f99bce648"
+        ],
+        [
+          "privacy",
+          "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+        ]
+      ]
+    },
+    {
+      "id": "C-V3-spend",
+      "claim": "spend with spend_budget 1000000 maps to scope [pay] and v3 budget 1000000",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"spend\"],\"repos\":[],\"spend_budget\":1000000,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "contract_hex": "7b2270726f66696c65223a22737761726d612d74727573742d636f6e74726163742f31222c226e6574776f726b223a226d61696e222c226c616e646c6f72645f6e616d65223a2269642f6976616e6f70636f6465222c226167656e745f6e616d65223a2269642f6976616e6f70636f64652d6b6565706572222c226772616e7465655f6b6579223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639222c22616374696f6e73223a5b22696e737472756374222c227370656e64225d2c227265706f73223a5b5d2c227370656e645f627564676574223a313030303030302c226e6f745f6265666f7265223a313739343532383030302c226e6f745f6166746572223a313739373132303030302c226e6f7465223a22227d",
+      "sha256": "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e",
+      "v3_scope": [
+        "pay"
+      ],
+      "v3_budget": 1000000,
+      "consent_tags": [
+        [
+          "t",
+          "swarma-rental-consent-v1"
+        ],
+        [
+          "contract",
+          "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e"
+        ],
+        [
+          "booking",
+          "c5d9b64d4e533d500ad492a2a4d4a8b473a73896fa11927c5d2b5ecec0cd2727"
+        ],
+        [
+          "privacy",
+          "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+        ]
+      ]
+    },
+    {
+      "id": "C-V4-all-note-280",
+      "claim": "all four actions give scope [pay, repository.push]; a note of exactly 280 bytes with quote and backslash is accepted",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"land\",\"review\",\"spend\"],\"repos\":[\"https://git.example/swarma/alpha\"],\"spend_budget\":50000000,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"Boundary note: exactly 280 bytes, with \\\"quotes\\\" and a \\\\ backslash, which are the only escapes. .........................................................................................................................................................................................\"}",
+      "contract_hex": "7b2270726f66696c65223a22737761726d612d74727573742d636f6e74726163742f31222c226e6574776f726b223a226d61696e222c226c616e646c6f72645f6e616d65223a2269642f6976616e6f70636f6465222c226167656e745f6e616d65223a2269642f6976616e6f70636f64652d6b6565706572222c226772616e7465655f6b6579223a2266393330386130313932353863333130343933343466383566383964353232396235333163383435383336663939623038363031663131336263653033366639222c22616374696f6e73223a5b22696e737472756374222c226c616e64222c22726576696577222c227370656e64225d2c227265706f73223a5b2268747470733a2f2f6769742e6578616d706c652f737761726d612f616c706861225d2c227370656e645f627564676574223a35303030303030302c226e6f745f6265666f7265223a313739343532383030302c226e6f745f6166746572223a313739373132303030302c226e6f7465223a22426f756e64617279206e6f74653a2065786163746c79203238302062797465732c2077697468205c2271756f7465735c2220616e642061205c5c206261636b736c6173682c2077686963682061726520746865206f6e6c7920657363617065732e202e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e227d",
+      "sha256": "8fc365001154fb09351a3fa07e7f6dc452d210ae192452095572d594693e1d8e",
+      "v3_scope": [
+        "pay",
+        "repository.push"
+      ],
+      "v3_budget": 50000000,
+      "consent_tags": [
+        [
+          "t",
+          "swarma-rental-consent-v1"
+        ],
+        [
+          "contract",
+          "8fc365001154fb09351a3fa07e7f6dc452d210ae192452095572d594693e1d8e"
+        ],
+        [
+          "booking",
+          "3de67e98c10acd5ed2764b480efa64650ab43632b21dea73c8225aa739fc4659"
+        ],
+        [
+          "privacy",
+          "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+        ]
+      ]
+    }
+  ],
+  "invalid_contracts": [
+    {
+      "id": "C-N01-unsorted-actions",
+      "claim": "actions out of byte order",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"review\",\"instruct\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ACTIONS"
+    },
+    {
+      "id": "C-N02-unknown-action",
+      "claim": "a v3 scope name is not a profile action",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"deliver\",\"instruct\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ACTIONS"
+    },
+    {
+      "id": "C-N03-empty-actions",
+      "claim": "actions must be non-empty",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ACTIONS"
+    },
+    {
+      "id": "C-N04-duplicate-action",
+      "claim": "actions are a set",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"instruct\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ACTIONS"
+    },
+    {
+      "id": "C-N05-land-without-repos",
+      "claim": "land requires non-empty repos",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"land\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_REPOS"
+    },
+    {
+      "id": "C-N06-repos-without-land",
+      "claim": "repos must be empty without land",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[\"https://git.example/swarma/alpha\"],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_REPOS"
+    },
+    {
+      "id": "C-N07-unsorted-repos",
+      "claim": "repos out of byte order",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"land\",\"review\"],\"repos\":[\"https://git.example/swarma/beta\",\"https://git.example/swarma/alpha\"],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"test repositories only\"}",
+      "expect": "CONTRACT_REPOS"
+    },
+    {
+      "id": "C-N08-repo-userinfo",
+      "claim": "a repository URL with userinfo",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"land\",\"review\"],\"repos\":[\"https://user@git.example/swarma/alpha\",\"https://git.example/swarma/beta\"],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"test repositories only\"}",
+      "expect": "CONTRACT_REPOS"
+    },
+    {
+      "id": "C-N09-repo-http",
+      "claim": "a repository URL that is not https",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"land\",\"review\"],\"repos\":[\"http://git.example/swarma/alpha\",\"https://git.example/swarma/beta\"],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"test repositories only\"}",
+      "expect": "CONTRACT_REPOS"
+    },
+    {
+      "id": "C-N10-spend-without-budget",
+      "claim": "spend requires spend_budget > 0",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"spend\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_BUDGET"
+    },
+    {
+      "id": "C-N11-budget-without-spend",
+      "claim": "spend_budget must be 0 without spend",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":1000,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_BUDGET"
+    },
+    {
+      "id": "C-N12-budget-over-max",
+      "claim": "spend_budget above MaxMoney",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"spend\"],\"repos\":[],\"spend_budget\":2100000000000001,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_BUDGET"
+    },
+    {
+      "id": "C-N13-field-order",
+      "claim": "profile and network swapped",
+      "contract": "{\"network\":\"main\",\"profile\":\"swarma-trust-contract/1\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N14-extra-field",
+      "claim": "a field outside the profile",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\",\"scope\":[]}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N15-duplicate-key",
+      "claim": "note appears twice",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\",\"note\":\"\"}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N16-missing-field",
+      "claim": "note absent",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N17-whitespace",
+      "claim": "a space after a colon",
+      "contract": "{\"profile\": \"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N18-null-repos",
+      "claim": "repos is null, not []",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":null,\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N19-escaped-spelling",
+      "claim": "an escaped spelling of an action name",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"\\u0069nstruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N20-trailing-newline",
+      "claim": "a trailing LF",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}\n",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N21-note-281",
+      "claim": "note of 281 bytes",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "expect": "CONTRACT_NOTE"
+    },
+    {
+      "id": "C-N22-note-non-ascii",
+      "claim": "a UTF-8 non-ASCII character in note breaks the character rule of section 2.1, rule 1, before the note rule",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"café\"}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N23-profile",
+      "claim": "another profile string",
+      "contract": "{\"profile\":\"swarma-trust-contract/2\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_PROFILE"
+    },
+    {
+      "id": "C-N24-window",
+      "claim": "not_after equal to not_before",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1794528000,\"note\":\"\"}",
+      "expect": "CONTRACT_FIELD"
+    },
+    {
+      "id": "C-N25-grantee-uppercase",
+      "claim": "uppercase key hex",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_FIELD"
+    },
+    {
+      "id": "C-N26-grantee-off-curve",
+      "claim": "BIP-340 vector 5 key, not on the curve",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"eefdea4cdb677750a420fee807eacf21eb9898ae79b9768766e4faa04a2d4a34\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_FIELD"
+    },
+    {
+      "id": "C-N27-agent-is-landlord",
+      "claim": "agent_name equal to landlord_name",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_FIELD"
+    },
+    {
+      "id": "C-N28-network",
+      "claim": "a network other than main or regtest",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"testnet\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_FIELD"
+    },
+    {
+      "id": "C-N29-budget-negative",
+      "claim": "a signed integer breaks rule 1 before the budget rule",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"spend\"],\"repos\":[],\"spend_budget\":-1,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N30-not-before-negative",
+      "claim": "a signed not_before breaks rule 1 before the window rule",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":-1,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N31-note-escaped-lf",
+      "claim": "an escape other than quote and backslash in note breaks rule 1 before the note rule",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-keeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"a\\nb\"}",
+      "expect": "CONTRACT_ENCODING"
+    },
+    {
+      "id": "C-N32-agent-non-ascii",
+      "claim": "a non-ASCII character in a name breaks rule 1 before the name rule",
+      "contract": "{\"profile\":\"swarma-trust-contract/1\",\"network\":\"main\",\"landlord_name\":\"id/ivanopcode\",\"agent_name\":\"id/ivanopcode-kéeper\",\"grantee_key\":\"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\",\"actions\":[\"instruct\",\"review\"],\"repos\":[],\"spend_budget\":0,\"not_before\":1794528000,\"not_after\":1797120000,\"note\":\"\"}",
+      "expect": "CONTRACT_ENCODING"
+    }
+  ],
+  "bindings": [
+    {
+      "id": "B-OK-V1-instruct-review",
+      "claim": "the matching v3 grant fields bind",
+      "contract_ref": "C-V1-instruct-review",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39",
+        "scope": [],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "booking",
+            "a7ac2b116389e7442bfe55bdd761254a824d15a5641f59616fa6dc95c2efcb7e"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "OK"
+    },
+    {
+      "id": "B-OK-V2-land",
+      "claim": "the matching v3 grant fields bind",
+      "contract_ref": "C-V2-land",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "5506165b5da09fbd197b0583a0b6c5c7758f1c21d29315c198d9f95cff5093f4",
+        "scope": [
+          "repository.push"
+        ],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "5506165b5da09fbd197b0583a0b6c5c7758f1c21d29315c198d9f95cff5093f4"
+          ],
+          [
+            "booking",
+            "ab32783fd9fc9d6919a133ee87d8b29789e6e12c5e1eda8187345f9f99bce648"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "OK"
+    },
+    {
+      "id": "B-OK-V3-spend",
+      "claim": "the matching v3 grant fields bind",
+      "contract_ref": "C-V3-spend",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e",
+        "scope": [
+          "pay"
+        ],
+        "budget": 1000000,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e"
+          ],
+          [
+            "booking",
+            "c5d9b64d4e533d500ad492a2a4d4a8b473a73896fa11927c5d2b5ecec0cd2727"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "OK"
+    },
+    {
+      "id": "B-OK-V4-all-note-280",
+      "claim": "the matching v3 grant fields bind",
+      "contract_ref": "C-V4-all-note-280",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "8fc365001154fb09351a3fa07e7f6dc452d210ae192452095572d594693e1d8e",
+        "scope": [
+          "pay",
+          "repository.push"
+        ],
+        "budget": 50000000,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "8fc365001154fb09351a3fa07e7f6dc452d210ae192452095572d594693e1d8e"
+          ],
+          [
+            "booking",
+            "3de67e98c10acd5ed2764b480efa64650ab43632b21dea73c8225aa739fc4659"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "OK"
+    },
+    {
+      "id": "B-N01-budget-mismatch",
+      "claim": "v3 budget differs from spend_budget",
+      "contract_ref": "C-V3-spend",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e",
+        "scope": [
+          "pay"
+        ],
+        "budget": 999999,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e"
+          ],
+          [
+            "booking",
+            "c5d9b64d4e533d500ad492a2a4d4a8b473a73896fa11927c5d2b5ecec0cd2727"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "BUDGET_MISMATCH"
+    },
+    {
+      "id": "B-N02-budget-absent",
+      "claim": "spend contract under a grant with no budget",
+      "contract_ref": "C-V3-spend",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e",
+        "scope": [
+          "pay"
+        ],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e"
+          ],
+          [
+            "booking",
+            "c5d9b64d4e533d500ad492a2a4d4a8b473a73896fa11927c5d2b5ecec0cd2727"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "BUDGET_MISMATCH"
+    },
+    {
+      "id": "B-N03-scope-missing-push",
+      "claim": "land contract under scope []",
+      "contract_ref": "C-V2-land",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "5506165b5da09fbd197b0583a0b6c5c7758f1c21d29315c198d9f95cff5093f4",
+        "scope": [],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "5506165b5da09fbd197b0583a0b6c5c7758f1c21d29315c198d9f95cff5093f4"
+          ],
+          [
+            "booking",
+            "ab32783fd9fc9d6919a133ee87d8b29789e6e12c5e1eda8187345f9f99bce648"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "SCOPE_MISMATCH"
+    },
+    {
+      "id": "B-N04-scope-extra",
+      "claim": "a v3 scope entry the contract does not derive",
+      "contract_ref": "C-V1-instruct-review",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39",
+        "scope": [
+          "deliver"
+        ],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "booking",
+            "a7ac2b116389e7442bfe55bdd761254a824d15a5641f59616fa6dc95c2efcb7e"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "SCOPE_MISMATCH"
+    },
+    {
+      "id": "B-N05-grantee",
+      "claim": "grant names another grantee key",
+      "contract_ref": "C-V1-instruct-review",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659",
+        "contract_sha256": "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39",
+        "scope": [],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "booking",
+            "a7ac2b116389e7442bfe55bdd761254a824d15a5641f59616fa6dc95c2efcb7e"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "CONTRACT_MISMATCH"
+    },
+    {
+      "id": "B-N06-window",
+      "claim": "grant not_after differs by one second",
+      "contract_ref": "C-V1-instruct-review",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39",
+        "scope": [],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120001,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "booking",
+            "a7ac2b116389e7442bfe55bdd761254a824d15a5641f59616fa6dc95c2efcb7e"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "CONTRACT_MISMATCH"
+    },
+    {
+      "id": "B-N07-agent",
+      "claim": "grant names another agent",
+      "contract_ref": "C-V1-instruct-review",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-other",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39",
+        "scope": [],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "booking",
+            "a7ac2b116389e7442bfe55bdd761254a824d15a5641f59616fa6dc95c2efcb7e"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "CONTRACT_MISMATCH"
+    },
+    {
+      "id": "B-N08-hash",
+      "claim": "grant commits to another contract",
+      "contract_ref": "C-V1-instruct-review",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e",
+        "scope": [],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "booking",
+            "a7ac2b116389e7442bfe55bdd761254a824d15a5641f59616fa6dc95c2efcb7e"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "CONTRACT_HASH"
+    },
+    {
+      "id": "B-N09-booking",
+      "claim": "booking tag without the booking suffix",
+      "contract_ref": "C-V1-instruct-review",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39",
+        "scope": [],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "booking",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "CONSENT_TAGS"
+    },
+    {
+      "id": "B-N10-privacy",
+      "claim": "privacy tag of another label",
+      "contract_ref": "C-V1-instruct-review",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39",
+        "scope": [],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "booking",
+            "a7ac2b116389e7442bfe55bdd761254a824d15a5641f59616fa6dc95c2efcb7e"
+          ],
+          [
+            "privacy",
+            "25be5c7bacf42658a994f92f9204e385d3924bdd7abca853e1c728cbe1480f67"
+          ]
+        ]
+      },
+      "expect": "CONSENT_TAGS"
+    },
+    {
+      "id": "B-N11-t-tag",
+      "claim": "a changed t tag",
+      "contract_ref": "C-V1-instruct-review",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39",
+        "scope": [],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-trust-consent-v1"
+          ],
+          [
+            "contract",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "booking",
+            "a7ac2b116389e7442bfe55bdd761254a824d15a5641f59616fa6dc95c2efcb7e"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      },
+      "expect": "CONSENT_TAGS"
+    }
+  ],
+  "envelope_grants": [
+    {
+      "grant_id": "d60679fbd93b67422acc6317a70bd3a11de905a00defb623258c0a3215e2becd",
+      "contract_ref": "C-V1-instruct-review",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39",
+        "scope": [],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "231a6f7cf7139b4ad2596d74a1cfbcf3ce47becfac0fa73418cba2a7c1d5df39"
+          ],
+          [
+            "booking",
+            "a7ac2b116389e7442bfe55bdd761254a824d15a5641f59616fa6dc95c2efcb7e"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      }
+    },
+    {
+      "grant_id": "3c38cb0feef88f182b62a139a48980bc0c79497fbe1f722661b725723263aa9d",
+      "contract_ref": "C-V2-land",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "5506165b5da09fbd197b0583a0b6c5c7758f1c21d29315c198d9f95cff5093f4",
+        "scope": [
+          "repository.push"
+        ],
+        "budget": 0,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "5506165b5da09fbd197b0583a0b6c5c7758f1c21d29315c198d9f95cff5093f4"
+          ],
+          [
+            "booking",
+            "ab32783fd9fc9d6919a133ee87d8b29789e6e12c5e1eda8187345f9f99bce648"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      }
+    },
+    {
+      "grant_id": "03f50efd2810646c5bb40de99eb0857b4d4a2534c97a398071fdab42a2a1b89a",
+      "contract_ref": "C-V3-spend",
+      "grant": {
+        "network": "main",
+        "agent_name": "id/ivanopcode-keeper",
+        "landlord_name": "id/ivanopcode",
+        "grantee_key": "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+        "contract_sha256": "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e",
+        "scope": [
+          "pay"
+        ],
+        "budget": 1000000,
+        "not_before": 1794528000,
+        "not_after": 1797120000,
+        "consent_tags": [
+          [
+            "t",
+            "swarma-rental-consent-v1"
+          ],
+          [
+            "contract",
+            "f87b215a7d3dc77a1c4c9363c5ac31fe02f115cfc81c180f7ada57afe4b7ef1e"
+          ],
+          [
+            "booking",
+            "c5d9b64d4e533d500ad492a2a4d4a8b473a73896fa11927c5d2b5ecec0cd2727"
+          ],
+          [
+            "privacy",
+            "c0436d6368755b1aeaa7fe0e87bddcc5e09dd32e8c6921806e316f28e9c02aad"
+          ]
+        ]
+      }
+    }
+  ]
+}

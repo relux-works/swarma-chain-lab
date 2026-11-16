@@ -48,6 +48,17 @@ type Config struct {
 	Node         su.Node
 	Now          func() time.Time
 	CheckTimeout time.Duration
+
+	// ContractProfile selects how the contract behind contract_sha256 is read:
+	// ContractProfilePay (also selected by the empty string) or
+	// ContractProfileTrust. It is never inferred from a grant or a contract.
+	ContractProfile string
+	// Network and Genesis are the configured chain binding: "regtest" with the
+	// regtest genesis, or "main" with MainGenesis. The trust profile has no
+	// default and refuses construction unless both name one such pair. The
+	// pay profile keeps its fixed regtest pin when both are empty.
+	Network string
+	Genesis string
 }
 
 type backend interface {
@@ -66,6 +77,11 @@ type Checker struct {
 	poisoned     bool
 	node         *policyNode
 	observedTime time.Time
+
+	// profile, network and genesis are the resolved Config values.
+	profile string
+	network string
+	genesis string
 }
 
 type state struct {
@@ -115,6 +131,10 @@ func NewForTransport(config Config, transport Transport) (*Checker, error) {
 	if e := su.RequireWitnessProfile(config.ConstructionProfile); e != nil {
 		return nil, e
 	}
+	profile, network, genesis, bound := resolveBinding(config)
+	if !bound {
+		return nil, ErrConfig
+	}
 	if !validKey(config.ExecutorKey) || config.Terms == nil || !validFreshness(config.Freshness) {
 		return nil, ErrConfig
 	}
@@ -133,21 +153,34 @@ func NewForTransport(config Config, transport Transport) (*Checker, error) {
 	if !canonicalRoot(config.StateDir) {
 		return nil, ErrState
 	}
-	node := &policyNode{Node: config.Node, policy: *config.Freshness}
-	a, err := kernelbind.New(node, config.StateDir, config.AgentName, config.LandlordName, config.IssuerPubkey, config.ConstructionProfile)
+	node := &policyNode{Node: config.Node, policy: *config.Freshness, chain: network}
+	if profile == ContractProfileTrust {
+		// The trust profile admits legacy landlord values only (LIP-0010 section 10).
+		node.legacyLandlord = config.LandlordName
+	}
+	a, err := kernelbind.NewForNetwork(node, config.StateDir, config.AgentName, config.LandlordName, config.IssuerPubkey, network, genesis, config.ConstructionProfile)
 	if err != nil {
 		return nil, ErrConfig
 	}
-	pins, _ := json.Marshal(struct {
+	pinned := struct {
 		Identity, Agent, Landlord, Issuer, Network, Genesis, Construction string
 		Transport                                                         Transport
 		Executor                                                          string
 		Age, Skew                                                         int64
 		Floor                                                             int64
 	}{
-		config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, "regtest", su.RegtestGenesis, config.ConstructionProfile, transport, config.ExecutorKey, int64(config.Freshness.MaxTipAge), int64(*config.Freshness.MaxFutureSkew), *config.Freshness.MinimumHeight,
-	})
-	c := &Checker{config: config, transport: transport, binding: rental.Hash(pins), backend: a, node: node}
+		config.Identity, config.AgentName, config.LandlordName, config.IssuerPubkey, network, genesis, config.ConstructionProfile, transport, config.ExecutorKey, int64(config.Freshness.MaxTipAge), int64(*config.Freshness.MaxFutureSkew), *config.Freshness.MinimumHeight,
+	}
+	// The pay binding keeps its earlier bytes. The trust binding wraps the same
+	// pins with its profile name, so no state root serves both profiles.
+	pins, _ := json.Marshal(pinned)
+	if profile == ContractProfileTrust {
+		pins, _ = json.Marshal(struct {
+			Contract string
+			Pins     any
+		}{ContractProfileTrust, pinned})
+	}
+	c := &Checker{config: config, profile: profile, network: network, genesis: genesis, transport: transport, binding: rental.Hash(pins), backend: a, node: node}
 	s, err := durable.Open(config.StateDir, "grantcheck.lock")
 	if err != nil {
 		return nil, ErrState
@@ -253,10 +286,16 @@ func (c *Checker) parse(p Presentation, peer string) (rental.Grant, Code) {
 	}
 	g := proof.SignedGrant.Grant
 	if g.GranteeKey != peer || g.AgentName != c.config.AgentName || g.LandlordName != c.config.LandlordName ||
-		g.IssuerKey != c.config.IssuerPubkey || g.Network != "regtest" || g.Genesis != su.RegtestGenesis {
+		g.IssuerKey != c.config.IssuerPubkey || g.Network != c.network || g.Genesis != c.genesis {
 		return empty, CodeBindingMismatch
 	}
 	terms, err := c.config.Terms(g.ContractSHA256)
+	if c.profile == ContractProfileTrust {
+		if code := trustTerms(g, terms, err); code != CodeLive {
+			return empty, code
+		}
+		return g, CodeLive
+	}
 	if err != nil || len(terms) == 0 || len(terms) > MaxPresentationBytes || rental.Hash(terms) != g.ContractSHA256 {
 		return empty, CodeTermsInvalid
 	}
