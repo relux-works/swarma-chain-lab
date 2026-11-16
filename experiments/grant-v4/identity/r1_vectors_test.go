@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -51,9 +52,11 @@ type r1FixtureInput struct {
 	Witness   []string `json:"witness_hex"`
 }
 type r1FixtureAdmission struct {
-	ID      string
-	Issuer  r1FixturePin
-	Context struct {
+	ID                string
+	Neighbour         string `json:"passing_neighbour"`
+	NegativeNeighbour string `json:"negative_neighbour"`
+	Issuer            r1FixturePin
+	Context           struct {
 		Recent int64 `json:"recent_block_height"`
 		Tip    int64 `json:"tip_height"`
 	}
@@ -215,14 +218,64 @@ func r1Record(t *testing.T, id string, result any) {
 	}
 	t.Log("R1_RESULT " + string(b))
 }
-func r1Equal(t *testing.T, id string, actual, expected any) {
+func r1AssertEqual(t *testing.T, id string, actual, expected any) {
 	t.Helper()
 	a, _ := json.Marshal(actual)
 	e, _ := json.Marshal(expected)
 	if string(a) != string(e) {
 		t.Fatalf("%s: R1 got %s, want %s", id, a, e)
 	}
+}
+func r1Equal(t *testing.T, id string, actual, expected any) {
+	t.Helper()
+	r1AssertEqual(t, id, actual, expected)
 	r1Record(t, id, actual)
+}
+
+type r1VectorCase struct {
+	positive                     bool
+	neighbour, negativeNeighbour string
+	check                        func(*testing.T) any
+	expect                       any
+}
+
+// A declared edge is executable in both directions. Each negative checks its
+// named positive; each positive checks all negatives declaring it, plus any
+// explicit negative_neighbour. Missing or same-outcome links fail the harness.
+func r1RunVector(t *testing.T, id string, cases map[string]r1VectorCase) {
+	t.Helper()
+	current := cases[id]
+	neighbours := map[string]bool{}
+	if current.neighbour != "" {
+		neighbours[current.neighbour] = true
+	}
+	if current.negativeNeighbour != "" {
+		neighbours[current.negativeNeighbour] = true
+	}
+	if current.positive {
+		for otherID, other := range cases {
+			if other.neighbour == id {
+				neighbours[otherID] = true
+			}
+		}
+	}
+	if !current.positive && len(neighbours) == 0 {
+		t.Fatal("negative vector has no positive neighbour")
+	}
+	ids := make([]string, 0, len(neighbours))
+	for neighbour := range neighbours {
+		ids = append(ids, neighbour)
+	}
+	sort.Strings(ids)
+	for _, neighbour := range ids {
+		paired, ok := cases[neighbour]
+		if !ok || paired.positive == current.positive {
+			t.Fatalf("invalid neighbour %s for %s", neighbour, id)
+		}
+		actual := paired.check(t)
+		r1AssertEqual(t, "neighbour "+neighbour, actual, paired.expect)
+	}
+	r1Equal(t, id, current.check(t), current.expect)
 }
 
 // Pinned vectors prove range arithmetic and selection on stated facts. They
@@ -230,9 +283,11 @@ func r1Equal(t *testing.T, id string, actual, expected any) {
 func TestR1Groups(t *testing.T) {
 	var f struct {
 		Parents []struct {
-			ID     string
-			Parent r1FixtureParent
-			Expect map[string]any
+			ID                string
+			Neighbour         string `json:"valid_neighbour"`
+			NegativeNeighbour string `json:"negative_neighbour"`
+			Parent            r1FixtureParent
+			Expect            map[string]any
 		}
 		Ordinals []struct {
 			ID       string
@@ -246,22 +301,30 @@ func TestR1Groups(t *testing.T) {
 		t.Fatal("R1 vector inventory")
 	}
 	parents := map[string]RowGroups{}
+	cases := map[string]r1VectorCase{}
 	for _, v := range f.Parents {
 		parents[v.ID] = r1Parent(v.Parent)
-		t.Run(v.ID, func(t *testing.T) {
+		cases[v.ID] = r1VectorCase{v.Expect["outcome"] == "valid", v.Neighbour, v.NegativeNeighbour, func(t *testing.T) any {
 			rows, err := CheckRowGroups(R1DraftLab, parents[v.ID])
-			actual := map[string]any{"outcome": "valid", "rows": rows}
 			if err != nil {
-				actual = map[string]any{"outcome": "refused", "rule": err.Error()}
 				if rows != 0 {
 					t.Fatal("refused parent exposed row count")
 				}
+				return map[string]any{"outcome": "refused", "rule": err.Error()}
 			}
-			r1Equal(t, v.ID, actual, v.Expect)
-		})
+			return map[string]any{"outcome": "valid", "rows": rows}
+		}, v.Expect}
+	}
+	for _, v := range f.Parents {
+		t.Run(v.ID, func(t *testing.T) { r1RunVector(t, v.ID, cases) })
 	}
 	for _, v := range f.Ordinals {
 		t.Run(v.ID, func(t *testing.T) {
+			// Ordinal fixtures declare no neighbours: ordinal 1 of the same
+			// valid parent is the explicit positive for every bound rejection.
+			if _, err := SelectRow(R1DraftLab, parents[v.ParentOf], 1); err != nil {
+				t.Fatalf("ordinal positive control: %v", err)
+			}
 			row, err := SelectRow(R1DraftLab, parents[v.ParentOf], v.Ordinal)
 			var actual any = map[string]any{"group": row.Group, "range": row.Range, "coin": map[string]any{"txid": row.Coin.TxID, "vout": row.Coin.Vout, "script_hex": hex.EncodeToString(row.Script)}}
 			if err != nil {
@@ -290,7 +353,8 @@ func TestR1Holders(t *testing.T) {
 				Outcome, Grant string
 				Holders        []string
 			}
-			Neighbour string `json:"valid_neighbour"`
+			Neighbour         string `json:"valid_neighbour"`
+			NegativeNeighbour string `json:"negative_neighbour"`
 		}
 		Capacity []struct {
 			ID      string
@@ -305,27 +369,30 @@ func TestR1Holders(t *testing.T) {
 	if len(f.Values) != 28 || len(f.Capacity) != 5 {
 		t.Fatal("R1 holder inventory")
 	}
+	cases := map[string]r1VectorCase{}
 	for _, v := range f.Values {
-		t.Run(v.ID, func(t *testing.T) {
+		expected := map[string]any{"outcome": v.Expect.Outcome}
+		if v.Expect.Outcome == "valid" {
+			expected["grant"] = v.Expect.Grant
+			expected["holders"] = v.Expect.Holders
+		}
+		cases[v.ID] = r1VectorCase{v.Expect.Outcome == "valid", v.Neighbour, v.NegativeNeighbour, func(t *testing.T) any {
 			value, err := ReadR1Value(R1DraftLab, []byte(v.Value))
-			actual := map[string]any{"outcome": "refused"}
-			expected := map[string]any{"outcome": v.Expect.Outcome}
-			if err == nil {
-				pins := []string{}
-				for _, p := range value.Holders {
-					pins = append(pins, p.String())
+			if err != nil {
+				if err != ErrR1Value || !reflect.DeepEqual(value, R1Value{}) {
+					t.Fatalf("holder refusal: %v, partial=%+v", err, value)
 				}
-				actual = map[string]any{"outcome": "valid", "grant": value.Grant, "holders": pins}
+				return map[string]any{"outcome": "refused"}
 			}
-			if v.Expect.Outcome == "valid" {
-				expected["grant"] = v.Expect.Grant
-				expected["holders"] = v.Expect.Holders
+			pins := []string{}
+			for _, pin := range value.Holders {
+				pins = append(pins, pin.String())
 			}
-			if err != nil && !reflect.DeepEqual(value, R1Value{}) {
-				t.Fatal("refusal exposed binding")
-			}
-			r1Equal(t, v.ID, actual, expected)
-		})
+			return map[string]any{"outcome": "valid", "grant": value.Grant, "holders": pins}
+		}, expected}
+	}
+	for _, v := range f.Values {
+		t.Run(v.ID, func(t *testing.T) { r1RunVector(t, v.ID, cases) })
 	}
 	for _, v := range f.Capacity {
 		t.Run(v.ID, func(t *testing.T) {
@@ -339,18 +406,18 @@ func TestR1Holders(t *testing.T) {
 	}
 }
 
-func r1ClassFixtures(t *testing.T) ([]struct {
-	ID       string
-	Template r1FixtureTemplate
-	Expect   map[string]any
-}, []r1FixtureAdmission) {
+type r1TemplateVector struct {
+	ID                string
+	Neighbour         string `json:"valid_neighbour"`
+	NegativeNeighbour string `json:"negative_neighbour"`
+	Template          r1FixtureTemplate
+	Expect            map[string]any
+}
+
+func r1ClassFixtures(t *testing.T) ([]r1TemplateVector, []r1FixtureAdmission) {
 	t.Helper()
 	var f struct {
-		Templates []struct {
-			ID       string
-			Template r1FixtureTemplate
-			Expect   map[string]any
-		}
+		Templates  []r1TemplateVector
 		Admissions []r1FixtureAdmission
 	}
 	r1Fixture(t, "class-vectors.json", &f)
@@ -365,33 +432,47 @@ func r1ClassFixtures(t *testing.T) ([]struct {
 // on later attestation checks; placeholders are never signature qualification.
 func TestR1Class(t *testing.T) {
 	templates, admissions := r1ClassFixtures(t)
+	cases := map[string]r1VectorCase{}
 	for _, v := range templates {
-		t.Run(v.ID, func(t *testing.T) {
+		cases[v.ID] = r1VectorCase{v.Expect["outcome"] == "valid", v.Neighbour, v.NegativeNeighbour, func(t *testing.T) any {
 			err := CheckRowTemplate(R1DraftLab, r1Landlord(t, v.Template.Issuer), v.Template.Notaries, r1Template(t, v.Template))
-			actual := map[string]any{"outcome": "valid"}
 			if err != nil {
-				actual = map[string]any{"outcome": "refused", "rule": err.Error()}
+				return map[string]any{"outcome": "refused", "rule": err.Error()}
 			}
-			r1Equal(t, v.ID, actual, v.Expect)
-		})
+			return map[string]any{"outcome": "valid"}
+		}, v.Expect}
 	}
+	for _, v := range templates {
+		t.Run(v.ID, func(t *testing.T) { r1RunVector(t, v.ID, cases) })
+	}
+	cases = map[string]r1VectorCase{}
 	for _, v := range admissions {
-		t.Run(v.ID, func(t *testing.T) {
+		neighbour := v.Neighbour
+		// The four compound-refusal fixtures have no declared neighbour.
+		// class-01 is their explicit valid setup; upstream bytes stay pinned.
+		if v.Expect["outcome"] != "pass" && neighbour == "" {
+			neighbour = "class-01"
+		}
+		cases[v.ID] = r1VectorCase{v.Expect["outcome"] == "pass", neighbour, v.NegativeNeighbour, func(t *testing.T) any {
 			issuer, template, child, o := r1Admission(t, v)
 			result, err := CheckRowRecipient(R1DraftLab, issuer, template, child, o)
-			actual := map[string]any{"outcome": "pass", "attestation": "not read"}
-			if result.AttestationRequired {
-				actual["attestation"] = "required"
-			}
 			if err != nil {
-				actual = map[string]any{"outcome": err.Error()}
 				if result != (RowRecipientResult{}) {
 					t.Fatal("refusal exposed request key/policy")
 				}
+				return map[string]any{"outcome": err.Error()}
 			}
-			r1Equal(t, v.ID, actual, v.Expect)
-		})
+			policy := "not read"
+			if result.AttestationRequired {
+				policy = "required"
+			}
+			return map[string]any{"outcome": "pass", "attestation": policy}
+		}, v.Expect}
 	}
+	for _, v := range admissions {
+		t.Run(v.ID, func(t *testing.T) { r1RunVector(t, v.ID, cases) })
+	}
+
 }
 
 // The pending decisions are enabled only by the named draft profile; the
@@ -470,7 +551,10 @@ func TestR1RowFitVectors(t *testing.T) {
 	}
 	for _, v := range file.Vectors {
 		t.Run(v.ID, func(t *testing.T) {
-			parent, _, observation := r1FullParent(t)
+			parent, positive, observation := r1FullParent(t)
+			if result, err := CheckR1Child(R1DraftLab, parent, positive, observation); err != nil || result.Key == "" {
+				t.Fatalf("row-fit positive control: %v", err)
+			}
 			r := r1Recipient(t, v.Child.Recipient)
 			child := R1Child{v.Child.Ordinal, v.Child.Executor, Recipient{RequestKey: r.Key, ByName: r.Name}, r1Limits(v.Child.Limits)}
 			result, err := CheckR1Child(R1DraftLab, parent, child, observation)

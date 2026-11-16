@@ -11,6 +11,9 @@ import sys
 
 MODULE = Path(__file__).resolve().parents[1]
 PLANTS = [
+    ('r2-holder-reject-all', 'r1_value.go', 'swarma, nostr, err := r1ValueMembers(raw)', 'return fail(); swarma, nostr, err := r1ValueMembers(raw)', 'TestR1Holders/value-10', 'neighbour value-03: R1 got'),
+    ('r2-group-reject-all', 'r1_groups.go', 'if len(p.Groups) < 1', 'if true { return 0, R1RuleError("R8.4") }; if len(p.Groups) < 1', 'TestR1Groups/group-11', 'neighbour group-02: R1 got'),
+    ('r2-template-reject-all', 'r1_class.go', 'if t.Certifier != "" {', 'if true { return R1RuleError("R9.1") }; if t.Certifier != "" {', 'TestR1Class/template-07', 'neighbour template-01: R1 got'),
     ('r2-landlord-absence-verdict', 'r1_class.go', 'case NoLiveOutput:\n\t\treturn ClassLandlordChanged', 'case NoLiveOutput:\n\t\treturn ClassHistoryUnavailable', 'TestRev375LandlordNoLiveOutput/proved_absent', 'R9.5 first step:'),
     ('r2-trailing-json-whitespace', 'r1_value.go', 'if d.InputOffset() != int64(len(raw)) {', 'if d.InputOffset() != int64(len(bytes.TrimRight(raw, " \\t\\r\\n"))) {', 'TestRev375TopLevelSuffix/suffix_20', 'bytes after object must refuse'),
     ("current-owner-only", "verdict.go", "if inView {", "if inView && out.ID == s.Outputs[0].ID {", "TestV4IssuerHistory/walk-issuer-04", "walk-issuer-04: got"),
