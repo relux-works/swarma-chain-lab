@@ -19,14 +19,16 @@ func identityBytes(t *testing.T, name string) []byte {
 // A root is not a delegable /2 parent/child certification bundle. No child,
 // notary statement or liveness observation is synthesized for this junction.
 func TestIdentityInteropRootBoundary(t *testing.T) {
-	raw := identityBytes(t, "presentation.json")
-	contract := identityBytes(t, "contract.json")
-	if _, err := readGrant(raw, 1795000000); err != nil {
-		t.Fatal("valid v3 root refused", err)
-	}
-	_, err := Check(Input{Parent: raw, Child: raw, ParentContract: contract, ChildContract: contract, At: 1795000000})
-	if err == nil || err.Error() != "CONTRACT_ENCODING" {
-		t.Fatalf("/1 certification boundary: %v", err)
+	for _, tc := range []struct{ proof, contract string }{{"presentation.json", "contract.json"}, {"wrong-profile.json", "wrong-profile-contract.json"}} {
+		raw := identityBytes(t, tc.proof)
+		contract := identityBytes(t, tc.contract)
+		if _, err := readGrant(raw, 1795000000); err != nil {
+			t.Fatal("valid v3 signature envelope refused", err)
+		}
+		_, err := Check(Input{Parent: raw, Child: raw, ParentContract: contract, ChildContract: contract, At: 1795000000})
+		if err == nil || err.Error() != "CONTRACT_ENCODING" {
+			t.Fatalf("unsupported certification contract: %v", err)
+		}
 	}
 }
 

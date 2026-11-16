@@ -117,8 +117,13 @@ verifier-time expiry: that asymmetry is intentional and measured.
 Run from `experiments/grantcheck`:
 
 ```sh
-go run ./cmd/no-holders < operator-supplied-landlord-value.json
+go build -mod=readonly -o .temp/no-holders ./cmd/no-holders
+.temp/no-holders < operator-supplied-landlord-value.json
 ```
+
+Build during setup with dependencies already available; invoke the built binary
+at the offline ceremony. `go run ./cmd/no-holders` is also a developer entry point,
+but a cold Go build may fetch public modules. The binary itself never uses a node.
 
 Input is the landlord VALUE as raw JSON bytes, or that value encoded as the
 JSON string of `name_show.value`; do not supply a whole RPC envelope. Output:
@@ -153,3 +158,30 @@ is substituted. No mainnet node, real-name value, live Core regtest node,
 registration, signing wallet, broadcast, confirmation, consensus, mempool
 race, reorg, transport integration, owner custody or production freshness
 qualification is exercised. Real-chain qualification remains a separate gate.
+
+## Bound fields and observed gates
+
+The real CG1 path parses canonical v3 framing and grant ID, verifies the outer
+BIP-340 issuer signature, consent event ID/signature/pubkey/kind/content/time,
+and landlord contract signature. Its explicit trust configuration binds
+network **and genesis**, agent name, landlord name and issuer key; it requires
+an empty executor key. The contract resolver returns exact SHA-256-bound bytes.
+Trust-contract validation checks the closed canonical member set/order,
+profile, network, names, grantee key, sorted actions/repositories, spend budget,
+window and note constraints. Section 2.5 additionally compares network, names,
+grantee, both times, derived v3 scope, budget and the exact four consent tags.
+For `/1`, depth is implicitly zero. No `/2` scope-text lookup is exercised.
+
+The actual rental kernel binds active name value projections to raw
+name_update transaction outputs, checks the landlord grant key and agent's
+landlord pointer, mempool transition observations, issuance commitment/frame
+and presented locator, exact seal outpoint/script/value, unspent observations,
+W native P2WPKH SIGHASH_ALL funding signatures and confirmed-parent ordering,
+active header/hash/membership consistency, stable observations, trusted time,
+and CG1 tip freshness. These are checks **against the modeled observations**;
+Core/consensus validity and operator custody remain unproved.
+
+Notary `readGrant` checks canonical presentation, v3 fields/network/genesis,
+outer signature, verifier time and consent/signatures. Its certification API
+then refuses the `/1` contract before child/row/notary checks. A valid v3
+parser result is not a certified or live grant.
