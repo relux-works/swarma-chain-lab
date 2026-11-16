@@ -4,12 +4,12 @@ go 1.26.0
 
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.5
-	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261115082735-f1936aa1117a
 	github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261116084028-6fb17070638c
 )
 
 require (
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261115082735-f1936aa1117a // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
 

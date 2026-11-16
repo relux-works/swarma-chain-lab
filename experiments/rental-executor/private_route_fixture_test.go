@@ -2,7 +2,6 @@ package executor
 
 import (
 	"encoding/json"
-	pc "github.com/relux-works/swarma-chain-lab/experiments/payment-chain"
 	su "github.com/relux-works/swarma-chain-lab/experiments/single-use"
 	"os"
 	"path/filepath"
@@ -22,8 +21,6 @@ func privateRouteFixture(value any) any {
 	}
 	switch r := value.(type) {
 	case su.Route:
-		return legacy{r.Host, r.Port, r.Username, r.Password.RevealForBasicAuth()}
-	case pc.Route:
 		return legacy{r.Host, r.Port, r.Username, r.Password.RevealForBasicAuth()}
 	default:
 		return value
