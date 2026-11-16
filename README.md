@@ -18,7 +18,7 @@ Experiments live in `experiments/<name>/`:
 
 - [Grant v4 primitive vectors](experiments/grant-v4/vectors/VECTORS.md): Go-generated
   primitive and stated-fact fixtures with an independent stdlib Python checker;
-  no valid swarma-grant/4 vectors until B0. Run
+  no valid swarma-grant/4 vectors until LIP-0020 defines its members. Run
   `go -C experiments/grant-v4/vectors test ./...` and
   `python3 -I experiments/grant-v4/vectors/scripts/check-vectors.py` in isolated
   scratch; generator output and logs go under `.temp/`.
@@ -620,9 +620,14 @@ commands, the public fixture pin and `.temp/` evidence locations are documented
 in the [module README](experiments/grant-v4/wire/README.md#tools-and-commands).
 The existing module-graph and public-hygiene scripts cover its registration.
 
-The [B1 candidate-vector preflight](experiments/grant-v4/vectors/VECTORS.md)
-records the missing grant member schema at v0.1.51. No B1 vector file or
-cross-language agreement is available until that contract is pinned.
+The [primitive vector fixture](experiments/grant-v4/vectors/VECTORS.md) provides
+Go-generated arithmetic and stated-fact cases with independent Python checks.
+Underspecified API verdicts are labelled and reported as not judged. The
+[CI entrypoint](experiments/grant-v4/vectors/VECTORS.md#tools-and-commands),
+`python3 -I experiments/grant-v4/vectors/scripts/check-ci.py --scratch .temp/vector-checks`,
+runs Go drift/tests/vet/build, Python and planted-drift controls in isolated
+copies. Logs go to `.temp/vector-checks`; temporary caches are removed on exit.
+Whole-grant vectors still require the specified member schema.
 
 Grant identity expiry is reported by name as non-retryable
 `identity_expired` (`closed=true`), including cached re-checks. See

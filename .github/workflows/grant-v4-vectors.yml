@@ -1,0 +1,52 @@
+name: Grant v4 vectors checks
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/grant-v4/**'
+      - '.github/workflows/grant-v4-vectors.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/grant-v4/**'
+      - '.github/workflows/grant-v4-vectors.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vectors:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: 'off'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
+        with:
+          go-version: '1.26.10'
+          check-latest: false
+          cache: false
+      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
+        with:
+          python-version: '3.14.4'
+          check-latest: false
+      - name: Record exact candidate
+        run: git rev-parse HEAD > "$RUNNER_TEMP/vectors-head.txt"
+      - name: Go drift, independent derivation and one-byte detector controls
+        run: python3 -I experiments/grant-v4/vectors/scripts/check-ci.py --scratch "$RUNNER_TEMP/vectors"
+      - name: Preserve exact gate and control evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: vectors-evidence
+          path: |
+            ${{ runner.temp }}/vectors-head.txt
+            ${{ runner.temp }}/vectors/*.log
+            ${{ runner.temp }}/vectors/results.json
+          if-no-files-found: error

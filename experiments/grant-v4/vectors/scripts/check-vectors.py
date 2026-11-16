@@ -301,8 +301,8 @@ def read_signed(raw, expected, context=None, references=()):
     for reference in references:
         require(reference == identifier, 'WIRE_ID')
     if context is not None:
-        require(p['genesis'] == context['Genesis'] and p['contract'] == context['Contract'], 'ASSENT_BINDING')
-        require(p['party'] == context['PartyPublicKey'], 'ASSENT_PARTY')
+        require(p['genesis'] == context['genesis'] and p['contract'] == context['contract'], 'ASSENT_BINDING')
+        require(p['party'] == context['party_public_key'], 'ASSENT_PARTY')
     return v, {'signed_hex': raw.hex(), 'payload_hex': payload.hex(),
                'payload_id': identifier, 'content_address': sha(raw).hex(),
                'typed_digest': digest.hex(), 'signature_hex': v['signature']}
@@ -366,25 +366,25 @@ def event_shape(raw):
 def read_consent(raw, ctx):
     v = event_shape(raw)
     tags = v['tags']
-    require(tags[1][1] == ctx['Genesis'] and tags[2][1] == ctx['Contract']
-            and tags[3][1] == ctx['IssuerPublicKey'], 'CONSENT_BINDING')
-    if ctx['Mode'] == 'key':
+    require(tags[1][1] == ctx['genesis'] and tags[2][1] == ctx['contract']
+            and tags[3][1] == ctx['issuer_public_key'], 'CONSENT_BINDING')
+    if ctx['mode'] == 'key':
         require(len(tags) == 4, 'CONSENT_BINDING')
-        require(v['pubkey'] == ctx['RequestPublicKey'], 'CONSENT_KEY')
-    elif ctx['Mode'] == 'name':
-        require(len(tags) == 5 and tags[4][1] == ctx['RecipientName'], 'CONSENT_BINDING')
-        e = ctx.get('Evidence')
-        require(e is not None and e.get('Confirmed', False) and e.get('Height', 0) <= ctx['RecentBlockHeight']
-                and e.get('OperationOfName', False) and e.get('LiveAtRecentBlock', False) and e.get('OwnerMatches', False)
-                and (e.get('SpentAtHeight') is None or e['SpentAtHeight'] > ctx['RecentBlockHeight']), 'CONSENT_EVIDENCE')
-        require(e.get('YieldsPublicKey') == v['pubkey'], 'CONSENT_KEY')
+        require(v['pubkey'] == ctx['request_public_key'], 'CONSENT_KEY')
+    elif ctx['mode'] == 'name':
+        require(len(tags) == 5 and tags[4][1] == ctx['recipient_name'], 'CONSENT_BINDING')
+        e = ctx.get('evidence')
+        require(e is not None and e.get('confirmed', False) and e.get('height', 0) <= ctx['recent_block_height']
+                and e.get('operation_of_name', False) and e.get('live_at_recent_block', False) and e.get('owner_matches', False)
+                and (e.get('spent_at_height') is None or e['spent_at_height'] > ctx['recent_block_height']), 'CONSENT_EVIDENCE')
+        require(e.get('yields_public_key') == v['pubkey'], 'CONSENT_KEY')
     else:
         raise Refusal('CONSENT_BINDING')
     try:
         verify(v['pubkey'], bytes.fromhex(v['id']), bytes.fromhex(v['sig']))
     except Refusal:
         raise Refusal('CONSENT_SIGNATURE') from None
-    require(v['created_at'] <= ctx['Now'], 'CONSENT_TIME')
+    require(v['created_at'] <= ctx['clock'], 'CONSENT_TIME')
     return v
 
 
@@ -417,18 +417,28 @@ def evaluate(op, x):
         check_key(x['public_key'])
         return {}
     if op == 'signature_form':
-        sig = bytes.fromhex(x['signature_hex'])
-        signature_form(sig)
-        return {'signature_hex': sig.hex()}
+        raise NotJudged('preflight API success/refusal is not W5.2 verification')
     if op == 'verify':
         verify(x['public_key'], bytes.fromhex(x['digest']), bytes.fromhex(x['signature_hex']))
         return {}
+    if op == 'memberless_signed':
+        value = parse_wire(bytes.fromhex(x['raw_hex']), 2048)
+        require(exact(value, ('payload', 'signature')), 'WIRE_MEMBER')
+        payload = value['payload']
+        require(payload.get('type') == x['expected_type'], 'WIRE_TYPE')
+        raw = encode(payload, 2048)
+        verify(x['place_public_key'], tagged(payload['type'], raw), bytes.fromhex(value['signature']))
+        # W3.1 rejects the actual, independently authenticated type-only input.
+        require(payload['type'] in REGISTRY - {ASSENT, ISSUANCE}, 'MEMBERLESS_PLACE')
+        raise Refusal('WIRE_TYPE')
     if op == 'signed':
         return read_signed(bytes.fromhex(x['raw_hex']), x['expected_type'],
                            x.get('context'), x.get('references', ()))[1]
     if op == 'unsigned':
         return read_unsigned(bytes.fromhex(x['raw_hex']), x['expected_type'])
     if op == 'consent_encode':
+        if any(t[0] == 'name' and len(t[1].encode()) > 255 for t in x['tags']):
+            raise NotJudged('name profile and inherited tag-value limit are unresolved')
         pk = public_key(x['public_test_scalar'])
         v = {'pubkey': pk, 'created_at': x['created_at'], 'kind': 8181,
              'tags': x['tags'], 'content': ''}
@@ -443,45 +453,50 @@ def evaluate(op, x):
                 'event_id': identifier.hex(), 'signature_hex': v['sig'], 'public_key': pk}
     if op in ('consent', 'issuer'):
         ctx = dict(x['context'])
-        if op == 'issuer' and ctx['Mode'] == 'name':
+        if op == 'issuer' and ctx['mode'] == 'name':
             snapshot = x.get('snapshot')
             require(snapshot is not None, 'CONSENT_EVIDENCE')
-            n = snapshot['Name']
-            ctx['RecentBlockHeight'] = snapshot['RecentBlockHeight']
-            ctx['Evidence'] = {'Confirmed': n['Confirmed'], 'Height': n['Height'],
-                               'OperationOfName': True, 'LiveAtRecentBlock': n['Live'],
-                               'OwnerMatches': n['OwnerMatches'], 'YieldsPublicKey': n['YieldsPublicKey']}
+            n = snapshot['name']
+            ctx['recent_block_height'] = snapshot['recent_block_height']
+            ctx['evidence'] = {'confirmed': n['confirmed'], 'height': n['height'],
+                               'operation_of_name': True, 'live_at_recent_block': n['live'],
+                               'owner_matches': n['owner_matches'], 'yields_public_key': n['yields_public_key']}
         v = read_consent(bytes.fromhex(x['raw_hex']), ctx)
         if op == 'issuer':
-            require(ctx['Now']-v['created_at'] <= MAX_AGE, 'CONSENT_AGE')
-            require(v['id'] not in x.get('consumed_ids', []), 'CONSENT_CONSUMED')
+            if ctx['clock']-v['created_at'] > MAX_AGE and v['id'] in x.get('consumed_event_ids', []):
+                raise NotJudged('W7.8/W7.9 do not order age and consumption')
+            require(ctx['clock']-v['created_at'] <= MAX_AGE, 'CONSENT_AGE')
+            require(v['id'] not in x.get('consumed_event_ids', []), 'CONSENT_CONSUMED')
             return {}
         return consent_output(v)
     if op == 'issuance':
         g = x['stated_grant_facts']
-        require(g is not None, 'WIRE_TYPE')
+        if g is None:
+            raise NotJudged('absent-grant API has no specified W9.4 step-1 code')
         point = x.get('name_output')
-        require(g['Mode'] in ('key', 'name') and ((g['Mode'] == 'name') == (point is not None)), 'ISSUANCE_MODE')
-        context = {'Genesis': g['Genesis'], 'Contract': g['Contract'], 'PartyPublicKey': g['PartyPublicKey']}
+        if point is not None and point['vout'] > 2**32-1:
+            raise NotJudged('evidence outpoint bound/refusal placement is unspecified')
+        require(g['mode'] in ('key', 'name') and ((g['mode'] == 'name') == (point is not None)), 'ISSUANCE_MODE')
+        context = {'genesis': g['genesis'], 'contract': g['contract'], 'party_public_key': g['party_public_key']}
         assent, _ = read_signed(bytes.fromhex(x['assent_hex']), ASSENT, context)
-        context = {k: g[k] for k in ('Mode', 'Genesis', 'Contract', 'IssuerPublicKey',
-                                    'RequestPublicKey', 'RecipientName', 'RecentBlockHeight')}
-        context.update(Now=x['now'], Evidence=x.get('stated_evidence'))
+        context = {k: g[k] for k in ('mode', 'genesis', 'contract', 'issuer_public_key',
+                                    'request_public_key', 'recipient_name', 'recent_block_height')}
+        context.update(clock=x['clock'], evidence=x.get('stated_evidence'))
         consent = read_consent(bytes.fromhex(x['consent_hex']), context)
         rc = {'event_id': consent['id'], 'signature': consent['sig']}
         if point is not None:
-            rc['name_output'] = {'txid': point['TxID'], 'vout': point['Vout']}
-        document = {'type': ISSUANCE, 'genesis': g['Genesis'], 'contract': g['Contract'],
-                    'grant_id': g['ID'], 'grant_signature': g['Signature'],
+            rc['name_output'] = {'txid': point['txid'], 'vout': point['vout']}
+        document = {'type': ISSUANCE, 'genesis': g['genesis'], 'contract': g['contract'],
+                    'grant_id': g['grant_id'], 'grant_signature': g['grant_signature'],
                     'issuer_assent': {'party': assent['payload']['party'], 'signature': assent['signature']},
                     'recipient_consent': rc}
         raw = encode(document, 2048)
         result = read_unsigned(raw, ISSUANCE)
-        require(hex_form(g['ContentAddress'], 32), 'ISSUANCE_FRAME')
+        require(hex_form(g['content_address'], 32), 'ISSUANCE_FRAME')
         script = bytes.fromhex(x['frame_hex'])
         require(x['frame_value'] == 0 and x['op_return_count'] == 1 and len(script) == 72, 'ISSUANCE_FRAME')
         require(script[:7] == bytes.fromhex('6a03534c014202') and script[39] == 1
-                and script[40:] == bytes.fromhex(g['ContentAddress']), 'ISSUANCE_FRAME')
+                and script[40:] == bytes.fromhex(g['content_address']), 'ISSUANCE_FRAME')
         require(script[7:39].hex() == result['commitment'], 'ISSUANCE_COMMITMENT')
         result['frame_hex'] = script.hex()
         return result
@@ -512,6 +527,26 @@ def self_check():
         raise ValueError('BIP340 negative control survived')
 
 
+class NotJudged(Exception):
+    """A lab API verdict not determined by the pinned specification."""
+
+
+def derivable_bytes(op, x):
+    # Even where a verdict is not specified, every published successful byte
+    # output is re-derived without making that API decision.
+    if op == 'signature_form':
+        return {'signature_hex': bytes.fromhex(x['signature_hex']).hex()}
+    if op == 'consent_encode':
+        v = {'pubkey': public_key(x['public_test_scalar']), 'created_at': x['created_at'],
+             'kind': 8181, 'tags': x['tags'], 'content': ''}
+        pre = event_preimage(v)
+        identifier = sha(pre)
+        v.update(id=identifier.hex(), sig=sign(x['public_test_scalar'], identifier).hex())
+        return {'event_hex': event_bytes(v).hex(), 'id_preimage_hex': pre.hex(),
+                'event_id': identifier.hex(), 'signature_hex': v['sig'], 'public_key': v['pubkey']}
+    return {}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('vectors', type=Path, nargs='?', default=Path(__file__).resolve().parents[1]/'vectors.json')
@@ -520,25 +555,45 @@ def main():
         self_check()
         data = json.loads(args.vectors.read_text(encoding='utf-8'))
         require(data['format'] == 'swarma-lab-primitives/1' and
-                data['scope'] == 'no valid swarma-grant/4 vectors until B0; arithmetic and stated facts only' and
+                data['scope'] == 'no valid swarma-grant/4 vectors until LIP-0020 defines its members; arithmetic and stated facts only' and
                 data['spec_revision'] == 'bd3bc80e5543d8a563343ec05abd1a5f3f67284c' and
+                data['lab_revision'] == '8a47f1a984cd93864402f7fdc09d2eba0d890b90' and
+                data['lab_spec_revision'] == 'adae6e7669601f271f7d0d9cdd91ecee7d19bf02' and
                 data['public_test_scalars'] == [1, 2, 3] and data['aux_rand'] == '00'*32,
                 'FIXTURE_METADATA')
-        seen, codes, findings = set(), Counter(), []
+        seen, codes, findings, not_judged = set(), Counter(), [], []
+        rows = {r['id']: r for r in data['vectors']}
         for row in data['vectors']:
-            require(row['id'] not in seen and row['id'] and row['purpose'] and row['spec'].startswith('LIP-0020 '), 'FIXTURE_ID_OR_CITATION')
+            require(row['id'] not in seen and row['id'] and row['purpose'] and row['reason']
+                    and row['spec'].startswith('LIP-0020 '), 'FIXTURE_ID_OR_CITATION')
+            require(row['basis'] in ('spec', 'lab-choice') or row['basis'].startswith('contingent:'), 'FIXTURE_BASIS')
+            if row['output']['code'] != 'ok':
+                neighbour = rows.get(row.get('valid_neighbour'))
+                require(neighbour is not None and neighbour['output']['code'] == 'ok' and row.get('defects'), 'FIXTURE_NEIGHBOUR_OR_DEFECTS')
             seen.add(row['id'])
-            actual = checked_evaluate(row['operation'], row['input'])
-            codes[actual['code']] += 1
-            if actual != row['output']:
-                fields = sorted(k for k in actual.keys() | row['output'].keys() if actual.get(k) != row['output'].get(k))
-                findings.append(f"FINDING {row['id']} ({row['spec']}): disagreement in {','.join(fields)}; independent code={actual['code']}, fixture code={row['output'].get('code')}")
+            try:
+                actual = checked_evaluate(row['operation'], row['input'])
+                require(row['basis'] != 'lab-choice', 'UNLABELLED_LAB_JUDGMENT')
+                codes[actual['code']] += 1
+                expected = row['output']
+            except NotJudged as exc:
+                require(row['basis'] == 'lab-choice', 'UNLABELLED_LAB_CHOICE')
+                not_judged.append((row['id'], str(exc)))
+                derived = derivable_bytes(row['operation'], row['input'])
+                expected = {k: v for k, v in row['output'].items() if k != 'code'}
+                actual = {k: derived[k] for k in expected if k in derived}
+            if actual != expected:
+                fields = sorted(k for k in actual.keys() | expected.keys() if actual.get(k) != expected.get(k))
+                findings.append(f"FINDING {row['id']} ({row['spec']}): disagreement in {','.join(fields)}")
         require(REFUSALS <= codes.keys(), 'FIXTURE_MISSING_REFUSAL_CLASS')
+        for identifier, reason in not_judged:
+            print(f'not judged: {identifier}: {reason}')
         for finding in findings:
             print(finding, file=sys.stderr)
         if findings:
             return 1
-        print(f"agreement: {len(seen)} vectors; {codes['ok']} valid primitive/stated-fact cases; {len(REFUSALS)} refusal classes; BIP340 external positive/negative controls passed")
+        successes = sum(r['output']['code'] == 'ok' for r in data['vectors'])
+        print(f"agreement: {len(seen)} vectors; all {successes} valid byte outputs; {len(not_judged)} verdicts not judged; {len(REFUSALS)} specified refusal classes; BIP340 controls passed")
         return 0
     except (OSError, ValueError, KeyError, TypeError, Refusal) as exc:
         print(f'check failed: {exc}', file=sys.stderr)

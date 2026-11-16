@@ -1,12 +1,13 @@
 # Unresolved questions
 
-## B1 candidate v4 grant bytes
+## Grant v4 member encodings
 
-LIP-0020 at v0.1.51 reserves `swarma-grant/4` without members; LIP-0026 §8
-leaves group/template/range octets open. The lab implements this boundary.
-B1 requires a pinned candidate schema and its bounds/refusal contract before
-valid grant vectors can be generated without inventing a local protocol.
-See the [source evidence and spec-seat decisions](experiments/grant-v4/vectors/VECTORS.md#decisions-needed-from-the-spec-seat).
+The primitive/stated-fact fixture is available with independent Python checks and
+explicitly unjudged lab-choice verdicts. It does not admit grant bytes. The
+qualified specification lacks the grant and group member encodings. See the
+[specification requirements](experiments/grant-v4/vectors/VECTORS.md#specification-decisions-and-integration-requirements)
+for the remaining forms, refusal questions and registry contingencies, and the
+already settled limits and key semantics.
 
 ## Resolved: detached-v2 observer-local identity
 

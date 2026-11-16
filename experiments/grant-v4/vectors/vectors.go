@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -19,21 +21,27 @@ import (
 type object = map[string]any
 
 type Vector struct {
-	ID        string `json:"id"`
-	Purpose   string `json:"purpose"`
-	Spec      string `json:"spec"`
-	Operation string `json:"operation"`
-	Input     object `json:"input"`
-	Output    object `json:"output"`
+	ID             string   `json:"id"`
+	Purpose        string   `json:"purpose"`
+	Spec           string   `json:"spec"`
+	Operation      string   `json:"operation"`
+	Input          object   `json:"input"`
+	Output         object   `json:"output"`
+	Basis          string   `json:"basis"`
+	ValidNeighbour string   `json:"valid_neighbour,omitempty"`
+	Defects        []string `json:"defects,omitempty"`
+	Reason         string   `json:"reason"`
 }
 
 type Set struct {
-	Format        string   `json:"format"`
-	Scope         string   `json:"scope"`
-	SpecRevision  string   `json:"spec_revision"`
-	PublicScalars []int    `json:"public_test_scalars"`
-	AuxRand       string   `json:"aux_rand"`
-	Vectors       []Vector `json:"vectors"`
+	Format          string   `json:"format"`
+	Scope           string   `json:"scope"`
+	SpecRevision    string   `json:"spec_revision"`
+	LabRevision     string   `json:"lab_revision"`
+	LabSpecRevision string   `json:"lab_spec_revision"`
+	PublicScalars   []int    `json:"public_test_scalars"`
+	AuxRand         string   `json:"aux_rand"`
+	Vectors         []Vector `json:"vectors"`
 }
 
 func hx(b []byte) string   { return hex.EncodeToString(b) }
@@ -53,7 +61,40 @@ func number(x object, k string) uint64 {
 	}
 	return n
 }
+
+// fixtureNames adapts lab struct fields to the specification vector vocabulary.
+// These stated facts do not propose serialized grant members.
+var fixtureNames = map[string]string{"Genesis": "genesis", "Contract": "contract", "PartyPublicKey": "party_public_key", "Mode": "mode", "IssuerPublicKey": "issuer_public_key", "RequestPublicKey": "request_public_key", "RecipientName": "recipient_name", "RecentBlockHeight": "recent_block_height", "Now": "clock", "Evidence": "evidence", "Confirmed": "confirmed", "Height": "height", "OperationOfName": "operation_of_name", "LiveAtRecentBlock": "live_at_recent_block", "OwnerMatches": "owner_matches", "YieldsPublicKey": "yields_public_key", "SpentAtHeight": "spent_at_height", "ID": "grant_id", "Signature": "grant_signature", "ContentAddress": "content_address", "TxID": "txid", "Vout": "vout", "Name": "name", "Live": "live"}
+
+func renameFields(x any, toFixture bool) any {
+	switch v := x.(type) {
+	case map[string]any:
+		out := object{}
+		for k, child := range v {
+			name := k
+			for internal, external := range fixtureNames {
+				if toFixture && k == internal {
+					name = external
+				}
+				if !toFixture && k == external {
+					name = internal
+				}
+			}
+			out[name] = renameFields(child, toFixture)
+		}
+		return out
+	case []any:
+		for i := range v {
+			v[i] = renameFields(v[i], toFixture)
+		}
+		return v
+	default:
+		return x
+	}
+}
+
 func decode(x any, out any) {
+	x = renameFields(x, false)
 	b, e := json.Marshal(x)
 	if e != nil {
 		panic(e)
@@ -73,7 +114,7 @@ func clone(x object) object {
 	if e = d.Decode(&y); e != nil {
 		panic(e)
 	}
-	return y
+	return renameFields(y, true).(object)
 }
 func code(err error) string {
 	if err != nil {
@@ -88,16 +129,24 @@ func canonical(x any, limit int) []byte {
 	}
 	return b
 }
-func key(scalar int) string {
-	b := make([]byte, 32)
-	b[31] = byte(scalar)
-	_, p := btcec.PrivKeyFromBytes(b)
-	return hx(schnorr.SerializePubKey(p))
-}
-func sign(scalar int, d [32]byte) string {
+
+// publicTestKey and sign are fixture scaffolding, restricted to published test scalars.
+func publicTestKey(scalar int) *btcec.PrivateKey {
+	if scalar < 1 || scalar > 3 {
+		panic("public test scalars 1, 2, 3 only")
+	}
 	b := make([]byte, 32)
 	b[31] = byte(scalar)
 	sk, _ := btcec.PrivKeyFromBytes(b)
+	return sk
+}
+func key(scalar int) string {
+	return hx(schnorr.SerializePubKey(publicTestKey(scalar).PubKey()))
+}
+
+// sign is a test-only deterministic signer; never use it for real key material.
+func sign(scalar int, d [32]byte) string {
+	sk := publicTestKey(scalar)
 	sig, e := schnorr.Sign(sk, d[:], schnorr.CustomNonce([32]byte{}))
 	if e != nil {
 		panic(e)
@@ -178,6 +227,35 @@ func Evaluate(op string, in object) object {
 		}
 	case "key":
 		err = wire.CheckSigningKey(text(in, "public_key"))
+	case "memberless_signed":
+		// Inspect and authenticate the actual signed fixture before testing dispatch.
+		// This scaffolding does not add a schema to the wire reader.
+		raw := unhex(text(in, "raw_hex"))
+		var doc *wire.Document
+		doc, err = wire.ParseDocument(raw, 2048)
+		if err != nil {
+			break
+		}
+		var value object
+		if e := json.Unmarshal(doc.Bytes(), &value); e != nil {
+			panic(e)
+		}
+		pl, ok := value["payload"].(object)
+		if !ok || len(value) != 2 {
+			err = wire.WireMember
+			break
+		}
+		if text(pl, "type") != text(in, "expected_type") {
+			err = wire.WireType
+			break
+		}
+		b := canonical(pl, 2048)
+		d := digest(b)
+		err = wire.VerifyBIP340(text(in, "place_public_key"), d, unhex(text(value, "signature")))
+		if err != nil {
+			break
+		}
+		_, err = wire.ReadSigned(raw, wire.Type(text(in, "expected_type")))
 	case "signed":
 		var o *wire.SignedObject
 		if in["context"] != nil {
@@ -227,7 +305,7 @@ func Evaluate(op string, in object) object {
 			var snap *wire.Snapshot
 			decode(in["snapshot"], &snap)
 			var consumed []string
-			decode(in["consumed_ids"], &consumed)
+			decode(in["consumed_event_ids"], &consumed)
 			err = wire.CheckIssuerConditions(b, ctx, snap, consumed)
 		} else {
 			var c *wire.Consent
@@ -245,7 +323,7 @@ func Evaluate(op string, in object) object {
 		decode(in["stated_evidence"], &evidence)
 		var point *wire.Outpoint
 		decode(in["name_output"], &point)
-		args := wire.IssuanceInput{Grant: facts, IssuerAssent: unhex(text(in, "assent_hex")), RecipientConsent: unhex(text(in, "consent_hex")), NameOutput: point, Evidence: evidence, Now: number(in, "now"), Frame: wire.Frame{Script: unhex(text(in, "frame_hex")), Value: number(in, "frame_value"), OpReturnCount: int(number(in, "op_return_count"))}}
+		args := wire.IssuanceInput{Grant: facts, IssuerAssent: unhex(text(in, "assent_hex")), RecipientConsent: unhex(text(in, "consent_hex")), NameOutput: point, Evidence: evidence, Now: number(in, "clock"), Frame: wire.Frame{Script: unhex(text(in, "frame_hex")), Value: number(in, "frame_value"), OpReturnCount: int(number(in, "op_return_count"))}}
 		before, _ := json.Marshal(args)
 		var p *wire.Preparation
 		p, err = wire.CheckIssuance(args)
@@ -279,7 +357,7 @@ func Generate() (result []byte, err error) {
 			err = fmt.Errorf("generator: %v", r)
 		}
 	}()
-	set := Set{Format: "swarma-lab-primitives/1", Scope: "no valid swarma-grant/4 vectors until B0; arithmetic and stated facts only", SpecRevision: "bd3bc80e5543d8a563343ec05abd1a5f3f67284c", PublicScalars: []int{1, 2, 3}, AuxRand: strings.Repeat("00", 32)}
+	set := Set{Format: "swarma-lab-primitives/1", Scope: "no valid swarma-grant/4 vectors until LIP-0020 defines its members; arithmetic and stated facts only", SpecRevision: "bd3bc80e5543d8a563343ec05abd1a5f3f67284c", LabRevision: "8a47f1a984cd93864402f7fdc09d2eba0d890b90", LabSpecRevision: "adae6e7669601f271f7d0d9cdd91ecee7d19bf02", PublicScalars: []int{1, 2, 3}, AuxRand: strings.Repeat("00", 32)}
 	add := func(id, purpose, spec, op string, in object, want string) object {
 		// Round-trip fixture inputs so evaluation sees the same JSON number types as readers.
 		in = clone(in)
@@ -287,7 +365,7 @@ func Generate() (result []byte, err error) {
 		if out["code"] != want {
 			panic(fmt.Sprintf("FINDING %s (%s): lab %s, spec expectation %s", id, spec, out["code"], want))
 		}
-		set.Vectors = append(set.Vectors, Vector{id, purpose, "LIP-0020 " + spec, op, in, out})
+		set.Vectors = append(set.Vectors, Vector{ID: id, Purpose: purpose, Spec: "LIP-0020 " + spec, Operation: op, Input: in, Output: out, Basis: "spec", Reason: purpose})
 		return out
 	}
 	genesis := strings.Repeat("11", 32)
@@ -306,6 +384,9 @@ func Generate() (result []byte, err error) {
 		doc := object{"type": string(typ)}
 		add(fmt.Sprintf("arithmetic-%d", i), "registry arithmetic only; no object/schema admission", "W3.1; W4.1; W6.1; section 10 primitive stage", "primitive", object{"document": doc}, "ok")
 		for _, s := range []int{1, 2, 3} {
+			if typ == wire.Issuance {
+				continue
+			} // W3: nobody signs an issuance commitment.
 			add(fmt.Sprintf("signature-%d-%d", i, s), "BIP340 over arithmetic typed digest, public scalar, zero aux_rand; no object admission", "W4.1; W5.1-W5.2", "signature", object{"document": doc, "public_test_scalar": s}, "ok")
 		}
 	}
@@ -315,8 +396,8 @@ func Generate() (result []byte, err error) {
 		doc["party"] = key(scalar)
 		add(fmt.Sprintf("signature-assent-%d", scalar), "deterministic signature over a specified assent payload", "W7.1; W5.1-W5.2", "signature", object{"document": doc, "public_test_scalar": scalar}, "ok")
 	}
-	for _, doc := range []object{{}, {"type": 1}, {"type": "swarma-grant/3"}} {
-		add(fmt.Sprintf("arithmetic-type-%d", len(set.Vectors)), "unsupported type in arithmetic", "W3.1", "primitive", object{"document": doc}, "WIRE_TYPE")
+	for i, doc := range []object{{}, {"type": 1}, {"type": "swarma-grant/3"}} {
+		add("arithmetic-type-"+[]string{"missing", "nonstring", "grant3"}[i], "unsupported type in arithmetic", "W3.1", "primitive", object{"document": doc}, "WIRE_TYPE")
 	}
 	// Generic canonical boundary pairs use W1's document grammar, not a made-up type schema.
 	parse := func(id, raw, want, spec string, limit int) {
@@ -341,6 +422,9 @@ func Generate() (result []byte, err error) {
 		parse(fmt.Sprintf("depth-%d", depth), raw, want, "W1.1; W9.2", 2048)
 	}
 
+	parse("parse-empty-object", `{}`, "ok", "W1.1-W1.6", 2048)
+	parse("parse-zero", `{"a":0}`, "ok", "W1.1-W1.6", 2048)
+	parse("parse-two-members", `{"a":2,"b":1}`, "ok", "W1.1-W1.6", 2048)
 	parse("size-before-json", strings.Repeat("x", 2049), "WIRE_SIZE", "W1.1; W9.2", 2048)
 	deep := strings.Repeat("[", 16)
 	parse("depth-before-truncated", `{"a":`+deep, "WIRE_SIZE", "W1.1; W9.2", 2048)
@@ -422,7 +506,7 @@ func Generate() (result []byte, err error) {
 	if e != nil {
 		panic(e)
 	}
-	ctx := object{"Genesis": genesis, "Contract": contract, "PartyPublicKey": key(1)}
+	ctx := object{"genesis": genesis, "contract": contract, "party_public_key": key(1)}
 	signedInput := object{"raw_hex": hx(signed), "expected_type": string(wire.ContractAssent), "context": ctx}
 	add("assent-valid", "specified signed assent and all three hash roles", "W5.1-W5.3; W6.1-W6.4; W7.1-W7.2", "signed", signedInput, "ok")
 	for _, tc := range []struct {
@@ -431,11 +515,11 @@ func Generate() (result []byte, err error) {
 		want   string
 	}{
 		{"assent-reference", func(x object) { x["references"] = []string{strings.Repeat("00", 32)} }, "WIRE_ID"},
-		{"assent-binding", func(x object) { x["context"].(object)["Contract"] = genesis }, "ASSENT_BINDING"},
-		{"assent-party", func(x object) { x["context"].(object)["PartyPublicKey"] = key(2) }, "ASSENT_PARTY"},
+		{"assent-binding", func(x object) { x["context"].(object)["contract"] = genesis }, "ASSENT_BINDING"},
+		{"assent-party", func(x object) { x["context"].(object)["party_public_key"] = key(2) }, "ASSENT_PARTY"},
 		{"assent-binding-before-party", func(x object) {
-			x["context"].(object)["Contract"] = genesis
-			x["context"].(object)["PartyPublicKey"] = key(2)
+			x["context"].(object)["contract"] = genesis
+			x["context"].(object)["party_public_key"] = key(2)
 		}, "ASSENT_BINDING"},
 	} {
 		in := clone(signedInput)
@@ -453,6 +537,11 @@ func Generate() (result []byte, err error) {
 		tc.mutate(pl)
 		raw := canonical(object{"payload": pl, "signature": validSig}, 2048)
 		add(tc.id, "closed specified assent schema before verification", "W3.1-W3.6; W9.3", "signed", object{"raw_hex": hx(raw), "expected_type": string(wire.ContractAssent)}, tc.want)
+		// A matching fresh signature isolates the shape/type defect from stale signing bytes.
+		fresh := sign(1, wire.TaggedHash(string(wire.ContractAssent), canonical(pl, 2048)))
+		raw = canonical(object{"payload": pl, "signature": fresh}, 2048)
+		add(tc.id+"-resigned", "single schema defect with a freshly signed payload", "W3.1-W3.6; W9.3", "signed", object{"raw_hex": hx(raw), "expected_type": string(wire.ContractAssent)}, tc.want)
+
 	}
 	for _, length := range []int{126, 127, 128, 129, 130} {
 		sig := strings.Repeat("0", length)
@@ -463,8 +552,10 @@ func Generate() (result []byte, err error) {
 		raw := canonical(object{"payload": assentPayload, "signature": sig}, 2048)
 		add(fmt.Sprintf("signature-text-length-%d", length), "signature text form versus failed verification", "W5.2; W9.3", "signed", object{"raw_hex": hx(raw), "expected_type": string(wire.ContractAssent)}, want)
 	}
-	for i, typ := range []wire.Type{wire.Grant, wire.Invocation, wire.Receipt, wire.SealEndorsement, wire.NotaryAttestation} {
-		add(fmt.Sprintf("memberless-type-%d", i), "unsupported memberless type refuses even with canonical arithmetic bytes", "W3.1; section 10 primitive boundary", "signed", object{"raw_hex": hx(canonical(object{"type": string(typ)}, 2048)), "expected_type": string(typ)}, "WIRE_TYPE")
+	for _, typ := range []wire.Type{wire.Grant, wire.Invocation, wire.Receipt, wire.SealEndorsement, wire.NotaryAttestation} {
+		pl := object{"type": string(typ)}
+		raw := canonical(object{"payload": pl, "signature": sign(1, digest(canonical(pl, 2048)))}, 2048)
+		add("memberless-signed-"+string(typ), "canonical signed arithmetic payload with verified public place key still has no member schema", "W3.1; section 10 primitive boundary", "memberless_signed", object{"raw_hex": hx(raw), "expected_type": string(typ), "place_public_key": key(1)}, "WIRE_TYPE")
 	}
 
 	// Official BIP340 verification inputs 0-14; no secret-key or aux columns are copied.
@@ -506,21 +597,21 @@ func Generate() (result []byte, err error) {
 	eventName := makeEvent("consent-encode-name", 1000, tagsName)
 	for _, stamp := range []uint64{1, wire.MaxTimestamp} {
 		event := makeEvent(fmt.Sprintf("consent-timestamp-%d", stamp), stamp, tagsKey)
-		c := object{"Mode": "key", "Genesis": genesis, "Contract": contract, "IssuerPublicKey": key(1), "RequestPublicKey": key(2), "Now": stamp}
+		c := object{"mode": "key", "genesis": genesis, "contract": contract, "issuer_public_key": key(1), "request_public_key": key(2), "clock": stamp}
 		add(fmt.Sprintf("consent-read-timestamp-%d", stamp), "inclusive inherited consent timestamp bound", "W7.3-W7.4; LIP-0013 3.1", "consent", object{"raw_hex": event["event_hex"], "context": c}, "ok")
 	}
 	for _, stamp := range []uint64{0, wire.MaxTimestamp + 1} {
 		add(fmt.Sprintf("consent-timestamp-refuse-%d", stamp), "outside inherited timestamp range", "W7.3-W7.4; LIP-0013 3.1", "consent_encode", object{"public_test_scalar": 2, "created_at": stamp, "tags": tagsKey}, "CONSENT_SHAPE")
 	}
-	evidence := object{"Confirmed": true, "Height": 100, "OperationOfName": true, "LiveAtRecentBlock": true, "OwnerMatches": true, "YieldsPublicKey": key(2)}
-	consentCtx := object{"Mode": "key", "Genesis": genesis, "Contract": contract, "IssuerPublicKey": key(1), "RequestPublicKey": key(2), "Now": 1000, "RecentBlockHeight": 100}
+	evidence := object{"confirmed": true, "height": 100, "operation_of_name": true, "live_at_recent_block": true, "owner_matches": true, "yields_public_key": key(2)}
+	consentCtx := object{"mode": "key", "genesis": genesis, "contract": contract, "issuer_public_key": key(1), "request_public_key": key(2), "clock": 1000, "recent_block_height": 100}
 	consentKey := object{"raw_hex": eventKey["event_hex"], "context": consentCtx}
 	consentName := clone(consentKey)
 	consentName["raw_hex"] = eventName["event_hex"]
 	cc := consentName["context"].(object)
-	cc["Mode"] = "name"
-	cc["RecipientName"] = "id/example"
-	cc["Evidence"] = evidence
+	cc["mode"] = "name"
+	cc["recipient_name"] = "id/example"
+	cc["evidence"] = evidence
 	add("consent-read-key", "consent by key from stated context", "W7.3-W7.5", "consent", consentKey, "ok")
 	add("consent-read-name", "consent by name from stated evidence, no chain authentication", "W7.4; W7.6", "consent", consentName, "ok")
 	consentCase := func(id, want, spec string, base object, mutate func(object)) {
@@ -529,45 +620,68 @@ func Generate() (result []byte, err error) {
 		add(id, "consent first-refusal/boundary on stated context", spec, "consent", in, want)
 	}
 	consentCase("consent-shape", "CONSENT_SHAPE", "W7.4 step 1", consentKey, func(x object) { x["raw_hex"] = "7b7d" })
-	consentCase("consent-binding", "CONSENT_BINDING", "W7.4 step 2", consentKey, func(x object) { x["context"].(object)["Contract"] = genesis })
-	consentCase("consent-key", "CONSENT_KEY", "W7.4 step 3; W7.5", consentKey, func(x object) { x["context"].(object)["RequestPublicKey"] = key(3) })
-	consentCase("consent-evidence-missing", "CONSENT_EVIDENCE", "W7.6", consentName, func(x object) { delete(x["context"].(object), "Evidence") })
-	for _, field := range []string{"Confirmed", "OperationOfName", "LiveAtRecentBlock", "OwnerMatches"} {
-		consentCase("consent-evidence-"+field, "CONSENT_EVIDENCE", "W7.6", consentName, func(x object) { x["context"].(object)["Evidence"].(object)[field] = false })
+	consentCase("consent-binding", "CONSENT_BINDING", "W7.4 step 2", consentKey, func(x object) { x["context"].(object)["contract"] = genesis })
+	consentCase("consent-key", "CONSENT_KEY", "W7.4 step 3; W7.5", consentKey, func(x object) { x["context"].(object)["request_public_key"] = key(3) })
+	consentCase("consent-evidence-missing", "CONSENT_EVIDENCE", "W7.6", consentName, func(x object) { delete(x["context"].(object), "evidence") })
+	for _, field := range []string{"confirmed", "operation_of_name", "live_at_recent_block", "owner_matches"} {
+		consentCase("consent-evidence-"+field, "CONSENT_EVIDENCE", "W7.6", consentName, func(x object) { x["context"].(object)["evidence"].(object)[field] = false })
 	}
-	for _, height := range []int{100, 101} {
+	for _, height := range []int{101} {
 		want := "ok"
 		if height == 101 {
 			want = "CONSENT_EVIDENCE"
 		}
-		consentCase(fmt.Sprintf("consent-evidence-height-%d", height), want, "W7.6 condition 1", consentName, func(x object) { x["context"].(object)["Evidence"].(object)["Height"] = height })
+		consentCase(fmt.Sprintf("consent-evidence-height-%d", height), want, "W7.6 condition 1", consentName, func(x object) { x["context"].(object)["evidence"].(object)["height"] = height })
 	}
 	for _, spent := range []int{100, 101} {
 		want := "CONSENT_EVIDENCE"
 		if spent == 101 {
 			want = "ok"
 		}
-		consentCase(fmt.Sprintf("consent-evidence-spent-%d", spent), want, "W7.6 condition 4; W7.7", consentName, func(x object) { x["context"].(object)["Evidence"].(object)["SpentAtHeight"] = spent })
+		consentCase(fmt.Sprintf("consent-evidence-spent-%d", spent), want, "W7.6 condition 4; W7.7", consentName, func(x object) { x["context"].(object)["evidence"].(object)["spent_at_height"] = spent })
 	}
-	consentCase("consent-name-key", "CONSENT_KEY", "W7.6 condition 5", consentName, func(x object) { x["context"].(object)["Evidence"].(object)["YieldsPublicKey"] = key(3) })
+	consentCase("consent-name-key", "CONSENT_KEY", "W7.6 condition 5", consentName, func(x object) { x["context"].(object)["evidence"].(object)["yields_public_key"] = key(3) })
 	badEvent := strings.Replace(string(unhex(text(eventKey, "event_hex"))), text(eventKey, "signature_hex"), strings.Repeat("00", 64), 1)
 	consentCase("consent-signature", "CONSENT_SIGNATURE", "W7.4 step 4", consentKey, func(x object) { x["raw_hex"] = hx([]byte(badEvent)) })
-	consentCase("consent-time", "CONSENT_TIME", "W7.4 step 5; W7.8", consentKey, func(x object) { x["context"].(object)["Now"] = 999 })
-	consentCase("consent-verifier-no-age-limit", "ok", "W7.8", consentKey, func(x object) { x["context"].(object)["Now"] = 1000 + wire.MaxConsentAge + 1 })
+	consentCase("consent-time", "CONSENT_TIME", "W7.4 step 5; W7.8", consentKey, func(x object) { x["context"].(object)["clock"] = 999 })
+	consentCase("consent-verifier-no-age-limit", "ok", "W7.8", consentKey, func(x object) { x["context"].(object)["clock"] = 1000 + wire.MaxConsentAge + 1 })
 
 	consentDefects := []struct {
 		name, want string
 		apply      func(object)
 	}{
-		{"shape", "CONSENT_SHAPE", func(x object) { x["raw_hex"] = "7b7d" }},
-		{"binding", "CONSENT_BINDING", func(x object) { x["context"].(object)["Contract"] = genesis }},
-		{"key", "CONSENT_KEY", func(x object) { x["context"].(object)["RequestPublicKey"] = key(3) }},
+		{"shape", "CONSENT_SHAPE", func(x object) {
+			var ev object
+			dec := json.NewDecoder(bytes.NewReader(unhex(text(x, "raw_hex"))))
+			dec.UseNumber()
+			if e := dec.Decode(&ev); e != nil {
+				panic(e)
+			}
+			ev["content"] = "x"
+			pre := canonicalArray([]any{0, ev["pubkey"], ev["created_at"], ev["kind"], ev["tags"], ev["content"]})
+			id := sha256.Sum256(pre)
+			ev["id"] = hx(id[:])
+			if ev["sig"] != strings.Repeat("00", 64) {
+				ev["sig"] = sign(2, id)
+			}
+			// Consent uses fixed member order rather than canonical-object key order.
+			fields := []string{"id", "pubkey", "created_at", "kind", "tags", "content", "sig"}
+			var parts []string
+			for _, k := range fields {
+				kb, _ := json.Marshal(k)
+				vb, _ := json.Marshal(ev[k])
+				parts = append(parts, string(kb)+":"+string(vb))
+			}
+			x["raw_hex"] = hx([]byte("{" + strings.Join(parts, ",") + "}"))
+		}},
+		{"binding", "CONSENT_BINDING", func(x object) { x["context"].(object)["contract"] = genesis }},
+		{"key", "CONSENT_KEY", func(x object) { x["context"].(object)["request_public_key"] = key(3) }},
 		{"signature", "CONSENT_SIGNATURE", func(x object) { x["raw_hex"] = hx([]byte(badEvent)) }},
-		{"time", "CONSENT_TIME", func(x object) { x["context"].(object)["Now"] = 999 }},
+		{"time", "CONSENT_TIME", func(x object) { x["context"].(object)["clock"] = 999 }},
 	}
 	for i, early := range consentDefects {
 		for _, late := range consentDefects[i+1:] {
-			// Apply the raw-byte shape defect last, so two independently failing steps survive.
+			// Preserve both independently failing stages; shape keeps a readable signed event.
 			consentCase("consent-"+early.name+"-before-"+late.name, early.want, "W7.4 first refusal", consentKey, func(x object) { late.apply(x); early.apply(x) })
 		}
 	}
@@ -589,9 +703,9 @@ func Generate() (result []byte, err error) {
 	}
 	for _, age := range []uint64{0, wire.MaxConsentAge, wire.MaxConsentAge + 1} {
 		in := clone(consentKey)
-		in["context"].(object)["Now"] = 1000 + age
+		in["context"].(object)["clock"] = 1000 + age
 		in["snapshot"] = nil
-		in["consumed_ids"] = []string{}
+		in["consumed_event_ids"] = []string{}
 		want := "ok"
 		if age > wire.MaxConsentAge {
 			want = "CONSENT_AGE"
@@ -600,7 +714,7 @@ func Generate() (result []byte, err error) {
 	}
 	inUsed := clone(consentKey)
 	inUsed["snapshot"] = nil
-	inUsed["consumed_ids"] = []string{text(eventKey, "event_id")}
+	inUsed["consumed_event_ids"] = []string{text(eventKey, "event_id")}
 	add("issuer-consumed", "consumed id refuses; no durable journal claim", "W7.9", "issuer", inUsed, "CONSENT_CONSUMED")
 
 	for _, tc := range []struct {
@@ -613,9 +727,9 @@ func Generate() (result []byte, err error) {
 		{"age-before-consumed", 1000 + wire.MaxConsentAge + 1, []string{text(eventKey, "event_id")}, "CONSENT_AGE"},
 	} {
 		in := clone(consentKey)
-		in["context"].(object)["Now"] = tc.now
+		in["context"].(object)["clock"] = tc.now
 		in["snapshot"] = nil
-		in["consumed_ids"] = tc.used
+		in["consumed_event_ids"] = tc.used
 		add("issuer-"+tc.id, "issuer first refusal on supplied clock and consumed ids", "W7.8-W7.9", "issuer", in, tc.want)
 	}
 	// Compose only W9.4 steps 2-6. These are deliberately stated facts; no grant bytes exist here.
@@ -639,8 +753,8 @@ func Generate() (result []byte, err error) {
 		if e != nil {
 			panic(e)
 		}
-		in := clone(object{"stated_grant_facts": facts, "stated_evidence": ev, "assent_hex": hx(signed), "consent_hex": c["event_hex"], "name_output": point, "now": 1000, "frame_hex": hx(frame), "frame_value": 0, "op_return_count": 1})
-		add("issuance-stated-"+mode, "conditional preparation from stated GrantFacts, not authenticated grant bytes", "W8.1-W8.6; W9.4 steps 2-6", "issuance", in, "ok")
+		in := clone(object{"stated_grant_facts": facts, "stated_evidence": ev, "assent_hex": hx(signed), "consent_hex": c["event_hex"], "name_output": point, "clock": 1000, "frame_hex": hx(frame), "frame_value": 0, "op_return_count": 1})
+		add("issuance-stated-"+mode, "conditional preparation from stated facts, not authenticated grant bytes", "W8.1-W8.6; W9.4 steps 2-6", "issuance", in, "ok")
 		add("encode-preparation-"+mode, "canonical specified unsigned preparation on stated parts", "W1.1-W1.6; W8.1", "encode", object{"document": func() object {
 			var x object
 			dec := json.NewDecoder(bytes.NewReader(prep.Bytes()))
@@ -660,10 +774,9 @@ func Generate() (result []byte, err error) {
 	issuanceCase := func(id, want string, base object, mutate func(object)) {
 		in := clone(base)
 		mutate(in)
-		add(id, "conditional issuance refusal/boundary on stated GrantFacts", "W8.1-W8.6; W9.4", "issuance", in, want)
+		add(id, "conditional issuance refusal/boundary on stated facts", "W8.1-W8.6; W9.4", "issuance", in, want)
 	}
 	issuanceCase("issuance-no-facts", "WIRE_TYPE", issuanceKey, func(x object) { x["stated_grant_facts"] = nil })
-	issuanceCase("issuance-mode-key-outpoint", "ISSUANCE_MODE", issuanceKey, func(x object) { x["name_output"] = object{"TxID": txid, "Vout": 0} })
 	issuanceCase("issuance-mode-name-missing", "ISSUANCE_MODE", issuanceName, func(x object) { x["name_output"] = nil })
 	for _, idx := range []uint64{0, 4294967295, 4294967296} {
 		if idx == 4294967295 {
@@ -671,7 +784,7 @@ func Generate() (result []byte, err error) {
 		}
 		// Build a matching frame for the valid zero outpoint; the invalid index must refuse before anchor comparison.
 		in := clone(issuanceName)
-		in["name_output"].(object)["Vout"] = idx
+		in["name_output"].(object)["vout"] = idx
 		if idx == 0 {
 			baseOut := Evaluate("issuance", issuanceName)
 			var doc object
@@ -699,9 +812,14 @@ func Generate() (result []byte, err error) {
 		name, want string
 		f          func(object)
 	}{
-		{"mode", "ISSUANCE_MODE", func(x object) { x["name_output"] = object{"TxID": txid, "Vout": 0} }},
-		{"assent", "ASSENT_PARTY", func(x object) { x["stated_grant_facts"].(object)["PartyPublicKey"] = key(3) }},
-		{"consent", "CONSENT_TIME", func(x object) { x["now"] = 999 }},
+		{"mode", "ISSUANCE_MODE", func(x object) { x["name_output"] = object{"txid": txid, "vout": 0} }},
+		{"assent", "ASSENT_PARTY", func(x object) {
+			pl := clone(assentPayload)
+			pl["party"] = key(3)
+			sig := sign(3, digest(canonical(pl, 1024)))
+			x["assent_hex"] = hx(canonical(object{"payload": pl, "signature": sig}, 2048))
+		}},
+		{"consent", "CONSENT_TIME", func(x object) { x["clock"] = 999 }},
 		{"frame", "ISSUANCE_FRAME", func(x object) { x["frame_value"] = 1 }},
 		{"commitment", "ISSUANCE_COMMITMENT", func(x object) { b := unhex(text(x, "frame_hex")); b[7] ^= 1; x["frame_hex"] = hx(b) }},
 	}
@@ -728,6 +846,7 @@ func Generate() (result []byte, err error) {
 	for _, offset := range []int{0, 1, 2, 3, 4, 5, 6, 39, 40} {
 		issuanceCase(fmt.Sprintf("frame-byte-%d", offset), "ISSUANCE_FRAME", issuanceKey, func(x object) { b := unhex(text(x, "frame_hex")); b[offset] ^= 1; x["frame_hex"] = hx(b) })
 	}
+	annotate(set.Vectors)
 	// Inventory guard makes adding or dropping a refusal class a deliberate fixture change.
 	required := []string{"WIRE_SIZE", "WIRE_JSON", "WIRE_DUPLICATE", "WIRE_VALUE", "WIRE_NUMBER", "WIRE_STRING", "WIRE_NOT_CANONICAL", "WIRE_TYPE", "WIRE_MEMBER", "WIRE_INTEGER", "WIRE_KEY", "WIRE_SIGNATURE_FORM", "WIRE_SIGNATURE", "WIRE_ID", "ASSENT_BINDING", "ASSENT_PARTY", "CONSENT_SHAPE", "CONSENT_BINDING", "CONSENT_KEY", "CONSENT_EVIDENCE", "CONSENT_SIGNATURE", "CONSENT_TIME", "CONSENT_AGE", "CONSENT_CONSUMED", "ISSUANCE_MODE", "ISSUANCE_FRAME", "ISSUANCE_COMMITMENT"}
 	seen := map[string]bool{}
@@ -749,4 +868,202 @@ func Generate() (result []byte, err error) {
 		return nil, e
 	}
 	return append(b, '\n'), nil
+}
+
+// annotate records the independent contract basis and concrete neighbour delta.
+// A neighbour for a memberless type is arithmetic only: there is no admitted
+// signed object for that type in the pinned specification.
+func annotate(rows []Vector) {
+	for i := range rows {
+		v := &rows[i]
+		switch {
+		case v.Operation == "signature_form", v.ID == "issuance-no-facts", v.ID == "issuance-vout-4294967296", v.ID == "issuer-age-before-consumed", strings.HasPrefix(v.ID, "consent-size-plus-"):
+			v.Basis = "lab-choice"
+		case v.ID == "arithmetic-3", strings.HasPrefix(v.ID, "signature-3-"), strings.Contains(v.ID, string(wire.SealEndorsement)):
+			v.Basis = "contingent:LIP-0008-SB4/LIP-0024"
+		case strings.Contains(v.ID, string(wire.NotaryAttestation)):
+			v.Basis = "contingent:LIP-0014-J5/J2"
+		}
+		if text(v.Output, "code") == "ok" {
+			continue
+		}
+		best := -1
+		var delta []string
+		for j, n := range rows {
+			if text(n.Output, "code") != "ok" || n.Operation != v.Operation {
+				continue
+			}
+			d := inputDiff(n.Input, v.Input, "")
+			if best < 0 || len(d) < len(delta) {
+				best = j
+				delta = d
+			}
+		}
+		if v.Operation == "memberless_signed" {
+			v.ValidNeighbour = map[string]string{string(wire.Grant): "arithmetic-0", string(wire.Invocation): "arithmetic-1", string(wire.Receipt): "arithmetic-2", string(wire.SealEndorsement): "arithmetic-3", string(wire.NotaryAttestation): "arithmetic-6"}[text(v.Input, "expected_type")]
+			v.Defects = []string{"type " + text(v.Input, "expected_type") + " has no accepted member schema; the signed envelope and place-key signature are otherwise valid"}
+			v.Reason += "; neighbour is arithmetic only, not an admitted signed object; grant refusal changes to WIRE_MEMBER when its schema is defined"
+			continue
+		}
+		if best < 0 {
+			panic("no neighbour for " + v.ID)
+		}
+		v.ValidNeighbour = rows[best].ID
+		v.Defects = delta
+
+		if descriptions, ok := rawDefects[v.ID]; ok {
+			v.Defects = descriptions
+		}
+		neighbour := ""
+		if v.Operation == "parse" {
+			neighbour = "parse-zero"
+			switch {
+			case strings.HasPrefix(v.ID, "size-1024-"):
+				neighbour = "size-1024-plus-0"
+			case strings.HasPrefix(v.ID, "size-2048-") || v.ID == "size-before-json":
+				neighbour = "size-2048-plus-0"
+			case strings.HasPrefix(v.ID, "depth-") || strings.Contains(v.ID, "-depth"):
+				neighbour = "depth-16"
+			case strings.HasPrefix(v.ID, "json-") || v.ID == "canonical-space":
+				neighbour = "parse-empty-object"
+			case strings.HasPrefix(v.ID, "string-") || v.ID == "canonical-escape":
+				neighbour = "string-lower-bound"
+			case v.ID == "canonical-order":
+				neighbour = "parse-two-members"
+			case v.ID == "number-bound-plus-one":
+				neighbour = "number-bound"
+			}
+		}
+		if v.ID == "consent-size-plus-1" {
+			neighbour = "consent-size-plus-0"
+			v.Defects = []string{"event size is 2049 octets, one above the laboratory API limit; name-profile verdict is not judged"}
+		}
+		if v.Operation == "integer" && !strings.HasPrefix(v.ID, "integer-grammar-") {
+			neighbour = "integer-" + text(v.Input, "bound") + "-" + text(v.Input, "bound")
+		}
+		if strings.HasPrefix(v.ID, "r-p") {
+			neighbour = "r-p-minus-one"
+			v.Defects = []string{"signature r is at or above the field prime (preflight API observation)"}
+		}
+		if strings.HasPrefix(v.ID, "s-n") {
+			neighbour = "s-n-minus-one"
+			v.Defects = []string{"signature s is at or above the group order (preflight API observation)"}
+		}
+		if neighbour != "" {
+			v.ValidNeighbour = neighbour
+		}
+		if v.ID == "consent-shape-before-signature" {
+			v.Defects = append(v.Defects, "raw_hex.decoded.sig: all-zero signature fails BIP340 (compound)")
+		}
+		if strings.HasPrefix(v.ID, "member-") || strings.HasPrefix(v.ID, "type-") {
+			if !strings.HasSuffix(v.ID, "-resigned") {
+				v.Defects = append(v.Defects, "stale signature over the unmutated assent payload (compound)")
+			}
+		}
+		if v.ID == "issuance-vout-4294967296" {
+			v.Defects = append(v.Defects, "frame still commits vout 4294967295 (compound)")
+		}
+		v.Reason += "; defects: " + strings.Join(v.Defects, "; ")
+		if len(v.Defects) > 1 {
+			v.Reason += "; compound: each listed defect remains present"
+		}
+	}
+}
+
+func inputDiff(a, b any, path string) []string {
+	if reflect.DeepEqual(a, b) {
+		return nil
+	}
+	am, aok := a.(object)
+	bm, bok := b.(object)
+	if aok && bok {
+		keys := map[string]bool{}
+		for k := range am {
+			keys[k] = true
+		}
+		for k := range bm {
+			keys[k] = true
+		}
+		ordered := []string{}
+		for k := range keys {
+			ordered = append(ordered, k)
+		}
+		sort.Strings(ordered)
+		var result []string
+		for _, k := range ordered {
+			// Re-derived identifiers/signatures support a mutation; they are not
+			// additional defects. A byte-only defect is described by the fallback.
+			if strings.Contains(path, ".decoded") && (k == "id" || k == "sig" || k == "signature") {
+				continue
+			}
+			if path == "" && k == "context" && (am[k] == nil || bm[k] == nil) {
+				continue
+			}
+			p := k
+			if path != "" {
+				p = path + "." + k
+			}
+			result = append(result, inputDiff(am[k], bm[k], p)...)
+		}
+		return result
+	}
+	if strings.HasSuffix(path, "raw_hex") || strings.HasSuffix(path, "assent_hex") || strings.HasSuffix(path, "consent_hex") {
+		var av, bv any
+		as, aok := a.(string)
+		bs, bok := b.(string)
+		if aok && bok && json.Unmarshal(unhex(as), &av) == nil && json.Unmarshal(unhex(bs), &bv) == nil {
+			if delta := inputDiff(av, bv, path+".decoded"); len(delta) > 0 {
+				return delta
+			}
+		}
+	}
+	if path == "" {
+		path = "input"
+	}
+	// Avoid dumping large bytes into explanatory metadata.
+	describe := func(v any) string {
+		s := fmt.Sprint(v)
+		if len(s) > 96 {
+			return strconv.Quote(s[:64]) + fmt.Sprintf("... (%d bytes)", len(s))
+		}
+		return strconv.Quote(s)
+	}
+	return []string{path + ": " + describe(a) + " -> " + describe(b)}
+}
+
+// Raw parser failures cannot be inferred by decoding into a map: that would
+// erase duplicate members, token spellings, invalid Unicode and syntax order.
+var rawDefects = map[string][]string{
+	"size-1024-plus-1":        {"raw document is 1025 bytes, exceeding the stated 1024-byte caller limit"},
+	"size-2048-plus-1":        {"raw document is 2049 bytes, exceeding the stated 2048-byte caller limit"},
+	"depth-17":                {"document has 17 containers including its root, exceeding W1.1 depth 16"},
+	"size-before-json":        {"raw input has 2049 bytes at limit 2048", "raw input is not JSON"},
+	"depth-before-truncated":  {"container depth 17 occurs before end of input", "document is truncated"},
+	"syntax-before-depth":     {"invalid token x occurs before depth excess", "container depth exceeds 16", "document is truncated"},
+	"utf8-before-depth":       {"malformed UTF-8 byte occurs before depth excess", "container depth exceeds 16", "document is truncated"},
+	"depth-before-utf8":       {"container depth exceeds 16 before malformed UTF-8", "malformed UTF-8 byte", "document is truncated"},
+	"json-empty":              {"no JSON document"},
+	"json-array":              {"top-level array is not a document object"},
+	"json-bom":                {"UTF-8 BOM precedes the document"},
+	"json-utf8":               {"string contains malformed UTF-8"},
+	"json-trailing":           {"trailing x after a complete object"},
+	"duplicate":               {"decoded member name a appears twice"},
+	"duplicate-escaped":       {"a and escaped u0061 decode to the same member name", "escaped spelling is not canonical"},
+	"null":                    {"member a is null, forbidden by W1"},
+	"null-number-string":      {"member a is forbidden null", "member b is a forbidden negative number", "member c contains forbidden U+000A"},
+	"number-bound-plus-one":   {"number token is 9007199254740992, above W2.2's maximum"},
+	"number-negative":         {"number token -1 is signed"},
+	"number-negative-zero":    {"number token -0 is signed"},
+	"number-fraction":         {"number token 1.0 has a fractional part"},
+	"number-exponent":         {"number token 1e0 has an exponent"},
+	"number-leading-zero":     {"number token 01 violates JSON grammar"},
+	"string-below-bound":      {"string contains forbidden U+001F"},
+	"string-surrogate":        {"string contains unpaired UTF-16 surrogate U+D800"},
+	"canonical-space":         {"leading whitespace is not canonical"},
+	"canonical-order":         {"members b,a are not in canonical UTF-16 order"},
+	"canonical-escape":        {"U+0020 uses an unnecessary escape"},
+	"json-before-duplicate":   {"trailing x violates JSON grammar", "decoded member a appears twice"},
+	"duplicate-before-null":   {"decoded member a appears twice", "first a is null", "second a is a forbidden negative number"},
+	"number-before-string":    {"member a is a forbidden negative number", "member b contains forbidden U+000A"},
+	"string-before-canonical": {"member a contains forbidden U+000A", "leading whitespace is not canonical"},
 }

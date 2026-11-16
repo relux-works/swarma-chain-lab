@@ -1,10 +1,15 @@
-# B0 decisions
+# Specification integration requirements
 
-The [preserved B0 decision list](VECTORS.md#b0-decision-list-kept-from-b1)
-remains open: grant and J12 row octets, key/integer forms, no-certifier encoding,
-size/count/depth bounds and refusal precedence. No valid swarma-grant/4 vectors
-exist in this primitive unit. The contract identifier's preimage and acquisition
-of node/ownership facts remain outside the stated-fact checks.
+The [decision list](VECTORS.md#specification-decisions-and-integration-requirements)
+separates absent grant/group encodings from settled limits and key semantics.
+Document depth is already 16. The current fixture does not admit grant bytes.
 
-The original B1 blocker is narrowed away for B1n, not resolved as a wire schema.
-No Go/Python output disagreement was observed on the delivered primitive set.
+Lab-choice API results are explicitly labelled and independently reported as
+not judged. Remaining questions include absent-grant refusal, evidence-outpoint
+validation placement, age/consumption order, consent name/tag constraints, registry
+contingencies and the child's assent key. The qualified source pins and exact
+upstream vector comparison are recorded in VECTORS.md.
+
+Node/ownership provenance, contract identifier acquisition and journal persistence
+remain outside stated-fact checking. The name-mode issuer snapshot path and
+schema-valid maximum-size objects are not qualified by this fixture.
