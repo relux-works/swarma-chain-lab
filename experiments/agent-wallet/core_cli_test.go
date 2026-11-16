@@ -42,7 +42,7 @@ func TestCoreCLI(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	write(config, canonical(c))
+	write(config, canonical(privateWalletFixture(c)))
 	write(grant, raw)
 	write(cache, raw)
 	write(filepath.Join(c.ObjectsDir, Hash(canonical(terms))+".json"), canonical(terms))

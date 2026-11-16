@@ -331,7 +331,7 @@ func f6Installed(t *testing.T) (string, ServiceConfig, Config, JournalRecordV2) 
 		t.Fatal(e)
 	}
 	path := filepath.Join(filepath.Dir(c.WalletConfig), "service.json")
-	writeInstalled(t, path, canonical(c))
+	writeInstalled(t, path, canonical(privateWalletFixture(c)))
 	return path, c, wc, r
 }
 
@@ -379,7 +379,7 @@ func TestF6OperatorLocksConcurrent(t *testing.T) {
 	// This is fixture setup only, never operator recovery.
 	os.Remove(filepath.Join(wc.StateDir, px1jSegmentName(1)))
 	os.Remove(filepath.Join(c.StateDir, px1jSegmentName(1)))
-	writeInstalled(t, c.WalletConfig, canonical(wc))
+	writeInstalled(t, c.WalletConfig, canonical(privateWalletFixture(wc)))
 	s, e := OpenActionService(c)
 	if e != nil {
 		t.Fatal(e)
@@ -530,7 +530,7 @@ func TestF6OperatorAdmission(t *testing.T) {
 				defer w.Close()
 				want = "STATE_BUSY"
 			}
-			writeInstalled(t, path, canonical(c))
+			writeInstalled(t, path, canonical(privateWalletFixture(c)))
 			got, e := ReconcileWallet(context.Background(), path, q)
 			if e == nil || e.Error() != want || got.MayHaveWritten || got.Record != nil {
 				t.Fatal("F6_ADMISSION_BYPASS", name, got, e)

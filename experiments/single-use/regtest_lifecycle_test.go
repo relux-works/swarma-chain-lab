@@ -93,7 +93,7 @@ func (l *coreLab) proxy(mode string) func() {
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, password, ok := r.BasicAuth()
-		if !ok || user != l.route.Username || password != l.route.Password {
+		if !ok || user != l.route.Username || password != l.route.Password.RevealForBasicAuth() {
 			w.WriteHeader(401)
 			return
 		}
@@ -146,7 +146,7 @@ func (l *coreLab) proxy(mode string) func() {
 	route.Host = host
 	route.Port = port
 	path := filepath.Join(l.private, "route-"+mode+".json")
-	b, _ := json.Marshal(route)
+	b, _ := json.Marshal(privateRouteFixture(route))
 	if e = os.WriteFile(path, b, 0600); e != nil {
 		l.t.Fatal(e)
 	}

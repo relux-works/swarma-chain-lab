@@ -59,7 +59,7 @@ func TestServeExpiryDuringRelayOutage(t *testing.T) {
 			}
 			c.StationSocket = filepath.Join(short, "s.sock")
 			writeInstalled(t, c.AgentKeyFile, []byte(hex.EncodeToString(agent.Bytes())))
-			writeInstalled(t, c.Kernel.RPCRouteFile, jsonCanonical(su.Route{Host: c.Kernel.RPCHost, Port: c.Kernel.RPCPort, Username: "w3-observer", Password: "fixture-only-not-a-live-route"}))
+			writeInstalled(t, c.Kernel.RPCRouteFile, privateRouteFixtureJSON(su.Route{Host: c.Kernel.RPCHost, Port: c.Kernel.RPCPort, Username: "w3-observer", Password: su.NewRPCPassword("fixture-only-not-a-live-route")}))
 			if e = os.Mkdir(c.Exchange.PresentationsDir, 0755); e != nil {
 				t.Fatal(e)
 			}

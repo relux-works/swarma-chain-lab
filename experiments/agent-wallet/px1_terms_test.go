@@ -953,7 +953,7 @@ func TestPX1ServiceConfigG2(t *testing.T) {
 	os.Chmod(run, 0750)
 	_, pub := testKey(2)
 	c := ServiceConfig{Version: 1, Service: WalletServiceID, Socket: run + "/wallet.sock", SocketGID: uint32(os.Getgid()), PeerUID: uint32(os.Getuid() + 1), Grantee: pub, SkewSeconds: 60, TimeoutSeconds: 2, StateDir: root + "/state", WalletConfig: root + "/wallet.json", ReceiptKeyFile: root + "/receipt.key"}
-	if strings.Contains(string(canonical(c)), `"g2"`) {
+	if strings.Contains(string(canonical(privateWalletFixture(c))), `"g2"`) {
 		t.Fatal("nil g2 must not change W2 bytes")
 	}
 	wantCode(t, "w2", validServiceConfig(c), "")
@@ -966,7 +966,7 @@ func TestPX1ServiceConfigG2(t *testing.T) {
 	wantCode(t, "g2 single-use", validServiceConfig(c), "SERVICE_CONFIG")
 	c.G2 = &op
 	path := root + "/service.json"
-	writeInstalled(t, path, canonical(c))
+	writeInstalled(t, path, canonical(privateWalletFixture(c)))
 	got, e := LoadServiceConfig(path)
 	if e != nil || got.G2 == nil || *got.G2 != op {
 		t.Fatal("g2 member load", e)

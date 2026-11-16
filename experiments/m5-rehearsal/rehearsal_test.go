@@ -172,7 +172,7 @@ func TestLandedComposition(t *testing.T) {
 	// The booking operator adapter receives a distinct read-only credential file,
 	// never the node's unrestricted fixture-cookie configuration.
 	observerConf := filepath.Join(l.private, "booking-node.conf")
-	l.write(observerConf, []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", l.read.Username, l.read.Password, l.read.Port)), 0600)
+	l.write(observerConf, []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", l.read.Username, l.read.Password.RevealForBasicAuth(), l.read.Port)), 0600)
 	operator := su.OperatorRoute{Network: "regtest", Genesis: su.RegtestGenesis, NodeCLI: l.cli, NodeCLISHA256: cliPin, NodeConfig: observerConf, NodeDataDir: l.nodeDir}
 	bookingProcess := l.spawn("booking", "-config", l.json("booking.json", cfg, 0600), "-profile", profilePath, "-provider-key", filepath.Join(l.private, "provider.key"), "-route", l.json("operator-route.json", operator, 0600), "-listen", bookingAddr, "-relay", relayURL, "-poll", "1s")
 	l.await("booking readiness", func() bool { return l.http("GET", bookingURL+"/", nil, nil) == 200 })

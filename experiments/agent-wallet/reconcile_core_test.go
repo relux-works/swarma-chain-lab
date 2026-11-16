@@ -66,7 +66,7 @@ func newF6Core(t *testing.T) *coreLab {
 		salt := hex.EncodeToString(b[:8])
 		mac := hmac.New(sha256.New, []byte(salt))
 		mac.Write([]byte(password))
-		l.routes[user] = su.Route{Host: "127.0.0.1", Port: port, Username: user, Password: password}
+		l.routes[user] = su.Route{Host: "127.0.0.1", Port: port, Username: user, Password: su.NewRPCPassword(password)}
 		conf += fmt.Sprintf("rpcauth=%s:%s$%x\nrpcwhitelist=%s:%s\n", user, salt, mac.Sum(nil), user, methods)
 	}
 	conf += fmt.Sprintf("[regtest]\nrpcbind=127.0.0.1\nrpcallowip=127.0.0.1\nrpcport=%d\n", port)

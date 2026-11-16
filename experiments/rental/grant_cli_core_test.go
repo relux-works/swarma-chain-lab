@@ -62,7 +62,7 @@ func TestCoreGrantCLI(t *testing.T) {
 		l.save(label+".json", map[string]any{"output": json.RawMessage(out), "exit": code, "pid": cmd.ProcessState.Pid(), "binary_sha256": Hash(binary)})
 		return out
 	}
-	route := write("route.json", l.route)
+	route := write("route.json", privateRouteFixture(l.route))
 	policy := write("issuer-policy.json", ip)
 	funding := write("funding.json", spec)
 	args := []string{"--policy", policy, "--route", route, "--request", write("request.json", json.RawMessage(request)), "--package-event", write("event.json", json.RawMessage(event)), "--seal", write("seal.json", seal), "--spec", funding, "--grant-key-file", key, "--at", "500"}

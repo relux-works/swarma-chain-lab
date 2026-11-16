@@ -72,7 +72,7 @@ func newPayGrantCore(t *testing.T) *coreLab {
 	salt := hex.EncodeToString(random[:8])
 	mac := hmac.New(sha256.New, []byte(salt))
 	mac.Write([]byte(password))
-	l.route = su.Route{Host: "127.0.0.1", Port: port, Username: "w3-observer", Password: password}
+	l.route = su.Route{Host: "127.0.0.1", Port: port, Username: "w3-observer", Password: su.NewRPCPassword(password)}
 	l.observer, e = su.NewRPC(l.route)
 	if e != nil {
 		t.Fatal(e)

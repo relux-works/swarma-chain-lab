@@ -168,7 +168,7 @@ func newCoreLab(t *testing.T) *coreLab {
 	salt := hex.EncodeToString(entropy[:8])
 	mac := hmac.New(sha256.New, []byte(salt))
 	mac.Write([]byte(password))
-	l.route = singleuse.Route{Host: "127.0.0.1", Port: port, Username: "w3-observer", Password: password}
+	l.route = singleuse.Route{Host: "127.0.0.1", Port: port, Username: "w3-observer", Password: singleuse.NewRPCPassword(password)}
 	methods := "getblockchaininfo,getblockhash,getblockheader,getrawtransaction,gettxout,name_show,getrawmempool,getblock"
 	conf := fmt.Sprintf("server=1\ndeprecatedrpc=create_bdb\nlisten=0\ndnsseed=0\ndiscover=0\nnetworkactive=0\ntxindex=1\nfallbackfee=0.002\nwalletbroadcast=0\nacceptnonstdtxn=1\nnameencoding=ascii\nvalueencoding=ascii\nrpcwhitelistdefault=0\nrpcauth=w3-observer:%s$%x\nrpcwhitelist=w3-observer:%s\n[regtest]\nrpcbind=127.0.0.1\nrpcallowip=127.0.0.1\nrpcport=%d\n", salt, mac.Sum(nil), methods, port)
 	l.conf = filepath.Join(l.private, "namecoin.conf")
@@ -573,7 +573,7 @@ func TestGenuineCoreNoise(t *testing.T) {
 	}
 	// Exercise the subprocess adapter used by the service binary as well.
 	route := singleuse.OperatorRoute{Network: "regtest", Genesis: singleuse.RegtestGenesis, NodeCLI: l.cli, NodeCLISHA256: "5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d", NodeConfig: filepath.Join(l.private, "observer.conf"), NodeDataDir: l.private}
-	observerConfig := fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", l.route.Username, l.route.Password, l.route.Port)
+	observerConfig := fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", l.route.Username, l.route.Password.RevealForBasicAuth(), l.route.Port)
 	if e := os.WriteFile(route.NodeConfig, []byte(observerConfig), 0600); e != nil {
 		t.Fatal(e)
 	}
@@ -629,7 +629,7 @@ func TestGenuineCoreServiceProcess(t *testing.T) {
 	routePath := filepath.Join(l.private, "service-route.json")
 	observerConf := filepath.Join(l.private, "service-observer.conf")
 	route := singleuse.OperatorRoute{Network: "regtest", Genesis: singleuse.RegtestGenesis, NodeCLI: l.cli, NodeCLISHA256: "5cccdfe19aef6b427373c200bda72d4dd66b5be2c5f93b7e8b08b9d6a81fdd4d", NodeConfig: observerConf, NodeDataDir: l.private}
-	files := map[string][]byte{configPath: canonical(f.cfg), profilePath: f.profile, keyPath: []byte(hex.EncodeToString(f.provider.Serialize())), routePath: canonical(route), observerConf: []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", l.route.Username, l.route.Password, l.route.Port))}
+	files := map[string][]byte{configPath: canonical(f.cfg), profilePath: f.profile, keyPath: []byte(hex.EncodeToString(f.provider.Serialize())), routePath: canonical(route), observerConf: []byte(fmt.Sprintf("rpcuser=%s\nrpcpassword=%s\n[regtest]\nrpcconnect=127.0.0.1\nrpcport=%d\n", l.route.Username, l.route.Password.RevealForBasicAuth(), l.route.Port))}
 	for path, raw := range files {
 		if e := os.WriteFile(path, raw, 0600); e != nil {
 			t.Fatal(e)

@@ -45,11 +45,13 @@ The executable inventory uses a nested exact multiset:
 `accessor name -> {path:owner:expression -> count}`. Run
 `go run .scripts/check-credential-output-boundaries.go` from the repository root.
 The independently listed [inventory fixture](../../.scripts/credential-output-inventory.json)
-contains **14 carrier fields**, **53 direct Reveal sites / 67 calls**, and
-exactly two accessor keys: `Reveal` with those 53 entries and `RevealForOpen`
+contains **18 carrier fields**, **53 direct Reveal sites / 67 calls**, and
+four accessor keys: `Reveal` with those 53 entries, `RevealForBasicAuth` with
+2 sites / 2 calls, `RevealForRequest` with 1 site / 1 call, and `RevealForOpen`
 with the empty set `{}`. There are currently no inventoried method values.
-The former 17-site / 23-call plain-Reveal set is retained with identical counts;
-the larger set also inventories bootstrap, channel-secret, model-bearer and
+The earlier plain-Reveal boundaries retain their operation counts; the journal
+site now reveals in its private encoder instead of its DTO constructor.
+The larger set also inventories bootstrap, channel-secret, model-bearer and
 private lifecycle codec boundaries. The counts cover source expressions, not
 runtime invocation frequency. Carrier fields include `Facts.Token`,
 `Facts.Random` and the one-time `Result.Token`; the session token's explicit
@@ -155,6 +157,10 @@ Existing operations and their private boundaries are unchanged by this guard.
 
 | Carrier key | Type | Audit note |
 | --- | --- | --- |
+| `experiments/single-use/node.go:Route.Password` | `RPCPassword` | Plain-string config decode; sole production accessor call installs the Basic Auth header. |
+| `experiments/payment-chain/rpc.go:Route.Password` | `RPCPassword` | Module-local holder; watcher/issuer config and header bytes remain unchanged. |
+| `experiments/rental-gateway/journal/private.go:slotPrivate.ChannelSecretHex` | `codec.Secret[string]` | Reuses the journal's existing holder; only EncodePrivateSlot emits private bytes. |
+| `experiments/station-lifecycle/slotd/wire.go:Request.Bootstrap` | `*Bootstrap` | Optional base64 holder; sole production accessor call is the Unix request encoder. |
 | `experiments/m5-rehearsal/fixtures/registrar.go.txt:rehearsalRegistrar.APIKey` | `proxy.UpstreamKey` | Rehearsal fixture retains the opaque proxy key. |
 | `experiments/model-proxy/credential.go:FileSource.current` | `UpstreamKey` | Retained file-sourced key is an opaque holder. |
 | `experiments/model-proxy/credential.go:UpstreamCredential.Value` | `UpstreamKey` | Private upstream credential remains opaque. |
@@ -174,6 +180,8 @@ Existing operations and their private boundaries are unchanged by this guard.
 | --- | --- | --- |
 | `Reveal` | `codec.Secret[T].Reveal`; `lifecycle.PrivateBytes.Reveal` | Private consumer access and private bootstrap delegation, including the non-carrier lifecycle wrapper. All 53 sites / 67 calls are listed below; zero current method values. |
 | `RevealForOpen` | `session.Token.RevealForOpen` | Opening-only token conversion; exact empty caller set, no production call. |
+| `RevealForBasicAuth` | Module-local `RPCPassword.RevealForBasicAuth` | Exactly one call per password holder, in its Basic Auth header installer. |
+| `RevealForRequest` | `slotd.Bootstrap.RevealForRequest` | Exactly one call in the private Unix request encoder. |
 
 Keys are per selector name. A new method sharing an existing key does not
 create a new type-resolved key; receiver identity is outside this syntax guard.
@@ -203,7 +211,7 @@ create a new type-resolved key; receiver identity is outside this syntax guard.
 | `experiments/rental-gateway/gateway/inbound.go:Gateway.stationAuth:slot.ChannelSecretHex.Reveal()` | 2 | Checks credential presence and decodes it for private channel challenge verification. |
 | `experiments/rental-gateway/gateway/inbound.go:Gateway.stationHello:slot.ChannelSecretHex.Reveal()` | 1 | Checks registered credential presence before starting the channel challenge. |
 | `experiments/rental-gateway/journal/journal.go:Store.SetChannelCredential:credential.Reveal()` | 1 | Encodes the channel credential for the existing private journal setter. |
-| `experiments/rental-gateway/journal/private.go:slotPrivateValue:s.ChannelSecretHex.Reveal()` | 1 | Writes channel credential only through the explicit private journal DTO. |
+| `experiments/rental-gateway/journal/private.go:EncodePrivateSlot:value.ChannelSecretHex.Reveal()` | 1 | Serializes channel bytes only inside the explicit private journal encoder; its retained DTO remains opaque. |
 | `experiments/rental-gateway/station/linuxuser.go:LinuxUserDriver.Create:token.Reveal()` | 1 | Supplies token bytes through private driver stdin for station creation. |
 | `experiments/rental-gateway/station/localtest.go:LocalTestDriver.Create:token.Reveal()` | 1 | Writes the private station token file using the existing local driver boundary. |
 | `experiments/rental-gateway/station/trackbadmin.go:TrackBAdminClient.Mint:out.Token.Reveal()` | 1 | Validates the private mint response before returning its opaque token. |
@@ -233,3 +241,21 @@ create a new type-resolved key; receiver identity is outside this syntax guard.
 | `experiments/station-payload/client.go:Client.generate:c.bootstrap.ModelBearer.Reveal()` | 1 | Constructs the authenticated private upstream Authorization header. |
 | `experiments/station-payload/responses.go:Client.generateResponses:c.bootstrap.ModelBearer.Reveal()` | 1 | Constructs the authenticated private Responses Authorization header. |
 | `experiments/station-payload/session.go:Client.Run:b.ChannelSecret.Reveal()` | 1 | Supplies channel credential to the private station-link handshake. |
+
+### Retained plain-secret extension (PLAIN-SECRETS-2)
+
+[The four-field audit](plain-secret-holders.md) explains the holder and consumer
+changes. The existing carrier-name and Reveal-prefix detection rules are kept;
+four exact audited field keys are additionally selected from the expected
+inventory. Controls pin all 18 field types and all four accessor-name multisets,
+including raw-field substitutions for each new row. This does not import the
+separate tree-wide carrier-classification rule or change its policy.
+
+The journal Reveal site moved from DTO construction to EncodePrivateSlot, with
+its count unchanged. New production sites are:
+
+| Site | Calls | Boundary |
+| --- | --- | --- |
+| `experiments/single-use/rpc_password.go:RPCPassword.SetBasicAuth:p.RevealForBasicAuth()` | 1 | Basic Auth header construction for existing route consumers. |
+| `experiments/payment-chain/rpc_password.go:RPCPassword.SetBasicAuth:p.RevealForBasicAuth()` | 1 | Basic Auth header construction for payment routes. |
+| `experiments/station-lifecycle/slotd/wire.go:encodePrivateRequest:bootstrap.RevealForRequest()` | 1 | Private Unix socket request serialization. |

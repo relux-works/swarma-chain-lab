@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
 	"io"
 	"net"
 	"net/http"
-	"github.com/relux-works/swarma-chain-lab/experiments/sealwatch"
 	"strconv"
 	"time"
 )
@@ -15,10 +15,10 @@ import (
 var readMethods = map[string]bool{"getnetworkinfo": true, "getblockchaininfo": true, "getblockhash": true, "getblockheader": true, "getblock": true, "getrawtransaction": true, "getrawmempool": true}
 
 type Route struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Host     string      `json:"host"`
+	Port     int         `json:"port"`
+	Username string      `json:"username"`
+	Password RPCPassword `json:"password"`
 }
 type RPC struct {
 	route  Route
@@ -33,7 +33,7 @@ func NewRPC(r Route) (*RPC, error) { return newRPC(r, "payment-observer") }
 func NewIssuerRPC(r Route) (*RPC, error) { return newRPC(r, "payment-issuer") }
 func newRPC(r Route, username string) (*RPC, error) {
 	ip := net.ParseIP(r.Host)
-	if ip == nil || !ip.IsLoopback() || r.Port < 1 || r.Port > 65535 || r.Username != username || len(r.Password) < 16 || len(r.Password) > 256 {
+	if ip == nil || !ip.IsLoopback() || r.Port < 1 || r.Port > 65535 || r.Username != username || !r.Password.Valid() {
 		return nil, refuse("READ_ONLY_ROUTE")
 	}
 	return &RPC{r, &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil, MaxIdleConns: 2}, CheckRedirect: func(*http.Request, []*http.Request) error { return refuse("REDIRECT") }}}, nil
@@ -53,7 +53,7 @@ func (n *RPC) Call(ctx context.Context, method string, args ...any) (json.RawMes
 	if e != nil {
 		return nil, refuse("RPC_REQUEST")
 	}
-	req.SetBasicAuth(n.route.Username, n.route.Password)
+	n.route.Password.SetBasicAuth(req, n.route.Username)
 	req.Header.Set("Content-Type", "application/json")
 	res, e := n.client.Do(req)
 	if e != nil {
@@ -74,3 +74,10 @@ func (n *RPC) Call(ctx context.Context, method string, args ...any) (json.RawMes
 	}
 	return result, nil
 }
+
+// MarshalJSON preserves Route's object shape with a redacted password.
+func (r Route) MarshalJSON() ([]byte, error) {
+	type public Route
+	return json.Marshal(public(r))
+}
+func (r Route) MarshalText() ([]byte, error) { return r.MarshalJSON() }

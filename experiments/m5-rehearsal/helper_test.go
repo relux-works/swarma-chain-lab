@@ -65,7 +65,7 @@ func (f *fakeHelper) handle(c net.Conn) {
 		return
 	}
 	var q slotd.Request
-	if json.Unmarshal(raw, &q) != nil || !slotd.ValidRequest(q) || !bytes.Equal(bytes.TrimSuffix(raw, []byte{'\n'}), encoded(q)) {
+	if json.Unmarshal(raw, &q) != nil || !slotd.ValidRequest(q) || !bytes.Equal(bytes.TrimSuffix(raw, []byte{'\n'}), privateRequestFixtureJSON(q)) {
 		return
 	}
 	f.mu.Lock()
@@ -84,7 +84,7 @@ func (f *fakeHelper) handle(c net.Conn) {
 			refusal()
 			return
 		}
-		b, e := base64.StdEncoding.DecodeString(*q.Bootstrap)
+		b, e := base64.StdEncoding.DecodeString(q.Bootstrap.RevealForRequest())
 		if e != nil {
 			refusal()
 			return

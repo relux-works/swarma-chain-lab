@@ -51,7 +51,7 @@ func TestRPCReadOnly(t *testing.T) {
 		t.Fatal(e)
 	}
 	port, _ := strconv.Atoi(portText)
-	route := Route{host, port, "payment-observer", "synthetic-public-fixture-password"}
+	route := Route{host, port, "payment-observer", NewRPCPassword("synthetic-public-fixture-password")}
 	node, e := NewRPC(route)
 	if e != nil {
 		t.Fatal(e)
@@ -92,7 +92,7 @@ func TestRPCReadOnly(t *testing.T) {
 // Issuer and watcher factories require distinct principal names. Both retain
 // the same local read-only guard; separate secrets are provisioned at the node.
 func TestRPCPrincipals(t *testing.T) {
-	route := Route{"127.0.0.1", 12345, "payment-observer", "synthetic-public-fixture-password"}
+	route := Route{"127.0.0.1", 12345, "payment-observer", NewRPCPassword("synthetic-public-fixture-password")}
 	if _, e := NewIssuerRPC(route); e == nil || e.Error() != "READ_ONLY_ROUTE" {
 		t.Fatal("watcher principal accepted by issuer", e)
 	}

@@ -57,7 +57,7 @@ func (h *fakeHelper) reply(q Request) Response {
 		if e != nil || until.Unix() <= h.now+60 || until.Unix() > h.now+7*86400 {
 			return refuse("invalid_not_after")
 		}
-		bootstrap, e := base64.StdEncoding.DecodeString(*q.Bootstrap)
+		bootstrap, e := base64.StdEncoding.DecodeString(q.Bootstrap.RevealForRequest())
 		if e != nil {
 			return refuse("invalid_bootstrap")
 		}

@@ -47,7 +47,7 @@ var broadcastMethods = map[string]bool{"sendrawtransaction": true}
 
 func newRPC(r su.Route, path, user string, methods map[string]bool) (*RPC, error) {
 	ip := net.ParseIP(r.Host)
-	if ip == nil || !ip.IsLoopback() || r.Port < 1 || r.Port > 65535 || r.Username != user || len(r.Password) < 16 || len(r.Password) > 256 {
+	if ip == nil || !ip.IsLoopback() || r.Port < 1 || r.Port > 65535 || r.Username != user || !r.Password.Valid() {
 		return nil, fail("RPC_ROUTE")
 	}
 	return &RPC{route: r, endpoint: "http://" + net.JoinHostPort(r.Host, strconv.Itoa(r.Port)) + path, methods: methods, client: &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil, MaxIdleConns: 2}, CheckRedirect: func(*http.Request, []*http.Request) error { return fail("RPC_REDIRECT") }}}, nil
@@ -121,7 +121,7 @@ func (n *RPC) Call(ctx context.Context, method string, args ...any) (json.RawMes
 	if e != nil {
 		return nil, fail("RPC_REQUEST")
 	}
-	req.SetBasicAuth(n.route.Username, n.route.Password)
+	n.route.Password.SetBasicAuth(req, n.route.Username)
 	req.Header.Set("Content-Type", "application/json")
 	res, e := n.client.Do(req)
 	if e != nil {

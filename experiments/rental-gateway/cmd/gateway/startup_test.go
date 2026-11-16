@@ -40,7 +40,7 @@ func TestServeStartupRecovery(t *testing.T) {
 				writeInstalled(t, path, b)
 			}
 			write(c.AgentKeyFile, []byte(hex.EncodeToString(key.Bytes())), 0600)
-			write(c.Kernel.RPCRouteFile, jsonCanonical(su.Route{Host: c.Kernel.RPCHost, Port: c.Kernel.RPCPort, Username: "w3-observer", Password: "public-fixture-placeholder"}), 0400)
+			write(c.Kernel.RPCRouteFile, privateRouteFixtureJSON(su.Route{Host: c.Kernel.RPCHost, Port: c.Kernel.RPCPort, Username: "w3-observer", Password: su.NewRPCPassword("public-fixture-placeholder")}), 0400)
 			if err := os.MkdirAll(c.Exchange.PresentationsDir, 0755); err != nil {
 				t.Fatal(err)
 			}

@@ -56,7 +56,7 @@ func px1jFA1SignV1(t *testing.T, rec JournalRecordV2, n int) JournalRecordV2 {
 	t.Helper()
 	c := *rec.Reconcile
 	c.Signature = ""
-	digest := sha256.Sum256(append([]byte("swarma-wallet-reconcile-v1"), canonical(c)...))
+	digest := sha256.Sum256(append([]byte("swarma-wallet-reconcile-v1"), canonical(privateWalletFixture(c))...))
 	key, _ := testKey(byte(n))
 	sig, e := schnorr.Sign(key, digest[:])
 	if e != nil {

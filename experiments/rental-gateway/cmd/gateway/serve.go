@@ -104,7 +104,7 @@ func serve(parent context.Context, c serveConfig) error {
 		return errConfig
 	}
 	node, e := su.NewRPC(route)
-	route.Password = ""
+	route.Password = su.RPCPassword{}
 	if e != nil {
 		return errConfig
 	}

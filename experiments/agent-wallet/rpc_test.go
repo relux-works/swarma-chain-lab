@@ -34,7 +34,7 @@ func TestWalletRPCBoundary(t *testing.T) {
 	u, _ := url.Parse(s.URL)
 	host, p, _ := net.SplitHostPort(u.Host)
 	port, _ := strconv.Atoi(p)
-	route := WalletRoute{Route: su.Route{Host: host, Port: port, Username: "w1-wallet", Password: strings.Repeat("x", 32)}, Wallet: "agent"}
+	route := WalletRoute{Route: su.Route{Host: host, Port: port, Username: "w1-wallet", Password: su.NewRPCPassword(strings.Repeat("x", 32))}, Wallet: "agent"}
 	rpc, e := NewWalletRPC(route)
 	if e != nil {
 		t.Fatal(e)
@@ -73,7 +73,7 @@ func TestRPCResponseControls(t *testing.T) {
 		u, _ := url.Parse(s.URL)
 		host, p, _ := net.SplitHostPort(u.Host)
 		port, _ := strconv.Atoi(p)
-		rpc, e := NewWalletRPC(WalletRoute{Route: su.Route{Host: host, Port: port, Username: "w1-wallet", Password: strings.Repeat("x", 32)}, Wallet: "agent"})
+		rpc, e := NewWalletRPC(WalletRoute{Route: su.Route{Host: host, Port: port, Username: "w1-wallet", Password: su.NewRPCPassword(strings.Repeat("x", 32))}, Wallet: "agent"})
 		if e != nil {
 			t.Fatal(e)
 		}

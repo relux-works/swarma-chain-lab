@@ -227,7 +227,7 @@ func newCoreLab(t *testing.T, agentNostrPub string) *coreLab {
 	salt := hex.EncodeToString(random[:8])
 	mac := hmac.New(sha256.New, []byte(salt))
 	mac.Write([]byte(password))
-	route := su.Route{Host: "127.0.0.1", Port: port, Username: "w3-observer", Password: password}
+	route := su.Route{Host: "127.0.0.1", Port: port, Username: "w3-observer", Password: su.NewRPCPassword(password)}
 	l.route = route
 	l.observer, e = su.NewRPC(route)
 	if e != nil {

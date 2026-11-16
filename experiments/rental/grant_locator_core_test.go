@@ -149,7 +149,7 @@ func TestCoreGrantLocatorReplay(t *testing.T) {
 		}
 		return path
 	}
-	args := []string{"--policy", write("old-policy.json", ip), "--route", write("old-route.json", l.route), "--request", write("old-request.json", json.RawMessage(req)), "--package-event", write("old-event.json", json.RawMessage(event)), "--seal", write("old-seal.json", seal), "--spec", write("old-spec.json", spec), "--grant-key-file", key, "--at", "500"}
+	args := []string{"--policy", write("old-policy.json", ip), "--route", write("old-route.json", privateRouteFixture(l.route)), "--request", write("old-request.json", json.RawMessage(req)), "--package-event", write("old-event.json", json.RawMessage(event)), "--seal", write("old-seal.json", seal), "--spec", write("old-spec.json", spec), "--grant-key-file", key, "--at", "500"}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, oldPath, args...)

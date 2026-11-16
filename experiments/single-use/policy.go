@@ -49,6 +49,9 @@ func StrictInput(raw []byte, out any) error {
 	if e := sealwatch.ValidateJSON(raw); e != nil {
 		return e
 	}
+	// Explicit scalar holders retain their string schema even though their Go
+	// storage is opaque. Object schemas still traverse every declared field.
+	stringInput := reflect.TypeFor[interface{ JSONInputString() }]()
 	var check func([]byte, reflect.Type) error
 	check = func(b []byte, t reflect.Type) error {
 		if t == reflect.TypeFor[json.RawMessage]() {
@@ -56,6 +59,13 @@ func StrictInput(raw []byte, out any) error {
 		}
 		if t.Kind() == reflect.Pointer {
 			return check(b, t.Elem())
+		}
+		if t.Implements(stringInput) {
+			var value string
+			if bytes.Equal(bytes.TrimSpace(b), []byte("null")) || json.Unmarshal(b, &value) != nil {
+				return fail("INPUT_STRING")
+			}
+			return nil
 		}
 		if t.Kind() == reflect.Slice || t.Kind() == reflect.Array {
 			var items []json.RawMessage

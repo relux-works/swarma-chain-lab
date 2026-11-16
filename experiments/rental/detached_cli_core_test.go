@@ -33,7 +33,7 @@ func TestCoreDetachedCLI(t *testing.T) {
 		}
 		return path
 	}
-	route := write("route.json", l.route)
+	route := write("route.json", privateRouteFixture(l.route))
 	invoke := func(label, env string, want int, argv ...string) []byte {
 		t.Helper()
 		binary := os.Getenv(env)

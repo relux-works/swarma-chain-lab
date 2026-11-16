@@ -61,11 +61,15 @@ def main():
     positive = inventory(text)
     require(code == 0, 'positive tree must pass')
     require({key: positive[key] for key in expected} == expected, 'exact listed positive inventory')
-    require(len(expected['carrier_fields']) == 14, 'carrier count')
-    require(set(expected['explicit_reveals']) == {'Reveal', 'RevealForOpen'}, 'accessor keys')
+    require(len(expected['carrier_fields']) == 18, 'carrier count')
+    require(set(expected['explicit_reveals']) == {'Reveal', 'RevealForOpen', 'RevealForBasicAuth', 'RevealForRequest'}, 'accessor keys')
     require(len(expected['explicit_reveals']['Reveal']) == 53 and
             sum(expected['explicit_reveals']['Reveal'].values()) == 67, 'call counts')
     require(expected['explicit_reveals']['RevealForOpen'] == {}, 'no production opening reveal')
+    require(len(expected['explicit_reveals']['RevealForBasicAuth']) == 2 and
+            sum(expected['explicit_reveals']['RevealForBasicAuth'].values()) == 2, 'Basic Auth sites')
+    require(len(expected['explicit_reveals']['RevealForRequest']) == 1 and
+            sum(expected['explicit_reveals']['RevealForRequest'].values()) == 1, 'private socket site')
     rows[-1]['witness'] = expected
 
     # Each control changes precisely the named field/accessor/site; matching the
@@ -145,6 +149,21 @@ def main():
                              accessor='Reveal', witness=registry + ':newService:' + witness,
                              delta=delta, legacy=True))
 
+    # PLAIN-SECRETS-2 inventory rows must still detect reintroduced raw fields.
+    for name, path, owner, field, before, after in [
+        ('raw-single-use-password', 'experiments/single-use/node.go', 'Route', 'Password', 'RPCPassword', 'string'),
+        ('raw-payment-password', 'experiments/payment-chain/rpc.go', 'Route', 'Password', 'RPCPassword', 'string'),
+        ('raw-private-journal-secret', 'experiments/rental-gateway/journal/private.go', 'slotPrivate', 'ChannelSecretHex', 'codec.Secret[string]', 'string'),
+        ('raw-socket-bootstrap', 'experiments/station-lifecycle/slotd/wire.go', 'Request', 'Bootstrap', '*Bootstrap', '*string'),
+    ]:
+        raw = (fixture / path).read_text()
+        pattern = r'(\b' + field + r'\s+)' + re.escape(before) + r'(?=\s+`)'
+        replaced, count = re.subn(pattern, lambda m: m[1] + after, raw)
+        require(count == 1, name + ': field anchor')
+        controls.append(dict(name=name, path=path, plant=replaced,
+                             field=path + ':' + owner + '.' + field,
+                             value=after, legacy=False))
+
     def check_control(control, executable, baseline, prefix=''):
         path = fixture / control['path']
         original = path.read_bytes() if path.exists() else None
@@ -218,7 +237,7 @@ def main():
                 check_control(control, executable, baseline, prefix)
         rows[-1]['legacy_positive_inventory'] = baseline
     (out / 'results.json').write_text(json.dumps(rows, indent=2) + '\n')
-    print('positive: exit=0; exact 14 carriers; Reveal 53 sites/67 calls; RevealForOpen {}; all controls passed')
+    print('positive: exit=0; exact 18 carriers; Reveal 53 sites/67 calls; BasicAuth 2/2; Request 1/1; RevealForOpen {}; all controls passed')
 
 
 if __name__ == '__main__':

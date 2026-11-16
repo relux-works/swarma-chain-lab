@@ -93,10 +93,10 @@ func TestDK5FundingBeforeState(t *testing.T) {
 	c := config(t)
 	root := t.TempDir()
 	readPath, sendPath := filepath.Join(root, "read.json"), filepath.Join(root, "send.json")
-	route := su.Route{Host: "127.0.0.1", Port: 18443, Username: "w3-observer", Password: strings.Repeat("x", 32)}
-	writeInstalled(t, readPath, encode(route))
+	route := su.Route{Host: "127.0.0.1", Port: 18443, Username: "w3-observer", Password: su.NewRPCPassword(strings.Repeat("x", 32))}
+	writeInstalled(t, readPath, encode(privateRouteFixture(route)))
 	route.Username = "sg1-broadcaster"
-	writeInstalled(t, sendPath, encode(route))
+	writeInstalled(t, sendPath, encode(privateRouteFixture(route)))
 	p := filepath.Join(root, "service.json")
 	writeInstalled(t, p, encode(FileConfig{Config: c, ReadRouteFile: readPath, BroadcastRouteFile: sendPath, IntervalSeconds: 1}))
 	key, e := loadKey(c.FundingKeyPath, c.Policy.Policy.FundingScript)
