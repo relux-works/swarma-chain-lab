@@ -22,9 +22,10 @@ type NameSource interface {
 
 // NodeNameReader is the running RPC adapter. Its zero value fails closed.
 type NodeNameReader struct {
-	endpoint, user, password string
-	client                   *http.Client
-	ctx                      context.Context
+	endpoint, user string
+	password       rpcPassword
+	client         *http.Client
+	ctx            context.Context
 }
 
 // CheckRunning never accepts an injected fixture or operator-supplied source.

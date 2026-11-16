@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -41,16 +40,16 @@ func NewNodeNameReader(endpoint, credentialFile string) (*NodeNameReader, error)
 		return nil, refuse("NODE_CREDENTIALS")
 	}
 	raw, e := io.ReadAll(io.LimitReader(f, 4097))
+	defer clear(raw)
 	if e != nil || len(raw) > 4096 {
 		return nil, refuse("NODE_CREDENTIALS")
 	}
-	defer clear(raw)
-	cred := strings.TrimSpace(string(raw))
-	user, password, ok := strings.Cut(cred, ":")
-	if !ok || user == "" || password == "" || strings.ContainsAny(cred, "\r\n") {
+	cred := bytes.TrimSpace(raw)
+	user, password, ok := bytes.Cut(cred, []byte(":"))
+	if !ok || len(user) == 0 || len(password) == 0 || bytes.ContainsAny(cred, "\r\n") {
 		return nil, refuse("NODE_CREDENTIALS")
 	}
-	return &NodeNameReader{endpoint: endpoint, user: user, password: password, ctx: context.Background(), client: &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{Proxy: nil, MaxConnsPerHost: 32, MaxIdleConnsPerHost: 4}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	return &NodeNameReader{endpoint: endpoint, user: string(user), password: rpcPassword{value: string(password)}, ctx: context.Background(), client: &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{Proxy: nil, MaxConnsPerHost: 32, MaxIdleConnsPerHost: 4}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func loopback(s string) bool { ip := net.ParseIP(s); return ip != nil && ip.IsLoopback() }
 
@@ -74,7 +73,7 @@ func (n *NodeNameReader) rpc(method string, params any, out any) error {
 	if e != nil {
 		return refuse("NODE_RPC_FAILURE")
 	}
-	req.SetBasicAuth(n.user, n.password)
+	req.SetBasicAuth(n.user, n.password.Reveal())
 	req.Header.Set("Content-Type", "application/json")
 	resp, e := n.client.Do(req)
 	if e != nil {

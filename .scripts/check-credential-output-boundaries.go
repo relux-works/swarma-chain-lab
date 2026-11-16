@@ -48,6 +48,8 @@ var fields = map[string]string{
 var reveals = map[string]map[string]int{
 	"RevealForOpen": {},
 	"Reveal": {
+		// N6 audit: RPC password leaves its holder only for HTTP Basic Auth.
+		"experiments/notary-checker/node.go:NodeNameReader.rpc:n.password.Reveal()":                                1,
 		"experiments/model-proxy/registry.go:newService:r.Bearer.Reveal()":                                         4,
 		"experiments/model-proxy/registry.go:newService:c.APIKey.Reveal()":                                         3,
 		"experiments/model-proxy/messages.go:Messages.Headers:key.Reveal()":                                        1,

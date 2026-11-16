@@ -84,6 +84,8 @@ def main():
         raise SystemExit('work directory already exists; use a fresh path')
     work.mkdir(parents=True)
     cases = list(CASES) + [
+      ('rpc-password-format','password.go',None,'TestRPCPasswordRedaction/fmt/holder/value/%v','password holder formatting always redacts'),
+      ('rpc-password-json','password.go',None,'TestRPCPasswordRedaction/json/holder/value','password holder JSON always redacts'),
       ('lexical','encoding.go',None,'TestVectors/negative-contract-escape','no normalization of signed string spelling'),
       ('notary-value','name.go',None,'TestVectors/negative-notary-key','notary key must be a curve point'),
       ('row-selection','check.go',None,'TestVectors/negative-other-row-executor','ordinal selects its own row'),
@@ -120,6 +122,10 @@ def main():
                 # is removed. This intentionally substitutes a known pin, as
                 # an implementation trusting an undesignated name would do.
                 source = source.replace('if designated == nil {', 'if designated == nil {\n designated = &pd.Notaries[0]')
+        elif name == 'rpc-password-format':
+            source = source.replace('func (rpcPassword) Format(', 'func (p rpcPassword) Format(', 1).replace('io.WriteString(s, credentialRedacted)', 'io.WriteString(s, p.value)', 1)
+        elif name == 'rpc-password-json':
+            source = source.replace('func (rpcPassword) MarshalJSON() ([]byte, error)', 'func (p rpcPassword) MarshalJSON() ([]byte, error)').replace('return []byte(`"[REDACTED]"`), nil', 'return []byte(`"` + p.value + `"`), nil', 1)
         elif name == 'lexical':
             start = source.index('func decode(')
             end = source.index('\nfunc sorted', start)

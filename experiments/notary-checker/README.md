@@ -279,3 +279,26 @@ operator-file limit for scope texts and offline name fixtures; the encoded
 grant, contract, request, policy, name-value and statement decoders retain their
 separate smaller caps. Service config and deployment policy retain their own
 16 KiB/8 KiB limits and `CONFIG`/`POLICY_FILE` refusals.
+
+### N6 RPC password diagnostic boundary
+
+The RPC password is retained in `rpcPassword`, loaded directly from trimmed
+credential-file bytes; the temporary read buffer is cleared after loading.
+The holder and `NodeNameReader` redact all fmt verbs, JSON and text output in
+both value and pointer forms. The enclosing reader needs its own formatter
+because fmt reflection does not call formatters on unexported fields.
+`rpcPassword.Reveal` has one call site, the existing `SetBasicAuth` call; this
+changes no RPC request body or Authorization bytes. This is diagnostic
+redaction, not secure memory or protection from a compromised process.
+
+`TestRPCPasswordRedaction` pairs nonempty controls with the requested fmt verbs,
+JSON and text. `TestRPCPasswordWireAndErrors` captures exact Basic Auth and RPC
+body bytes at a fake loopback server and checks fixed RPC/transport refusals;
+`TestRPCPasswordCredentialErrors` checks malformed file content without a
+partial reader. The existing `scripts/check-mutants.py` command also removes
+holder fmt and JSON redaction separately and requires their named tests to fail.
+
+Inventory audit: the root credential-output guard records exactly one new
+`Reveal` call at `NodeNameReader.rpc`. Its existing carrier-name rules do not
+select `NodeNameReader.password`; no detection rule was changed. The retained
+field is now `rpcPassword`, and no additional plain password carrier is added.
