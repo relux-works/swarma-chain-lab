@@ -48,6 +48,13 @@ class Fixture:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(REPO / relative, target)
         subprocess.run(["git", "init", "-q", str(self.dir)], check=True)
+        # Borrow immutable history only; provenance must still pass real Git checks.
+        objects = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--git-path", "objects"],
+                                 check=True, capture_output=True, text=True).stdout.strip()
+        (self.dir / ".git/objects/info/alternates").write_text(str((REPO / objects).resolve()) + "\n")
+        main = subprocess.run(["git", "-C", str(REPO), "rev-parse", "origin/main"],
+                              check=True, capture_output=True, text=True).stdout.strip()
+        subprocess.run(["git", "-C", str(self.dir), "update-ref", "refs/remotes/origin/main", main], check=True)
 
     def substitute(self, relative, old, new):
         path = self.dir / relative
@@ -205,6 +212,122 @@ class ModuleGraphCheck(unittest.TestCase):
         self.assertEqual((code, len(violations)), (1, 2))
 
 
+class FloorProvenance(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("provenance_graph", CHECKER)
+        self.graph = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.graph)
+        self.temp = tempfile.TemporaryDirectory(prefix="floor-provenance-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.git("init", "-q")
+        self.default = PREFIX + "experiments/fixture"
+        self.later = PREFIX + "experiments/later"
+        self.add_module(self.default)
+        self.base = self.commit("1577934245")  # 20200102030405 UTC
+        self.add_module(self.later)
+        self.main = self.commit("1578020645", self.base)  # 20200103030405 UTC
+        self.git("update-ref", "refs/remotes/origin/main", self.main)
+        self.side = self.commit("1578107045", self.base)
+        self.snapshot = {
+            "snapshot_commit": self.base, "snapshot_time": "20200102030405",
+            "modules": {self.default: "v0.0.0-20200102030405-" + self.base[:12],
+                        self.later: "v0.0.0-20200103030405-" + self.main[:12]},
+            "module_provenance": {self.later: {"commit": self.main, "time": "20200103030405"}},
+        }
+
+    def git(self, *args, input=None):
+        return subprocess.run(["git", "-C", str(self.root), *args], input=input,
+                              check=True, capture_output=True, text=True).stdout.strip()
+
+    def add_module(self, module):
+        target = self.root / module.removeprefix(PREFIX) / "go.mod"
+        target.parent.mkdir(parents=True)
+        target.write_text("module " + module + "\n\ngo 1.26.0\n")
+
+    def commit(self, seconds, parent=None):
+        # Synthetic immutable objects are fixture data, never delivery commits.
+        self.git("add", ".")
+        tree = self.git("write-tree")
+        body = "tree " + tree + "\n" + ("parent " + parent + "\n" if parent else "")
+        body += ("author Fixture <fixture@example.invalid> " + seconds + " +0000\n"
+                 "committer Fixture <fixture@example.invalid> " + seconds + " +0000\n\nfixture\n")
+        return self.git("hash-object", "-t", "commit", "-w", "--stdin", input=body)
+
+    def check(self):
+        return self.graph.floor_violations(self.root, self.snapshot)
+
+    # Claim: one later module may use its own main floor while all undeclared
+    # modules retain the default, with real Git history and no resolver mocks.
+    def test_mixed_default_and_per_module_floor(self):
+        self.assertEqual(self.check(), [])
+        del self.snapshot["module_provenance"]
+        self.assertEqual(self.check(), [
+            f"snapshot: {self.later} floor {self.snapshot['modules'][self.later]} is not a pseudo-version of snapshot 20200102030405-{self.base[:12]}"])
+
+    # Claim: non-object provenance, missing fields, wrong types, abbreviated
+    # commits and invalid times receive the exact format refusal, beside a valid control.
+    def test_malformed_provenance(self):
+        prefix = f"snapshot: {self.later} provenance"
+        cases = [(None, prefix + " must be an object with commit and time"),
+                 ({}, prefix + " requires a full lowercase commit SHA and UTC time YYYYMMDDhhmmss"),
+                 ({"commit": self.main[:12], "time": "20200103030405"}, prefix + " requires a full lowercase commit SHA and UTC time YYYYMMDDhhmmss"),
+                 ({"commit": self.main, "time": 20200103030405}, prefix + " requires a full lowercase commit SHA and UTC time YYYYMMDDhhmmss"),
+                 ({"commit": self.main, "time": "20201303030405"}, prefix + " has invalid UTC time 20201303030405")]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.snapshot["module_provenance"][self.later] = source
+                self.assertEqual(self.check(), [expected])
+        self.snapshot["module_provenance"] = []
+        self.assertEqual(self.check(), ["snapshot: module_provenance must be an object"])
+
+    # Claim: neither an unknown record member nor a module absent from floors
+    # can introduce an unchecked provenance declaration.
+    def test_unknown_provenance_key(self):
+        source = self.snapshot["module_provenance"][self.later]
+        source["extra"] = True
+        self.assertEqual(self.check(), [f"snapshot: {self.later} provenance has unknown key extra"])
+        del source["extra"]
+        self.snapshot["module_provenance"]["unknown"] = source
+        self.assertEqual(self.check(), ["snapshot: unknown module provenance key unknown"])
+
+    # Claim: a syntactically valid but unavailable SHA fails as an unknown
+    # commit, never as a successful ancestry or version check.
+    def test_unknown_commit(self):
+        self.snapshot["module_provenance"][self.later]["commit"] = "0" * 40
+        self.assertEqual(self.check(), [f"snapshot: {self.later} provenance commit {'0' * 40} is not an available commit"])
+
+    # Claim: an existing side-branch commit with the module and matching time
+    # and hash is refused specifically because it is not on origin/main.
+    def test_commit_not_on_main(self):
+        self.snapshot["module_provenance"][self.later] = {"commit": self.side, "time": "20200104030405"}
+        self.snapshot["modules"][self.later] = "v0.0.0-20200104030405-" + self.side[:12]
+        self.assertEqual(self.check(), [f"snapshot: {self.later} provenance commit {self.side} is not on origin/main"])
+
+    # Claim: a genuine main ancestor with matching pseudo-version is refused
+    # when the module did not yet exist there; version syntax cannot invent it.
+    def test_module_absent_at_commit(self):
+        self.snapshot["module_provenance"][self.later] = {"commit": self.base, "time": "20200102030405"}
+        self.snapshot["modules"][self.later] = "v0.0.0-20200102030405-" + self.base[:12]
+        self.assertEqual(self.check(), [f"snapshot: {self.later} provenance commit {self.base} does not contain experiments/later/go.mod"])
+
+    # Claim: declared time must be the actual commit time, even when the floor
+    # repeats that false time and its hash is correct.
+    def test_provenance_time_matches_commit(self):
+        self.snapshot["module_provenance"][self.later]["time"] = "20200104030405"
+        self.snapshot["modules"][self.later] = "v0.0.0-20200104030405-" + self.main[:12]
+        self.assertEqual(self.check(), [f"snapshot: {self.later} provenance time 20200104030405 does not match commit time 20200103030405"])
+
+    # Claim: either pseudo-version component differing from verified provenance
+    # is refused exactly; valid provenance alone cannot authorize a different floor.
+    def test_pseudo_version_time_or_hash_mismatch(self):
+        for floor in ("v0.0.0-20200104030405-" + self.main[:12],
+                      "v0.0.0-20200103030405-000000000000"):
+            with self.subTest(floor=floor):
+                self.snapshot["modules"][self.later] = floor
+                self.assertEqual(self.check(), [f"snapshot: {self.later} floor {floor} is not a pseudo-version of snapshot 20200103030405-{self.main[:12]}"])
+
+
 class SnapshotRegeneration(unittest.TestCase):
     def setUp(self):
         spec = importlib.util.spec_from_file_location("snapshot_graph", CHECKER)
@@ -218,6 +341,8 @@ class SnapshotRegeneration(unittest.TestCase):
         self.commit = "1" * 40
         self.snapshot = {
             "snapshot_commit": self.commit, "snapshot_time": "20200102030405",
+            "module_provenance": {PREFIX + "experiments/rental": {
+                "commit": "2" * 40, "time": "20190102030405"}},
             "modules": {
                 PREFIX + "experiments/rental": "v0.5.1-0.20200102030405-111111111111",
                 PREFIX + "experiments/grantcheck": "v0.1.2-0.20200102030405-111111111111",
@@ -245,6 +370,7 @@ class SnapshotRegeneration(unittest.TestCase):
             self.graph.refresh_snapshot(REPO, self.path, "go", self.commit)
         generated = json.loads(self.path.read_text())
         self.assertEqual(generated["modules"], self.snapshot["modules"])
+        self.assertNotIn("module_provenance", generated)
         self.assertEqual(generated["snapshot_commit"], self.commit)
         self.assertEqual(generated["snapshot_time"], "20200102030405")
         self.assertEqual(calls.call_count, len(self.snapshot["modules"]) + 1)

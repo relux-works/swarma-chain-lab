@@ -66,15 +66,82 @@ def parse(go, root, relative):
     return json.loads(proc.stdout), None
 
 
+def floor_violations(root, snapshot):
+    """Per-module provenance refines only the floor's source, never edge rules.
+
+    Optional module_provenance maps existing module keys to exactly {commit,
+    time}. Undeclared modules retain the global snapshot contract. Explicit
+    sources must exist on origin/main and contain the module at that source.
+    """
+    floors = snapshot["modules"]
+    provenance = snapshot.get("module_provenance", {})
+    if not isinstance(provenance, dict):
+        return ["snapshot: module_provenance must be an object"]
+    violations = []
+    for path in sorted(set(provenance) - set(floors)):
+        violations.append(f"snapshot: unknown module provenance key {path}")
+    for path, floor in sorted(floors.items()):
+        source = provenance.get(path)
+        if path in provenance:
+            prefix = f"snapshot: {path} provenance"
+            if not isinstance(source, dict):
+                violations.append(f"{prefix} must be an object with commit and time")
+                continue
+            unknown = sorted(set(source) - {"commit", "time"})
+            if unknown:
+                violations.append(f"{prefix} has unknown key {unknown[0]}")
+                continue
+            commit, timestamp = source.get("commit"), source.get("time")
+            if (set(source) != {"commit", "time"}
+                    or not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit)
+                    or not isinstance(timestamp, str) or not re.fullmatch(r"[0-9]{14}", timestamp)):
+                violations.append(f"{prefix} requires a full lowercase commit SHA and UTC time YYYYMMDDhhmmss")
+                continue
+            try:
+                datetime.strptime(timestamp, "%Y%m%d%H%M%S")
+            except ValueError:
+                violations.append(f"{prefix} has invalid UTC time {timestamp}")
+                continue
+            resolved = subprocess.run(["git", "-C", str(root), "cat-file", "-t", commit],
+                                      capture_output=True, text=True)
+            if resolved.returncode or resolved.stdout.strip() != "commit":
+                violations.append(f"{prefix} commit {commit} is not an available commit")
+                continue
+            on_main = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor",
+                                      commit, "origin/main"], capture_output=True, text=True)
+            if on_main.returncode:
+                violations.append(f"{prefix} commit {commit} is not on origin/main")
+                continue
+            relative = path.removeprefix(REPO_MODULE).lstrip("/")
+            manifest = (relative + "/" if relative else "") + "go.mod"
+            present = subprocess.run(["git", "-C", str(root), "cat-file", "-t", f"{commit}:{manifest}"],
+                                     capture_output=True, text=True)
+            if (not internal(path) or any(p in (".", "..") for p in relative.split("/"))
+                    or present.returncode or present.stdout.strip() != "blob"):
+                violations.append(f"{prefix} commit {commit} does not contain {manifest}")
+                continue
+            actual = subprocess.run(["git", "-C", str(root), "show", "-s", "--format=%ct", commit],
+                                    capture_output=True, text=True)
+            if actual.returncode:
+                raise SetupError(f"cannot read provenance commit time for {path}")
+            actual_time = datetime.fromtimestamp(int(actual.stdout), timezone.utc).strftime("%Y%m%d%H%M%S")
+            if timestamp != actual_time:
+                violations.append(f"{prefix} time {timestamp} does not match commit time {actual_time}")
+                continue
+        else:
+            commit, timestamp = snapshot["snapshot_commit"], snapshot["snapshot_time"]
+        stamp = f"{timestamp}-{commit[:12]}"
+        # Preserve both supported Go pseudo-version bases and the global default.
+        if not isinstance(floor, str) or not SEMVER.fullmatch(floor) or not re.search(
+                r"[.-]" + re.escape(stamp) + "$", floor):
+            violations.append(f"snapshot: {path} floor {floor} is not a pseudo-version of snapshot {stamp}")
+    return violations
+
+
 def inventory(root, snapshot_path, go):
     snapshot = json.loads(snapshot_path.read_text())
     floors = snapshot["modules"]
-    # Pseudo-versions end in [.-]TIMESTAMP-COMMIT12 (vX.0.0-T-C or vX.Y.Z-0.T-C).
-    stamp = f"{snapshot['snapshot_time']}-{snapshot['snapshot_commit'][:12]}"
-    violations, rows, edges, modules = [], [], [], {}
-    for path, floor in sorted(floors.items()):
-        if not SEMVER.fullmatch(floor) or not re.search(r"[.-]" + re.escape(stamp) + "$", floor):
-            violations.append(f"snapshot: {path} floor {floor} is not a pseudo-version of snapshot {stamp}")
+    violations, rows, edges, modules = floor_violations(root, snapshot), [], [], {}
     parsed = {}
     for relative in manifests(root):
         data, error = parse(go, root, relative)
@@ -152,6 +219,7 @@ def refresh_snapshot(root, snapshot_path, go, commit):
     snapshot["snapshot_commit"] = commit
     snapshot["snapshot_time"] = timestamp
     snapshot["modules"] = modules
+    snapshot.pop("module_provenance", None)  # Successful full refresh supersedes overrides.
     snapshot_path.write_text(json.dumps(snapshot, indent=2) + "\n")
 
 
