@@ -84,7 +84,17 @@ scripts/verify-release.sh "$SOURCE_ROOT" "$RELEASE_COMMIT" "$RELEASE_DIR" \
 ```
 
 Use absolute paths for the source checkout, download directory, independent
-rebuilt executable and allowed-signers file. The script checks the fixed tag
+rebuilt executable and allowed-signers file. Verify in a directory holding
+only the downloaded release files: `notary-service-linux-amd64`, `SHA256SUMS`
+and `SHA256SUMS.sig`. Keep the independent rebuild and allowed-signers file
+outside that directory. The script enumerates the directory non-recursively,
+including hidden dotfiles, using Python 3's `os.lstat` on every entry. An extra
+regular file refuses as `UNEXPECTED_RELEASE_FILE`; any subdirectory refuses as
+`RELEASE_SUBDIRECTORY`, symlink as `RELEASE_SYMLINK`, and FIFO or other
+non-regular file as `RELEASE_NON_REGULAR_FILE`. Each exits 1 without
+`RELEASE_VERIFIED`. Directory read errors refuse as `RELEASE_DIRECTORY_READ`;
+a non-directory release path refuses as `MISSING_RELEASE_DIRECTORY`.
+The script checks the fixed tag
 `notary-service/v0.1.0`, its signature and target, the detached manifest
 signature, and both hashes. `SHA256SUMS` must contain only the single lowercase
 SHA-256 entry for `notary-service-linux-amd64`; other paths refuse. It prints
@@ -98,13 +108,21 @@ a local signed fixture tag outside the source repository. It checks the good
 release and named refusals for a tampered binary, tampered manifest, wrong
 namespace, wrong signer, missing signature, invalid tag, wrong target, changed
 rebuild and foreign manifest path. It never uses the release owner's key.
+It also checks extra visible/hidden files, subdirectories, binary/manifest/
+signature symlinks and FIFOs, including required-path type substitutions.
+`python3 -B scripts/check-release-mutant.py --work-dir .temp/release-mutant`
+removes enumeration in a disposable copy: `ReleaseVerification.test_extra_file`
+must fail while `ReleaseVerification.test_all_good` still passes. Logs, PIDs
+and `mutation-results.md` remain in that fresh work directory. Python 3 is a
+verifier dependency for explicit non-following `lstat` checks; no third-party
+Python package is required.
 
 ## Install the verified executable
 
 The authorized target operator installs into a root-owned service directory:
 
 ```sh
-install -m 0755 -o root -g root notary-service-linux-amd64 "$SERVICE_DIR/notary-service"
+install -m 0755 -o root -g root "$RELEASE_DIR/notary-service-linux-amd64" "$SERVICE_DIR/notary-service"
 sha256sum "$SERVICE_DIR/notary-service"
 stat -c '%U:%G %a %n' "$SERVICE_DIR/notary-service"
 namei -l "$SERVICE_DIR/notary-service"

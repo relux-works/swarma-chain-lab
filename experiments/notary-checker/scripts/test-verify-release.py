@@ -74,9 +74,9 @@ class ReleaseVerification(unittest.TestCase):
         self.assertTrue(all(line.startswith(('PASS ', 'FAIL '))
                             for line in output.splitlines()), output)
         if refusal:
-            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.returncode, 1)
             self.assertEqual(output.splitlines()[-1], 'FAIL ' + refusal)
-            self.assertNotIn('PASS RELEASE_VERIFIED', output)
+            self.assertNotIn('RELEASE_VERIFIED', output)
         else:
             self.assertEqual(result.returncode, 0, output)
             self.assertEqual(output.splitlines()[-1], 'PASS RELEASE_VERIFIED')
@@ -84,6 +84,53 @@ class ReleaseVerification(unittest.TestCase):
     # These controls isolate the five requested fail-closed release failures.
     def test_all_good(self):
         self.verify()
+
+    # Exact membership includes hidden names; no directory entry may be a link,
+    # directory or special file. lstat must reject even links to valid inputs.
+    def test_extra_file(self):
+        (self.release / 'unlisted').write_text('extra\n')
+        self.verify('UNEXPECTED_RELEASE_FILE')
+
+    def test_extra_hidden_file(self):
+        (self.release / '.unlisted').write_text('extra\n')
+        self.verify('UNEXPECTED_RELEASE_FILE')
+
+    def test_subdirectory(self):
+        (self.release / 'extra-directory').mkdir()
+        self.verify('RELEASE_SUBDIRECTORY')
+
+    def test_binary_symlink(self):
+        self.binary.unlink()
+        self.binary.symlink_to(self.rebuilt)
+        self.verify('RELEASE_SYMLINK')
+
+    def test_manifest_symlink(self):
+        target = self.root / 'manifest'
+        self.manifest.rename(target)
+        self.manifest.symlink_to(target)
+        self.verify('RELEASE_SYMLINK')
+
+    def test_fifo(self):
+        os.mkfifo(self.release / 'extra-fifo', 0o600)
+        self.verify('RELEASE_NON_REGULAR_FILE')
+
+    # Neighboring required-path variants must refuse before any read can block.
+    def test_binary_fifo(self):
+        self.binary.unlink()
+        os.mkfifo(self.binary, 0o600)
+        self.verify('RELEASE_NON_REGULAR_FILE')
+
+    def test_binary_directory(self):
+        self.binary.unlink()
+        self.binary.mkdir()
+        self.verify('RELEASE_SUBDIRECTORY')
+
+    def test_signature_symlink(self):
+        signature = self.manifest.with_suffix('.sig')
+        target = self.root / 'signature'
+        signature.rename(target)
+        signature.symlink_to(target)
+        self.verify('RELEASE_SYMLINK')
 
     def test_tampered_binary(self):
         self.binary.write_bytes(b'tampered\n')

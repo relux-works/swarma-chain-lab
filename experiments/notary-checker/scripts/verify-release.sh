@@ -6,11 +6,45 @@ pass() { printf 'PASS %s\n' "$1"; }
 [[ $# == 6 ]] || fail ARGUMENTS
 repo=$1 commit=$2 release=$3 rebuilt=$4 allowed=$5 signer=$6
 tag=refs/tags/notary-service/v0.1.0
-for tool in git ssh-keygen sha256sum cmp; do
+for tool in git ssh-keygen sha256sum cmp python3; do
     command -v "$tool" >/dev/null 2>&1 || fail TOOL_MISSING
 done
 [[ $commit =~ ^[0-9a-f]{40}$ && -n $signer ]] || fail ARGUMENTS
 [[ -d $repo ]] || fail MISSING_REPOSITORY
+# BEGIN RELEASE_DIRECTORY_CHECK
+# Enumerate only this directory, including dotfiles. lstat never follows links;
+# no trust input or independent rebuild belongs beside the three downloads.
+python3 - "$release" <<'PY'
+import os
+import stat
+import sys
+
+def fail(verdict):
+    print('FAIL ' + verdict)
+    sys.exit(1)
+
+try:
+    mode = os.lstat(sys.argv[1]).st_mode
+    if stat.S_ISLNK(mode):
+        fail('RELEASE_SYMLINK')
+    if not stat.S_ISDIR(mode):
+        fail('MISSING_RELEASE_DIRECTORY')
+    expected = {'notary-service-linux-amd64', 'SHA256SUMS', 'SHA256SUMS.sig'}
+    with os.scandir(sys.argv[1]) as entries:
+        for entry in sorted(entries, key=lambda item: item.name):
+            mode = os.lstat(entry.path).st_mode
+            if stat.S_ISLNK(mode):
+                fail('RELEASE_SYMLINK')
+            if stat.S_ISDIR(mode):
+                fail('RELEASE_SUBDIRECTORY')
+            if not stat.S_ISREG(mode):
+                fail('RELEASE_NON_REGULAR_FILE')
+            if entry.name not in expected:
+                fail('UNEXPECTED_RELEASE_FILE')
+except OSError:
+    fail('RELEASE_DIRECTORY_READ')
+PY
+# END RELEASE_DIRECTORY_CHECK
 [[ -f $allowed && ! -L $allowed ]] || fail MISSING_ALLOWED_SIGNERS
 [[ -f $release/notary-service-linux-amd64 && ! -L $release/notary-service-linux-amd64 ]] || fail MISSING_BINARY
 [[ -f $release/SHA256SUMS && ! -L $release/SHA256SUMS ]] || fail MISSING_SHA256SUMS
