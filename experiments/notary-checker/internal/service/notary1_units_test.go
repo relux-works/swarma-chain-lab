@@ -49,7 +49,7 @@ func TestNotary1UnitsVerify(t *testing.T) {
 		}
 	}
 	verify := func() ([]byte, error) {
-		cmd := exec.Command(analyze, "verify", "--man=no", "--generators=no", "--root="+root,
+		cmd := exec.Command(analyze, "verify", "--man=no", "--generators=no", "--recursive-errors=yes", "--root="+root,
 			"namecoind-regtest.service", "notary-service.service")
 		cmd.Env = append(os.Environ(), "LC_ALL=C", "SYSTEMD_LOG_LEVEL=warning")
 		return cmd.CombinedOutput()

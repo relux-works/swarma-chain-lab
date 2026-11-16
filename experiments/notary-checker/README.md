@@ -253,7 +253,7 @@ irrelevant. This claim is bound to that toolchain, target, source and flags.
 | Core 28.0 | Harness starts `namecoind` with `-regtest=1 -listen=0 -connect=0 -dnsseed=0 -discover=0 -fixedseeds=0 -namehistory=1`, loopback RPC | Disposable node state; removed in harness cleanup |
 | SHA-256 | `sha256sum` and published release SHA256SUMS | Binary provenance and reproducible-build evidence |
 | Pack loader tests | `go test ./internal/service -run TestNotary1Pack -v` | Config/policy loading without a node; non-loopback, required-field, policy and credential refusals |
-| systemd | `go test ./internal/service -run TestNotary1UnitsVerify -v` | Offline unit syntax/dependency fixture and missing-ExecStart negative control; skips explicitly if unavailable |
+| systemd 250+ | `go test ./internal/service -run TestNotary1UnitsVerify -v` | Offline unit syntax/dependency fixture, warnings as errors, and missing-ExecStart negative control; skips explicitly if unavailable; hosted on Ubuntu 24.04 |
 | Target systemd | `systemd-analyze verify --man=no deploy/notary1/namecoind-regtest.service deploy/notary1/notary-service.service` | Requires defined binaries installed on the target; does not start units or prove sandbox enforcement |
 
 Obtain Core only through the [official download page](https://www.namecoin.org/download/),
