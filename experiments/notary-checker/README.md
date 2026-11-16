@@ -26,7 +26,10 @@ D8 affiliation/agreement evidence. Different text hashes refuse; no text is
 interpreted. Every admitted v3 row names a certifier; v4 optional-notary and
 recipient-class proposals are unsupported.
 
-The strict specification reading remains the default. An explicit local
+The default service config and zero-valued `Policy.Mode` retain strict D8.
+MVP is reachable only through `"mode":"mvp-pair-owned-notary"` in the operator
+file selected by `deployment_policy_file`; no request field selects it. This is
+a deployment exception, never specification text or protocol. An explicit local
 `mvp-pair-owned-notary` deployment mode permits a notary owned by one of the
 two owners only with both owners' signatures over the exact policy scope
 and chain-resolved names, distinct registrations and current grant keys.
@@ -95,6 +98,7 @@ LIP-0010 extension rules; its authority span remains canonical.
 | Python stdlib reader | `python3 scripts/reference.py` | Independently verifies all signed-bundle and isolated row vectors, exact candidate bytes and digest; no Go calls |
 | Python fixture writer | `python3 scripts/make-fixtures.py` | Reproduces `testdata/vectors.json` and `testdata/positive/` using only public fixed test secrets; no randomness or real keys |
 | Python mutation controls | `python3 scripts/check-mutants.py --work-dir .temp/mutants-01` | Named-test table, individual logs and `mutation-results.md`; nonzero on any survivor, panic, timeout, non-applied mutation or compile failure |
+| Python revision controls | `python3 -B scripts/check-revision-mutants.py --work-dir .temp/revision-mutants-01` | 31 adopted rev374 controls plus FIFO and strict-default controls; per-control logs, PIDs and `results.json`; every kill requires its specific named test |
 | Git | `git diff --check -- experiments/notary-checker` from the repository root | Whitespace diagnostics only |
 
 The independent Python reader uses its own JSON member/span handling and
@@ -194,6 +198,9 @@ bound work. Limits reset at restart; there is no durable rate/replay journal.
 deployment (infrastructure owned, from a signed reviewed release). Registering
 or updating names is also an operator action; the service reader never writes
 to the node. The test harness alone registers disposable synthetic names.
+
+Slow-body clients can occupy both concurrency slots until the configured read
+deadline. The listener has no connection-count cap; it remains loopback-only.
 
 ### Reproducible service build
 

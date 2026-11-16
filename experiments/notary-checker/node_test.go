@@ -14,10 +14,11 @@ import (
 
 // These finite fake-RPC cases isolate view, registration and failure handling;
 // the separately recorded regtest run establishes the real Core wire behavior.
+// Expiry <= 0 refuses even if expired=false; the live positive uses expiry 1000.
 func TestNodeReaderBoundsAndNames(t *testing.T) {
 	hash := strings.Repeat("ab", 32)
 	for _, tc := range []struct{ name, expected string }{
-		{"positive", ""}, {"height", "NODE_TIP_MISMATCH"}, {"hash", "NODE_TIP_MISMATCH"}, {"blockhash", "NODE_TIP_MISMATCH"}, {"network", "NODE_NETWORK"}, {"missing", "NODE_NAME_UNREGISTERED"}, {"rpc", "NODE_RPC_FAILURE"}, {"malformed", "NODE_NAME_VALUE"}, {"history", "NODE_NAME_HISTORY"}, {"update", ""}, {"reregister", ""}, {"mid-read-tip", "NODE_TIP_MISMATCH"}, {"timeout", "NODE_RPC_FAILURE"},
+		{"positive", ""}, {"height", "NODE_TIP_MISMATCH"}, {"hash", "NODE_TIP_MISMATCH"}, {"blockhash", "NODE_TIP_MISMATCH"}, {"network", "NODE_NETWORK"}, {"missing", "NODE_NAME_UNREGISTERED"}, {"rpc", "NODE_RPC_FAILURE"}, {"malformed", "NODE_NAME_VALUE"}, {"history", "NODE_NAME_HISTORY"}, {"update", ""}, {"reregister", ""}, {"expiry-before", ""}, {"expiry-at", ""}, {"expiry-after", ""}, {"zero-expiry", "NODE_NAME_UNREGISTERED"}, {"negative-expiry", "NODE_NAME_UNREGISTERED"}, {"mid-read-tip", "NODE_TIP_MISMATCH"}, {"timeout", "NODE_RPC_FAILURE"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			views := 0
@@ -54,9 +55,15 @@ func TestNodeReaderBoundsAndNames(t *testing.T) {
 					if tc.name == "malformed" {
 						n.Value = "{"
 					}
-					if tc.name == "update" || tc.name == "reregister" {
+					if tc.name == "update" || tc.name == "reregister" || strings.HasPrefix(tc.name, "expiry-") {
 						n.Height = 50
 						n.TxID = strings.Repeat("22", 32)
+					}
+					if tc.name == "zero-expiry" {
+						n.ExpiresIn = 0
+					}
+					if tc.name == "negative-expiry" {
+						n.ExpiresIn = -1
 					}
 					value = n
 					if q.Method == "name_history" {
@@ -64,13 +71,24 @@ func TestNodeReaderBoundsAndNames(t *testing.T) {
 						if tc.name == "history" {
 							history = []nodeName{}
 						}
-						if tc.name == "update" || tc.name == "reregister" {
+						if tc.name == "update" || tc.name == "reregister" || strings.HasPrefix(tc.name, "expiry-") {
 							prev := n
 							prev.TxID = strings.Repeat("11", 32)
 							prev.Height = 1
 							prev.ExpiresIn = 1000
 							if tc.name == "reregister" {
 								prev.ExpiresIn = -60
+							}
+							// Claim: at tip 100, height 50 is a fresh registration exactly
+							// when the prior stretch expires at 50; 49 is new, 51 is not.
+							if tc.name == "expiry-before" {
+								prev.ExpiresIn = -51
+							}
+							if tc.name == "expiry-at" {
+								prev.ExpiresIn = -50
+							}
+							if tc.name == "expiry-after" {
+								prev.ExpiresIn = -49
 							}
 							history = []nodeName{prev, n}
 						}
@@ -120,7 +138,7 @@ func TestNodeReaderBoundsAndNames(t *testing.T) {
 				return
 			}
 			want := strings.Repeat("11", 32)
-			if tc.name == "reregister" {
+			if tc.name == "reregister" || tc.name == "expiry-before" || tc.name == "expiry-at" {
 				want = strings.Repeat("22", 32)
 			}
 			if got.Height != 100 || got.BlockHash != hash || got.Registration.TxID != want {

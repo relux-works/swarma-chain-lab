@@ -139,6 +139,7 @@ def contract_case(name, expected, change, parent=False, **kw):
 
 
 add('positive-same-owner', 'ATTEST', claim='Canonical signed depth-1 bundle yields exactly the 18-member candidate and fixed-prefix digest.')
+
 p, c = contracts(); c.update(actions=['instruct'], repos=[])
 add('positive-narrower', 'ATTEST', bundle(p, c))
 p, c = contracts(); text = 'Only the agreed component.'
@@ -440,6 +441,11 @@ digest=r.sha(b'swarma-notary-local-policy-v1'+r.octets(pol)+r.octets(identities)
 approvals[0]['signature']=sign(TEST_KEYS['other'],digest)
 pol['mode_approvals']=approvals;v['policy']=r.encode(pol)
 add('positive-mvp-current-grant-key','ATTEST',v,'The chain current grant key may differ from the configured compressed owner identifier; only its signature authorizes approval.')
+
+# Offline synthetic bundle only: no main-network node, wallet or RPC is used.
+p, c = contracts(); p['network'] = c['network'] = 'main'
+add('positive-main-network-bundle', 'ATTEST', bundle(p, c),
+    'A correctly signed synthetic main-network bundle is valid for the pure checker; the regtest-only service must refuse it before signing.')
 
 (ROOT/'testdata/vectors.json').write_text(json.dumps(dict(schema='notary-checker-lab-vectors/1', warning='Fixed public test keys; fabricated chain locators and policy affiliations; no live authority.', vectors=vectors,row_vectors=rows),indent=2)+'\n')
 mvp_names=next(v['names'] for v in vectors if v['name']=='positive-mvp-issuer-owner')

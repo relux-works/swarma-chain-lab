@@ -31,9 +31,17 @@ type vector struct {
 	Policy         string `json:"policy"`
 	Statement      string `json:"statement"`
 	At             int64  `json:"at"`
+	Names          []struct {
+		Name         string      `json:"name"`
+		Registration check.Point `json:"registration"`
+		Value        string      `json:"value"`
+		Height       int64       `json:"height"`
+		BlockHash    string      `json:"blockhash"`
+	} `json:"names"`
 }
 
-func fixture(t *testing.T) vector {
+func fixture(t *testing.T) vector { return fixtureNamed(t, "positive-same-owner") }
+func fixtureNamed(t *testing.T, name string) vector {
 	t.Helper()
 	b, e := os.ReadFile("../../testdata/vectors.json")
 	if e != nil {
@@ -45,7 +53,13 @@ func fixture(t *testing.T) vector {
 	if json.Unmarshal(b, &c) != nil {
 		t.Fatal("corpus")
 	}
-	return c.Vectors[0]
+	for _, v := range c.Vectors {
+		if v.Name == name {
+			return v
+		}
+	}
+	t.Fatalf("missing vector %s", name)
+	return vector{}
 }
 func put(t *testing.T, path string, b []byte) {
 	t.Helper()
@@ -63,7 +77,10 @@ func encode(t *testing.T, v any) []byte {
 }
 func setup(t *testing.T) (*Service, Request, *atomic.Int32) {
 	t.Helper()
-	v := fixture(t)
+	return setupForVector(t, fixture(t))
+}
+func setupForVector(t *testing.T, v vector) (*Service, Request, *atomic.Int32) {
+	t.Helper()
 	dir := t.TempDir()
 	keyPath := filepath.Join(dir, "key")
 	pub, e := Keygen(keyPath)
@@ -76,7 +93,8 @@ func setup(t *testing.T) (*Service, Request, *atomic.Int32) {
 	rpc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		var q struct {
-			Method string `json:"method"`
+			Method string            `json:"method"`
+			Params []json.RawMessage `json:"params"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&q)
 		var value any
@@ -87,6 +105,18 @@ func setup(t *testing.T) (*Service, Request, *atomic.Int32) {
 			value = st.TipHash
 		case "name_show", "name_history":
 			n := map[string]any{"name": "id/certifier", "value": "{\"swarma\":{\"notary\":{\"attest\":\"" + pub + "\"}}}", "txid": strings.Repeat("11", 32), "vout": 0, "height": 1, "expires_in": 1000, "expired": false, "name_encoding": "utf8", "value_encoding": "utf8"}
+			var name string
+			if len(q.Params) > 0 {
+				_ = json.Unmarshal(q.Params[0], &name)
+			}
+			for _, obs := range v.Names {
+				if obs.Name == name {
+					n["name"] = obs.Name
+					n["value"] = obs.Value
+					n["txid"] = obs.Registration.TxID
+					n["vout"] = obs.Registration.Vout
+				}
+			}
 			value = n
 			if q.Method == "name_history" {
 				value = []any{n}

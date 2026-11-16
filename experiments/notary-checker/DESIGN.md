@@ -242,6 +242,11 @@ production evidence/provisioning contract remains an open service decision.
 
 ## MVP deployment policy (not protocol)
 
+The default service config loads strict D8 when the deployment policy mode is
+omitted. The zero value of `Policy.Mode` is also strict. Only the explicit
+`mode` member of the operator file named by `deployment_policy_file` selects
+MVP; the request cannot select or infer it. Strict D8 remains the specification.
+
 The explicit local `"mode":"mvp-pair-owned-notary"` is an MVP deployment
 policy. It is **not in the specification** and does not change the protocol.
 The specification default stays strict: omitting `mode` retains every existing
@@ -358,7 +363,9 @@ Protocol RawMessages retain exact canonical octets for Check.
 create-exclusive 0600 output and a versioned binary key file. It prints only
 the x-only public key. There is no import/export endpoint, command or secret
 logging. Runtime checks reject symlinks, nonregular files, other-user ownership
-and any mode other than 0600 for keys and RPC credentials. Named errors contain
+and any mode other than 0600 for keys and RPC credentials. The private-file
+opens use `O_NONBLOCK` so FIFOs reach the descriptor type check promptly, then
+clear it after validation before reading. Named errors contain
 no file locations or remote diagnostics. Memory clearing is best effort; this
 is not hardware custody or protection from the process owner.
 
