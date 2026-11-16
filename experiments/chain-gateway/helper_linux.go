@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -33,16 +34,22 @@ const (
 // Configuration contains operator-selected paths and watch bindings, never secrets.
 // Its JSON is closed; all fields are required (including an explicit credential mode).
 type Configuration struct {
-	RPCURL          string     `json:"rpc_url"`
-	Network         string     `json:"network"`
-	Genesis         string     `json:"genesis"`
-	CredentialMode  string     `json:"credential_mode"`
-	CredentialFile  string     `json:"credential_file"`
-	CredentialGroup uint32     `json:"credential_group"`
-	Output          string     `json:"output"`
-	Lock            string     `json:"lock"`
-	Names           []string   `json:"names"`
-	Seals           []Outpoint `json:"seals"`
+	NodeUID             uint32     `json:"node_uid"`
+	Profile             string     `json:"profile"`
+	NodeConfig          string     `json:"node_config"`
+	GatewayVerifierUser string     `json:"gateway_verifier_user"`
+	VerifierUser        string     `json:"verifier_user"`
+	CookieSource        string     `json:"cookie_source"`
+	RPCURL              string     `json:"rpc_url"`
+	Network             string     `json:"network"`
+	Genesis             string     `json:"genesis"`
+	CredentialMode      string     `json:"credential_mode"`
+	CredentialFile      string     `json:"credential_file"`
+	CredentialGroup     uint32     `json:"credential_group"`
+	Output              string     `json:"output"`
+	Lock                string     `json:"lock"`
+	Names               []string   `json:"names"`
+	Seals               []Outpoint `json:"seals"`
 }
 type Outpoint struct {
 	Txid string `json:"txid"`
@@ -152,7 +159,7 @@ func loadConfig(path string, p custody) (Configuration, error) {
 	if e != nil {
 		return c, e
 	}
-	if _, e = fields(m, "rpc_url", "network", "genesis", "credential_mode", "credential_file", "credential_group", "output", "lock", "names", "seals"); e != nil {
+	if _, e = fields(m, "gateway_verifier_user", "node_uid", "profile", "node_config", "verifier_user", "cookie_source", "rpc_url", "network", "genesis", "credential_mode", "credential_file", "credential_group", "output", "lock", "names", "seals"); e != nil {
 		return c, e
 	}
 	points, ok := m["seals"].([]any)
@@ -184,10 +191,16 @@ func loadConfig(path string, p custody) (Configuration, error) {
 	if e != nil || port < 1 || port > 65535 {
 		return c, bad("port")
 	}
+	if c.GatewayVerifierUser == c.VerifierUser || !regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`).MatchString(c.GatewayVerifierUser) {
+		return c, bad("separate verifier users")
+	}
+	if c.Profile != "cg1-v1" || !cleanPath(c.NodeConfig) || (c.CredentialMode == "rpcauth-user" && (!regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`).MatchString(c.VerifierUser) || c.CookieSource != "none")) || (c.CredentialMode == "cookie" && c.CookieSource != "live" && c.CookieSource != "admitted-root-copy") {
+		return c, bad("profile")
+	}
 	if !network(c.Network) || !hash(c.Genesis) || (c.CredentialMode != "cookie" && c.CredentialMode != "rpcauth-user") {
 		return c, bad("bindings")
 	}
-	paths := []string{path, c.CredentialFile, c.Output, c.Lock}
+	paths := []string{path, c.CredentialFile, c.Output, c.Lock, c.NodeConfig}
 	for i, s := range paths {
 		if !cleanPath(s) {
 			return c, bad("path")
@@ -228,7 +241,26 @@ type rpcClient struct {
 }
 
 func newRPC(c Configuration, p custody) (*rpcClient, error) {
-	b, st, e := p.read(c.CredentialFile, 4096, 0600, 0640)
+	if e := hardenDumps(); e != nil {
+		return nil, e
+	}
+	u, _ := url.Parse(c.RPCURL)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	conn, e := authenticatedDial(ctx, "tcp", u.Host, c.NodeUID)
+	if e != nil {
+		return nil, e
+	}
+	conn.Close()
+	owner := p
+	modes := []uint32{0600, 0640}
+	if c.CredentialMode == "cookie" {
+		modes = []uint32{0600}
+		if c.CookieSource == "live" {
+			owner.uid = c.NodeUID
+		}
+	}
+	b, st, e := owner.read(c.CredentialFile, 4096, modes...)
 	if e != nil || st == nil || st.Gid != c.CredentialGroup {
 		return nil, bad("credential")
 	}
@@ -237,11 +269,21 @@ func newRPC(c Configuration, p custody) (*rpcClient, error) {
 	if !ok || user == "" || pass == "" || strings.ContainsAny(s, "\r\n\x00") || strings.Contains(user, ":") || strings.HasPrefix(s, "rpcauth=") || regexp.MustCompile(`^[0-9a-fA-F]+\$[0-9a-fA-F]{64}$`).MatchString(pass) || (c.CredentialMode == "cookie" && user != "__cookie__") || (c.CredentialMode == "rpcauth-user" && user == "__cookie__") {
 		return nil, bad("credential")
 	}
+	if c.CredentialMode == "rpcauth-user" {
+		if user != c.VerifierUser || verifyWhitelist(c, p) != nil {
+			return nil, bad("verifier whitelist")
+		}
+	}
 	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(s))
-	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true, DialContext: (&net.Dialer{Timeout: time.Second}).DialContext}
-	return &rpcClient{c.RPCURL, auth, []string{s, user, pass, base64.StdEncoding.EncodeToString([]byte(s))}, &http.Client{Timeout: time.Second, Transport: tr, CheckRedirect: func(*http.Request, []*http.Request) error { return bad("redirect") }}}, nil
+	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true, DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+		return authenticatedDial(ctx, network, address, c.NodeUID)
+	}}
+	return &rpcClient{c.RPCURL, auth, []string{s, base64.StdEncoding.EncodeToString([]byte(s)), auth}, &http.Client{Timeout: time.Second, Transport: tr, CheckRedirect: func(*http.Request, []*http.Request) error { return bad("redirect") }}}, nil
 }
 func (r *rpcClient) call(ctx context.Context, method string, params []any) (any, error) {
+	if !slices.Contains(strings.Split(verifierMethods, ","), method) {
+		return nil, bad("forbidden method")
+	}
 	b, _ := json.Marshal(map[string]any{"jsonrpc": "1.0", "id": 1, "method": method, "params": params})
 	req, e := http.NewRequestWithContext(ctx, "POST", r.endpoint, bytes.NewReader(b))
 	if e != nil {
@@ -296,50 +338,137 @@ func (r *rpcClient) tip(ctx context.Context, network string) (map[string]any, er
 	}
 	return map[string]any{"hash": h["hash"], "height": h["height"], "time": h["time"]}, nil
 }
-func (r *rpcClient) collect(ctx context.Context, c Configuration) ([]any, []any, error) {
-	ns := []any{}
-	ss := []any{}
-	for _, n := range c.Names {
-		v, e := r.call(ctx, "name_show", []any{n, map[string]any{"allowExpired": true, "nameEncoding": "ascii", "valueEncoding": "hex"}})
-		if e != nil {
-			return nil, nil, e
-		}
-		m, e := object(v)
-		if e != nil || m["name"] != n || m["name_encoding"] != "ascii" || m["value_encoding"] != "hex" || !boolean(m["expired"]) || !integer(m["height"], maxInteger) || !outpoint(m) {
-			return nil, nil, bad("name")
-		}
-		val, ok := m["value"].(string)
-		if !ok || len(val) > 1040 {
-			return nil, nil, bad("name value")
-		}
-		raw, e := hex.DecodeString(val)
-		if e != nil {
-			return nil, nil, bad("name hex")
-		}
-		v, e = r.call(ctx, "getblockhash", []any{m["height"]})
-		if e != nil || !hash(v) {
-			return nil, nil, bad("name block")
-		}
-		nr := map[string]any{"expired": m["expired"], "height": m["height"], "name": n, "name_block_hash": v, "txid": m["txid"], "value_b64": base64.StdEncoding.EncodeToString(raw), "vout": m["vout"]}
-		ns = append(ns, nr)
-	}
-	for _, s := range c.Seals {
-		v, e := r.call(ctx, "gettxout", []any{s.Txid, s.Vout, true})
-		if e != nil {
-			return nil, nil, e
-		}
-		state := "not_in_utxo_set"
-		if v != nil {
-			m, e := object(v)
-			if e != nil || !hash(m["bestblock"]) || !integer(m["confirmations"], maxInteger) {
-				return nil, nil, bad("utxo")
+
+// Sixteen workers bound upstream load; result slots retain configured ordering.
+func (r *rpcClient) collect(ctx context.Context, c Configuration, at map[string]any) ([]any, []any, error) {
+	ns := make([]any, len(c.Names))
+	ss := make([]any, len(c.Seals))
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	var once sync.Once
+	var failure error
+	for worker := 0; worker < 16; worker++ {
+		wg.Go(func() {
+			for i := range jobs {
+				var value any
+				var e error
+				if i < len(ns) {
+					value, e = r.readName(ctx, c.Names[i])
+				} else {
+					value, e = r.readSeal(ctx, c.Seals[i-len(ns)], at)
+				}
+				if e != nil {
+					once.Do(func() { failure = e })
+				} else if i < len(ns) {
+					ns[i] = value
+				} else {
+					ss[i-len(ns)] = value
+				}
 			}
-			state = "unspent"
-		}
-		ss = append(ss, map[string]any{"state": state, "txid": s.Txid, "vout": s.Vout})
+		})
 	}
-	return ns, ss, nil
+	for i := 0; i < len(ns)+len(ss); i++ {
+		select {
+		case jobs <- i:
+		case <-ctx.Done():
+			close(jobs)
+			wg.Wait()
+			return nil, nil, ctx.Err()
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	return ns, ss, failure
 }
+func (r *rpcClient) readName(ctx context.Context, n string) (any, error) {
+	encoded := hex.EncodeToString([]byte(n))
+	v, e := r.call(ctx, "name_show", []any{encoded, map[string]any{"allowExpired": true, "nameEncoding": "hex", "valueEncoding": "hex"}})
+	if e != nil {
+		return nil, e
+	}
+	m, e := object(v)
+	if e != nil || m["name"] != encoded || m["name_encoding"] != "hex" || m["value_encoding"] != "hex" || !boolean(m["expired"]) || !integer(m["height"], maxInteger) || !outpoint(m) {
+		return nil, bad("name")
+	}
+	val, ok := m["value"].(string)
+	if !ok || len(val) > 1040 {
+		return nil, bad("name value")
+	}
+	raw, e := hex.DecodeString(val)
+	if e != nil {
+		return nil, bad("name hex")
+	}
+	v, e = r.call(ctx, "getblockhash", []any{m["height"]})
+	if e != nil || !hash(v) {
+		return nil, bad("name block")
+	}
+	return map[string]any{"expired": m["expired"], "height": m["height"], "name": n, "name_block_hash": v, "txid": m["txid"], "value_b64": base64.StdEncoding.EncodeToString(raw), "vout": m["vout"]}, nil
+}
+func (r *rpcClient) readSeal(ctx context.Context, s Outpoint, at map[string]any) (any, error) {
+	// No signed-index qualification is claimed for this implementation profile.
+	if s.Vout > 2147483647 {
+		return nil, bad("unqualified vout")
+	}
+	cv, e := r.call(ctx, "gettxout", []any{s.Txid, s.Vout, false})
+	if e != nil {
+		return nil, e
+	}
+	mv, e := r.call(ctx, "gettxout", []any{s.Txid, s.Vout, true})
+	if e != nil {
+		return nil, e
+	}
+	var c, m map[string]any
+	for i, v := range []any{cv, mv} {
+		if v == nil {
+			continue
+		}
+		view, e := object(v)
+		if e != nil {
+			return nil, e
+		}
+		script, ok := view["scriptPubKey"].(map[string]any)
+		if !ok || view["bestblock"] != at["hash"] || !integer(view["confirmations"], maxInteger) {
+			return nil, bad("utxo")
+		}
+		if _, ok = script["hex"].(string); !ok {
+			return nil, bad("script")
+		}
+		if i == 0 {
+			c = view
+		} else {
+			m = view
+		}
+	}
+	record := map[string]any{"state": "not_in_utxo_set", "txid": s.Txid, "vout": json.Number(strconv.FormatUint(uint64(s.Vout), 10))}
+	source := c
+	if c != nil {
+		if uintValue(c["confirmations"]) < 1 {
+			return nil, bad("confirmed view")
+		}
+		record["state"] = "spend_pending"
+		if m != nil {
+			if c["confirmations"] != m["confirmations"] || c["scriptPubKey"].(map[string]any)["hex"] != m["scriptPubKey"].(map[string]any)["hex"] {
+				return nil, bad("views disagree")
+			}
+			record["state"] = "unspent"
+		}
+	} else if m != nil {
+		if uintValue(m["confirmations"]) != 0 {
+			return nil, bad("mempool view")
+		}
+		source = m
+		record["state"] = "unconfirmed"
+	}
+	if source != nil {
+		record["confirmations"] = source["confirmations"]
+		record["script_pubkey"] = source["scriptPubKey"].(map[string]any)["hex"]
+	}
+	if sealRecord(record, at) != nil {
+		return nil, bad("seal schema")
+	}
+	return record, nil
+}
+
 func (r *rpcClient) leaks(b []byte, ns []any) bool {
 	for _, s := range r.secrets {
 		if bytes.Contains(b, []byte(s)) {
@@ -375,13 +504,19 @@ func run(path string, p custody) int {
 		return ExitConfig
 	}
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	if e = cleanupTemps(c.Output, p); e != nil {
+		return ExitPublish
+	}
 	r, e := newRPC(c, p)
 	if e != nil {
 		return ExitNode
 	}
 	defer r.client.CloseIdleConnections()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	if c.CredentialMode == "rpcauth-user" && !r.denied(ctx) {
+		return ExitNode
+	}
 	genesis, e := r.call(ctx, "getblockhash", []any{0})
 	if e != nil || genesis != c.Genesis {
 		return ExitNode
@@ -391,7 +526,7 @@ func run(path string, p custody) int {
 		if e != nil {
 			return ExitNode
 		}
-		ns, ss, e := r.collect(ctx, c)
+		ns, ss, e := r.collect(ctx, c, before)
 		if e != nil {
 			return ExitNode
 		}

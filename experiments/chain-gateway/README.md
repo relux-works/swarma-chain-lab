@@ -13,16 +13,35 @@ snapshot and lock locations are quoted in the contract's INSTALL PROFILE.
 Scheduling, read-only user provisioning and installed qualification belong to
 Infra; fake-RPC evidence does not prove a deployed node's behavior or custody.
 
-Each run reads the credential file fresh, takes a nonblocking exclusive flock,
+Before credentials are loaded, dump hardening sets PR_SET_DUMPABLE=0 and
+RLIMIT_CORE=0. After taking a nonblocking exclusive flock, the helper
+authenticates the loopback listener and the connected reverse TCP tuple using
+NETLINK_SOCK_DIAG and the pinned node UID, requiring unambiguous kernel evidence.
+Every HTTP connection repeats this check before any HTTP/Authorization byte.
+The initial user namespace is required. IPv4 and IPv6 are queried in their
+respective families; a cross-family dual-stack listener without matching
+listener evidence fails closed. Missing, denied, stale or ambiguous
+evidence fails closed. UID ownership trusts that service account; this is not
+binary attestation. Real-node/replacement-UID installation qualification remains Q6.
+
+Each run reads the credential file fresh,
 checks genesis/network/IBD, and reads COMPLETE Tip {hash,height,time} before and
 after every name and outpoint in the configured set. Only equal brackets write.
 N=3 total attempts with 100 ms and 200 ms backoff; each RPC has a 1 s timeout
-and the entire RPC collection has a 30 s context deadline. A retry recollects
-all records. Each tip combines `getblockchaininfo` with `getblockheader` for
-that hash. Names use `name_show` with `allowExpired:true`, ASCII names and hex
+and the entire RPC collection has a 20 s monotonic context deadline, shared
+across attempts and backoffs. Up to 16 concurrent RPCs preserve configured
+array order. Reserved gateway pacing applies when using gateway (a); this
+helper reads the node directly. A retry recollects all records. Each tip combines `getblockchaininfo` with `getblockheader` for
+that hash. Names use `name_show` with `allowExpired:true`, hex names and hex
 values, plus `getblockhash` for the operation height. Values become exact
-base64 octets. `gettxout` always uses include-mempool=true; null means
-`not_in_utxo_set`, not proof of a spend.
+base64 octets. The fixed `gettxout` pair uses include-mempool=false then true. Confirmed
+and not mempool-spent is `unspent`; mempool-only is `unconfirmed`; a confirmed
+output missing from the mempool-inclusive view is `spend_pending`; both null
+is `not_in_utxo_set`. Present records include confirmations and exact script
+bytes and bind bestblock to the bracket tip. Inconsistent views exit 11.
+No state creates permanent journal/enforcement output here. Never-seen absence
+is an observation of this invocation only. High vout above 2147483647 exits 11
+without gettxout until the signed-index/absence profile is qualified.
 
 The writer emits only canonical v1 `consistency:"bracketed"` snapshots. Missing,
 unknown and `"witnessed"` consistency are invalid in v1. Brackets cannot detect
@@ -41,6 +60,12 @@ credentials are accepted through arguments, environment or inline JSON fields.
 
 | Field | Required value |
 | --- | --- |
+| `profile` | Exactly `cg1-v1` |
+| `node_uid` | Pinned numeric local node service UID |
+| `node_config` | Protected root- or node-owned Core configuration used to inspect the helper verifier whitelist |
+| `verifier_user` | Dedicated helper username, matching its client credential |
+| `gateway_verifier_user` | Distinct dedicated gateway username; cannot equal the helper user |
+| `cookie_source` | `none` with verifier mode; explicit `live` or `admitted-root-copy` with cookie mode |
 | `rpc_url` | HTTP loopback **IP literal** and explicit port, no userinfo, path, query or fragment. Proxy environment is ignored; redirects are rejected. |
 | `network` | `main` or `regtest` |
 | `genesis` | 64 lowercase display-order hex characters; checked with `getblockhash(0)` |
@@ -52,9 +77,13 @@ credentials are accepted through arguments, environment or inline JSON fields.
 | `names` | 1..16 CG1 names in strict ASCII order, no duplicates |
 | `seals` | 1..256 objects with exactly `txid` and `vout`; sorted by lowercase 64-hex txid then uint32 vout, no duplicates |
 
-All four file paths (config, credential, snapshot and lock) must be distinct.
-Configuration is root-owned regular mode 0600 or 0644; credentials are root-owned
-regular 0600 or 0640 with the configured GID, within protected ancestry. Infra
+All five file paths (config, credential, node config, snapshot and lock) must be distinct.
+Configuration is root-owned regular mode 0600 or 0644; verifier credentials are root-owned
+regular 0600 or 0640 with the configured GID, within protected ancestry. A live
+cookie is node-owned regular 0600, single-link; an explicitly admitted root copy
+is root-owned 0600. Both reopen on every run; neither falls back to another mode.
+The copy selector records an installation exception, not proof of its admission
+or restart synchronization. That qualification remains Q7. Infra
 must provision the 0640 group exclusively. File links and group/world writes
 are rejected, as are extended POSIX access ACLs. Symlinks are never followed;
 all path components are traversed descriptor-relatively from the trusted root.
@@ -67,13 +96,28 @@ Cookie mode reads `__cookie__:PASSWORD` with an optional final LF. The
 client password of a dedicated read-only RPC user, **never** the node's
 `rpcauth=...` verifier. Cookie usernames and verifier-shaped salt/hash strings
 are rejected in that mode. No wallet/write method exists in this helper. The
-operator must restrict this user to the five fixed read methods above;
-credential capability itself is an external node configuration gate.
+operator must restrict this user to exactly:
+
+```
+rpcwhitelistdefault=1
+rpcwhitelist=snapshot-observer:getblockchaininfo,getblockhash,getblockheader,name_show,gettxout
+```
+
+Replace `snapshot-observer` with the configured helper verifier user. Method
+order is immaterial; duplicates, unions, extras or missing methods refuse. Global
+and active-network sections are inspected; uninspected `includeconf` refuses.
+The file must match the node's effective startup configuration, including argv;
+installed qualification must establish that binding. After endpoint authentication,
+verifier startup requires HTTP 403 for fixed harmless `getrpcinfo`, discarding
+its body. One probe does not prove every denial or loaded configuration. Cookie
+mode is explicitly broader authority, and makes no least-privilege claim.
 
 Publication creates a fresh 0600 O_EXCL temp in the output directory, writes
 and validates the entire payload, chmods 0644, fsyncs the file, closes it,
-renames atomically, and fsyncs the directory. Only this run's temporary file is
-removed. A pre-rename failure retains the previous snapshot. If directory fsync
+renames atomically, and fsyncs the directory. While holding the writer lock, the next run also removes only recognized
+owned regular single-link crash temps with that exact name shape in the
+validated output directory. Unknown files remain; matching symlinks or hardlinks
+fail publication. Only this run's active temporary file is otherwise removed. A pre-rename failure retains the previous snapshot. If directory fsync
 fails after rename, the new complete file may already be visible, but durability
 is not claimed; crash recovery can retain either complete version. The stable
 lock file is never unlinked. Lock/config/credential errors never replace output.
@@ -88,8 +132,9 @@ lock file is never unlinked. Lock/config/credential errors never replace output.
 | 14 | Publication failure; see the post-rename directory-sync limitation above |
 
 Diagnostics are fixed strings, with no paths, credential values, HTTP headers,
-upstream bodies or reflected errors. Projected name bytes matching credentials
-(raw or Basic-auth encoding) suppress the whole publication, including when
+upstream bodies or reflected errors. Projected name bytes matching the complete
+raw credential, its RFC 4648 base64 or complete Basic header suppress the whole
+publication, including when
 those bytes would otherwise be hidden by base64. This suppression is not an
 enforcement decision or a claim to general data-loss prevention.
 
@@ -101,7 +146,7 @@ with absolute scratch HOME/config/cache and a short task-owned TMPDIR. There
 are no external module dependencies. Run from this module in that checkout:
 
 ```sh
-go test -count=1 -timeout=60s -v ./...
+go test -count=1 -timeout=90s -v ./...
 go vet ./...
 go test -race -count=1 -timeout=120s ./...
 go test -run '^TestSharedVectors$' -count=1 ./...
@@ -115,8 +160,8 @@ Tests run **unprivileged**, against an in-process loopback fake RPC server with
 synthetic credentials. Internal tests anchor custody at a task-owned fixture
 root; the public CLI has no override for root ownership/ancestry and refuses
 unprivileged calls. No test contacts a real node or exercises root installation.
-The fake server asserts name options, mempool inclusion, exact outpoints,
-authentication and method order. Schema vectors remain shared consumer inputs;
+The fake server asserts hex name/value options, both mempool views, exact
+outpoints, authentication, fixed method inventory and outer bracket order. Schema vectors remain shared consumer inputs;
 D29 must bind them to its own real decoder, not copy this parser as agreement.
 The named tests cover both accepted output and forbidden updates:
 
@@ -216,3 +261,16 @@ From the repository root, run
 `python3 -B .github/scripts/check-public-hygiene.py` after staging the reviewed
 scope. Logs, real exits, source hashes and mutation evidence belong under
 task-scoped `.temp/`. Remove owned HOME/config/caches/TMPDIR after capture.
+
+Additional adoption evidence is exercised by `TestEndpointAuthenticationBeforeCredential`
+(real kernel, zero impostor bytes and no credential open),
+`TestEndpointReverseTupleEvidence` (synthetic missing/UID/tuple/cookie/ambiguity
+controls), `TestVerifierWhitelistAndDenial`, `TestVerifierNetworkSections`,
+`TestSnapshotF5StatesNeverPermanent`, `TestFailedRecordReadExit11KeepsPrevious`,
+`TestEitherUTXOReadFailureKeepsPrevious`, `TestF5InconsistentViewsKeepPrevious`,
+`TestHexNameValueAndExpiredRecord`, `TestExactCredentialReflection`,
+`TestOwnedCrashTempCleanup`, `TestMaximalWatchSetAndSerializedBound`,
+`TestTotalCollectionDeadlineAcrossAttempts`, `TestRPCDeadlineKeepsPrevious`,
+`TestUnqualifiedHighVoutKeepsPrevious`, `TestHelperMethodSetClosed` and
+`TestDumpHardening`. The maximal fake set and twenty-second cancellation checks
+do not qualify real node cadence, root custody, namespace deployment or install GO.

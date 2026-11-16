@@ -19,17 +19,26 @@ import (
 )
 
 type fakeRPC struct {
-	mu         sync.Mutex
-	tips       []map[string]any
-	tipCalls   int
-	methods    []string
-	auth       string
-	fail       string
-	reflection string
-	absent     bool
-	invalid    string
-	entered    chan struct{}
-	release    chan struct{}
+	flexible          bool
+	nameBytes         []byte
+	expired           bool
+	scriptHex         string
+	delay             time.Duration
+	failView          string
+	active, maxActive int
+	mu                sync.Mutex
+	tips              []map[string]any
+	tipCalls          int
+	methods           []string
+	auth              string
+	fail              string
+	reflection        string
+	state             string
+	probeAllowed      bool
+	absent            bool
+	invalid           string
+	entered           chan struct{}
+	release           chan struct{}
 }
 
 func tipFixture() map[string]any {
@@ -46,6 +55,11 @@ func (f *fakeRPC) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.mu.Lock()
+	f.active++
+	if f.active > f.maxActive {
+		f.maxActive = f.active
+	}
+	defer func() { f.mu.Lock(); f.active--; f.mu.Unlock() }()
 	f.methods = append(f.methods, req.Method)
 	auth := r.Header.Get("Authorization")
 	fail := f.fail
@@ -62,6 +76,13 @@ func (f *fakeRPC) serve(w http.ResponseWriter, r *http.Request) {
 		at = f.tips[(f.tipCalls-1)%len(f.tips)]
 	}
 	switch req.Method {
+	case "getrpcinfo":
+		if !f.probeAllowed {
+			f.mu.Unlock()
+			http.Error(w, "denied", 403)
+			return
+		}
+		result = map[string]any{}
 	case "getblockchaininfo":
 		at = tipFixture()
 		if len(f.tips) > 0 {
@@ -94,16 +115,27 @@ func (f *fakeRPC) serve(w http.ResponseWriter, r *http.Request) {
 			result = strings.Repeat("2", 64)
 		}
 	case "name_show":
-		if len(req.Params) != 2 || string(req.Params[0]) != `"id/example"` || string(req.Params[1]) != `{"allowExpired":true,"nameEncoding":"ascii","valueEncoding":"hex"}` {
+		if len(req.Params) != 2 || (!f.flexible && string(req.Params[0]) != `"69642f6578616d706c65"`) || string(req.Params[1]) != `{"allowExpired":true,"nameEncoding":"hex","valueEncoding":"hex"}` {
 			f.mu.Unlock()
 			http.Error(w, "name options", 400)
 			return
 		}
 		value := []byte(`{"public":"pin"}`)
+		if f.nameBytes != nil {
+			value = f.nameBytes
+		}
 		if reflection != "" {
 			value = []byte(reflection)
 		}
-		result = map[string]any{"name": "id/example", "name_encoding": "ascii", "value_encoding": "hex", "expired": false, "height": 90, "txid": strings.Repeat("a", 64), "vout": 0, "value": hex.EncodeToString(value)}
+		result = map[string]any{"name": "69642f6578616d706c65", "name_encoding": "hex", "value_encoding": "hex", "expired": false, "height": 90, "txid": strings.Repeat("a", 64), "vout": 0, "value": hex.EncodeToString(value)}
+		if f.flexible {
+			var requested string
+			json.Unmarshal(req.Params[0], &requested)
+			result.(map[string]any)["name"] = requested
+		}
+		if f.expired {
+			result.(map[string]any)["expired"] = true
+		}
 		if invalid == "encoding" {
 			result.(map[string]any)["value_encoding"] = "ascii"
 		}
@@ -111,13 +143,38 @@ func (f *fakeRPC) serve(w http.ResponseWriter, r *http.Request) {
 			result.(map[string]any)["name"] = "id/foreign"
 		}
 	case "gettxout":
-		if len(req.Params) != 3 || string(req.Params[0]) != `"`+strings.Repeat("a", 64)+`"` || string(req.Params[1]) != "2" || string(req.Params[2]) != "true" {
+		if len(req.Params) != 3 || string(req.Params[0]) != `"`+strings.Repeat("a", 64)+`"` || (!f.flexible && string(req.Params[1]) != "2") || (string(req.Params[2]) != "true" && string(req.Params[2]) != "false") {
 			f.mu.Unlock()
 			http.Error(w, "outpoint parameters", 400)
 			return
 		}
 		if !f.absent {
-			result = map[string]any{"bestblock": at["hash"], "confirmations": 1}
+			mempool := string(req.Params[2]) == "true"
+			if !(f.state == "unconfirmed" && !mempool) && !(f.state == "spend_pending" && mempool) {
+				confirmations := 1
+				if f.state == "unconfirmed" {
+					confirmations = 0
+				}
+				result = map[string]any{"bestblock": at["hash"], "confirmations": confirmations, "scriptPubKey": map[string]any{"hex": "51"}}
+				if f.scriptHex != "" {
+					result.(map[string]any)["scriptPubKey"] = map[string]any{"hex": f.scriptHex}
+				}
+				if invalid == "count_disagrees" && mempool {
+					result.(map[string]any)["confirmations"] = 2
+				}
+				if invalid == "confirmed_missing" && !mempool {
+					result = nil
+				}
+				if invalid == "bestblock" {
+					result.(map[string]any)["bestblock"] = strings.Repeat("f", 64)
+				}
+				if invalid == "script_disagrees" && mempool {
+					result.(map[string]any)["scriptPubKey"] = map[string]any{"hex": "52"}
+				}
+				if invalid == "zero_confirmed" {
+					result.(map[string]any)["confirmations"] = 0
+				}
+			}
 		}
 	default:
 		f.mu.Unlock()
@@ -125,7 +182,14 @@ func (f *fakeRPC) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entered, release := f.entered, f.release
+	delay := f.delay
+	if req.Method == "gettxout" && len(req.Params) == 3 && string(req.Params[2]) == f.failView {
+		fail = "gettxout"
+	}
 	f.mu.Unlock()
+	if delay > 0 {
+		time.Sleep(delay)
+	}
 	if req.Method == "name_show" && entered != nil {
 		select {
 		case entered <- struct{}{}:
@@ -174,11 +238,17 @@ func makeFixture(t *testing.T, mode string) *fixture {
 	f := &fakeRPC{auth: "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+secret))}
 	srv := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(srv.Close)
-	c := Configuration{RPCURL: srv.URL, Network: "regtest", Genesis: strings.Repeat("0", 64), CredentialMode: mode, CredentialFile: filepath.Join(root, "credential"), CredentialGroup: uint32(os.Getgid()), Output: filepath.Join(root, "snapshot.json"), Lock: filepath.Join(root, "writer.lock"), Names: []string{"id/example"}, Seals: []Outpoint{{strings.Repeat("a", 64), 2}}}
+	c := Configuration{GatewayVerifierUser: "gateway-observer", NodeUID: uint32(os.Getuid()), Profile: "cg1-v1", NodeConfig: filepath.Join(root, "node.conf"), VerifierUser: "snapshot-observer", CookieSource: "live", RPCURL: srv.URL, Network: "regtest", Genesis: strings.Repeat("0", 64), CredentialMode: mode, CredentialFile: filepath.Join(root, "credential"), CredentialGroup: uint32(os.Getgid()), Output: filepath.Join(root, "snapshot.json"), Lock: filepath.Join(root, "writer.lock"), Names: []string{"id/example"}, Seals: []Outpoint{{strings.Repeat("a", 64), 2}}}
 	if e := os.WriteFile(c.CredentialFile, []byte(user+":"+secret+"\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
 	x := &fixture{root: root, path: filepath.Join(root, "config.json"), c: c, p: custody{uid: uint32(os.Getuid()), anchor: root}, rpc: f}
+	if mode == "rpcauth-user" {
+		x.c.CookieSource = "none"
+	}
+	if e := os.WriteFile(c.NodeConfig, []byte("rpcwhitelistdefault=1\nrpcwhitelist=snapshot-observer:"+verifierMethods+"\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
 	x.config(t)
 	return x
 }
@@ -252,10 +322,19 @@ func TestBracketEqualWrites(t *testing.T) {
 			if (state == "not_in_utxo_set") != absent {
 				t.Fatal("absence mapping")
 			}
-			want := []string{"getblockhash", "getblockchaininfo", "getblockheader", "name_show", "getblockhash", "gettxout", "getblockchaininfo", "getblockheader"}
-			if !reflect.DeepEqual(x.rpc.methods, want) {
-				t.Fatalf("read bracket order %v", x.rpc.methods)
+			methods := x.rpc.methods
+			want := []string{"getblockhash", "getblockchaininfo", "getblockheader"}
+			if len(methods) != 9 || !reflect.DeepEqual(methods[:3], want) || !reflect.DeepEqual(methods[7:], []string{"getblockchaininfo", "getblockheader"}) {
+				t.Fatalf("read bracket order %v", methods)
 			}
+			counts := map[string]int{}
+			for _, method := range methods {
+				counts[method]++
+			}
+			if counts["name_show"] != 1 || counts["gettxout"] != 2 || counts["getblockhash"] != 2 {
+				t.Fatal("fixed read set")
+			}
+
 		})
 	}
 }
@@ -432,7 +511,7 @@ func TestCredentialsNeverAppearInOutput(t *testing.T) {
 					want = ExitNode
 				}
 				if scenario == "projection" {
-					x.rpc.reflection = pass
+					x.rpc.reflection = s
 					want = ExitNode
 				}
 				code, out := x.execute()
@@ -454,25 +533,28 @@ func TestCredentialsNeverAppearInOutput(t *testing.T) {
 // a valid neighbor above proves that rejecting every configuration cannot pass.
 func TestConfigNegatives(t *testing.T) {
 	mutations := map[string]func(*fixture){
-		"external endpoint": func(x *fixture) { x.c.RPCURL = "http://192.0.2.1:1234" },
-		"endpoint user":     func(x *fixture) { x.c.RPCURL = "http://user:pass@127.0.0.1:1234" },
-		"endpoint query":    func(x *fixture) { x.c.RPCURL += "?debug=1" },
-		"endpoint path":     func(x *fixture) { x.c.RPCURL += "/wallet/x" },
-		"https":             func(x *fixture) { x.c.RPCURL = strings.Replace(x.c.RPCURL, "http:", "https:", 1) },
-		"network":           func(x *fixture) { x.c.Network = "testnet" },
-		"genesis":           func(x *fixture) { x.c.Genesis = "bad" },
-		"mode":              func(x *fixture) { x.c.CredentialMode = "rpcauth" },
-		"relative path":     func(x *fixture) { x.c.Output = "snapshot.json" },
-		"unclean path":      func(x *fixture) { x.c.Output = x.root + "/./snapshot.json" },
-		"path collision":    func(x *fixture) { x.c.Output = x.c.CredentialFile },
-		"no names":          func(x *fixture) { x.c.Names = []string{} },
-		"duplicate name":    func(x *fixture) { x.c.Names = append(x.c.Names, x.c.Names...) },
-		"name case":         func(x *fixture) { x.c.Names = []string{"id/Example"} },
-		"names capacity":    func(x *fixture) { x.c.Names = make([]string, 17) },
-		"no seals":          func(x *fixture) { x.c.Seals = []Outpoint{} },
-		"duplicate seal":    func(x *fixture) { x.c.Seals = append(x.c.Seals, x.c.Seals...) },
-		"seal hash":         func(x *fixture) { x.c.Seals[0].Txid = "BAD" },
-		"seal capacity":     func(x *fixture) { x.c.Seals = make([]Outpoint, 257) },
+		"same verifier user": func(x *fixture) { x.c.GatewayVerifierUser = x.c.VerifierUser },
+		"profile":            func(x *fixture) { x.c.Profile = "cg1-v2" },
+		"cookie source":      func(x *fixture) { x.c.CookieSource = "fallback" },
+		"external endpoint":  func(x *fixture) { x.c.RPCURL = "http://192.0.2.1:1234" },
+		"endpoint user":      func(x *fixture) { x.c.RPCURL = "http://user:pass@127.0.0.1:1234" },
+		"endpoint query":     func(x *fixture) { x.c.RPCURL += "?debug=1" },
+		"endpoint path":      func(x *fixture) { x.c.RPCURL += "/wallet/x" },
+		"https":              func(x *fixture) { x.c.RPCURL = strings.Replace(x.c.RPCURL, "http:", "https:", 1) },
+		"network":            func(x *fixture) { x.c.Network = "testnet" },
+		"genesis":            func(x *fixture) { x.c.Genesis = "bad" },
+		"mode":               func(x *fixture) { x.c.CredentialMode = "rpcauth" },
+		"relative path":      func(x *fixture) { x.c.Output = "snapshot.json" },
+		"unclean path":       func(x *fixture) { x.c.Output = x.root + "/./snapshot.json" },
+		"path collision":     func(x *fixture) { x.c.Output = x.c.CredentialFile },
+		"no names":           func(x *fixture) { x.c.Names = []string{} },
+		"duplicate name":     func(x *fixture) { x.c.Names = append(x.c.Names, x.c.Names...) },
+		"name case":          func(x *fixture) { x.c.Names = []string{"id/Example"} },
+		"names capacity":     func(x *fixture) { x.c.Names = make([]string, 17) },
+		"no seals":           func(x *fixture) { x.c.Seals = []Outpoint{} },
+		"duplicate seal":     func(x *fixture) { x.c.Seals = append(x.c.Seals, x.c.Seals...) },
+		"seal hash":          func(x *fixture) { x.c.Seals[0].Txid = "BAD" },
+		"seal capacity":      func(x *fixture) { x.c.Seals = make([]Outpoint, 257) },
 	}
 	for name, mutate := range mutations {
 		t.Run(name, func(t *testing.T) {
