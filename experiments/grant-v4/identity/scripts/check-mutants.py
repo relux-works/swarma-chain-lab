@@ -11,6 +11,7 @@ import sys
 
 MODULE = Path(__file__).resolve().parents[1]
 PLANTS = [
+    ('r2-trailing-json-whitespace', 'r1_value.go', 'if d.InputOffset() != int64(len(raw)) {', 'if d.InputOffset() != int64(len(bytes.TrimRight(raw, " \\t\\r\\n"))) {', 'TestRev375TopLevelSuffix/suffix_20', 'bytes after object must refuse'),
     ("current-owner-only", "verdict.go", "if inView {", "if inView && out.ID == s.Outputs[0].ID {", "TestV4IssuerHistory/walk-issuer-04", "walk-issuer-04: got"),
     ("require-id-recipient", "recipient.go", "if state == nil ||", 'if !bytes.HasPrefix(r.ByName.Name, []byte("id/")) || state == nil ||', "TestV4RecipientUnion/any-namespace", "current selected channel key:"),
     ("shared-history-cache-key", "walk.go", "rule: p.Rule,", "rule: IssuerHistory,", "TestV4NotaryHistoryPredicate/cache-rule-separation", "issuer and notary cache keys collide"),

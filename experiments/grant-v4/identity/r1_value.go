@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"strings"
 	"unicode/utf8"
 )
@@ -58,7 +57,9 @@ func objectMembers(raw []byte) ([]string, []json.RawMessage, error) {
 	if _, err = d.Token(); err != nil {
 		return nil, nil, ErrR1Value
 	}
-	if _, err = d.Token(); err != io.EOF {
+	// Token skips JSON whitespace. Only the raw end offset proves that no byte
+	// follows this object (LIP-0010 section 2.1), including space/TAB/LF/CRLF.
+	if d.InputOffset() != int64(len(raw)) {
 		return nil, nil, ErrR1Value
 	}
 	return keys, values, nil

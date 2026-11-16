@@ -5,6 +5,7 @@ This reader reuses the existing Python O3/O4 primitives, independently of Go.
 Expectations are consulted after decisions. No node or signature is qualified.
 """
 import argparse
+import copy
 import hashlib
 import importlib.util
 import json
@@ -51,19 +52,26 @@ def channel(value):
         return None
 
 
-def value_read(raw):
+def value_members(raw):
+    """LIP-0010 2.1: compare the consumed object end before skipping any suffix."""
     if len(raw.encode("utf-8")) > 520:
         raise ValueError("size")
     decoder = json.JSONDecoder(object_pairs_hook=Pairs)
-    top = decoder.decode(raw)
-    if not isinstance(top, Pairs):
-        raise ValueError("top")
+    start = len(raw) - len(raw.lstrip(" \t\r\n"))
+    top, end = decoder.raw_decode(raw, start)
+    if not isinstance(top, Pairs) or end != len(raw):
+        raise ValueError("top or trailing bytes")
     read = {}
     for key, val in top:
         if key.casefold() in ("swarma", "nostr"):
             if key not in ("swarma", "nostr") or key in read:
                 raise ValueError("read alias/duplicate")
             read[key] = val
+    return decoder, top, read
+
+
+def value_read(raw):
+    decoder, top, read = value_members(raw)
     swarma = obj(read["swarma"])
     if list(swarma) == ["agent"]:
         binding = obj(swarma["agent"])
@@ -222,6 +230,13 @@ def admission_decision(row):
     if reading.get("name") != child["name"]:
         return {"outcome": "RECIPIENT_NAME_UNAVAILABLE"}
     if exact and row["row"]["certifier"] is not None:
+        try:
+            _, _, members = value_members(reading["value"])
+            key = channel(members.get("nostr"))
+        except (ValueError, KeyError, TypeError):
+            key = None
+        if key is None:
+            return {"outcome": "identity: unsupported channel or missing channel key"}
         return {"outcome": "pass", "attestation": "required"}
     try:
         agent = value_read(reading["value"])
@@ -249,6 +264,43 @@ def admission_decision(row):
     if agent["channel"] is None:
         return {"outcome": "identity: unsupported channel or missing channel key"}
     return {"outcome": "pass", "attestation": "not read" if row["row"]["certifier"] is None else "required"}
+
+
+def revision_decisions(files):
+    decisions = {}
+    classes = files["class-vectors.json"]
+    control = next(row for row in classes["admissions"] if row["id"] == "class-01")
+    value = next(row["value"] for row in files["holders-vectors.json"]["values"] if row["id"] == "value-03")
+    for suffix in (" ", "\t", "\n", "\r\n", " {}"):
+        tag = suffix.encode().hex()
+        # The canonical value is a valid positive; every post-object byte refuses.
+        value_read(value)
+        try:
+            value_read(value + suffix)
+            outcome = "valid"
+        except (ValueError, KeyError, TypeError):
+            outcome = "identity: invalid R1 name value"
+        decisions["r2-value-" + tag] = outcome
+        for exact in (False, True):
+            row = copy.deepcopy(control)
+            if exact:
+                row["row"]["recipient"] = row["child"]["recipient"]
+            if admission_decision(row)["outcome"] != "pass":
+                raise ValueError("revision positive control")
+            # Replace only the name value in a minimal update script.
+            raw = bytes.fromhex(row["node"]["recipient_name"]["current_output_script_hex"])
+            parsed = names.read_script(raw, row["child"]["recipient"]["owner_public_key"], row["context"]["tip_height"], 0)
+            def push(data):
+                if len(data) <= 75:
+                    return bytes([len(data)]) + data
+                if len(data) <= 255:
+                    return bytes([0x4c, len(data)]) + data
+                return bytes([0x4d, len(data) & 255, len(data) >> 8]) + data
+            address = bytes.fromhex(parsed["address_script_hex"])
+            script = b"\x53" + push(row["child"]["recipient"]["name"].encode()) + push((parsed["value"] + suffix).encode()) + b"\x6d\x75" + address
+            row["node"]["recipient_name"]["current_output_script_hex"] = script.hex()
+            decisions[f"r2-child-{str(exact).lower()}-{tag}"] = admission_decision(row)["outcome"]
+    return decisions
 
 
 def calculate(files):
@@ -305,6 +357,7 @@ def calculate(files):
         record(row, {"outcome": code}, row["expect"])
     if len(decisions) != 151:
         raise ValueError("R1 inventory differs")
+    decisions.update(revision_decisions(files))
     return decisions
 
 
@@ -349,7 +402,7 @@ def main():
         agree(independent, go_results(args.go_results.read_text()))
         if args.output:
             args.output.write_text(json.dumps(independent, sort_keys=True, indent=2) + "\n")
-        print("AGREE 151 R1 vectors: independent Python = pinned vectors = Go; no node reads")
+        print(f"AGREE {len(independent)} R1 cases: independent Python = pinned vectors = Go; no node reads")
         return 0
     except (ValueError, KeyError, TypeError, OSError) as error:
         print(error, file=sys.stderr)

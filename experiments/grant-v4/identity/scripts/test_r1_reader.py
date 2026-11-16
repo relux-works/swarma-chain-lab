@@ -14,8 +14,8 @@ class R1ReaderControls(unittest.TestCase):
         cls.files = {name: json.loads((root / name).read_text()) for name in reader.HASHES}
 
     def test_all_vectors(self):
-        # All 151 independent results agree with the pinned expectations.
-        self.assertEqual(len(reader.calculate(self.files)), 151)
+        # All pinned and revision independent results agree with the pinned expectations.
+        self.assertEqual(len(reader.calculate(self.files)), 166)
 
     def test_both_disagreement_directions(self):
         # A false acceptance and a false refusal each fail agreement, beside a
@@ -51,6 +51,20 @@ class R1ReaderControls(unittest.TestCase):
         gift["expect"] = {"outcome": "pass", "attestation": "required"}
         with self.assertRaisesRegex(ValueError, "R1_VECTOR_DISAGREEMENT class-25"):
             reader.calculate(changed)
+
+    def test_post_object_bytes(self):
+        # LIP-0010 2.1 forbids every suffix, including JSON whitespace, beside
+        # a valid control. Both binding and exact-name top-level readers reject.
+        key = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        raw = '{"swarma":{"landlord":{"grant":"' + key + '"}}}'
+        for suffix in (" ", "\t", "\n", "\r\n", " {}"):
+            with self.subTest(suffix=suffix):
+                self.assertEqual(reader.value_read(raw)["grant"], key)
+                with self.assertRaises(ValueError):
+                    reader.value_read(raw + suffix)
+                reader.value_members(raw)
+                with self.assertRaises(ValueError):
+                    reader.value_members(raw + suffix)
 
     def test_value_read_member_boundaries(self):
         # Ignored owner duplicates are allowed; read-member duplicates/aliases
