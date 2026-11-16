@@ -17,7 +17,9 @@ are required. Run from this module in that isolated checkout:
 ```sh
 go test -count=1 -timeout=60s ./...
 go vet ./...
+go test -race -count=1 -timeout=120s ./...
 go test -run '^TestSharedVectors$' -count=1 ./...
+python3 -B omission_analysis_test.py fixtures/vectors.json
 ```
 
 `gofmt -w *.go` formats only the harness. From the repository root, stage scoped
@@ -40,7 +42,8 @@ set `response_tip_time_negative`'s `valid` to true and run
 It must exit 1 with `verdict mismatch` and `validation=tip`; restore the fixture
 and rerun green. Shared vectors include Tip.time bounds/invalid spellings on
 all success types and the snapshot; observation vectors include mismatched tip
-time and the consumer's default lag boundary at 7200/7201 seconds.
+time and the consumer's default lag boundary at 7200/7201 seconds. Same-hash
+header-time disagreement is backend inconsistency, not genuine tip movement.
 
 
 ## Accepted observe-only amendment
@@ -57,3 +60,27 @@ The amendment control sets `snapshot_consistency_witnessed` to valid in an
 isolated fixture copy, then runs
 `go test -run '^TestSharedVectors/snapshot_consistency_witnessed$' -count=1 ./...`.
 Require exit 1 with `verdict mismatch`, restore the fixture, and rerun green.
+
+## Current correction controls
+
+Both credential-holding v1 paths are Linux-only; no platform proof means no
+publication. The Darwin owner decision and CGW-D1 dependency remain open in
+OPEN.md. There is no live gateway/helper implementation in this module.
+
+`fixtures/inventory.txt` pins EVERY scenario/vector name and kind; fixture
+readers reject trailing data and unknown/mistyped inner fields. The omission aid
+runs in CI. New scenario `claim`/`control` entries name their exact purpose and
+an executable valid positive; label inputs require independent-tip provenance,
+configured lag seconds and explicit `enforceable:false`.
+
+To verify each changed oracle input, in isolated scratch flip its expected
+`available`, `accepted`, label, helper exit, upstream/reflection code or history
+decision, run its exact subtest in `TestObservationVectors` or
+`TestSnapshotLabels`, require exit 1 with its named verdict/label witness, restore
+and rerun green. To test deletion, remove a vector/scenario without editing the
+inventory and require `TestFixtureInventory` to fail with
+`required fixture inventory mismatch`; restore and rerun green.
+`TestFixtureDecoderControls`, `TestUpstreamBounds` and
+`TestReflectionRepresentations` each pair refusal controls with valid inputs.
+These remain contract oracles, not operating-system, live-node or publication
+fault-injection qualification.

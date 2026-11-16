@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,6 +19,8 @@ type vector struct {
 	Valid      bool    `json:"valid"`
 	Wire       *string `json:"wire"`
 	WireBase64 *string `json:"wire_b64"`
+	Claim      string  `json:"claim,omitempty"`
+	Control    string  `json:"control,omitempty"`
 }
 
 func readJSON(t *testing.T, path string, dest any) {
@@ -26,11 +29,22 @@ func readJSON(t *testing.T, path string, dest any) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	d := json.NewDecoder(bytes.NewReader(b))
-	d.DisallowUnknownFields()
-	if e = d.Decode(dest); e != nil {
+	if e = decodeFixture(b, dest); e != nil {
 		t.Fatal(e)
 	}
+}
+
+func decodeFixture(b []byte, dest any) error {
+	d := json.NewDecoder(bytes.NewReader(b))
+	d.DisallowUnknownFields()
+	d.UseNumber()
+	if e := d.Decode(dest); e != nil {
+		return e
+	}
+	if _, e := d.Token(); e != io.EOF {
+		return bad("trailing fixture data")
+	}
+	return nil
 }
 
 // MIRROR: Each exact shared payload gets its independently specified verdict.
@@ -70,24 +84,36 @@ func TestSharedVectors(t *testing.T) {
 }
 
 type observation struct {
-	Name      string             `json:"name"`
-	Kind      string             `json:"kind"`
-	Attempts  [][]map[string]any `json:"attempts,omitempty"`
-	Expected  map[string]any     `json:"expected,omitempty"`
-	Requests  []map[string]any   `json:"requests,omitempty"`
-	Responses []map[string]any   `json:"responses,omitempty"`
-	Accepted  bool               `json:"accepted,omitempty"`
-	Snapshot  string             `json:"snapshot,omitempty"`
-	Now       uint64             `json:"now,omitempty"`
-	KnownTip  map[string]any     `json:"known_tip,omitempty"`
-	Clock     bool               `json:"clock,omitempty"`
-	Label     string             `json:"label,omitempty"`
-	Config    map[string]any     `json:"config,omitempty"`
-	Rounds    []collectionRound  `json:"rounds,omitempty"`
-	History   []map[string]any   `json:"history,omitempty"`
-	Decisions []map[string]any   `json:"decisions,omitempty"`
-	Confirmed map[string]any     `json:"confirmed,omitempty"`
-	Mempool   map[string]any     `json:"mempool,omitempty"`
+	Name             string              `json:"name"`
+	Kind             string              `json:"kind"`
+	Attempts         [][]map[string]any  `json:"attempts,omitempty"`
+	Expected         map[string]any      `json:"expected,omitempty"`
+	Requests         []map[string]any    `json:"requests,omitempty"`
+	Responses        []map[string]any    `json:"responses,omitempty"`
+	Accepted         bool                `json:"accepted,omitempty"`
+	Snapshot         string              `json:"snapshot,omitempty"`
+	Now              uint64              `json:"now,omitempty"`
+	KnownTip         map[string]any      `json:"known_tip,omitempty"`
+	Clock            bool                `json:"clock,omitempty"`
+	Label            string              `json:"label,omitempty"`
+	Config           map[string]any      `json:"config,omitempty"`
+	Rounds           []collectionRound   `json:"rounds,omitempty"`
+	History          []map[string]any    `json:"history,omitempty"`
+	Decisions        []map[string]any    `json:"decisions,omitempty"`
+	Confirmed        map[string]any      `json:"confirmed,omitempty"`
+	Mempool          map[string]any      `json:"mempool,omitempty"`
+	Claim            string              `json:"claim,omitempty"`
+	Control          string              `json:"control,omitempty"`
+	LiveTipSource    string              `json:"live_tip_source,omitempty"`
+	LagSeconds       *uint64             `json:"lag_seconds,omitempty"`
+	Enforceable      *bool               `json:"enforceable,omitempty"`
+	ResponseWires    []string            `json:"response_wires,omitempty"`
+	HistoryWires     []string            `json:"history_wires,omitempty"`
+	SnapshotAttempts []snapshotAttempt   `json:"snapshot_attempts,omitempty"`
+	Stage            string              `json:"stage,omitempty"`
+	Admission        *qualificationInput `json:"admission,omitempty"`
+	Upstream         *upstreamInput      `json:"upstream,omitempty"`
+	Reflection       *reflectionInput    `json:"reflection,omitempty"`
 }
 
 func observations(t *testing.T) []observation {
@@ -96,11 +122,8 @@ func observations(t *testing.T) []observation {
 	if e != nil {
 		t.Fatal(e)
 	}
-	var vs []observation
-	d := json.NewDecoder(bytes.NewReader(b))
-	d.DisallowUnknownFields()
-	d.UseNumber()
-	if e = d.Decode(&vs); e != nil {
+	vs, e := decodeObservations(b)
+	if e != nil {
 		t.Fatal(e)
 	}
 	return vs
@@ -194,30 +217,39 @@ func roundsOracle(config map[string]any, rounds []collectionRound) bool {
 
 // The non-witness reader refuses non-unspent reads and journals only observe-grade closures.
 // CGW-J1 enforcement closures are independent; no durable journal is simulated.
-func historyOracle(history []map[string]any) ([]map[string]any, error) {
+func historyOracle(config map[string]any, history []map[string]any) []map[string]any {
 	seen, observeClosed := false, false
 	out := []map[string]any{}
+	views := map[string][]byte{}
 	for _, event := range history {
-		if response(event) != nil {
-			return nil, bad("invalid history response")
+		refuse, unavailable := true, true
+		if response(event) == nil && event["ok"] == true && event["method"] == "gettxout" {
+			r := event["result"].(map[string]any)
+			points, ok := config["seals"].([]any)
+			point := map[string]any{"txid": r["txid"], "vout": r["vout"]}
+			if ok && len(points) == 1 && same(point, points[0]) && event["network"] == config["network"] {
+				at := event["tip"].(map[string]any)
+				present := r["state"] == "unspent" || r["state"] == "spend_pending"
+				view := map[string]any{"tip": at, "present": present}
+				if present {
+					view["script"], view["confirmations"] = r["script_pubkey"], r["confirmations"]
+				}
+				key := str(at["hash"])
+				if old, exists := views[key]; !exists || bytes.Equal(old, wire(view)) {
+					views[key] = wire(view)
+					unavailable = false
+					if r["state"] == "unspent" {
+						seen, refuse = true, false // This read alone is not authorization to admit.
+					}
+					if r["state"] == "not_in_utxo_set" && seen {
+						observeClosed = true
+					}
+				}
+			}
 		}
-		refuse := true
-		if event["ok"] == true {
-			if event["method"] != "gettxout" {
-				return nil, bad("history method")
-			}
-			state := event["result"].(map[string]any)["state"]
-			if state == "unspent" {
-				seen = true
-				refuse = false // This read alone is not authorization to admit.
-			}
-			if state == "not_in_utxo_set" && seen {
-				observeClosed = true
-			}
-		}
-		out = append(out, map[string]any{"refuse_command": refuse, "observe_closed": observeClosed, "enforcement_closed": false, "seen_unspent": seen})
+		out = append(out, map[string]any{"refuse_command": refuse, "observe_closed": observeClosed, "enforcement_closed": false, "seen_unspent": seen, "unavailable": unavailable})
 	}
-	return out, nil
+	return out
 }
 
 // The fixed two-view table classifies confirmed and mempool-only observations.
@@ -287,46 +319,36 @@ func TestObservationVectors(t *testing.T) {
 				if response(v.Expected) != nil || !same(got, v.Expected) {
 					t.Fatal("attempt result differs from shared expectation")
 				}
-			case "bracket":
-				write := false
-				for _, pair := range v.Attempts {
-					if len(pair) != 2 || tip(pair[0]) != nil || tip(pair[1]) != nil {
-						t.Fatal("bad bracket")
-					}
-					if same(pair[0], pair[1]) {
-						write = true
-						break
-					}
-				}
-				code := 12
-				if write {
-					code = 0
-				} else if len(v.Attempts) != 3 {
-					t.Fatal("premature exhaustion")
-				}
-				if v.Expected["write"] != write || v.Expected["exit"] != json.Number(fmt.Sprint(code)) {
-					t.Fatal("bracket verdict mismatch")
-				}
-			case "snapshot_read_failure":
-				// A failed record read cannot be projected as either presence or absence.
-				// This contract oracle models publication; runtime tests live with the helper.
-				previous := []byte("previous complete snapshot")
-				current := append([]byte(nil), previous...)
-				code, write := 0, true
-				for _, reply := range v.Responses {
-					if response(reply) != nil || reply["ok"] != true {
-						code, write = 11, false
-						break
+			case "bracket", "snapshot_read_failure", "snapshot_attempts", "snapshot_stage":
+				attempts := v.SnapshotAttempts
+				if v.Kind == "bracket" {
+					for _, pair := range v.Attempts {
+						if len(pair) != 2 {
+							t.Fatal("bad bracket")
+						}
+						attempts = append(attempts, snapshotAttempt{Before: pair[0], After: pair[1]})
 					}
 				}
-				if write {
-					current = []byte("replacement")
+				if v.Kind == "snapshot_read_failure" {
+					attempts = []snapshotAttempt{{Before: fixtureTip(), After: fixtureTip(), Replies: v.Responses}}
 				}
-				if v.Expected["exit"] != json.Number(fmt.Sprint(code)) || v.Expected["write"] != write || v.Expected["previous"] != "unchanged" || !bytes.Equal(previous, current) {
-					t.Fatal("failed read must exit 11 without publication")
+				if got := snapshotOutcome(attempts, v.Stage); !same(got, v.Expected) {
+					t.Fatalf("snapshot verdict mismatch: got %s", wire(got))
+				}
+			case "qualification":
+				if !same(map[string]any{"available": qualificationOracle(*v.Admission)}, v.Expected) {
+					t.Fatal("qualification verdict mismatch")
+				}
+			case "upstream":
+				if got := upstreamOracle(*v.Upstream); !same(map[string]any{"code": got}, v.Expected) {
+					t.Fatalf("upstream verdict mismatch: code=%s", got)
+				}
+			case "reflection":
+				if !same(map[string]any{"code": reflectionOracle(*v.Reflection)}, v.Expected) {
+					t.Fatal("reflection verdict mismatch")
 				}
 			case "collection":
-				if collectionOracle(v.Config, v.Requests, v.Responses) != v.Accepted {
+				if collectionOracle(v.Config, v.Requests, responseInputs(v.Responses, v.ResponseWires)) != v.Accepted {
 					t.Fatal("collection verdict mismatch")
 				}
 			case "utxo_views":
@@ -348,9 +370,9 @@ func TestObservationVectors(t *testing.T) {
 					t.Fatal("round budget verdict mismatch")
 				}
 			case "seal_history":
-				got, e := historyOracle(v.History)
-				if e != nil || !same(got, v.Decisions) {
-					t.Fatalf("history verdict mismatch: %v got %s", e, wire(got))
+				got := historyOracle(v.Config, responseInputs(v.History, v.HistoryWires))
+				if !same(got, v.Decisions) {
+					t.Fatalf("history verdict mismatch: got %s", wire(got))
 				}
 			default:
 				t.Fatal("unknown observation kind")
@@ -358,7 +380,7 @@ func TestObservationVectors(t *testing.T) {
 		})
 	}
 }
-func snapshotLabel(raw []byte, now uint64, known map[string]any, clock bool, config map[string]any) string {
+func snapshotLabel(raw []byte, now uint64, known map[string]any, clock bool, config map[string]any, source string, lag uint64) string {
 	if validate("snapshot", raw) != nil {
 		return "invalid"
 	}
@@ -382,13 +404,13 @@ func snapshotLabel(raw []byte, now uint64, known map[string]any, clock bool, con
 	if written > now {
 		return "invalid"
 	}
-	// This oracle mirrors Source's default consumer lag policy, not a gateway limit.
+	// The supplied lag is consumer policy, not a gateway limit.
 	at := m["tip"].(map[string]any)
 	tipTime := uintValue(at["time"])
-	if now-written > 60 || (now > tipTime && now-tipTime > 7200) {
+	if now-written > 60 || (now > tipTime && now-tipTime > lag) {
 		return "stale"
 	}
-	if known == nil {
+	if source != "independent" || known == nil {
 		return "unknown"
 	}
 	if tip(known) != nil {
@@ -408,8 +430,11 @@ func TestSnapshotLabels(t *testing.T) {
 			continue
 		}
 		t.Run(v.Name, func(t *testing.T) {
-			if got := snapshotLabel([]byte(v.Snapshot), v.Now, v.KnownTip, v.Clock, v.Config); got != v.Label {
+			if got := snapshotLabel([]byte(v.Snapshot), v.Now, v.KnownTip, v.Clock, v.Config, v.LiveTipSource, *v.LagSeconds); got != v.Label {
 				t.Fatalf("label=%s want %s", got, v.Label)
+			}
+			if v.Enforceable == nil || *v.Enforceable {
+				t.Fatal("label enforceable must be explicit false")
 			}
 		})
 	}
@@ -462,13 +487,14 @@ func TestFixtureInventory(t *testing.T) {
 	if fmt.Sprint(paths) != "[fixtures/observations.json fixtures/vectors.json]" {
 		t.Fatalf("uncovered fixture files: %v", paths)
 	}
+	checkRequiredInventory(t)
 	seen := map[string]bool{}
 	for _, v := range observations(t) {
 		if v.Name == "" || seen[v.Name] {
 			t.Fatal("missing or duplicate scenario")
 		}
 		seen[v.Name] = true
-		if !slices.Contains([]string{"attempts", "collection", "label", "bracket", "snapshot_read_failure", "rounds", "seal_history", "utxo_views"}, v.Kind) {
+		if !slices.Contains(observationKinds, v.Kind) {
 			t.Fatal("uncovered scenario kind")
 		}
 	}

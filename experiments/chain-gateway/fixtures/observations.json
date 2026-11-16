@@ -1192,7 +1192,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine fresh without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "stale_age",
@@ -1217,7 +1222,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine stale without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "future_time",
@@ -1242,7 +1252,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine invalid without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "unknown_tip",
@@ -1263,7 +1278,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "none",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine unknown without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "unknown_clock",
@@ -1288,7 +1308,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine unknown without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "reorg",
@@ -1313,7 +1338,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine stale without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "behind",
@@ -1338,7 +1368,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine stale without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "ahead",
@@ -1363,7 +1398,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine stale without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "consumer_default_tip_lag_7200",
@@ -1388,7 +1428,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine fresh without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "consumer_default_tip_lag_7201",
@@ -1413,7 +1458,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine stale without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "mismatching_tip_time",
@@ -1542,8 +1592,11 @@
     ],
     "expected": {
       "write": true,
-      "exit": 0
-    }
+      "exit": 0,
+      "previous": "replaced"
+    },
+    "claim": "Complete bracket evidence uses the helper outcome table, including backend inconsistency.",
+    "control": "bracket_equal"
   },
   {
     "name": "bracket_moved_retry",
@@ -1576,8 +1629,11 @@
     ],
     "expected": {
       "write": true,
-      "exit": 0
-    }
+      "exit": 0,
+      "previous": "replaced"
+    },
+    "claim": "Complete bracket evidence uses the helper outcome table, including backend inconsistency.",
+    "control": "bracket_equal"
   },
   {
     "name": "bracket_moved_keep_previous",
@@ -1622,37 +1678,16 @@
     ],
     "expected": {
       "write": false,
-      "exit": 12
-    }
+      "exit": 12,
+      "previous": "unchanged"
+    },
+    "claim": "Complete bracket evidence uses the helper outcome table, including backend inconsistency.",
+    "control": "bracket_equal"
   },
   {
-    "name": "bracket_time_moved_keep_previous",
+    "name": "bracket_header_inconsistent_keep_previous",
     "kind": "bracket",
     "attempts": [
-      [
-        {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999991
-        }
-      ],
-      [
-        {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
-        },
-        {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999991
-        }
-      ],
       [
         {
           "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -1667,9 +1702,12 @@
       ]
     ],
     "expected": {
+      "exit": 11,
       "write": false,
-      "exit": 12
-    }
+      "previous": "unchanged"
+    },
+    "claim": "Complete bracket evidence uses the helper outcome table, including backend inconsistency.",
+    "control": "bracket_equal"
   },
   {
     "name": "label_consistency_witnessed",
@@ -1694,7 +1732,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine invalid without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "label_consistency_other",
@@ -1719,7 +1762,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine invalid without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "label_consistency_None",
@@ -1744,7 +1792,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine invalid without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "middle_tip_differs",
@@ -4011,7 +4064,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine invalid without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "label_foreign_owner",
@@ -4036,7 +4094,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine invalid without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "label_missing_seal",
@@ -4055,13 +4118,23 @@
       "names": [
         "id/example"
       ],
-      "seals": []
-    }
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 3
+        }
+      ]
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine invalid without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "label_extra_seal",
     "kind": "label",
-    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2},{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":3}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
     "now": 1700000060,
     "known_tip": {
       "hash": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -4079,13 +4152,14 @@
         {
           "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "vout": 2
-        },
-        {
-          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "vout": 3
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine invalid without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "label_binding_before_unknown_clock",
@@ -4110,7 +4184,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine invalid without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "label_unknown_clock_future",
@@ -4135,7 +4214,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine unknown without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "label_stale_without_tip",
@@ -4156,7 +4240,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "none",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine stale without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "label_invalid_schema_before_clock",
@@ -4181,7 +4270,12 @@
           "vout": 2
         }
       ]
-    }
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "The configured bindings, label precedence and consumer lag determine invalid without enforcement.",
+    "control": "fresh"
   },
   {
     "name": "seal_unspent_to_unspent",
@@ -4229,15 +4323,31 @@
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unspent_to_unconfirmed",
@@ -4273,9 +4383,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
         },
         "v": 1
       }
@@ -4285,15 +4395,31 @@
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unspent_to_spend_pending",
@@ -4341,15 +4467,31 @@
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unspent_to_not_in_utxo_set",
@@ -4383,9 +4525,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
         },
         "v": 1
       }
@@ -4395,15 +4537,31 @@
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": true,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unspent_to_unavailable",
@@ -4440,15 +4598,31 @@
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": true
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unconfirmed_to_unspent",
@@ -4484,9 +4658,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
         },
         "v": 1
       }
@@ -4496,15 +4670,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unconfirmed_to_unconfirmed",
@@ -4552,15 +4742,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unconfirmed_to_spend_pending",
@@ -4596,9 +4802,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
         },
         "v": 1
       }
@@ -4608,15 +4814,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unconfirmed_to_not_in_utxo_set",
@@ -4662,15 +4884,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unconfirmed_to_unavailable",
@@ -4707,15 +4945,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": true
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_spend_pending_to_unspent",
@@ -4763,15 +5017,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_spend_pending_to_unconfirmed",
@@ -4807,9 +5077,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
         },
         "v": 1
       }
@@ -4819,15 +5089,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_spend_pending_to_spend_pending",
@@ -4875,15 +5161,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_spend_pending_to_not_in_utxo_set",
@@ -4917,9 +5219,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
         },
         "v": 1
       }
@@ -4929,15 +5231,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_spend_pending_to_unavailable",
@@ -4974,15 +5292,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": true
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_not_in_utxo_set_to_unspent",
@@ -5016,9 +5350,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
         },
         "v": 1
       }
@@ -5028,15 +5362,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_not_in_utxo_set_to_unconfirmed",
@@ -5082,15 +5432,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_not_in_utxo_set_to_spend_pending",
@@ -5124,9 +5490,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
         },
         "v": 1
       }
@@ -5136,15 +5502,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_not_in_utxo_set_to_not_in_utxo_set",
@@ -5188,15 +5570,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_not_in_utxo_set_to_unavailable",
@@ -5231,15 +5629,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": true
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unavailable_to_unspent",
@@ -5276,15 +5690,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": true
       },
       {
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unavailable_to_unconfirmed",
@@ -5321,15 +5751,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": true
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unavailable_to_spend_pending",
@@ -5366,15 +5812,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": true
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unavailable_to_not_in_utxo_set",
@@ -5409,15 +5871,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": true
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "seal_unavailable_to_unavailable",
@@ -5443,15 +5921,31 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": true
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": true
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "pending_evicted_then_live",
@@ -5517,21 +6011,38 @@
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "unconfirmed_evicted_never_closes",
@@ -5583,9 +6094,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
         },
         "v": 1
       }
@@ -5595,21 +6106,38 @@
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": false
+        "seen_unspent": false,
+        "unavailable": false
       },
       {
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "pending_then_confirmed_absence_observe_only",
@@ -5661,9 +6189,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
         },
         "v": 1
       },
@@ -5679,9 +6207,9 @@
           "vout": 2
         },
         "tip": {
-          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
-          "height": 100,
-          "time": 1699999990
+          "hash": "3333333333333333333333333333333333333333333333333333333333333333",
+          "height": 102,
+          "time": 1699999992
         },
         "v": 1
       }
@@ -5691,27 +6219,45 @@
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": true,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": false,
         "observe_closed": true,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "pending_error_never_closes",
@@ -5784,27 +6330,45 @@
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       },
       {
         "refuse_command": true,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": true
       },
       {
         "refuse_command": false,
         "observe_closed": false,
         "enforcement_closed": false,
-        "seen_unspent": true
+        "seen_unspent": true,
+        "unavailable": false
       }
-    ]
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Keyed non-witness history refuses non-unspent reads and retains only observe-grade closures across valid Tip transitions.",
+    "control": "seal_unspent_to_unspent"
   },
   {
     "name": "views_confirmed_live",
@@ -6371,22 +6935,2592 @@
       "v": 1
     }
   },
-{
-  "name": "snapshot_record_read_failed_keeps_previous",
-  "kind": "snapshot_read_failure",
-  "responses": [
-    {
-      "error": {
-        "code": "unavailable"
+  {
+    "name": "snapshot_record_read_failed_keeps_previous",
+    "kind": "snapshot_read_failure",
+    "responses": [
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    },
+    "claim": "A terminal record failure preserves previous bytes and exits 11.",
+    "control": "snapshot_complete_control"
+  },
+  {
+    "name": "label_self_tip_never_fresh",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "clock": true,
+    "label": "unknown",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "live_tip_source": "self",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "Live-tip provenance and configured lag yield unknown; labels never authorize enforcement.",
+    "control": "fresh"
+  },
+  {
+    "name": "label_no_live_source",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "clock": true,
+    "label": "unknown",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "live_tip_source": "none",
+    "lag_seconds": 7200,
+    "enforceable": false,
+    "claim": "Live-tip provenance and configured lag yield unknown; labels never authorize enforcement.",
+    "control": "fresh"
+  },
+  {
+    "name": "label_custom_lag_at_bound",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999990
+    },
+    "clock": true,
+    "label": "fresh",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 70,
+    "enforceable": false,
+    "claim": "Live-tip provenance and configured lag yield fresh; labels never authorize enforcement.",
+    "control": "label_custom_lag_at_bound"
+  },
+  {
+    "name": "label_custom_lag_over_bound",
+    "kind": "label",
+    "snapshot": "{\"consistency\":\"bracketed\",\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999989},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100,
+      "time": 1699999989
+    },
+    "clock": true,
+    "label": "stale",
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "live_tip_source": "independent",
+    "lag_seconds": 70,
+    "enforceable": false,
+    "claim": "Live-tip provenance and configured lag yield stale; labels never authorize enforcement.",
+    "control": "label_custom_lag_at_bound"
+  },
+  {
+    "name": "history_wrong_outpoint",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
       },
-      "ok": false,
-      "v": 1
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 3
+        },
+        "tip": {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": false
+      },
+      {
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": true
+      }
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Wrong key or same-Tip confirmed-set contradiction refuses unavailable-class with no new closure.",
+    "control": "seal_unspent_to_not_in_utxo_set"
+  },
+  {
+    "name": "history_wrong_network",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "main",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101,
+          "time": 1699999991
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": false
+      },
+      {
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": true
+      }
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Wrong key or same-Tip confirmed-set contradiction refuses unavailable-class with no new closure.",
+    "control": "seal_unspent_to_not_in_utxo_set"
+  },
+  {
+    "name": "history_same_tip_contradiction",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": false
+      },
+      {
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": true
+      }
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "Wrong key or same-Tip confirmed-set contradiction refuses unavailable-class with no new closure.",
+    "control": "seal_unspent_to_not_in_utxo_set"
+  },
+  {
+    "name": "history_wire_valid",
+    "kind": "seal_history",
+    "decisions": [
+      {
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": false
+      },
+      {
+        "refuse_command": true,
+        "observe_closed": true,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": false
+      }
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "The complete wire response gate runs before keyed history mutation.",
+    "control": "history_wire_valid",
+    "history_wires": [
+      "{\"method\":\"gettxout\",\"network\":\"regtest\",\"ok\":true,\"result\":{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}",
+      "{\"method\":\"gettxout\",\"network\":\"regtest\",\"ok\":true,\"result\":{\"state\":\"not_in_utxo_set\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2},\"tip\":{\"hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"height\":101,\"time\":1699999991},\"v\":1}"
+    ]
+  },
+  {
+    "name": "history_wire_duplicate",
+    "kind": "seal_history",
+    "decisions": [
+      {
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": false
+      },
+      {
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": true
+      }
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "The complete wire response gate runs before keyed history mutation.",
+    "control": "history_wire_valid",
+    "history_wires": [
+      "{\"method\":\"gettxout\",\"network\":\"regtest\",\"ok\":true,\"result\":{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}",
+      "{\"method\":\"gettxout\",\"network\":\"regtest\",\"ok\":true,\"ok\":true,\"result\":{\"state\":\"not_in_utxo_set\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2},\"tip\":{\"hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"height\":101,\"time\":1699999991},\"v\":1}"
+    ]
+  },
+  {
+    "name": "collection_wire_valid",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "accepted": true,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "response_wires": [
+      "{\"method\":\"getblockcount\",\"network\":\"regtest\",\"ok\":true,\"result\":{},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}",
+      "{\"method\":\"name_show\",\"network\":\"regtest\",\"ok\":true,\"result\":{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}",
+      "{\"method\":\"gettxout\",\"network\":\"regtest\",\"ok\":true,\"result\":{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}",
+      "{\"method\":\"getblockcount\",\"network\":\"regtest\",\"ok\":true,\"result\":{},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}"
+    ],
+    "claim": "The canonical wire response gate rejects an entire collection before field salvage.",
+    "control": "collection_wire_valid"
+  },
+  {
+    "name": "collection_wire_noncanonical",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "accepted": false,
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "response_wires": [
+      "{\"method\":\"getblockcount\",\"network\":\"regtest\",\"ok\":true,\"result\":{},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}",
+      " {\"method\":\"name_show\",\"network\":\"regtest\",\"ok\":true,\"result\":{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}",
+      "{\"method\":\"gettxout\",\"network\":\"regtest\",\"ok\":true,\"result\":{\"confirmations\":1,\"script_pubkey\":\"51\",\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}",
+      "{\"method\":\"getblockcount\",\"network\":\"regtest\",\"ok\":true,\"result\":{},\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990},\"v\":1}"
+    ],
+    "claim": "The canonical wire response gate rejects an entire collection before field salvage.",
+    "control": "collection_wire_valid"
+  },
+  {
+    "name": "snapshot_complete_control",
+    "kind": "snapshot_attempts",
+    "claim": "A complete equal collection publishes only the whole replacement.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 0,
+      "write": true,
+      "previous": "replaced"
     }
-  ],
-  "expected": {
-    "exit": 11,
-    "write": false,
-    "previous": "unchanged"
+  },
+  {
+    "name": "snapshot_middle_tip_differs",
+    "kind": "snapshot_attempts",
+    "claim": "Known middle evidence differing from equal brackets discards every attempt and exits 12.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "3333333333333333333333333333333333333333333333333333333333333333",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      },
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "3333333333333333333333333333333333333333333333333333333333333333",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      },
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "3333333333333333333333333333333333333333333333333333333333333333",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 12,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_middle_bestblock_differs",
+    "kind": "snapshot_attempts",
+    "claim": "Known middle evidence differing from equal brackets discards every attempt and exits 12.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ],
+        "bestblocks": [
+          "3333333333333333333333333333333333333333333333333333333333333333"
+        ]
+      },
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ],
+        "bestblocks": [
+          "3333333333333333333333333333333333333333333333333333333333333333"
+        ]
+      },
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ],
+        "bestblocks": [
+          "3333333333333333333333333333333333333333333333333333333333333333"
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 12,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_reply_unavailable",
+    "kind": "snapshot_attempts",
+    "claim": "The unavailable record refusal follows its exact helper exit classification.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "unavailable"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_reply_not_found",
+    "kind": "snapshot_attempts",
+    "claim": "The not_found record refusal follows its exact helper exit classification.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "not_found"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_reply_malformed",
+    "kind": "snapshot_attempts",
+    "claim": "The malformed record refusal follows its exact helper exit classification.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "malformed"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_reply_unauthorized",
+    "kind": "snapshot_attempts",
+    "claim": "The unauthorized record refusal follows its exact helper exit classification.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "unauthorized"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_reply_tip_moved",
+    "kind": "snapshot_attempts",
+    "claim": "The tip_moved record refusal follows its exact helper exit classification.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "tip_moved"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      },
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "tip_moved"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      },
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "tip_moved"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 12,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_reply_rate_limited",
+    "kind": "snapshot_attempts",
+    "claim": "The rate_limited record refusal follows its exact helper exit classification.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "rate_limited"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      },
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "rate_limited"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      },
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "rate_limited"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_rate_limit_recovers",
+    "kind": "snapshot_attempts",
+    "claim": "A paced rate-limited attempt can recover within the unchanged three-attempt budget.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "error": {
+              "code": "rate_limited"
+            },
+            "ok": false,
+            "v": 1
+          }
+        ]
+      },
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "exit": 0,
+      "write": true,
+      "previous": "replaced"
+    }
+  },
+  {
+    "name": "snapshot_timeout",
+    "kind": "snapshot_attempts",
+    "claim": "Timeout is terminal exit 11, not movement.",
+    "control": "snapshot_complete_control",
+    "snapshot_attempts": [
+      {
+        "before": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "after": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "replies": [
+          {
+            "method": "name_show",
+            "network": "regtest",
+            "ok": true,
+            "result": {
+              "expired": false,
+              "height": 90,
+              "name": "id/example",
+              "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+              "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+              "vout": 0
+            },
+            "tip": {
+              "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "height": 100,
+              "time": 1699999990
+            },
+            "v": 1
+          }
+        ],
+        "failure": "timeout"
+      }
+    ],
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_lock",
+    "kind": "snapshot_stage",
+    "claim": "Failure at lock exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "lock",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_config",
+    "kind": "snapshot_stage",
+    "claim": "Failure at config exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "config",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_serialize",
+    "kind": "snapshot_stage",
+    "claim": "Failure at serialize exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "serialize",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_cleanup",
+    "kind": "snapshot_stage",
+    "claim": "Failure at cleanup exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "cleanup",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_ancestor_sync",
+    "kind": "snapshot_stage",
+    "claim": "Failure at ancestor_sync exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "ancestor_sync",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_temp_create",
+    "kind": "snapshot_stage",
+    "claim": "Failure at temp_create exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "temp_create",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_temp_write",
+    "kind": "snapshot_stage",
+    "claim": "Failure at temp_write exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "temp_write",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_temp_validate",
+    "kind": "snapshot_stage",
+    "claim": "Failure at temp_validate exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "temp_validate",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_temp_metadata",
+    "kind": "snapshot_stage",
+    "claim": "Failure at temp_metadata exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "temp_metadata",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_file_sync",
+    "kind": "snapshot_stage",
+    "claim": "Failure at file_sync exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "file_sync",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_file_close",
+    "kind": "snapshot_stage",
+    "claim": "Failure at file_close exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "file_close",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_rename",
+    "kind": "snapshot_stage",
+    "claim": "Failure at rename exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "rename",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "snapshot_stage_directory_open",
+    "kind": "snapshot_stage",
+    "claim": "Failure at directory_open exits 11 and cannot roll back a completed rename.",
+    "control": "snapshot_complete_control",
+    "stage": "directory_open",
+    "expected": {
+      "exit": 11,
+      "write": true,
+      "previous": "replaced"
+    }
+  },
+  {
+    "name": "snapshot_stage_directory_sync",
+    "kind": "snapshot_stage",
+    "claim": "Failure at directory_sync exits 11 and cannot roll back a completed rename.",
+    "control": "snapshot_complete_control",
+    "stage": "directory_sync",
+    "expected": {
+      "exit": 11,
+      "write": true,
+      "previous": "replaced"
+    }
+  },
+  {
+    "name": "snapshot_stage_directory_close",
+    "kind": "snapshot_stage",
+    "claim": "Failure at directory_close exits 11 and cannot roll back a completed rename.",
+    "control": "snapshot_complete_control",
+    "stage": "directory_close",
+    "expected": {
+      "exit": 11,
+      "write": true,
+      "previous": "replaced"
+    }
+  },
+  {
+    "name": "snapshot_stage_own_temp_cleanup",
+    "kind": "snapshot_stage",
+    "claim": "Failure at own_temp_cleanup exits 11 and leaves previous published bytes untouched.",
+    "control": "snapshot_complete_control",
+    "stage": "own_temp_cleanup",
+    "expected": {
+      "exit": 11,
+      "write": false,
+      "previous": "unchanged"
+    }
+  },
+  {
+    "name": "qualification_linux_control",
+    "kind": "qualification",
+    "claim": "An exclusive Linux node account with all required proofs is admissible for qualification.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": true
+    }
+  },
+  {
+    "name": "qualification_darwin",
+    "kind": "qualification",
+    "claim": "The darwin configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "darwin",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_no_endpoint_proof",
+    "kind": "qualification",
+    "claim": "The no_endpoint_proof configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": false,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_no_dump_protection",
+    "kind": "qualification",
+    "claim": "The no_dump_protection configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": false,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_server_uid_overlap",
+    "kind": "qualification",
+    "claim": "The server_uid_overlap configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2100,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_allowed_uid_overlap",
+    "kind": "qualification",
+    "claim": "The allowed_uid_overlap configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2100
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_helper_consumer_overlap",
+    "kind": "qualification",
+    "claim": "The helper_consumer_overlap configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2100
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_shared_node_uid",
+    "kind": "qualification",
+    "claim": "The shared_node_uid configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": false,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_user_namespace",
+    "kind": "qualification",
+    "claim": "The user_namespace configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": false,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_network_namespace",
+    "kind": "qualification",
+    "claim": "The network_namespace configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": false,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_external_bind",
+    "kind": "qualification",
+    "claim": "The external_bind configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": false,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_external_allow",
+    "kind": "qualification",
+    "claim": "The external_allow configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 2100,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": false
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_root_node",
+    "kind": "qualification",
+    "claim": "The root_node configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 0,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "qualification_reserved_node",
+    "kind": "qualification",
+    "claim": "The reserved_node configuration fails closed before credential use.",
+    "control": "qualification_linux_control",
+    "admission": {
+      "platform": "linux",
+      "endpoint_proof": true,
+      "dump_protected": true,
+      "node_uid": 65534,
+      "server_uid": 2101,
+      "allowed_uids": [
+        2102,
+        0
+      ],
+      "workload_uids": [
+        2103,
+        2104,
+        0
+      ],
+      "dedicated": true,
+      "initial_user": true,
+      "initial_network": true,
+      "loopback_bind": true,
+      "loopback_allow": true
+    },
+    "expected": {
+      "available": false
+    }
+  },
+  {
+    "name": "reflection_verifier_ordinary",
+    "kind": "reflection",
+    "claim": "Whole-value reflection comparison yields ok without substring heuristics.",
+    "control": "reflection_verifier_ordinary",
+    "reflection": {
+      "mode": "verifier",
+      "user": "example-user",
+      "secret": "public-test-marker",
+      "value": "ordinary public value"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "reflection_verifier_secret_alone",
+    "kind": "reflection",
+    "claim": "Whole-value reflection comparison yields unavailable without substring heuristics.",
+    "control": "reflection_verifier_ordinary",
+    "reflection": {
+      "mode": "verifier",
+      "user": "example-user",
+      "secret": "public-test-marker",
+      "value": "public-test-marker"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "reflection_verifier_full",
+    "kind": "reflection",
+    "claim": "Whole-value reflection comparison yields unavailable without substring heuristics.",
+    "control": "reflection_verifier_ordinary",
+    "reflection": {
+      "mode": "verifier",
+      "user": "example-user",
+      "secret": "public-test-marker",
+      "value": "example-user:public-test-marker"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "reflection_verifier_fragment",
+    "kind": "reflection",
+    "claim": "Whole-value reflection comparison yields ok without substring heuristics.",
+    "control": "reflection_verifier_ordinary",
+    "reflection": {
+      "mode": "verifier",
+      "user": "example-user",
+      "secret": "public-test-marker",
+      "value": "public-test"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "reflection_verifier_embedded",
+    "kind": "reflection",
+    "claim": "Whole-value reflection comparison yields ok without substring heuristics.",
+    "control": "reflection_verifier_ordinary",
+    "reflection": {
+      "mode": "verifier",
+      "user": "example-user",
+      "secret": "public-test-marker",
+      "value": "prefix-public-test-marker-suffix"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "reflection_cookie_ordinary",
+    "kind": "reflection",
+    "claim": "Whole-value reflection comparison yields ok without substring heuristics.",
+    "control": "reflection_cookie_ordinary",
+    "reflection": {
+      "mode": "cookie",
+      "user": "__cookie__",
+      "secret": "public-test-marker",
+      "value": "ordinary public value"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "reflection_cookie_secret_alone",
+    "kind": "reflection",
+    "claim": "Whole-value reflection comparison yields unavailable without substring heuristics.",
+    "control": "reflection_cookie_ordinary",
+    "reflection": {
+      "mode": "cookie",
+      "user": "__cookie__",
+      "secret": "public-test-marker",
+      "value": "public-test-marker"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "reflection_cookie_full",
+    "kind": "reflection",
+    "claim": "Whole-value reflection comparison yields unavailable without substring heuristics.",
+    "control": "reflection_cookie_ordinary",
+    "reflection": {
+      "mode": "cookie",
+      "user": "__cookie__",
+      "secret": "public-test-marker",
+      "value": "__cookie__:public-test-marker"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "reflection_cookie_fragment",
+    "kind": "reflection",
+    "claim": "Whole-value reflection comparison yields ok without substring heuristics.",
+    "control": "reflection_cookie_ordinary",
+    "reflection": {
+      "mode": "cookie",
+      "user": "__cookie__",
+      "secret": "public-test-marker",
+      "value": "public-test"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "reflection_cookie_embedded",
+    "kind": "reflection",
+    "claim": "Whole-value reflection comparison yields ok without substring heuristics.",
+    "control": "reflection_cookie_ordinary",
+    "reflection": {
+      "mode": "cookie",
+      "user": "__cookie__",
+      "secret": "public-test-marker",
+      "value": "prefix-public-test-marker-suffix"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "upstream_getblockchaininfo_control",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to ok.",
+    "control": "upstream_getblockchaininfo_control",
+    "upstream": {
+      "method": "getblockchaininfo",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"bestblockhash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"blocks\":100,\"chain\":\"regtest\",\"initialblockdownload\":false}}"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "upstream_getblockhash_control",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to ok.",
+    "control": "upstream_getblockhash_control",
+    "upstream": {
+      "method": "getblockhash",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":\"1111111111111111111111111111111111111111111111111111111111111111\"}"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "upstream_getblockheader_control",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to ok.",
+    "control": "upstream_getblockheader_control",
+    "upstream": {
+      "method": "getblockheader",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100,\"time\":1699999990}}"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "upstream_name_show_control",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to ok.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "upstream_gettxout_control",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to ok.",
+    "control": "upstream_gettxout_control",
+    "upstream": {
+      "method": "gettxout",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"bestblock\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"confirmations\":1,\"scriptPubKey\":{\"hex\":\"51\"}}}"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "upstream_name_missing",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to not_found.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 500,
+      "id": "cg1",
+      "body": "{\"error\":{\"code\":-4,\"message\":\"not a classification input\"},\"id\":\"cg1\",\"result\":null}"
+    },
+    "expected": {
+      "code": "not_found"
+    }
+  },
+  {
+    "name": "upstream_other_error",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 500,
+      "id": "cg1",
+      "body": "{\"error\":{\"code\":-5,\"message\":\"missing\"},\"id\":\"cg1\",\"result\":null}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_result_and_error",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 500,
+      "id": "cg1",
+      "body": "{\"error\":{\"code\":-4,\"message\":\"ignored\"},\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_error_on_200",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":{\"code\":-4,\"message\":\"ignored\"},\"id\":\"cg1\",\"result\":null}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_wrong_id",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"other\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_numeric_id",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":1,\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_missing_error",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_malformed_error",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 500,
+      "id": "cg1",
+      "body": "{\"error\":{\"code\":-4},\"id\":\"cg1\",\"result\":null}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_null_name",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":null}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_depth_overflow",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"extra\":[[[[]]]],\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_byte_overflow",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 "
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_duplicate_key",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_escaped_key",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"i\\u0064\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_trailing",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}} {}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_selected_alias",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"Height\":90,\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_status_401",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 401,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_status_403",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 403,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_status_404",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 404,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_status_429",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 429,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_status_500",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 500,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_status_503",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 503,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_absent_view",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to absent.",
+    "control": "upstream_gettxout_control",
+    "upstream": {
+      "method": "gettxout",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":null}"
+    },
+    "expected": {
+      "code": "absent"
+    }
+  },
+  {
+    "name": "upstream_wrong_method_error",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to unavailable.",
+    "control": "upstream_gettxout_control",
+    "upstream": {
+      "method": "gettxout",
+      "status": 500,
+      "id": "cg1",
+      "body": "{\"error\":{\"code\":-4,\"message\":\"ignored\"},\"id\":\"cg1\",\"result\":null}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_expired_record",
+    "kind": "upstream",
+    "claim": "The bounded fake-upstream envelope maps exactly to ok.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":true,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "ok"
+    }
+  },
+  {
+    "name": "history_same_hash_header_contradiction",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999991
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": false
+      },
+      {
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": true
+      }
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "A contradictory confirmed view at a remembered hash refuses unavailable-class without mutating keyed history.",
+    "control": "seal_unspent_to_unspent"
+  },
+  {
+    "name": "history_same_tip_script_contradiction",
+    "kind": "seal_history",
+    "history": [
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "51",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "confirmations": 1,
+          "script_pubkey": "52",
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100,
+          "time": 1699999990
+        },
+        "v": 1
+      }
+    ],
+    "decisions": [
+      {
+        "refuse_command": false,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": false
+      },
+      {
+        "refuse_command": true,
+        "observe_closed": false,
+        "enforcement_closed": false,
+        "seen_unspent": true,
+        "unavailable": true
+      }
+    ],
+    "config": {
+      "network": "regtest",
+      "names": [
+        "id/example"
+      ],
+      "seals": [
+        {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        }
+      ]
+    },
+    "claim": "A contradictory confirmed view at a remembered hash refuses unavailable-class without mutating keyed history.",
+    "control": "seal_unspent_to_unspent"
+  },
+  {
+    "name": "upstream_value_type",
+    "kind": "upstream",
+    "claim": "A mistyped selected upstream field is unavailable, never silently converted to empty bytes.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":\"69642f6578616d706c65\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":1,\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
+  },
+  {
+    "name": "upstream_name_type",
+    "kind": "upstream",
+    "claim": "A mistyped selected upstream field is unavailable, never silently converted to empty bytes.",
+    "control": "upstream_name_show_control",
+    "upstream": {
+      "method": "name_show",
+      "status": 200,
+      "id": "cg1",
+      "body": "{\"error\":null,\"id\":\"cg1\",\"result\":{\"expired\":false,\"height\":90,\"name\":1,\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value\":\"00ff\",\"vout\":0}}"
+    },
+    "expected": {
+      "code": "unavailable"
+    }
   }
-}
 ]

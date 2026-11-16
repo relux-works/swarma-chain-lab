@@ -38,23 +38,37 @@ A changed head still requires Source's delta acceptance and the review of record
 
 | ID | Answer event and disposition |
 | --- | --- |
-| Q1 | S-r1 Q1: accepted for v1 with four connections per command, shared-UID 8/s bucket, Linux listener and SH5 approximation. For this delta, darwin/ivmbp is snapshot-only v1; active-chain membership is a v2 candidate. Normative §4. |
+| Q1 | S-r1 Q1: accepted for v1 with four connections per command, shared-UID 8/s bucket, Linux listener and SH5 approximation. The current v1 disposition admits ONLY Linux for both listener and direct-RPC helper, without fallback; the Darwin profile is an open owner decision below. Active-chain membership is a v2 candidate. Normative §4. |
 | Q2 | S-F5's two fixed gettxout views (false/true) and four states stay: unspent is confirmed >=1 AND not mempool-spent. CGW-NW makes the gateway-backed reader a NON-WITNESS for mempool-first closures: refuse anything but unspent; create NO enforcement closure. Prior journaled unspent followed by confirmed-set absence yields only an OBSERVE-GRADE closure, never imported into enforcement; absence can be a funding-removal reorg, not a validated spender. Transient states and errors create no closure; observe-grade labels never become enforcement state. Enforcement closures come only from Q10's CGW-J1. Q8 policy-owner approval remains separate. Normative §§3–4. |
 | Q4 | S-r1 accepted part (B) for helper build; HELPER-B r3 accepted bracketed observe-only amendment. Fix 1 adds seal metadata/states and exact byte/binding rules, needing Source's new-head acceptance. Missing confirmed names prevent whole-file publication (exit 11, old file ages); file alone cannot distinguish vanished name/helper failure. Static watch set requires root reconfiguration after a list adds seals; incomplete sets label invalid. D29 adoption needs its own head. |
 | Q5 | S-r1 Q5: 30-second heartbeat/60-second observe labels accepted. Requested block-header Tip.time added to all successes and snapshot. Default lag 7200 s is consumer policy, not gateway policy; (b)-only has no independent live tip and never labels fresh. Normative §§3–5; changed-head acceptance pending. |
 | Q6 | I-Q367 Q6: install settings proposed in INSTALL PROFILE, with S8 accounts list/GO and socket-parent provisioning decision still required. Answer closed as proposal, not install approval. |
-| Q7 | Owner F1/F2 supersedes gateway-cookie proposal: gateway verifier user only, enumerated five-method rpcwhitelist; ivmbp verifier user only. Helper normally uses its own verifier user. Only explicitly configured same-host Linux root helper may read the fresh node-owned cookie, or an independently admitted restart-synchronized root copy under §2 custody; no gateway/agent access or fallback. Root oneshot/flock/atomic publication remain. Cookie exception is broader authority, not a least-privilege claim; rotation/copy qualification and S8 GO remain required. |
+| Q7 | Owner F1/F2 supersedes gateway-cookie proposal: gateway verifier user only, enumerated five-method rpcwhitelist; Verifier-only deployments never use a cookie. Helper normally uses its own verifier user. Only explicitly configured same-host Linux root helper may read the fresh node-owned cookie, or an independently admitted restart-synchronized root copy under §2 custody; no gateway/agent access or fallback. Root oneshot/flock/atomic publication remain. Cookie exception is broader authority, not a least-privilege claim; rotation/copy qualification and S8 GO remain required. |
 | Q9 | S-r1 Q9: confirmed SH3/4/5/6 and O3.4–O3.6; deep-reorg false refusal approximation and Draft/co-author status preserved. Normative §4. |
+
+## Current contract corrections
+
+The accepted second-read corrections require: Linux-only credential holders with
+no fallback; an exclusive node UID in initial namespaces and loopback-only RPC;
+one helper outcome table including known middle evidence and post-rename errors;
+explicit independent-tip provenance/configured lag; keyed history with same-Tip
+contradiction refusal; bounded upstream entities/depth and a pinned error profile;
+whole password/cookie-secret equality checks; and inventoried, strictly decoded
+fixtures with non-enforceable label expectations and CI omission analysis.
+These are contract/oracle changes, not live qualification or consumer adoption.
+All earlier non-witness, whitelist, witness, reservation and filesystem gates
+remain in force.
 
 ## Open gates
 
 | ID | Decision/input needed | Owner | Gate |
 | --- | --- | --- | --- |
-| Q3 | Qualify exact node/read adapter for ALL tip transitions including hidden A→B→A, name_show (no complete tip/hash witness), and negative gettxout (null has no bestblock). Positive gettxout has bestblock but the fixed false/true pair also needs coherent mempool state. Require name/value hex round trip, header-time/network/IBD ancillary reads using EXACTLY getblockchaininfo,getblockhash,getblockheader,name_show,gettxout; qualify expired-record retrieval and signed vout range. Infra proposes Core 28.0/ZMQ sequence, with no feasibility evidence yet. Freeze is interface-only; “enforcement-ready” requires this qualification. Ordinary brackets remain insufficient for (a); §5 is observe-only. | Gateway implementer and node owner | Gateway (a) and enforcement; unqualified reads unavailable |
+| Darwin profile | Specify and qualify kernel endpoint-owner proof BEFORE any HTTP/Authorization byte plus dump/ptrace equivalents, with genuine-node control and an impostor receiving ZERO Authorization bytes, OR obtain an explicit owner-accepted residual. No Darwin mechanism or residual is chosen here. CGW-D1, planned on Darwin, depends on this decision; v1 direct-RPC helper and listener are Linux-only and no proof means no publication. | Platform/policy owner | Darwin profile and CGW-D1 remain blocked |
+| Q3 | Qualify exact node/read adapter for ALL tip transitions including hidden A→B→A, name_show (no complete tip/hash witness), and negative gettxout (null has no bestblock). Positive gettxout has bestblock but the fixed false/true pair also needs coherent mempool state. Require name/value hex round trip, header-time/network/IBD ancillary reads using EXACTLY getblockchaininfo,getblockhash,getblockheader,name_show,gettxout; qualify expired-record retrieval and signed vout range. Pin the installed Namecoin Core 28.0 binary/config against the bounded JSON-RPC 1.0 status/error profile, especially HTTP 500/name_show -4 with allowExpired=true versus unavailable, malformed result+error and id mismatch; fake-upstream tests are not node qualification. Infra proposes Core 28.0/ZMQ sequence, with no feasibility evidence yet. Freeze is interface-only; “enforcement-ready” requires this qualification. Ordinary brackets remain insufficient for (a); §5 is observe-only. | Gateway implementer and node owner | Gateway (a) and enforcement; unqualified reads unavailable |
 | Q8 | Book PR for new service/wire/snapshot/profile/resource reservations; spec PR for coherent observations, confirmed-only unspent and CGW-NW's non-witness/OBSERVE-GRADE clarification of F5/Q2. Pinned LIP-0029 §3.1 field 6 defines only outpoint; §8.3 O8.8 and following paragraph leave seal script open. The gateway claims no seal-script validation; Q10 requires an accepted script binding before the watcher can qualify validated spending bytes. Define that expected script in an accepted clause/list extension before claiming it. | Lead and documentation/spec owners | Production adoption and any script-check claim |
 | Q10 | CGW-J1: separately admitted chain-lab host-owned watcher/journal next to the node, and Source journal reader. This is the ONLY source of enforcement closures: spending transaction bytes validated against the seal script, conflict completeness and one named tip are required. Reference sealwatch, with dedicated node-enforced getblockchaininfo,getblockhash,getrawtransaction,getrawmempool,gettxout,getblock credential for actual spending inputs. No new v1 gateway method. Qualify durable closures, SH5 state and missing-journal refusal outside agent authority. Per-command (a) is a NON-WITNESS and creates no enforcement closure, even with a coherent-read witness; owner scope is 1 LU for watcher/journal, with consumer work and owner approval separate. | Lead, Source and host-side implementer | Enforcement remains off |
 | Q5 qualification | Maximal configured snapshot must fit 65536 bytes and finish within the 20-second total collection budget before the 30-second heartbeat. Root gets reserved 512-token burst/128 tokens per second and 16 active slots; agent traffic cannot spend them. A slow/moving node may legitimately leave an old file stale. (b)-only has no independent live tip: never fresh. | Helper implementer, Infra and Source | Cadence/fresh-label qualification |
-| Q6 qualification | Verify kernel-owned listener AND connected reverse-tuple node UID before ANY credential bytes, with genuine-node positive and wrong-UID listener/no-Authorization negative. Same network/initial user namespace, no PrivateUsers, reserved agent IDs rejected (root helper explicit exception), no socket activation, connect-time fd delegation documented, owned restart cleanup only. Qualify per-UID reservations/fair progress under competing traffic. | Infra and gateway implementer | S8 install/host qualification |
+| Q6 qualification | Verify kernel-owned listener AND connected reverse-tuple node UID before ANY credential bytes, with genuine-node positive and wrong-UID listener/no-Authorization negative. Require a dedicated unprivileged node UID distinct from server, ALL allowed UIDs, helper/consumer and every other workload, in initial user/network namespaces; qualify separate overlap/shared-workload/namespace/non-loopback bind AND allow negatives beside a genuine exclusive-node positive. Same network/initial user namespace, no PrivateUsers, reserved agent IDs rejected (root helper explicit exception), no socket activation, connect-time fd delegation documented, owned restart cleanup only. Qualify per-UID reservations/fair progress under competing traffic. | Infra and gateway implementer | S8 install/host qualification |
 
 Enforcing over snapshot (b) remains prohibited without a new owner decision.
 The INSTALL PROFILE is an attributed proposal under S8 GO, never installed code.
@@ -83,7 +97,34 @@ subitems are closed at base; expiry/range/error/profile/reflection ambiguities
 remain open. Fix 1 addresses the open contract/schema/fixture items; these are
 not live qualification results or Source acceptance of the new head.
 
-## Stacked helper adoption required (PR #149)
+## Additional stacked helper adoption required
+
+The snapshot helper is a separate change and is NOT edited here. In addition to
+the earlier list below, it must adopt ALL of the following before conformance:
+
+- Linux-only direct-RPC execution and fail-closed platform/dump/endpoint proof;
+  no Darwin fallback or implied CGW-D1 readiness.
+- Exclusive unprivileged node account, initial user/network namespaces and both
+  loopback bind/allow restrictions; reject server/client/helper/workload overlaps.
+- The complete §5 helper outcome table: compare known middle Tips/bestblocks,
+  distinguish header inconsistency (11) from movement exhaustion (12), handle
+  every gateway refusal with bounded rate-limit pacing, timeout, lock/config,
+  serialization, cleanup and each persistence stage; old bytes are guaranteed
+  only BEFORE rename, never roll back a post-rename directory failure.
+- Per-method upstream cap+1 streaming and depth limits, bounded SJ1 parsing,
+  exact JSON-RPC 1.0 id/envelope and the candidate Core 28.0 HTTP/error mapping;
+  qualify real-node outcomes separately.
+- Whole-value password-only/cookie-secret-only reflection entries as well as
+  raw credential/base64/header, without fragment/substring heuristics.
+- Shared fixture inventory, trailing-data and typed-inner-map gates, explicit
+  provenance/lag/non-enforceability labels, correctly keyed/Tip-consistent
+  history and invalid wire-response gates wherever those consumer oracles are
+  extracted or mirrored; run the omission aid in CI.
+- Fake-upstream, platform/config, middle-evidence/refusal, cap/depth, reflection
+  and per-publication-stage failure controls bound to its REAL entry points;
+  adopt the accepted exact contract/fixture head and rerun its own full suite.
+
+## Earlier stacked helper adoption required (PR #149)
 
 Do not treat the helper at `414c1294` as conforming to this new contract head.
 It must adopt the seal schema/two-view projection and fixtures, node UID/profile

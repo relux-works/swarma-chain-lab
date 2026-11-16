@@ -91,7 +91,7 @@ agent group membership, environment or argv secret is allowed. The rpcauth
 verifier string is NOT an RPC client credential. Rotation reopens and
 revalidates the same protected file; there is no credential-management RPC.
 This adopts the G2 node precedent (`deploy/g2_pay.go`, `rpcwhitelist`) and the
-owner's ivmbp verifier-user rule: ivmbp uses a verifier user, never a cookie.
+owner's verifier-user rule: verifier-only deployments never use a cookie.
 
 Helper (b) normally has its own dedicated rpcauth verifier user, with the same
 closed read set. ONLY an explicitly selected same-host Linux root helper may
@@ -105,23 +105,39 @@ installer must validate that live source, atomically replace a root-owned 0600
 copy on every node restart BEFORE enabling the helper, and invalidate the copy
 on failure; cookie-generation/copy qualification remains Q7. The cookie can
 have broader RPC authority: this exception is install-only, root-helper-only,
-not a least-privilege credential and never an option on ivmbp.
+not a least-privilege credential and never an option in verifier-only deployments.
 
 Only the gateway service reads (a)'s file; neither clients nor adapters can
-read it. Both processes MUST set `PR_SET_DUMPABLE=0` and `RLIMIT_CORE=0` before
+read it. The listener AND direct-RPC helper (b) are **Linux-only in v1**.
+There is NO platform fallback: absent qualified kernel endpoint-owner proof or
+dump/ptrace protection means no credential load, no RPC and no publication.
+Both credential holders MUST set `PR_SET_DUMPABLE=0` and `RLIMIT_CORE=0` before
 loading credentials; inability to do so fails closed. Logs, errors, metrics,
 crashes and wire responses MUST NOT contain credentials, encodings, HTTP auth
 headers, upstream error bodies or dumps. There is no debug passthrough.
 Reflection checking compares exact bytes of the complete raw client credential
 (`user:password` or cookie), its RFC 4648 Basic-auth base64 and complete
-`Basic <base64>` header against projected strings and decoded name-value
-octets, before constructing output. A complete occurrence refuses `unavailable`
-with no data/diagnostics. Matching fragments, usernames or short substrings of
-the password is not the reflection rule. This bounded check does not claim to
+`Basic <base64>` header, plus the complete password bytes alone and complete
+cookie-secret bytes alone (the bytes after the first colon), against projected
+strings and decoded name-value octets, before constructing output. Only entries
+for the selected credential mode are loaded. Whole-secret exact equality refuses `unavailable`
+with no data/diagnostics. This is whole-value equality, not substring matching;
+matching fragments, usernames or short substrings of the password is not the
+reflection rule. This bounded check does not claim to
 detect arbitrary encodings or fragmented application-level exfiltration.
 
 **Authenticate the upstream before credentials.** Root configuration pins the
-local numeric loopback endpoint AND node service UID. On EVERY TCP connection,
+local numeric loopback endpoint AND node service UID. The node MUST run under
+a dedicated unprivileged account in the initial user AND network namespaces.
+Its UID MUST differ from the gateway/server UID, EVERY allow-listed UID
+(including an explicit root-helper UID), and every helper, consumer or other
+non-node workload UID. The node UID MUST NOT be 0 or a reserved UID. Node RPC
+MUST bind AND allow connections on numeric loopback only (IPv4 and IPv6 where
+enabled); wildcard, external, translated-namespace and remote RPC are forbidden.
+Install/config qualification MUST reject each overlap, shared workload, noninitial
+namespace and non-loopback bind/allow, with a distinct-account/loopback positive
+control. Kernel UID proof authenticates this exclusive account, not a binary.
+On EVERY TCP connection,
 before writing any HTTP/request/Authorization byte, gateway and direct-RPC
 helper MUST obtain kernel socket ownership and require the listening socket's
 owner UID to equal that configured node UID. On Linux use `NETLINK_SOCK_DIAG`,
@@ -244,6 +260,53 @@ MUST require hex for both and qualification must verify that response encoding;
 no ascii/utf8 fallback or string-to-UTF-8 re-encoding is permitted. Q3 includes
 an opaque 00/ff value round trip.
 
+### Bounded upstream profile
+
+Both credential holders use the candidate **Namecoin Core 28.0, JSON-RPC 1.0**
+profile below. The exact installed binary/config and these mappings MUST be
+qualified in Q3/Q6 before use; these are required outcomes, not a claim that a
+live node was tested. A version with different behaviour is unavailable until
+a reviewed profile revision, not an error-message heuristic.
+
+Limits cover the entire decoded HTTP entity including ignored extensions,
+whitespace and error envelopes. Compression, redirects, batches and chunk/body
+fallbacks are forbidden; HTTP chunk framing may be decoded under the same cap.
+Do not trust Content-Length: stream through a cap+1 reader, STOP at byte cap+1,
+reject overflow before JSON parsing, and close without draining. Apply SJ1
+recursively while tokenizing with the method depth cap (objects/arrays, root=1),
+before constructing an unbounded tree. Null is allowed only for the specified
+RPC envelope/result slots; upstream floats may occur in ignored fields, never
+in selected integer fields. No canonical-byte requirement is imposed upstream.
+
+| Method | Entity bytes / container depth | Projection-derived allowance (including bounded envelope/extensions) |
+| --- | --- | --- |
+| `getblockchaininfo` | 8192 / 4 | chain, IBD, 64-hex best hash and safe height are <256 bytes; 7936 bytes for bounded Core metadata |
+| `getblockhash` | 256 / 1 | 64-hex scalar result plus <=190 bytes for envelope/spacing |
+| `getblockheader` (verbose=true) | 4096 / 4 | hash, height, time <256 bytes; 3840 bytes for bounded header metadata |
+| `name_show` | 4096 / 4 | hex name <=510 and value <=1040, txid/index/height/expiry and envelope <2546 bytes; 1550 bytes for bounded metadata |
+| `gettxout` (each fixed view) | 32768 / 5 | script hex <=20000, bestblock/confirmations <256; 12512 bytes for envelope/script metadata |
+
+These are upstream bounds, not permission to exceed the 4096-byte public
+response or 65536-byte snapshot projection limit. Largest projections must
+still pass those separate output gates. Additional extensions exceeding a cap
+make the backend unavailable; no cap may be silently raised.
+
+Every request has a fixed, nonempty ASCII string id selected by the adapter;
+a reply MUST have exactly one matching string id and exactly `result`, `error`,
+`id` at its envelope. No JSON-RPC 2.0/version alias or notification is accepted.
+
+| HTTP / JSON-RPC outcome | Mapping |
+| --- | --- |
+| 200, error=null, correctly typed result and matching id | Selected projection; `gettxout` result=null is the successful absent view |
+| 500, result=null, error exactly {code:integer,message:string}, matching id; `name_show` code=-4 | `not_found` ONLY after Q3 qualifies this as no confirmed record with allowExpired=true (including expired-name positive control) |
+| Any other RPC error (including -4 on another method), auth 401, whitelist 403, 404, 429, 5xx, or unexpected status | `unavailable`; no upstream body or error text is exposed |
+| 200 with non-null error, 500 without the qualified error shape, result AND error non-null, missing slots, id mismatch/type mismatch, malformed SJ1/selected fields, cap/depth overflow | `unavailable`, no partial projection |
+
+The fixed startup denial probe alone expects 403 (§2); 403 is never a normal
+read success. Error strings never select a class. Fake-upstream fixtures cover
+these boundaries without contacting a node; real-version qualification remains
+open.
+
 Types used below:
 
 - `H`: exactly 64 lowercase hex characters; hashes/txids use display byte order,
@@ -329,8 +392,20 @@ closure from any of these reads. `unconfirmed` and `spend_pending` both refuse
 that command as DEVICE_REVOKED-class, journal NOTHING permanent and NEVER count
 as confirmed-set absence. Mempool transactions can be evicted/replaced.
 
-When this reader previously journaled `unspent` with its new meaning and later
-sees `not_in_utxo_set`, absent from the CONFIRMED set, it MUST label and journal
+History MUST be keyed by the expected `(network, txid, vout)` from protected
+configuration, never by a global seen flag. A wrong network/outpoint, invalid
+response or contradictory confirmed view at an already seen Tip is
+unavailable-class: refuse the current command, make NO history update or new
+closure, and retain existing observe state. Track the confirmed view per Tip
+hash (including its height/time): `unspent`/`spend_pending` mean present with
+fixed script/confirmations, `unconfirmed`/`not_in_utxo_set` mean absent. A switch
+between present and absent, changed confirmed metadata, or the same hash with
+different height/time is contradictory. Mempool-only transitions may occur at
+one Tip. Confirmed-set changes require a different Tip hash; revisiting a hash
+must agree with its remembered confirmed view.
+
+When this reader previously journaled `unspent` for that key and later at a
+different Tip sees `not_in_utxo_set`, absent from the CONFIRMED set, it MUST label and journal
 an **OBSERVE-GRADE closure** only. The reader validated no spending transaction;
 confirmed-set absence can also result from a reorg that removed the funding
 transaction. This observe-journal entry MUST NEVER be imported into enforcement
@@ -436,10 +511,11 @@ A lag exactly at the configured bound is permitted by this policy.
 
 ### Accepted v1 consumer limits (Q1 and Q9)
 
-The listener is Linux-only. Darwin/ivmbp uses snapshot (b) only for v1, with no
-live gateway; a darwin peer-credential profile requires separate work. Multiple
-agents sharing one UID share the same 8/s bucket (including ivmbp's shared-UID
-context); per-agent UID isolation is an S1 follow-up, not a gateway distinction.
+The listener and direct-RPC snapshot helper (b) are Linux-only in v1, with NO
+fallback when platform proof is absent. A Darwin direct-RPC or listener profile
+is NOT admitted; its owner decision and CGW-D1 dependency remain open in OPEN.md.
+Multiple clients sharing one UID share the same 8/s bucket; per-client UID
+isolation is an S1 follow-up, not a gateway distinction.
 An active-chain membership read for the journaled SH5 block is a v2 candidate,
 not a fourth method in v1.
 
@@ -548,15 +624,41 @@ overlapping invocations (flock); the 30-second timer is a target cadence, not a
 promise under node failures or repeated movement. Q5 qualifies the maximal
 configured set's actual 20-second completion under competing traffic. Both
 record-count and serialized-byte bounds must pass before publication. For (b)
-only, read the COMPLETE
-Tip {hash, height, time} BEFORE and AFTER all name and outpoint reads. Publish
-only if all three members are identical. Otherwise discard the entire attempt
-and retry: N=3 total attempts, with 100 ms then 200 ms backoff. On exhaustion,
-keep the previous file UNTOUCHED and exit 12 (`tip_moved`); the consumer sees it
-age to stale. A node/read failure exits 11 without replacing the file.
-A record whose read failed is never written as present or absent; the whole attempt fails with exit 11 and the previous file is kept untouched. There is
-never a partial or best-effort file, nor an invented current timestamp.
-Missing expected file means unavailable for observation.
+only, read the COMPLETE Tip {hash, height, time} BEFORE and AFTER all name and
+outpoint reads. Every known middle gateway Tip and upstream `bestblock` MUST
+also match the bracket Tip. A different hash/height anywhere discards the whole
+attempt as movement, even when the brackets are equal. A single hash with
+conflicting height/time is backend inconsistency, NOT movement. Missing witnesses
+in ordinary direct-RPC replies do not establish coherence; §5 stays bracketed.
+N=3 total collection attempts, with 100 ms then 200 ms movement backoff. No
+record from a discarded attempt survives. The following is the ONE helper
+classification table; terminal failures override movement, and an elapsed total
+deadline overrides retries. There is never a partial/best-effort publication or
+invented timestamp. Missing expected file means unavailable for observation.
+
+### Helper outcome classification
+
+| Event/stage | Action and final exit | Published path |
+| --- | --- | --- |
+| Complete equal brackets and all known middle Tips/bestblocks match; all persistence stages succeed | Publish, 0 | New complete file |
+| Bracket or middle Tip/bestblock hash/height differs; gateway `tip_moved` on ANY read | Discard whole attempt, movement backoff 100/200 ms; after attempt 3 exit 12 | Previous untouched |
+| Same hash with different height/time, malformed/invalid response or projection | Terminal read failure, 11 | Previous untouched |
+| Gateway `unavailable`, `not_found`, `malformed`, `unauthorized` | Terminal read failure, 11 (not_found never means seal absence) | Previous untouched |
+| Gateway `rate_limited` | Discard attempt; wait at least 1 second within same 3-attempt/20-second budget; if exhausted exit 11, not 12 | Previous untouched |
+| RPC, collection or backoff timeout; authentication/platform failure | Terminal failure, 11 | Previous untouched |
+| Lock contention or lock open/validation/acquisition error | No waiting invocation, 11 | Previous untouched |
+| Bad config, UID/namespace/bind overlap, unsafe ancestry or installed inputs | Terminal failure, 11 | Previous untouched |
+| Projection, serialization or count/65536-byte overflow | Terminal failure, 11 | Previous untouched |
+| Recognized-temp inspection/removal failure; ancestor creation/sync failure | Terminal failure, 11 | Previous untouched |
+| Temp create, write/short-write, validation, ownership/mode, file fsync or close failure | Stop; remove only own validated temp, 11 | Previous untouched |
+| Rename failure | Remove only own validated temp, 11 | Previous untouched |
+| Directory open/fsync/close failure AFTER successful rename | Report durability failure, 11; NEVER roll back/unlink final file | New complete file visible; crash recovery may select old or new |
+| Own-temp cleanup failure on any pre-rename error | Remain 11; do not broaden deletion scope or rename | Previous untouched |
+
+Exit 12 is reserved for movement at the third attempt; rate limiting at that
+attempt yields 11. Exit 0 requires directory durability. Each failed record
+read follows this table, never fabricates presence or absence. All pre-rename
+branches leave previous published bytes untouched.
 
 `consistency` is REQUIRED with a CLOSED set. V1 writers produce `"bracketed"`
 only, and the v1 consumer accepts EXACTLY `"bracketed"`. Any other value,
@@ -581,8 +683,10 @@ consumer and backed by the lead in the HELPER-B r3 amendment.
 Publication: create a fresh same-directory temp file named `.snapshot-` plus
 24 random lowercase hex characters, with O_EXCL and no symlink following, mode 0600; write all bytes and validate; set root ownership and 0644;
 fsync file; atomically rename over the configured final file; fsync containing
-directory. Sync newly created ancestors before use. Serialize writers; on error
-remove only that writer's temp file, retain old published bytes. A crash after
+directory. Sync newly created ancestors before use. Serialize writers; on a
+pre-rename error remove only that writer's validated temp file and retain old
+published bytes, using the classification table above. After rename, a directory
+failure cannot promise the old path: return 11 without rollback. A crash after
 rename before directory fsync may recover either old or new complete snapshot;
 publication durability is not claimed until directory sync succeeds. On a later
 run, while holding the exclusive writer lock, clean only recognized helper temp
@@ -641,18 +745,30 @@ movement, exact configuration bindings, two-view seal projection and every
 seal-state transition (plus unavailable), round budgets and label precedence,
 including A→B→A and same-height reorgs. Seal-history decisions explicitly name
 `observe_closed`, always leave `enforcement_closed:false`, and separate the
-current read's `refuse_command` flag from the observe journal. A false refusal
-flag means only that this read is `unspent`, not that admission is authorized.
+current read's `refuse_command` flag from the observe journal. The explicit
+`unavailable` decision flag distinguishes errors/key mismatches/contradictions
+from valid non-unspent refusals; such failures cannot update history. A false
+refusal flag means only that this read is `unspent`, not that admission is authorized.
 Observe-grade closures remain labels and never feed that flag. These are
 fixture-oracle labels, not new wire fields. `utxo_views` inputs model selected
 upstream fields at an already coherent instant; they do not supply a witness.
 
-The omission aid, adapted with credit from review 5920320803, runs as
+Fixture inputs have required claim/control annotations and an exact checked-in
+name/kind inventory (`fixtures/inventory.txt`): deletion or renaming fails even
+if the remaining scenarios pass. Fixture readers reject trailing data and unknown
+or mistyped inner configuration/Tip/history fields. Wire-string collection and
+history controls exercise the real canonical response gate before any field is
+used; invalid responses refuse unavailable-class with no new closure. Labels
+carry explicit `enforceable:false` independent of freshness. Label inputs include
+`live_tip_source` (`independent`, `none`, `self`) and `lag_seconds`; a self-derived
+Tip is never independent, even when byte-identical.
+
+The omission aid, adapted from the prior independent review, runs in CI as
 `python3 -B omission_analysis_test.py fixtures/vectors.json` from this module;
 it exits nonzero for baseline mismatches or unpinned rules. Explicit redundant
 guards are reported as single-rule survivors and require named grouped controls,
 not misreported as individual kills. Its scope is schema vectors, not runtime
-custody/witness qualification; output is retained in task-scoped `.temp/`.
+custody/witness qualification; output is retained with validation evidence.
 
 The consumer MUST mirror `TestSharedVectors`, `TestObservationVectors`,
 `TestSnapshotLabels` and the valid/invalid controls in `TestSchemaControls` in
