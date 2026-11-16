@@ -1,5 +1,87 @@
 # Service validation
 
+## N6 r2 evidence (2026-11-16)
+
+The RPC credential diagnostic boundary is validated at code commit
+`dc43e4994d913b863099c0108e0e1f172c872ef4`; the later evidence-only commit
+changes no source, test, fixture, script or build input. The validation copy's
+54 non-documentation inputs were byte-compared with that commit. Their sorted
+path/SHA-256 manifest digest is
+`483243a20ba95606c9654d3149e1478c3011fe17ecd5915b704d1a10c60f166e`.
+Go 1.26.10, `GOTOOLCHAIN=local`, `GOWORK=off`, `GOENV=off`,
+`GOFLAGS=-modcacherw`, `GOPROXY=off`, `GOSUMDB=off` and task-owned absolute
+HOME/cache directories were used. Module downloads were first seeded from the
+existing local download cache. The one full race invocation used a short
+absolute `mktemp -d /tmp/n6r2.XXXX` TMPDIR. Every network test is a loopback
+mock; no node, release or deployment was used.
+
+| Command / check | Real exit / result |
+| --- | --- |
+| `gofmt -l .` plus empty-output check | 0; empty |
+| `go vet ./...` | 0 |
+| `go mod verify` | 0 |
+| `go test -count=1 -v -run TestRPCPassword . ./internal/service` | 0; holder/reader/copy, bad verbs, containers, Service, slog text, real XML text consumer, wire and exact credential boundaries |
+| `go test -race -count=1 -timeout 120s ./...` | 0; ONE invocation, all five packages |
+| `python3 -B scripts/check-mutants.py --work-dir WORK` | 0; **73/73** named controls killed, zero survivors (64 pre-N6, two N6, seven r2) |
+| `python3 -B scripts/check-service-mutant.py --work-dir WORK` | 0; signing-on-refusal killed by `TestRefusalNeverSigns`, mutant exit 1 |
+| `python3 -B scripts/check-revision-mutants.py --work-dir WORK` | 0; **36/36** killed, zero survivors |
+| Reviewer's exact R1–R4 edits, each with `go test -count=1 -overlay OVERLAY ./...` | runner 0; **4/4** killed with exit 1 and named assertions, no build failure or panic |
+| Reviewer's full fmt probe, changed to assert leaks | 0; **zero leaking form/sink pairs**, including the original 43 witnesses |
+| Reviewer's 2886-input base/head differential | 0 / 0 / comparison 0; byte-identical parser outcomes and raw wire bytes |
+| Root `go run .scripts/check-credential-output-boundaries.go` | 0; inventory byte-equivalent to the reviewed N6 head, three detector controls |
+| Public hygiene scanner / six detector controls | 0 / 0 |
+| Reproducible service builds A / B / `cmp` | 0 / 0 / 0; identical Linux/amd64 bytes |
+
+The differential uses base `2091e9b1`, the reviewer's unchanged `make_corpus.py`
+and base/head capture tests: **2886 inputs, 442 accepted, 2444 refused, 1326
+requests** across three RPC methods. Each Authorization line also independently
+matches Python base64(user + colon + password) exactly once. Both result JSON
+files have SHA-256
+`3a73a557b507fe7a95ed2c6459434993d56d83c6c297160c470b4e849320ae99`.
+These are finite synthetic inputs, not live-node qualification.
+
+The new service binary SHA-256 is
+`2edfc98c2009e076c0760da65999443e7cb2fd22f4274c7e66270de437985ebf`.
+Build flags: `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 GOWORK=off`
+and `go build -trimpath -buildvcs=false -ldflags='-s -w -buildid='`.
+The old N6 hash `5ef4f7e5…` is superseded and is not the release candidate.
+No release is produced by this validation.
+
+The holder stays in notarycheck; the claim is **the sole `Reveal` call** in
+production, not an enforced package-access boundary. The guard inventories
+that spelling and does not block direct same-package field reads. Pointer
+storage protects fmt's method-bypassing paths. The redundant reader
+`MarshalJSON` is removed; `MarshalText` preserves JSON redaction. Existing
+committed top-level tests remain; secret-bearing subtest labels were replaced
+with descriptive labels as requested.
+
+| N6 mutant | Boundary narrowed | Named failing test | Observed after disabling |
+| --- | --- | --- | --- |
+| rpc-password-format | password holder formatting always redacts | TestRPCPasswordRedaction/fmt/holder/value/%v | named assertion failed |
+| rpc-password-json | password holder JSON always redacts | TestRPCPasswordRedaction/json/holder/value | named assertion failed |
+| rpc-password-inline | scalar-pointer storage blocks method-bypassing fmt diagnostics | TestRPCPasswordRedaction/fmt/holder/value/%p | named assertion failed |
+| rpc-password-text | holder text consumer redacts | TestRPCPasswordRedaction/text/holder/value | named assertion failed |
+| rpc-reader-text | reader retains TextMarshaler without an assertion panic | TestRPCPasswordRedaction/text/reader/value | named assertion failed |
+| rpc-password-first-colon | reviewer R1: first-colon fields, not only equivalent Basic Auth | TestRPCPasswordWireAndErrors/multiple-colons | named assertion failed |
+| rpc-password-cap | reviewer R2: full 4096-byte positive remains accepted | TestRPCPasswordCredentialErrors/cap-4096 | named assertion failed |
+| rpc-password-cr | reviewer R3: interior CR refuses without a partial reader | TestRPCPasswordCredentialErrors/interior-cr | named assertion failed |
+| rpc-password-unicode-trim | reviewer R4: Unicode edge space is trimmed like base | TestRPCPasswordWireAndErrors/unicode-space | named assertion failed |
+
+The last four rows implement the reviewer's exact R1–R4 mutations; their
+separate whole-module overlay runs also kill. Every kill above is exit 1
+with its named assertion, not an unrelated setup failure, crash, panic or
+timeout. No mutant survives. The first focused run failed because XML rejects
+an unnamed struct control; the named plain control fixes that setup, and the
+second focused run is green. That failure is retained as diagnostic evidence;
+it was not a race run or a passing gate.
+
+The brief has no formal surface table; this remains a declared brief gap.
+The finding/test/mutant map is in the producer report. No row in F1–F6 is
+treated as out of contract; live-node/memory qualification and review/landing
+are outside this producer round. Historical sections below retain their
+original counts and hashes. Reference/release-verifier and module-graph runs
+are not claimed anew by N6 r2.
+
 ## N4/N5 evidence refreshed in N5 r2 (2026-11-16)
 
 These runs cover the N4 operator-file and J9 regressions and the N5 release
