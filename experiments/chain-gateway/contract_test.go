@@ -467,7 +467,7 @@ func TestFixtureInventory(t *testing.T) {
 			t.Fatal("missing or duplicate scenario")
 		}
 		seen[v.Name] = true
-		if !slices.Contains([]string{"attempts", "collection", "label", "bracket", "rounds", "seal_history", "utxo_views"}, v.Kind) {
+		if !slices.Contains([]string{"attempts", "collection", "label", "bracket", "snapshot_read_failure", "rounds", "seal_history", "utxo_views"}, v.Kind) {
 			t.Fatal("uncovered scenario kind")
 		}
 	}
