@@ -23,7 +23,7 @@ func NewNodeNameReader(endpoint, credentialFile string) (*NodeNameReader, error)
 	if e != nil || u.Scheme != "http" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" || !loopback(u.Hostname()) || u.Port() == "" {
 		return nil, refuse("NODE_CONFIG")
 	}
-	f, e := os.OpenFile(credentialFile, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	f, e := os.OpenFile(credentialFile, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if e != nil {
 		return nil, refuse("NODE_CREDENTIALS")
 	}
@@ -33,6 +33,11 @@ func NewNodeNameReader(endpoint, credentialFile string) (*NodeNameReader, error)
 		return nil, refuse("NODE_CREDENTIALS")
 	}
 	if stat, ok := st.Sys().(*syscall.Stat_t); !ok || stat.Uid != uint32(os.Getuid()) {
+		return nil, refuse("NODE_CREDENTIALS")
+	}
+	// Open nonblocking so a FIFO reaches fstat; restore blocking reads only
+	// after the descriptor is verified as an owner-only regular file.
+	if e := syscall.SetNonblock(int(f.Fd()), false); e != nil {
 		return nil, refuse("NODE_CREDENTIALS")
 	}
 	raw, e := io.ReadAll(io.LimitReader(f, 4097))

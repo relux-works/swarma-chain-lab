@@ -54,7 +54,7 @@ func Keygen(path string) (string, error) {
 }
 
 func privateFile(path string, max int64) ([]byte, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, keyError
 	}
@@ -64,6 +64,11 @@ func privateFile(path string, max int64) ([]byte, error) {
 		return nil, keyError
 	}
 	if s, ok := st.Sys().(*syscall.Stat_t); !ok || s.Uid != uint32(os.Getuid()) {
+		return nil, keyError
+	}
+	// Open nonblocking so a FIFO reaches fstat; restore blocking reads only
+	// after the descriptor is verified as an owner-only regular file.
+	if e := syscall.SetNonblock(int(f.Fd()), false); e != nil {
 		return nil, keyError
 	}
 	raw, err := io.ReadAll(io.LimitReader(f, max+1))
