@@ -27,32 +27,19 @@ func verifyWhitelist(c Configuration, p custody) error {
 			return e
 		}
 	}
+	options, e := nodeOptions(b)
+	if e != nil {
+		return e
+	}
 	entries, defaults := 0, 0
-	section := ""
-	for _, line := range strings.Split(string(b), "\n") {
-		line = strings.TrimSpace(strings.SplitN(line, "#", 2)[0])
-		if strings.HasPrefix(line, "includeconf") {
+	for _, option := range options {
+		if option.key == "includeconf" {
 			return bad("uninspected included config")
 		}
-		if strings.HasPrefix(line, "[") {
-			if !strings.HasSuffix(line, "]") || strings.Count(line, "[") != 1 || strings.Count(line, "]") != 1 {
-				return bad("config section")
-			}
-			section = strings.TrimSpace(line[1 : len(line)-1])
+		if option.section != "" && option.section != c.Network {
 			continue
 		}
-		if section != "" && section != c.Network {
-			continue
-		}
-		if line == "" {
-			continue
-		}
-		key, val, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-		key = strings.TrimSpace(key)
-		val = strings.TrimSpace(val)
+		key, val := option.key, option.value
 		if key == "rpcwhitelistdefault" {
 			if val != "1" {
 				return bad("whitelist default")
@@ -112,7 +99,7 @@ func cleanupTemps(path string, p custody) error {
 	if e != nil {
 		return e
 	}
-	pattern := regexp.MustCompile(`^\.snapshot-[0-9a-f]{24}$`)
+	pattern := snapshotTempName
 	for _, entry := range entries {
 		if !pattern.MatchString(entry.Name()) {
 			continue
@@ -146,32 +133,17 @@ func verifyNodeLoopback(c Configuration, p custody) error {
 			return e
 		}
 	}
+	options, e := nodeOptions(b)
+	if e != nil {
+		return e
+	}
 	binds, allows := 0, 0
-	section := ""
-	for _, line := range strings.Split(string(b), "\n") {
-		line = strings.TrimSpace(strings.SplitN(line, "#", 2)[0])
-		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "includeconf") {
+	for _, option := range options {
+		if option.key == "includeconf" {
 			return bad("included node config")
 		}
-		if strings.HasPrefix(line, "[") {
-			if !strings.HasSuffix(line, "]") {
-				return bad("node section")
-			}
-			section = strings.TrimSpace(line[1 : len(line)-1])
-			continue
-		}
-		if section != "" && section != c.Network {
-			continue
-		}
-		key, val, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-		key = strings.TrimSpace(key)
-		val = strings.TrimSpace(val)
+		key, val := option.key, option.value
+		active := option.section == "" || option.section == c.Network
 		switch key {
 		case "rpcbind":
 			host := val
@@ -182,7 +154,9 @@ func verifyNodeLoopback(c Configuration, p custody) error {
 			if ip == nil || !ip.IsLoopback() {
 				return bad("node bind")
 			}
-			binds++
+			if active {
+				binds++
+			}
 		case "rpcallowip":
 			ip := net.ParseIP(val)
 			if strings.Contains(val, "/") {
@@ -199,11 +173,52 @@ func verifyNodeLoopback(c Configuration, p custody) error {
 			if ip == nil || !ip.IsLoopback() {
 				return bad("node allow")
 			}
-			allows++
+			if active {
+				allows++
+			}
 		}
 	}
 	if binds == 0 || allows == 0 {
 		return bad("explicit node loopback policy")
 	}
 	return nil
+}
+
+var snapshotTempName = regexp.MustCompile(`^\.snapshot-[0-9a-f]{24}$`)
+
+type nodeOption struct{ section, key, value string }
+
+// Core combines [section] and dotted keys. Inspect every bind/allow and include,
+// even in inactive networks; only active settings satisfy the required policy.
+func nodeOptions(raw []byte) ([]nodeOption, error) {
+	options := []nodeOption{}
+	section := ""
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(strings.SplitN(line, "#", 2)[0])
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "[") {
+			if !strings.HasSuffix(line, "]") || strings.Count(line, "[") != 1 || strings.Count(line, "]") != 1 {
+				return nil, bad("config section")
+			}
+			section = strings.TrimSpace(line[1 : len(line)-1])
+			if section == "" {
+				return nil, bad("config section")
+			}
+			continue
+		}
+		key, val, _ := strings.Cut(line, "=")
+		key, val = strings.TrimSpace(key), strings.TrimSpace(val)
+		scope := section
+		if dot := strings.LastIndexByte(key, '.'); dot >= 0 {
+			if scope != "" {
+				scope += "."
+			}
+			scope += key[:dot]
+			key = key[dot+1:]
+		}
+		options = append(options, nodeOption{scope, key, val})
+	}
+	return options, nil
 }

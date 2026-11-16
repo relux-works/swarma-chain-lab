@@ -91,7 +91,7 @@ func (f *fakeRPC) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		f.tipCalls++
 		result = map[string]any{"chain": "regtest", "blocks": at["height"], "bestblockhash": at["hash"], "initialblockdownload": false}
-		if invalid == "network" {
+		if invalid == "network" || invalid == "closing_network" && f.tipCalls == 2 {
 			result.(map[string]any)["chain"] = "main"
 		}
 		if invalid == "ibd" {
@@ -444,7 +444,7 @@ func TestAtomicPublication(t *testing.T) {
 	}
 }
 
-// While a first writer holds its RPC read, the second exits 13 without any RPC
+// While a first writer holds its RPC read, the second exits 14 without any RPC
 // call or output change. Release then lets the original writer publish.
 func TestLockExcludesSecondWriter(t *testing.T) {
 	x := makeFixture(t, "cookie")

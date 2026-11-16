@@ -131,7 +131,7 @@ members and trailing data refuse. No secret is accepted in argv or environment.
 | `allowed_uids` | Complete protected gateway client UID list, including any root-helper exception |
 | `workload_uids` | Complete helper, consumer and other non-node workload UID list |
 | `node_dedicated` | Explicit true assertion of the exclusive account; installation must qualify it |
-| `node_config` | Protected node- or root-owned config; explicit numeric loopback `rpcbind` AND `rpcallowip`; included files are not accepted |
+| `node_config` | Protected node- or root-owned config; explicit numeric loopback `rpcbind` AND `rpcallowip`; every bare/network-prefixed/section bind and allow is inspected; any includeconf is refused |
 | `gateway_verifier_user`, `verifier_user` | Distinct dedicated service usernames |
 | `cookie_source` | `none` for verifier mode; explicit `live` or separately admitted `admitted-root-copy` for cookie mode |
 | `rpc_url` | Numeric loopback HTTP IP literal and explicit port; no userinfo, path, query, fragment, proxy, redirect or compression |
@@ -149,7 +149,7 @@ no writable ACLs or symlinks. The output is regular 0644; the lock is regular
 0600 and is never unlinked. No directory is created or repaired by this helper.
 
 Verifier mode reads `USERNAME:PASSWORD` (optional final LF), never an rpcauth
-verifier. It inspects exactly one node-enforced five-method whitelist with
+verifier. It inspects exactly one configured five-method whitelist with
 `rpcwhitelistdefault=1`, then requires 403 for the fixed `getrpcinfo` denial
 probe. Cookie mode reads a fresh `__cookie__:SECRET`; no fallback or copied-cookie
 admission is inferred. The probe closes its response without reading/projecting
@@ -164,8 +164,13 @@ remain separate. Names require allowExpired and exact hex transport; seals use
 both fixed false/true views and retain all four states/metadata. Unqualified
 signed vout above 2147483647 refuses without a gettxout call.
 
-Every complete collection binds all configured records once to their request,
-network, method and echo. Known middle bestblocks participate even when outer
+The shared gateway-style model checks method/network/outpoint echoes. Direct
+RPC carries no method/network or gettxout outpoint echo: those projected fields
+come from the request and configuration. Real direct-RPC binding is one request
+per authenticated connection with an exact string id, exact name echo, fixed
+outpoint result slots, bestblocks, and the chain field on BOTH brackets. Canonical
+ReplyWires validation exercises shared fixtures; production validates upstream
+SJ1/selected fields before local projection and the final canonical snapshot. Known middle bestblocks participate even when outer
 brackets agree. Same-hash header contradictions are terminal throughout the
 invocation. Concurrent failures use terminal > rate limiting > movement > success.
 Starting an opening bracket consumes an attempt; its refusal permits no later
@@ -179,7 +184,7 @@ Supervisors must use the single normative
 [helper outcome table](CONTRACT.md#helper-outcome-classification): 0 durable
 publication; 11 failure with old bytes untouched; 12 final movement-only
 exhaustion; 13 successful rename with durability unconfirmed; 14 lock-contention
-skip with no reads or writes. Exit 10 is no longer emitted. These are candidate
+skip with no credential/node reads or snapshot writes (config read and lock open precede contention). Exit 10 is no longer emitted. These are candidate
 helper semantics; external supervisor acceptance remains OPEN.
 
 Publication writes and re-reads a validated exclusive same-directory temp,
@@ -232,3 +237,51 @@ The following remain OPEN, by [OPEN.md](OPEN.md), not locally invented:
 - Opus R11 / Muse R7: full legacy annotation/control hardening. Q8 book/spec and
   script-binding acceptance, separate Q10 CGW-J1 admission/qualification, amended
   exact-head consumer/supervisor acceptance and production adoption remain OPEN.
+
+
+## PR 149 review follow-ups
+
+The helper conforms to CONTRACT.md at the landed contract revision; CONTRACT.md,
+OPEN.md, all original contract tests/oracles and fixtures are retained verbatim.
+The helper has separate production schema/upstream code and helper-only fixture
+decoding; independent landed oracles do not call the helper implementation.
+No contract amendment is proposed by this rework.
+
+- Opus 5928449303 MEDIUM-1: inspect bare, main., test., testnet4., signet.,
+  regtest. and [section] settings, including inactive networks; refuse any
+  non-loopback bind/allow and every includeconf. Only active/global settings
+  satisfy the required explicit bind/allow policy.
+- Opus 5928449303 LOW-1: indirect name/seal movement that first fails projection
+  remains terminal exit 11. Movement-aware projection is deferred; this is the
+  contract's fail-closed projection rule, with avoidable retries lost. It needs
+  paired name/seal classification tests, beyond a one/two-line change.
+- Opus 5928449303 LOW-2 / Muse 5928585801 F3: direct-RPC versus shared-wire
+  correlation is distinguished above. Closing-network refusal has a run-level
+  negative; method correlation in the shared model uses the unchanged oracle.
+- Opus 5928449303 LOW-3: policy and independent oracles restored verbatim.
+- Opus 5928449303 NIT-1 / Muse 5928585801 F5: redundant true-literal admission
+  call removed; ordered concrete pre-credential checks are authoritative.
+  Shared qualification tests exercise the predicate independently.
+- Opus 5928449303 NIT-2 / Muse 5928585801 F7: contention wording is 14; config
+  reading and lock opening precede that skip.
+- Opus 5928449303 NIT-3: the unconfigured-decoy test is explicitly structural,
+  not proof of a runtime credential selector. The public profile has one path.
+- Opus 5928449303 NIT-4: output/lock crash-temp basenames are forbidden before
+  cleanup. NIT-5: vout 2147483647 has a run-level dispatch/publication control
+  beside the retained 2147483648 rejection with no dispatch.
+- Muse 5928585801 F1: recognized owned-temp cleanup runs under the held lock
+  before platform proof. It opens no credential, sends no RPC and publishes no
+  snapshot; a stricter no-filesystem-side-effect profile is not claimed.
+- Muse 5928585801 F2: **PRODUCTION ACTIVATION GATE**: independently establish
+  exclusive-account completeness (including unlisted workloads), effective node
+  argv/config equivalence, and host PID 1 initial-namespace authority. Protected
+  assertions and fake-endpoint tests do not close this gate (OPEN Q3/Q6).
+- Muse 5928585801 F4: reflection checks only whole entries named by the contract;
+  fragments, embedded values and arbitrary transforms are outside this claim.
+- Muse 5928585801 F6: the shared reflection test constructs its own entry list;
+  production-list coverage comes from TestExactCredentialReflection,
+  TestHelperSelectedCredentialMode and TestCredentialsNeverAppearInOutput.
+- Muse 5928585801 runtime-evidence limits: local tests cannot prove power-loss
+  durability, real-node behavior or activation. Opening-bracket no-middle-read
+  ordering follows the shared classification and code; a dedicated end-to-end
+  method-count control for that exact refusal remains a coverage limitation.

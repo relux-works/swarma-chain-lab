@@ -369,7 +369,8 @@ func TestHelperSharedQualification(t *testing.T) {
 	}
 }
 
-// A successful selected-mode run never opens a decoy unselected credential.
+// Structural check only: the unconfigured decoy is unreachable through the single
+// credential_file field; this does not test a runtime credential selector.
 // The control plant for this detector is the preceding explicit local open.
 func TestHelperUnselectedCredentialNotOpened(t *testing.T) {
 	for _, mode := range []string{"cookie", "rpcauth-user"} {

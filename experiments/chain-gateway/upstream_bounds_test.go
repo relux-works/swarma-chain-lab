@@ -1,4 +1,4 @@
-package chaingateway
+package chaingateway_test
 
 import (
 	"encoding/base64"

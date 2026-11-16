@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -221,6 +220,9 @@ func loadConfig(path string, p custody) (Configuration, error) {
 			}
 		}
 	}
+	if snapshotTempName.MatchString(filepath.Base(c.Output)) || snapshotTempName.MatchString(filepath.Base(c.Lock)) {
+		return c, bad("reserved snapshot temp name")
+	}
 	if len(c.Names) < 1 || len(c.Names) > 16 || len(c.Seals) < 1 || len(c.Seals) > 256 {
 		return c, bad("watch capacity")
 	}
@@ -269,9 +271,6 @@ func newRPC(c Configuration, p custody) (*rpcClient, error) {
 		return nil, e
 	}
 	conn.Close()
-	if e := admitCredentialHolder(c, platformEvidence{platform: runtime.GOOS, endpoint: true, dump: true, user: true, network: true, bind: true, allow: true}); e != nil {
-		return nil, e
-	}
 	owner := p
 	modes := []uint32{0600, 0640}
 	if c.CredentialMode == "cookie" {
