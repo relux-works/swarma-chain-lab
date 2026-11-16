@@ -1,0 +1,95 @@
+{
+  "Base": "22cdfd7c0ba132510c4d0baf8094714bb272c309",
+  "Vectors": [
+    {
+      "Name": "positive-same-owner",
+      "Digest": "bbc8faeb27b65ce4460c92228ec0487496e586b2c4ee5e216943036bdc3fc051",
+      "Signature": "22fab86defb5f6be6ec111ce08448b3a92289d2e1645575a2766ee4480366abfa64dbeaeffd9df2de87cd6e9340966006edd37cf6749737bf1b9b0cd049d56ec",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-narrower",
+      "Digest": "54f790e824511e25bb295d0311aa6b4f1b63312a5072e663eb03e82be3f64069",
+      "Signature": "23f148e8acabd4249e3c06bd7ac25915eb27b52e06aaf80a15d8489ead05dd4e9c9b4e6f56069d78d348a265637a2676806eb9e00fda2f430dde4a763dd036a9",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-identical-text",
+      "Digest": "a62835e8905f57e861fef76e770cd244b1625cf2e4f04966db7051d0e377ee8c",
+      "Signature": "3dcc56891888dc8ec7563383a21ac9a410cea0d18ba6ccddc4500848f0a9dbcf72fea3e3d9e3a53a60047a67d46795227ec024ecab1a4e0478a78de9f977cee1",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-cross-owner",
+      "Digest": "8f9d2a08b90d72592b22f0fa5bb607c1963afea4fadba405992d677c4e8949d9",
+      "Signature": "6c04cbbbb109a60bca5db44d863f8a41ed84e0a52cca8547168b7c2092194a19909f6632b2ec0238a5fa2f37d87c8f01114f444f20b72cb90d1d86c9d066ab8d",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-other-designated-notary",
+      "Digest": "052839f1a85f4159a0473152b29fedb99e0dae0b5d950ac1b54c1a7c2584664d",
+      "Signature": "12135d02c316bd4e9aa42f3e7ddc00b70fd7564be191ac066772cb1e490f5480356d378a70292e214fa293ab3ff41b6b81f1adb49409f6cdfa3a923e0135bd60",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-second-row",
+      "Digest": "d4233ba65a657b69d4668967b412e021f4968bb0b691fbe2a8eec8ba426e9cd4",
+      "Signature": "18e663585081650dd4d070fa613f21795e89d03ddbd4f1fcb574ddfd7c27d0f659e6c513e0af6e728fc524085743fe70296c0a9c56b563ab33e764bd77554855",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-name-extensions",
+      "Digest": "bbc8faeb27b65ce4460c92228ec0487496e586b2c4ee5e216943036bdc3fc051",
+      "Signature": "22fab86defb5f6be6ec111ce08448b3a92289d2e1645575a2766ee4480366abfa64dbeaeffd9df2de87cd6e9340966006edd37cf6749737bf1b9b0cd049d56ec",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-attestation-8191",
+      "Digest": "6f6319a1698d0b93e304a1a1a196553500e71d9961b2bf00e65678a028a112b6",
+      "Signature": "2a91da285f8df17f45ab8c073470939138d807606593784f2a43a3091d78330974ebac307b86bb51ca752a3d233a72ac3d342c13378367adc7586e5e41dbfd1f",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-attestation-8192",
+      "Digest": "36eb2b24e87e0bad1edd16a9d7c0ed72f85a984178473d099e1435557a5f8e8a",
+      "Signature": "dff5be41b8b2388beb3fca664de260a42c4d41e3c7592d2ed45757b1778bb8d45dd22482be00ba495f55b203283704597418c14cfdd250e3ed447004932b1144",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-mvp-issuer-owner",
+      "Digest": "49f1eff807cadea6ca8abefebf9d2a7da728f990ffd4eabe36005b0af462851b",
+      "Signature": "24dbbbbc23a88667dabdb28fad2f17342ae5442de1af26a930fb0cce92d83453939a82b88449025dcd2e966a8bfccf6c58a360de9194b5bef9491d1d06e0fb28",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-mvp-delegator-owner",
+      "Digest": "b654814ad61b235a3934725e94c4ebe3a3bd29e29655bbcd60408a85fee883c7",
+      "Signature": "00ee82692a3eeaa4c2cd8f0ece894fe563c9376edf67b6eefa1cd29b5c6bd38bfe2c0da1482541475a8546613a1f5be452c7d11acb55c429846e5e2312a4c0a0",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-mvp-notary-owner",
+      "Digest": "f5eaa52d14d27904d019e1940d754d5673a3d272f29832550830e0621967849c",
+      "Signature": "750d7ed802bc11ce240b1ecfbff5212820262f60fbdf92cf62498315418b704332535a12a0ea4cf73a807eb99bbf5e55659bf258765b9acaf0008b2fe7899ac5",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-mvp-name-extension",
+      "Digest": "49f1eff807cadea6ca8abefebf9d2a7da728f990ffd4eabe36005b0af462851b",
+      "Signature": "24dbbbbc23a88667dabdb28fad2f17342ae5442de1af26a930fb0cce92d83453939a82b88449025dcd2e966a8bfccf6c58a360de9194b5bef9491d1d06e0fb28",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-mvp-current-grant-key",
+      "Digest": "49f1eff807cadea6ca8abefebf9d2a7da728f990ffd4eabe36005b0af462851b",
+      "Signature": "24dbbbbc23a88667dabdb28fad2f17342ae5442de1af26a930fb0cce92d83453939a82b88449025dcd2e966a8bfccf6c58a360de9194b5bef9491d1d06e0fb28",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    },
+    {
+      "Name": "positive-main-network-bundle",
+      "Digest": "38ab14cf650c5b57f581a279b80841cef495eddfedace06674ba1effc7b74314",
+      "Signature": "9229cbff640d6f6abba164ff90b6210e303c4e7531ece151b4df29d3df6a793443cee6e2ba1e3d8cfb11fd58cabdfc1386e7a8b9d73fbdc201e6c6ddec830939",
+      "Public": "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"
+    }
+  ]
+}

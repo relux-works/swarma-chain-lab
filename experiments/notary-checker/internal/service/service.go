@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	check "github.com/relux-works/swarma-chain-lab/experiments/notary-checker"
 	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/operatorfile"
@@ -59,7 +58,7 @@ type Service struct {
 	active       sync.WaitGroup
 	closeOnce    sync.Once
 	config       Config
-	key          *btcec.PrivateKey
+	key          *signingKey
 	public       string
 	policy       []byte
 	reference    string
@@ -103,9 +102,9 @@ func Load(path string) (*Service, error) {
 		return nil, e
 	}
 	h := sha256.Sum256(policy)
-	s := &Service{config: c, key: k, public: hex.EncodeToString(schnorr.SerializePubKey(k.PubKey())), policy: policy, reference: hex.EncodeToString(h[:]), policyObject: p, node: node, now: time.Now, slots: make(chan struct{}, c.Limits.Concurrent), tokens: float64(c.Limits.Burst), updated: time.Now()}
+	s := &Service{config: c, key: newSigningKey(k), public: hex.EncodeToString(schnorr.SerializePubKey(k.PubKey())), policy: policy, reference: hex.EncodeToString(h[:]), policyObject: p, node: node, now: time.Now, slots: make(chan struct{}, c.Limits.Concurrent), tokens: float64(c.Limits.Burst), updated: time.Now()}
 	s.sign = func(digest []byte) (string, error) {
-		sig, e := schnorr.Sign(s.key, digest)
+		sig, e := schnorr.Sign(s.key.privateKey(), digest)
 		if e != nil {
 			return "", errors.New("SIGNING_FAILED")
 		}

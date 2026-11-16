@@ -9,12 +9,14 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/diagnosticcheck"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -43,7 +45,7 @@ func TestRPCPasswordRedaction(t *testing.T) {
 					t.Fatal("nonempty fmt control missing")
 				}
 				got := fmt.Sprintf(verb, tc.value)
-				if strings.Contains(got, synthetic) {
+				if diagnosticcheck.NewDetector([]byte(synthetic), false).Leaks(got) {
 					t.Fatal("fmt output contains credential")
 				}
 				if verb != "%p" && verb != "%+p" && verb != "%w" && got != credentialRedacted {
@@ -53,7 +55,7 @@ func TestRPCPasswordRedaction(t *testing.T) {
 		}
 		t.Run("errorf/"+tc.name, func(t *testing.T) {
 			verb := "%w"
-			if strings.Contains(fmt.Errorf(verb, tc.value).Error(), synthetic) {
+			if diagnosticcheck.NewDetector([]byte(synthetic), false).Leaks(fmt.Errorf(verb, tc.value).Error()) {
 				t.Fatal("Errorf bad-verb diagnostic contains credential")
 			}
 		})
@@ -200,6 +202,17 @@ func TestRPCPasswordCredentialErrors(t *testing.T) {
 
 // Claim: the zero holder reveals empty and the constructor copies its input.
 func TestRPCPasswordStorage(t *testing.T) {
+	// Pin the non-aggregate pointer; method redaction alone cannot establish it.
+	shape := reflect.TypeOf(rpcPassword{})
+	if shape.NumField() != 1 || shape.Field(0).Type != reflect.TypeOf((*string)(nil)) || shape.Field(0).IsExported() {
+		t.Fatal("password storage must be one unexported *string field")
+	}
+	defer func() {
+		if recover() != nil {
+			t.Error("password accessor panicked")
+		}
+	}()
+
 	if (rpcPassword{}).Reveal() != "" {
 		t.Fatal("zero password did not reveal empty")
 	}
@@ -231,7 +244,7 @@ func TestRPCPasswordContainers(t *testing.T) {
 				if !strings.Contains(fmt.Sprintf(verb, plain), synthetic) {
 					t.Fatal("plain container control missing")
 				}
-				if strings.Contains(fmt.Sprintf(verb, tc.value), synthetic) {
+				if diagnosticcheck.NewDetector([]byte(synthetic), false).Leaks(fmt.Sprintf(verb, tc.value)) {
 					t.Fatal("container diagnostic contains credential")
 				}
 			})
@@ -243,7 +256,7 @@ func TestRPCPasswordContainers(t *testing.T) {
 			if !strings.Contains(control.String(), synthetic) {
 				t.Fatal("slog text control missing")
 			}
-			if strings.Contains(output.String(), synthetic) {
+			if diagnosticcheck.NewDetector([]byte(synthetic), false).Leaks(output.String()) {
 				t.Fatal("slog text contains credential")
 			}
 		})

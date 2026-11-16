@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"github.com/relux-works/swarma-chain-lab/experiments/notary-checker/internal/diagnosticcheck"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,7 +31,7 @@ func TestRPCPasswordServiceContainer(t *testing.T) {
 			t.Fatal("plain Service control missing")
 		}
 		out := fmt.Sprintf(verb, s)
-		if strings.Contains(out, synthetic) {
+		if diagnosticcheck.NewDetector([]byte(synthetic), false).Leaks(out) {
 			t.Fatal("Service diagnostic contains credential for " + verb)
 		}
 	}

@@ -315,3 +315,42 @@ Inventory audit: the root credential-output guard records exactly one new
 `Reveal` call at `NodeNameReader.rpc`. Its existing carrier-name rules do not
 select `NodeNameReader.password`; no detection rule was changed. The retained
 field is now `rpcPassword`, and no additional plain password carrier is added.
+
+
+### N7 signing-key diagnostic boundary
+
+`Service.key` now holds a private `signingKey` with exactly one unexported
+`**btcec.PrivateKey` field, constructed by `newSigningKey` and read through
+`privateKey`. A `*btcec.PrivateKey` is unsafe: fmt's bad-verb restart can
+print its scalar limbs. The extra indirection points to a non-aggregate, so
+that restart prints only an address. `TestSigningKeyBadVerbStorage` proves
+both the unsafe plain control and the contained Service path. Signing and
+shutdown still use and clear the original key object.
+
+On the original 92-pair Service probe, key leaks fall from **21 to 0**.
+The full **36 forms × 43 sinks = 1548 pairs** report **0** key leaks,
+against **341** on the base. The password holder/reader battery and the
+Service password battery each report **0/1548** leaks. The forms cover
+values, pointers, copies, zero/nil values, nested containers, arrays, maps,
+interfaces and `reflect.Value`; sinks include bad verbs, slog, JSON, XML,
+text/template, log and errors. Actual runtime panic output is also tested
+for all **36 password forms and 36 Service forms**. Encoders' refusal errors
+and text/template's recovered unexported-reflection diagnostics are scanned.
+
+The detector checks raw/plaintext, lower/upper hex, decimal bytes and the
+key's eight uint32 limbs. Plain inline, `*struct` and `*[]byte` controls
+calibrate it. `TestSigningKeyStorage` and `TestRPCPasswordStorage` pin each
+holder to its exact one-field pointer shape; formatting methods alone are
+insufficient. All **seven storage controls** are killed by both a named
+shape test and a named full diagnostic test, without panic-only kills.
+Run `python3 -B scripts/check-storage-mutants.py --work-dir .temp/storage-controls`
+from this module with a fresh task-owned work directory; it records logs,
+PIDs, exact exits, `results.json` and `mutation-results.md` there.
+The original **73 checker, 36 revision and one service controls** remain
+separate runners. [SERVICE-VALIDATION.md](SERVICE-VALIDATION.md) records the
+current counts, signing-vector compatibility and replacement build hash.
+
+These are bounded diagnostic-output guarantees. Explicit accessors,
+reflection traversal or unsafe/process-memory access can read the material.
+RPC passwords are deliberately revealed into the outbound Basic Auth header;
+no secrecy guarantee applies to explicitly formatting that wire request.

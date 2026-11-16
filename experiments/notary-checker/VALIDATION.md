@@ -1,5 +1,106 @@
 # Bounded validation evidence
 
+## N7 signing-key containment (2026-11-16)
+
+Current base: `22cdfd7c0ba132510c4d0baf8094714bb272c309`. The signing key is
+now behind one unexported `**btcec.PrivateKey` field in `signingKey`; the
+password retains one unexported `*string` field. Reflection tests pin both
+shapes, and a calibrated bad-verb probe proves that the extra key indirection
+prints an address instead of scalar limbs. No protocol, refusal, signature
+algorithm, module dependency or production wire behavior changed.
+
+The candidate's 61 non-Markdown module inputs have sorted path/SHA-256
+manifest digest
+`09a6464f258a0fc3bb10b5aa6cf85771f1b9534947ba0917bc2b4e3208a297f0`.
+Go `/home/agent/sdk/go1.26.10/bin/go`, `GOTOOLCHAIN=local`, `GOWORK=off`,
+`GOENV=off`, `GOFLAGS=-modcacherw` and pinned cached modules were used.
+HOME, config, caches, GOPATH, fixture cwd and short TMPDIR all live inside
+the owned workbench `.tmp/n7`; TMPDIR is its absolute `t` subdirectory.
+No real node, cookie, credential or private key was used.
+
+| Probe | Base leaks / pairs | N7 leaks / pairs |
+| --- | --- | --- |
+| Original Service key probe (constructor adapter only) | 21 / 92 | **0 / 92** |
+| Full Service/key/holder battery, 36 forms × 43 sinks | 341 / 1548 | **0 / 1548** |
+| Full password/reader battery, 36 forms × 43 sinks | 0 / 1548 | **0 / 1548** |
+| Full Service password battery, 36 forms × 43 sinks | 0 / 1548 | **0 / 1548** |
+| Actual runtime panic output | not recaptured | **0 / 72** (36 password forms + 36 Service forms) |
+
+Plain controls leak in 59 key, 64 password/reader and 13 Service-password
+form/sink pairs under the same detectors. They detect plaintext/raw bytes,
+lower/upper hex, decimal bytes and the signing scalar's eight uint32 limbs.
+Encoder refusal errors, partial output and recovered text/template diagnostics
+for unexported reflect.Values are scanned too. This is finite diagnostic
+coverage, not unsafe/reflection-traversal or process-memory protection.
+
+| Command / check | Actual result |
+| --- | --- |
+| `gofmt -l .` and empty-output check | 0, no output |
+| `go vet ./...`; `go mod verify`; `go build ./...` | 0 / 0 / 0 |
+| `go test -count=1 -timeout 120s -v ./...` | 0, all six packages; every existing named test retained |
+| `go test -race -count=1 -timeout 120s ./...` | 0, **ONE local invocation**, all six packages; scope note below |
+| `python3 -B scripts/check-mutants.py --work-dir WORK` | 0; **73/73** named kills |
+| `python3 -B scripts/check-revision-mutants.py --work-dir WORK` | 0; **36/36** named kills |
+| `python3 -B scripts/check-service-mutant.py --work-dir WORK` | 0; **1/1**, `TestRefusalNeverSigns` |
+| `python3 -B scripts/check-storage-mutants.py --work-dir WORK` | 0; **7/7**, both shape and diagnostic assertions per row below |
+| 2886-input wire differential against the current base; `cmp` | 0 / 0 / 0; exact equality |
+| Exact README service build twice; `cmp` | 0 / 0 / 0; SHA-256 below |
+| Root credential-output guard / public hygiene / six hygiene controls | 0 / 0 / 0; guard's three controls pass |
+
+| Storage mutant | Narrows gate to | Named failing tests | Result |
+| --- | --- | --- | --- |
+| service-key-inline | no raw inline scalar in Service | TestSigningKeyStorage; TestSigningKeyServiceContainer | KILLED, exit 1 |
+| service-key-struct-pointer | exact base `Service.key *PrivateKey` failure | TestSigningKeyStorage; TestSigningKeyServiceContainer | KILLED, exit 1 |
+| signing-key-inline | no inline scalar in holder | TestSigningKeyStorage; TestSigningKeyServiceContainer | KILLED, exit 1 |
+| signing-key-struct-pointer | no aggregate-pointer holder storage | TestSigningKeyStorage; TestSigningKeyServiceContainer | KILLED, exit 1 |
+| password-inline | no inline password string | TestRPCPasswordStorage; TestRPCPasswordDiagnostics | KILLED, exit 1 |
+| password-byte-pointer | decimal-byte encoding is detected | TestRPCPasswordStorage; TestRPCPasswordDiagnostics | KILLED, exit 1 |
+| password-struct-pointer | no aggregate-pointer password storage | TestRPCPasswordStorage; TestRPCPasswordDiagnostics | KILLED, exit 1 |
+
+No panic, compilation error, unrelated failure or timeout counts as a kill;
+there are no final survivors. Raw-Service mutants adapt fixture field access
+to compile the former field type, while retaining the same shape and leak
+assertions. Initial setup failures remain diagnostics in the producer report.
+
+`TestSigningKeyVectors` loads the public fixed fixture scalar 4 through the
+actual service loader and matches the base service's signatures and public
+key over **all 15 existing positive-vector digests**. The baseline is captured
+from the unmodified base, rather than confused with the independent Python
+signer's different nonce convention. The original checker/service vectors
+and their assertions remain intact. The older key-clear test changes only
+its field access through the explicit accessor.
+
+The differential has **2886 inputs, 442 accepted, 2444 NODE_CREDENTIALS
+refusals and 1326 raw requests**. All outcomes, parsed user/password bytes and
+normalized raw wire bytes match the base. Every Authorization header also
+matches an independent Python base64 encoding exactly once. Both JSON files:
+`3a73a557b507fe7a95ed2c6459434993d56d83c6c297160c470b4e849320ae99`.
+
+Replacement **v0.1.1 candidate** SHA-256 (8,020,094 bytes, Linux/amd64):
+`9e63953c112b0cf0426a2db4ddc048faff053088d5cd1d447f1e6f598c91f7f5`.
+This supersedes the N6 r2 `2edfc98c…` candidate. Both exact builds use:
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 GOWORK=off   go build -trimpath -buildvcs=false -ldflags='-s -w -buildid='   -o OUTPUT ./cmd/notary-service
+```
+
+Race scope: the single local invocation passed before two test-only followups:
+keyed field names for vet-clean helper literals and strengthening the fixed-key
+vector test to reload through `Load`. Those changes and the added raw-Service
+mutant adapters do not change production Go inputs. The final test source
+passes the full non-race suite and vet. The final published source's hosted
+race/check result is recorded separately in the producer report; the earlier
+local run is not misrepresented as an exact-source final race run.
+
+The audit and bounded coverage map are in `PRODUCER-REPORT-notary-n7.md`,
+delivered separately. The brief supplies no formal surface table (declared
+brief gap). No requested row is treated as out of contract. Explicit secret
+access, process-memory protection and live-node qualification are outside the
+requested diagnostic boundary. No review, merge, tag, release, deployment,
+module-graph replay or independent-reader replay is claimed by this local N7
+validation. Prior sections below retain historical results and binary hashes.
+
+
 Environment: Go 1.26.10, Python 3.14.4, Linux amd64. Go uses
 `GOTOOLCHAIN=local`; verification and mutations ran with cached pinned
 modules, `GOPROXY=off`, and `GOSUMDB=off`. No real node was used; service/RPC

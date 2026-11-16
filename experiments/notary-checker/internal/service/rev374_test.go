@@ -206,11 +206,11 @@ func TestRev374PreSignDeadline(t *testing.T) {
 // Claim: Close clears the key after draining (the key scalar is zero).
 func TestRev374KeyZeroAfterClose(t *testing.T) {
 	s, _, _ := setup(t)
-	if s.key.Key.IsZero() {
+	if s.key.privateKey().Key.IsZero() {
 		t.Fatal("control: loaded key is zero")
 	}
 	s.Close()
-	if !s.key.Key.IsZero() {
+	if !s.key.privateKey().Key.IsZero() {
 		t.Fatal("key not cleared after Close")
 	}
 }
