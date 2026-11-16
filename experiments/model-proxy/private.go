@@ -38,6 +38,7 @@ type ledgerPrivate struct {
 	High    int64                    `json:"high"`
 	Records map[string]recordPrivate `json:"records"`
 	Daily   *dailyAccounting         `json:"daily,omitempty"`
+	Blocked map[string]string        `json:"blocked,omitempty"`
 }
 
 func ledgerPrivateValue(s ledger) ledgerPrivate {
@@ -47,6 +48,7 @@ func ledgerPrivateValue(s ledger) ledgerPrivate {
 		High:    s.High,
 		Records: privateRecords(s.Records),
 		Daily:   s.Daily,
+		Blocked: s.Blocked,
 	}
 }
 func privateRecords(in map[string]record) map[string]recordPrivate {
@@ -64,6 +66,7 @@ type adminResponsePrivate struct {
 	V          int                `json:"v"`
 	OK         bool               `json:"ok"`
 	Binding    Binding            `json:"binding"`
+	Account    string             `json:"account,omitempty"`
 	Credential *credentialPrivate `json:"credential,omitempty"`
 	Error      string             `json:"error,omitempty"`
 }
@@ -73,6 +76,7 @@ func adminResponsePrivateValue(s adminResponse) adminResponsePrivate {
 		V:          s.V,
 		OK:         s.OK,
 		Binding:    s.Binding,
+		Account:    s.Account,
 		Credential: privateCredentialPointer(s.Credential),
 		Error:      s.Error,
 	}

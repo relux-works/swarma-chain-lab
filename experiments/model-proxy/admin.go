@@ -19,11 +19,15 @@ type adminRequest struct {
 	V       int     `json:"v"`
 	Op      string  `json:"op"`
 	Binding Binding `json:"binding"`
+	// Account names the blocked run account for clear_block only; the binding
+	// operations leave it empty, so their existing wire bytes are unchanged.
+	Account string `json:"account,omitempty"`
 }
 type adminResponse struct {
 	V          int         `json:"v"`
 	OK         bool        `json:"ok"`
 	Binding    Binding     `json:"binding"`
+	Account    string      `json:"account,omitempty"`
 	Credential *Credential `json:"credential,omitempty"`
 	Error      string      `json:"error,omitempty"`
 }
@@ -44,11 +48,18 @@ func (s *Service) adminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, e := io.ReadAll(io.LimitReader(r.Body, 4097))
 	var q adminRequest
-	if e != nil || len(raw) > 4096 || unique(raw) != nil || json.Unmarshal(raw, &q) != nil || !bytes.Equal(raw, privateCanonical(q)) || q.V != 1 || !q.Binding.Valid() {
+	if e != nil || len(raw) > 4096 || unique(raw) != nil || json.Unmarshal(raw, &q) != nil || !bytes.Equal(raw, privateCanonical(q)) || q.V != 1 {
 		refusal(w, 400, "ADMIN")
 		return
 	}
-	out := adminResponse{V: 1, Binding: q.Binding}
+	// Binding operations carry a valid binding and no account; the owner clear
+	// carries an account digest and no binding.
+	clearing := q.Op == "clear_block"
+	if (clearing && (q.Binding != (Binding{}) || !digest(q.Account))) || (!clearing && (q.Account != "" || !q.Binding.Valid())) {
+		refusal(w, 400, "ADMIN")
+		return
+	}
+	out := adminResponse{V: 1, Binding: q.Binding, Account: q.Account}
 	switch q.Op {
 	case "prepare":
 		c, err := s.Prepare(q.Binding)
@@ -60,6 +71,8 @@ func (s *Service) adminHandler(w http.ResponseWriter, r *http.Request) {
 		e = s.Activate(q.Binding)
 	case "revoke":
 		e = s.Revoke(q.Binding)
+	case "clear_block":
+		e = s.ClearBlock(q.Account)
 	default:
 		refusal(w, 400, "ADMIN")
 		return
@@ -199,7 +212,7 @@ func (c Client) call(ctx context.Context, q adminRequest) (adminResponse, error)
 	}
 	defer resp.Body.Close()
 	raw, e := io.ReadAll(io.LimitReader(resp.Body, 4097))
-	if e != nil || len(raw) > 4096 || resp.StatusCode != 200 || unique(raw) != nil || json.Unmarshal(raw, &out) != nil || !bytes.Equal(raw, privateCanonical(out)) || out.V != 1 || out.Binding != q.Binding {
+	if e != nil || len(raw) > 4096 || resp.StatusCode != 200 || unique(raw) != nil || json.Unmarshal(raw, &out) != nil || !bytes.Equal(raw, privateCanonical(out)) || out.V != 1 || out.Binding != q.Binding || out.Account != q.Account {
 		return adminResponse{}, fail("ADMIN_RESPONSE")
 	}
 	if !out.OK || out.Error != "" {
@@ -218,17 +231,23 @@ func (c Credential) Valid() bool {
 	return codec.ValidCredential(string(c.Bearer.Reveal()), c.Endpoint.URL, c.Endpoint.CertSHA256)
 }
 func (c Client) Prepare(ctx context.Context, b Binding) (Credential, error) {
-	r, e := c.call(ctx, adminRequest{1, "prepare", b})
+	r, e := c.call(ctx, adminRequest{V: 1, Op: "prepare", Binding: b})
 	if e != nil {
 		return Credential{}, e
 	}
 	return *r.Credential, nil
 }
 func (c Client) Activate(ctx context.Context, b Binding) error {
-	_, e := c.call(ctx, adminRequest{1, "activate", b})
+	_, e := c.call(ctx, adminRequest{V: 1, Op: "activate", Binding: b})
 	return e
 }
 func (c Client) Revoke(ctx context.Context, b Binding) error {
-	_, e := c.call(ctx, adminRequest{1, "revoke", b})
+	_, e := c.call(ctx, adminRequest{V: 1, Op: "revoke", Binding: b})
+	return e
+}
+
+// ClearBlock is the owner operation that lifts a tripwire account block.
+func (c Client) ClearBlock(ctx context.Context, account string) error {
+	_, e := c.call(ctx, adminRequest{V: 1, Op: "clear_block", Account: account})
 	return e
 }

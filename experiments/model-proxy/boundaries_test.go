@@ -30,7 +30,7 @@ func TestAdminBoundary(t *testing.T) {
 		h.s.adminHandler(w, r)
 		return w
 	}
-	raw := privateCanonical(adminRequest{1, "prepare", b})
+	raw := privateCanonical(adminRequest{1, "prepare", b, ""})
 	if w := send(raw, false); w.Code != 403 {
 		t.Fatal("unverified peer accepted")
 	}
@@ -50,13 +50,13 @@ func TestAdminBoundary(t *testing.T) {
 	if h.sendAs(request(false), b.SlotID, out.Credential.Bearer.Reveal()).Code != 401 {
 		t.Fatal("prepare activated bearer")
 	}
-	if w = send(privateCanonical(adminRequest{1, "activate", b}), true); !strings.Contains(w.Body.String(), `"ok":true`) {
+	if w = send(privateCanonical(adminRequest{1, "activate", b, ""}), true); !strings.Contains(w.Body.String(), `"ok":true`) {
 		t.Fatal("activation refused")
 	}
 	if h.sendAs(request(false), b.SlotID, out.Credential.Bearer.Reveal()).Code != 200 {
 		t.Fatal("activated neighbor refused")
 	}
-	if w = send(privateCanonical(adminRequest{1, "revoke", b}), true); !strings.Contains(w.Body.String(), `"ok":true`) {
+	if w = send(privateCanonical(adminRequest{1, "revoke", b, ""}), true); !strings.Contains(w.Body.String(), `"ok":true`) {
 		t.Fatal("revocation refused")
 	}
 	if h.sendAs(request(false), b.SlotID, out.Credential.Bearer.Reveal()).Code != 401 {

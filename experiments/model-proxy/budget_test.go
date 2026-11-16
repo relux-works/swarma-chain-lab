@@ -268,8 +268,8 @@ func TestDailyCeilingCannotBeRaisedByGateway(t *testing.T) {
 	b := h.b
 	b.SlotID = strings.Repeat("d", 64)
 	b.Caps.CostNanoUSD = 1000000
-	raw := privateCanonical(adminRequest{1, "prepare", b})
-	for _, body := range []string{strings.TrimSuffix(string(raw), "}") + `,"daily_cost_ceiling_nano_usd":1000000}`, string(privateCanonical(adminRequest{1, "set-budget", b}))} {
+	raw := privateCanonical(adminRequest{1, "prepare", b, ""})
+	for _, body := range []string{strings.TrimSuffix(string(raw), "}") + `,"daily_cost_ceiling_nano_usd":1000000}`, string(privateCanonical(adminRequest{1, "set-budget", b, ""}))} {
 		r := httptest.NewRequest("POST", "http://local/v1/registry", strings.NewReader(body))
 		r = r.WithContext(context.WithValue(r.Context(), peerKey{}, true))
 		w := httptest.NewRecorder()

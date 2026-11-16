@@ -63,16 +63,49 @@ func (c Caps) Valid() bool {
 	return c.InputTokens > 0 && c.OutputTokens > 0 && c.Requests > 0 && c.MaxTokens > 0 && c.MaxTokens <= c.OutputTokens && c.CostNanoUSD > 0 && c.DefaultMaxOutputTokens <= c.MaxTokens
 }
 
+// MaxRunWindow is the hard 12 h ceiling on a run binding's validity window.
+// The sealed configuration may only lower it; a request never supplies it.
+const MaxRunWindow = 43200
+const KindRental = "rental"
+const KindRun = "run"
+
+// RunBinding identifies the run kind. Every field is a strict 32-byte hex
+// digest like the existing IDs; the zero value means the rental kind.
+type RunBinding struct {
+	Generation string `json:"generation"`
+	RunID      string `json:"run_id"`
+	Account    string `json:"account"`
+}
+
 type Binding struct {
 	SlotID    string `json:"slot_id"`
 	GrantID   string `json:"grant_id"`
 	NotBefore int64  `json:"not_before"`
 	NotAfter  int64  `json:"not_after"`
 	Caps      Caps   `json:"caps"`
+	// Run selects the run kind. Its zero value keeps the rental kind and the
+	// existing rental wire bytes unchanged.
+	Run RunBinding `json:"run,omitzero"`
 }
 
+func (b Binding) Kind() string {
+	if b.Run == (RunBinding{}) {
+		return KindRental
+	}
+	return KindRun
+}
+
+// Valid checks structure only. The rental window stays capped at 3600 s; a run
+// window is capped at MaxRunWindow here and at the sealed maximum in Prepare.
 func (b Binding) Valid() bool {
-	return digest(b.SlotID) && digest(b.GrantID) && b.NotBefore > 0 && b.NotAfter > b.NotBefore && b.NotAfter <= 1<<50 && b.NotAfter-b.NotBefore <= 3600 && b.Caps.Valid()
+	window := int64(3600)
+	if b.Kind() == KindRun {
+		if !digest(b.Run.Generation) || !digest(b.Run.RunID) || !digest(b.Run.Account) {
+			return false
+		}
+		window = MaxRunWindow
+	}
+	return digest(b.SlotID) && digest(b.GrantID) && b.NotBefore > 0 && b.NotAfter > b.NotBefore && b.NotAfter <= 1<<50 && b.NotAfter-b.NotBefore <= window && b.Caps.Valid()
 }
 
 type Endpoint = modelprofile.Endpoint
@@ -118,13 +151,23 @@ type Config struct {
 	Endpoint                Endpoint
 	Upstream                string
 	APIKey                  UpstreamKey
-	Models                  map[string]Model
-	ModelProfiles           map[string]ModelProfile
-	Now                     func() time.Time
-	Timeout                 time.Duration
-	Transport               http.RoundTripper
-	Dialect                 Dialect
-	Audit                   func(Audit)
+	// Source supplies the upstream credential per use. Exactly one of APIKey
+	// and Source must be set; the static key becomes an internal source.
+	Source CredentialSource
+	// Mode is the sealed gateway mode: ModeDevelopment (also the empty default)
+	// keeps today's behavior and admits no run binding; ModeManaged admits only
+	// the broker source and is the only mode that mints run bindings.
+	Mode string
+	// RunMaxWindowSeconds is the sealed maximum run-binding window, at most
+	// MaxRunWindow. Zero refuses every run binding; rental bindings ignore it.
+	RunMaxWindowSeconds uint64
+	Models              map[string]Model
+	ModelProfiles       map[string]ModelProfile
+	Now                 func() time.Time
+	Timeout             time.Duration
+	Transport           http.RoundTripper
+	Dialect             Dialect
+	Audit               func(Audit)
 }
 
 func validURL(raw string) bool {

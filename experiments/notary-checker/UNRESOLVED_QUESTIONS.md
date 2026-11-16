@@ -13,8 +13,11 @@ The detailed readings, conservative choices, and their limits are in
   both owners' signed exact-scope approvals; this is not in the specification.
   MVP signatures must verify under current chain grant keys for two distinct
   names and registrations at one explicit view. File observations are offline
-  fixtures only. NodeNameReader implementation and authenticated provisioning
-  remain N3 service obligations; running MVP refuses until that is wired.
+  fixtures only. The service now wires the concrete regtest NodeNameReader. Authenticated
+  provisioning remains an operator obligation; the unconfigured checker path
+  continues to refuse MVP_CHAIN_READ_REQUIRED.
 
-Online name history, issuance, seal and journal checks are deferred service
-work, not ambiguous rules and not claimed by an offline positive vector.
+Current values, registration histories and tip coordinates now have a concrete
+regtest reader. Historical owner/checkpoint proof, issuance, live seals and
+durable row/withdrawal journals remain deferred operational obligations, not
+claimed by offline vectors or the bounded service regtest evidence.

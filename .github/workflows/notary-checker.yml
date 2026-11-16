@@ -1,0 +1,58 @@
+name: Notary checker and service
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/notary-checker/**'
+      - '.github/workflows/notary-checker.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/notary-checker/**'
+      - '.github/workflows/notary-checker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: local
+  GOWORK: 'off'
+
+jobs:
+  notary-checker-service:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: experiments/notary-checker
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
+        with:
+          go-version: '1.26.10'
+          check-latest: false
+          cache: false
+      - name: Formatting
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        run: go vet ./...
+      - name: Race tests
+        run: go test -race -timeout 120s ./...
+      - name: Reproducible service build
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p .temp
+          go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o .temp/notary-service-a ./cmd/notary-service
+          go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o .temp/notary-service-b ./cmd/notary-service
+          cmp .temp/notary-service-a .temp/notary-service-b
+          sha256sum .temp/notary-service-a .temp/notary-service-b
+      - name: Signing refusal control
+        run: python3 -B scripts/check-service-mutant.py --work-dir .temp/service-mutant
+      - name: Independent vectors
+        run: python3 -B scripts/reference.py

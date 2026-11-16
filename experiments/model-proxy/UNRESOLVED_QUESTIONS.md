@@ -28,6 +28,22 @@
   demo's trust boundary. In-flight cancellation does not prove upstream billing
   stopped; full uncertain exposure remains charged.
 
+- The gateway tail (`mode`, `run_max_window_seconds`) is decoded in this module
+  because the published config schema module could not change in the same
+  slice. Moving the two fields into the published schema would reduce
+  `ParseGatewayConfig` to a pass-through; until then both decoders must agree.
+- The repository-level credential-output inventory and the package test
+  `TestGatewayRevealInventory` both pin the reveal sites in `credential.go` and
+  `tripwire.go`; a new reveal must be added to both after review.
+- The broker-backed `CredentialSource` and the managed-mode CLI start are a
+  later slice. Until the adapter type implements the unexported managed-mode
+  marker, `New` refuses managed mode with `CONFIG_MODE_NO_BROKER` and the CLI
+  with `CREDENTIAL_SOURCE`; only the package's test double passes the marker.
+- Qualification slice (S3c): oauth-bearer traffic needs the provider's oauth
+  beta header, which this slice does not add. `authenticate` sends only
+  `Authorization: Bearer` and the client's `anthropic-beta` is stripped, so a
+  subscription credential through the gateway is expected to 401 and burn one
+  `Renew` per request until that header is pinned in the qualification work.
 - Existing installations need an admin-approved migration preserving credentials,
   outstanding exposure and the admission-day bucket before enabling the new
   ceiling. Automatic ledger initialization on startup and state reset are

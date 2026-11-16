@@ -33,7 +33,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, reason.Error())
 		} else {
 			switch e.Error() {
-			case "DAILY_ACCOUNTING_MISSING", "DAILY_ACCOUNTING_CORRUPT", "DAILY_ACCOUNTING_INIT_REFUSED":
+			case "DAILY_ACCOUNTING_MISSING", "DAILY_ACCOUNTING_CORRUPT", "DAILY_ACCOUNTING_INIT_REFUSED", "CONFIG_MODE", "CONFIG_RUN_WINDOW", "CREDENTIAL_SOURCE":
 				fmt.Fprintln(os.Stderr, e.Error())
 			default:
 				fmt.Fprintln(os.Stderr, "MODEL_PROXY_FAILED")
@@ -49,9 +49,15 @@ func run() error {
 	if *path == "" || flag.NArg() != 0 || runtime.GOOS != "linux" {
 		return fmt.Errorf("CONFIG")
 	}
-	c, e := proxy.LoadConfig(*path)
+	c, e := proxy.LoadGatewayConfig(*path)
 	if e != nil {
 		return e
+	}
+	if c.Mode == proxy.ModeManaged {
+		// Managed mode admits only a non-file credential source. The broker
+		// adapter is not wired in this binary yet, so it must not start and
+		// must not read any key file.
+		return fmt.Errorf("CREDENTIAL_SOURCE")
 	}
 	key, e := proxy.ReadInstalledFile(c.APIKeyFile, 4096)
 	if e != nil {
@@ -89,7 +95,7 @@ func run() error {
 		return fmt.Errorf("LISTEN")
 	}
 	var mu sync.Mutex
-	cfg := proxy.Config{DailyCostCeilingNanoUSD: c.DailyCostCeilingNanoUSD, StateDir: c.StateDir, Endpoint: c.Endpoint, Upstream: c.Upstream, APIKey: proxy.NewAPIKey(proxy.Secret(key)), Models: c.Models, ModelProfiles: c.ModelProfiles, Now: time.Now, Audit: func(a proxy.Audit) { mu.Lock(); defer mu.Unlock(); _ = json.NewEncoder(os.Stdout).Encode(a) }}
+	cfg := proxy.Config{DailyCostCeilingNanoUSD: c.DailyCostCeilingNanoUSD, StateDir: c.StateDir, Endpoint: c.Endpoint, Upstream: c.Upstream, APIKey: proxy.NewAPIKey(proxy.Secret(key)), Mode: c.Mode, RunMaxWindowSeconds: c.RunMaxWindowSeconds, Models: c.Models, ModelProfiles: c.ModelProfiles, Now: time.Now, Audit: func(a proxy.Audit) { mu.Lock(); defer mu.Unlock(); _ = json.NewEncoder(os.Stdout).Encode(a) }}
 	if *initialize {
 		return proxy.InitializeAccounting(cfg)
 	}

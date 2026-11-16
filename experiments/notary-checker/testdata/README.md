@@ -46,3 +46,8 @@ Negative vectors deliberately alter that synthetic view, reuse an identity,
 or sign with a noncurrent key. The checker and independent reader must reject
 them by their named codes. Only `-offline-name-fixture FILE` may load a file;
 its CLI result is marked `offline-fixture`. Running MVP refuses pending N3.
+
+`positive-main-network-bundle` is a synthetic, correctly signed non-regtest
+bundle for the pure checker and the regtest-only service network refusal.
+It uses the same public fixture keys and fabricated locators; it never contacts
+a main-network node or represents live authority.

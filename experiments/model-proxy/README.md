@@ -295,6 +295,114 @@ do not count as detections. `.github/workflows/model-proxy.yml` defines Linux
 CI, including the peer-credential tests; local evidence does not claim a hosted
 CI pass. See [UNRESOLVED_QUESTIONS.md](UNRESOLVED_QUESTIONS.md) for remaining gates.
 
+## Gateway mode: credential source, run bindings and the leak tripwire
+
+The proxy is the platform's secret-free gateway: the agent holds only its
+random bearer, never a provider token. Everything below is additive; rental
+bindings, the Messages and Responses profiles, caps, the daily ceiling and the
+pre-header revocation contract behave exactly as before.
+
+**CredentialSource.** `Config` takes exactly one of the static `APIKey` or a
+`Source` implementing `CredentialSource`; both or neither refuses `New` with
+`CONFIG_CREDENTIAL`. The source hands out an `UpstreamCredential` per use:
+`Scheme` (`api-key` or `oauth-bearer`), an opaque `Value` that never prints or
+encodes, and an opaque `Version`. The source is the only refresher. After an
+explicit upstream 401 the proxy calls `Renew` once, naming the rejected
+version, and retries once with the renewed credential; a renewal that returns
+the same version refuses `CREDENTIAL_REJECTED`. A transport failure has an
+unknown outcome and a response that has begun is never retried. A missing,
+expired or unreadable credential refuses `CREDENTIAL_UNAVAILABLE` before any
+reservation or upstream request. Credentials live only in memory: they never
+enter `registry.json`, Audit records or Status; the repository credential
+inventory and the package test `TestGatewayRevealInventory` pin every explicit
+reveal site and carrier field. `FileSource` reads
+a private 0400 file and exists for api-key development and tests only. The
+broker adapter implements the same interface in a later slice; this module
+contains no broker client. `authenticate` is the one place a credential becomes
+headers: api-key keeps each dialect's own header, oauth-bearer sends
+`Authorization: Bearer` for Responses and Messages alike.
+
+**Mode.** The sealed configuration may end with two optional fields after
+`daily_cost_ceiling_nano_usd`, in this order: `mode` (`managed` or
+`development`; omitted means development) and `run_max_window_seconds`.
+`LoadGatewayConfig` decodes them with the same canonical rules and the
+published decoder for the rest of the file; the fields are hashed in the
+manifest like every other sealed byte. `managed` mode allow-lists the broker
+source rather than deny-listing files: a static key refuses `New` with
+`CONFIG_MODE`, and any other source, including a `FileSource` or any wrapper
+around one, refuses `CONFIG_MODE_NO_BROKER`. The allow-list is an unexported
+marker only a type in this package can carry, so until the broker adapter
+lands managed mode cannot be constructed at all, and the CLI refuses to start
+in managed mode (`CREDENTIAL_SOURCE`) before reading any key. `development`
+keeps today's behavior and never mints a run binding.
+
+**Run bindings.** A `Binding` whose `run` object carries `generation`,
+`run_id` and `account`, each a strict 32-byte hex digest, is the run kind; an
+omitted `run` is the rental kind with unchanged wire bytes and its unchanged
+3600 s window cap. Run bindings exist only in `managed` mode: a development
+proxy, whether backed by a static key or a `FileSource`, refuses `Prepare` of a
+run binding with `RUN_REQUIRES_MANAGED`. A run window is bounded only by
+`run_max_window_seconds` from sealed configuration: above it `Prepare` refuses
+`RUN_WINDOW`, and a value above 12 h (43200) is refused at decode and by `New`
+with `CONFIG_RUN_WINDOW`. Zero or omitted admits no run binding. Both
+conditions are re-checked at Activate and at every use, in `authorize` and in
+the in-flight liveness poll, not only at Prepare: a managed state dir reopened
+in `development` mode refuses its run bearers with `RUN_REQUIRES_MANAGED`, and
+a sealed maximum lowered below a prepared or active run window refuses that
+binding with `RUN_WINDOW` at Activate or on the next use. Neither field enters the ledger fingerprint, so
+lowering the cap stays an ordinary, reversible operator action. One live binding
+exists per (`generation`, `run_id`, `account`): a second slot for the tuple of a
+prepared or active binding refuses `CONFLICT`, the exact retry of the same slot
+returns the same credential as before, and a revoked, frozen or expired tuple is
+`TERMINAL` and is never re-prepared. Prepare,
+Activate and Revoke, the daily ceiling and the tripwire apply to run bindings
+exactly as to rental ones. Revoke on every end path (End, Destroy, failure,
+abandonment) is the caller's duty; the proxy does not infer an end. `NotAfter`
+is the proxy's hard stop: once it passes, the bearer is refused and an in-flight
+call is cancelled even if the Revoke was lost.
+
+**Leak tripwire.** Two durable, fail-closed checks run before any upstream I/O.
+A bearer presented on another binding's route is refused as before and, when
+it belongs to a run binding, blocks that binding's account (`LEAK_BEARER` in
+the audit). A revoked bearer on its own route is a plain `AUTH` and blocks
+nothing, so a request racing the end-of-run Revoke cannot block the account.
+Any upstream credential value issued in this process, every version, found in
+the client's plaintext request line, headers or body refuses `LEAK_CREDENTIAL`
+and blocks the account; a rental binding has no account, so its own record is
+frozen instead. The request-line and header scan is the first verdict on every
+request, before the route, the bearer count and authorize, with every version
+issued so far: an issued value is caught even as the bearer itself, beside
+several `Authorization` headers, with an invalid bearer, or while the source is
+down. When that bearer belongs to another binding, that binding is held to
+account as for a foreign bearer: a run binding's account is blocked under
+`LEAK_BEARER` and a rental binding's record is frozen. Only a bearer no binding
+owns leaves nothing to block. Outside the own-binding case the client sees a
+plain 401 `AUTH` and only the audit names `LEAK_CREDENTIAL`. Matched
+spellings: raw, base64 and base64url
+with and without padding, lower and upper hex, percent-encoding and JSON string
+escaping, across body chunk boundaries within a window bounded by the longest
+spelling. Values shorter than 16 bytes are never matched. The verdict is an
+audit record with the fixed code only; the block is written with the same
+atomic save as the ledger, so a failed save poisons the process closed. From
+then on every Prepare, Activate and use for that account refuses
+`ACCOUNT_BLOCKED` until the owner sends `clear_block` with the account digest
+on the peer-checked admin socket (`Client.ClearBlock`).
+
+Limits, stated plainly: the tripwire is a leak detector, not an exfiltration
+barrier, and it does not match over-escaped JSON (`\u` spellings of ordinary
+characters) or base64 of the value at a non-zero byte offset. It cannot see
+inside an opaque CONNECT
+tunnel; splitting a value across requests, compression, encryption, an
+encoding outside the list or a slow trickle defeat it. Its set of issued
+versions lives only in memory: after a restart it matches only the versions
+the source issues again, not values an earlier process once held. Account
+blocks, by contrast, are durable. It is a second line behind the secret-free
+design, not the boundary.
+
+**Pricing.** No code change. A subscription model is configured with the
+existing pinned price fields using a notional list price; that notional price
+drives the daily ceiling and booking caps exactly as a metered price would.
+
 ## Signed model limits
 
 Binding.Caps retains the optional signed `default_max_output_tokens`. A positive value must not exceed MaxTokens; zero preserves old non-contract bindings. CC1 does not inject defaults: Responses still requires an explicit client limit. See [contract binding and upgrade boundary](../rental-booking/MODEL-CAPS.md).

@@ -57,10 +57,11 @@ var plants = []plant{
 	{"write_before_forward", "proxy", "registry.go", "if e = s.save(); e != nil {\n\t\treturn nil, nil, e\n\t}", "// planted: omit durable reservation", ".", "TestWriteBeforeForward", "failed state write forwarded"},
 	{"uncertain_retention", "proxy", "registry.go", "\tr.Pending = nil\n\ts.state.Records[id] = r", "\tif u == nil { r.Exposure.Input -= p.Usage.Input; r.Exposure.Output -= p.Usage.Output; r.Exposure.Cost -= p.Cost }\n\tr.Pending = nil\n\ts.state.Records[id] = r", ".", "TestUncertainReservation/http-error", "uncertain exposure refunded"},
 	{"cumulative_usage", "proxy", "messages.go", "u.Output = n", "u.Output += n", ".", "TestStreamAccounting/valid", "cumulative stream not settled"},
-	{"auth_stripping", "proxy", "http.go", "s.cfg.Dialect.Headers(req.Header, s.cfg.APIKey)", "s.cfg.Dialect.Headers(req.Header, s.cfg.APIKey); req.Header.Set(\"x-api-key\", r.Header.Get(\"x-api-key\"))", ".", "TestRegistryAndUsage", "client auth/header escaped"},
+	{"auth_stripping", "proxy", "http.go", "resp, e := s.exchange(call, req, p.Body, s.cfg.Dialect, cred, transport)", "req.Header.Set(\"anthropic-beta\", r.Header.Get(\"anthropic-beta\")); resp, e := s.exchange(call, req, p.Body, s.cfg.Dialect, cred, transport)", ".", "TestRegistryAndUsage", "client auth/header escaped"},
 	{"paid_profile", "proxy", "messages.go", "m[\"service_tier\"] = json.RawMessage(`\"standard_only\"`)", "m[\"service_tier\"] = json.RawMessage(`\"auto\"`)", ".", "TestRegistryAndUsage", "priced upstream profile not pinned"},
 	{"body_log", "proxy", "http.go", "p, e := s.cfg.Dialect.Parse(raw)", "s.audit(id, 200, string(raw), Usage{}); p, e := s.cfg.Dialect.Parse(raw)", ".", "TestStreamAccounting/valid", "private content logged"},
 	{"peer", "proxy", "admin.go", "if valid, ok := r.Context().Value(peerKey{}).(bool); !ok || !valid {", "if valid, ok := r.Context().Value(peerKey{}).(bool); (!ok || !valid) && false {", ".", "TestAdminBoundary", "unverified peer accepted"},
+	{"blocked_load", "proxy", "registry.go", "if !digest(account) || !blockCode(code) {", "if false && (!digest(account) || !blockCode(code)) {", ".", "TestTripwireBlockedLoad", "corrupt block admitted"},
 	{"activate_order", "binding", "driver.go", "e = d.cfg.ModelRegistrar.Activate(call, binding)", "_ = call; _ = binding; e = nil", ".", "TestModelLifecycle", "start omitted model activation"},
 	{"revoke", "binding", "driver.go", "revokeErr = d.cfg.ModelRegistrar.Revoke(call, binding)", "_ = call; _ = binding; revokeErr = nil", ".", "TestModelLifecycle", "end omitted model revoke"},
 }
