@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
-          go-version: '1.26.8'
+          go-version: '1.26.10'
           check-latest: false
           cache: false
       - name: Every internal require edge is at or above the published snapshot
@@ -71,7 +71,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
-          go-version: '1.26.8'
+          go-version: '1.26.10'
           check-latest: false
           cache: false
       - name: Published graph regression and offline consumer qualification
