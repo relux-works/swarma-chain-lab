@@ -154,12 +154,12 @@ no environment fixture setting is used. From the module, the command above
 writes logs to `.temp/reveal-controls` and copies the tree to `.tmp/reveal-fixture`.
 Configure absolute task-owned HOME, caches and a short TMPDIR before running.
 The positive pins 34 tree-wide carriers, 53 `Reveal` sites / 67 calls and an
-empty `RevealForOpen` set. All 32 negative controls require exit 1 plus exact
+empty `RevealForOpen` set. All 43 negative controls require exit 1 plus exact
 whole-inventory witnesses; positive and explicit-limit controls require exit 0.
 Secret-type discovery, aliases/containers/embedding, interface declarations,
 package initializers, method values, name rules and type erasure are covered.
 Optional trailing legacy guard source paths compare the preserved old rules;
-use the guard from main `a6575851` (14 carriers, 53 sites / 67 calls).
+all 27 legacy controls use the guard from main `a6575851` (14 carriers, 53 sites / 67 calls).
 See the [complete inventory and limits](../../../docs/security/credential-output-n1b.md).
 
 The independent reader uses the standard library, requires isolated mode (`-I`),

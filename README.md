@@ -592,8 +592,11 @@ its JSON under `.temp/`. Run
 with task-owned absolute HOME/caches/TMPDIR and a new fixture directory for the
 exact positive inventory and old/new refusal controls. Logs go under `.temp/`;
 copied source and binaries go under `.tmp/`. Optional trailing legacy guard
-source paths enable comparison of the preserved old rules. These controls are
-local evidence, separate from hosted CI. Run `go -C experiments/model-proxy test
+source paths enable comparison of the preserved old rules: 43 candidate negative
+controls and 27 legacy controls. The unfiltered `credential-output.yml` workflow
+runs the tree-wide guard on every pull request and main push; other jobs retain
+their existing triggers. The Python controls are local evidence, separate from
+hosted CI. Run `go -C experiments/model-proxy test
 ./...`, `go -C experiments/rental-executor test ./...` and `go -C
 experiments/rental-gateway test ./...` for the fmt, slog, generic JSON and private
 wire regressions; use the same module paths with `vet ./...` for static checks.

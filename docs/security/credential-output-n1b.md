@@ -62,8 +62,9 @@ instantiations (including their type arguments). Every struct field whose type
 matches that set is a carrier, including embedded fields and container elements.
 Matching uses the terminal type name across packages, conservatively including
 same-name collisions; it does not depend on the expected inventory. It does not
-propagate through struct bodies or function/interface signatures. The current
-set is `Secret`, `Token`, `PrivateBytes`, `UpstreamKey`, `TrackBToken` and
+propagate through struct bodies or function/method signatures. Named interfaces
+embedding a discovered secret interface and anonymous interface literals declaring
+a `Reveal*` method are secret types too. The current set is `Secret`, `Token`, `PrivateBytes`, `UpstreamKey`, `TrackBToken` and
 `PayloadBootstrap`.
 
 All previous name rules remain: `APIKey`, `TrackBToken`, `Token`; `FakeExec.Inputs`,
@@ -93,7 +94,10 @@ and `.go.txt` files across the tree, excluding dot directories and `vendor`.
 Build tags do not exclude source from the syntax inventory. Exact carrier types,
 accessor keys, site sets and multiplicities must match or the guard exits 1 with
 `credential storage/reveal inventory changed; re-audit required` and the observed
-inventory. Output consists of expression spellings and types, not revealed values.
+inventory. Flattened field keys retain every writer in source order, joined by
+` | `, so nested siblings cannot overwrite an earlier carrier. The positive tree
+has no duplicate field keys. Output consists of expression spellings and types,
+not revealed values.
 
 This is a source-change guard, not an arbitrary-code taint proof. Explicit limits:
 reflection by string, including `MethodByName("RevealForOpen")`, is not detected;
@@ -108,18 +112,20 @@ Run the copied-tree controls with an absent fixture directory:
 Use the pinned Go toolchain and task-owned absolute HOME, caches and TMPDIR.
 The positive compares every field, accessor and expression against the listed
 fixture. Every negative requires exit 1, the inventory diagnostic and its exact
-whole-inventory delta. The 32 negative controls include package-level calls,
+whole-inventory delta. The 43 negative controls include package-level calls,
 method values, an unused non-carrier accessor, secret-typed fields on unlisted
 structs, aliases, containers, embedding, discovered receivers/interfaces, name
-matching, type erasure and an interface-only new accessor. Optional legacy guard
-source
-paths compare the preserved carrier subset and unchanged Reveal multisets and
-rerun all 22 a6575851 controls. The pinned legacy positive is 14 carriers and
+matching, raw owner/path retypes, nested collisions, type erasure and an
+interface-only new accessor. Three ordinary container/interface positives leave
+the inventory unchanged. Legacy membership is defined only by each control's
+`legacy` flag. Optional legacy guard source paths compare the preserved carrier subset and unchanged Reveal multisets and
+rerun all 27 a6575851 legacy controls. The pinned legacy positive is 14 carriers and
 53 sites / 67 calls; each old field and count must remain unchanged. Logs and
 PID/exit/witness records go in the first argument;
 fixture and guard binaries stay under the second argument's parent. Controls
-are local evidence; the hosted model-proxy workflow runs the guard and race
-suite, not this Python runner.
+are local evidence; the unfiltered credential-output workflow runs the guard on
+every pull request and main push. The model-proxy workflow retains its existing
+guard and race suite, not this Python runner.
 
 Constructors copy their inputs. Failed wrapper decodes and public mint refusals
 return no credential.
@@ -186,8 +192,8 @@ Existing operations and their private boundaries are unchanged by this guard.
 | `experiments/model-proxy/credential.go:FileSource.current` | `UpstreamKey` | Retained file-sourced key is an opaque holder. |
 | `experiments/model-proxy/credential.go:UpstreamCredential.Value` | `UpstreamKey` | Private upstream credential remains opaque. |
 | `experiments/model-proxy/credential.go:staticSource.value` | `UpstreamKey` | Retained static upstream key remains opaque. |
-| `experiments/model-proxy/private.go:credentialPrivate.Bearer` | `Secret` | Private admin wire DTO holds a raw named string; fmt redacts, generic JSON intentionally emits the bearer. |
-| `experiments/model-proxy/private.go:recordPrivate.Bearer` | `Secret` | Private registry persistence DTO holds a raw named string; fmt redacts, JSON intentionally writes private bytes. |
+| `experiments/model-proxy/private.go:credentialPrivate.Bearer` | `Secret` | Private admin wire DTO holds a raw named string; Format redacts every verb except the `%p` bad-verb path; generic JSON intentionally emits the bearer. |
+| `experiments/model-proxy/private.go:recordPrivate.Bearer` | `Secret` | Private registry persistence DTO holds a raw named string; Format redacts every verb except the `%p` bad-verb path; JSON intentionally writes private bytes. |
 | `experiments/model-proxy/registry.go:record.Bearer` | `codec.Secret[Secret]` | Retained registry bearer is opaque; codec fmt/JSON/text redact. |
 | `experiments/model-proxy/session/session.go:Facts.Random` | `Token` | Opening entropy draw; opaque token with redacting encoders. |
 | `experiments/model-proxy/session/session.go:Facts.Token` | `Token` | Ephemeral use input; opaque token with redacting encoders. |
@@ -207,7 +213,7 @@ Existing operations and their private boundaries are unchanged by this guard.
 | `experiments/single-use/payloadbootstrap/codec/codec.go:Bootstrap.ModelBearer` | `Secret[B]` | Decoded private bootstrap retains an opaque model bearer; codec fmt/JSON/text redact. |
 | `experiments/single-use/payloadbootstrap/codec/codec.go:bootstrapWire.ChannelSecret` | `C` | FINDING: generic C (~[]byte) is raw in the explicit private bootstrap wire DTO. |
 | `experiments/single-use/payloadbootstrap/codec/codec.go:bootstrapWire.ModelBearer` | `B` | FINDING: generic B (~string) is raw in the explicit private bootstrap wire DTO. |
-| `experiments/single-use/payloadlaunch/manifest.go:Manifest.Bootstrap` | `FilePin` | Conservative name match: path/hash/length FilePin metadata, no credential bytes. |
+| `experiments/single-use/payloadlaunch/manifest.go:Manifest.Bootstrap` | `FilePin` | Conservative name match: path/hash FilePin metadata, no credential bytes. |
 | `experiments/single-use/payloadlaunch/profile.go:Paths.Bootstrap` | `string` | Conservative name match: installed bootstrap path, not secret material. |
 | `experiments/station-lifecycle/broker.go:brokerRecord.Credential` | `PrivateBytes` | Retained broker credential uses PrivateBytes, delegating fmt/JSON/text redaction to codec.Secret. |
 | `experiments/station-lifecycle/private.go:brokerRecordPrivate.Credential` | `Secret` | Private broker persistence DTO uses named []byte Secret; String/GoString redact, generic JSON emits bytes. |
@@ -282,7 +288,7 @@ create a new type-resolved key; receiver identity is outside this syntax guard.
 | `experiments/station-payload/session.go:Client.Run:b.ChannelSecret.Reveal()` | 1 | HMAC key for the handshake response; the secret is not transmitted. |
 
 The lifecycle poll route is verified in `station-lifecycle/private.go:141,152`
-(command/response conversion) and `transport.go:26,51,57` (verified client chain
+(command/response conversion) and `transport.go:28,51,56` (verified client chain
 and exact leaf pin, private encoding, response write). Paths here are relative
 to `experiments/`. The station handshake is verified in
 `rental-gateway/stationlink/stationlink.go:35,159,163`: `ComputeResponse` uses the

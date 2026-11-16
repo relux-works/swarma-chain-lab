@@ -74,7 +74,7 @@ def main():
     proxy = 'experiments/model-proxy/custody_control.go'
     controls = []
 
-    def reveal(name, path, plant, accessor, owner, expression, legacy=False):
+    def reveal(name, path, plant, accessor, owner, expression, legacy=True):
         controls.append(dict(name=name, path=path, plant=plant, accessor=accessor,
                              witness=path + ':' + owner + ':' + expression, legacy=legacy))
 
@@ -112,7 +112,7 @@ def main():
          'package codec\nfunc (s Secret[T]) RevealBytes() []byte { return nil }\n', 'RevealBytes'),
     ]:
         controls.append(dict(name=name, path=path, plant=plant, accessor=accessor,
-                             witness=None, legacy=False))
+                             witness=None, legacy=True))
     for name, plant, owner in [
         ('extra-carrier', 'package proxy\ntype CustodyControl struct { APIKey string }\n', 'CustodyControl'),
         ('package-anonymous-carrier', 'package proxy\nvar holder = struct { Token string }{}\n', 'var'),
@@ -120,7 +120,7 @@ def main():
         field = 'APIKey' if name == 'extra-carrier' else 'Token'
         controls.append(dict(name=name, path=proxy, plant=plant,
                              field=proxy + ':' + owner + '.' + field, value='string',
-                             legacy=name == 'extra-carrier'))
+                             legacy=True))
     controls.append(dict(name='nested-carrier', path=proxy,
                          plant='package proxy\ntype CustodyControl struct { Nested struct { APIKey string } }\n',
                          field=proxy + ':CustodyControl.APIKey', value='string', legacy=True))
@@ -135,7 +135,13 @@ def main():
         ('secret-type-embedded', 'type CustodyBox struct { PrivateBytes }', 'PrivateBytes', 'PrivateBytes'),
         ('discovered-secret-type', 'type CustodySecret struct{}; func (CustodySecret) Reveal() string { return "" }; type CustodyBox struct { Material CustodySecret }', 'Material', 'CustodySecret'),
         ('interface-secret-field', 'type CustodyReader interface { Reveal() string }; type CustodyBox struct { Material CustodyReader }', 'Material', 'CustodyReader'),
+        ('embedded-secret-interface', 'type CustodyReader interface { Reveal() string }; type CustodyOuter interface { CustodyReader }; type CustodyBox struct { Material CustodyOuter }', 'Material', 'CustodyOuter'),
+        ('anonymous-secret-interface', 'type CustodyBox struct { Material interface { Reveal() string } }', 'Material', 'interface{ Reveal() string }'),
         ('secret-name-field', 'type CustodyBox struct { ChannelSecretHex string }', 'ChannelSecretHex', 'string'),
+        ('secret-type-map-key', 'type CustodyBox struct { Material map[codec.Secret[string]]bool }', 'Material', 'map[codec.Secret[string]]bool'),
+        ('secret-type-chan', 'type CustodyBox struct { Material chan codec.Secret[string] }', 'Material', 'chan codec.Secret[string]'),
+        ('secret-name-bearer', 'type CustodyBox struct { Bearer string }', 'Bearer', 'string'),
+        ('nested-collision', 'type CustodyBox struct { A struct{ APIKey string }; B struct{ APIKey CustodyKey } }; type CustodyKey = codec.Secret[string]', 'APIKey', 'string | CustodyKey'),
     ]:
         controls.append(dict(name=name, path=typed, plant='package lifecycle\n' + plant + '\n',
                              field=typed + ':CustodyBox.' + field, value=value, legacy=False))
@@ -148,6 +154,18 @@ def main():
     require(count == 1, 'raw field control anchor')
     controls.append(dict(name='raw-retained-field', path=types, plant=replaced,
                          field=types + ':Config.APIKey', value='string', legacy=True))
+    # Each retained owner/path name rule is now shadowed by the type rule on
+    # the positive tree; a raw retype must still be seen by its name rule.
+    for name, rel, pattern, owner_field, raw_type in [
+        ('raw-fakeexec-inputs', 'experiments/rental-gateway/station/linuxuser.go', r'(\bInputs\s+)\[\]codec\.Secret\[\[\]byte\]', 'FakeExec.Inputs', '[][]byte'),
+        ('raw-facts-random', 'experiments/model-proxy/session/session.go', r'(\bRandom\s+)Token\b', 'Facts.Random', '[32]byte'),
+        ('raw-upstream-value', 'experiments/model-proxy/credential.go', r'(\bValue\s+)UpstreamKey\b', 'UpstreamCredential.Value', 'string'),
+        ('raw-static-value', 'experiments/model-proxy/credential.go', r'(\{\s*value\s+)UpstreamKey\b', 'staticSource.value', 'string'),
+        ('raw-file-current', 'experiments/model-proxy/credential.go', r'(\bcurrent\s+)UpstreamKey\b', 'FileSource.current', 'string'),
+    ]:
+        replaced, count = re.subn(pattern, lambda m: m.group(1) + raw_type, (fixture / rel).read_text())
+        require(count == 1, name + ': anchor')
+        controls.append(dict(name=name, path=rel, plant=replaced, field=rel + ':' + owner_field, value=raw_type, legacy=True))
     private_bytes = 'experiments/station-lifecycle/private_bytes.go'
     raw = (fixture / private_bytes).read_text()
     require(raw.count('value codec.Secret[Secret]') == 1, 'type erasure anchor')
@@ -206,6 +224,22 @@ def main():
     for control in controls:
         check_control(control, candidate, expected)
 
+    # Ordinary containers and non-Reveal interfaces must not create carriers;
+    # these positive controls prevent discovery that simply matches every type.
+    for name, plant in [
+        ('plain-container', 'type CustodyBox struct { Material map[string][]*string; Events chan string }'),
+        ('plain-embedded-interface', 'type CustodyReader interface { Read() string }; type CustodyOuter interface { CustodyReader }; type CustodyBox struct { Material CustodyOuter }'),
+        ('plain-anonymous-interface', 'type CustodyBox struct { Material interface { Read() string } }'),
+    ]:
+        path = fixture / typed
+        path.write_text('package lifecycle\n' + plant + '\n')
+        try:
+            code, text = run(name, [str(candidate)])
+            require(code == 0 and inventory(text) == positive, name + ': exact positive inventory')
+            rows[-1]['witness'] = 'unchanged positive inventory'
+        finally:
+            path.unlink()
+
     # Excluded test files and name-free conversions/reflection remain accepted;
     # this documents the detector's boundary, not the safety of those operations.
     excluded = fixture / session.replace('.go', '_test.go')
@@ -242,12 +276,11 @@ def main():
         require(len(baseline['carrier_fields']) == 14, 'legacy a6575851 carrier count')
         for control in controls:
             # The a6575851 detector must still refuse every previous control.
-            if control['name'] not in {'secret-type-field', 'secret-type-alias', 'secret-type-container',
-                                       'secret-type-embedded', 'discovered-secret-type', 'secret-name-field',
-                                       'interface-accessor', 'interface-secret-field', 'secret-type-erasure', 'secret-generic-embedded'}:
+            if control['legacy']:
                 check_control(control, executable, baseline, prefix)
         rows[-1]['legacy_positive_inventory'] = baseline
     (out / 'results.json').write_text(json.dumps(rows, indent=2) + '\n')
+    print(str(sum(control['legacy'] for control in controls)) + ' legacy negative controls per comparison')
     print(str(len(controls)) + ' candidate negative controls; positive and explicit-limits controls; legacy comparisons=' + str(len(sys.argv[3:])))
     print('positive: exit=0; exact 34 carriers; Reveal 53 sites/67 calls; RevealForOpen {}; all controls passed')
 

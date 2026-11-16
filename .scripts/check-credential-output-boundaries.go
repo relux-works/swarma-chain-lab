@@ -173,6 +173,14 @@ func secretType(n ast.Node) bool {
 		return secretType(v.Key) || secretType(v.Value)
 	case *ast.ChanType:
 		return secretType(v.Value)
+	case *ast.InterfaceType:
+		for _, method := range v.Methods.List {
+			for _, name := range method.Names {
+				if strings.HasPrefix(name.Name, "Reveal") {
+					return true
+				}
+			}
+		}
 	case *ast.ParenExpr:
 		return secretType(v.X)
 	case *ast.IndexExpr:
@@ -214,13 +222,19 @@ func discoverSecrets(files map[string]*ast.File) {
 		})
 	}
 	// Least fixed point: aliases and named container types of known secrets.
-	// Do not propagate through struct fields or function/interface signatures.
+	// Follow embedded interfaces, but not struct bodies or method signatures.
 	for changed := true; changed; {
 		changed = false
 		for _, f := range files {
 			ast.Inspect(f, func(n ast.Node) bool {
 				if v, ok := n.(*ast.TypeSpec); ok && !secretTypes[v.Name.Name] {
-					switch v.Type.(type) {
+					switch typ := v.Type.(type) {
+					case *ast.InterfaceType:
+						for _, method := range typ.Methods.List {
+							if len(method.Names) == 0 && secretType(method.Type) {
+								secretTypes[v.Name.Name], changed = true, true
+							}
+						}
 					case *ast.Ident, *ast.SelectorExpr, *ast.StarExpr, *ast.ArrayType, *ast.MapType, *ast.ChanType, *ast.IndexExpr, *ast.IndexListExpr, *ast.ParenExpr:
 						if secretType(v.Type) {
 							secretTypes[v.Name.Name] = true
@@ -254,7 +268,14 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 					}
 					for _, name := range names {
 						if secretType(field.Type) || name.Name == "Bearer" || name.Name == "ChannelSecretHex" || name.Name == "ChannelSecret" || name.Name == "ModelBearer" || name.Name == "Bootstrap" || name.Name == "APIKey" || name.Name == "TrackBToken" || name.Name == "Token" || (owner == "FakeExec" && name.Name == "Inputs") || (path == "experiments/model-proxy/session/session.go" && owner == "Facts" && name.Name == "Random") || (owner == "UpstreamCredential" && name.Name == "Value") || (owner == "staticSource" && name.Name == "value") || (owner == "FileSource" && name.Name == "current") {
-							gotFields[path+":"+owner+"."+name.Name] = rendered(field.Type)
+							// Flattened keys can collide; keep every writer so a
+							// later sibling cannot mask an earlier raw field.
+							key := path + ":" + owner + "." + name.Name
+							if old, dup := gotFields[key]; dup {
+								gotFields[key] = old + " | " + rendered(field.Type)
+							} else {
+								gotFields[key] = rendered(field.Type)
+							}
 						}
 					}
 				}
