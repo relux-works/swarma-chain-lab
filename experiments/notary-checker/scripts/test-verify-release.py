@@ -14,7 +14,8 @@ import tempfile
 import unittest
 
 SCRIPT = Path(__file__).with_name('verify-release.sh').resolve()
-TAG = 'notary-service/v0.1.0'
+TAG = 'notary-service/v0.1.1'
+OLD_TAG = 'notary-service/v0.1.0'
 
 
 class ReleaseVerification(unittest.TestCase):
@@ -36,19 +37,29 @@ class ReleaseVerification(unittest.TestCase):
         self.env = dict(os.environ, GIT_CONFIG_NOSYSTEM='1',
                         GIT_CONFIG_GLOBAL=os.devnull)
         self.env.pop('GIT_CONFIG_COUNT', None)
-        self.key = self.root / 'signer'
+        self.tag_key = self.root / 'tag-signer'
+        self.command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(self.tag_key))
+        self.key = self.root / 'manifest-signer'
         self.command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(self.key))
         self.allowed = self.root / 'allowed-signers'
-        self.allowed.write_text('release-test ' + self.key.with_suffix('.pub').read_text())
+        self.allowed.write_text('release-test namespaces="swarma-release" '
+                                + self.key.with_suffix('.pub').read_text())
+        self.tag_allowed = self.root / 'tag-allowed-signers'
+        self.tag_allowed.write_text('tag-test namespaces="git" '
+                                    + self.tag_key.with_suffix('.pub').read_text())
         self.command('git', 'init', '-q')
         for key, value in [('user.name', 'Release fixture'),
                            ('user.email', 'release@example.invalid'),
-                           ('gpg.format', 'ssh'), ('user.signingkey', str(self.key)),
-                           ('gpg.ssh.allowedSignersFile', str(self.allowed))]:
+                           ('gpg.format', 'ssh'), ('user.signingkey', str(self.tag_key)),
+                           ('gpg.ssh.allowedSignersFile', str(self.tag_allowed))]:
             self.command('git', 'config', key, value)
         (self.repo / 'source').write_text('disposable release fixture\n')
         self.command('git', 'add', 'source')
         self.command('git', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'fixture')
+        self.command('git', 'tag', '-s', OLD_TAG, '-m', 'previous fixture')
+        (self.repo / 'source').write_text('new release fixture revision\n')
+        self.command('git', 'add', 'source')
+        self.command('git', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'new fixture')
         self.commit = self.command('git', 'rev-parse', 'HEAD')
         self.command('git', 'tag', '-s', TAG, '-m', 'disposable fixture')
         self.binary = self.release / 'notary-service-linux-amd64'
@@ -65,10 +76,16 @@ class ReleaseVerification(unittest.TestCase):
         self.command('ssh-keygen', '-Y', 'sign', '-f', str(self.key),
                      '-n', namespace, str(self.manifest))
 
-    def verify(self, refusal=None, signer='release-test', commit=None):
-        result = subprocess.run([str(SCRIPT), str(self.repo), commit or self.commit,
-                                 str(self.release), str(self.rebuilt), str(self.allowed),
-                                 signer], env=self.env, capture_output=True, timeout=20)
+    def verify(self, refusal=None, signer='release-test', commit=None, tag=TAG,
+               tag_allowed=None, manifest_allowed=None):
+        args = [str(SCRIPT), str(self.repo), commit or self.commit]
+        if tag is not None:
+            args.append(tag)
+        args.extend([str(self.release), str(self.rebuilt),
+                     str(tag_allowed or self.tag_allowed),
+                     str(manifest_allowed or self.allowed), signer])
+        result = subprocess.run(args, cwd=self.repo, env=self.env,
+                                capture_output=True, timeout=20)
         output = result.stdout.decode()
         self.assertEqual(result.stderr, b'')
         self.assertTrue(all(line.startswith(('PASS ', 'FAIL '))
@@ -80,10 +97,62 @@ class ReleaseVerification(unittest.TestCase):
         else:
             self.assertEqual(result.returncode, 0, output)
             self.assertEqual(output.splitlines()[-1], 'PASS RELEASE_VERIFIED')
+        print(f'{self._testMethodName}: exit {result.returncode}; {output.splitlines()[-1]}',
+              flush=True)
 
-    # These controls isolate the five requested fail-closed release failures.
+    # Distinct role keys authenticate the current release, never a default tag.
+    # Every refusal asserts the exact verdict, exit 1 and no terminal success.
     def test_all_good(self):
         self.verify()
+
+    # Canonical boundary and multi-digit versions work without a hard-coded release.
+    def test_other_canonical_versions(self):
+        for tag in ['notary-service/v0.0.0', 'notary-service/v12.34.56']:
+            with self.subTest(tag=tag):
+                self.command('git', 'tag', '-s', tag, '-m', 'version control')
+                self.verify(tag=tag)
+
+    # A well-formed absent tag still needs a trusted signature.
+    def test_missing_tag(self):
+        self.verify('TAG_SIGNATURE', tag='notary-service/v99.0.0')
+
+    # Version input is required and canonical; shell syntax remains inert data.
+    def test_missing_tag_parameter(self):
+        self.verify('ARGUMENTS', tag=None)
+
+    def test_malformed_tag_parameter(self):
+        for tag in ['', 'v0.1.1', 'notary-service/v0.1',
+                    'notary-service/v01.1.1', 'notary-service/v0.1.1-rc1',
+                    'notary-service/v0.1.1\n', 'notary-service/v*',
+                    'notary-service/v$(touch injected).1.1',
+                    'notary-service/v`touch injected`.1.1',
+                    'refs/tags/' + TAG, TAG + '; touch injected']:
+            with self.subTest(tag=tag):
+                self.verify('ARGUMENTS', tag=tag)
+                self.assertFalse((self.repo / 'injected').exists())
+
+    def test_old_tag_with_current_assets(self):
+        self.verify('TAG_COMMIT', tag=OLD_TAG)
+
+    # Cross-role signatures refuse even though each key is trusted for its own role.
+    def test_bot_signed_manifest(self):
+        self.manifest.with_suffix('.sig').unlink()
+        self.command('ssh-keygen', '-Y', 'sign', '-f', str(self.tag_key),
+                     '-n', 'swarma-release', str(self.manifest))
+        self.verify('MANIFEST_SIGNATURE')
+
+    def test_release_key_signed_tag(self):
+        self.command('git', 'tag', '-d', TAG)
+        self.command('git', '-c', 'user.signingkey=' + str(self.key),
+                     'tag', '-s', TAG, '-m', 'wrong signing role')
+        self.verify('TAG_SIGNATURE')
+
+    def test_shared_allowed_signers(self):
+        self.verify('ARGUMENTS', manifest_allowed=self.tag_allowed)
+
+    def test_swapped_allowed_signers(self):
+        self.verify('TAG_SIGNATURE', tag_allowed=self.allowed,
+                    manifest_allowed=self.tag_allowed)
 
     # Exact membership includes hidden names; no directory entry may be a link,
     # directory or special file. lstat must reject even links to valid inputs.
@@ -217,7 +286,8 @@ class ReleaseVerification(unittest.TestCase):
         for path, verdict in [(self.binary, 'MISSING_BINARY'),
                               (self.manifest, 'MISSING_SHA256SUMS'),
                               (self.rebuilt, 'MISSING_REBUILD'),
-                              (self.allowed, 'MISSING_ALLOWED_SIGNERS')]:
+                              (self.allowed, 'MISSING_MANIFEST_ALLOWED_SIGNERS'),
+                              (self.tag_allowed, 'MISSING_TAG_ALLOWED_SIGNERS')]:
             with self.subTest(verdict=verdict):
                 original = path.read_bytes()
                 path.unlink()
