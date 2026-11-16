@@ -8,6 +8,10 @@ service, grant format, wallet, consensus implementation or deployment.
 
 Experiments live in `experiments/<name>/`:
 
+- [Read-only chain view contract](experiments/chain-gateway/README.md): candidate
+  gateway and observe-only snapshot wire for G1 T4.6/D29, with shared fixtures
+  and a schema-only Go harness; consumer acceptance is pending.
+
 - [Grant v4 identity checks](experiments/grant-v4/identity/README.md): experimental
   owner pins, script/writer checks, expiry, issuer/notary history verdicts,
   consent evidence and recipient union from LIP-0021 Draft sections 2–7 and
@@ -347,7 +351,7 @@ stream. Both use the commands and pinned Core setup documented in
 
 ## Go modules and releases
 
-The 19 modules use `github.com/relux-works/swarma-chain-lab/<directory>` paths.
+The 25 modules use `github.com/relux-works/swarma-chain-lab/<directory>` paths.
 Each sibling requirement is `v0.1.0`. Relative directory `replace` directives
 are for builds inside this repository: Go ignores a dependency module's replaces
 when another module imports it. External consumers require the published module
@@ -684,3 +688,12 @@ column is recorded by the exporter at `48a32fb05e214bc656c640bfb0dd36edf8ab6293`
 reproducible with `.scripts/regenerate-identity-interop.sh`; CI re-exports and
 compares every byte, including the twelve recorded dispatcher outcomes.
 These tools establish offline compatibility only; see the corpus for pins and limits.
+
+## Chain gateway contract tools
+
+The [contract-only module](experiments/chain-gateway/README.md) uses Go 1.26.10
+with `GOTOOLCHAIN=local` and an isolated task-owned HOME/cache/TMPDIR. From the
+repository root, run `go -C experiments/chain-gateway test -count=1 ./...` and
+`go -C experiments/chain-gateway vet ./...`; evidence belongs in `.temp/`.
+The module README describes the planted invalid-fixture check. No gateway,
+helper, node read or installation is implemented by these tests.

@@ -31,3 +31,11 @@ coherence and hidden tip return), action/evidence classes, object pin members,
 production skew/lag/recent-block/age parameters, first-sight observation cadence,
 lost/rolled-back store recovery and real-node/storage qualification remain open.
 No adapter or passing placeholder supplies those gaps.
+
+## Chain gateway contract candidate
+
+[OPEN.md](experiments/chain-gateway/OPEN.md) records consumer acceptance,
+UTXO-absence semantics, coherent backend feasibility, D29 snapshot compatibility,
+freshness, install settings, helper custody, documentation follow-ups, draft
+policy interpretation and continuous seal observation. Enforcement over the
+snapshot remains prohibited without a separate owner decision.

@@ -34,7 +34,7 @@ is not a semantic proof against arbitrary future source rewrites. A later
 snapshot must pass both ancestry and source checks; version order never waives
 them. The earlier audit below records why coherent snapshot floors matter.
 
-The current inventory covers all 25 `go.mod` files and all 102 internal require edges.
+The current inventory covers all 26 `go.mod` files and all 102 internal require edges.
 The initial audit covered 20 manifests across 19 consumer modules at base
 `288d63e191fefac885d6a39aa65f0a5fbb6ed7ee`.
 Every edge previously named `v0.1.0`; directory replacements supplied current
@@ -94,6 +94,7 @@ grant module.
 | --- | ---: |
 | `deploy/go.mod` | 2 |
 | `experiments/agent-wallet/go.mod` | 7 |
+| `experiments/chain-gateway/go.mod` | 0 |
 | `experiments/grant-store/go.mod` | 5 |
 | `experiments/grant-v4/chainview/go.mod` | 0 |
 | `experiments/grant-v4/identity/go.mod` | 0 |
@@ -117,7 +118,7 @@ grant module.
 | `experiments/station-lifecycle/gatewaybind/go.mod` | 7 |
 | `experiments/station-lifecycle/go.mod` | 2 |
 | `experiments/station-payload/go.mod` | 8 |
-| **Total: 25 manifests / 20 consumers** | **102** |
+| **Total: 26 manifests / 20 consumers** | **102** |
 <!-- /module-graph-inventory -->
 
 ## Qualification boundary

@@ -1,0 +1,1084 @@
+[
+  {
+    "name": "stable_read",
+    "kind": "attempts",
+    "attempts": [
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        }
+      ]
+    ],
+    "expected": {
+      "method": "getblockcount",
+      "network": "regtest",
+      "ok": true,
+      "result": {},
+      "tip": {
+        "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "height": 100
+      },
+      "v": 1
+    }
+  },
+  {
+    "name": "tip_moved_retry",
+    "kind": "attempts",
+    "attempts": [
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100
+        }
+      ],
+      [
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100
+        }
+      ]
+    ],
+    "expected": {
+      "method": "getblockcount",
+      "network": "regtest",
+      "ok": true,
+      "result": {},
+      "tip": {
+        "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+        "height": 100
+      },
+      "v": 1
+    }
+  },
+  {
+    "name": "tip_moved_exhausted",
+    "kind": "attempts",
+    "attempts": [
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100
+        }
+      ],
+      [
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100
+        },
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        }
+      ],
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100
+        }
+      ]
+    ],
+    "expected": {
+      "error": {
+        "code": "tip_moved"
+      },
+      "ok": false,
+      "v": 1
+    }
+  },
+  {
+    "name": "hidden_tip_return",
+    "kind": "attempts",
+    "attempts": [
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100
+        },
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        }
+      ],
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        }
+      ]
+    ],
+    "expected": {
+      "method": "getblockcount",
+      "network": "regtest",
+      "ok": true,
+      "result": {},
+      "tip": {
+        "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "height": 100
+      },
+      "v": 1
+    }
+  },
+  {
+    "name": "hidden_tip_return_exhausted",
+    "kind": "attempts",
+    "attempts": [
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100
+        },
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        }
+      ],
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100
+        },
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        }
+      ],
+      [
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100
+        },
+        {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        }
+      ]
+    ],
+    "expected": {
+      "error": {
+        "code": "tip_moved"
+      },
+      "ok": false,
+      "v": 1
+    }
+  },
+  {
+    "name": "matching_collection",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "name": "same_height_reorg",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 100
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false
+  },
+  {
+    "name": "height_advance",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "height": 101
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false
+  },
+  {
+    "name": "mixed_network",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "main",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false
+  },
+  {
+    "name": "refusal_discards_all",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "error": {
+          "code": "unavailable"
+        },
+        "ok": false,
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false
+  },
+  {
+    "name": "wrong_name",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/other",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false
+  },
+  {
+    "name": "wrong_outpoint",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "unspent",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 3
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false
+  },
+  {
+    "name": "wrong_method",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false
+  },
+  {
+    "name": "absent_seal_no_admission",
+    "kind": "collection",
+    "requests": [
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "params": {
+          "name": "id/example"
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "params": {
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "params": {},
+        "v": 1
+      }
+    ],
+    "responses": [
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "name_show",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "expired": false,
+          "height": 90,
+          "name": "id/example",
+          "name_block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "value_b64": "eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=",
+          "vout": 0
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "gettxout",
+        "network": "regtest",
+        "ok": true,
+        "result": {
+          "state": "not_in_utxo_set",
+          "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "vout": 2
+        },
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      },
+      {
+        "method": "getblockcount",
+        "network": "regtest",
+        "ok": true,
+        "result": {},
+        "tip": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "height": 100
+        },
+        "v": 1
+      }
+    ],
+    "accepted": false
+  },
+  {
+    "name": "fresh",
+    "kind": "label",
+    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000060,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100
+    },
+    "clock": true,
+    "label": "fresh"
+  },
+  {
+    "name": "stale_age",
+    "kind": "label",
+    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000061,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100
+    },
+    "clock": true,
+    "label": "stale"
+  },
+  {
+    "name": "future_time",
+    "kind": "label",
+    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100},\"v\":1,\"written_at\":1700000000}",
+    "now": 1699999999,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100
+    },
+    "clock": true,
+    "label": "invalid"
+  },
+  {
+    "name": "unknown_tip",
+    "kind": "label",
+    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000001,
+    "known_tip": null,
+    "clock": true,
+    "label": "unknown"
+  },
+  {
+    "name": "unknown_clock",
+    "kind": "label",
+    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000001,
+    "known_tip": {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "height": 100
+    },
+    "clock": false,
+    "label": "unknown"
+  },
+  {
+    "name": "reorg",
+    "kind": "label",
+    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000001,
+    "known_tip": {
+      "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "height": 100
+    },
+    "clock": true,
+    "label": "stale"
+  },
+  {
+    "name": "behind",
+    "kind": "label",
+    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000001,
+    "known_tip": {
+      "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "height": 101
+    },
+    "clock": true,
+    "label": "stale"
+  },
+  {
+    "name": "ahead",
+    "kind": "label",
+    "snapshot": "{\"mode\":\"observe_only\",\"names\":[{\"expired\":false,\"height\":90,\"name\":\"id/example\",\"name_block_hash\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"value_b64\":\"eyJzd2FybWEtZGV2aWNlcyI6eyJzZXEiOjUsInNoYTI1NiI6ImI3MjZlOWRkOThkOWZmN2ZhNmNiOTg1NDFmNDQ3M2RjYjUyMWQ2Yzg3MmFjMTdiOWViZGNjMGM1MjM3MmFlNzkifX0=\",\"vout\":0}],\"network\":\"regtest\",\"seals\":[{\"state\":\"unspent\",\"txid\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"vout\":2}],\"tip\":{\"hash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"height\":100},\"v\":1,\"written_at\":1700000000}",
+    "now": 1700000001,
+    "known_tip": {
+      "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "height": 99
+    },
+    "clock": true,
+    "label": "stale"
+  }
+]
