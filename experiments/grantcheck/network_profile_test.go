@@ -22,8 +22,11 @@ import (
 // Each network name admits its own genesis only.
 func TestMainGenesisLiteral(t *testing.T) {
 	const literal = "000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770"
-	if MainGenesis != literal || len(MainGenesis) != 64 || MainGenesis != su.MainGenesis {
+	if MainGenesis != literal || len(MainGenesis) != 64 {
 		t.Fatal("MainGenesis is not the Namecoin mainnet genesis hash")
+	}
+	if MainGenesis != su.MainGenesis {
+		t.Fatal("MainGenesis differs from the rental kernel pin")
 	}
 	if !pinnedNetwork("main", MainGenesis) || !pinnedNetwork("regtest", su.RegtestGenesis) || !su.NetworkPinned("main", MainGenesis) {
 		t.Fatal("a network does not admit its own genesis")
