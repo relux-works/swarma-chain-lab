@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -453,9 +454,18 @@ func TestLockExcludesSecondWriter(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("first writer did not enter")
 	}
-	x.rpc.mu.Lock()
-	calls := len(x.rpc.methods)
-	x.rpc.mu.Unlock()
+	watch, e := syscall.InotifyInit1(syscall.IN_NONBLOCK | syscall.IN_CLOEXEC)
+	if e != nil {
+		close(x.rpc.release)
+		<-done
+		t.Fatal(e)
+	}
+	defer syscall.Close(watch)
+	if _, e = syscall.InotifyAddWatch(watch, x.c.CredentialFile, syscall.IN_OPEN); e != nil {
+		close(x.rpc.release)
+		<-done
+		t.Fatal(e)
+	}
 	second := make(chan int, 1)
 	go func() { code, _ := x.execute(); second <- code }()
 	code := -1
@@ -467,9 +477,10 @@ func TestLockExcludesSecondWriter(t *testing.T) {
 		<-second
 		t.Fatal("second writer was not excluded")
 	}
-	x.rpc.mu.Lock()
-	after := len(x.rpc.methods)
-	x.rpc.mu.Unlock()
+	// The first writer may continue its parallel seal reads while its name read
+	// is blocked; global RPC counts cannot identify the second writer's effects.
+	events := make([]byte, 4096)
+	n, watchError := syscall.Read(watch, events)
 	x.unchanged(t, old, b)
 	close(x.rpc.release)
 	select {
@@ -480,8 +491,11 @@ func TestLockExcludesSecondWriter(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("writer did not finish")
 	}
-	if code != ExitLocked || calls != after {
-		t.Fatalf("lock failed: second code=%d calls %d/%d", code, calls, after)
+	if code != ExitLocked {
+		t.Fatalf("lock failed: second code=%d", code)
+	}
+	if n > 0 || watchError != syscall.EAGAIN {
+		t.Fatalf("second writer opened credential: %d %v", n, watchError)
 	}
 }
 

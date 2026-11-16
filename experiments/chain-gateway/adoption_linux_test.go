@@ -72,7 +72,7 @@ func TestEndpointReverseTupleEvidence(t *testing.T) {
 	server := &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 1234}
 	client := &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321}
 	uid := uint32(os.Getuid())
-	valid := []socketEvidence{{state: 10, local: server.IP, localPort: 1234, uid: uid}, {state: 1, local: server.IP, remote: client.IP, localPort: 1234, remotePort: 4321, uid: uid, cookie: [8]byte{1}}}
+	valid := []socketEvidence{{state: 10, local: server.IP, localPort: 1234, uid: uid}, {state: 1, local: server.IP, remote: client.IP, localPort: 1234, remotePort: 4321, uid: uid, inode: 1, cookie: [8]byte{1}}}
 	if e := verifySocketRows(valid, server, client, uid); e != nil {
 		t.Fatal(e)
 	}

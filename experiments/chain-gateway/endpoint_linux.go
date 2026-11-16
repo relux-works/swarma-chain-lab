@@ -3,6 +3,7 @@ package chaingateway
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"net"
 	"os"
 	"strings"
@@ -15,6 +16,7 @@ type socketEvidence struct {
 	local, remote         net.IP
 	localPort, remotePort uint16
 	uid                   uint32
+	inode                 uint32
 	cookie                [8]byte
 }
 
@@ -71,6 +73,9 @@ func socketTable(family byte) ([]socketEvidence, error) {
 				return nil, bad("interrupted evidence")
 			}
 			if m.Header.Type == syscall.NLMSG_DONE {
+				if len(m.Data) > 0 && (len(m.Data) < 4 || binary.NativeEndian.Uint32(m.Data[:4]) != 0) {
+					return nil, bad("kernel dump error")
+				}
 				return rows, nil
 			}
 			if m.Header.Type != 20 || len(m.Data) < 72 {
@@ -84,7 +89,7 @@ func socketTable(family byte) ([]socketEvidence, error) {
 			if family == syscall.AF_INET {
 				width = 4
 			}
-			row := socketEvidence{family: b[0], state: b[1], local: append(net.IP(nil), b[8:8+width]...), remote: append(net.IP(nil), b[24:24+width]...), localPort: binary.BigEndian.Uint16(b[4:6]), remotePort: binary.BigEndian.Uint16(b[6:8]), uid: binary.NativeEndian.Uint32(b[64:68])}
+			row := socketEvidence{family: b[0], state: b[1], local: append(net.IP(nil), b[8:8+width]...), remote: append(net.IP(nil), b[24:24+width]...), localPort: binary.BigEndian.Uint16(b[4:6]), remotePort: binary.BigEndian.Uint16(b[6:8]), uid: binary.NativeEndian.Uint32(b[64:68]), inode: binary.NativeEndian.Uint32(b[68:72])}
 			copy(row.cookie[:], b[44:52])
 			rows = append(rows, row)
 		}
@@ -92,7 +97,12 @@ func socketTable(family byte) ([]socketEvidence, error) {
 	return nil, bad("evidence capacity")
 }
 
-func authenticateConnection(conn net.Conn, uid uint32) error {
+// Before accept(), older kernels report GLOBAL_ROOT_UID for a connection with
+// no userspace socket inode. That is not root ownership evidence. Wait only for
+// that specific incomplete state, with a fixed deadline and no application bytes.
+var errPeerNotAccepted = errors.New("peer has no accepted socket inode")
+
+func authenticateConnection(ctx context.Context, conn net.Conn, uid uint32) error {
 	server, ok := conn.RemoteAddr().(*net.TCPAddr)
 	if !ok {
 		return bad("tcp peer")
@@ -105,43 +115,78 @@ func authenticateConnection(conn net.Conn, uid uint32) error {
 	if server.IP.To4() != nil {
 		family = syscall.AF_INET
 	}
-	rows, e := socketTable(family)
-	if e != nil {
-		return e
+	var cookie [8]byte
+	for {
+		if e := ctx.Err(); e != nil {
+			return e
+		}
+		rows, e := socketTable(family)
+		if e != nil {
+			return e
+		}
+		peer, e := verifySocketEvidence(rows, server, client, uid)
+		if e != nil && !errors.Is(e, errPeerNotAccepted) {
+			return e
+		}
+		if cookie != [8]byte{} && cookie != peer.cookie {
+			return bad("peer socket replaced")
+		}
+		cookie = peer.cookie
+		if e == nil {
+			return ctx.Err()
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Millisecond):
+		}
 	}
-	return verifySocketRows(rows, server, client, uid)
 }
 
 func verifySocketRows(rows []socketEvidence, server, client *net.TCPAddr, uid uint32) error {
+	_, e := verifySocketEvidence(rows, server, client, uid)
+	return e
+}
+func verifySocketEvidence(rows []socketEvidence, server, client *net.TCPAddr, uid uint32) (socketEvidence, error) {
 	listeners, peers := 0, 0
+	var peer socketEvidence
 	for _, r := range rows {
 		if int(r.localPort) != server.Port {
 			continue
 		}
 		if r.state == 10 && (r.local.Equal(server.IP) || r.local.IsUnspecified()) {
 			if r.uid != uid {
-				return bad("listener uid")
+				return peer, bad("listener uid")
 			}
 			listeners++
 		}
 		if r.state == 1 && r.local.Equal(server.IP) && r.remote.Equal(client.IP) && int(r.remotePort) == client.Port {
-			if r.uid != uid || r.cookie == [8]byte{} || r.cookie == [8]byte{255, 255, 255, 255, 255, 255, 255, 255} {
-				return bad("peer uid or cookie")
-			}
+			peer = r
 			peers++
 		}
 	}
 	if listeners != 1 || peers != 1 {
-		return bad("missing or ambiguous endpoint")
+		return peer, bad("missing or ambiguous endpoint")
 	}
-	return nil
+	if peer.cookie == [8]byte{} || peer.cookie == [8]byte{255, 255, 255, 255, 255, 255, 255, 255} {
+		return peer, bad("peer cookie")
+	}
+	if peer.inode == 0 {
+		return peer, errPeerNotAccepted
+	}
+	if peer.uid != uid {
+		return peer, bad("peer uid")
+	}
+	return peer, nil
 }
 func authenticatedDial(ctx context.Context, network, address string, uid uint32) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
 	conn, e := (&net.Dialer{Timeout: time.Second}).DialContext(ctx, network, address)
 	if e != nil {
 		return nil, e
 	}
-	if e = authenticateConnection(conn, uid); e != nil {
+	if e = authenticateConnection(ctx, conn, uid); e != nil {
 		conn.Close()
 		return nil, e
 	}

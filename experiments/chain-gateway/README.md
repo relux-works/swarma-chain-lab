@@ -21,7 +21,12 @@ Every HTTP connection repeats this check before any HTTP/Authorization byte.
 The initial user namespace is required. IPv4 and IPv6 are queried in their
 respective families; a cross-family dual-stack listener without matching
 listener evidence fails closed. Missing, denied, stale or ambiguous
-evidence fails closed. UID ownership trusts that service account; this is not
+evidence fails closed. A reverse socket with no accepted inode is incomplete
+evidence (older kernels report UID zero before accept); authentication may wait
+within the same one-second deadline for its accepted inode, preserving the
+observed socket cookie and sending no application bytes. An attached wrong-UID
+peer, changed cookie, missing/ambiguous evidence or timeout closes immediately.
+UID ownership trusts that service account; this is not
 binary attestation. Real-node/replacement-UID installation qualification remains Q6.
 
 Each run reads the credential file fresh,
@@ -274,3 +279,9 @@ controls), `TestVerifierWhitelistAndDenial`, `TestVerifierNetworkSections`,
 `TestUnqualifiedHighVoutKeepsPrevious`, `TestHelperMethodSetClosed` and
 `TestDumpHardening`. The maximal fake set and twenty-second cancellation checks
 do not qualify real node cadence, root custody, namespace deployment or install GO.
+
+`TestKernelEndpointUnderCollectionLoad` retains the hosted maximal-collection
+regression. `TestUnacceptedPeerIsNotRootOwnership` refuses pre-accept UID zero
+as ownership evidence, pairs it with accepted-root and attached-wrong-UID
+controls, and `TestAuthenticateWaitsForAcceptedInode` checks delayed accept,
+zero bytes and bounded refusal when accept never occurs.
