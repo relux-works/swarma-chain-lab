@@ -129,7 +129,7 @@ The named tests cover both accepted output and forbidden updates:
 | Old open reader sees old bytes; new reader sees new inode/valid complete file | `TestAtomicPublication` |
 | Second writer excluded during first writer's blocked read | `TestLockExcludesSecondWriter` |
 | Both auth modes, fresh rotation, output/error/projection secrecy | `TestCredentialsNeverAppearInOutput` |
-| Config and filesystem negative controls | `TestConfigNegatives`, `TestCustodyNegatives`, `TestMainRequiresRoot` |
+| Config and filesystem negative controls | `TestConfigNegatives`, `TestConfigExactOutpointFields`, `TestCustodyNegatives`, `TestMainRequiresRoot` |
 
 The r2 fixture control plants an invalid tip time: in an isolated scratch copy,
 set `response_tip_time_negative`'s `valid` to true and run

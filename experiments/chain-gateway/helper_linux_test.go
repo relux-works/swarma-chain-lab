@@ -598,3 +598,52 @@ func TestProtectedAncestors(t *testing.T) {
 		})
 	}
 }
+
+// Closed outpoints require both exact names; struct-decoder case folding and
+// missing uint32 defaults cannot admit a different operator watch set. Zero and
+// max uint32 remain valid neighboring configurations without contacting a node.
+func TestConfigExactOutpointFields(t *testing.T) {
+	cases := []struct {
+		name   string
+		change func(map[string]any)
+		valid  bool
+	}{
+		{"zero", func(m map[string]any) { m["vout"] = 0 }, true},
+		{"max", func(m map[string]any) { m["vout"] = uint64(4294967295) }, true},
+		{"missing vout", func(m map[string]any) { delete(m, "vout") }, false},
+		{"missing txid", func(m map[string]any) { delete(m, "txid") }, false},
+		{"case alias", func(m map[string]any) { m["Vout"] = m["vout"]; delete(m, "vout") }, false},
+		{"extra field", func(m map[string]any) { m["other"] = 0 }, false},
+		{"overflow", func(m map[string]any) { m["vout"] = uint64(4294967296) }, false},
+		{"negative", func(m map[string]any) { m["vout"] = -1 }, false},
+		{"string", func(m map[string]any) { m["vout"] = "2" }, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			x := makeFixture(t, "cookie")
+			old, b := x.previous(t)
+			raw, _ := json.Marshal(x.c)
+			var m map[string]any
+			json.Unmarshal(raw, &m)
+			point := m["seals"].([]any)[0].(map[string]any)
+			tc.change(point)
+			raw, _ = json.Marshal(m)
+			if e := os.WriteFile(x.path, raw, 0600); e != nil {
+				t.Fatal(e)
+			}
+			_, e := loadConfig(x.path, x.p)
+			if (e == nil) != tc.valid {
+				t.Fatalf("exact outpoint verdict valid=%v error=%v", tc.valid, e)
+			}
+			if !tc.valid {
+				if code, _ := x.execute(); code != ExitConfig {
+					t.Fatalf("outpoint config code %d", code)
+				}
+			}
+			x.unchanged(t, old, b)
+			if len(x.rpc.methods) != 0 {
+				t.Fatal("node called by config gate")
+			}
+		})
+	}
+}

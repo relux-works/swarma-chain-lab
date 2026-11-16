@@ -155,6 +155,16 @@ func loadConfig(path string, p custody) (Configuration, error) {
 	if _, e = fields(m, "rpc_url", "network", "genesis", "credential_mode", "credential_file", "credential_group", "output", "lock", "names", "seals"); e != nil {
 		return c, e
 	}
+	points, ok := m["seals"].([]any)
+	if !ok {
+		return c, bad("seal array")
+	}
+	for _, point := range points {
+		selected, e := fields(point, "txid", "vout")
+		if e != nil || !outpoint(selected) {
+			return c, bad("exact outpoint fields")
+		}
+	}
 	// Re-encode parsed maps to preserve duplicate/alias protection before typed decoding.
 	b, _ = json.Marshal(m)
 	d := json.NewDecoder(bytes.NewReader(b))
