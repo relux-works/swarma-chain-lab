@@ -1,6 +1,6 @@
 # Grant v4 wire primitives
 
-Experimental implementation of the proposed [LIP-0020 wire registry](https://github.com/relux-works/swarma-link-spec/blob/adae6e7669601f271f7d0d9cdd91ecee7d19bf02/lips/LIP-0020-grant-v4-wire-registry.md).
+Experimental implementation of the [LIP-0020 wire registry](https://github.com/relux-works/swarma-link-spec/blob/3bef542fc8c0a5dedeeaaa990bd7f93abe194813/lips/LIP-0020-grant-v4-wire-registry.md), with grant documents at version 0.1.53.
 This module grants no authority and performs no node reads, private-key signing,
 persistence or external effects. It has no dependencies on earlier grant modules.
 
@@ -20,10 +20,15 @@ The module implements:
   and consumed-id facts, not an issuer implementation.
 - Stored unsigned issuance preparations, preparation construction and
   frame/commitment comparisons on supplied parts (W8.1–W8.6).
-- Explicit place-selected dispatch: signed assent, unsigned preparation,
+- Immutable root/child grant documents through `VerifyGrant`, with W9/W11
+  refusal stages, typed signatures and J9/J12 document semantics. Proposals
+  remain an explicit laboratory interpretation, never admission policy.
+- Explicit place-selected dispatch: signed grant/assent, unsigned preparation,
   consent and the stated-input composed issuance check described below.
 
-`ReadSigned` checks wire/schema/signature validity. `ReadAssent` additionally
+`ReadSigned(..., Grant)` uses the complete `VerifyGrant` pipeline; children
+require its explicit parent context. Grant results are documents, not authority.
+Other signed reads check wire/schema/signature validity. `ReadAssent` additionally
 checks references and the issuing-party binding; the signed-class dispatcher
 uses this binding-aware entry point. Every refused reader returns no object;
 `ParseSignature` returns no signature on a length/range refusal. Returned byte
@@ -34,10 +39,11 @@ slices are copies. An id, digest or signature does not establish replay safety.
 The composed check implements LIP-0020 §9 W9.4 with the boundaries of its
 “What can be built” list. `CheckIssuance(IssuanceInput)` checks:
 
-1. The grant step is supplied as facts. It has **no grant parser or signature
-   verification**: W9.4 step 1 has no content until the grant has members.
-   `GrantFacts` is a typed input of independently established values, never a
-   grant wire schema or an assertion accepted from a presenter.
+1. The grant step remains supplied as facts. This composed helper does not
+   invoke the new grant document parser and does not establish admission.
+   `GrantFacts` is a typed input of independently established values, never an
+   assertion accepted from a presenter. A valid document alone cannot supply
+   current chain observations or independently trusted authority.
 2. Recipient mode and evidence-outpoint presence (W8.4): `ISSUANCE_MODE`.
 3. The signed issuer assent's complete pipeline and W7.2 binding/party checks.
 4. The consent event's five W7.4 steps, using facts about the supplied evidence
@@ -57,7 +63,7 @@ introduced. The other dispatch classes keep their existing pipelines.
 
 `TestV4IssuanceFirstRefusalPairs` covers all ten pairs among steps 2–6,
 with a valid control and each defect alone beside every compound case. There
-is no meaningful step-1 pair until a grant schema exists. The fourteen new
+is no step-1 pair at this unchanged stated-fact seam. The fourteen
 `composed-*` vectors exercise both this API and its dispatcher. Existing
 `CheckIssuanceAnchor` remains an arithmetic helper for already checked parts.
 
@@ -129,6 +135,22 @@ a second call, and a copied `Name.Height++` are covered after deferred work has
 run; original event encodings and ids remain unchanged.
 
 ## Source pin and vector scope
+
+`testdata/grant-v4.json` is the unmodified 0.1.53 file at the current pin:
+SHA-256 `66d4a5b1738b746bd5403e30ed1bbd30be9aac256a2559795d038f3455b2b106`.
+`TestGrantVectors` asserts all 112 cases: 11 valid, 84 invalid, 13 compound
+and 4 undetermined. It checks exact bytes/digests and refusal stages, with both
+proposal interpretations. The four undetermined cases report both mandatory and proposed outcomes.
+`tools/grantv4` independently checks `grant-v4.json` only; it does not
+independently check wire or holders-list vectors.
+
+This API slice lands before the configured grantcheck consumer in #154;
+that consumer is separate work and must pin the landed main snapshot.
+The wire module uses only identity's existing `ParsePin` API, published on main
+at `80bcaa527f51b1f4910fc84d9f78d51abad4139c`, and pins
+`v0.0.0-20261116164432-80bcaa527f51` without a local replacement.
+Grant document checks use heights only and introduce no clock member.
+
 
 `testdata/wire-vectors.json` is an unmodified copy of the public specification
 repository's `vectors/LIP-0020/wire-vectors.json`:

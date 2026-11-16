@@ -524,3 +524,19 @@ No arbitrary walk limit or production observation threshold is introduced.
 See [unresolved questions](UNRESOLVED_QUESTIONS.md). No claim of owner
 acceptance, co-author agreement, real-chain qualification or production
 admission follows from these tests.
+
+## Holders-list document API
+
+`holders_document.go` reads a pinned holders-list document, checks its
+SHA-256/sequence binding, closed schema and holder entries, and returns
+immutable document bytes and holder observations. `ReadHolderPin` reads
+the corresponding name-value pin. These are pure document checks, not
+node observations, live authority or admission. Tests retain the r1 valid
+controls and exact negative refusals. The API slice lands before #154;
+the grantcheck consumer must separately pin the landed main snapshot.
+
+Grant document semantics use heights only, with no clock member; the
+wire grant-vector tests report all four undetermined vectors under both
+mandatory and proposed interpretations. `tools/grantv4` independently
+checks `grant-v4.json` only. Holders-list and wire-vector assertions are
+repository tests, not claims of independent checker coverage.

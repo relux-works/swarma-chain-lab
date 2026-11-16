@@ -111,7 +111,11 @@ func TestV4ComposedDispatchBoundary(t *testing.T) {
 	}
 	for _, typ := range []Type{Grant, Invocation, Receipt, SealEndorsement, NotaryAttestation} {
 		o, err := ReadSigned([]byte(`{"type":"`+string(typ)+`"}`), typ)
-		wantCode(t, err, string(WireType))
+		want := WireType
+		if typ == Grant {
+			want = WireMember // W5.3: these bare bytes are not a signed form.
+		}
+		wantCode(t, err, string(want))
 		requireNoObject(t, o, err)
 	}
 	// Returned preparation and caller inputs remain independent after composed dispatch.

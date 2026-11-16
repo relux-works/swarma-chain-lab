@@ -17,7 +17,9 @@ func (o *SignedObject) Payload() []byte        { return o.payload.Bytes() }
 func (o *SignedObject) Signature() string      { return o.signature }
 func (o *SignedObject) ID() string             { return hashHex(o.Payload()) }
 func (o *SignedObject) ContentAddress() string { return hashHex(o.Bytes()) }
-func (o *SignedObject) Digest() [32]byte       { return TaggedHash(string(ContractAssent), o.Payload()) }
+func (o *SignedObject) Digest() [32]byte {
+	return TaggedHash(o.payload.root.get("type").text, o.Payload())
+}
 func (o *SignedObject) CheckReference(reference string) error {
 	if reference != o.ID() {
 		return WireID
@@ -59,8 +61,16 @@ func requireType(v *value, t Type) error {
 }
 
 // ReadSigned selects the signed-object pipeline from the caller's expected
-// type, never from the document. Only the assent currently has a signed schema.
+// type, never from the document. Grants use the rules binding every reader;
+// VerifyGrant additionally accepts a parent and explicit proposal-check mode.
 func ReadSigned(b []byte, expected Type) (*SignedObject, error) {
+	if expected == Grant {
+		g, err := VerifyGrant(b, GrantContext{})
+		if err != nil {
+			return nil, err
+		}
+		return g.object, nil
+	}
 	if expected != ContractAssent {
 		return nil, WireType
 	}

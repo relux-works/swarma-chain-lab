@@ -451,7 +451,13 @@ exits 1 when any internal require edge is older than its floor in
 `experiments/MODULE-GRAPH.md` drifts (refresh it with `--write-doc`). Regenerate
 snapshot floors and inventory together with
 `python3 .scripts/check-module-graph.py --snapshot-commit FULL_PUBLISHED_SHA --write-doc`;
-this resolves canonical versions through the public proxy, verifies every origin
+The global snapshot remains the default. Optional `module_provenance` entries
+map module names to exactly `{commit, time}`: a full commit on `origin/main`
+containing that module's `go.mod`, its UTC commit time, and a floor whose
+pseudo-version time and 12-character hash match. Unknown or malformed entries
+fail closed. A successful full refresh supersedes overrides; failed resolution
+preserves the original snapshot, including overrides. The generator
+resolves canonical versions through the public proxy, verifies every origin
 SHA before writing, and stores the floors in the snapshot JSON. Its tests,
 `python3 -m unittest discover -s .scripts -p 'test_check_module_graph.py' -v`,
 hold the standalone-require regression and the narrowing mutant controls; both

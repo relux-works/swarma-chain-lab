@@ -353,7 +353,7 @@ func (s vectorSet) runPrimitive(t *testing.T, v vector) {
 			}
 			// These are arithmetic inputs, never valid grant payloads.
 			o, err := ReadSigned(v.octets(t, "signed_octets_hex"), Grant)
-			wantCode(t, err, string(WireType))
+			wantCode(t, err, string(WireMember))
 			requireNoObject(t, o, err)
 		}
 	}
