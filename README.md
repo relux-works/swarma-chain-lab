@@ -672,8 +672,15 @@ remain operator responsibilities.
 
 The [G1.0 issuance corpus](experiments/grantcheck/testdata/identity-interop/README.md)
 contains pinned public issuance bytes and offline verifier tests. From
-`experiments/grantcheck`, `go run ./cmd/no-holders < landlord-value.json` checks
-an operator-supplied VALUE without node access. From the repository root,
+`experiments/grantcheck`, build during setup with
+`go build -mod=readonly -o .temp/no-holders ./cmd/no-holders`, then invoke
+`.temp/no-holders < landlord-value.json` offline. Input is the landlord VALUE,
+raw JSON or the JSON string in `name_show.value`, never the whole RPC response.
+From the repository root,
 `bash .scripts/regenerate-identity-interop.sh "$PWD/.temp/identity-interop-new"`
-regenerates bytes into a new directory and removes its owned temporary caches.
+regenerates bytes into a new directory, emits/verifies `SHA256SUMS` and removes
+its owned temporary caches. Regeneration needs network access. The issuer
+column is recorded by the exporter at `48a32fb05e214bc656c640bfb0dd36edf8ab6293`,
+reproducible with `.scripts/regenerate-identity-interop.sh`; CI re-exports and
+compares every byte, including the twelve recorded dispatcher outcomes.
 These tools establish offline compatibility only; see the corpus for pins and limits.

@@ -79,7 +79,17 @@ func TestJunctionExport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	outcomes := map[string]any{"legacy": map[string]any{"exit": 0, "code": "OK", "stage": "signed+anchor-plan"}}
+	outcomes := map[string]any{}
+	recordOK := func(name string, e Envelope, code int, detail, value string) {
+		t.Helper()
+		mustOK(t, e, code)
+		if e.Error != nil || e.Result == nil {
+			t.Fatal("success envelope has no usable result")
+		}
+		// OK is the normalized success label; exit comes from the actual dispatch.
+		outcomes[name] = map[string]any{"exit": code, "code": "OK", detail: value}
+	}
+	recordOK("legacy", e, code, "stage", "signed+anchor-plan")
 	record := func(name string, e Envelope, code int, want string) {
 		t.Helper()
 		mustRefuse(t, e, code, want)
@@ -195,7 +205,11 @@ func TestJunctionExport(t *testing.T) {
 	expired.NotBefore = 100
 	expired.NotAfter = 200
 	expired.ConsentCreatedAt = 99
-	f.issue(expired)
+	f.prepare(expired)
+	e, code = f.signCmd(f.finalRequest())
+	mustOK(t, e, code)
+	f.signed = resultAs[GrantSignResult](t, e)
+	recordOK("expired-window", e, code, "reason", "issuer has no ambient clock")
 	expiredRaw, _ := base64.StdEncoding.DecodeString(f.signed.SignedGrantB64)
 	octets("expired-signed-grant.json", expiredRaw)
 	expiredContract, _ := base64.StdEncoding.DecodeString(f.signed.ContractB64)
@@ -205,7 +219,6 @@ func TestJunctionExport(t *testing.T) {
 		t.Fatal(err)
 	}
 	octets("expired-window.json", expiredProof)
-	outcomes["expired-window"] = map[string]any{"exit": 0, "code": "OK", "reason": "issuer has no ambient clock"}
 	save("issuer-outcomes.json", outcomes)
 	assertNoSecrets(t, f.outputs)
 }

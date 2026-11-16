@@ -15,7 +15,7 @@ export HOME="$scratch/home" USERPROFILE="$scratch/home"
 export XDG_CONFIG_HOME="$scratch/config" XDG_CACHE_HOME="$scratch/cache"
 export GOCACHE="$scratch/build" GOMODCACHE="$scratch/mod" GOPATH="$scratch/gopath"
 export TMPDIR="$scratch/tmp" GOTMPDIR="$scratch/tmp" TMP="$scratch/tmp" TEMP="$scratch/tmp"
-export GOTOOLCHAIN=local GOMAXPROCS=2
+export GOTOOLCHAIN=local GOMAXPROCS=2 GOWORK=off LC_ALL=C
 unset GOTELEMETRYDIR GOFLAGS
 # Go 1.26.10 must already be selected by PATH; never download a toolchain.
 [[ $(go version) == 'go version go1.26.10 '* ]] || { echo 'Go 1.26.10 required' >&2; exit 2; }
@@ -28,3 +28,6 @@ export IDENTITY_INTEROP_OUT="$scratch/export"
 go test -mod=readonly -p 1 -parallel 1 -count=1 -run '^TestJunctionExport$' -v ./internal/facade
 mkdir -p "$output"
 cp "$scratch/export/"* "$output/"
+
+# Seal the exact generated filename set as well as every JSON octet.
+(cd "$output" && sha256sum -- *.json > SHA256SUMS && sha256sum -c SHA256SUMS)

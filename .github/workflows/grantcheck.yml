@@ -17,6 +17,8 @@ on:
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/grantcheck.yml'
+      - '.scripts/identity-interop/**'
+      - '.scripts/regenerate-identity-interop.sh'
   push:
     branches: [main]
     paths:
@@ -30,6 +32,8 @@ on:
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/grantcheck.yml'
+      - '.scripts/identity-interop/**'
+      - '.scripts/regenerate-identity-interop.sh'
   workflow_dispatch:
 
 permissions:
@@ -68,3 +72,30 @@ jobs:
           go build -trimpath ./...
           go run .scripts/guards.go -out .temp/guards
           go run .scripts/sender-guards.go -out .temp/sender-guards
+
+  identity-issuer-bytes:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.10'
+          check-latest: false
+          cache: false
+      - name: Re-export from pinned public issuer and compare every byte
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/.temp/identity-interop-regenerated"
+          corpus="$GITHUB_WORKSPACE/experiments/grantcheck/testdata/identity-interop"
+          bash .scripts/regenerate-identity-interop.sh "$output"
+          # Equal manifests pin the entire produced set, including all 12 outcomes.
+          cmp "$corpus/SHA256SUMS" "$output/SHA256SUMS"
+          for generated in "$output"/*; do
+            cmp "$corpus/${generated##*/}" "$generated"
+          done
+          cd "$output"
+          sha256sum -c "$corpus/SHA256SUMS"

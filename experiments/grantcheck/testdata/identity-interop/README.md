@@ -16,6 +16,13 @@ be substituted with invented v3 action names.
 
 CG1 is explicitly constructed with `ContractProfileTrust`, `Network: regtest`,
 the pinned regtest genesis, `ExecutorKey: ""`, and construction profile `W`.
+The test states independent deployment literals: agent `id/landlord-a-agent`,
+landlord `id/landlord-a` (ASCII strings), issuer
+`dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659`,
+and authenticated grantee
+`f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9`
+(lowercase 32-byte x-only hex keys). No identity is adopted from the proof.
+Four configured-identity controls independently refuse as `binding_mismatch`.
 Its verifier time is 1795000000; freshness uses age 600 seconds, skew zero,
 and floor zero. These are fixture values, not deployment recommendations.
 
@@ -48,7 +55,9 @@ From the repository root with Go 1.26.10 selected:
 bash .scripts/regenerate-identity-interop.sh "$PWD/.temp/identity-interop-regenerated"
 ```
 
-The output directory must not exist. The script creates an isolated scratch
+Reproduction needs network access for the public clone and module downloads;
+it is not an offline ceremony operation. The output directory must not exist.
+The script creates an isolated scratch
 clone/HOME/caches and short TMPDIR, checks out the full immutable issuer SHA,
 adds `.scripts/identity-interop/issuer_test.go` as a test-only exporter, then
 runs exactly:
@@ -63,6 +72,13 @@ with explicit config/request/ledger and `--json`. `issuer-outcomes.json`
 records dispatcher exit codes, not separately spawned CLI process exits.
 The test's process exits zero only when all asserted controls/refusals hold.
 Its fixture nodes are closed by `t.Cleanup`; no Core daemon is launched.
+The script emits and verifies `SHA256SUMS`. The `identity-issuer-bytes` CI job
+runs this script at the pinned issuer commit, compares the entire 37-file
+manifest and verifies every produced byte, including `issuer-outcomes.json`.
+`TestIdentityInteropIssuerOutcomes` independently checks all twelve entries
+(input to exact code/exit), plus the ten refusal envelopes, command stages,
+`result:null` and non-retryability. The exporter's success outcomes normalize
+`OK` only after checking the actual successful dispatcher envelope and exit.
 
 `signed-grant.json`, `contract.json` and the presentation/mutations preserve
 canonical octets without trailing newlines. Requests/results and issuer
@@ -82,26 +98,40 @@ name links, issuance frame/commitment, witness funding, liveness, time and
 freshness against this graph. Header hashes/membership are fixture claims;
 this does not demonstrate proof of work, consensus, registration or broadcast.
 
-## Measured accept/refuse matrix
+## Accept/refuse matrix
+
+The issuer column is **recorded by the pinned exporter run at
+48a32fb05e214bc656c640bfb0dd36edf8ab6293, reproducible with
+`.scripts/regenerate-identity-interop.sh`**. CI remeasures that run and compares
+all produced bytes; an in-tree data assertion alone is not issuer execution.
 
 Every refusal test runs a valid legacy control. CG1 cached inbound and outbound
 also perform fresh kernel checks. A negative input never enters CG1's cache;
 wrong sender/contract bytes cannot replace an already admitted proof.
 
-| Case | Issuer dispatcher | CG1 trust | Notary |
+| Case | Issuer dispatcher (recorded at pinned export; CI byte remeasurement) | CG1 trust | Notary parser [1] |
 | --- | --- | --- | --- |
 | Legacy target | `OK`, exit 0; signed plus seal/anchor plans | `live/live`, inbound, cached inbound, outbound | v3 `readGrant` accepts; certification `Check` refuses `/1` as `CONTRACT_ENCODING` |
 | Wrong consent | `CONSENT_SIGNATURE`, exit 3 | `refused/invalid_presentation` | `GRANT_CONSENT` |
 | Wrong grantee | `CONSENT_SIGNER`, exit 3 | `refused/invalid_presentation` | `GRANT_CONSENT` |
-| Elapsed valid window | **accepted**, exit 0; no ambient clock | `exchange/expired` under Nostr; no admission | `GRANT_EXPIRED` |
+| Elapsed valid window | **accepted**, exit 0; no ambient clock | `exchange/expired` under Nostr; no admission. Compound: placeholder seal and live issuance locator also mismatch; expiry precedes node reads | `GRANT_EXPIRED` |
 | Wrong seal | `SEAL_KEY_MISMATCH`, exit 3, anchor sees wrong script | `refused/issuance_mismatch`, changed signed outpoint no longer matches issuance | v3 parser accepts changed signed outpoint; no chain check |
-| Missing/spent seal | `SEAL_MISSING_OR_SPENT`, exit 3 | `exchange/seal_spent`, closed, for a modeled spent seal | no chain/liveness API in this parser |
+| Missing seal | `SEAL_MISSING_OR_SPENT`, exit 3 | no CG1 missing-transaction vector; unproved here | no chain/liveness API in this parser |
+| Spent seal | `SEAL_MISSING_OR_SPENT`, exit 3 | `exchange/seal_spent`, closed; model returns null for every gettxout, not selectively for the seal | no chain/liveness API in this parser |
 | Tampered contract / signed byte | `CONTRACT_HASH`, exit 3, contract bytes changed | `terms_invalid` for changed resolved contract; `invalid_presentation` for changed signed byte | `GRANT_SIGNATURE` for changed signed byte |
 | Unsupported contract profile `/9` | `CONTRACT_PROFILE`, exit 3 | `terms_invalid` with valid public-test signatures | v3 parser accepts; certification remains `CONTRACT_ENCODING` |
 | Wrong request schema / grant version | `BAD_INPUT`, exit 2 | `invalid_presentation` for v9 signed grant | `GRANT_FIELD` |
 | Wrong issuance locator | no issuer locator admission API | `refused/issuance_mismatch` | v3 parser accepts; no own-node verification |
 | Empty holders | `LANDLORD_NOT_V3`, exit 3 | `refused/binding_mismatch`, not retryable | outside parser/certification input |
 | Populated holders | `LANDLORD_NOT_V3`, exit 3 | `refused/binding_mismatch`, not retryable | outside parser/certification input |
+
+[1] Notary rows exercise the unexported `readGrant` parser, not an exported
+certification or chain admission. Only the noted `/1` `Check` boundary probe
+is exported: it supplies the same root in both grant slots, with no child,
+request, policy or statement, solely to reach `CONTRACT_ENCODING`. Consent
+tag binding is outside `readGrant`. Its error may accompany an in-package
+decoded presentation; exported `Check` returns a zero result on refusal.
+Changing that parser return contract is deferred, outside this test-only unit.
 
 Wrong-consent/grantee/version/seal vectors are re-signed with the public
 issuer test signer to isolate their changed inner field. Tampered-byte keeps
@@ -133,12 +163,17 @@ invalid legacy values refuse with a fixed reason and exit 1. The command
 reads stdin only and contains no node/client/config lookup. `LEGACY-OK` is
 only a format/compatibility result, not on-chain or custody authority.
 
-Tests cover valid raw/string controls, empty/populated/null holders,
-malformed/foreign/duplicate fields, and the input bound. The ceremony operator
+Tests run the three exported landlord VALUE files through the command entry
+and a freshly built binary (executing `main()`), raw and JSON-string encoded,
+asserting exits 0/1/1, exact stdout and empty stderr. Added foreign members
+inside `landlord` and `swarma`, and a case-variant key, refuse beside the legacy
+control. Other tests cover null holders, malformed/duplicate input and bounds.
+The ceremony operator
 must supply the real values offline; this junction never queries them.
 
 `SHA256SUMS` lists every JSON file; `TestIdentityInteropCorpus` checks all hashes,
-manifest coverage and the exact target profile/actions/network/empty v3 scope.
+the exact 37-name manifest set, deployment identity literals and the target
+profile/actions/network/empty v3 scope.
 Issuer negative calls also assert unchanged seal-ledger bytes and no partial result.
 
 ## Validation and limits
@@ -159,6 +194,13 @@ registration, signing wallet, broadcast, confirmation, consensus, mempool
 race, reorg, transport integration, owner custody or production freshness
 qualification is exercised. Real-chain qualification remains a separate gate.
 
+The generator and verifier share `rental` canonical encoding, signing digests
+and outpoint code. The witness graph and kernel also share `single-use`
+transaction/sighash code, and the wrong-profile consent tags reuse the same
+formula. A common misreading in these shared libraries can pass both sides;
+this junction is not an independent implementation of those primitives.
+The positive grant still originates from the issuer's own issuance flow.
+
 ## Bound fields and observed gates
 
 The real CG1 path parses canonical v3 framing and grant ID, verifies the outer
@@ -170,7 +212,12 @@ Trust-contract validation checks the closed canonical member set/order,
 profile, network, names, grantee key, sorted actions/repositories, spend budget,
 window and note constraints. Section 2.5 additionally compares network, names,
 grantee, both times, derived v3 scope, budget and the exact four consent tags.
-For `/1`, depth is implicitly zero. No `/2` scope-text lookup is exercised.
+The trust profile pins identity and cross-document consistency, **not** the
+action set, repositories or budget: those G1.0 values are fixture assertions,
+not policy restrictions. A consistent root `/2` contract at depth 0 is also
+admissible under the same configuration. `grantee_name` is format checked;
+it is not compared to a configured name. For `/1`, depth is implicitly zero.
+No `/2` scope-text lookup is exercised by this junction.
 
 The actual rental kernel binds active name value projections to raw
 name_update transaction outputs, checks the landlord grant key and agent's

@@ -411,10 +411,15 @@ public bytes produced by swarma-identity `48a32fb0`: Grant v3, trust-contract
 interop tests use the actual kernel with synthetic read-only chain observations;
 they do not qualify a live node. Run `go test -run '^TestIdentityInterop' -v .`.
 
-`go run ./cmd/no-holders < landlord-value.json` is the read-only offline
-ceremony gate: `LEGACY-OK`/exit 0 or `REFUSE <reason>`/exit 1. Input is the
+Build during setup with `go build -mod=readonly -o .temp/no-holders ./cmd/no-holders`.
+Use `.temp/no-holders < landlord-value.json` as the read-only offline ceremony gate:
+`LEGACY-OK`/exit 0 or `REFUSE <reason>`/exit 1. Input is the
 VALUE, raw JSON or the JSON string from `name_show.value`. It opens no node
 and checks no chain authority. Regenerate bytes from the repository root with
 `bash .scripts/regenerate-identity-interop.sh "$PWD/.temp/identity-interop-new"`;
-the output directory must be new. See the corpus for exact pins, dispatcher
-commands, refusal pairs and limits.
+the output directory must be new. Regeneration needs network access and emits
+`SHA256SUMS`. The issuer column is recorded by the exporter at
+`48a32fb05e214bc656c640bfb0dd36edf8ab6293`, reproducible with
+`.scripts/regenerate-identity-interop.sh`; CI re-exports and compares every byte,
+including all twelve recorded dispatcher outcomes. See the corpus for exact
+pins, refusal pairs and shared-library limits.

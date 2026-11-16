@@ -124,6 +124,19 @@ func newIdentityNode(t *testing.T) *identityNode {
 
 	return n
 }
+
+// setLandlordValue models a new confirmed name generation consistently: both
+// name_show and the raw name_update script commit to the changed VALUE.
+func (n *identityNode) setLandlordValue(t *testing.T, value string) {
+	t.Helper()
+	old := n.names[identityLandlord]
+	body := *n.tx[old["txid"].(string)].Body
+	body.Outputs = append([]su.Output(nil), body.Outputs...)
+	body.Outputs[0].Script = su.NameUpdateScript(identityLandlord, value, []byte{0x51})
+	id := n.add(&su.WTransaction{Body: &body}, 2)
+	n.names[identityLandlord] = map[string]any{"name": identityLandlord, "value": value, "txid": id, "vout": 0, "height": 2, "expired": false, "expires_in": 1000, "name_encoding": "ascii", "value_encoding": "ascii"}
+}
+
 func (n *identityNode) Call(_ context.Context, method string, args ...any) (json.RawMessage, error) {
 	n.calls++
 	var value any
