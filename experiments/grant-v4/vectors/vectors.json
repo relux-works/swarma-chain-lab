@@ -33,7 +33,7 @@
       "reason": "canonical specified assent payload"
     },
     {
-      "id": "encode-restricted-0",
+      "id": "encode-restricted-grammar",
       "purpose": "restricted document grammar, not grant bytes",
       "spec": "LIP-0020 W1.1-W1.6",
       "operation": "encode",
@@ -58,7 +58,7 @@
       "reason": "restricted document grammar, not grant bytes"
     },
     {
-      "id": "encode-restricted-1",
+      "id": "encode-restricted-unicode-order",
       "purpose": "restricted document grammar, not grant bytes",
       "spec": "LIP-0020 W1.1-W1.6",
       "operation": "encode",
@@ -1730,7 +1730,7 @@
       "reason": "exact digit parsing at bound and bound+1; defects: value: \"0\" -\u003e \"18446744073709551616\""
     },
     {
-      "id": "integer-grammar-0",
+      "id": "integer-grammar-empty",
       "purpose": "string integer grammar refusal",
       "spec": "LIP-0020 W2.3",
       "operation": "integer",
@@ -1749,7 +1749,7 @@
       "reason": "string integer grammar refusal; defects: value: \"0\" -\u003e \"\""
     },
     {
-      "id": "integer-grammar-1",
+      "id": "integer-grammar-double-zero",
       "purpose": "string integer grammar refusal",
       "spec": "LIP-0020 W2.3",
       "operation": "integer",
@@ -1768,7 +1768,7 @@
       "reason": "string integer grammar refusal; defects: value: \"0\" -\u003e \"00\""
     },
     {
-      "id": "integer-grammar-2",
+      "id": "integer-grammar-leading-zero",
       "purpose": "string integer grammar refusal",
       "spec": "LIP-0020 W2.3",
       "operation": "integer",
@@ -1787,7 +1787,7 @@
       "reason": "string integer grammar refusal; defects: value: \"0\" -\u003e \"01\""
     },
     {
-      "id": "integer-grammar-3",
+      "id": "integer-grammar-negative",
       "purpose": "string integer grammar refusal",
       "spec": "LIP-0020 W2.3",
       "operation": "integer",
@@ -1806,7 +1806,7 @@
       "reason": "string integer grammar refusal; defects: value: \"0\" -\u003e \"-1\""
     },
     {
-      "id": "integer-grammar-4",
+      "id": "integer-grammar-plus",
       "purpose": "string integer grammar refusal",
       "spec": "LIP-0020 W2.3",
       "operation": "integer",
@@ -1825,7 +1825,7 @@
       "reason": "string integer grammar refusal; defects: value: \"0\" -\u003e \"+1\""
     },
     {
-      "id": "integer-grammar-5",
+      "id": "integer-grammar-fraction",
       "purpose": "string integer grammar refusal",
       "spec": "LIP-0020 W2.3",
       "operation": "integer",
@@ -1844,7 +1844,7 @@
       "reason": "string integer grammar refusal; defects: value: \"0\" -\u003e \"1.0\""
     },
     {
-      "id": "integer-grammar-6",
+      "id": "integer-grammar-exponent",
       "purpose": "string integer grammar refusal",
       "spec": "LIP-0020 W2.3",
       "operation": "integer",
@@ -1863,7 +1863,7 @@
       "reason": "string integer grammar refusal; defects: value: \"0\" -\u003e \"1e0\""
     },
     {
-      "id": "integer-grammar-7",
+      "id": "integer-grammar-leading-space",
       "purpose": "string integer grammar refusal",
       "spec": "LIP-0020 W2.3",
       "operation": "integer",
@@ -1882,7 +1882,7 @@
       "reason": "string integer grammar refusal; defects: value: \"0\" -\u003e \" 1\""
     },
     {
-      "id": "integer-grammar-8",
+      "id": "integer-grammar-trailing-space",
       "purpose": "string integer grammar refusal",
       "spec": "LIP-0020 W2.3",
       "operation": "integer",
@@ -1901,7 +1901,7 @@
       "reason": "string integer grammar refusal; defects: value: \"0\" -\u003e \"1 \""
     },
     {
-      "id": "integer-grammar-9",
+      "id": "integer-grammar-nonascii",
       "purpose": "string integer grammar refusal",
       "spec": "LIP-0020 W2.3",
       "operation": "integer",
@@ -2619,7 +2619,7 @@
       "operation": "signed",
       "input": {
         "expected_type": "swarma-contract-assent/1",
-        "raw_hex": "7b227061796c6f6164223a7b22636f6e7472616374223a2232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232222c2267656e65736973223a2231313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131222c227061727479223a2237396265363637656639646362626163353561303632393563653837306230373032396266636462326463653238643935396632383135623136663831373938222c2274797065223a22737761726d612d6772616e742f34227d2c227369676e6174757265223a223931343038383864383366376433626561333364663131313864613634633630363662346365336664333865346433336563623439313937333136353139643830343333346234636135646537633665383932303663353035363537326130656239613263613962623234623531303237656430303830663264313839633964227d"
+        "raw_hex": "7b227061796c6f6164223a7b22636f6e7472616374223a2232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232222c2267656e65736973223a2231313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131222c227061727479223a2237396265363637656639646362626163353561303632393563653837306230373032396266636462326463653238643935396632383135623136663831373938222c2274797065223a22737761726d612d6772616e742f34227d2c227369676e6174757265223a223737313865663065626564613835333334313563613761633465346538383432646133363331396132396661343139376338663333633265323761313435643737663365363230623133643763656533623339373536646633643034336165656365643033626233653132323562396337386237613932663030323234373033227d"
       },
       "output": {
         "code": "WIRE_TYPE"
@@ -2646,9 +2646,9 @@
       "basis": "spec",
       "valid_neighbour": "assent-valid",
       "defects": [
-        "raw_hex: \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes) -\u003e \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (836 bytes)"
+        "signature text has 126 hex characters; required length is 128"
       ],
-      "reason": "signature text form versus failed verification; defects: raw_hex: \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes) -\u003e \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (836 bytes)"
+      "reason": "signature text form versus failed verification; defects: signature text has 126 hex characters; required length is 128"
     },
     {
       "id": "signature-text-length-127",
@@ -2665,9 +2665,9 @@
       "basis": "spec",
       "valid_neighbour": "assent-valid",
       "defects": [
-        "raw_hex: \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes) -\u003e \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (838 bytes)"
+        "signature text has 127 hex characters; required length is 128"
       ],
-      "reason": "signature text form versus failed verification; defects: raw_hex: \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes) -\u003e \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (838 bytes)"
+      "reason": "signature text form versus failed verification; defects: signature text has 127 hex characters; required length is 128"
     },
     {
       "id": "signature-text-length-128",
@@ -2684,9 +2684,9 @@
       "basis": "spec",
       "valid_neighbour": "assent-valid",
       "defects": [
-        "raw_hex: \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes) -\u003e \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes)"
+        "all-zero 64-byte signature fails BIP340 verification"
       ],
-      "reason": "signature text form versus failed verification; defects: raw_hex: \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes) -\u003e \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes)"
+      "reason": "signature text form versus failed verification; defects: all-zero 64-byte signature fails BIP340 verification"
     },
     {
       "id": "signature-text-length-129",
@@ -2703,9 +2703,9 @@
       "basis": "spec",
       "valid_neighbour": "assent-valid",
       "defects": [
-        "raw_hex: \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes) -\u003e \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (842 bytes)"
+        "signature text has 129 hex characters; required length is 128"
       ],
-      "reason": "signature text form versus failed verification; defects: raw_hex: \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes) -\u003e \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (842 bytes)"
+      "reason": "signature text form versus failed verification; defects: signature text has 129 hex characters; required length is 128"
     },
     {
       "id": "signature-text-length-130",
@@ -2722,9 +2722,9 @@
       "basis": "spec",
       "valid_neighbour": "assent-valid",
       "defects": [
-        "raw_hex: \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes) -\u003e \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (844 bytes)"
+        "signature text has 130 hex characters; required length is 128"
       ],
-      "reason": "signature text form versus failed verification; defects: raw_hex: \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (840 bytes) -\u003e \"7b227061796c6f6164223a7b22636f6e7472616374223a223232323232323232\"... (844 bytes)"
+      "reason": "signature text form versus failed verification; defects: signature text has 130 hex characters; required length is 128"
     },
     {
       "id": "memberless-signed-swarma-grant/4",
@@ -2922,10 +2922,9 @@
       "basis": "spec",
       "valid_neighbour": "bip340-verify-1",
       "defects": [
-        "public_key: \"dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659\" -\u003e \"eefdea4cdb677750a420fee807eacf21eb9898ae79b9768766e4faa04a2d4a34\"",
-        "signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"6cff5c3ba86c69ea4b7376f31a9bcb4f74c1976089b2d9963da2e5543e177769\"... (128 bytes)"
+        "public key is not on secp256k1"
       ],
-      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: public_key: \"dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659\" -\u003e \"eefdea4cdb677750a420fee807eacf21eb9898ae79b9768766e4faa04a2d4a34\"; signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"6cff5c3ba86c69ea4b7376f31a9bcb4f74c1976089b2d9963da2e5543e177769\"... (128 bytes); compound: each listed defect remains present"
+      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: public key is not on secp256k1"
     },
     {
       "id": "bip340-verify-6",
@@ -2943,9 +2942,9 @@
       "basis": "spec",
       "valid_neighbour": "bip340-verify-1",
       "defects": [
-        "signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556\"... (128 bytes)"
+        "reconstructed R has odd Y"
       ],
-      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556\"... (128 bytes)"
+      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: reconstructed R has odd Y"
     },
     {
       "id": "bip340-verify-7",
@@ -2963,9 +2962,9 @@
       "basis": "spec",
       "valid_neighbour": "bip340-verify-1",
       "defects": [
-        "signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"1fa62e331edbc21c394792d2ab1100a7b432b013df3f6ff4f99fcb33e0e1515f\"... (128 bytes)"
+        "signature was made for the negated message"
       ],
-      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"1fa62e331edbc21c394792d2ab1100a7b432b013df3f6ff4f99fcb33e0e1515f\"... (128 bytes)"
+      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature was made for the negated message"
     },
     {
       "id": "bip340-verify-8",
@@ -2983,9 +2982,9 @@
       "basis": "spec",
       "valid_neighbour": "bip340-verify-1",
       "defects": [
-        "signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"6cff5c3ba86c69ea4b7376f31a9bcb4f74c1976089b2d9963da2e5543e177769\"... (128 bytes)"
+        "signature s is negated"
       ],
-      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"6cff5c3ba86c69ea4b7376f31a9bcb4f74c1976089b2d9963da2e5543e177769\"... (128 bytes)"
+      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature s is negated"
     },
     {
       "id": "bip340-verify-9",
@@ -3003,9 +3002,9 @@
       "basis": "spec",
       "valid_neighbour": "bip340-verify-1",
       "defects": [
-        "signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"0000000000000000000000000000000000000000000000000000000000000000\"... (128 bytes)"
+        "sG-eP is infinity (x=0 negative witness)"
       ],
-      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"0000000000000000000000000000000000000000000000000000000000000000\"... (128 bytes)"
+      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: sG-eP is infinity (x=0 negative witness)"
     },
     {
       "id": "bip340-verify-10",
@@ -3023,9 +3022,9 @@
       "basis": "spec",
       "valid_neighbour": "bip340-verify-1",
       "defects": [
-        "signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"0000000000000000000000000000000000000000000000000000000000000001\"... (128 bytes)"
+        "sG-eP is infinity (x=1 negative witness)"
       ],
-      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"0000000000000000000000000000000000000000000000000000000000000001\"... (128 bytes)"
+      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: sG-eP is infinity (x=1 negative witness)"
     },
     {
       "id": "bip340-verify-11",
@@ -3043,9 +3042,9 @@
       "basis": "spec",
       "valid_neighbour": "bip340-verify-1",
       "defects": [
-        "signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"4a298dacae57395a15d0795ddbfd1dcb564da82b0f269bc70a74f8220429ba1d\"... (128 bytes)"
+        "signature r is not a curve X coordinate"
       ],
-      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"4a298dacae57395a15d0795ddbfd1dcb564da82b0f269bc70a74f8220429ba1d\"... (128 bytes)"
+      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature r is not a curve X coordinate"
     },
     {
       "id": "bip340-verify-12",
@@ -3063,9 +3062,9 @@
       "basis": "spec",
       "valid_neighbour": "bip340-verify-1",
       "defects": [
-        "signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f\"... (128 bytes)"
+        "signature r equals the field prime"
       ],
-      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f\"... (128 bytes)"
+      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature r equals the field prime"
     },
     {
       "id": "bip340-verify-13",
@@ -3083,9 +3082,9 @@
       "basis": "spec",
       "valid_neighbour": "bip340-verify-1",
       "defects": [
-        "signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"6cff5c3ba86c69ea4b7376f31a9bcb4f74c1976089b2d9963da2e5543e177769\"... (128 bytes)"
+        "signature s equals the group order"
       ],
-      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"6cff5c3ba86c69ea4b7376f31a9bcb4f74c1976089b2d9963da2e5543e177769\"... (128 bytes)"
+      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: signature s equals the group order"
     },
     {
       "id": "bip340-verify-14",
@@ -3103,10 +3102,9 @@
       "basis": "spec",
       "valid_neighbour": "bip340-verify-1",
       "defects": [
-        "public_key: \"dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659\" -\u003e \"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30\"",
-        "signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"6cff5c3ba86c69ea4b7376f31a9bcb4f74c1976089b2d9963da2e5543e177769\"... (128 bytes)"
+        "public key X exceeds the field prime"
       ],
-      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: public_key: \"dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659\" -\u003e \"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30\"; signature_hex: \"6896bd60eeae296db48a229ff71dfe071bde413e6d43f917dc8dcf8c78de3341\"... (128 bytes) -\u003e \"6cff5c3ba86c69ea4b7376f31a9bcb4f74c1976089b2d9963da2e5543e177769\"... (128 bytes); compound: each listed defect remains present"
+      "reason": "official BIP340 verification witness; no fixture signing key imported; defects: public key X exceeds the field prime"
     },
     {
       "id": "assent-reference-correct",

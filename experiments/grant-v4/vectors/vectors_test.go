@@ -180,3 +180,22 @@ func TestSignerPublicScalarsOnly(t *testing.T) {
 		}
 	}
 }
+
+// Fixed names follow input content, including malformed integer spellings;
+// registry witness numbers are explicit upstream associations, never offsets.
+func TestContentNamedIDs(t *testing.T) {
+	expected := map[string]string{"": "empty", "00": "double-zero", "01": "leading-zero", "-1": "negative", "+1": "plus", "1.0": "fraction", "1e0": "exponent", " 1": "leading-space", "1 ": "trailing-space", "١": "nonascii"}
+	count := 0
+	for _, v := range fixture(t).Vectors {
+		if v.Operation == "integer" && text(v.Output, "code") == "WIRE_INTEGER" && strings.HasPrefix(v.ID, "integer-grammar-") {
+			want, ok := expected[text(v.Input, "value")]
+			if !ok || v.ID != "integer-grammar-"+want {
+				t.Errorf("content/id association drift: %s", v.ID)
+			}
+			count++
+		}
+	}
+	if count != len(expected) {
+		t.Fatalf("got %d named grammar inputs, want %d", count, len(expected))
+	}
+}

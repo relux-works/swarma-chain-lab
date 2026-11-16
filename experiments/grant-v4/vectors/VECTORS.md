@@ -235,8 +235,8 @@ It does not reopen decisions or invent grant members.
 | ID | Purpose | Spec | Basis | Code |
 | --- | --- | --- | --- | --- |
 | encode-assent | canonical specified assent payload | LIP-0020 W1.1-W1.6; W7.1 | spec | ok |
-| encode-restricted-0 | restricted document grammar, not grant bytes | LIP-0020 W1.1-W1.6 | spec | ok |
-| encode-restricted-1 | restricted document grammar, not grant bytes | LIP-0020 W1.1-W1.6 | spec | ok |
+| encode-restricted-grammar | restricted document grammar, not grant bytes | LIP-0020 W1.1-W1.6 | spec | ok |
+| encode-restricted-unicode-order | restricted document grammar, not grant bytes | LIP-0020 W1.1-W1.6 | spec | ok |
 | arithmetic-0 | registry arithmetic only; no object/schema admission | LIP-0020 W3.1; W4.1; W6.1; section 10 primitive stage | spec | ok |
 | signature-0-1 | BIP340 over arithmetic typed digest, public scalar, zero aux_rand; no object admission | LIP-0020 W4.1; W5.1-W5.2 | spec | ok |
 | signature-0-2 | BIP340 over arithmetic typed digest, public scalar, zero aux_rand; no object admission | LIP-0020 W4.1; W5.1-W5.2 | spec | ok |
@@ -317,16 +317,16 @@ It does not reopen decisions or invent grant members.
 | integer-18446744073709551615-0 | exact digit parsing at bound and bound+1 | LIP-0020 W2.3-W2.4 | spec | ok |
 | integer-18446744073709551615-18446744073709551615 | exact digit parsing at bound and bound+1 | LIP-0020 W2.3-W2.4 | spec | ok |
 | integer-18446744073709551615-18446744073709551616 | exact digit parsing at bound and bound+1 | LIP-0020 W2.3-W2.4 | spec | WIRE_INTEGER |
-| integer-grammar-0 | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
-| integer-grammar-1 | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
-| integer-grammar-2 | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
-| integer-grammar-3 | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
-| integer-grammar-4 | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
-| integer-grammar-5 | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
-| integer-grammar-6 | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
-| integer-grammar-7 | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
-| integer-grammar-8 | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
-| integer-grammar-9 | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
+| integer-grammar-empty | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
+| integer-grammar-double-zero | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
+| integer-grammar-leading-zero | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
+| integer-grammar-negative | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
+| integer-grammar-plus | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
+| integer-grammar-fraction | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
+| integer-grammar-exponent | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
+| integer-grammar-leading-space | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
+| integer-grammar-trailing-space | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
+| integer-grammar-nonascii | string integer grammar refusal | LIP-0020 W2.3 | spec | WIRE_INTEGER |
 | signature-length-63 | strict raw signature length (range preflight only) | LIP-0020 W5.2 | lab-choice | WIRE_SIGNATURE_FORM |
 | signature-length-64 | strict raw signature length (range preflight only) | LIP-0020 W5.2 | lab-choice | ok |
 | signature-length-65 | strict raw signature length (range preflight only) | LIP-0020 W5.2 | lab-choice | WIRE_SIGNATURE_FORM |

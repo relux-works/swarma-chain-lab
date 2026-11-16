@@ -373,21 +373,31 @@ func Generate() (result []byte, err error) {
 	txid := strings.Repeat("33", 32)
 	assentPayload := object{"type": string(wire.ContractAssent), "genesis": genesis, "contract": contract, "party": key(1)}
 	add("encode-assent", "canonical specified assent payload", "W1.1-W1.6; W7.1", "encode", object{"document": assentPayload, "limit": 1024}, "ok")
-	for i, doc := range []object{
-		{"a": []any{true, false, object{}, []any{}, uint64(wire.MaxNumber)}, "text": "<>&/\u007f\u2028\"\\"},
-		{"\U0001f600": "astral", "\ufb33": "bmp", "e\u0301": "decomposed", "é": "composed"},
+	for _, tc := range []struct {
+		id  string
+		doc object
+	}{
+		{"grammar", object{"a": []any{true, false, object{}, []any{}, uint64(wire.MaxNumber)}, "text": "<>&/\u007f\u2028\"\\"}},
+		{"unicode-order", object{"\U0001f600": "astral", "\ufb33": "bmp", "e\u0301": "decomposed", "é": "composed"}},
 	} {
-		add(fmt.Sprintf("encode-restricted-%d", i), "restricted document grammar, not grant bytes", "W1.1-W1.6", "encode", object{"document": doc, "limit": 2048}, "ok")
+		doc := tc.doc
+		add("encode-restricted-"+tc.id, "restricted document grammar, not grant bytes", "W1.1-W1.6", "encode", object{"document": doc, "limit": 2048}, "ok")
 	}
-	types := []wire.Type{wire.Grant, wire.Invocation, wire.Receipt, wire.SealEndorsement, wire.ContractAssent, wire.Issuance, wire.NotaryAttestation}
-	for i, typ := range types {
+	// Permanent registry witness numbers match upstream prim-type-01..07.
+	// They are explicit content associations, independent of generation order.
+	types := []struct {
+		typ     wire.Type
+		witness string
+	}{{wire.Grant, "0"}, {wire.Invocation, "1"}, {wire.Receipt, "2"}, {wire.SealEndorsement, "3"}, {wire.ContractAssent, "4"}, {wire.Issuance, "5"}, {wire.NotaryAttestation, "6"}}
+	for _, entry := range types {
+		typ := entry.typ
 		doc := object{"type": string(typ)}
-		add(fmt.Sprintf("arithmetic-%d", i), "registry arithmetic only; no object/schema admission", "W3.1; W4.1; W6.1; section 10 primitive stage", "primitive", object{"document": doc}, "ok")
+		add("arithmetic-"+entry.witness, "registry arithmetic only; no object/schema admission", "W3.1; W4.1; W6.1; section 10 primitive stage", "primitive", object{"document": doc}, "ok")
 		for _, s := range []int{1, 2, 3} {
 			if typ == wire.Issuance {
 				continue
 			} // W3: nobody signs an issuance commitment.
-			add(fmt.Sprintf("signature-%d-%d", i, s), "BIP340 over arithmetic typed digest, public scalar, zero aux_rand; no object admission", "W4.1; W5.1-W5.2", "signature", object{"document": doc, "public_test_scalar": s}, "ok")
+			add(fmt.Sprintf("signature-%s-%d", entry.witness, s), "BIP340 over arithmetic typed digest, public scalar, zero aux_rand; no object admission", "W4.1; W5.1-W5.2", "signature", object{"document": doc, "public_test_scalar": s}, "ok")
 		}
 	}
 
@@ -396,9 +406,13 @@ func Generate() (result []byte, err error) {
 		doc["party"] = key(scalar)
 		add(fmt.Sprintf("signature-assent-%d", scalar), "deterministic signature over a specified assent payload", "W7.1; W5.1-W5.2", "signature", object{"document": doc, "public_test_scalar": scalar}, "ok")
 	}
-	for i, doc := range []object{{}, {"type": 1}, {"type": "swarma-grant/3"}} {
-		add("arithmetic-type-"+[]string{"missing", "nonstring", "grant3"}[i], "unsupported type in arithmetic", "W3.1", "primitive", object{"document": doc}, "WIRE_TYPE")
+	for _, tc := range []struct {
+		id  string
+		doc object
+	}{{"missing", object{}}, {"nonstring", object{"type": 1}}, {"grant3", object{"type": "swarma-grant/3"}}} {
+		add("arithmetic-type-"+tc.id, "unsupported type in arithmetic", "W3.1", "primitive", object{"document": tc.doc}, "WIRE_TYPE")
 	}
+
 	// Generic canonical boundary pairs use W1's document grammar, not a made-up type schema.
 	parse := func(id, raw, want, spec string, limit int) {
 		add(id, "canonical refusal/boundary or precedence control", spec, "parse", object{"raw_hex": hx([]byte(raw)), "limit": limit}, want)
@@ -457,9 +471,10 @@ func Generate() (result []byte, err error) {
 			add("integer-"+strconv.FormatUint(bound, 10)+"-"+value, "exact digit parsing at bound and bound+1", "W2.3-W2.4", "integer", object{"value": value, "bound": strconv.FormatUint(bound, 10)}, want)
 		}
 	}
-	for i, v := range []string{"", "00", "01", "-1", "+1", "1.0", "1e0", " 1", "1 ", "١"} {
-		add(fmt.Sprintf("integer-grammar-%d", i), "string integer grammar refusal", "W2.3", "integer", object{"value": v, "bound": "18446744073709551615"}, "WIRE_INTEGER")
+	for _, tc := range []struct{ id, value string }{{"empty", ""}, {"double-zero", "00"}, {"leading-zero", "01"}, {"negative", "-1"}, {"plus", "+1"}, {"fraction", "1.0"}, {"exponent", "1e0"}, {"leading-space", " 1"}, {"trailing-space", "1 "}, {"nonascii", "١"}} {
+		add("integer-grammar-"+tc.id, "string integer grammar refusal", "W2.3", "integer", object{"value": tc.value, "bound": "18446744073709551615"}, "WIRE_INTEGER")
 	}
+
 	// Signature preflight boundaries are separate from full curve verification.
 	p := "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f"
 	n := "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"
@@ -538,7 +553,11 @@ func Generate() (result []byte, err error) {
 		raw := canonical(object{"payload": pl, "signature": validSig}, 2048)
 		add(tc.id, "closed specified assent schema before verification", "W3.1-W3.6; W9.3", "signed", object{"raw_hex": hx(raw), "expected_type": string(wire.ContractAssent)}, tc.want)
 		// A matching fresh signature isolates the shape/type defect from stale signing bytes.
-		fresh := sign(1, wire.TaggedHash(string(wire.ContractAssent), canonical(pl, 2048)))
+		tag := text(pl, "type")
+		if tag == "" {
+			tag = string(wire.ContractAssent)
+		}
+		fresh := sign(1, wire.TaggedHash(tag, canonical(pl, 2048)))
 		raw = canonical(object{"payload": pl, "signature": fresh}, 2048)
 		add(tc.id+"-resigned", "single schema defect with a freshly signed payload", "W3.1-W3.6; W9.3", "signed", object{"raw_hex": hx(raw), "expected_type": string(wire.ContractAssent)}, tc.want)
 
@@ -911,6 +930,27 @@ func annotate(rows []Vector) {
 		v.ValidNeighbour = rows[best].ID
 		v.Defects = delta
 
+		if strings.HasPrefix(v.ID, "bip340-verify-") {
+			v.Defects = []string{map[string]string{
+				"5":  "public key is not on secp256k1",
+				"6":  "reconstructed R has odd Y",
+				"7":  "signature was made for the negated message",
+				"8":  "signature s is negated",
+				"9":  "sG-eP is infinity (x=0 negative witness)",
+				"10": "sG-eP is infinity (x=1 negative witness)",
+				"11": "signature r is not a curve X coordinate",
+				"12": "signature r equals the field prime",
+				"13": "signature s equals the group order",
+				"14": "public key X exceeds the field prime",
+			}[strings.TrimPrefix(v.ID, "bip340-verify-")]}
+		}
+		if strings.HasPrefix(v.ID, "signature-text-length-") {
+			n := strings.TrimPrefix(v.ID, "signature-text-length-")
+			v.Defects = []string{"signature text has " + n + " hex characters; required length is 128"}
+			if n == "128" {
+				v.Defects = []string{"all-zero 64-byte signature fails BIP340 verification"}
+			}
+		}
 		if descriptions, ok := rawDefects[v.ID]; ok {
 			v.Defects = descriptions
 		}
