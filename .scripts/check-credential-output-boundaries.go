@@ -41,24 +41,31 @@ var fields = map[string]string{
 	"experiments/model-proxy/credential.go:staticSource.value":                      "UpstreamKey",
 	"experiments/model-proxy/credential.go:FileSource.current":                      "UpstreamKey",
 }
-var reveals = map[string]int{
-	"experiments/model-proxy/registry.go:newService:r.Bearer.Reveal()":                            4,
-	"experiments/model-proxy/registry.go:newService:c.APIKey.Reveal()":                            3,
-	"experiments/model-proxy/messages.go:Messages.Headers:key.Reveal()":                           1,
-	"experiments/model-proxy/responses.go:Responses.Headers:key.Reveal()":                         1,
-	"experiments/model-proxy/credential.go:UpstreamCredential.valid:c.Value.Reveal()":             1,
-	"experiments/model-proxy/credential.go:FileSource.read:f.current.Reveal()":                    1,
-	"experiments/model-proxy/credential.go:Service.issued:c.Value.Reveal()":                       1,
-	"experiments/model-proxy/credential.go:authenticate:c.Value.Reveal()":                         1,
-	"experiments/model-proxy/tripwire.go:Service.foreignBearer:r.Bearer.Reveal()":                 1,
-	"experiments/model-proxy/tripwire.go:Service.foreignLeak:r.Bearer.Reveal()":                   1,
-	"experiments/rental-gateway/station/localtest.go:LocalTestDriver.Create:token.Reveal()":       1,
-	"experiments/rental-gateway/station/linuxuser.go:LinuxUserDriver.Create:token.Reveal()":       1,
-	"experiments/rental-gateway/station/trackbadmin.go:TrackBAdminClient.Mint:out.Token.Reveal()": 1,
-	"experiments/rental-gateway/gateway/gateway.go:Gateway.startStation:st.TrackBToken.Reveal()":  1,
-	"experiments/rental-executor/trackb.go:TrackB.Mint:token.Reveal()":                            1,
-	"experiments/rental-executor/trackb.go:TrackB.Claim:token.Reveal()":                           2,
-	"experiments/rental-executor/http.go:writeTrackBMintReply:token.Reveal()":                     1,
+
+// Keep an exact call-site multiset per accessor, including unused accessors.
+// Suffixed Reveal methods are conservatively inventoried at every call site;
+// plain Reveal retains the reviewed carrier/scope inventory below.
+var reveals = map[string]map[string]int{
+	"RevealForOpen": {},
+	"Reveal": {
+		"experiments/model-proxy/registry.go:newService:r.Bearer.Reveal()":                            4,
+		"experiments/model-proxy/registry.go:newService:c.APIKey.Reveal()":                            3,
+		"experiments/model-proxy/messages.go:Messages.Headers:key.Reveal()":                           1,
+		"experiments/model-proxy/responses.go:Responses.Headers:key.Reveal()":                         1,
+		"experiments/model-proxy/credential.go:UpstreamCredential.valid:c.Value.Reveal()":             1,
+		"experiments/model-proxy/credential.go:FileSource.read:f.current.Reveal()":                    1,
+		"experiments/model-proxy/credential.go:Service.issued:c.Value.Reveal()":                       1,
+		"experiments/model-proxy/credential.go:authenticate:c.Value.Reveal()":                         1,
+		"experiments/model-proxy/tripwire.go:Service.foreignBearer:r.Bearer.Reveal()":                 1,
+		"experiments/model-proxy/tripwire.go:Service.foreignLeak:r.Bearer.Reveal()":                   1,
+		"experiments/rental-gateway/station/localtest.go:LocalTestDriver.Create:token.Reveal()":       1,
+		"experiments/rental-gateway/station/linuxuser.go:LinuxUserDriver.Create:token.Reveal()":       1,
+		"experiments/rental-gateway/station/trackbadmin.go:TrackBAdminClient.Mint:out.Token.Reveal()": 1,
+		"experiments/rental-gateway/gateway/gateway.go:Gateway.startStation:st.TrackBToken.Reveal()":  1,
+		"experiments/rental-executor/trackb.go:TrackB.Mint:token.Reveal()":                            1,
+		"experiments/rental-executor/trackb.go:TrackB.Claim:token.Reveal()":                           2,
+		"experiments/rental-executor/http.go:writeTrackBMintReply:token.Reveal()":                     1,
+	},
 }
 
 func receiver(f *ast.FuncDecl) string {
@@ -71,7 +78,7 @@ func receiver(f *ast.FuncDecl) string {
 	}
 	return rendered(n) + "." + f.Name.Name
 }
-func inventory(path string, raw []byte, gotFields map[string]string, gotReveals map[string]int) {
+func inventory(path string, raw []byte, gotFields map[string]string, gotReveals map[string]map[string]int) {
 	f, e := parser.ParseFile(token.NewFileSet(), path, raw, 0)
 	if e != nil {
 		panic("source parse refused")
@@ -90,20 +97,23 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 				}
 			case *ast.CallExpr:
 				selector, ok := v.Fun.(*ast.SelectorExpr)
-				if !ok || selector.Sel.Name != "Reveal" {
+				if !ok || !strings.HasPrefix(selector.Sel.Name, "Reveal") {
 					break
 				}
 				expression := rendered(v)
 				scope := path + ":" + owner + ":"
 				targetScope := false
-				for expected := range reveals {
+				for expected := range reveals[selector.Sel.Name] {
 					if strings.HasPrefix(expected, scope) {
 						targetScope = true
 						break
 					}
 				}
-				if targetScope || strings.Contains(expression, "APIKey") || strings.Contains(expression, "TrackBToken") || strings.Contains(expression, ".Token.") {
-					gotReveals[scope+expression]++
+				if selector.Sel.Name != "Reveal" || targetScope || strings.Contains(expression, "APIKey") || strings.Contains(expression, "TrackBToken") || strings.Contains(expression, ".Token.") {
+					if gotReveals[selector.Sel.Name] == nil {
+						gotReveals[selector.Sel.Name] = map[string]int{}
+					}
+					gotReveals[selector.Sel.Name][scope+expression]++
 				}
 			}
 			return true
@@ -112,6 +122,18 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 	for _, decl := range f.Decls {
 		switch v := decl.(type) {
 		case *ast.FuncDecl:
+			// Register unused accessors on named carriers too: a new Reveal*
+			// declaration requires an explicit expected set, even if empty.
+			if v.Recv != nil && strings.HasPrefix(v.Name.Name, "Reveal") {
+				typ := strings.TrimSuffix(receiver(v), "."+v.Name.Name)
+				for carrier, fieldType := range fields {
+					if filepath.Dir(strings.SplitN(carrier, ":", 2)[0]) == filepath.Dir(path) && strings.TrimPrefix(fieldType, "*") == typ {
+						if gotReveals[v.Name.Name] == nil {
+							gotReveals[v.Name.Name] = map[string]int{}
+						}
+					}
+				}
+			}
 			scan(v, receiver(v))
 		case *ast.GenDecl:
 			for _, s := range v.Specs {
@@ -125,9 +147,9 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 func main() {
 	// The checker must reject an extra carrier, a raw retained field and a new
 	// reveal site. These isolated controls print no credential-bearing source.
-	controlFields, controlReveals := map[string]string{}, map[string]int{}
+	controlFields, controlReveals := map[string]string{}, map[string]map[string]int{}
 	inventory("control.go", []byte(`package control;type Carrier struct{TrackBToken string};func expose(c Carrier){_=c.TrackBToken.Reveal()}`), controlFields, controlReveals)
-	if len(controlFields) != 1 || len(controlReveals) != 1 || reflect.DeepEqual(controlFields, fields) || reflect.DeepEqual(controlReveals, reveals) {
+	if len(controlFields) != 1 || len(controlReveals) != 1 || len(controlReveals["Reveal"]) != 1 || reflect.DeepEqual(controlFields, fields) || reflect.DeepEqual(controlReveals, reveals) {
 		panic("inventory detector control failed")
 	}
 	changed := map[string]string{}
@@ -138,7 +160,7 @@ func main() {
 	if reflect.DeepEqual(changed, fields) {
 		panic("raw carrier detector control failed")
 	}
-	gotFields, gotReveals := map[string]string{}, map[string]int{}
+	gotFields, gotReveals := map[string]string{}, map[string]map[string]int{}
 	var paths []string
 	e := filepath.WalkDir(".", func(path string, d os.DirEntry, e error) error {
 		if e != nil {

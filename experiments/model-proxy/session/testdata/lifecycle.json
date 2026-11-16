@@ -5269,6 +5269,245 @@
           }
         }
       ]
+    },
+    {
+      "id": "write-commit-order",
+      "claim": "WriteOK is a commit condition: channel and replay refusals keep T8.1 precedence, and a valid failed write returns no token or state before a successful retry.",
+      "rules": [
+        "T3.2",
+        "T3.3",
+        "T8.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Channel": "public",
+            "WriteOK": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111",
+          "expect": {
+            "code": "SESSION_CHANNEL",
+            "token": false,
+            "sessions": 0,
+            "seen": 0
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "WriteOK": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111",
+          "expect": {
+            "code": "JOURNAL_WRITE",
+            "token": false,
+            "sessions": 0,
+            "seen": 0
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111",
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1,
+            "seen": 1
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "WriteOK": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111",
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false,
+            "sessions": 1,
+            "seen": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "write-reserve-boundary",
+      "claim": "A failed reservation write preserves all state and can be retried with the same prepared request; budget refusals precede write failure in atomic Apply.",
+      "rules": [
+        "T3.2",
+        "T4.6",
+        "T8.3"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 0,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "WriteOK": false
+          },
+          "expect": {
+            "code": "SESSION_LIMIT_OVER",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "check",
+          "facts": {
+            "Op": "use",
+            "Spend": []
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "reserve",
+          "facts": {
+            "WriteOK": false
+          },
+          "expect": {
+            "code": "JOURNAL_WRITE",
+            "token": false
+          }
+        },
+        {
+          "op": "reserve",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "write-observation-boundary",
+      "claim": "Failed writes cannot publish staged final expiry or validated closure; their existing refusal codes survive, and completed observation writes remain final.",
+      "rules": [
+        "T3.2",
+        "T5.4",
+        "T5.6",
+        "T8.3"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 13600,
+            "WriteOK": false
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Closures": [
+              {
+                "Grant": "grant-a",
+                "Validated": true
+              }
+            ],
+            "WriteOK": false
+          },
+          "expect": {
+            "code": "GRANT_CLOSED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "closure",
+            "Closures": [
+              {
+                "Grant": "grant-a",
+                "Validated": true
+              }
+            ],
+            "WriteOK": false
+          },
+          "expect": {
+            "code": "JOURNAL_WRITE",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "closure",
+            "Closures": [
+              {
+                "Grant": "grant-a",
+                "Validated": true
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
     }
   ]
 }

@@ -67,6 +67,8 @@ closures and monotonic clock. It does not reconstruct a lost grant ledger.
 
 ## Exclusions and limits
 
+The model stops at a parent -> child proof path (one or two grants; a third refuses `AUTHORITY_FACTS`, "over-depth"): LIP-0028 states no depth, so this stricter bound stays until the spec says otherwise.
+
 Out of scope: request octets, invocation members or assigned wire commands;
 the journal entry form, durable I/O, continuity proofs and recovery procedure;
 a real LIP-0022 observation or LIP-0021 name reads; sockets and peer credential
@@ -77,8 +79,12 @@ The prerequisite facts stand for LIP-0008 §§2, 4, 5, 5.1 and 12;
 LIP-0013 §3.6; LIP-0006 §§1 and 4; LIP-0007 §1; LIP-0020;
 LIP-0022 §§1–3; LIP-0025 §§3–5; and LIP-0026 §5. This package
 verifies none of their signatures, transactions, names or observations.
-`WriteOK` states that the abstract transition can commit before any success
-reply. It is not a substitute for the store/advance order of LIP-0025.
+`WriteOK` is tested at the commit point after admission checks: public-channel
+and replay refusals keep their T8.1 codes even when it is false. A valid failed
+write returns `JOURNAL_WRITE` with no session, token or state change (T3.2).
+Failed writes also discard staged expiry/closure observations; completed writes
+retain their existing observation semantics. It is not a substitute for the
+store/advance order of LIP-0025.
 
 A uid or address is a **connection fact**, not a caller assertion. The model
 accepts canonical bare IP addresses; actual relay/address semantics remain
@@ -126,6 +132,7 @@ go vet ./...
 go test -race -count=1 ./...
 go build ./...
 python3 -I session/tools/second_reader.py
+python3 -I session/tools/guard_controls.py .temp/reveal-controls "$CUSTODY_FIXTURE"
 python3 -I session/tools/mutants.py .temp/session-mutants
 ```
 
@@ -138,13 +145,21 @@ requirement-derived expectations. Agreement alone is not the oracle. Both check
 that a refusal makes no partial debit or session/request-identity allocation.
 The Go tests also check input immutability and token custody.
 
-Python uses the standard library, requires isolated mode (`-I`), imports no
-implementation code and invokes no Go code. Its arithmetic uses arbitrary
+`guard_controls.py` copies the source into the caller-supplied, absent
+`CUSTODY_FIXTURE` path in task-owned scratch. Its `.temp/reveal-controls` logs pin
+14 carriers, 17 plain `Reveal` sites (23 calls) and no `RevealForOpen` calls,
+then require exact witnesses for planted `RevealForOpen`, new `RevealX` and
+plain `Reveal` production calls. The guard inventories `Reveal*` accessors;
+suffixed calls are conservatively checked regardless of receiver spelling.
+
+The independent reader uses the standard library, requires isolated mode (`-I`),
+imports no implementation code and invokes no Go code. Its arithmetic uses arbitrary
 precision, independently of the Go unsigned bounds. It prints a compact JSON
 verdict histogram. Mutation controls use Go compiler overlays against only this
 package, preserving the candidate source. They cover all eleven refusal codes,
 window arithmetic, expiry, extension, token storage/replay, the profile gate,
-closure validation/races, atomicity, recovery fencing and fmt/JSON/text custody
+closure validation/races, atomicity, recovery fencing, commit-time write precedence
+and fmt/JSON/text custody
 (including removal of each redaction method and a corrupted explicit return). Each killed control
 requires a named failing test and assertion; a build failure, panic, timeout or
 survivor is not a detection. Logs, PIDs, hashes, commands, exits and witnesses

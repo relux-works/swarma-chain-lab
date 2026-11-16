@@ -119,16 +119,33 @@ def mark(s, now):
     s['mark'] = max(now, s['mark'] or 0)
 
 
-def gate(profile, s, f):
+def gate(profile, s):
     tests = [(profile == DRAFT, 'PROFILE_DISABLED'),
-             (s['ready'], 'JOURNAL_UNAVAILABLE'),
-             (f['WriteOK'], 'JOURNAL_WRITE')]
+             (s['ready'], 'JOURNAL_UNAVAILABLE')]
     return next((code for passed, code in tests if not passed), OK)
 
 
+def write_boundary(transition):
+    def committed(profile, original, *args):
+        f = args[-1]
+        outcome = transition(profile, original, *args)
+        if f['WriteOK']:
+            return outcome
+        # A refusal never loses its pipeline code to a failed write. Discard
+        # all staged state, including an observed expiry or validated closure.
+        code = 'JOURNAL_WRITE' if outcome[1] == OK else outcome[1]
+        return (original, code, *([None] if len(outcome) == 3 else []))
+    return committed
+
+
+@write_boundary
 def check_use(profile, original, f):
+    return prepare_use(profile, original, f)
+
+
+def prepare_use(profile, original, f):
     s = copy.deepcopy(original)
-    code = gate(profile, s, f)
+    code = gate(profile, s)
     if code != OK:
         return s, code, None
     if not channel(f):
@@ -158,9 +175,10 @@ def check_use(profile, original, f):
     return s, OK, plan
 
 
+@write_boundary
 def reserve(profile, original, plan, f):
     s = copy.deepcopy(original)
-    code = gate(profile, s, f)
+    code = gate(profile, s)
     if code != OK:
         return s, code
     if (plan is None or plan['serial'] in s['reservations']
@@ -207,13 +225,14 @@ def reserve(profile, original, plan, f):
     return s, OK
 
 
+@write_boundary
 def apply(profile, original, f):
     s = copy.deepcopy(original)
-    code = gate(profile, s, f)
+    code = gate(profile, s)
     if code != OK:
         return s, code, None
     if f['Op'] == 'use':
-        s, code, plan = check_use(profile, s, f)
+        s, code, plan = prepare_use(profile, s, f)
         if code == OK:
             s, code = reserve(profile, s, plan, f)
         return s, code, None
@@ -333,6 +352,8 @@ def run(path):
                 require(s['sessions'][f['RequestID']]['digest'] == hashlib.sha256(token).digest(), label + ': token digest')
                 if not step.get('discard_reply'):
                     tokens[f['RequestID']] = token
+            if not f['WriteOK']:
+                require(s == before, label + ': uncompleted write changed state')
             if code != OK:
                 require(len(s['sessions']) == len(before['sessions']) and s['seen'] == before['seen'], label + ': refusal allocated session/identity')
                 require(s['accounts'] == before['accounts'], label + ': refusal debited accounts')

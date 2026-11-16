@@ -6,6 +6,7 @@ are local interpretations for pure facts, not resolutions of the protocol.
 | Question | Readings | Interpretation used |
 | --- | --- | --- |
 | J13 and the draft additions | Accepted profile; or pending co-author/owners | Pending. Default/unknown profile refuses every admission. |
+| Proof-path depth | LIP-0028 states no depth | The model stops at parent -> child (one or two grants; a third refuses `AUTHORITY_FACTS`, "over-depth"); the stricter bound stays until the spec says otherwise. |
 | Network binding form | Any connection address label; or canonical IP | Canonical bare IPv4/IPv6 only, exact equality, no ports, zones, names or forwarded claims. Actual relay/address selection remains open. |
 | uid source and channel | Equal uid stated by a caller; or verified local connection fact | Verified local peer fact only. A uid over a network channel refuses. Actual kernel collection is excluded. |
 | Non-cumulative limits | Compare every number as an upper cap; or admit only account limits | Only cumulative account limits. Depth, rate and unknown kinds refuse. |
@@ -14,7 +15,7 @@ are local interpretations for pure facts, not resolutions of the protocol.
 | Close after end | Reject; or admit a fresh signed close without changing the end | T5.5/T8.2 explicitly admit it. The same signed request identity still replays. |
 | Unprovided verification facts | Implicit success; or refuse | Refuse. No caller flag proves a signature, an observation or the key-holder origin gate. |
 | Token hash collision | Bind two sessions to one token; or refuse the second opening | Refuse without a new session or request identity. |
-| Write not completed | Return success/proposed token; or fail before a success reply | Fail closed. The abstract write fact gates mutation. Real durable commit/continuity is excluded. |
+| Write not completed | Gate before admission; or check at commit after admission | Owner decision for 1c: T3.2 checks `WriteOK` at commit. Every refusal retains its T8.1 code, including public channel and replay. A valid failed write returns `JOURNAL_WRITE`, no session/token/state change. Real durable commit/continuity is excluded. |
 | Journal started anew | Reset grant exposure too; or lose sessions/identities only | Keep stated grant exposure, closures and clock; fence old signed requests. Real grant-account recovery is external and must independently preserve its guarantees. |
 | Checked request races | Trust the checked snapshot; or reread current state at reservation | Reread ended then closed, recheck final clock/observation and key, atomically debit or none. |
 | T7 origin/run rules | Enforce at the receiving service; or obligations of the unseen key holder | External obligations. Same-uid/address copies are accepted in known-limit vectors; no invented service origin refusal. |

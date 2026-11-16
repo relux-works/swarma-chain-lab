@@ -16,6 +16,10 @@ import sys
 SOURCE = Path('session/session.go').resolve()
 # Each replacement targets one laboratory contract, not a production proxy.
 MUTANTS = [
+ ('write-front-gate', 'WriteOK cannot outrank T8.1 channel or replay refusals', 'TestWriteCommitOrder',
+  [('if !s.ready {', 'if !f.WriteOK { return "JOURNAL_WRITE" }; if !s.ready {'),
+   ('func gate(p Profile, s State) Code {', 'func gate(p Profile, s State, f Facts) Code {'),
+   ('gate(p, input)', 'gate(p, input, f)')]),
  ('channel', 'channel before open/token processing', 'TestVectors/S13-23',
   [('return c == "local" || c == "private-authenticated"', 'return true')]),
  ('replay', 'signed request identity is single admission', 'TestVectors/S13-2',
@@ -27,7 +31,7 @@ MUTANTS = [
  ('limits', 'requested ceilings cannot exceed grant authority', 'TestVectors/S13-4',
   [('if !validLimits(f) {', 'if false {')]),
  ('unknown', 'signed mutations require path-bound session identity', 'TestVectors/S13-14',
-  [('return s, result(Unknown)', 'return s, result(Admitted)')]),
+  [('return commit(input, s, f, result(Unknown))', 'return commit(input, s, f, result(Admitted))')]),
  ('token', 'an unrecognized token cannot borrow a known session', 'TestVectors/S13-8',
   [('if id == "" {\n\t\treturn fail(input, TokenUnknown)\n\t}',
     'if id == "" { for k := range input.sessions { id = k; break } }'),
@@ -50,7 +54,7 @@ MUTANTS = [
   [('type record struct {', 'type record struct {\n Plain Token'),
    ('ID: f.RequestID,', 'ID: f.RequestID, Plain: f.Random,')]),
  ('token-repeat', 'a repeated opening returns no credential', 'TestTokenCustody',
-  [('return s, result(Replay)', 'token := f.Random; return s, Result{Code:Admitted, Token:&token}')]),
+  [('return commit(input, s, f, result(Replay))', 'token := f.Random; return commit(input, s, f, Result{Code:Admitted, Token:&token})')]),
  ('profile', 'default profile refuses', 'TestProfileGate',
   [('if p != Draft {', 'if false {')]),
  ('unvalidated-spend', 'unvalidated evidence creates no closure', 'TestVectors/unvalidated-observation',

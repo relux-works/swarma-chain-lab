@@ -204,17 +204,26 @@ func clone(s State) State {
 	}
 	return s
 }
-func gate(p Profile, s State, f Facts) Code {
+func gate(p Profile, s State) Code {
 	if p != Draft {
 		return "PROFILE_DISABLED"
 	}
 	if !s.ready {
 		return "JOURNAL_UNAVAILABLE"
 	}
-	if !f.WriteOK {
-		return "JOURNAL_WRITE"
-	}
 	return Admitted
+}
+
+// commit publishes a candidate only after a completed write. Refusals keep
+// their admission code; a failed write publishes neither state nor a token.
+func commit(input, candidate State, f Facts, res Result) (State, Result) {
+	if !f.WriteOK {
+		if res.Code == Admitted {
+			return input, result("JOURNAL_WRITE")
+		}
+		return input, res
+	}
+	return candidate, res
 }
 func secure(c string) bool { return c == "local" || c == "private-authenticated" }
 func validBinding(b Binding) bool {
@@ -339,15 +348,16 @@ func validLimits(f Facts) bool {
 // Apply computes one atomic abstract transition. Its input is never modified.
 // A successful open is the only transition whose result can carry a token.
 func Apply(p Profile, input State, f Facts) (State, Result) {
-	if c := gate(p, input, f); c != Admitted {
+	if c := gate(p, input); c != Admitted {
 		return input, result(c)
 	}
 	if f.Op == "use" {
-		s, plan, res := CheckUse(p, input, f)
+		s, plan, res := prepareUse(p, input, f)
 		if res.Code != Admitted {
-			return s, res
+			return commit(input, s, f, res)
 		}
-		return Reserve(p, s, plan, f)
+		next, res := Reserve(p, s, plan, f)
+		return commit(input, next, f, res)
 	}
 	s := clone(input)
 	if f.Op == "closure" {
@@ -362,7 +372,7 @@ func Apply(p Profile, input State, f Facts) (State, Result) {
 		for _, c := range f.Closures {
 			recordClosure(&s, c)
 		}
-		return s, result(Admitted)
+		return commit(input, s, f, result(Admitted))
 	}
 	if f.Op != "open" && f.Op != "extend" && f.Op != "close" {
 		return input, result("OPERATION_UNSUPPORTED")
@@ -371,34 +381,34 @@ func Apply(p Profile, input State, f Facts) (State, Result) {
 		return input, result(Channel)
 	}
 	if c := verify(&s, f, nil, true); c != Admitted {
-		return s, result(c)
+		return commit(input, s, f, result(c))
 	}
 	if replay(s, f) {
-		return s, result(Replay)
+		return commit(input, s, f, result(Replay))
 	}
 	if f.Op == "open" {
 		if !validBinding(f.Binding) {
-			return s, result(BindingInvalid)
+			return commit(input, s, f, result(BindingInvalid))
 		}
 		if !validWindow(f.Now, f.End) {
-			return s, result(Window)
+			return commit(input, s, f, result(Window))
 		}
 		if !validLimits(f) {
-			return s, result(Limits)
+			return commit(input, s, f, result(Limits))
 		}
 		if f.Row != nil && (len(f.Path) != 2 || f.Row.Parent != f.Path[0]) {
-			return s, result("AUTHORITY_FACTS")
+			return commit(input, s, f, result("AUTHORITY_FACTS"))
 		}
 		if len(f.Path) == 2 && f.Row == nil {
-			return s, result("AUTHORITY_FACTS")
+			return commit(input, s, f, result("AUTHORITY_FACTS"))
 		}
 		if !f.RandomReady {
-			return s, result("ENTROPY_UNAVAILABLE")
+			return commit(input, s, f, result("ENTROPY_UNAVAILABLE"))
 		}
 		digest := tokenDigest(f.Random)
 		for _, r := range s.sessions {
 			if r.Digest == digest {
-				return s, result("ENTROPY_COLLISION")
+				return commit(input, s, f, result("ENTROPY_COLLISION"))
 			}
 		}
 		limits := map[string]uint64{}
@@ -414,18 +424,18 @@ func Apply(p Profile, input State, f Facts) (State, Result) {
 		s.seen[f.RequestID] = true
 		mark(&s, f.Now)
 		token := f.Random
-		return s, Result{Code: Admitted, Token: &token}
+		return commit(input, s, f, Result{Code: Admitted, Token: &token})
 	}
 	r, ok := s.sessions[f.SessionID]
 	if !ok || !slices.Equal(r.Path, f.Path) || r.Executor != f.Executor {
-		return s, result(Unknown)
+		return commit(input, s, f, result(Unknown))
 	}
 	if f.Op == "extend" {
 		if !live(&s, r.ID, f.Now) {
-			return s, result(Ended)
+			return commit(input, s, f, result(Ended))
 		}
 		if !validWindow(f.Now, f.End) {
-			return s, result(Window)
+			return commit(input, s, f, result(Window))
 		}
 		r.End = max(r.End, f.End)
 		r.LastKey = f.Key
@@ -435,7 +445,7 @@ func Apply(p Profile, input State, f Facts) (State, Result) {
 	s.sessions[r.ID] = r
 	s.seen[f.RequestID] = true
 	mark(&s, f.Now)
-	return s, result(Admitted)
+	return commit(input, s, f, result(Admitted))
 }
 
 // Prepared is a checked request, not a reservation. It carries no plaintext token.
@@ -451,8 +461,19 @@ type Prepared struct {
 }
 
 func CheckUse(p Profile, input State, f Facts) (State, Prepared, Result) {
+	s, plan, res := prepareUse(p, input, f)
+	next, res := commit(input, s, f, res)
+	if res.Code != Admitted {
+		return next, Prepared{}, res
+	}
+	return next, plan, res
+}
+
+// prepareUse stages an identity without publishing it. Apply combines this with
+// Reserve in one commit; standalone CheckUse commits its preparation separately.
+func prepareUse(p Profile, input State, f Facts) (State, Prepared, Result) {
 	fail := func(s State, c Code) (State, Prepared, Result) { return s, Prepared{}, result(c) }
-	if c := gate(p, input, f); c != Admitted {
+	if c := gate(p, input); c != Admitted {
 		return fail(input, c)
 	}
 	if !secure(f.Channel) {
@@ -497,7 +518,7 @@ func CheckUse(p Profile, input State, f Facts) (State, Prepared, Result) {
 // Reserve is the atomic write boundary. It re-reads the current session end,
 // then closures, and checks all own/row/session accounts before any debit.
 func Reserve(p Profile, input State, plan Prepared, f Facts) (State, Result) {
-	if c := gate(p, input, f); c != Admitted {
+	if c := gate(p, input); c != Admitted {
 		return input, result(c)
 	}
 	if !plan.valid || input.reservations[plan.serial] || plan.serial >= input.next {
@@ -509,41 +530,41 @@ func Reserve(p Profile, input State, plan Prepared, f Facts) (State, Result) {
 	}
 	s := clone(input)
 	if !f.FinalObservation {
-		return s, result("OBSERVATION_VOID")
+		return commit(input, s, f, result("OBSERVATION_VOID"))
 	}
 	if f.Now < plan.now || (s.marked && f.Now < s.mark) {
-		return s, result("OBSERVATION_CLOCK")
+		return commit(input, s, f, result("OBSERVATION_CLOCK"))
 	}
 	if !live(&s, r.ID, f.Now) {
-		return s, result(Ended)
+		return commit(input, s, f, result(Ended))
 	}
 	if closedPath(s, r.Path) {
-		return s, result("GRANT_CLOSED")
+		return commit(input, s, f, result("GRANT_CLOSED"))
 	}
 	if r.LastKey != plan.key {
-		return s, result("KEY_FACTS")
+		return commit(input, s, f, result("KEY_FACTS"))
 	}
 	// Accumulate in scratch maps: a late failing key leaves all accounts unchanged.
 	accounts := copyMap(s.accounts)
 	used := copyMap(r.Used)
 	for _, l := range plan.spend {
 		if l.Key == "" || l.Kind != "cumulative" {
-			return s, result("RESOURCE_FACTS")
+			return commit(input, s, f, result("RESOURCE_FACTS"))
 		}
 		own := accountKey{Kind: "own", Grant: r.Path[len(r.Path)-1], Limit: l.Key}
 		if !fits(accounts[own], l.Amount, r.GrantLimits[l.Key]) {
-			return s, result("OWN_LIMIT_OVER")
+			return commit(input, s, f, result("OWN_LIMIT_OVER"))
 		}
 		accounts[own] += l.Amount
 		if r.Row != nil {
 			row := accountKey{Kind: "row", Grant: r.Row.Parent, Ordinal: r.Row.Ordinal, Limit: l.Key}
 			if !fits(accounts[row], l.Amount, r.RowLimits[l.Key]) {
-				return s, result("ROW_CAP_OVER")
+				return commit(input, s, f, result("ROW_CAP_OVER"))
 			}
 			accounts[row] += l.Amount
 		}
 		if !fits(used[l.Key], l.Amount, r.Limits[l.Key]) {
-			return s, result(LimitOver)
+			return commit(input, s, f, result(LimitOver))
 		}
 		used[l.Key] += l.Amount
 	}
@@ -552,7 +573,7 @@ func Reserve(p Profile, input State, plan Prepared, f Facts) (State, Result) {
 	s.sessions[r.ID] = r
 	s.reservations[plan.serial] = true
 	mark(&s, f.Now)
-	return s, result(Admitted)
+	return commit(input, s, f, result(Admitted))
 }
 func fits(used, amount, ceiling uint64) bool { return used <= ceiling && amount <= ceiling-used }
 

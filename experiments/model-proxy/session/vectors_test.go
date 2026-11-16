@@ -174,6 +174,9 @@ func TestVectors(t *testing.T) {
 							tokens[f.RequestID] = *res.Token
 						}
 					}
+					if !f.WriteOK && !reflect.DeepEqual(s, before) {
+						t.Fatal("uncompleted write changed state")
+					}
 					if res.Code != Admitted {
 						if len(s.sessions) != len(before.sessions) || len(s.seen) != len(before.seen) {
 							t.Fatal("refusal allocated a session or request identity")
@@ -420,4 +423,38 @@ func TestConcurrentBranches(t *testing.T) {
 	if len(s.accounts) != 0 || len(s.sessions["open-a"].Used) != 0 || s.next != 0 {
 		t.Fatal("concurrent forks mutated input")
 	}
+}
+
+// Write failure preserves T8.1 channel/replay precedence and the complete input
+// state; retrying the same valid opening commits exactly one session and token.
+func TestWriteCommitOrder(t *testing.T) {
+	v := readVectors(t)
+	f := vectorFacts(t, v.Base, vectorStep{Entropy: strings.Repeat("11", 32)}, nil)
+	s := NewState(v.Executor)
+	assertRefusal := func(name string, facts Facts, want Code) {
+		t.Helper()
+		t.Run(name, func(t *testing.T) {
+			before := clone(s)
+			next, res := Apply(Draft, s, facts)
+			if res.Code != want {
+				t.Fatalf("verdict=%s want=%s", res.Code, want)
+			}
+			if res.Token != nil || !reflect.DeepEqual(next, before) || !reflect.DeepEqual(s, before) {
+				t.Fatal("uncompleted write returned token or changed state")
+			}
+		})
+	}
+	f.WriteOK = false
+	f.Channel = "public"
+	assertRefusal("channel", f, Channel)
+	f.Channel = "local"
+	assertRefusal("valid-write-failure", f, "JOURNAL_WRITE")
+	f.WriteOK = true
+	next, res := Apply(Draft, s, f)
+	if res.Code != Admitted || res.Token == nil || len(next.sessions) != 1 || len(next.seen) != 1 {
+		t.Fatal("valid write did not commit one opening and token")
+	}
+	s = next
+	f.WriteOK = false
+	assertRefusal("replay", f, Replay)
 }
