@@ -97,7 +97,8 @@ if raw.count(marker) != 1 or not raw.endswith(b'-----END SSH SIGNATURE-----\n'):
     print('FAIL TAG_SIGNATURE')
     sys.exit(1)
 payload, signature = raw.split(marker)
-headers = payload.split(b'\n\n', 1)[0].splitlines()
+# LF is the Git header separator; do not normalize CR or other signed bytes.
+headers = payload.split(b'\n\n', 1)[0].split(b'\n')
 # Require a direct commit tag with one unambiguous signed name and target.
 names = [line[4:] for line in headers if line.startswith(b'tag ')]
 objects = [line[7:] for line in headers if line.startswith(b'object ')]

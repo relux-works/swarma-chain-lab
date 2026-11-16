@@ -277,6 +277,24 @@ class ReleaseVerification(unittest.TestCase):
         self.command('git', 'update-ref', 'refs/tags/' + TAG, oid)
         self.verify('TAG_IDENTITY')
 
+    # Signed tag identity is byte-exact: CR cannot be normalized out of its header.
+    def test_signed_tag_name_with_carriage_return(self):
+        raw = self.command('git', 'cat-file', 'tag', 'refs/tags/' + TAG)
+        payload = raw.split('-----BEGIN SSH SIGNATURE-----')[0]
+        payload = payload.replace('tag ' + TAG + '\n', 'tag ' + TAG + '\r\n', 1).encode()
+        message = self.root / 'tag-payload'
+        message.write_bytes(payload)
+        self.command('ssh-keygen', '-Y', 'sign', '-f', str(self.tag_key),
+                     '-n', 'git', str(message))
+        raw = payload + message.with_suffix('.sig').read_bytes()
+        # Inject a signed malformed object without hash-object's fsck rejection.
+        result = subprocess.run(['git', 'hash-object', '--literally', '-t', 'tag', '-w', '--stdin'],
+                                input=raw, cwd=self.repo, env=self.env,
+                                capture_output=True, check=True)
+        self.command('git', 'update-ref', 'refs/tags/' + TAG, result.stdout.decode().strip())
+        self.command('git', 'verify-tag', 'refs/tags/' + TAG)
+        self.verify('TAG_IDENTITY')
+
     # Moving a ref after resolution cannot replace the pinned object's wrong target.
     # The inverse control keeps a valid pinned object valid despite the same move.
     def test_ref_moved_after_resolution(self):
