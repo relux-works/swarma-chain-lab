@@ -36,7 +36,14 @@ class ReleaseVerification(unittest.TestCase):
         self.release.mkdir()
         self.env = dict(os.environ, GIT_CONFIG_NOSYSTEM='1',
                         GIT_CONFIG_GLOBAL=os.devnull)
-        self.env.pop('GIT_CONFIG_COUNT', None)
+        for name in list(self.env):
+            if name.startswith(('GIT_CONFIG_', 'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR',
+                                'GIT_OBJECT_', 'GIT_ALTERNATE_', 'GIT_NAMESPACE')):
+                self.env.pop(name, None)
+        self.env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
+                        HOME=str(self.root / 'home'), GNUPGHOME=str(self.root / 'gnupg'))
+        Path(self.env['HOME']).mkdir()
+        Path(self.env['GNUPGHOME']).mkdir(mode=0o700)
         self.tag_key = self.root / 'tag-signer'
         self.command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(self.tag_key))
         self.key = self.root / 'manifest-signer'
@@ -77,14 +84,14 @@ class ReleaseVerification(unittest.TestCase):
                      '-n', namespace, str(self.manifest))
 
     def verify(self, refusal=None, signer='release-test', commit=None, tag=TAG,
-               tag_allowed=None, manifest_allowed=None):
-        args = [str(SCRIPT), str(self.repo), commit or self.commit]
+               tag_allowed=None, manifest_allowed=None, cwd=None, script=None):
+        args = [str(script or SCRIPT), str(self.repo), commit or self.commit]
         if tag is not None:
             args.append(tag)
         args.extend([str(self.release), str(self.rebuilt),
                      str(tag_allowed or self.tag_allowed),
                      str(manifest_allowed or self.allowed), signer])
-        result = subprocess.run(args, cwd=self.repo, env=self.env,
+        result = subprocess.run(args, cwd=cwd or self.repo, env=self.env,
                                 capture_output=True, timeout=20)
         output = result.stdout.decode()
         self.assertEqual(result.stderr, b'')
@@ -99,6 +106,7 @@ class ReleaseVerification(unittest.TestCase):
             self.assertEqual(output.splitlines()[-1], 'PASS RELEASE_VERIFIED')
         print(f'{self._testMethodName}: exit {result.returncode}; {output.splitlines()[-1]}',
               flush=True)
+        return result
 
     # Distinct role keys authenticate the current release, never a default tag.
     # Every refusal asserts the exact verdict, exit 1 and no terminal success.
@@ -153,6 +161,190 @@ class ReleaseVerification(unittest.TestCase):
     def test_swapped_allowed_signers(self):
         self.verify('TAG_SIGNATURE', tag_allowed=self.allowed,
                     manifest_allowed=self.tag_allowed)
+
+    # Explicit trust wins over each ambient Git config layer, even for valid SSH tags.
+    def test_ambient_only_tag_key(self):
+        other = self.root / 'ambient-signer'
+        self.command('ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(other))
+        ambient = self.root / 'ambient-allowed'
+        ambient.write_text('ambient ' + other.with_suffix('.pub').read_text())
+        self.command('git', 'tag', '-d', TAG)
+        self.command('git', '-c', 'user.signingkey=' + str(other),
+                     'tag', '-s', TAG, '-m', 'ambient only')
+        original_env = self.env.copy()
+        for layer in ('local', 'global', 'parameters', 'count'):
+            with self.subTest(layer=layer):
+                self.env = original_env.copy()
+                subprocess.run(['git', 'config', '--unset-all', 'gpg.ssh.allowedSignersFile'],
+                               cwd=self.repo, env=self.env, capture_output=True, check=False)
+                if layer == 'local':
+                    self.command('git', 'config', 'gpg.ssh.allowedSignersFile', str(ambient))
+                elif layer == 'global':
+                    config = self.root / 'global-config'
+                    config.write_text('[gpg "ssh"]\nallowedSignersFile = ' + str(ambient) + '\n')
+                    self.env['GIT_CONFIG_GLOBAL'] = str(config)
+                elif layer == 'parameters':
+                    self.env['GIT_CONFIG_PARAMETERS'] = "'gpg.ssh.allowedSignersFile=" + str(ambient) + "'"
+                else:
+                    self.env.update(GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='gpg.ssh.allowedSignersFile',
+                                    GIT_CONFIG_VALUE_0=str(ambient))
+                # Positive precondition: ambient Git actually trusts this exact tag.
+                self.command('git', 'verify-tag', 'refs/tags/' + TAG)
+                self.verify('TAG_SIGNATURE')
+
+    # A configured verifier executable is never launched, in any Git config layer.
+    def test_ambient_verifier_program(self):
+        stub = self.root / 'verifier'
+        marker = self.root / 'executed'
+        stub.write_text('#!/bin/sh\ntouch "' + str(marker) + '"\nexit 0\n')
+        stub.chmod(0o700)
+        self.command('git', 'config', 'gpg.ssh.program', str(stub))
+        self.env['GIT_CONFIG_PARAMETERS'] = "'gpg.ssh.program=" + str(stub) + "'"
+        self.env.update(GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='gpg.ssh.program',
+                        GIT_CONFIG_VALUE_0=str(stub))
+        self.verify()
+        self.assertFalse(marker.exists())
+
+    # Non-SSH armor cannot reach an ambient OpenPGP verifier/keyring.
+    def test_non_ssh_tag_signature(self):
+        raw = self.command('git', 'cat-file', 'tag', 'refs/tags/' + TAG)
+        payload = raw.split('-----BEGIN SSH SIGNATURE-----')[0]
+        raw = payload + '-----BEGIN PGP SIGNATURE-----\nfixture\n-----END PGP SIGNATURE-----\n'
+        result = subprocess.run(['git', 'hash-object', '-t', 'tag', '-w', '--stdin'],
+                                input=raw.encode(), cwd=self.repo, env=self.env,
+                                capture_output=True, check=True)
+        self.command('git', 'update-ref', 'refs/tags/' + TAG, result.stdout.decode().strip())
+        stub = self.root / 'pgp-verifier'
+        marker = self.root / 'pgp-executed'
+        stub.write_text('#!/bin/sh\ntouch "' + str(marker) + '"\n'
+                        'echo "[GNUPG:] NEWSIG"\n'
+                        'echo "[GNUPG:] GOODSIG 0123456789ABCDEF Fixture"\n'
+                        'echo "[GNUPG:] TRUST_ULTIMATE"\nexit 0\n')
+        stub.chmod(0o700)
+        self.command('git', 'config', 'gpg.program', str(stub))
+        self.command('git', 'config', 'gpg.openpgp.program', str(stub))
+        # This controlled backend makes the fallback observable without a real keyring.
+        self.command('git', 'verify-tag', 'refs/tags/' + TAG)
+        self.assertTrue(marker.exists())
+        marker.unlink()
+        self.verify('TAG_SIGNATURE')
+        self.assertFalse(marker.exists())
+
+    # Reject caller-relative trust paths even when both cwd locations have a file.
+    def test_relative_trust_path(self):
+        for path, kw in ((self.tag_allowed, 'tag_allowed'), (self.allowed, 'manifest_allowed')):
+            shutil.copyfile(path, self.repo / path.name)
+            with self.subTest(role=kw):
+                self.verify('ARGUMENTS', cwd=self.root, **{kw: Path(path.name)})
+
+    # Parent symlinks resolve physically before all signature consumers use the path.
+    def test_physical_trust_paths(self):
+        alias = self.root / 'trust-alias'
+        alias.symlink_to(self.root, target_is_directory=True)
+        tools = self.root / 'physical-tools'
+        tools.mkdir()
+        calls = self.root / 'trust-paths'
+        real_ssh = shutil.which('ssh-keygen')
+        wrapper = tools / 'ssh-keygen'
+        wrapper.write_text('#!/bin/bash\n'
+                           'previous=\nfor arg in "$@"; do\n'
+                           '  if [[ $previous == -f ]]; then printf "%s\\n" "$arg" >> "'
+                           + str(calls) + '"; fi\n  previous=$arg\ndone\n'
+                           'exec "' + real_ssh + '" "$@"\n')
+        wrapper.chmod(0o700)
+        self.env['PATH'] = str(tools) + os.pathsep + self.env['PATH']
+        self.verify(tag_allowed=alias / self.tag_allowed.name,
+                    manifest_allowed=alias / self.allowed.name)
+        # Assert the exact physical filenames consumed by every SSH trust lookup.
+        consumed = set(calls.read_text().splitlines())
+        self.assertEqual(consumed, {str(self.tag_allowed), str(self.allowed)})
+
+    # Canonicalization preserves the exact filename, including trailing newlines.
+    def test_trust_paths_with_trailing_newline(self):
+        tag_path = self.root / 'tag-trust\n'
+        manifest_path = self.root / 'manifest-trust\n'
+        shutil.copyfile(self.tag_allowed, tag_path)
+        shutil.copyfile(self.allowed, manifest_path)
+        (self.root / 'tag-trust').write_text('')
+        (self.root / 'manifest-trust').write_text('')
+        self.verify(tag_allowed=tag_path, manifest_allowed=manifest_path)
+
+    # A signature over another component's name cannot authorize this release name.
+    def test_wrong_signed_tag_name(self):
+        other = 'component/v0.1.1'
+        self.command('git', 'tag', '-s', other, '-m', 'other component')
+        oid = self.command('git', 'rev-parse', 'refs/tags/' + other)
+        self.command('git', 'update-ref', 'refs/tags/' + TAG, oid)
+        self.verify('TAG_IDENTITY')
+
+    # Moving a ref after resolution cannot replace the pinned object's wrong target.
+    # The inverse control keeps a valid pinned object valid despite the same move.
+    def test_ref_moved_after_resolution(self):
+        good = self.command('git', 'rev-parse', 'refs/tags/' + TAG)
+        self.command('git', 'tag', '-d', TAG)
+        self.command('git', 'tag', '-s', TAG, self.commit + '^', '-m', 'wrong target')
+        bad = self.command('git', 'rev-parse', 'refs/tags/' + TAG)
+        real_git = shutil.which('git')
+        wrappers = self.root / 'tools'
+        wrappers.mkdir()
+        wrapper = wrappers / 'git'
+        calls = self.root / 'resolutions'
+        wrapper.write_text('#!/bin/bash\n'
+                           'if [[ " $* " == *" rev-parse "* ]]; then\n'
+                           '  printf "resolved\\n" >> "' + str(calls) + '"\n'
+                           '  "' + real_git + '" "$@" || exit $?\n'
+                           '  "' + real_git + '" -C "' + str(self.repo) + '" update-ref '
+                           '"refs/tags/' + TAG + '" "$(cat "' + str(self.root / 'move-to') + '")"\n'
+                           'else exec "' + real_git + '" "$@"; fi\n')
+        wrapper.chmod(0o700)
+        self.env['PATH'] = str(wrappers) + os.pathsep + self.env['PATH']
+        for initial, moved, verdict in ((bad, good, 'TAG_COMMIT'), (good, bad, None)):
+            (self.root / 'move-to').write_text(moved)
+            subprocess.run([real_git, '-C', str(self.repo), 'update-ref', 'refs/tags/' + TAG, initial],
+                           env=self.env, check=True, capture_output=True)
+            calls.unlink(missing_ok=True)
+            self.verify(verdict)
+            self.assertEqual(calls.read_text().splitlines(), ['resolved'])
+
+    # Copied merged trust files make the guard load-bearing even when signatures verify.
+    def merged_roles(self):
+        merged = ('tag-test ' + self.tag_key.with_suffix('.pub').read_text()
+                  + 'release-test ' + self.key.with_suffix('.pub').read_text())
+        self.tag_allowed.write_text(merged)
+        self.allowed.write_text(merged)
+        self.manifest.with_suffix('.sig').unlink()
+        self.command('ssh-keygen', '-Y', 'sign', '-f', str(self.tag_key),
+                     '-n', 'swarma-release', str(self.manifest))
+
+    def test_merged_signer_roles(self):
+        self.merged_roles()
+        self.verify('SIGNER_ROLE_SEPARATION', signer='tag-test')
+
+    # Removing only the separation guard makes the exact forbidden fixture succeed.
+    def test_role_separation_mutant(self):
+        self.merged_roles()
+        self.verify('SIGNER_ROLE_SEPARATION', signer='tag-test')
+        source = SCRIPT.read_text()
+        start = '# BEGIN SIGNER_ROLE_SEPARATION\n'
+        end = '# END SIGNER_ROLE_SEPARATION\n'
+        self.assertEqual(source.count(start), 1)
+        self.assertEqual(source.count(end), 1)
+        first = source.index(start)
+        last = source.index(end, first) + len(end)
+        mutant = self.root / 'mutant.sh'
+        mutant.write_text(source[:first] + source[last:])
+        mutant.chmod(0o700)
+        self.verify(signer='tag-test', script=mutant)
+
+    # The downloaded inode cannot stand in for an independent build, even via hardlink.
+    def test_download_as_rebuild(self):
+        self.rebuilt = self.binary
+        self.verify('ARGUMENTS')
+
+    def test_download_hardlink_as_rebuild(self):
+        self.rebuilt.unlink()
+        self.rebuilt.hardlink_to(self.binary)
+        self.verify('ARGUMENTS')
 
     # Exact membership includes hidden names; no directory entry may be a link,
     # directory or special file. lstat must reject even links to valid inputs.
