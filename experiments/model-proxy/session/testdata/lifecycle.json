@@ -1,0 +1,5274 @@
+{
+  "schema": "session-lifecycle-facts/1",
+  "profile": "DRAFT-LIP-0028-v0.1.49",
+  "executor": {
+    "Name": "service-a",
+    "Key": "executor-a"
+  },
+  "base_facts": {
+    "Op": "open",
+    "Action": "model",
+    "RequestID": "open-a",
+    "SessionID": "open-a",
+    "Path": [
+      "grant-a"
+    ],
+    "Executor": {
+      "Name": "service-a",
+      "Key": "executor-a"
+    },
+    "Binding": {
+      "Kind": "uid",
+      "UID": 1000
+    },
+    "Peer": {
+      "Kind": "uid",
+      "UID": 1000
+    },
+    "PeerVerified": true,
+    "Channel": "local",
+    "Now": 10000,
+    "Iat": 10000,
+    "Exp": 20000,
+    "End": 13600,
+    "Key": "signer-a",
+    "Checks": {
+      "Names": {
+        "OK": true
+      },
+      "Recipient": {
+        "OK": true
+      },
+      "Observation": {
+        "OK": true
+      },
+      "Path": {
+        "OK": true
+      },
+      "Resources": {
+        "OK": true
+      }
+    },
+    "Limits": [
+      {
+        "Key": "requests",
+        "Amount": 10,
+        "Kind": "cumulative"
+      }
+    ],
+    "GrantLimits": {
+      "requests": 20
+    },
+    "OperatorLimits": {
+      "requests": 30
+    },
+    "Spend": [
+      {
+        "Key": "requests",
+        "Amount": 1,
+        "Kind": "cumulative"
+      }
+    ],
+    "RandomReady": true,
+    "FinalObservation": true,
+    "WriteOK": true
+  },
+  "scenarios": [
+    {
+      "id": "S13-1",
+      "claim": "Exactly one hour opens one session and returns one token after the write.",
+      "rules": [
+        "T1.1",
+        "T1.2",
+        "T2.1",
+        "T2.2",
+        "T2.3",
+        "T2.4",
+        "T2.5",
+        "T3.1",
+        "T3.2",
+        "T3.3",
+        "T3.4",
+        "T5.1",
+        "T6.1",
+        "T8.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1,
+            "end": {
+              "open-a": 13600
+            },
+            "seen": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "used": {
+              "open-a": {
+                "requests": 1
+              }
+            }
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-2",
+      "claim": "Repeating an admitted open, including after its reply is lost, never mints or returns a token.",
+      "rules": [
+        "T2.6",
+        "T3.3",
+        "T3.5",
+        "T8.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false,
+            "sessions": 1,
+            "seen": 1
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 2
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "id": "S13-3",
+      "claim": "An open end at now or now plus 3601 is rejected; no session exists.",
+      "rules": [
+        "T2.3",
+        "T8.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "End": 13601
+          },
+          "expect": {
+            "code": "SESSION_WINDOW",
+            "token": false,
+            "sessions": 0
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "End": 10000
+          },
+          "expect": {
+            "code": "SESSION_WINDOW",
+            "token": false,
+            "sessions": 0
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "S13-4",
+      "claim": "Grant+1, absent grant key and duplicate requested limit keys all reject.",
+      "rules": [
+        "T2.4",
+        "T8.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 21,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_LIMITS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Limits": [
+              {
+                "Key": "other",
+                "Amount": 1,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_LIMITS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              },
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_LIMITS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "S13-5",
+      "claim": "A third binding form rejects before a valid uid binding opens.",
+      "rules": [
+        "T2.7",
+        "T6.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Binding": {
+              "Kind": "label"
+            }
+          },
+          "expect": {
+            "code": "SESSION_BINDING",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "S13-6",
+      "claim": "Model-action authority alone supplies no open-command authority.",
+      "rules": [
+        "T1.3",
+        "T2.1",
+        "T2.5",
+        "T8.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "ACTION_NOT_ALLOWED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "ACTION_NOT_ALLOWED",
+            "token": false,
+            "sessions": 0
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "S13-7",
+      "claim": "A different uid refuses without charging; the bound uid succeeds.",
+      "rules": [
+        "T4.2",
+        "T6.2",
+        "T8.3"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Peer": {
+              "Kind": "uid",
+              "UID": 1001
+            }
+          },
+          "expect": {
+            "code": "SESSION_PEER",
+            "token": false,
+            "used": {
+              "open-a": {}
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-8",
+      "claim": "Unknown 32-octet token refuses, while the minted token succeeds.",
+      "rules": [
+        "T3.4",
+        "T4.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "SESSION_TOKEN",
+            "token": false
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-9",
+      "claim": "The second before expiry admits; expiry itself records a final end.",
+      "rules": [
+        "T4.3",
+        "T5.4"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 13599
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 13600
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false,
+            "ended": {
+              "open-a": true
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 13601
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-10",
+      "claim": "A token cannot open, extend or close a session.",
+      "rules": [
+        "T1.3",
+        "T4.4"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Action": "open"
+          },
+          "expect": {
+            "code": "SESSION_COMMAND",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Action": "extend"
+          },
+          "expect": {
+            "code": "SESSION_COMMAND",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Action": "close"
+          },
+          "expect": {
+            "code": "SESSION_COMMAND",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-11",
+      "claim": "An extension at +1800 accepts a new end exactly 3600 ahead with the same token.",
+      "rules": [
+        "T5.1",
+        "T5.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "Now": 11800,
+            "Iat": 11800,
+            "End": 15400
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "end": {
+              "open-a": 15400
+            }
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 15399
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-12",
+      "claim": "A shorter but future proposed end never moves the current end back.",
+      "rules": [
+        "T5.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "Now": 11000,
+            "Iat": 11000,
+            "End": 12000
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "end": {
+              "open-a": 13600
+            }
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 13599
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-13",
+      "claim": "An extension at expiry cannot resurrect; later clock rollback cannot reopen it.",
+      "rules": [
+        "T5.3",
+        "T5.4"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "Now": 13600,
+            "Iat": 13600,
+            "End": 15000
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false,
+            "ended": {
+              "open-a": true
+            }
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 13600
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-b",
+            "Now": 11000,
+            "Iat": 11000,
+            "End": 14000
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-14",
+      "claim": "A different proof path or executor does not identify the session.",
+      "rules": [
+        "T1.2",
+        "T5.3"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "Path": [
+              "grant-b"
+            ]
+          },
+          "expect": {
+            "code": "SESSION_UNKNOWN",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a",
+            "Path": [
+              "grant-b"
+            ]
+          },
+          "expect": {
+            "code": "SESSION_UNKNOWN",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "End": 13600
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "S13-15",
+      "claim": "A discovered validated closure ends all sessions of the grant and leaves another grant untouched.",
+      "rules": [
+        "T5.6",
+        "T8.4"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 2
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-c",
+            "Path": [
+              "grant-c"
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 3
+          },
+          "entropy": "3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Closures": [
+              {
+                "Grant": "grant-a",
+                "Validated": true
+              }
+            ]
+          },
+          "expect": {
+            "code": "GRANT_CLOSED",
+            "token": false,
+            "ended": {
+              "open-a": true,
+              "open-b": true,
+              "open-c": false
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Path": [
+              "grant-c"
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-c"
+        }
+      ]
+    },
+    {
+      "id": "S13-16",
+      "claim": "Stale observation refuses without ending or debiting, then a healthy observation succeeds.",
+      "rules": [
+        "T4.5",
+        "T5.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": false,
+                "Refusal": "TIP_AGE"
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "TIP_AGE",
+            "token": false,
+            "ended": {
+              "open-a": false
+            },
+            "used": {
+              "open-a": {}
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-17",
+      "claim": "Session exhaustion and grant exhaustion refuse atomically with their respective codes.",
+      "rules": [
+        "T4.6",
+        "T4.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "SESSION_LIMIT_OVER",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b",
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 20,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-b"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "OWN_LIMIT_OVER",
+            "token": false
+          },
+          "token_from": "open-b"
+        }
+      ]
+    },
+    {
+      "id": "S13-18",
+      "claim": "A changed recipient key refuses until a signed extension updates the last authenticated key.",
+      "rules": [
+        "T4.5",
+        "T5.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Key": "signer-b"
+          },
+          "expect": {
+            "code": "KEY_FACTS",
+            "token": false,
+            "ended": {
+              "open-a": false
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "Key": "signer-b"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "last_key": {
+              "open-a": "signer-b"
+            }
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Key": "signer-b"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "KEY_FACTS",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-19",
+      "claim": "Close records a final end; another close is harmless, while the same close identity replays.",
+      "rules": [
+        "T5.4",
+        "T5.5",
+        "T8.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "ended": {
+              "open-a": true
+            }
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a"
+          },
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-b"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "seen": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "S13-20",
+      "claim": "An intact restart retains token and accounting; starting anew loses the token.",
+      "rules": [
+        "T5.8"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "restart",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "used": {
+              "open-a": {
+                "requests": 2
+              }
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "recover",
+          "facts": {
+            "Now": 10001
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "sessions": 0
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "SESSION_TOKEN",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-21",
+      "claim": "Recovery fences iat at equality and below, while a freshly signed open after the fence succeeds.",
+      "rules": [
+        "T2.6",
+        "T5.8"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "recover",
+          "facts": {
+            "Now": 10000
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Iat": 10000
+          },
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Iat": 9999
+          },
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b",
+            "Now": 10001,
+            "Iat": 10001
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "id": "S13-22",
+      "claim": "A different executor journal knows no token and refuses an invocation naming the first executor.",
+      "rules": [
+        "T1.2",
+        "T2.5",
+        "T4.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "other_service",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "SESSION_TOKEN",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "AUTHORITY_FACTS",
+            "token": false,
+            "sessions": 0
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "id": "S13-23",
+      "claim": "An unprotected channel rejects both open and token requests before later defects.",
+      "rules": [
+        "T3.3",
+        "T4.1",
+        "T6.4",
+        "T8.1",
+        "T8.3"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Channel": "public",
+            "Binding": {
+              "Kind": "bad"
+            },
+            "End": 0
+          },
+          "expect": {
+            "code": "SESSION_CHANNEL",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Channel": "public",
+            "Peer": {
+              "Kind": "uid",
+              "UID": 1001
+            }
+          },
+          "expect": {
+            "code": "SESSION_CHANNEL",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-24",
+      "claim": "A closure between checks and the atomic reservation prevents any debit by the checked request.",
+      "rules": [
+        "T4.6",
+        "T5.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "check",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Closures": [
+              {
+                "Grant": "grant-a",
+                "Validated": true
+              }
+            ]
+          },
+          "expect": {
+            "code": "GRANT_CLOSED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "reserve",
+          "facts": {},
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false,
+            "used": {
+              "open-a": {}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "S13-K1",
+      "claim": "A bearer holder in the slot can consume all allowed session authority, and no more.",
+      "rules": [
+        "T1.3",
+        "T4.6",
+        "T7.1",
+        "T7.3"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "SESSION_LIMIT_OVER",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-K2",
+      "claim": "A copied token from the same uid works; a different uid fails.",
+      "rules": [
+        "T6.2",
+        "T7.3",
+        "T7.4"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Peer": {
+              "Kind": "uid",
+              "UID": 1001
+            }
+          },
+          "expect": {
+            "code": "SESSION_PEER",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-K3",
+      "claim": "The service cannot distinguish origins behind one uid; the external key-holder origin gate remains necessary.",
+      "rules": [
+        "T7.1",
+        "T7.2",
+        "T7.4",
+        "T7.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Peer": {
+              "Kind": "uid",
+              "UID": 1001
+            }
+          },
+          "expect": {
+            "code": "SESSION_PEER",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "S13-K4",
+      "claim": "Same-address peers, including shared translation, are indistinguishable; a different address fails.",
+      "rules": [
+        "T6.3",
+        "T7.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Binding": {
+              "Kind": "address",
+              "Address": "192.0.2.1"
+            },
+            "Channel": "private-authenticated"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Peer": {
+              "Kind": "address",
+              "Address": "192.0.2.1"
+            },
+            "Channel": "private-authenticated"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Peer": {
+              "Kind": "address",
+              "Address": "192.0.2.1"
+            },
+            "Channel": "private-authenticated"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Peer": {
+              "Kind": "address",
+              "Address": "192.0.2.2"
+            },
+            "Channel": "private-authenticated"
+          },
+          "expect": {
+            "code": "SESSION_PEER",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "profile-zero",
+      "claim": "The default and unknown profiles refuse every transition, including check/reserve.",
+      "rules": [
+        "T1.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "PROFILE_DISABLED",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111",
+          "profile": ""
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "PROFILE_DISABLED",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111",
+          "profile": "unknown"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "missing-facts",
+      "claim": "An absent success fact never acts as verified authority.",
+      "rules": [
+        "T2.1",
+        "T2.5",
+        "T4.5"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Checks": {}
+          },
+          "expect": {
+            "code": "NAME_FACTS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "fact-names",
+      "claim": "A failed names fact refuses with its upstream code and ends no session.",
+      "rules": [
+        "T2.1",
+        "T2.5",
+        "T4.5",
+        "T5.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Checks": {
+              "Names": {
+                "OK": false,
+                "Refusal": "NAME_UNREADABLE"
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "NAME_UNREADABLE",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Checks": {
+              "Names": {
+                "OK": false,
+                "Refusal": "NAME_UNREADABLE"
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "NAME_UNREADABLE",
+            "token": false,
+            "ended": {
+              "open-a": false
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "fact-recipient",
+      "claim": "A failed recipient fact refuses with its upstream code and ends no session.",
+      "rules": [
+        "T2.1",
+        "T2.5",
+        "T4.5",
+        "T5.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": false,
+                "Refusal": "SIGNATURE_INVALID"
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "SIGNATURE_INVALID",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": false,
+                "Refusal": "SIGNATURE_INVALID"
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "SIGNATURE_INVALID",
+            "token": false,
+            "ended": {
+              "open-a": false
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "fact-observation",
+      "claim": "A failed observation fact refuses with its upstream code and ends no session.",
+      "rules": [
+        "T2.1",
+        "T2.5",
+        "T4.5",
+        "T5.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": false,
+                "Refusal": "NODE_DISAGREEMENT"
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "NODE_DISAGREEMENT",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": false,
+                "Refusal": "NODE_DISAGREEMENT"
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "NODE_DISAGREEMENT",
+            "token": false,
+            "ended": {
+              "open-a": false
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "fact-path",
+      "claim": "A failed path fact refuses with its upstream code and ends no session.",
+      "rules": [
+        "T2.1",
+        "T2.5",
+        "T4.5",
+        "T5.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "SEAL_UNVALIDATED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "SEAL_UNVALIDATED",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "SEAL_UNVALIDATED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "SEAL_UNVALIDATED",
+            "token": false,
+            "ended": {
+              "open-a": false
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "fact-resources",
+      "claim": "A failed resources fact refuses with its upstream code and ends no session.",
+      "rules": [
+        "T2.1",
+        "T2.5",
+        "T4.5",
+        "T5.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": false,
+                "Refusal": "PARTITION_INVALID"
+              }
+            }
+          },
+          "expect": {
+            "code": "PARTITION_INVALID",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": false,
+                "Refusal": "PARTITION_INVALID"
+              }
+            }
+          },
+          "expect": {
+            "code": "PARTITION_INVALID",
+            "token": false,
+            "ended": {
+              "open-a": false
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "binding-address",
+      "claim": "Only canonical bare IPs are accepted as network bindings.",
+      "rules": [
+        "T2.7",
+        "T6.1",
+        "T6.3"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Binding": {
+              "Kind": "address",
+              "Address": "example.test"
+            }
+          },
+          "expect": {
+            "code": "SESSION_BINDING",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Binding": {
+              "Kind": "address",
+              "Address": "192.0.2.1:443"
+            }
+          },
+          "expect": {
+            "code": "SESSION_BINDING",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Binding": {
+              "Kind": "address",
+              "Address": "fe80::1%zone"
+            }
+          },
+          "expect": {
+            "code": "SESSION_BINDING",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Binding": {
+              "Kind": "address",
+              "Address": "2001:0db8::1"
+            }
+          },
+          "expect": {
+            "code": "SESSION_BINDING",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Binding": {
+              "Kind": "address",
+              "Address": "2001:db8::1"
+            },
+            "Channel": "private-authenticated"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Peer": {
+              "Kind": "address",
+              "Address": "2001:db8::1"
+            },
+            "Channel": "private-authenticated"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "peer-provenance",
+      "claim": "Peer equality without a verified connection source is insufficient; uid over a network is insufficient.",
+      "rules": [
+        "T4.2",
+        "T6.2",
+        "T6.3"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "PeerVerified": false
+          },
+          "expect": {
+            "code": "SESSION_PEER",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Channel": "private-authenticated"
+          },
+          "expect": {
+            "code": "SESSION_PEER",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "window-extension",
+      "claim": "Each extension uses now rather than the old end, and accepts exactly +3600 but not +3601.",
+      "rules": [
+        "T2.3",
+        "T5.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "Now": 11800,
+            "Iat": 11800,
+            "End": 15401
+          },
+          "expect": {
+            "code": "SESSION_WINDOW",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "End": 17200
+          },
+          "expect": {
+            "code": "SESSION_WINDOW",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "End": 10000
+          },
+          "expect": {
+            "code": "SESSION_WINDOW",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "Now": 11800,
+            "Iat": 11800,
+            "End": 15400
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "end": {
+              "open-a": 15400
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "window-integer-boundary",
+      "claim": "Subtraction-based window checking admits at the unsigned integer boundary without wraparound.",
+      "rules": [
+        "T2.3",
+        "T5.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Now": 18446744073709548015,
+            "Iat": 18446744073709548015,
+            "Exp": 18446744073709551615,
+            "End": 18446744073709551615
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 18446744073709551614
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 18446744073709551615
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "window-overflow-reject",
+      "claim": "An enormous forward interval never wraps into the one-hour window.",
+      "rules": [
+        "T2.3"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Now": 1,
+            "Iat": 1,
+            "Exp": 18446744073709551615,
+            "End": 18446744073709551615
+          },
+          "expect": {
+            "code": "SESSION_WINDOW",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "operator-ceiling",
+      "claim": "An explicit operator zero rejects positive limits; absent operator cap does not replace grant authority.",
+      "rules": [
+        "T2.4"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "OperatorLimits": {
+              "requests": 0
+            }
+          },
+          "expect": {
+            "code": "SESSION_LIMITS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "OperatorLimits": {}
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "limit-kinds",
+      "claim": "Only cumulative session ceilings are supported; rate and depth cannot be compared as upper counters.",
+      "rules": [
+        "T2.4"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 1,
+                "Kind": "rate"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_LIMITS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 1,
+                "Kind": "depth"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_LIMITS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 1,
+                "Kind": ""
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_LIMITS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "session-missing-limit",
+      "claim": "An unstated session limit has ceiling zero even when the grant has room.",
+      "rules": [
+        "T2.4",
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Limits": []
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "SESSION_LIMIT_OVER",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 0,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "grant-missing-limit",
+      "claim": "An unstated grant key has zero authority before the session account is reached.",
+      "rules": [
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Spend": [
+              {
+                "Key": "other",
+                "Amount": 1,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "OWN_LIMIT_OVER",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "two-key-atomic",
+      "claim": "A later exhausted key leaves earlier grant and session accounts unchanged.",
+      "rules": [
+        "T4.6",
+        "T4.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "GrantLimits": {
+              "requests": 20,
+              "cost": 10
+            }
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 1,
+                "Kind": "cumulative"
+              },
+              {
+                "Key": "cost",
+                "Amount": 1,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_LIMIT_OVER",
+            "token": false,
+            "used": {
+              "open-a": {}
+            },
+            "accounts": {}
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "counter-overflow",
+      "claim": "An addition beyond the largest integer rejects without wrapping any account.",
+      "rules": [
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "GrantLimits": {
+              "requests": 18446744073709551615
+            },
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 18446744073709551615,
+                "Kind": "cumulative"
+              }
+            ],
+            "OperatorLimits": {}
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 18446744073709551615,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "OWN_LIMIT_OVER",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "row-account",
+      "claim": "A child charges its own and parent row accounts, never parent own; row checks precede session.",
+      "rules": [
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Path": [
+              "parent",
+              "child"
+            ],
+            "Row": {
+              "Parent": "parent",
+              "Ordinal": 0
+            },
+            "RowLimits": {
+              "requests": 5
+            },
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 5,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Path": [
+              "parent",
+              "child"
+            ],
+            "Row": {
+              "Parent": "parent",
+              "Ordinal": 0
+            },
+            "RowLimits": {
+              "requests": 5
+            },
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 5,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Path": [
+              "parent",
+              "child"
+            ],
+            "Row": {
+              "Parent": "parent",
+              "Ordinal": 0
+            },
+            "RowLimits": {
+              "requests": 5
+            }
+          },
+          "expect": {
+            "code": "ROW_CAP_OVER",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "parent-open",
+            "Path": [
+              "parent"
+            ],
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 20,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Path": [
+              "parent"
+            ],
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 20,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "parent-open"
+        }
+      ]
+    },
+    {
+      "id": "ancestor-closure",
+      "claim": "A recorded ancestor closure ends descendants and survives a restart.",
+      "rules": [
+        "T5.6",
+        "T5.8"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Path": [
+              "parent",
+              "child"
+            ],
+            "Row": {
+              "Parent": "parent",
+              "Ordinal": 0
+            },
+            "RowLimits": {
+              "requests": 5
+            }
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Path": [
+              "parent",
+              "child"
+            ],
+            "Row": {
+              "Parent": "parent",
+              "Ordinal": 0
+            },
+            "RowLimits": {
+              "requests": 5
+            },
+            "Closures": [
+              {
+                "Grant": "parent",
+                "Validated": true
+              }
+            ]
+          },
+          "expect": {
+            "code": "GRANT_CLOSED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "restart",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Path": [
+              "parent",
+              "child"
+            ],
+            "Row": {
+              "Parent": "parent",
+              "Ordinal": 0
+            },
+            "RowLimits": {
+              "requests": 5
+            }
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "unvalidated-spend",
+      "claim": "An unvalidated spend refuses but creates no closure and does not end the session.",
+      "rules": [
+        "T5.6",
+        "T5.7",
+        "T8.4"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "closure",
+            "Closures": [
+              {
+                "Grant": "grant-a",
+                "Validated": false
+              }
+            ]
+          },
+          "expect": {
+            "code": "SEAL_UNVALIDATED",
+            "token": false,
+            "ended": {
+              "open-a": false
+            }
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "SEAL_UNVALIDATED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "SEAL_UNVALIDATED",
+            "token": false,
+            "ended": {
+              "open-a": false
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "journal-unavailable",
+      "claim": "Loss refuses rather than assuming an empty journal; attended recovery fences old invocations.",
+      "rules": [
+        "T5.8"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "lost",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "JOURNAL_UNAVAILABLE",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "JOURNAL_UNAVAILABLE",
+            "token": false
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "recover",
+          "facts": {
+            "Now": 10000
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b",
+            "Now": 10001,
+            "Iat": 10001
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "id": "write-failure",
+      "claim": "An uncompleted write returns no token or session and no reservation; the same request can be retried.",
+      "rules": [
+        "T3.2",
+        "T3.3",
+        "T4.6",
+        "T5.2",
+        "T5.5"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "WriteOK": false
+          },
+          "expect": {
+            "code": "JOURNAL_WRITE",
+            "token": false,
+            "sessions": 0
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "WriteOK": false
+          },
+          "expect": {
+            "code": "JOURNAL_WRITE",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a",
+            "WriteOK": false
+          },
+          "expect": {
+            "code": "JOURNAL_WRITE",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "WriteOK": false
+          },
+          "expect": {
+            "code": "JOURNAL_WRITE",
+            "token": false,
+            "used": {
+              "open-a": {}
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "entropy-failure",
+      "claim": "Missing entropy and a token-hash collision create neither a session nor a replay identity.",
+      "rules": [
+        "T3.1",
+        "T3.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "RandomReady": false
+          },
+          "expect": {
+            "code": "ENTROPY_UNAVAILABLE",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b"
+          },
+          "expect": {
+            "code": "ENTROPY_COLLISION",
+            "token": false,
+            "sessions": 1,
+            "seen": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 2
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "id": "clock-monotonic",
+      "claim": "A backwards service clock refuses without ending a live session; the retained mark survives restart.",
+      "rules": [
+        "T4.5",
+        "T5.8"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 10100
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "restart",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 10099
+          },
+          "expect": {
+            "code": "OBSERVATION_CLOCK",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 10100
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "final-boundary",
+      "claim": "Expiry or tip movement at the final read prevents an already checked request from reserving.",
+      "rules": [
+        "T4.3",
+        "T4.5",
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "check",
+          "facts": {
+            "Op": "use",
+            "Now": 13599
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "reserve",
+          "facts": {
+            "Now": 13599,
+            "FinalObservation": false
+          },
+          "expect": {
+            "code": "OBSERVATION_VOID",
+            "token": false
+          }
+        },
+        {
+          "op": "reserve",
+          "facts": {
+            "Now": 13600
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false,
+            "ended": {
+              "open-a": true
+            },
+            "accounts": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": "checked-close",
+      "claim": "A close between check and reserve is final and prevents a debit.",
+      "rules": [
+        "T4.6",
+        "T5.5"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "check",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "reserve",
+          "facts": {},
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false,
+            "accounts": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": "checked-key-change",
+      "claim": "A checked request cannot commit against a replaced last-signed key.",
+      "rules": [
+        "T4.5",
+        "T5.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "check",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "Key": "signer-b"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "reserve",
+          "facts": {},
+          "expect": {
+            "code": "KEY_FACTS",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Key": "signer-b"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "reservation-identity",
+      "claim": "A prepared request reserves once; a second token request gets a distinct service identity and charge.",
+      "rules": [
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "check",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "reserve",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "reserve",
+          "facts": {},
+          "expect": {
+            "code": "REQUEST_REPLAY",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "used": {
+              "open-a": {
+                "requests": 2
+              }
+            }
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "unsigned-retry",
+      "claim": "Unsigned duplicate requests are distinct requests and are charged twice.",
+      "rules": [
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false,
+            "used": {
+              "open-a": {
+                "requests": 2
+              }
+            }
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "invocation-time",
+      "claim": "Signed iat and exclusive exp are independent from the session window.",
+      "rules": [
+        "T2.1",
+        "T2.5"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Iat": 10001
+          },
+          "expect": {
+            "code": "INVOCATION_TIME",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Exp": 10000
+          },
+          "expect": {
+            "code": "INVOCATION_TIME",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Exp": 10001
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 10001
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "extend-replay",
+      "claim": "An admitted extension identity cannot extend again or return the token.",
+      "rules": [
+        "T2.6",
+        "T5.2",
+        "T8.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "End": 13500
+          },
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "unknown-session",
+      "claim": "Fresh signed extend and close requests for no session return unknown.",
+      "rules": [
+        "T5.3",
+        "T8.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a"
+          },
+          "expect": {
+            "code": "SESSION_UNKNOWN",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a"
+          },
+          "expect": {
+            "code": "SESSION_UNKNOWN",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "order-open",
+      "claim": "Open uses channel, upstream checks, replay, binding, window and limits in that order.",
+      "rules": [
+        "T8.1",
+        "T4.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Channel": "public",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": false,
+                "Refusal": "SIGNATURE_INVALID"
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "SESSION_CHANNEL",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": false,
+                "Refusal": "SIGNATURE_INVALID"
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": true
+              },
+              "Resources": {
+                "OK": true
+              }
+            },
+            "Binding": {
+              "Kind": "bad"
+            },
+            "End": 0
+          },
+          "expect": {
+            "code": "SIGNATURE_INVALID",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "ACTION_NOT_ALLOWED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "ACTION_NOT_ALLOWED",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Binding": {
+              "Kind": "bad"
+            },
+            "End": 0,
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              },
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b",
+            "Binding": {
+              "Kind": "bad"
+            },
+            "End": 0,
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              },
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_BINDING",
+            "token": false
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b",
+            "End": 0,
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              },
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_WINDOW",
+            "token": false
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b",
+            "Limits": [
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              },
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_LIMITS",
+            "token": false
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "id": "order-extend",
+      "claim": "Extend verifies before replay, replay before unknown, unknown before ended, and ended before window.",
+      "rules": [
+        "T8.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "ACTION_NOT_ALLOWED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "ACTION_NOT_ALLOWED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "SessionID": "absent",
+            "End": 0
+          },
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-b",
+            "SessionID": "absent",
+            "End": 0
+          },
+          "expect": {
+            "code": "SESSION_UNKNOWN",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-b",
+            "End": 0
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "order-close",
+      "claim": "Close verifies before replay and replay before unknown; it has no ended or window gate.",
+      "rules": [
+        "T8.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "ACTION_NOT_ALLOWED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "ACTION_NOT_ALLOWED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a",
+            "SessionID": "absent"
+          },
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-b",
+            "SessionID": "absent"
+          },
+          "expect": {
+            "code": "SESSION_UNKNOWN",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-b",
+            "End": 0
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "order-use",
+      "claim": "Token-use checks channel, token, peer, ended, command, upstream path and accounts in sequence.",
+      "rules": [
+        "T8.3",
+        "T4.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Channel": "public"
+          },
+          "expect": {
+            "code": "SESSION_CHANNEL",
+            "token": false
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "PeerVerified": false
+          },
+          "expect": {
+            "code": "SESSION_TOKEN",
+            "token": false
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "PeerVerified": false,
+            "Now": 13600,
+            "Action": "close"
+          },
+          "expect": {
+            "code": "SESSION_PEER",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Action": "extend",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "ACTION_NOT_ALLOWED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "SESSION_COMMAND",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "ACTION_NOT_ALLOWED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            },
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 100,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ACTION_NOT_ALLOWED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 100,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "OWN_LIMIT_OVER",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 13600,
+            "Action": "close",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "ACTION_NOT_ALLOWED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            }
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "consumption-order",
+      "claim": "Each key checks own/row/session before moving to the next key.",
+      "rules": [
+        "T4.6",
+        "T4.7"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "GrantLimits": {
+              "requests": 20,
+              "cost": 0
+            }
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 11,
+                "Kind": "cumulative"
+              },
+              {
+                "Key": "cost",
+                "Amount": 1,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "SESSION_LIMIT_OVER",
+            "token": false,
+            "accounts": {}
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "profile-all-entries",
+      "claim": "Draft selection gates check, reserve and closure entry points as well as open.",
+      "rules": [
+        "T1.1"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "check",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "PROFILE_DISABLED",
+            "token": false
+          },
+          "token_from": "open-a",
+          "profile": ""
+        },
+        {
+          "op": "check",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "reserve",
+          "facts": {},
+          "expect": {
+            "code": "PROFILE_DISABLED",
+            "token": false
+          },
+          "profile": ""
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "closure",
+            "Closures": [
+              {
+                "Grant": "grant-a",
+                "Validated": true
+              }
+            ]
+          },
+          "expect": {
+            "code": "PROFILE_DISABLED",
+            "token": false
+          },
+          "profile": ""
+        },
+        {
+          "op": "reserve",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "recovery-accounting",
+      "claim": "Starting a new session journal retains stated grant exposure and terminal closures.",
+      "rules": [
+        "T5.8",
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Spend": [
+              {
+                "Key": "requests",
+                "Amount": 10,
+                "Kind": "cumulative"
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "recover",
+          "facts": {
+            "Now": 10000
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b",
+            "Now": 10001,
+            "Iat": 10001
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Now": 10001
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-b"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "closure",
+            "Closures": [
+              {
+                "Grant": "grant-a",
+                "Validated": true
+              }
+            ]
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "recover",
+          "facts": {
+            "Now": 10002
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-c",
+            "Now": 10003,
+            "Iat": 10003
+          },
+          "expect": {
+            "code": "GRANT_CLOSED",
+            "token": false
+          },
+          "entropy": "3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      ]
+    },
+    {
+      "id": "lost-opening-reply",
+      "claim": "A committed opening with a lost reply leaves an unreachable token, never a replayable answer.",
+      "rules": [
+        "T3.2",
+        "T3.3",
+        "T3.5",
+        "T2.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111",
+          "discard_reply": true
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false,
+            "sessions": 1
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "RequestID": "open-b"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 2
+          },
+          "entropy": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ]
+    },
+    {
+      "id": "unvalidated-observation",
+      "claim": "Unvalidated spend evidence cannot create a closure even when an upstream path refusal accompanies it.",
+      "rules": [
+        "T5.6",
+        "T5.7",
+        "T8.4"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use",
+            "Checks": {
+              "Names": {
+                "OK": true
+              },
+              "Recipient": {
+                "OK": true
+              },
+              "Observation": {
+                "OK": true
+              },
+              "Path": {
+                "OK": false,
+                "Refusal": "SEAL_UNVALIDATED"
+              },
+              "Resources": {
+                "OK": true
+              }
+            },
+            "Closures": [
+              {
+                "Grant": "grant-a",
+                "Validated": false
+              }
+            ]
+          },
+          "expect": {
+            "code": "SEAL_UNVALIDATED",
+            "token": false,
+            "ended": {
+              "open-a": false
+            }
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "use"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        }
+      ]
+    },
+    {
+      "id": "final-clock-rollback",
+      "claim": "A backwards final clock invalidates a prepared request without a reservation.",
+      "rules": [
+        "T4.5",
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "check",
+          "facts": {
+            "Op": "use",
+            "Now": 10001
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "reserve",
+          "facts": {
+            "Now": 10000
+          },
+          "expect": {
+            "code": "OBSERVATION_CLOCK",
+            "token": false,
+            "accounts": {}
+          }
+        },
+        {
+          "op": "reserve",
+          "facts": {
+            "Now": 10001
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "final-expiry-plus-one",
+      "claim": "A prepared request cannot commit one second after the session end.",
+      "rules": [
+        "T4.3",
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "check",
+          "facts": {
+            "Op": "use",
+            "Now": 13599
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          },
+          "token_from": "open-a"
+        },
+        {
+          "op": "reserve",
+          "facts": {
+            "Now": 13601
+          },
+          "expect": {
+            "code": "SESSION_ENDED",
+            "token": false,
+            "accounts": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": "path-shape",
+      "claim": "Missing, cyclic and over-depth stated paths refuse rather than supplying authority.",
+      "rules": [
+        "T2.2",
+        "T2.5"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Path": []
+          },
+          "expect": {
+            "code": "AUTHORITY_FACTS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Path": [
+              "grant-a",
+              "grant-a"
+            ]
+          },
+          "expect": {
+            "code": "AUTHORITY_FACTS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Path": [
+              "root",
+              "middle",
+              "leaf"
+            ]
+          },
+          "expect": {
+            "code": "AUTHORITY_FACTS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "executor-pin",
+      "claim": "A request-selected executor name or key cannot replace the independently pinned service.",
+      "rules": [
+        "T1.2",
+        "T2.2",
+        "T2.5"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Executor": {
+              "Name": "other",
+              "Key": "executor-a"
+            }
+          },
+          "expect": {
+            "code": "AUTHORITY_FACTS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Executor": {
+              "Name": "service-a",
+              "Key": "other"
+            }
+          },
+          "expect": {
+            "code": "AUTHORITY_FACTS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "row-context",
+      "claim": "A child requires its own stated parent row, and cannot substitute another parent.",
+      "rules": [
+        "T2.2",
+        "T4.6"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {
+            "Path": [
+              "parent",
+              "child"
+            ]
+          },
+          "expect": {
+            "code": "AUTHORITY_FACTS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Path": [
+              "parent",
+              "child"
+            ],
+            "Row": {
+              "Parent": "other",
+              "Ordinal": 0
+            }
+          },
+          "expect": {
+            "code": "AUTHORITY_FACTS",
+            "token": false
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Path": [
+              "parent",
+              "child"
+            ],
+            "Row": {
+              "Parent": "parent",
+              "Ordinal": 0
+            },
+            "RowLimits": {
+              "requests": 5
+            }
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    {
+      "id": "signed-control-channel",
+      "claim": "Signed extend and close have no bearer-channel check and return no token.",
+      "rules": [
+        "T3.3",
+        "T5.2",
+        "T5.5",
+        "T8.2"
+      ],
+      "steps": [
+        {
+          "op": "apply",
+          "facts": {},
+          "expect": {
+            "code": "ADMITTED",
+            "token": true,
+            "sessions": 1
+          },
+          "entropy": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "extend",
+            "RequestID": "extend-a",
+            "Channel": "public"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a",
+            "Channel": "public"
+          },
+          "expect": {
+            "code": "ADMITTED",
+            "token": false
+          }
+        },
+        {
+          "op": "apply",
+          "facts": {
+            "Op": "close",
+            "RequestID": "close-a",
+            "Channel": "public"
+          },
+          "expect": {
+            "code": "SESSION_REPLAY",
+            "token": false
+          }
+        }
+      ]
+    }
+  ]
+}
