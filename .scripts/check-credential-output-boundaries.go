@@ -1,4 +1,4 @@
-// Command check-credential-output-boundaries checks the reviewed N1b storage and
+// Command check-credential-output-boundaries checks the reviewed tree-wide storage and
 // explicit-reveal inventory. This is a source-change guard, not a taint analyzer.
 package main
 
@@ -24,22 +24,40 @@ func rendered(n ast.Node) string {
 }
 
 var fields = map[string]string{
-	// Ephemeral use input and opening draw; Token redacts fmt, JSON and text.
-	"experiments/model-proxy/session/session.go:Facts.Token":  "Token",
-	"experiments/model-proxy/session/session.go:Facts.Random": "Token",
-	// One-time opening return; *Token has the same redacting value methods.
-	"experiments/model-proxy/session/session.go:Result.Token":                       "*Token",
-	"experiments/model-proxy/types.go:Config.APIKey":                                "UpstreamKey",
-	"experiments/rental-gateway/station/station.go:Station.TrackBToken":             "TrackBToken",
-	"experiments/rental-gateway/station/trackbadmin.go:trackBMintReply.Token":       "TrackBToken",
-	"experiments/rental-gateway/station/trackbadmin.go:decodeTrackBMintReply.Token": "string",
-	"experiments/rental-executor/http.go:trackBClaimRequest.Token":                  "TrackBToken",
-	"experiments/rental-executor/http.go:decodeTrackBClaim.Token":                   "string",
-	"experiments/m5-rehearsal/fixtures/registrar.go.txt:rehearsalRegistrar.APIKey":  "proxy.UpstreamKey",
-	"experiments/rental-gateway/station/linuxuser.go:FakeExec.Inputs":               "[]codec.Secret[[]byte]",
-	"experiments/model-proxy/credential.go:UpstreamCredential.Value":                "UpstreamKey",
-	"experiments/model-proxy/credential.go:staticSource.value":                      "UpstreamKey",
-	"experiments/model-proxy/credential.go:FileSource.current":                      "UpstreamKey",
+	"experiments/m5-rehearsal/fixtures/registrar.go.txt:rehearsalRegistrar.APIKey":       "proxy.UpstreamKey",
+	"experiments/model-proxy/credential.go:FileSource.current":                           "UpstreamKey",
+	"experiments/model-proxy/credential.go:UpstreamCredential.Value":                     "UpstreamKey",
+	"experiments/model-proxy/credential.go:staticSource.value":                           "UpstreamKey",
+	"experiments/model-proxy/private.go:credentialPrivate.Bearer":                        "Secret",
+	"experiments/model-proxy/private.go:recordPrivate.Bearer":                            "Secret",
+	"experiments/model-proxy/registry.go:record.Bearer":                                  "codec.Secret[Secret]",
+	"experiments/model-proxy/session/session.go:Facts.Random":                            "Token",
+	"experiments/model-proxy/session/session.go:Facts.Token":                             "Token",
+	"experiments/model-proxy/session/session.go:Result.Token":                            "*Token",
+	"experiments/model-proxy/types.go:Config.APIKey":                                     "UpstreamKey",
+	"experiments/model-proxy/types.go:Credential.Bearer":                                 "codec.Secret[Secret]",
+	"experiments/rental-executor/http.go:decodeTrackBClaim.Token":                        "string",
+	"experiments/rental-executor/http.go:trackBClaimRequest.Token":                       "TrackBToken",
+	"experiments/rental-gateway/journal/journal.go:Slot.ChannelSecretHex":                "codec.Secret[string]",
+	"experiments/rental-gateway/journal/private.go:slotPrivate.ChannelSecretHex":         "string",
+	"experiments/rental-gateway/station/linuxuser.go:FakeExec.Inputs":                    "[]codec.Secret[[]byte]",
+	"experiments/rental-gateway/station/station.go:Station.ChannelSecret":                "codec.Secret[[]byte]",
+	"experiments/rental-gateway/station/station.go:Station.TrackBToken":                  "TrackBToken",
+	"experiments/rental-gateway/station/trackbadmin.go:decodeTrackBMintReply.Token":      "string",
+	"experiments/rental-gateway/station/trackbadmin.go:trackBMintReply.Token":            "TrackBToken",
+	"experiments/single-use/payloadbootstrap/codec/codec.go:Bootstrap.ChannelSecret":     "Secret[C]",
+	"experiments/single-use/payloadbootstrap/codec/codec.go:Bootstrap.ModelBearer":       "Secret[B]",
+	"experiments/single-use/payloadbootstrap/codec/codec.go:bootstrapWire.ChannelSecret": "C",
+	"experiments/single-use/payloadbootstrap/codec/codec.go:bootstrapWire.ModelBearer":   "B",
+	"experiments/single-use/payloadlaunch/manifest.go:Manifest.Bootstrap":                "FilePin",
+	"experiments/single-use/payloadlaunch/profile.go:Paths.Bootstrap":                    "string",
+	"experiments/station-lifecycle/broker.go:brokerRecord.Credential":                    "PrivateBytes",
+	"experiments/station-lifecycle/private.go:brokerRecordPrivate.Credential":            "Secret",
+	"experiments/station-lifecycle/private.go:slotPrivate.Bootstrap":                     "Secret",
+	"experiments/station-lifecycle/private_bytes.go:PrivateBytes.value":                  "codec.Secret[Secret]",
+	"experiments/station-lifecycle/slotd/wire.go:Request.Bootstrap":                      "*string",
+	"experiments/station-lifecycle/types.go:Slot.Bootstrap":                              "PrivateBytes",
+	"experiments/station-payload/client.go:Client.bootstrap":                             "gatewaybind.PayloadBootstrap",
 }
 
 // Keep an exact call-site multiset per accessor, including unused accessors.
@@ -116,6 +134,106 @@ func receiver(f *ast.FuncDecl) string {
 	}
 	return rendered(n) + "." + f.Name.Name
 }
+
+// Secret type names are deliberately syntax-based and tree-wide, regardless of
+// package qualification. Same-name collisions over-inventory rather than hide a
+// carrier. Follow named aliases/definitions and container/pointer type syntax.
+var secretTypes = map[string]bool{}
+
+// baseTypeName also gives Go's implicit name for an embedded field.
+func baseTypeName(n ast.Expr) string {
+	switch v := n.(type) {
+	case *ast.Ident:
+		return v.Name
+	case *ast.SelectorExpr:
+		return v.Sel.Name
+	case *ast.StarExpr:
+		return baseTypeName(v.X)
+	case *ast.IndexExpr:
+		return baseTypeName(v.X)
+	case *ast.IndexListExpr:
+		return baseTypeName(v.X)
+	case *ast.ParenExpr:
+		return baseTypeName(v.X)
+	}
+	return ""
+}
+
+func secretType(n ast.Node) bool {
+	switch v := n.(type) {
+	case *ast.Ident:
+		return secretTypes[v.Name]
+	case *ast.SelectorExpr:
+		return secretTypes[v.Sel.Name]
+	case *ast.StarExpr:
+		return secretType(v.X)
+	case *ast.ArrayType:
+		return secretType(v.Elt)
+	case *ast.MapType:
+		return secretType(v.Key) || secretType(v.Value)
+	case *ast.ChanType:
+		return secretType(v.Value)
+	case *ast.ParenExpr:
+		return secretType(v.X)
+	case *ast.IndexExpr:
+		return secretType(v.X) || secretType(v.Index)
+	case *ast.IndexListExpr:
+		if secretType(v.X) {
+			return true
+		}
+		for _, arg := range v.Indices {
+			if secretType(arg) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func discoverSecrets(files map[string]*ast.File) {
+	for _, f := range files {
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch v := n.(type) {
+			case *ast.FuncDecl:
+				if v.Recv != nil && strings.HasPrefix(v.Name.Name, "Reveal") {
+					typ := baseTypeName(v.Recv.List[0].Type)
+					secretTypes[typ] = true
+				}
+			case *ast.TypeSpec:
+				if face, ok := v.Type.(*ast.InterfaceType); ok {
+					for _, method := range face.Methods.List {
+						for _, name := range method.Names {
+							if strings.HasPrefix(name.Name, "Reveal") {
+								secretTypes[v.Name.Name] = true
+							}
+						}
+					}
+				}
+			}
+			return true
+		})
+	}
+	// Least fixed point: aliases and named container types of known secrets.
+	// Do not propagate through struct fields or function/interface signatures.
+	for changed := true; changed; {
+		changed = false
+		for _, f := range files {
+			ast.Inspect(f, func(n ast.Node) bool {
+				if v, ok := n.(*ast.TypeSpec); ok && !secretTypes[v.Name.Name] {
+					switch v.Type.(type) {
+					case *ast.Ident, *ast.SelectorExpr, *ast.StarExpr, *ast.ArrayType, *ast.MapType, *ast.ChanType, *ast.IndexExpr, *ast.IndexListExpr, *ast.ParenExpr:
+						if secretType(v.Type) {
+							secretTypes[v.Name.Name] = true
+							changed = true
+						}
+					}
+				}
+				return true
+			})
+		}
+	}
+}
+
 func inventory(path string, raw []byte, gotFields map[string]string, gotReveals map[string]map[string]int) {
 	f, e := parser.ParseFile(token.NewFileSet(), path, raw, 0)
 	if e != nil {
@@ -129,9 +247,22 @@ func inventory(path string, raw []byte, gotFields map[string]string, gotReveals 
 			switch v := n.(type) {
 			case *ast.StructType:
 				for _, field := range v.Fields.List {
-					for _, name := range field.Names {
-						if name.Name == "APIKey" || name.Name == "TrackBToken" || name.Name == "Token" || (owner == "FakeExec" && name.Name == "Inputs") || (path == "experiments/model-proxy/session/session.go" && owner == "Facts" && name.Name == "Random") || (owner == "UpstreamCredential" && name.Name == "Value") || (owner == "staticSource" && name.Name == "value") || (owner == "FileSource" && name.Name == "current") {
+					names := field.Names
+					// Embedded secret fields have an implicit field name.
+					if len(names) == 0 && secretType(field.Type) {
+						names = []*ast.Ident{ast.NewIdent(baseTypeName(field.Type))}
+					}
+					for _, name := range names {
+						if secretType(field.Type) || name.Name == "Bearer" || name.Name == "ChannelSecretHex" || name.Name == "ChannelSecret" || name.Name == "ModelBearer" || name.Name == "Bootstrap" || name.Name == "APIKey" || name.Name == "TrackBToken" || name.Name == "Token" || (owner == "FakeExec" && name.Name == "Inputs") || (path == "experiments/model-proxy/session/session.go" && owner == "Facts" && name.Name == "Random") || (owner == "UpstreamCredential" && name.Name == "Value") || (owner == "staticSource" && name.Name == "value") || (owner == "FileSource" && name.Name == "current") {
 							gotFields[path+":"+owner+"."+name.Name] = rendered(field.Type)
+						}
+					}
+				}
+			case *ast.InterfaceType:
+				for _, method := range v.Methods.List {
+					for _, name := range method.Names {
+						if strings.HasPrefix(name.Name, "Reveal") && gotReveals[name.Name] == nil {
+							gotReveals[name.Name] = map[string]int{}
 						}
 					}
 				}
@@ -214,12 +345,22 @@ func main() {
 		panic("source walk refused")
 	}
 	sort.Strings(paths)
+	sources := map[string][]byte{}
+	files := map[string]*ast.File{}
 	for _, path := range paths {
 		raw, e := os.ReadFile(path)
 		if e != nil {
 			panic("source read refused")
 		}
-		inventory(path, raw, gotFields, gotReveals)
+		f, e := parser.ParseFile(token.NewFileSet(), path, raw, 0)
+		if e != nil {
+			panic("source parse refused")
+		}
+		sources[path], files[path] = raw, f
+	}
+	discoverSecrets(files)
+	for _, path := range paths {
+		inventory(path, sources[path], gotFields, gotReveals)
 	}
 	if !reflect.DeepEqual(fields, gotFields) || !reflect.DeepEqual(reveals, gotReveals) {
 		fmt.Fprintln(os.Stderr, "credential storage/reveal inventory changed; re-audit required")

@@ -45,22 +45,42 @@ The executable inventory uses a nested exact multiset:
 `accessor name -> {path:owner:expression -> count}`. Run
 `go run .scripts/check-credential-output-boundaries.go` from the repository root.
 The independently listed [inventory fixture](../../.scripts/credential-output-inventory.json)
-contains **14 carrier fields**, **53 direct Reveal sites / 67 calls**, and
+contains **34 carrier fields**, **53 direct Reveal sites / 67 calls**, and
 exactly two accessor keys: `Reveal` with those 53 entries and `RevealForOpen`
 with the empty set `{}`. There are currently no inventoried method values.
 The former 17-site / 23-call plain-Reveal set is retained with identical counts;
 the larger set also inventories bootstrap, channel-secret, model-bearer and
 private lifecycle codec boundaries. The counts cover source expressions, not
-runtime invocation frequency. Carrier fields include `Facts.Token`,
-`Facts.Random` and the one-time `Result.Token`; the session token's explicit
-opening accessor has no production call sites.
+runtime invocation frequency. The session opening accessor has no production
+call sites.
+
+Carrier discovery is tree-wide over the same source set. First collect every
+receiver type declaring a `Reveal*` method and every named interface declaring
+one. Follow named aliases and definitions to a fixed point through identifiers,
+qualified names, pointers, arrays/slices, maps, channels, parentheses and generic
+instantiations (including their type arguments). Every struct field whose type
+matches that set is a carrier, including embedded fields and container elements.
+Matching uses the terminal type name across packages, conservatively including
+same-name collisions; it does not depend on the expected inventory. It does not
+propagate through struct bodies or function/interface signatures. The current
+set is `Secret`, `Token`, `PrivateBytes`, `UpstreamKey`, `TrackBToken` and
+`PayloadBootstrap`.
+
+All previous name rules remain: `APIKey`, `TrackBToken`, `Token`; `FakeExec.Inputs`,
+`Facts.Random` in session.go, `UpstreamCredential.Value`, `staticSource.value`
+and `FileSource.current`. Additional exact field names are `Bearer`,
+`ChannelSecretHex`, `ChannelSecret`, `ModelBearer` and `Bootstrap`. These retain
+raw private DTOs when their types are not opaque; the two bootstrap path/pin
+matches are conservative metadata entries. Each match and its exact type is
+listed below, including fields in structs never previously inventoried.
 
 Every direct call whose selector starts with `Reveal` is counted on **any
 receiver**, including plain `Reveal`. A selector outside the direct function
 position of a call is also counted as a reveal site (for example,
 `t.RevealForOpen` in `g := t.RevealForOpen; g()`). Direct calls are counted once;
 method expressions are included. Every `Reveal*` method declaration on any type
-in any scanned directory registers its accessor-name key, even without callers.
+in any scanned directory, including an interface method declaration without an
+implementation, registers its accessor-name key even without callers.
 A new accessor requires an explicit expected set, empty unless reviewed call
 sites exist. The existing generic `codec.Secret[T].Reveal` and lifecycle
 `PrivateBytes.Reveal` remain unchanged; their actual call expressions are listed
@@ -78,18 +98,25 @@ inventory. Output consists of expression spellings and types, not revealed value
 This is a source-change guard, not an arbitrary-code taint proof. Explicit limits:
 reflection by string, including `MethodByName("RevealForOpen")`, is not detected;
 casts/conversions such as `[32]byte(t)` and slicing such as `t[:]` bypass name
-matching; `_test.go` files are excluded. Alias/dataflow analysis, arbitrary
-caller logging, dynamic behavior and receiver type resolution are outside scope.
+matching; `_test.go` files are excluded. Type-name closure is syntax-based;
+package identity, arbitrary plain fields
+with other names, dataflow, caller logging and dynamic behavior are outside scope.
+A passing guard does not establish that every credential uses a redacting type.
 
 Run the copied-tree controls with an absent fixture directory:
 `python3 -I experiments/model-proxy/session/tools/guard_controls.py .temp/credential-controls .tmp/credential-controls`.
 Use the pinned Go toolchain and task-owned absolute HOME, caches and TMPDIR.
 The positive compares every field, accessor and expression against the listed
 fixture. Every negative requires exit 1, the inventory diagnostic and its exact
-whole-inventory delta, including package-level calls/function literals, method
-values and an unused non-carrier accessor. Optional trailing legacy guard source
-paths compare unchanged carrier and old Reveal multisets and rerun the old
-rules' controls. Logs and PID/exit/witness records go in the first argument;
+whole-inventory delta. The 32 negative controls include package-level calls,
+method values, an unused non-carrier accessor, secret-typed fields on unlisted
+structs, aliases, containers, embedding, discovered receivers/interfaces, name
+matching, type erasure and an interface-only new accessor. Optional legacy guard
+source
+paths compare the preserved carrier subset and unchanged Reveal multisets and
+rerun all 22 a6575851 controls. The pinned legacy positive is 14 carriers and
+53 sites / 67 calls; each old field and count must remain unchanged. Logs and
+PID/exit/witness records go in the first argument;
 fixture and guard binaries stay under the second argument's parent. Controls
 are local evidence; the hosted model-proxy workflow runs the guard and race
 suite, not this Python runner.
@@ -159,16 +186,36 @@ Existing operations and their private boundaries are unchanged by this guard.
 | `experiments/model-proxy/credential.go:FileSource.current` | `UpstreamKey` | Retained file-sourced key is an opaque holder. |
 | `experiments/model-proxy/credential.go:UpstreamCredential.Value` | `UpstreamKey` | Private upstream credential remains opaque. |
 | `experiments/model-proxy/credential.go:staticSource.value` | `UpstreamKey` | Retained static upstream key remains opaque. |
+| `experiments/model-proxy/private.go:credentialPrivate.Bearer` | `Secret` | Private admin wire DTO holds a raw named string; fmt redacts, generic JSON intentionally emits the bearer. |
+| `experiments/model-proxy/private.go:recordPrivate.Bearer` | `Secret` | Private registry persistence DTO holds a raw named string; fmt redacts, JSON intentionally writes private bytes. |
+| `experiments/model-proxy/registry.go:record.Bearer` | `codec.Secret[Secret]` | Retained registry bearer is opaque; codec fmt/JSON/text redact. |
 | `experiments/model-proxy/session/session.go:Facts.Random` | `Token` | Opening entropy draw; opaque token with redacting encoders. |
 | `experiments/model-proxy/session/session.go:Facts.Token` | `Token` | Ephemeral use input; opaque token with redacting encoders. |
 | `experiments/model-proxy/session/session.go:Result.Token` | `*Token` | One-time opening result; pointer retains token redaction. |
 | `experiments/model-proxy/types.go:Config.APIKey` | `UpstreamKey` | Retained upstream key is an opaque holder. |
-| `experiments/rental-executor/http.go:decodeTrackBClaim.Token` | `string` | Transient raw private decoder DTO; strict schema preserved, never retained. |
+| `experiments/model-proxy/types.go:Credential.Bearer` | `codec.Secret[Secret]` | Returned credential retains an opaque bearer; codec fmt/JSON/text redact. |
+| `experiments/rental-executor/http.go:decodeTrackBClaim.Token` | `string` | FINDING: transient plain string in a private decoder DTO; strict schema preserved, never retained. |
 | `experiments/rental-executor/http.go:trackBClaimRequest.Token` | `TrackBToken` | Decoded private claim request retains an opaque token. |
+| `experiments/rental-gateway/journal/journal.go:Slot.ChannelSecretHex` | `codec.Secret[string]` | Retained channel credential is opaque; codec fmt/JSON/text redact. |
+| `experiments/rental-gateway/journal/private.go:slotPrivate.ChannelSecretHex` | `string` | FINDING: plain string in the explicit private journal DTO, with no redacting type. |
 | `experiments/rental-gateway/station/linuxuser.go:FakeExec.Inputs` | `[]codec.Secret[[]byte]` | Recorded private stdin is an opaque secret slice. |
+| `experiments/rental-gateway/station/station.go:Station.ChannelSecret` | `codec.Secret[[]byte]` | Driver handle retains opaque channel bytes; codec fmt/JSON/text redact. |
 | `experiments/rental-gateway/station/station.go:Station.TrackBToken` | `TrackBToken` | Station handle retains an opaque Track B token. |
-| `experiments/rental-gateway/station/trackbadmin.go:decodeTrackBMintReply.Token` | `string` | Transient raw private response decoder DTO; never retained. |
+| `experiments/rental-gateway/station/trackbadmin.go:decodeTrackBMintReply.Token` | `string` | FINDING: transient plain string in a private response decoder DTO; never retained. |
 | `experiments/rental-gateway/station/trackbadmin.go:trackBMintReply.Token` | `TrackBToken` | Decoded private mint reply retains an opaque token. |
+| `experiments/single-use/payloadbootstrap/codec/codec.go:Bootstrap.ChannelSecret` | `Secret[C]` | Decoded private bootstrap retains an opaque channel secret; codec fmt/JSON/text redact. |
+| `experiments/single-use/payloadbootstrap/codec/codec.go:Bootstrap.ModelBearer` | `Secret[B]` | Decoded private bootstrap retains an opaque model bearer; codec fmt/JSON/text redact. |
+| `experiments/single-use/payloadbootstrap/codec/codec.go:bootstrapWire.ChannelSecret` | `C` | FINDING: generic C (~[]byte) is raw in the explicit private bootstrap wire DTO. |
+| `experiments/single-use/payloadbootstrap/codec/codec.go:bootstrapWire.ModelBearer` | `B` | FINDING: generic B (~string) is raw in the explicit private bootstrap wire DTO. |
+| `experiments/single-use/payloadlaunch/manifest.go:Manifest.Bootstrap` | `FilePin` | Conservative name match: path/hash/length FilePin metadata, no credential bytes. |
+| `experiments/single-use/payloadlaunch/profile.go:Paths.Bootstrap` | `string` | Conservative name match: installed bootstrap path, not secret material. |
+| `experiments/station-lifecycle/broker.go:brokerRecord.Credential` | `PrivateBytes` | Retained broker credential uses PrivateBytes, delegating fmt/JSON/text redaction to codec.Secret. |
+| `experiments/station-lifecycle/private.go:brokerRecordPrivate.Credential` | `Secret` | Private broker persistence DTO uses named []byte Secret; String/GoString redact, generic JSON emits bytes. |
+| `experiments/station-lifecycle/private.go:slotPrivate.Bootstrap` | `Secret` | Private persistence and poll-protocol DTO uses named []byte Secret; String/GoString redact, JSON emits bytes to disk or pinned-mTLS host. |
+| `experiments/station-lifecycle/private_bytes.go:PrivateBytes.value` | `codec.Secret[Secret]` | Retained private bytes use scalar-pointer opaque codec holder; fmt/JSON/text redact. |
+| `experiments/station-lifecycle/slotd/wire.go:Request.Bootstrap` | `*string` | FINDING: *string holds base64 bootstrap in create-request DTO sent over the private Unix socket; no redacting type. |
+| `experiments/station-lifecycle/types.go:Slot.Bootstrap` | `PrivateBytes` | Slot retains opaque PrivateBytes; fmt/JSON/text delegate to codec redaction. |
+| `experiments/station-payload/client.go:Client.bootstrap` | `gatewaybind.PayloadBootstrap` | Client retains decoded bootstrap with opaque channel/model holders; generic encoders redact nested secrets. |
 
 | Accessor key | Registered declarations | Audit note |
 | --- | --- | --- |
@@ -225,11 +272,30 @@ create a new type-resolved key; receiver identity is outside this syntax guard.
 | `experiments/station-lifecycle/manager.go:Manager.Start:s.Bootstrap.Reveal()` | 2 | Hashes bootstrap bytes for incoming binding and the starting record commitment. |
 | `experiments/station-lifecycle/manager.go:New:v.Bootstrap.Reveal()` | 2 | Validates restored bootstrap presence/hash against persisted lifecycle state. |
 | `experiments/station-lifecycle/private.go:brokerRecordPrivateValue:s.Credential.Reveal()` | 1 | Copies the broker credential into its explicit private persistence DTO. |
-| `experiments/station-lifecycle/private.go:slotPrivateValue:s.Bootstrap.Reveal()` | 1 | Copies bootstrap bytes into the explicit private slot persistence DTO. |
+| `experiments/station-lifecycle/private.go:slotPrivateValue:s.Bootstrap.Reveal()` | 1 | Copies bootstrap bytes into the explicit private persistence and poll-protocol DTO, sent to the host over pinned mTLS. |
 | `experiments/station-lifecycle/private_bytes.go:PrivateBytes.Reveal:p.value.Reveal()` | 1 | Delegates the explicit reveal to the opaque generic holder, retaining nil/empty behavior. |
 | `experiments/station-lifecycle/slotd/host.go:Host.Start:s.Bootstrap.Reveal()` | 1 | Base64-encodes bootstrap into the private slot-host creation request. |
 | `experiments/station-lifecycle/slotd/host.go:bound:s.Bootstrap.Reveal()` | 1 | Hashes bootstrap to verify the private host response binding. |
 | `experiments/station-lifecycle/types.go:Range.validateSlot:s.Bootstrap.Reveal()` | 2 | Checks only bootstrap length against the existing slot-policy bounds. |
 | `experiments/station-payload/client.go:Client.generate:c.bootstrap.ModelBearer.Reveal()` | 1 | Constructs the authenticated private upstream Authorization header. |
 | `experiments/station-payload/responses.go:Client.generateResponses:c.bootstrap.ModelBearer.Reveal()` | 1 | Constructs the authenticated private Responses Authorization header. |
-| `experiments/station-payload/session.go:Client.Run:b.ChannelSecret.Reveal()` | 1 | Supplies channel credential to the private station-link handshake. |
+| `experiments/station-payload/session.go:Client.Run:b.ChannelSecret.Reveal()` | 1 | HMAC key for the handshake response; the secret is not transmitted. |
+
+The lifecycle poll route is verified in `station-lifecycle/private.go:141,152`
+(command/response conversion) and `transport.go:26,51,57` (verified client chain
+and exact leaf pin, private encoding, response write). Paths here are relative
+to `experiments/`. The station handshake is verified in
+`rental-gateway/stationlink/stationlink.go:35,159,163`: `ComputeResponse` uses the
+credential as the HMAC-SHA256 key and sends the response, never the key itself.
+
+Plain-field findings are audit observations for the owner, not product fixes:
+the two Track B decoder `Token` strings, journal `slotPrivate.ChannelSecretHex`,
+slotd `Request.Bootstrap *string` and bootstrapWire's raw generic `C`/`B` fields.
+The private model `Secret string` and lifecycle `Secret []byte` DTO fields have
+partial fmt redaction but intentional nonredacting private JSON; they are not
+opaque holders. A supplemental credential-name audit also found plain retained
+RPC passwords at `payment-chain/rpc.go:Route.Password`,
+`single-use/node.go:Route.Password` and
+`notary-checker/namesource.go:NodeNameReader.password`. Those three are outside
+the mechanical type/name rule and are reported explicitly for owner disposition.
+No claim is made that name-based discovery finds every arbitrary plain secret.

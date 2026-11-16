@@ -582,9 +582,10 @@ Track B tokens and upstream model keys use opaque credential holders. Their
 [carrier and explicit-reveal inventory](docs/security/credential-output-n1b.md)
 records private wire/authentication boundaries and output regression coverage.
 Run `go run .scripts/check-credential-output-boundaries.go` from the repository
-root to check 14 storage fields and the nested exact `Reveal*` inventory:
+root to check 34 tree-wide carrier fields and the nested exact `Reveal*` inventory:
 `Reveal` has 53 sites / 67 calls; `RevealForOpen` has an empty set. The guard
-includes package-level initializers, method values and declarations on any type.
+discovers secret types and aliases, retains the name rules, and includes
+package-level initializers, method values and interface declarations.
 The linked document lists reflection, casts and test-file exclusions. Capture
 its JSON under `.temp/`. Run
 `python3 -I experiments/model-proxy/session/tools/guard_controls.py .temp/credential-controls .tmp/credential-controls`
