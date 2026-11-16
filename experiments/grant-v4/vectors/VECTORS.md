@@ -1,6 +1,12 @@
 # Grant v4 primitive and stated-fact vectors
 
-**No valid swarma-grant/4 vectors until LIP-0020 defines its members.**
+**No valid complete swarma-grant/4 object is included in this primitive corpus.**
+The root pins describe the original 0.1.52 corpus. Only
+`memberless-signed-swarma-grant/4` overrides that pin in its `spec` metadata:
+LIP-0020 0.1.53 at `3bef542fc8c0a5dedeeaaa990bd7f93abe194813`,
+W9.1/W9.3/W11.8 and `vectors/LIP-0020/grant-v4.json` vector `grant-i-05`
+require `WIRE_MEMBER` for a signed type-only grant. All other entries retain
+their original pins and bytes.
 
 `vectors.json` contains 241 unique cases: 77 successful primitive/stated-fact
 cases and 164 refusals, covering the 27 refusal classes in the pinned wire lab.
@@ -113,12 +119,13 @@ stated grant's issuer/party relationship unchanged. Single schema-defect assents
 have re-signed variants; original stale-signature compounds are labelled.
 
 `memberless_signed` parses the actual canonical signed envelope and verifies
-its signature against the stated public place key before invoking unsupported
-type dispatch. Both implementations reject malformed bytes and a zero signature
+its signature against the stated public place key before invoking schema/type
+dispatch. Both implementations reject malformed bytes and a zero signature
 in regression controls. These fixture checks do not extend the wire reader.
-No valid signed-object control exists for a memberless type. The removed bare
-`memberless-type-0` dispatch witness would become `WIRE_MEMBER` once a grant
-schema exists; signed type-only grant bytes will then lack required members.
+No valid signed-object control exists for a memberless type. The signed type-only
+grant now refuses `WIRE_MEMBER` because its required members are absent; the
+other memberless types still refuse `WIRE_TYPE`. This adapter's signature
+precheck is fixture scaffolding, not the W9 production pipeline's step order.
 
 No live node, ownership/history authentication, issuer journal, replay recovery,
 real grant admission, name-mode issuer snapshot path or delegation is qualified.
@@ -369,7 +376,7 @@ It does not reopen decisions or invent grant members.
 | signature-text-length-128 | signature text form versus failed verification | LIP-0020 W5.2; W9.3 | spec | WIRE_SIGNATURE |
 | signature-text-length-129 | signature text form versus failed verification | LIP-0020 W5.2; W9.3 | spec | WIRE_SIGNATURE_FORM |
 | signature-text-length-130 | signature text form versus failed verification | LIP-0020 W5.2; W9.3 | spec | WIRE_SIGNATURE_FORM |
-| memberless-signed-swarma-grant/4 | canonical signed arithmetic payload with verified public place key still has no member schema | LIP-0020 W3.1; section 10 primitive boundary | spec | WIRE_TYPE |
+| memberless-signed-swarma-grant/4 | canonical signed type-only grant lacks the required grant members | LIP-0020 W9.1; W9.3; W11.8; spec 0.1.53 at 3bef542fc8c0a5dedeeaaa990bd7f93abe194813; vectors/LIP-0020/grant-v4.json grant-i-05 expects WIRE_MEMBER | spec | WIRE_MEMBER |
 | memberless-signed-swarma-invocation/1 | canonical signed arithmetic payload with verified public place key still has no member schema | LIP-0020 W3.1; section 10 primitive boundary | spec | WIRE_TYPE |
 | memberless-signed-swarma-receipt/1 | canonical signed arithmetic payload with verified public place key still has no member schema | LIP-0020 W3.1; section 10 primitive boundary | spec | WIRE_TYPE |
 | memberless-signed-swarma-seal-endorsement/1 | canonical signed arithmetic payload with verified public place key still has no member schema | LIP-0020 W3.1; section 10 primitive boundary | contingent:LIP-0008-SB4/LIP-0024 | WIRE_TYPE |

@@ -48,14 +48,16 @@ class ContractTests(unittest.TestCase):
             x['raw_hex'] = CHECKER.event_bytes(v).hex()
             self.assertEqual(CHECKER.checked_evaluate('consent', x), {'code':code})
 
-    # Actual envelope bytes and place signatures are checked before W3.1;
+    # Actual envelope bytes and place signatures are checked before dispatch;
     # malformed octets and a zero signature cannot pass via expected_type alone.
     def test_memberless_input_is_read(self):
         for row in ROWS.values():
             if row['operation'] != 'memberless_signed':
                 continue
             x = copy.deepcopy(row['input'])
-            self.assertEqual(CHECKER.checked_evaluate('memberless_signed', x), {'code':'WIRE_TYPE'})
+            # Spec 3bef542f grant-i-05 changes only the known grant type's refusal.
+            expected = 'WIRE_MEMBER' if x['expected_type'] == 'swarma-grant/4' else 'WIRE_TYPE'
+            self.assertEqual(CHECKER.checked_evaluate('memberless_signed', x), {'code':expected})
             x['raw_hex'] = '7b'
             self.assertEqual(CHECKER.checked_evaluate('memberless_signed', x), {'code':'WIRE_JSON'})
             x = copy.deepcopy(row['input'])

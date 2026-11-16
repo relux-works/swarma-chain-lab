@@ -128,15 +128,20 @@ func TestConsentPairsDiscriminateOrder(t *testing.T) {
 }
 
 // The memberless adapter must parse and verify actual signed input before the
-// unsupported-type result; malformed octets and a broken signature cannot pass.
+// schema/type refusal; malformed octets and a broken signature cannot pass.
 func TestMemberlessSignedInputsAreRead(t *testing.T) {
 	for _, v := range fixture(t).Vectors {
 		if v.Operation != "memberless_signed" {
 			continue
 		}
 		t.Run(v.ID, func(t *testing.T) {
-			if got := text(Evaluate(v.Operation, v.Input), "code"); got != "WIRE_TYPE" {
-				t.Fatal(got)
+			want := "WIRE_TYPE"
+			if text(v.Input, "expected_type") == "swarma-grant/4" {
+				// Spec 3bef542f grant-i-05: known grant type, missing members.
+				want = "WIRE_MEMBER"
+			}
+			if got := text(Evaluate(v.Operation, v.Input), "code"); got != want {
+				t.Fatalf("got %s want %s", got, want)
 			}
 			in := clone(v.Input)
 			in["raw_hex"] = "7b"

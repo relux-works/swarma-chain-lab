@@ -1,6 +1,12 @@
 # Grant v4 primitive vectors
 
-No valid swarma-grant/4 vectors until LIP-0020 defines its members.
+This primitive corpus contains no valid complete swarma-grant/4 object.
+LIP-0020 now defines grant members: at spec 0.1.53
+[`3bef542f`](https://github.com/relux-works/swarma-link-spec/commit/3bef542fc8c0a5dedeeaaa990bd7f93abe194813),
+W9.1, W9.3 and W11.8 require a signed type-only grant to refuse `WIRE_MEMBER`
+(spec vector `grant-i-05` in `vectors/LIP-0020/grant-v4.json`). This supersedes
+the 0.1.52 `WIRE_TYPE` expectation for `memberless-signed-swarma-grant/4` only;
+the other entries retain their original pins and bytes.
 
 See [VECTORS.md](VECTORS.md) for the format, exact pins, per-vector inventory,
 independent derivation, lab-choice verdicts and specification requirements.

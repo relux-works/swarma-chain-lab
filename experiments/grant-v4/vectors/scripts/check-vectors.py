@@ -428,8 +428,13 @@ def evaluate(op, x):
         require(payload.get('type') == x['expected_type'], 'WIRE_TYPE')
         raw = encode(payload, 2048)
         verify(x['place_public_key'], tagged(payload['type'], raw), bytes.fromhex(value['signature']))
-        # W3.1 rejects the actual, independently authenticated type-only input.
+        # The adapter authenticates fixture bytes before exercising dispatch.
         require(payload['type'] in REGISTRY - {ASSENT, ISSUANCE}, 'MEMBERLESS_PLACE')
+        # Spec 3bef542f W9.1/W9.3/W11.8, grant-i-05: type is known;
+        # a type-only grant lacks its required members. Other types retain W3.1.
+        if payload['type'] == 'swarma-grant/4':
+            require(set(payload) != {'type'}, 'WIRE_MEMBER')
+            raise NotJudged('this adapter only judges type-only grant payloads')
         raise Refusal('WIRE_TYPE')
     if op == 'signed':
         return read_signed(bytes.fromhex(x['raw_hex']), x['expected_type'],

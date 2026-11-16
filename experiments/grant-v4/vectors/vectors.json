@@ -2728,8 +2728,8 @@
     },
     {
       "id": "memberless-signed-swarma-grant/4",
-      "purpose": "canonical signed arithmetic payload with verified public place key still has no member schema",
-      "spec": "LIP-0020 W3.1; section 10 primitive boundary",
+      "purpose": "canonical signed type-only grant lacks the required grant members",
+      "spec": "LIP-0020 W9.1; W9.3; W11.8; spec 0.1.53 at 3bef542fc8c0a5dedeeaaa990bd7f93abe194813; vectors/LIP-0020/grant-v4.json grant-i-05 expects WIRE_MEMBER",
       "operation": "memberless_signed",
       "input": {
         "expected_type": "swarma-grant/4",
@@ -2737,14 +2737,14 @@
         "raw_hex": "7b227061796c6f6164223a7b2274797065223a22737761726d612d6772616e742f34227d2c227369676e6174757265223a223933663438666539623964363835396533373536303932626265303261326462343762353461393130363135616362383635383432643533383936303263333362353330646437386135383263666233616263636634646632356636646339383061383438333834656530663933353835333530633165366266313532666365227d"
       },
       "output": {
-        "code": "WIRE_TYPE"
+        "code": "WIRE_MEMBER"
       },
       "basis": "spec",
       "valid_neighbour": "arithmetic-0",
       "defects": [
-        "type swarma-grant/4 has no accepted member schema; the signed envelope and place-key signature are otherwise valid"
+        "payload contains only type and lacks the required W11.2 members; the signed envelope and place-key signature are otherwise valid"
       ],
-      "reason": "canonical signed arithmetic payload with verified public place key still has no member schema; neighbour is arithmetic only, not an admitted signed object; grant refusal changes to WIRE_MEMBER when its schema is defined"
+      "reason": "canonical signed type-only grant lacks the required grant members; neighbour is arithmetic only, not an admitted signed object; spec grant-i-05 supersedes the former WIRE_TYPE expectation"
     },
     {
       "id": "memberless-signed-swarma-invocation/1",

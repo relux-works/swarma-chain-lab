@@ -574,7 +574,13 @@ func Generate() (result []byte, err error) {
 	for _, typ := range []wire.Type{wire.Grant, wire.Invocation, wire.Receipt, wire.SealEndorsement, wire.NotaryAttestation} {
 		pl := object{"type": string(typ)}
 		raw := canonical(object{"payload": pl, "signature": sign(1, digest(canonical(pl, 2048)))}, 2048)
-		add("memberless-signed-"+string(typ), "canonical signed arithmetic payload with verified public place key still has no member schema", "W3.1; section 10 primitive boundary", "memberless_signed", object{"raw_hex": hx(raw), "expected_type": string(typ), "place_public_key": key(1)}, "WIRE_TYPE")
+		purpose, spec, want := "canonical signed arithmetic payload with verified public place key still has no member schema", "W3.1; section 10 primitive boundary", "WIRE_TYPE"
+		if typ == wire.Grant {
+			purpose = "canonical signed type-only grant lacks the required grant members"
+			spec = "W9.1; W9.3; W11.8; spec 0.1.53 at 3bef542fc8c0a5dedeeaaa990bd7f93abe194813; vectors/LIP-0020/grant-v4.json grant-i-05 expects WIRE_MEMBER"
+			want = "WIRE_MEMBER"
+		}
+		add("memberless-signed-"+string(typ), purpose, spec, "memberless_signed", object{"raw_hex": hx(raw), "expected_type": string(typ), "place_public_key": key(1)}, want)
 	}
 
 	// Official BIP340 verification inputs 0-14; no secret-key or aux columns are copied.
@@ -922,6 +928,10 @@ func annotate(rows []Vector) {
 			v.ValidNeighbour = map[string]string{string(wire.Grant): "arithmetic-0", string(wire.Invocation): "arithmetic-1", string(wire.Receipt): "arithmetic-2", string(wire.SealEndorsement): "arithmetic-3", string(wire.NotaryAttestation): "arithmetic-6"}[text(v.Input, "expected_type")]
 			v.Defects = []string{"type " + text(v.Input, "expected_type") + " has no accepted member schema; the signed envelope and place-key signature are otherwise valid"}
 			v.Reason += "; neighbour is arithmetic only, not an admitted signed object; grant refusal changes to WIRE_MEMBER when its schema is defined"
+			if text(v.Input, "expected_type") == string(wire.Grant) {
+				v.Defects = []string{"payload contains only type and lacks the required W11.2 members; the signed envelope and place-key signature are otherwise valid"}
+				v.Reason = v.Purpose + "; neighbour is arithmetic only, not an admitted signed object; spec grant-i-05 supersedes the former WIRE_TYPE expectation"
+			}
 			continue
 		}
 		if best < 0 {
