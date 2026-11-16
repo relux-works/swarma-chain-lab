@@ -169,7 +169,9 @@ def main():
             shutil.rmtree(d)
             continue
         p.write_text(source.replace(old, new))
-        cmd = ['go', 'test', '-count=1', '-timeout', '30s'] + pkgs.split()
+        # F4 exercises eleven sequential 3s child bounds; permit those named
+        # assertions to finish rather than treating the suite timeout as a kill.
+        cmd = ['go', 'test', '-count=1', '-timeout', '60s'] + pkgs.split()
         proc = subprocess.Popen(cmd, cwd=d, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         (work / (mid + '.pid')).write_text(str(proc.pid) + '\n')
         try:

@@ -21,6 +21,16 @@ Every file is read as bytes, without trimming, normalization or fetching.
 The library accepts the same bytes in `Input`; it performs no direct I/O.
 MVP checking also calls the explicit `NameSource` dependency described below.
 
+At the operator-file boundary, the checker CLI calls
+`operatorfile.Read(path, 65536)` for all ten file flags: parent and child grants,
+both contracts, request, policy, notary value, statement, and both scope texts.
+The optional `-offline-name-fixture` has the same 64 KiB (65536-byte) cap.
+Exceeding it produces `REFUSED INPUT_READ` (exit 2) before decoding or hashing;
+it therefore also bounds otherwise uncapped scope texts and offline fixtures.
+Internal encoded-object caps remain smaller and independent. This is a CLI
+file-read limit, not a new library/protocol limit. Service config and deployment
+policy use separate 16 KiB/8 KiB limits and `CONFIG`/`POLICY_FILE` refusals.
+
 | Input | Exact octets / meaning | Source |
 | --- | --- | --- |
 | Parent and child | Complete canonical presentations `{"signed_grant":{"grant":...,"signature":...},"issuance":{"txid":...}}`. Each contains the complete v3 grant and consent, not an asserted hash or a request for a child signature. The unsigned issuance locator is outside `grant_id`. | LIP-0004 sections 2–4; LIP-0014 section 8 V2 |

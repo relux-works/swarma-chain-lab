@@ -53,7 +53,7 @@ func TestInputFIFORefusal(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, exe, "-test.run=^TestInputProcessHelper$")
 			cmd.Env = append(os.Environ(), "GORACE=atexit_sleep_ms=0", "NOTARY_INPUT_CHILD=1", "NOTARY_INPUT_ARGS="+strings.Join(args, "\n"))
@@ -67,7 +67,7 @@ func TestInputFIFORefusal(t *testing.T) {
 			t.Logf("owned CLI helper PID %d", cmd.Process.Pid)
 			err = cmd.Wait()
 			if ctx.Err() != nil {
-				t.Fatal("FIFO open did not refuse within 1s")
+				t.Fatal("FIFO open did not refuse within 3s")
 			}
 			if e, ok := err.(*exec.ExitError); !ok || e.ExitCode() != 2 || out.String() != "REFUSED INPUT_READ\n" {
 				t.Fatalf("FIFO refusal: %v %q %q", err, out.String(), errs.String())

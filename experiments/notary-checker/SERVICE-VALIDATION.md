@@ -1,6 +1,66 @@
 # Service validation
 
-## N3 r2 revision evidence
+## N4/N5 evidence refreshed in N5 r2 (2026-11-16)
+
+These runs cover the N4 operator-file and J9 regressions and the N5 release
+verifier at the current v0.1.51 pin, commit
+`bd3bc80e5543d8a563343ec05abd1a5f3f67284c`. The source, tests, fixtures, modules
+and scripts were byte-compared with the disposable validation checkout;
+their sorted path/SHA-256 manifest digest is
+`d0f6efc3dd1f87791ef8cfdb5550879ed433f5f21f3cd96c91e5227e5cb82db7`.
+The producer report binds these inputs to the delivered commits. Go 1.26.10,
+`GOTOOLCHAIN=local`, `GOWORK=off`, private caches and a short absolute TMPDIR
+were used. Dependencies were seeded from the existing local module-download
+cache, then `GOPROXY=off GOSUMDB=off` applied. No real node was contacted;
+service/RPC tests use loopback mocks. Historical evidence below is retained
+with its original counts, pin and binary hash.
+
+| Command | Real exit / result |
+| --- | --- |
+| `gofmt -l .` | 0; no formatting output |
+| `go vet ./...` | 0 |
+| `go test -race -count=1 -timeout 120s ./...` | 0; one run, all five packages, including N4 J9 and all FIFO regressions |
+| `python3 -B scripts/reference.py` | 0; 144 signed bundles and two isolated row vectors |
+| `python3 -B scripts/check-mutants.py --work-dir WORK` | 0; 64/64 named checker controls killed, zero survivors |
+| `python3 -B scripts/check-service-mutant.py --work-dir WORK` | 0; signing-on-refusal killed by `TestRefusalNeverSigns`, mutant exit 1 |
+| `python3 -B scripts/check-revision-mutants.py --work-dir WORK` | 0; 36/36 controls killed, including F3/F4, zero survivors |
+| `bash -n scripts/verify-release.sh` | 0 |
+| `python3 -B scripts/test-verify-release.py` | 0; all 16 existing and nine new tests pass, 25 total; every negative requires its exact named FAIL, exit 1 and no `RELEASE_VERIFIED` |
+| `python3 -B scripts/check-release-mutant.py --work-dir WORK` | 0; enumeration removal killed by `ReleaseVerification.test_extra_file`, mutant exit 1; `test_all_good` remains exit 0 |
+| README reproducible service build, twice; `cmp` | 0 / 0 / 0; identical bytes |
+| Public hygiene scanner and six detector controls | 0 / 0 |
+
+Both Linux/amd64 builds have SHA-256
+`e7dc2b5f77ad6cf63ec3b7ebd74ff5cc68691327ba4fc1b64beb92642f71e1ee`,
+unchanged from N4/N5. The only Go delta is the checker FIFO **test** bound,
+raised from one to three seconds like the serve helper; no production Go code
+or build flags changed. Build flags remain
+`CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 GOWORK=off` and
+`go build -trimpath -buildvcs=false -ldflags='-s -w -buildid='`.
+
+| FIFO boundary | Positive / exact negative | Named regressions | Killed controls |
+| --- | --- | --- | --- |
+| Config and deployment policy | Regular-file load/serve; `CONFIG` / `POLICY_FILE` | `TestOperatorFileFIFORefusal/config`, `/policy`; `TestServeFIFOAndFixtureFlag/config`, `/policy` | F3; required named failure `TestOperatorFileFIFORefusal/config` |
+| Ten checker inputs and offline fixture | Regular `ATTEST`; `REFUSED INPUT_READ` with exit 2 | `TestInputFIFORefusal` (all eleven kinds, three-second child bound) | F4; required named failure `TestInputFIFORefusal/parent` |
+| Key and credential | Regular-file load/serve; `KEY_FILE` / `NODE_CREDENTIALS` | `TestPrivateFileFIFORefusal/key`, `/credential`; `TestServeFIFOAndFixtureFlag/key`, `/credential` | F1, F2 |
+
+| Mutant | What it narrows the gate to | Named failing test | Result / survivor bound |
+| --- | --- | --- | --- |
+| F3-operator-blocking-fifo | Config FIFO must refuse promptly | `TestOperatorFileFIFORefusal/config` | Killed; exit 1; no survivor |
+| F4-checker-blocking-fifo | Checker input FIFO must refuse promptly | `TestInputFIFORefusal/parent` | Killed; exit 1; no survivor |
+| release-directory-enumeration-removed | Exact three-file directory membership | `ReleaseVerification.test_extra_file` | Killed; exit 1, positive exit 0; no survivor |
+
+The initial revision-control run exited 1: F4 hit the harness's 30-second
+suite timeout after the eleven per-input bounds became three seconds each.
+That panic was not counted as a kill. Raising the mutation suite budget to
+60 seconds allows the actual named failures; the full 36-control rerun exits
+0. The initial run's orphaned owned helper was identified and stopped by PID.
+No reviewer test was removed or renamed. This brief has requirements rather
+than a formal surface table; the gap remains declared. Infrastructure changes,
+live-node qualification, key provisioning, installation, signing a product
+release and landing remain outside this producer unit.
+
+## Historical N3 r2 revision evidence
 
 The rev374 findings are addressed by FIFO-safe private-file opens and targeted
 regressions adopted from the reviewer packet. The default/zero policy remains
@@ -28,7 +88,7 @@ one synthetic non-regtest bundle is appended.
 | Public hygiene scanner and six detector controls | 0 / 0; staged tree and bounded control plants |
 | Added-diff private identity/path inspection; `git diff --check` | 0 / 0 |
 
-The current static Linux/amd64 service binary SHA-256 is
+The N3 r2 static Linux/amd64 service binary SHA-256 is
 `f7161b0fe9759237779e4102b464afca161c30fe8c255b6f8a23383d7c1efd5c`. Flags are exactly
 `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 GOWORK=off`
 and `go build -trimpath -buildvcs=false -ldflags='-s -w -buildid='`.
@@ -128,7 +188,8 @@ run exits 0. Neither diagnostic was treated as green evidence.
 The following sections record the original service delivery and original
 binary, not a new regtest run or new build measurement for r2.
 
-Spec pin remains v0.1.48 / `2012ac9155568af80d610bdf9b7683881a46e5cb`.
+At that original delivery, the spec pin was v0.1.48 /
+`2012ac9155568af80d610bdf9b7683881a46e5cb`.
 The service uses the landed checker from base
 `8d961622e7bbadb97ded0c04dc10281910774aa3` in the same module.
 These are bounded laboratory results, not deployed or full live-admission

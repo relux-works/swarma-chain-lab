@@ -2,15 +2,16 @@
 
 Environment: Go 1.26.10, Python 3.14.4, Linux amd64. Go uses
 `GOTOOLCHAIN=local`; verification and mutations ran with cached pinned
-modules, `GOPROXY=off`, and `GOSUMDB=off`. No runtime network or node was used.
+modules, `GOPROXY=off`, and `GOSUMDB=off`. No real node was used; service/RPC
+tests use loopback mocks. Historical sections retain their original evidence.
 
 | Check | Real exit | Evidence / limit |
 | --- | --- | --- |
 | `gofmt -l .` | 0 | No output |
 | `go vet ./...` | 0 | This module |
-| `go test -race ./...` | 0 | This module and CLI; 139 complete signed-bundle vectors and two isolated row vectors |
+| `go test -race -count=1 -timeout 120s ./...` | 0 | This module, both CLIs and service; 144 complete signed-bundle vectors and two isolated row vectors; N4/N5 evidence below |
 | `go build ./cmd/notary-check` | 0 | CLI builds |
-| `python3 scripts/reference.py` | 0 | All 139 signed bundles and two isolated row vectors; exact candidate octets, digest, positive signatures, envelope IDs and frames |
+| `python3 -B scripts/reference.py` | 0 | All 144 signed bundles and two isolated row vectors; exact candidate octets, digest, positive signatures, envelope IDs and frames |
 | `python3 scripts/check-mutants.py --work-dir <fresh-scratch>` | 0 | 64/64 named controls killed; zero survivors; each mutant test exits 1 with the named assertion failure |
 | Boundary regressions | 0 | `TestAttestationOutputSize`, `TestCLIAttestationOutputSize`: fitting statements compose to 8191/8192 accepted bytes or a named empty 8193-byte refusal; signed decoder also rejects correctly signed oversized bytes |
 | Positive CLI fixture at `1700000100` | 0 | `ATTEST bbc8faeb27b65ce4460c92228ec0487496e586b2c4ee5e216943036bdc3fc051` |
@@ -20,8 +21,37 @@ An additional temporary contract-only probe compared the parser with the
 pinned LIP-0014 corpus: all 149 applicable cases passed, exit 0. The two
 remaining eleven-member cases exercise profile `/1` reader selection and
 were explicitly excluded from this fifteen-member `/2` reader. The upstream
-corpus is unchanged between v0.1.46 and v0.1.48. This finite comparison does
+comparison used v0.1.46/v0.1.48. The current pin is v0.1.51 at
+`bd3bc80e5543d8a563343ec05abd1a5f3f67284c`; the v0.1.49 and v0.1.51 cited-file
+diffs and unchanged Grant v3/profile `/2` rules are recorded in DESIGN.md.
+That historical parser probe is not a new whole-corpus v0.1.51 run and does
 not qualify chain state or all possible inputs.
+
+## N4/N5 evidence refreshed in N5 r2 (2026-11-16)
+
+The current corpus contains **144 signed bundles and two isolated row
+vectors**. The v0.1.51 pin is stated above; original v0.1.48-era results later
+in this file remain historical. All current commands below actually ran with
+Go 1.26.10 and `GOTOOLCHAIN=local` against byte-identical source/test inputs;
+[SERVICE-VALIDATION.md](SERVICE-VALIDATION.md#n4n5-evidence-refreshed-in-n5-r2-2026-11-16)
+records the input-manifest digest, environment, FIFO map and build hash.
+
+| Current command | Real exit / result |
+| --- | --- |
+| `go test -race -count=1 -timeout 120s ./...` | 0; one full-module run, five packages, N4 J9 and FIFO tests included |
+| `python3 -B scripts/reference.py` | 0; 144 bundles / two rows |
+| `python3 -B scripts/check-mutants.py --work-dir WORK` | 0; 64/64 killed |
+| `python3 -B scripts/check-revision-mutants.py --work-dir WORK` | 0; 36/36 killed; F3 requires `TestOperatorFileFIFORefusal/config`, F4 requires `TestInputFIFORefusal/parent` |
+| `python3 -B scripts/check-service-mutant.py --work-dir WORK` | 0; `TestRefusalNeverSigns` kills signing-on-refusal |
+| `python3 -B scripts/test-verify-release.py` | 0; 25 tests, including all previous controls |
+| `python3 -B scripts/check-release-mutant.py --work-dir WORK` | 0; `ReleaseVerification.test_extra_file` kills enumeration removal; valid neighbor still passes |
+
+Every reported mutant kill is its named assertion failure with exit 1, not a
+crash, timeout or setup failure. The initial F4 timeout was a failing diagnostic;
+the complete rerun after the 60-second harness budget adjustment is the green
+36/36 evidence. Current gofmt, vet, two service builds, byte comparison and
+public hygiene/control runs also exit 0. The checker FIFO bound is test-only;
+both builds retain `e7dc2b5f77ad6cf63ec3b7ebd74ff5cc68691327ba4fc1b64beb92642f71e1ee`.
 
 ## Mutation controls
 
@@ -129,10 +159,11 @@ compressed owner keys are rejected even with valid signatures: the
 `mvp-signing-authorities` mutant erroneously accepts that named witness. No survivors.
 
 
-## Round 4: chain-resolved MVP identities
+## Historical round 4: chain-resolved MVP identities
 
-The same Go and independent-reader gates cover all 139 bundles and two row
-vectors. All 94 strict-default fixtures remain byte-for-byte unchanged; every
+At that historical round, the Go and independent-reader gates covered 139
+bundles and two row vectors; N4/N5 now cover 144 bundles as recorded above.
+All 94 strict-default fixtures remained byte-for-byte unchanged; every
 prior vector name and expected refusal remains present. New fixtures cover
 name/registration reuse, the current grant-key binding, unreadable/malformed
 values, registration changes, and both mismatched height and hash.

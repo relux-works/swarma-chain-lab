@@ -102,10 +102,11 @@ LIP-0010 extension rules; its authority span remains canonical.
 | Python fixture writer | `python3 scripts/make-fixtures.py` | Reproduces `testdata/vectors.json` and `testdata/positive/` using only public fixed test secrets; no randomness or real keys |
 | Python mutation controls | `python3 scripts/check-mutants.py --work-dir .temp/mutants-01` | Named-test table, individual logs and `mutation-results.md`; nonzero on any survivor, panic, timeout, non-applied mutation or compile failure |
 | Python revision controls | `python3 -B scripts/check-revision-mutants.py --work-dir .temp/revision-mutants-01` | Service, custody and bounds controls plus private/operator FIFO and strict-default controls; per-control logs, PIDs and `results.json`; every kill requires its specific named test |
-| Bash, Git, OpenSSH, coreutils | `bash -n scripts/verify-release.sh`; `git verify-tag`; `ssh-keygen -Y verify`; `sha256sum`; `cmp` | Local release authentication and checksum verdicts; exact combined command below |
+| Bash, Python 3 stdlib, Git, OpenSSH, coreutils | `bash -n scripts/verify-release.sh`; `git verify-tag`; `ssh-keygen -Y verify`; `sha256sum`; `cmp` | Exact download-directory membership and `os.lstat` file types, local release authentication and checksum verdicts; exact combined command below |
 | Target operator tools | `install`, `stat`, `namei -l` as in [RELEASE.md](RELEASE.md#install-the-verified-executable) | Installed checksum, owner/mode and directory-chain checks on the target |
 | Offline release verification | `scripts/verify-release.sh SOURCE_ROOT RELEASE_COMMIT RELEASE_DIR REBUILT_BINARY ALLOWED_SIGNERS SIGNER_ID` | Verdicts only; signed fixed tag, exact commit, signed manifest and matching binary/rebuild hashes; see [RELEASE.md](RELEASE.md) |
 | Release controls | `python3 -B scripts/test-verify-release.py` | Named offline positive/negative checks; disposable keys and fixture tags under the configured temporary directory |
+| Release mutation control | `python3 -B scripts/check-release-mutant.py --work-dir .temp/release-mutant` | Removes directory enumeration in a disposable copy; named negative must fail and positive pass; logs, PIDs and `mutation-results.md`; requires fresh work directory |
 | Git | `git diff --check -- experiments/notary-checker` from the repository root | Whitespace diagnostics only |
 
 The independent Python reader uses its own JSON member/span handling and
@@ -268,3 +269,13 @@ ownership/mode checks and existing named refusals. `TestOperatorFileFIFORefusal`
 `TestServeFIFOAndFixtureFlag` and `TestInputFIFORefusal` pair regular controls
 with bounded FIFO negatives. Revision controls F3/F4 restore a blocking open
 and require those named tests to fail.
+
+The checker CLI uses `operatorfile.Read(path, 65536)`: each of its ten file
+flags (`-parent`, `-child`, `-parent-contract`, `-child-contract`, `-request`,
+`-policy`, `-notary-value`, `-statement`, `-parent-text`, `-child-text`) and
+`-offline-name-fixture` is capped at 64 KiB (65536 bytes). A larger file refuses
+as `REFUSED INPUT_READ` with exit 2 before checking or hashing it. This adds an
+operator-file limit for scope texts and offline name fixtures; the encoded
+grant, contract, request, policy, name-value and statement decoders retain their
+separate smaller caps. Service config and deployment policy retain their own
+16 KiB/8 KiB limits and `CONFIG`/`POLICY_FILE` refusals.
