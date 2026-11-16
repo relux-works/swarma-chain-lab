@@ -120,6 +120,56 @@ def value_read(raw, profile="draft"):
     return result
 
 
+
+def holders_capacity(raw):
+    """Product-equivalent capacity for a valid landlord with holders absent."""
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8")
+    value = value_read(raw, "in-force-051")
+    _, _, members = value_members(raw)
+    binding = obj(obj(members["swarma"])["landlord"])
+    if "grant" not in value or list(binding) != ["grant"]:
+        raise ValueError("capacity requires absent holders")
+    size = len(raw.encode("utf-8"))
+    most = max(0, (520 - size - 12) // 69)
+    with_most = size if most == 0 else size + 12 + 69 * most
+    return {"without": size, "most": most, "with": with_most,
+            "more": size + 12 + 69 * (most + 1)}
+
+
+def capacity_cases():
+    """Every envelope size, plus invalid shapes and a UTF-8 byte control."""
+    key = "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
+    base = '{"swarma":{"landlord":{"grant":"' + key + '"}}}'
+    for size in range(521):
+        raw = "x" * size if size < len(base) else base[:-1] + " " * (size - len(base)) + "}"
+        yield f"size/{size}", raw.encode()
+    invalid = {
+        "malformed": b"{", "agent": b'{"swarma":{"agent":{"landlord":"id/example"}}}',
+        "empty-holders": base.replace('"}}}', '","holders":[]}}}').encode(),
+        "present-holders": base.replace('"}}}', '","holders":["02' + key + '"]}}}').encode(),
+        "oversize": (base[:-1] + " " * (521 - len(base)) + "}").encode(),
+        "leading": (" " + base).encode(), "trailing": (base + " ").encode(),
+        "alias": base.replace("swarma", "Swarma").encode(),
+        "duplicate": ('{"swarma":{},' + base[1:]).encode(),
+        "noncompact": base.replace('"grant":', '"grant": ').encode(),
+        "bad-key": base.replace(key, "0" * 64).encode(),
+        "missing-binding": b"{}", "not-object": b"[]",
+        "extra-binding": base.replace('"}}}', '","other":0}}}').encode(),
+        "invalid-utf8": b'{"unused":"\xff",' + base[1:].encode(),
+    }
+    for name, raw in invalid.items():
+        yield "invalid/" + name, raw
+    yield "utf8", ('{"padding":"é",' + base[1:]).encode()
+
+
+def capacity_result(raw):
+    try:
+        return holders_capacity(raw)
+    except (ValueError, KeyError, TypeError):
+        return {"outcome": "refused", "most": 0, "with": 0, "more": 0}
+
+
 def limit_map(limits):
     amounts = {}
     for limit in limits:
@@ -409,9 +459,7 @@ def profile_vectors(files, profile):
                 actual = {"outcome": "refused"}
         result[row["id"]] = actual
     for row in files["holders-vectors.json"]["capacity"]:
-        size = len(row["value_without_holders"].encode())
-        most = (520-size-12)//69
-        result[row["id"]] = PROFILE_ERROR if closed else {"without":size,"most":most,"with":size+12+69*most,"more":size+12+69*(most+1)}
+        result[row["id"]] = PROFILE_ERROR if closed else holders_capacity(row["value_without_holders"])
     fit = files["row-fit-vectors.json"]
     for row in fit["vectors"]:
         result[row["id"]] = PROFILE_ERROR if closed else fit_decision(row["child"],fit["row"],fit["row_count"])
@@ -440,6 +488,38 @@ def profile_calculate(files):
             output[f"profile/{profile['name']}/{identifier}"] = value
         for rule in config["rules"]:
             output[f"profile/{profile['name']}/rule/{rule['rule']}"] = rule_availability(profile["name"], rule["rule"], catalog)
+    return output
+
+
+
+def executor_recipient_decisions(files):
+    """Bounded template and parent-first composition on the valid A3 fixture.
+
+    In-force parent/child entry points refuse before any template predicate.
+    Child facts and fit stay valid here: only its parent's template is changed.
+    """
+    admission = files["class-vectors.json"]["admissions"][0]
+    template = fixture_template(dict(admission["row"], issuer=admission["issuer"],
+                                     notaries=[admission["row"]["certifier"]]))
+    template["executor"]["key"] = admission["issuer"]["owner_public_key"][2:]
+    output = {}
+    for profile in ("draft", "in-force-051"):
+        for path in ("template", "parent", "child"):
+            for defect in ("valid", "executor", "recipient", "both"):
+                candidate = copy.deepcopy(template)
+                if defect in ("executor", "both"):
+                    candidate["executor"]["name"] = ""
+                if defect in ("recipient", "both"):
+                    candidate["recipient"]["request_public_key"] = "request-key"
+                if profile == "in-force-051" and path != "template":
+                    actual = DRAFT_ERROR
+                else:
+                    result = template_decision(candidate)
+                    actual = "valid" if result["outcome"] == "valid" else result["rule"]
+                    if path == "child" and actual == "valid":
+                        if admission_decision(admission, profile)["outcome"] != "pass":
+                            raise ValueError("A4 composed positive fixture failed")
+                output[f"a4-order/{profile}/{path}/{defect}"] = actual
     return output
 
 
@@ -476,9 +556,7 @@ def calculate(files):
         expected = {k: v for k, v in row["expect"].items() if k != "rule"}
         record(row, actual, expected)
     for row in values["capacity"]:
-        size = len(row["value_without_holders"].encode())
-        most = (520 - size - 12) // 69
-        actual = {"without": size, "most": most, "with": size + 12 + 69 * most, "more": size + 12 + 69 * (most + 1)}
+        actual = holders_capacity(row["value_without_holders"])
         expected = dict(zip(("without", "most", "with", "more"), (row[k] for k in ("bytes_without_holders", "most_holders", "bytes_with_most", "bytes_with_one_more"))))
         record(row, actual, expected)
     fit = files["row-fit-vectors.json"]
@@ -519,6 +597,9 @@ def calculate(files):
             actual = template_decision(row)
             verdict = "valid" if actual["outcome"] == "valid" else actual["rule"]
             record({"id": f"a3-executor/{profile}/{identifier}"}, verdict, expected)
+    decisions.update(executor_recipient_decisions(files))
+    for identifier, raw in capacity_cases():
+        decisions["a4-capacity/" + identifier] = capacity_result(raw)
     return decisions
 
 
@@ -536,7 +617,7 @@ def go_results(stream):
             if item["id"] in decisions:
                 raise ValueError("duplicate Go R1 result")
             decisions[item["id"]] = item["result"]
-    if not {"TestR1Groups", "TestR1Class", "TestR1Holders", "TestR1RowFitVectors", "TestR1Profiles"} <= passed or not package:
+    if not {"TestR1Groups", "TestR1Class", "TestR1Holders", "TestR1RowFitVectors", "TestR1Profiles", "TestR1HoldersCapacityRange", "TestR1ExecutorRecipientOrder"} <= passed or not package:
         raise ValueError("R1 Go package or required tests missing")
     return decisions
 
@@ -563,7 +644,7 @@ def main():
         agree(independent, go_results(args.go_results.read_text()))
         if args.output:
             args.output.write_text(json.dumps(independent, sort_keys=True, indent=2) + "\n")
-        print(f"AGREE {len(independent)} R1 cases: independent Python = pinned vectors = Go; no node reads")
+        print(f"AGREE {len(independent)} R1 cases: independent Python = Go (pinned vectors and generated controls); no node reads")
         return 0
     except (ValueError, KeyError, TypeError, OSError) as error:
         print(error, file=sys.stderr)

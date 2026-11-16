@@ -15,7 +15,7 @@ class R1ReaderControls(unittest.TestCase):
 
     def test_all_vectors(self):
         # All pinned and revision independent results agree with the pinned expectations.
-        self.assertEqual(len(reader.calculate(self.files)), 1309)
+        self.assertEqual(len(reader.calculate(self.files)), 1870)
 
     def test_executor_shape(self):
         # R8.1 requires both fields, including an actual curve key. The valid
@@ -27,6 +27,36 @@ class R1ReaderControls(unittest.TestCase):
             with self.subTest(executor=executor):
                 self.assertEqual(reader.template_decision(dict(template, executor=executor)),
                                  {"outcome": "refused", "rule": "R8.1"})
+
+    def test_capacity_full_range(self):
+        # Independently enumerate the byte budget, including every no-room size;
+        # invalid shapes refuse with no partial numbers beside valid controls.
+        cases = list(reader.capacity_cases())
+        self.assertEqual(len(cases), 537)
+        for identifier, raw in cases:
+            with self.subTest(case=identifier):
+                actual = reader.capacity_result(raw)
+                if identifier.startswith("invalid/") or (identifier.startswith("size/") and len(raw) < 100):
+                    self.assertEqual(actual, {"outcome": "refused", "most": 0, "with": 0, "more": 0})
+                else:
+                    size = len(raw)
+                    counts = [n for n in range(1, 8) if size + 12 + 69*n <= 520]
+                    most = max(counts, default=0)
+                    self.assertEqual(actual, {"without": size, "most": most,
+                                             "with": size + 12 + 69*most if most else size,
+                                             "more": size + 12 + 69*(most+1)})
+
+    def test_executor_recipient_order(self):
+        # Single defects expose each refusal; their compound prefers R8.1.
+        # Full composition is draft-only; in-force keeps its availability gate.
+        results = reader.executor_recipient_decisions(self.files)
+        for profile in ("draft", "in-force-051"):
+            for path in ("template", "parent", "child"):
+                for defect in ("valid", "executor", "recipient", "both"):
+                    with self.subTest(profile=profile, path=path, defect=defect):
+                        expected = (reader.DRAFT_ERROR if profile == "in-force-051" and path != "template"
+                                    else {"valid": "valid", "executor": "R8.1", "recipient": "R9.1", "both": "R8.1"}[defect])
+                        self.assertEqual(results[f"a4-order/{profile}/{path}/{defect}"], expected)
 
     def test_profile_checkpoint(self):
         # Explicit checkpoint remains authoritative when Recent differs. A
@@ -59,7 +89,10 @@ class R1ReaderControls(unittest.TestCase):
         # valid control. Equality of two broken readers is not the expectation.
         independent = reader.calculate(self.files)
         reader.agree(independent, dict(independent))
-        for key, changed in (("class-25", {"outcome": "pass", "attestation": "required"}),
+        for key, changed in (("a4-capacity/size/440", {"without": 440, "most": 0, "with": 452, "more": 521}),
+                             ("a4-capacity/size/520", {"without": 520, "most": -1, "with": 463, "more": 532}),
+                             ("a4-order/draft/parent/both", "R9.1"),
+                             ("class-25", {"outcome": "pass", "attestation": "required"}),
                              ("class-01", {"outcome": "CLASS_WRITER"}),
                              ("a3-executor/in-force-051/empty-name", "valid"),
                              ("a3-executor/in-force-051/valid", "R8.1")):

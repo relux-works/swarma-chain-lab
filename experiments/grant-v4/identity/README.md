@@ -105,7 +105,8 @@ are enforced in the Go vector harness and independent Python reader. Their
 executor name/key, recipient mode, typed limits and compound refusal order.
 The independent reader additionally compares **855** profile cases (five
 profiles × 151 vectors and 20 rule families), plus **14** executor-shape
-results under both open profiles, for **1,309** total R1 results.
+results under both open profiles, plus **537** capacity-range and invalid-input results and **24** refusal-order
+results, for **1,870** total R1 results.
 Its earlier **440** R1 cases remain: **151** vectors (38 groups/ordinals, 65 class, 28 holder values,
 5 capacity and 15 row-fit), **276** earlier revision controls and **13**
 additional absence/leading-whitespace controls. It reuses the independent Python O3/O4 primitives, never Go parsing or
@@ -368,7 +369,8 @@ all 256 profile values, maximum topology and named-neighbour execution.
 The R1 reader compares all 151 pinned/local vectors plus 276 earlier revision
 cases (5 suffix, 10 child suffix, 5 landlord status and 256 recipient status)
 and 13 new cases (4 prefix, 8 child prefix and 1 cross-path absence), plus
-855 cross-profile cases and 14 executor-shape cases with Go (1,309 total). Additional caller-status tests cover all byte values and the
+855 cross-profile cases, 14 executor-shape cases, 537 capacity cases and
+24 template/composition order cases with Go (1,870 total). Additional caller-status tests cover all byte values and the
 negative/out-of-byte values of int-backed `Reading` and `Writer`.
 
 Eight additional narrowing plants restore leading/trailing whitespace acceptance,
@@ -384,8 +386,8 @@ below; evidence includes each named failing test and command exit.
 | Map recipient absence to UNAVAILABLE | Both ownership paths retain O7.2 row 1's NOT_HELD meaning | `TestR1RecipientAbsenceAgreesWithOwner` |
 | Accept leading JSON whitespace | The value starts at byte zero with `{` | `TestR1TopLevelPrefix/prefix_20` |
 
-The complete runner now requires **48/48** killed mutants (47 Go overlays and
-one isolated Python digest plant), including all 42 earlier plants.
+The complete runner now requires **49/49** killed mutants (47 Go overlays and
+two isolated Python plants), including all 42 earlier plants.
 The two v0.1.51 plants enable the draft landlord writer in the in-force
 profile (`TestR1Profiles/in-force-051/class-16`) and disable its decided holder
 check (`TestR1Profiles/in-force-051/class-37`). Both must fail their named
@@ -397,6 +399,19 @@ both fixture adapters supply a stated synthetic valid executor. Their pinned
 bytes and recipient expectations are unchanged. `TestR1ExecutorShape` compares
 the valid template with empty-name and malformed-key variants in each profile;
 all 14 results are independently calculated by Python.
+For a no-certifier template, standalone `CheckRowRecipient` rechecks
+`CheckRowTemplate`, including R8.1: an invalid executor now refuses before node
+facts. This is fail-closed tightening of that existing standalone path.
+`TestR1NoCertifierExecutorRecheck` pairs this refusal with a valid admission in
+both profiles.
+
+`TestR1ExecutorRecipientOrder` combines an empty executor name with two
+recipient modes. The executor-only control refuses R8.1, the recipient-only
+control R9.1, and the compound prefers R8.1 on standalone templates in both
+profiles and full parent/child composition in draft. In-force parent/child
+composition remains unavailable (`R1_DRAFT_RULE_UNAVAILABLE`) before template
+evaluation, even for the valid control; its tests preserve that contract rather
+than enabling draft rules. Python independently compares all 24 outcomes.
 
 `HoldersCapacity(valueWithout)` is a product predicate for a valid landlord
 value with `holders` absent. It returns the maximum count, its byte size and
@@ -407,6 +422,19 @@ the size with one more holder, or `ErrR1Value` and zero results. It uses rule 8'
 and the original five capacity vectors call this product function. Boundary
 tests cover exact 520 bytes, no room for one holder, UTF-8 byte counts and invalid
 inputs; the function establishes no universal count limit or authority.
+`TestR1HoldersCapacityRange` and Python compare every size from 0 through 520:
+0–99 bytes are below the canonical landlord minimum and refuse, while 100–520
+have valid values padded outside the binding. Independent enumeration checks
+that the maximum fits and one more exceeds 520. Fifteen additional invalid
+inputs (including existing holders, oversize, duplicate/aliased/noncompact
+bindings and invalid UTF-8) return no partial capacity, beside a multibyte
+positive control. These 537 results are all included in Go/Python agreement.
+The Python helper is shared by both fixture-reading paths; it clamps `most`
+to zero and retains the original size when no holder fits.
+
+| A4 mutant | Property narrowed | Required failing test / comparison |
+| --- | --- | --- |
+| `r1-a4-old-python-capacity` | Zero capacity retains the absent member; 509–520 bytes never produce a negative count | `R1ReaderControls.test_capacity_full_range` and `r1_reader.agree` against `TestR1HoldersCapacityRange`, explicitly including sizes 440 and 520 |
 
 | A3 mutant | Property narrowed | Required failing test |
 | --- | --- | --- |

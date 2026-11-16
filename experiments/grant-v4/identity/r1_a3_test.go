@@ -55,7 +55,7 @@ func TestR1ExecutorShape(t *testing.T) {
 // Rule 8's byte budget is computed by the product, including UTF-8 owner data.
 // Zero holders preserves the absent member; one more must exceed 520 bytes.
 // Invalid shape, an existing holders member and oversize values return no result
-// and preserve the input. The pinned five capacity fixtures run in both profiles.
+// and preserve the input. These six boundary rows include an exact 520-byte fit.
 func TestR1HoldersCapacity(t *testing.T) {
 	key := "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
 	base := `{"swarma":{"landlord":{"grant":"` + key + `"}}}`

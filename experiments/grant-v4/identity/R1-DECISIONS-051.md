@@ -50,6 +50,16 @@ Source abbreviations:
 | J11 strict value envelope, 520 bytes, computed capacity | IN FORCE dependencies / product arithmetic, not a new holder-count rule | B §10 L420–430,461–478; §§2–3 | `ReadR1Value`, `HoldersCapacity`; `TestR1Holders`, `TestR1Profiles` capacity fixtures and `TestR1HoldersCapacity`, capacity off-by-one plant; all prior strict envelope tests retained |
 | J11 holder changes alter issuer swarma and existing issuer-history result | IN FORCE dependency; closure recording remains outside #130 | B §10 L452–460 | Existing issuer-history predicates unchanged |
 
+For a no-certifier template, standalone `CheckRowRecipient` rechecks
+`CheckRowTemplate`, including R8.1. An invalid executor therefore refuses before
+node facts: this is fail-closed tightening of the existing standalone path,
+covered by `TestR1NoCertifierExecutorRecheck` in both profiles.
+`TestR1ExecutorRecipientOrder` establishes R8.1 before R9.1 for a template with
+both defects, with single-defect and valid controls, in both standalone profiles
+and draft parent/child composition. In-force composition retains its prior
+`R1_DRAFT_RULE_UNAVAILABLE` gate before template evaluation. The Python reader
+compares all 24 outcomes without treating that gate as template acceptance.
+
 Despite LIP-0010 L417's qualification of rule 3's proposed refusals, the in-force reader refuses “no array” and “element without a pin” because they violate the decided shape in rule 2 (L426–430).
 
 | #130 vector family | Classification at this pin |
@@ -63,6 +73,17 @@ Despite LIP-0010 L417's qualification of rule 3's proposed refusals, the in-forc
 | 5 holder capacity rows | IN FORCE product arithmetic through `HoldersCapacity` in both profile tests, independently computed by Python; no universal count cap. |
 | 15 local row-fit rows | IN FORCE comparisons; composed group-selection path depends on DRAFT order. Test selected facts separately. |
 | 276 revision controls and 13 absence/whitespace controls | IN FORCE envelope/absence/unsupported-fact dependencies; exact shortcut and local class diagnostic claims retain their DRAFT qualification. |
+
+`TestR1HoldersCapacityRange` additionally compares Go and Python for every
+input size 0–520, fifteen invalid-shape/envelope inputs and a UTF-8 positive
+control (537 cases). Below the 100-byte canonical minimum the size controls
+refuse; all remaining sizes have valid values padded outside the binding.
+Independent enumeration bounds the maximum, including no room for one holder:
+`most` is clamped to zero and `with` retains the original size. The
+`r1-a4-old-python-capacity` plant restores the former formula and must fail both
+`R1ReaderControls.test_capacity_full_range` and actual Go/Python agreement
+(`r1_reader.agree`), including sizes 440 and 520. No universal count cap or
+admission authority follows from these arithmetic checks.
 
 ## OPEN QUESTIONS
 

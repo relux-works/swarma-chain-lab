@@ -108,6 +108,58 @@ def python_round_control(scratch, evidence):
                 raise ValueError("python-broken-round: intended assertion failure not demonstrated")
 
 
+
+def python_capacity_control(scratch, evidence):
+    """Old reader arithmetic must fail the full-range test AND actual Go agreement."""
+    scripts = MODULE / "scripts"
+    mutant = scratch / "r1-a4-old-python-capacity"
+    shutil.copytree(scripts, mutant / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(MODULE / "testdata", mutant / "testdata")
+    source = mutant / "scripts/r1_reader.py"
+    original = source.read_text()
+    old = "most = max(0, (520 - size - 12) // 69)\n    with_most = size if most == 0 else size + 12 + 69 * most"
+    new = "most = (520 - size - 12) // 69\n    with_most = size + 12 + 69 * most"
+    if original.count(old) != 1:
+        raise ValueError("r1-a4-old-python-capacity: plant not uniquely applicable")
+    source.write_text(original.replace(old, new, 1))
+    required = "test_r1_reader.R1ReaderControls.test_capacity_full_range"
+    for name, cwd, expected_exit in (("r1-a4-python-control", scripts, 0),
+                                     ("r1-a4-old-python-capacity", mutant / "scripts", 1)):
+        command = [sys.executable, "-B", "-m", "unittest", "-v", required]
+        proc = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
+        (scratch / (name + ".stdout.log")).write_text(proc.stdout)
+        (scratch / (name + ".stderr.log")).write_text(proc.stderr)
+        killed = (proc.returncode == 1 and "FAIL: test_capacity_full_range" in proc.stderr
+                  and "AssertionError:" in proc.stderr and "ERROR:" not in proc.stderr)
+        record = {"name": name, "command": command, "exit": proc.returncode}
+        evidence["runs"].append(record)
+        if expected_exit == 0:
+            if proc.returncode != 0 or "Ran 1 test" not in proc.stderr or "OK" not in proc.stderr:
+                raise ValueError("A4 Python positive control failed")
+        else:
+            record.update(required_failure=required, killed=killed)
+            if not killed:
+                raise ValueError("old Python capacity: intended range assertion not demonstrated")
+    for name, cwd, expected_exit in (("r1-a4-agreement-control", scripts, 0),
+                                     ("r1-a4-old-capacity-agreement", mutant / "scripts", 1)):
+        command = [sys.executable, "-B", "r1_reader.py", "--go-results", str(scratch / "control.json")]
+        proc = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
+        (scratch / (name + ".stdout.log")).write_text(proc.stdout)
+        (scratch / (name + ".stderr.log")).write_text(proc.stderr)
+        killed = (proc.returncode == 1 and "R1_GO_DISAGREEMENT" in proc.stderr
+                  and "a4-capacity/size/440" in proc.stderr and "a4-capacity/size/520" in proc.stderr)
+        record = {"name": name, "command": command, "exit": proc.returncode}
+        evidence["runs"].append(record)
+        if expected_exit == 0:
+            if proc.returncode != 0 or "AGREE " not in proc.stdout:
+                raise ValueError("A4 Go/Python positive comparison failed")
+        else:
+            record.update(required_failure="r1_reader.agree (Go TestR1HoldersCapacityRange)", killed=killed)
+            if not killed:
+                raise ValueError("old Python capacity: Go disagreement not demonstrated")
+    print(f"r1-a4-old-python-capacity: exit 1; KILLED {required} AND r1_reader.agree (Go TestR1HoldersCapacityRange)")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scratch", type=Path, required=True)
@@ -142,6 +194,7 @@ def main():
             if not killed:
                 raise ValueError(f"{name}: intended test failure not demonstrated")
         python_round_control(scratch, evidence)
+        python_capacity_control(scratch, evidence)
         return 0
     except (ValueError, OSError) as error:
         print(error, file=sys.stderr)
