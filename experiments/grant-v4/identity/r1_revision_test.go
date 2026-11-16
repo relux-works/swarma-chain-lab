@@ -127,6 +127,8 @@ func TestRev375RecipientStatus(t *testing.T) {
 			expected := error(RecipientNameUnavailable)
 			if status == CurrentOutput {
 				expected = nil
+			} else if status == NoLiveOutput {
+				expected = RecipientNameNotHeld
 			}
 			result, err := CheckR1Child(R1DraftLab, parent, child, observation)
 			if err != expected || (err != nil && result != (RowRecipientResult{})) || (err == nil && result.Key == "") {

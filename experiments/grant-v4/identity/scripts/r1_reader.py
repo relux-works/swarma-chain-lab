@@ -53,12 +53,13 @@ def channel(value):
 
 
 def value_members(raw):
-    """LIP-0010 2.1: compare the consumed object end before skipping any suffix."""
+    """Strict LIP-0010 2.1 reading: object at byte zero, no byte after it."""
     if len(raw.encode("utf-8")) > 520:
         raise ValueError("size")
     decoder = json.JSONDecoder(object_pairs_hook=Pairs)
-    start = len(raw) - len(raw.lstrip(" \t\r\n"))
-    top, end = decoder.raw_decode(raw, start)
+    if not raw.startswith("{"):
+        raise ValueError("leading bytes")
+    top, end = decoder.raw_decode(raw)
     if not isinstance(top, Pairs) or end != len(raw):
         raise ValueError("top or trailing bytes")
     read = {}
@@ -229,6 +230,8 @@ def admission_decision(row):
     if "name" not in child or (exact and child != constraint):
         return {"outcome": "CHILD_GRANTEE_NOT_ALLOWED"}
     status = row["node"]["recipient_name"].get("current_status", 1)
+    if status == 2:
+        return {"outcome": "RECIPIENT_NAME_NOT_HELD"}
     if status != 1:
         return {"outcome": "RECIPIENT_NAME_UNAVAILABLE"}
     raw = bytes.fromhex(row["node"]["recipient_name"]["current_output_script_hex"])
@@ -281,16 +284,20 @@ def revision_decisions(files):
     classes = files["class-vectors.json"]
     control = next(row for row in classes["admissions"] if row["id"] == "class-01")
     value = next(row["value"] for row in files["holders-vectors.json"]["values"] if row["id"] == "value-03")
-    for suffix in (" ", "\t", "\n", "\r\n", " {}"):
-        tag = suffix.encode().hex()
-        # The canonical value is a valid positive; every post-object byte refuses.
+    boundaries = [("suffix", item) for item in (" ", "\t", "\n", "\r\n", " {}")]
+    boundaries += [("prefix", item) for item in (" ", "\t", "\n", "\r\n")]
+    for side, extra in boundaries:
+        tag = extra.encode().hex()
+        value_id = "r2-value-" if side == "suffix" else "r3-value-prefix-"
+        child_id = "r2-child-" if side == "suffix" else "r3-child-prefix-"
+        # The canonical value is a positive beside each forbidden boundary byte.
         value_read(value)
         try:
-            value_read(value + suffix)
+            value_read(value + extra if side == "suffix" else extra + value)
             outcome = "valid"
         except (ValueError, KeyError, TypeError):
             outcome = "identity: invalid R1 name value"
-        decisions["r2-value-" + tag] = outcome
+        decisions[value_id + tag] = outcome
         for exact in (False, True):
             row = copy.deepcopy(control)
             if exact:
@@ -307,9 +314,10 @@ def revision_decisions(files):
                     return bytes([0x4c, len(data)]) + data
                 return bytes([0x4d, len(data) & 255, len(data) >> 8]) + data
             address = bytes.fromhex(parsed["address_script_hex"])
-            script = b"\x53" + push(row["child"]["recipient"]["name"].encode()) + push((parsed["value"] + suffix).encode()) + b"\x6d\x75" + address
+            changed_value = parsed["value"] + extra if side == "suffix" else extra + parsed["value"]
+            script = b"\x53" + push(row["child"]["recipient"]["name"].encode()) + push(changed_value.encode()) + b"\x6d\x75" + address
             row["node"]["recipient_name"]["current_output_script_hex"] = script.hex()
-            decisions[f"r2-child-{str(exact).lower()}-{tag}"] = admission_decision(row)["outcome"]
+            decisions[f"{child_id}{str(exact).lower()}-{tag}"] = admission_decision(row)["outcome"]
     for status in (2, 0, 3, 99, 255):
         row = copy.deepcopy(control)
         parsed = names.read_script(bytes.fromhex(row["node"]["recipient_name"]["current_output_script_hex"]), row["child"]["recipient"]["owner_public_key"], row["context"]["tip_height"], 0)
@@ -322,6 +330,9 @@ def revision_decisions(files):
         row = copy.deepcopy(control)
         row["node"]["recipient_name"]["current_status"] = status
         decisions[f"r2-recipient-{status}"] = admission_decision(row)["outcome"]
+    absent = copy.deepcopy(control)
+    absent["node"]["recipient_name"] = {"current_status": 2}
+    decisions["r3-recipient-absence-cross-path"] = admission_decision(absent)["outcome"]
     return decisions
 
 

@@ -236,6 +236,8 @@ func CheckRowRecipient(profile R1Profile, issuer LandlordPin, t RowTemplate, chi
 	}
 	switch e.Current {
 	case CurrentOutput:
+	case NoLiveOutput:
+		return fail(RecipientNameNotHeld)
 	default:
 		return fail(RecipientNameUnavailable)
 	}

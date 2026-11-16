@@ -34,6 +34,10 @@ type R1Value struct {
 
 // objectMembers preserves duplicate names and exact RawMessage spans.
 func objectMembers(raw []byte) ([]string, []json.RawMessage, error) {
+	// The strict top-level reading forbids leading JSON whitespace.
+	if len(raw) == 0 || raw[0] != '{' {
+		return nil, nil, ErrR1Value
+	}
 	d := json.NewDecoder(bytes.NewReader(raw))
 	t, err := d.Token()
 	if err != nil || t != json.Delim('{') {

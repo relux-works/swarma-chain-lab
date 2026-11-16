@@ -15,7 +15,7 @@ class R1ReaderControls(unittest.TestCase):
 
     def test_all_vectors(self):
         # All pinned and revision independent results agree with the pinned expectations.
-        self.assertEqual(len(reader.calculate(self.files)), 427)
+        self.assertEqual(len(reader.calculate(self.files)), 440)
 
     def test_both_disagreement_directions(self):
         # A false acceptance and a false refusal each fail agreement, beside a
@@ -53,15 +53,16 @@ class R1ReaderControls(unittest.TestCase):
             reader.calculate(changed)
 
     def test_recipient_status_byte_domain(self):
-        # Only CurrentOutput proceeds in this draft entry; every other status
-        # refuses unavailable, beside the valid current-output control.
+        # Only CurrentOutput proceeds; O7.2 row 1 assigns NOT_HELD to proved
+        # absence and row 3 assigns UNAVAILABLE to unknown/undefined facts.
         control = self.files["class-vectors.json"]["admissions"][0]
         self.assertEqual(reader.admission_decision(control)["outcome"], "pass")
         for status in range(256):
             with self.subTest(status=status):
                 row = copy.deepcopy(control)
                 row["node"]["recipient_name"]["current_status"] = status
-                expected = "pass" if status == 1 else "RECIPIENT_NAME_UNAVAILABLE"
+                expected = ("pass" if status == 1 else "RECIPIENT_NAME_NOT_HELD"
+                            if status == 2 else "RECIPIENT_NAME_UNAVAILABLE")
                 self.assertEqual(reader.admission_decision(row)["outcome"], expected)
 
     def test_landlord_current_status(self):
@@ -88,6 +89,20 @@ class R1ReaderControls(unittest.TestCase):
                 reader.value_members(raw)
                 with self.assertRaises(ValueError):
                     reader.value_members(raw + suffix)
+
+    def test_pre_object_bytes(self):
+        # The strict first-byte reading rejects each JSON whitespace prefix in
+        # binding and exact-name readers, beside their canonical positives.
+        key = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        raw = '{"swarma":{"landlord":{"grant":"' + key + '"}}}'
+        for prefix in (" ", "\t", "\n", "\r\n"):
+            with self.subTest(prefix=prefix):
+                self.assertEqual(reader.value_read(raw)["grant"], key)
+                with self.assertRaises(ValueError):
+                    reader.value_read(prefix + raw)
+                reader.value_members(raw)
+                with self.assertRaises(ValueError):
+                    reader.value_members(prefix + raw)
 
     def test_value_read_member_boundaries(self):
         # Ignored owner duplicates are allowed; read-member duplicates/aliases

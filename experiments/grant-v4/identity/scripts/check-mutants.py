@@ -11,6 +11,8 @@ import sys
 
 MODULE = Path(__file__).resolve().parents[1]
 PLANTS = [
+    ('r3-recipient-absence-unavailable', 'r1_class.go', 'case NoLiveOutput:\n\t\treturn fail(RecipientNameNotHeld)', 'case NoLiveOutput:\n\t\treturn fail(RecipientNameUnavailable)', 'TestR1RecipientAbsenceAgreesWithOwner', 'same proved absence must be NOT_HELD:'),
+    ('r3-leading-json-whitespace', 'r1_value.go', "if len(raw) == 0 || raw[0] != '{' {", 'if false {', 'TestR1TopLevelPrefix/prefix_20', 'bytes before object must refuse:'),
     ('r2-unsupported-recipient-status', 'r1_class.go', 'default:\n\t\treturn fail(RecipientNameUnavailable)\n\t}\n\tif !e.Transactions', 'default:\n        if e.Current == CurrentUnknown { return fail(RecipientNameUnavailable) }\n\t}\n\tif !e.Transactions', 'TestRev375RecipientStatus/99', 'recipient current-output fact:'),
     ('r2-holder-reject-all', 'r1_value.go', 'swarma, nostr, err := r1ValueMembers(raw)', 'return fail(); swarma, nostr, err := r1ValueMembers(raw)', 'TestR1Holders/value-10', 'neighbour value-03: R1 got'),
     ('r2-group-reject-all', 'r1_groups.go', 'if len(p.Groups) < 1', 'if true { return 0, R1RuleError("R8.4") }; if len(p.Groups) < 1', 'TestR1Groups/group-11', 'neighbour group-02: R1 got'),

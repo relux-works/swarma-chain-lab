@@ -79,8 +79,10 @@ are enforced in the Go vector harness and independent Python reader. Their
 [licence and upstream attribution](testdata/R1-NOTICE.md) are retained separately.
 `row-fit-vectors.json` adds 15 local R2 controls: fit, both ordinal bounds,
 executor name/key, recipient mode, typed limits and compound refusal order.
-The independent reader agrees with the actual Go results for all **151** R1
-cases. It reuses the independent Python O3/O4 primitives, never Go parsing or
+The independent reader agrees with the actual Go results for all **440** R1
+cases: **151** vectors (38 groups/ordinals, 65 class, 28 holder values,
+5 capacity and 15 row-fit), **276** earlier revision controls and **13**
+additional absence/leading-whitespace controls. It reuses the independent Python O3/O4 primitives, never Go parsing or
 Go-derived intermediate results. Both implementations are by one producer;
 this is implementation independence, not independent authorship.
 
@@ -301,23 +303,30 @@ mutation coverage, observation provenance or transaction-signature validity.
 
 ## Exact value and status boundaries
 
-The top-level object must end at the last input byte (LIP-0010 §2.1).
-`objectMembers` checks the raw decoder offset, so a space, TAB, LF, CRLF or
+The lab takes the stricter reading of LIP-0010 §2.1: the value's first
+byte must be `{`, and the top-level object must end at the last input byte.
+Leading space, TAB, LF and CRLF refuse in Go and Python. No value in any pinned
+upstream fixture starts with JSON whitespace: this includes the three R1
+fixtures above and `name-vectors.json`, with values decoded from name scripts.
+No upstream acceptance fixture therefore requires preserving leading whitespace.
+`objectMembers` also checks the raw decoder offset, so a space, TAB, LF, CRLF or
 second object after the closing brace refuses. The shared check covers binding
 values and the certified exact-name channel path. The independent Python reader
-uses its consumed-object offset before skipping any suffix.
+requires an object at offset zero and its consumed-object end at the input end.
 
-Only the defined `CurrentOutput` fact permits recipient proof to proceed.
-Every other recipient status, including `NoLiveOutput`, returns
-`RECIPIENT_NAME_UNAVAILABLE`. This draft entry's absence verdict differs from
-pinned O7.2 row 1 (`RECIPIENT_NAME_NOT_HELD`); it is an explicit draft API
-choice, not a claim of equality with that refusal table. Expired current outputs
-and outputs controlled by another key still return `RECIPIENT_NAME_NOT_HELD`.
 For the selected
 landlord, proved absence returns `CLASS_LANDLORD_CHANGED` under R9.5;
 unknown/undefined states return `CLASS_HISTORY_UNAVAILABLE`. Class switches also
 close over `Reading`, `Writer` and `Liveness`: unsupported states never count
 as affirmative evidence.
+
+Recipient proof proceeds only for `CurrentOutput`. Under LIP-0021 O7.2 row 1
+and LIP-0026 R9.9, `NoLiveOutput` proves absence and returns
+`RECIPIENT_NAME_NOT_HELD`; `CurrentUnknown` and every undefined value return
+`RECIPIENT_NAME_UNAVAILABLE`. Expiry and another owner also return NOT_HELD.
+`TestR1RecipientAbsenceAgreesWithOwner` checks that `CheckR1Child` and
+`CheckRecipientOwner` give that same mandatory code for the same stated absence,
+with valid current-owner controls in both APIs.
 
 Every negative holder, group, template and admission vector executes its
 positive neighbour inside the same named subtest. Every positive executes the
@@ -330,16 +339,27 @@ fixture bytes and hashes are unchanged.
 The retained review probes include paired suffix refusals through both name
 paths, all 256 recipient statuses, landlord absence/unknown/undefined controls,
 all 256 draft profile values, maximum topology and named-neighbour execution.
-The R1 reader compares all 151 pinned/local vectors plus 276 revision cases with
-Go (427 total). Additional caller-status tests cover all byte values and the
+The R1 reader compares all 151 pinned/local vectors plus 276 earlier revision
+cases (5 suffix, 10 child suffix, 5 landlord status and 256 recipient status)
+and 13 new cases (4 prefix, 8 child prefix and 1 cross-path absence) with Go
+(440 total). Additional caller-status tests cover all byte values and the
 negative/out-of-byte values of int-backed `Reading` and `Writer`.
 
-Six additional narrowing plants restore whitespace acceptance, unsupported
-recipient acceptance and the wrong landlord-absence verdict, or always refuse
+Eight additional narrowing plants restore leading/trailing whitespace acceptance,
+unsupported recipient acceptance, the wrong recipient/landlord absence verdicts,
+or always refuse
 holders, groups and templates. The latter must fail `TestR1Holders/value-10`,
 `TestR1Groups/group-11` and `TestR1Class/template-07` respectively on their
 executed positive neighbours. Run them using the existing mutation command
 below; evidence includes each named failing test and command exit.
+
+| New mutant | Property narrowed | Required failing test |
+| --- | --- | --- |
+| Map recipient absence to UNAVAILABLE | Both ownership paths retain O7.2 row 1's NOT_HELD meaning | `TestR1RecipientAbsenceAgreesWithOwner` |
+| Accept leading JSON whitespace | The value starts at byte zero with `{` | `TestR1TopLevelPrefix/prefix_20` |
+
+The complete runner now requires **40/40** killed mutants (39 Go overlays and
+one isolated Python digest plant), including all 38 earlier plants.
 
 ## Tools and commands
 
@@ -386,7 +406,7 @@ also check the public diff for private information outside that bounded scan.
 
 Every plant must exit 1 with the named failing test and its assertion
 diagnostic. Build/setup failures do not kill a mutant. Unplanted Go and Python
-controls must pass first; no survivor is accepted. These are five narrow bounds,
+controls must pass first; no survivor is accepted. These five original plants establish narrow bounds,
 not exhaustive mutation coverage.
 
 ## Gaps and remaining scope
