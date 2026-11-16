@@ -25,6 +25,9 @@ type plant struct {
 }
 
 var plants = []plant{
+	// Claim: removing only the v3 seal-binding refusal admits the foreign seal;
+	// its new vector kills this plant while every other offline test stays green.
+	{"kernel_seal_binding", "grant_kernel.go", "if seal.Value <= 0 || hex.EncodeToString(seal.Script) != script {\n\t\treturn refuse(bad(\"SEAL_BINDING\"))\n\t}", "", ".", "TestGrantSealBinding/foreign-seal", "foreign seal: want refused/SEAL_BINDING unclosed", false},
 	{"writer_frame", "grant_plan.go", "return makeGrantIssuancePlan(p, s, raw, false)", "return makeGrantIssuancePlan(p, s, raw, true)", ".", "TestGrantPlans", "plan commitment or conservation", false},
 	{"fee_projection", "grant_plan.go", "size := oplocator.IssuanceBlobScriptBytes", "size := 34", ".", "TestFramedFundingProjection", "framed pre-sign fee undercount", false},
 	{"parser_header", "oplocator/oplocator.go", "!bytes.Equal(script[:4], []byte{0x6a, 3, 0x53, 0x4c}) || ", "", "./oplocator", "TestMalformedFrames/wrong_protocol", "malformed framing admitted", false},
@@ -105,10 +108,15 @@ func run() error {
 	if e = copyModule(root, module); e != nil {
 		return e
 	}
-	runTest := func(name, pkg, test string, useCore bool) (int, []byte, error) {
+	runTest := func(name, pkg, test string, useCore bool, skip ...string) (int, []byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "go", "test", "-count=1", "-v", "-run", "^"+strings.ReplaceAll(test, "/", "$/^")+"$", pkg)
+		args := []string{"test", "-count=1", "-v", "-run", "^" + strings.ReplaceAll(test, "/", "$/^") + "$"}
+		if len(skip) > 0 {
+			args = append(args, "-skip", skip[0])
+		}
+		args = append(args, pkg)
+		cmd := exec.CommandContext(ctx, "go", args...)
 		cmd.Dir = module
 		cmd.Env = append(os.Environ(), "GOWORK=off", "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local", "M1_REGTEST=0")
 		if useCore {
@@ -166,6 +174,14 @@ func run() error {
 			return e
 		}
 		code, b, runErr := runTest(p.Name, p.Package, p.Test, p.Core)
+		if p.Name == "kernel_seal_binding" && runErr == nil {
+			// Keep the plant active for all other tests, including the live control.
+			// Core-only tests retain their normal skip; this is offline isolation.
+			otherCode, otherOutput, otherErr := runTest(p.Name+"-other-tests", "./...", "Test.*", false, "^TestGrantSealBinding$/^foreign-seal$")
+			if otherErr != nil || otherCode != 0 || !bytes.Contains(otherOutput, []byte("--- PASS: TestGrantSealBinding/issuer-seal")) {
+				runErr = fmt.Errorf("seal-binding plant affected other tests: exit %d: %v", otherCode, otherErr)
+			}
+		}
 		restoreErr := os.WriteFile(file, original, 0600)
 		if runErr != nil {
 			return runErr
