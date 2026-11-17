@@ -78,7 +78,7 @@ PLANTS = [
 ]
 
 
-def selected_source(go, relative):
+def selected_source(go, relative, module=MODULE, mode="readonly"):
     """Overlay the source Go actually loads, including published siblings.
 
     Checkout paths are not equivalent once a consumer drops local replaces.
@@ -87,8 +87,8 @@ def selected_source(go, relative):
     """
     package = 'github.com/relux-works/swarma-chain-lab/' + str(Path(relative).parent)
     directory = subprocess.run(
-        [go, 'list', '-mod=readonly', '-f', '{{.Dir}}', package],
-        cwd=MODULE, env=dict(os.environ, GOTOOLCHAIN='local', GOWORK='off'),
+        [go, 'list', '-mod=' + mode, '-f', '{{.Dir}}', package],
+        cwd=module, env=dict(os.environ, GOTOOLCHAIN='local', GOWORK='off'),
         check=True, capture_output=True, text=True).stdout.strip()
     source = Path(directory) / Path(relative).name
     if not directory or not Path(directory).is_absolute() or not source.is_file():
@@ -109,12 +109,32 @@ def main():
     go = shutil.which('go')
     if not go:
         parser.error('go unavailable')
+    # Go forbids overlays under GOMODCACHE. Use the native vendor fixture
+    # pattern already used by check-published-consumer.py, without replacing
+    # any module or changing the tested manifest/source checkout.
+    module = out / 'module'
+    shutil.copytree(MODULE, module, ignore=shutil.ignore_patterns('.temp', '.git', 'vendor'))
+    metadata = {name: (module / name).read_bytes() for name in ('go.mod', 'go.sum')}
+    subprocess.run([go, 'mod', 'verify'], cwd=module, check=True)
+    subprocess.run([go, 'mod', 'vendor'], cwd=module, check=True,
+                   env=dict(os.environ, GOTOOLCHAIN='local', GOWORK='off'))
+    if any((module / name).read_bytes() != raw for name, raw in metadata.items()):
+        raise RuntimeError('native vendor preparation changed module metadata')
+    prepared = {
+        'metadata_sha256': {name: hashlib.sha256(raw).hexdigest() for name, raw in metadata.items()},
+        'vendor_sha256': {str(p.relative_to(module)): hashlib.sha256(p.read_bytes()).hexdigest()
+                          for p in (module / 'vendor').rglob('*') if p.is_file()},
+    }
+    (out / 'prepared.json').write_text(json.dumps(prepared, indent=2) + '\n')
     records = []
     for plant in PLANTS:
         name, test, relative, old, new, bound, *marker = plant
         assertion = marker[0] if marker else 'verdict contract want '
 
-        source = selected_source(go, relative)
+        source = selected_source(go, relative, module, 'vendor')
+        resolved = selected_source(go, relative, module, 'readonly')
+        if source.read_bytes() != resolved.read_bytes():
+            raise RuntimeError(f'{name}: vendored source differs from the selected graph')
         original = source.read_text()
         matches = original.count(old)
         # The cancellation control removes the overlapping wrapper checks as a
@@ -134,14 +154,14 @@ def main():
         for mutated in (False, True):
             label = 'mutant' if mutated else 'baseline'
             selector = '/'.join('^' + part + '$' for part in test.split('/'))
-            command = [go, 'test', '-race', '-count=1', '-timeout=3m', '-json',
+            command = [go, 'test', '-mod=vendor', '-race', '-count=1', '-timeout=3m', '-json',
                        '-run=' + selector, '.']
             if mutated:
                 command.insert(2, '-overlay=' + str(overlay))
             env = dict(os.environ, CG1_REGTEST='1', GOTOOLCHAIN='local', GOWORK='off',
                        CG1_RUN_ROOT=str(args.private_root / (name + '-' + label)))
             with (case / (label + '.json')).open('w') as stdout, (case / (label + '.stderr')).open('w') as stderr:
-                proc = subprocess.Popen(command, cwd=MODULE, env=env, stdout=stdout, stderr=stderr)
+                proc = subprocess.Popen(command, cwd=module, env=env, stdout=stdout, stderr=stderr)
                 pid = proc.pid
                 code = proc.wait()
             events = [json.loads(line) for line in (case / (label + '.json')).read_text().splitlines()]
