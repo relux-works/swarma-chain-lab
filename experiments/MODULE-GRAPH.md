@@ -43,7 +43,7 @@ is not a semantic proof against arbitrary future source rewrites. A later
 snapshot must pass both ancestry and source checks; version order never waives
 them. The earlier audit below records why coherent snapshot floors matter.
 
-The current inventory covers all 27 `go.mod` files and all 108 internal require edges.
+The current inventory covers all 27 `go.mod` files and all 109 internal require edges.
 The initial audit covered 20 manifests across 19 consumer modules at base
 `288d63e191fefac885d6a39aa65f0a5fbb6ed7ee`.
 Every edge previously named `v0.1.0`; directory replacements supplied current
@@ -52,9 +52,10 @@ A concrete external consumer of `single-use/configguard` fails because
 `single-use/policy.go` calls `sealwatch.ValidateJSON`, absent from `sealwatch v0.1.0`.
 The new bootstrap/model packages are also absent from `single-use v0.1.0`.
 
-All 108 internal require edges, in standalone `require` lines, `require (...)`
-blocks and `// indirect` entries alike, now select versions at or above the
-published source snapshot. The first revision of this audit counted 96: it missed the two
+The 108 pre-existing internal requirements, in standalone `require` lines,
+`require (...)` blocks and `// indirect` entries alike, retain versions at or
+above the published source snapshot. The added service edge is held below.
+The first revision of this audit counted 96: it missed the two
 standalone `single-use` requires in `deploy/go.mod` and
 `experiments/station-lifecycle/go.mod`, which left `deploy` and
 `station-lifecycle/cmd/station-manager` unbuildable for external consumers
@@ -121,7 +122,7 @@ requirements and checksums make its existing sibling replacement buildable.
 | `experiments/grantcheck/go.mod` | 8 |
 | `experiments/m5-host-smoke/go.mod` | 6 |
 | `experiments/m5-rehearsal/go.mod` | 13 |
-| `experiments/model-proxy/go.mod` | 2 |
+| `experiments/model-proxy/go.mod` | 3 |
 | `experiments/model-proxy/service/go.mod` | 0 |
 | `experiments/notary-checker/go.mod` | 0 |
 | `experiments/payment-chain/go.mod` | 2 |
@@ -137,7 +138,7 @@ requirements and checksums make its existing sibling replacement buildable.
 | `experiments/station-lifecycle/gatewaybind/go.mod` | 7 |
 | `experiments/station-lifecycle/go.mod` | 2 |
 | `experiments/station-payload/go.mod` | 8 |
-| **Total: 27 manifests / 21 consumers** | **108** |
+| **Total: 27 manifests / 21 consumers** | **109** |
 <!-- /module-graph-inventory -->
 
 ## Qualification boundary
@@ -204,3 +205,15 @@ adds no internal require edge and no new dependency cycle. The subpackage
 depends only on the existing `btcec/v2 v2.3.5` library; it imports no parent
 `single-use` package or higher-level grant, gateway or wallet package. The
 module graph inventory remains unchanged.
+
+## Gateway service edge awaiting publication
+
+The only new edge is `model-proxy` to its separable `service` module. The
+command is its sole importing package; service imports no other experiment.
+The requirement names signed checkpoint
+`v0.0.0-20261117081059-f6edf6fa2114`, with `replace .../service => ./service`
+for branch-local wiring. This version is not claimed published: the source
+checkpoint supplies the structural Source API now landed on main. The unchanged
+checker refuses the missing published snapshot floor. Baseline recording and
+an accepted service floor are a landing gate; the inventory counts this edge
+even while it is refused. Existing floors and provenance are unchanged.

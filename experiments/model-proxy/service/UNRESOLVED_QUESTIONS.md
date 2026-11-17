@@ -4,10 +4,9 @@
    named A3 per-product release template or set-fragment contract. Supply the
    accepted A3 template/revision before extending its artifact inventory. The
    existing release contract is not silently replaced or reinterpreted.
-2. A runnable gateway service is not supplied by this module. The accepted
-   standard-library structural source seam must be wired by the parent command
-   in its separate integration delta. This source slice adds no parent dependency
-   edge and does not produce an installable gateway artifact.
+2. Source wiring now lives in the existing model-proxy command. An installable
+   gateway artifact and the template executable still belong to the separate
+   release round; no template activation or runtime qualification is claimed.
 3. A production protected launch/authority/matcher provider and listener
    custody implementation, final submission/response fences and restart
    reconciliation are not qualified by fixture tests. Missing evidence stays
@@ -48,6 +47,13 @@
     activation. No syscall profile is inferred from fixture-only client tests;
     privileged placement, effective hardening readback and runtime compatibility
     remain installer responsibilities.
+11. The new parent-to-service require edge selects the real signed source
+   checkpoint `f6edf6fa2114930458b98779a4d644eba1fadf28` with a local service
+   replacement. The unchanged graph checker requires a published snapshot
+   floor. The API source has landed, but the accepted floor is still absent
+   from the published-module inventory. Recording that baseline is required
+   before this edge can pass the graph gate. No fabricated floor or checker
+   exception is supplied.
 
 These are delivery/integration gates, not claims of contradictory broker wire
 semantics. No alternative provider, exposed-mode fallback or secret input is

@@ -2,9 +2,11 @@
 
 The separable Linux module is `experiments/model-proxy/service`; the installer
 neutral unit template is `experiments/model-proxy/service/deploy/credential-gateway.service.in`.
-It implements a client and adapter seam, not a runnable or qualified gateway.
-The template cannot satisfy installer S-20 until the runtime and A3 release
-inputs in its [open questions](../experiments/model-proxy/service/UNRESOLVED_QUESTIONS.md)
+It implements the broker client, request-adapter seam and structural source
+used by the existing model-proxy command. This wiring is not a qualified or
+installable gateway release.
+The template cannot satisfy installer S-20 until the runtime qualification
+and A3 release inputs in its [open questions](../experiments/model-proxy/service/UNRESOLVED_QUESTIONS.md)
 are supplied. No service is installed or enabled by this change.
 
 The binding broker revision is
@@ -92,3 +94,27 @@ then contain at most 127 alphanumerics, dots, underscores or hyphens; `.` and
 `..` refuse. It does not verify protected ownership or managed
 ledger records; the installer retains those duties. Tests and narrowing plants
 are described in the [module README](../experiments/model-proxy/service/README.md).
+
+## Managed source wiring
+
+The approved dependency direction is model-proxy to service, with the import
+only in `experiments/model-proxy/cmd/model-proxy`. The exported `ManagedSource`
+interface has only standard-library method types. `service.Source` satisfies
+it structurally; an in-package adapter retains the existing private marker,
+opaque carriers, tripwire and managed-mode refusals. Existing FileSource and
+plain CredentialSource wrappers remain inadmissible in managed mode.
+
+The command takes the nonsecret installed broker mapping by `-broker-config`
+location, checks the fixed Messages recipient and constructs the source. The
+[command documentation](../experiments/model-proxy/README.md#managed-broker-wiring)
+defines the canonical mapping fields. Missing protected mapping refuses; no
+worker-selected identity or file-token fallback is added. This is one static
+caller tuple per process and supplies no dynamic launch-registry authority.
+
+The worker's binding bearer stays a placeholder. Only the gateway's existing
+provider-authentication boundary replaces it with material obtained through
+the service source. A fake Unix broker and fake HTTP transport exercise the
+managed path, renewal, wrong-placeholder refusal, broker refusal and revocation,
+and check worker output, audits, state, formatting and broker parameters for
+fixture canaries. Provider reflection and final outbound revocation fencing
+remain the integration boundaries listed above.

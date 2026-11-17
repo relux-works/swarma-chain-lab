@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"sync"
 )
 
@@ -69,13 +70,59 @@ type CredentialSource interface {
 
 // brokerSource is the allow-list for managed mode. The marker method is
 // unexported, so only a type declared in this package can implement it: no
-// wrapper, file-reading source or static key qualifies from outside. The broker
-// adapter implements it when it lands; until then managed mode refuses to
-// construct with CONFIG_MODE_NO_BROKER, and tests reach it only through an
-// unexported double.
+// wrapper, file-reading source or static key qualifies from outside. The
+// structural broker seam below is admitted through an in-package adapter.
 type brokerSource interface {
 	CredentialSource
 	brokerCredentialSource()
+}
+
+// ManagedSource is the broker boundary for a separately versioned service.
+// Only standard-library types cross it. Material is a caller-owned temporary
+// copy; the adapter clears it after placing it in the existing opaque carrier.
+// Implementations must check current lease authority on every call and return
+// a new version after renewal. No source error is exposed to the worker.
+type ManagedSource interface {
+	CredentialValue(context.Context) (scheme string, material []byte, version string, err error)
+	RenewValue(context.Context, string) (scheme string, material []byte, version string, err error)
+}
+
+// AdaptManagedSource refuses non-conforming and typed-nil sources before they
+// can receive the private managed marker. Plain CredentialSource wrappers,
+// FileSource and static credentials keep their existing construction refusals.
+func AdaptManagedSource(source any) (CredentialSource, error) {
+	s, ok := source.(ManagedSource)
+	if !ok {
+		return nil, fail("CONFIG_MODE_NO_BROKER")
+	}
+	v := reflect.ValueOf(s)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		if v.IsNil() {
+			return nil, fail("CONFIG_MODE_NO_BROKER")
+		}
+	}
+	return managedSource{source: s}, nil
+}
+
+type managedSource struct{ source ManagedSource }
+
+func (managedSource) brokerCredentialSource() {}
+func (managedSource) Format(s fmt.State, _ rune) {
+	_, _ = io.WriteString(s, "[managed credential source]")
+}
+func (s managedSource) Credential(ctx context.Context) (UpstreamCredential, error) {
+	return managedCredential(s.source.CredentialValue(ctx))
+}
+func (s managedSource) Renew(ctx context.Context, rejected string) (UpstreamCredential, error) {
+	return managedCredential(s.source.RenewValue(ctx, rejected))
+}
+func managedCredential(scheme string, material []byte, version string, err error) (UpstreamCredential, error) {
+	defer clear(material)
+	if err != nil {
+		return UpstreamCredential{}, fail("CREDENTIAL_UNAVAILABLE")
+	}
+	return UpstreamCredential{Scheme: scheme, Value: NewAPIKey(Secret(material)), Version: version}, nil
 }
 
 // staticSource wraps the existing Config.APIKey as a single-version source.

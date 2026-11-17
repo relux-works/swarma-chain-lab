@@ -317,9 +317,12 @@ enter `registry.json`, Audit records or Status; the repository credential
 inventory and the package test `TestGatewayRevealInventory` pin every explicit
 reveal site and carrier field. `FileSource` reads
 a private 0400 file and exists for api-key development and tests only. The
-broker adapter implements the same interface in a later slice; this module
-contains no broker client. `authenticate` is the one place a credential becomes
-headers: api-key keeps each dialect's own header, oauth-bearer sends
+broker client lives in the separable `service` module; only this module's
+command imports it. `ManagedSource` uses standard-library types, and
+`AdaptManagedSource` converts its temporary material copy into the existing
+opaque carrier, clears that copy and closes errors. `authenticate` is the one
+place a credential becomes headers: api-key keeps each dialect's own header;
+oauth-bearer sends
 `Authorization: Bearer` for Responses and Messages alike.
 
 **Mode.** The sealed configuration may end with two optional fields after
@@ -330,10 +333,14 @@ published decoder for the rest of the file; the fields are hashed in the
 manifest like every other sealed byte. `managed` mode allow-lists the broker
 source rather than deny-listing files: a static key refuses `New` with
 `CONFIG_MODE`, and any other source, including a `FileSource` or any wrapper
-around one, refuses `CONFIG_MODE_NO_BROKER`. The allow-list is an unexported
-marker only a type in this package can carry, so until the broker adapter
-lands managed mode cannot be constructed at all, and the CLI refuses to start
-in managed mode (`CREDENTIAL_SOURCE`) before reading any key. `development`
+around one, refuses `CONFIG_MODE_NO_BROKER`. The allow-list retains its unexported
+marker for in-package sources. The one structural `ManagedSource` interface
+can also receive that marker through `AdaptManagedSource`; non-conforming
+and typed-nil sources refuse `CONFIG_MODE_NO_BROKER`. The service source
+implements it without importing model-proxy. The CLI wires it only in managed
+mode, with `-broker-config` naming an installed, manifest-admitted nonsecret
+connection/caller mapping. Missing mapping, another recipient or Responses
+profiles refuse `CREDENTIAL_SOURCE` before any provider key-file read. `development`
 keeps today's behavior and never mints a run binding.
 
 **Run bindings.** A `Binding` whose `run` object carries `generation`,
@@ -435,3 +442,34 @@ CI also builds the CLI with local sibling replacements removed in a temporary
 modfile. This verifies that the published `single-use` dependency includes the
 sealed config field; a sibling source replacement alone cannot satisfy that
 packaging boundary. The temporary modfile, sums and binary live under `.temp/`.
+
+### Managed broker wiring
+
+The existing `cmd/model-proxy` command accepts `-config PATH -broker-config PATH`
+for managed mode. Both files must pass the existing installed-file boundary.
+Development mode refuses a broker mapping. No token value is a CLI argument,
+environment variable or configuration member. The managed recipient is fixed
+to `https://api.anthropic.com/v1/messages`.
+
+The broker mapping is canonical JSON with these members in this exact order:
+`socket`, `broker_uid`, `service_generation`, `account`, `agent_uid`,
+`agent_generation`, `launch_id`, `max_lifetime_seconds`. UIDs and the lifetime
+are JSON integers; the other members are strings. The lifetime is 1..900
+seconds. The service UID comes from the process, and hello must return its
+exact bound service generation. The caller tuple is protected configuration,
+never derived from worker headers. One process/source serves that one admitted
+caller mapping; dynamic caller routing is not supplied by this wiring.
+
+`CredentialValue` checks broker revocation on every fetch. `RenewValue` renews
+the same lease after the existing explicit-401 path and advances the local
+version. Release or lost lease authority cannot reopen that source. The worker
+presents the existing binding bearer as a placeholder; the existing gateway
+authentication boundary replaces it with the leased OAuth value. Fixture tests
+cover mapping, renewal, broker refusal, revocation and bounded canary surfaces.
+They do not qualify a production launch registry, post-dial revocation fence,
+provider reflection protection or installer activation. Packaging remains a
+separate release change.
+
+Run `go test -run 'TestManagedSourceAdmission|TestManagedBroker' ./...` for the
+new admission and cmd wiring fixtures. Use the existing Tools commands for
+complete tests, vet and build; keep their logs under `.temp/`.

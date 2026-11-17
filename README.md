@@ -763,3 +763,9 @@ unit template in the sibling `deploy/` directory. It supplies the pinned broker/
 client and Claude request seam. Its [verification commands](experiments/model-proxy/service/README.md#tools-and-verification)
 produce task-local `.temp/` evidence. The runnable gateway and A3 artifact/set
 integration remain explicit delivery gates; this module does not activate them.
+
+The model-proxy command now wires the separable broker service source through
+a standard-library-only structural interface. See its
+[managed wiring contract](experiments/model-proxy/README.md#managed-broker-wiring)
+for installed nonsecret mapping fields and bounded fake-broker evidence. The
+release artifact remains separate.

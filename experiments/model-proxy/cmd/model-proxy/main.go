@@ -45,6 +45,7 @@ func main() {
 func run() error {
 	path := flag.String("config", "", "private configuration file")
 	initialize := flag.Bool("initialize-accounting", false, "initialize an empty accounting directory from sealed configuration")
+	brokerPath := flag.String("broker-config", "", "installed nonsecret broker connection and caller mapping file")
 	flag.Parse()
 	if *path == "" || flag.NArg() != 0 || runtime.GOOS != "linux" {
 		return fmt.Errorf("CONFIG")
@@ -53,15 +54,32 @@ func run() error {
 	if e != nil {
 		return e
 	}
+	var key []byte
+	var source proxy.CredentialSource
 	if c.Mode == proxy.ModeManaged {
-		// Managed mode admits only a non-file credential source. The broker
-		// adapter is not wired in this binary yet, so it must not start and
-		// must not read any key file.
-		return fmt.Errorf("CREDENTIAL_SOURCE")
-	}
-	key, e := proxy.ReadInstalledFile(c.APIKeyFile, 4096)
-	if e != nil {
-		return e
+		if *brokerPath == "" || c.Upstream != "https://api.anthropic.com/v1/messages" || len(c.ModelProfiles) != 0 {
+			return fmt.Errorf("CREDENTIAL_SOURCE")
+		}
+		raw, err := proxy.ReadInstalledFile(*brokerPath, proxy.MaxBody)
+		if err != nil {
+			return fmt.Errorf("CREDENTIAL_SOURCE")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		var closeSource func()
+		source, closeSource, e = managedSource(ctx, raw)
+		cancel()
+		if e != nil {
+			return e
+		}
+		defer closeSource()
+	} else {
+		if *brokerPath != "" {
+			return fmt.Errorf("CREDENTIAL_SOURCE")
+		}
+		key, e = proxy.ReadInstalledFile(c.APIKeyFile, 4096)
+		if e != nil {
+			return e
+		}
 	}
 	certPEM, e := proxy.ReadInstalledFile(c.TLSCert, 65536)
 	if e != nil {
@@ -96,6 +114,7 @@ func run() error {
 	}
 	var mu sync.Mutex
 	cfg := proxy.Config{DailyCostCeilingNanoUSD: c.DailyCostCeilingNanoUSD, StateDir: c.StateDir, Endpoint: c.Endpoint, Upstream: c.Upstream, APIKey: proxy.NewAPIKey(proxy.Secret(key)), Mode: c.Mode, RunMaxWindowSeconds: c.RunMaxWindowSeconds, Models: c.Models, ModelProfiles: c.ModelProfiles, Now: time.Now, Audit: func(a proxy.Audit) { mu.Lock(); defer mu.Unlock(); _ = json.NewEncoder(os.Stdout).Encode(a) }}
+	cfg.Source = source
 	if *initialize {
 		return proxy.InitializeAccounting(cfg)
 	}
