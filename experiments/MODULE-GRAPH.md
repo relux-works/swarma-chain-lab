@@ -43,7 +43,7 @@ is not a semantic proof against arbitrary future source rewrites. A later
 snapshot must pass both ancestry and source checks; version order never waives
 them. The earlier audit below records why coherent snapshot floors matter.
 
-The current inventory covers all 26 `go.mod` files and all 108 internal require edges.
+The current inventory covers all 27 `go.mod` files and all 108 internal require edges.
 The initial audit covered 20 manifests across 19 consumer modules at base
 `288d63e191fefac885d6a39aa65f0a5fbb6ed7ee`.
 Every edge previously named `v0.1.0`; directory replacements supplied current
@@ -122,6 +122,7 @@ requirements and checksums make its existing sibling replacement buildable.
 | `experiments/m5-host-smoke/go.mod` | 6 |
 | `experiments/m5-rehearsal/go.mod` | 13 |
 | `experiments/model-proxy/go.mod` | 2 |
+| `experiments/model-proxy/service/go.mod` | 0 |
 | `experiments/notary-checker/go.mod` | 0 |
 | `experiments/payment-chain/go.mod` | 2 |
 | `experiments/relay/go.mod` | 5 |
@@ -136,7 +137,7 @@ requirements and checksums make its existing sibling replacement buildable.
 | `experiments/station-lifecycle/gatewaybind/go.mod` | 7 |
 | `experiments/station-lifecycle/go.mod` | 2 |
 | `experiments/station-payload/go.mod` | 8 |
-| **Total: 26 manifests / 21 consumers** | **108** |
+| **Total: 27 manifests / 21 consumers** | **108** |
 <!-- /module-graph-inventory -->
 
 ## Qualification boundary

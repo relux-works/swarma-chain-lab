@@ -1,0 +1,73 @@
+name: Credential gateway service checks
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/model-proxy/service/**'
+      - 'experiments/model-proxy/deploy/**'
+      - 'docs/gateway-service.md'
+      - '.github/workflows/gateway-service.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'experiments/model-proxy/service/**'
+      - 'experiments/model-proxy/deploy/**'
+      - 'docs/gateway-service.md'
+      - '.github/workflows/gateway-service.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOWORK: 'off'
+  GOTOOLCHAIN: local
+
+jobs:
+  gateway-service:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Prepare private absolute scratch
+        run: |
+          set -eu
+          scratch="$GITHUB_WORKSPACE/.temp/gateway-service"
+          mkdir -p "$scratch/home" "$scratch/cache" "$scratch/config" "$scratch/tmp"
+          scratch=$(cd "$scratch" && pwd -P)
+          {
+            echo "HOME=$scratch/home"
+            echo "USERPROFILE=$scratch/home"
+            echo "GOCACHE=$scratch/cache"
+            echo "GOMODCACHE=$scratch/modules"
+            echo "GOPATH=$scratch/go"
+            echo "XDG_CONFIG_HOME=$scratch/config"
+            echo "XDG_CACHE_HOME=$scratch/cache"
+            echo "TMPDIR=$scratch/tmp"
+            echo "GOTMPDIR=$scratch/tmp"
+            echo "GOTELEMETRY=off"
+            echo "GOENV=off"
+          } >> "$GITHUB_ENV"
+      - name: Format, vet, build and test
+        working-directory: experiments/model-proxy/service
+        run: |
+          set -eu
+          test -z "$(gofmt -l *.go internal/wire/*.go)"
+          go mod verify
+          go vet ./...
+          go build ./...
+          while ! awk '{exit !($1 < 10)}' /proc/loadavg; do sleep 10; done
+          go test -race -count=1 ./...
+      - name: Named ordering and placeholder plants
+        working-directory: experiments/model-proxy/service
+        run: |
+          set -eu
+          while ! awk '{exit !($1 < 10)}' /proc/loadavg; do sleep 10; done
+          python3 scripts/check-plants.py --out "$GITHUB_WORKSPACE/.temp/gateway-service/plants"
