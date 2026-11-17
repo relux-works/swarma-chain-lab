@@ -1,6 +1,6 @@
 module github.com/relux-works/swarma-chain-lab/experiments/grant-v4/vectors
 
-go 1.26.10
+go 1.26.0
 
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.5
@@ -11,7 +11,7 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.0.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
-	github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261116164432-80bcaa527f51 // indirect
+	github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261117003532-d68447f630c8 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 )
 

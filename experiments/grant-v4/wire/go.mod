@@ -1,10 +1,10 @@
 module github.com/relux-works/swarma-chain-lab/experiments/grant-v4/wire
 
-go 1.26.10
+go 1.26.0
 
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.5
-	github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261116164432-80bcaa527f51
+	github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261117003532-d68447f630c8
 )
 
 require (

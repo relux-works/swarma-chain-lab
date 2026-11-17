@@ -8,7 +8,7 @@ github.com/decred/dcrd/crypto/blake256 v1.0.0 h1:/8DMNYp9SGi5f0w7uCm6d6M4OU2rGFK
 github.com/decred/dcrd/crypto/blake256 v1.0.0/go.mod h1:sQl2p6Y26YV+ZOcSTP6thNdn47hh8kt6rqSlvmrXFAc=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 h1:YLtO71vCjJRCBcrPMtQ9nqBsqpA1m5sE92cU+pd5Mcc=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1/go.mod h1:hyedUtir6IdtD/7lIxGeCxkaw7y45JueMRL4DIyJDKs=
-github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261116164432-80bcaa527f51 h1:sBNZHpNfkRJ0/y0RoCVDKZxKrY5/XqfUJR9lV1Sz1eQ=
-github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261116164432-80bcaa527f51/go.mod h1:lqJ7c5Gkle1/8JVzrICe0U//4OnTa0ig8UQfcMLnaYs=
+github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261117003532-d68447f630c8 h1:te2LxuufxoYAsvLmB91wLZOC0TY4RreJ60kDp/dyCIQ=
+github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261117003532-d68447f630c8/go.mod h1:TB5D3bQyx5NwSasK28VBkDLFtmBEoXzTLlNCW6lAZys=
 golang.org/x/crypto v0.55.0 h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=
 golang.org/x/crypto v0.55.0/go.mod h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
