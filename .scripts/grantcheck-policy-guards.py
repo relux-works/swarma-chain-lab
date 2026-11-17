@@ -78,6 +78,24 @@ PLANTS = [
 ]
 
 
+def selected_source(go, relative):
+    """Overlay the source Go actually loads, including published siblings.
+
+    Checkout paths are not equivalent once a consumer drops local replaces.
+    Resolve within the tested module, then keep the existing exact plant/count
+    checks and named behavioral failure as the proof of application.
+    """
+    package = 'github.com/relux-works/swarma-chain-lab/' + str(Path(relative).parent)
+    directory = subprocess.run(
+        [go, 'list', '-mod=readonly', '-f', '{{.Dir}}', package],
+        cwd=MODULE, env=dict(os.environ, GOTOOLCHAIN='local', GOWORK='off'),
+        check=True, capture_output=True, text=True).stdout.strip()
+    source = Path(directory) / Path(relative).name
+    if not directory or not Path(directory).is_absolute() or not source.is_file():
+        raise RuntimeError(f'{relative}: loaded source unavailable')
+    return source.resolve()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
@@ -96,7 +114,7 @@ def main():
         name, test, relative, old, new, bound, *marker = plant
         assertion = marker[0] if marker else 'verdict contract want '
 
-        source = ROOT / relative
+        source = selected_source(go, relative)
         original = source.read_text()
         matches = original.count(old)
         # The cancellation control removes the overlapping wrapper checks as a
@@ -110,6 +128,7 @@ def main():
         overlay = case / 'overlay.json'
         overlay.write_text(json.dumps({'Replace': {str(source): str(mutant)}}) + '\n')
         record = {'mutant': name, 'test': test, 'bound': bound, 'source': relative,
+                  'loaded_source': str(source),
                   'source_sha256': hashlib.sha256(original.encode()).hexdigest(),
                   'mutant_sha256': hashlib.sha256(mutant.read_bytes()).hexdigest()}
         for mutated in (False, True):
