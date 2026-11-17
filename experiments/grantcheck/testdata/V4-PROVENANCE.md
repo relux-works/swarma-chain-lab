@@ -18,7 +18,13 @@ GOTOOLCHAIN=local GRANTV4_OUTPUT=/absolute/task-scratch/b4a-grant-v4.json \
 The [export implementation](https://github.com/relux-works/swarma-identity/blob/e7c68ce46be00fb0a03f6c1edf2e02d04ca92fc9/internal/grantv4/grant_test.go)
 independently drafts and attaches the signature for all 11 valid vectors.
 It retains the 84 invalid, 13 compound and four undetermined rows as corpus
-inputs; the differential does not claim the issuer produces those grants.
+inputs. The independent encoder differential covers only the 11 valid rows.
+For the other 101 rows, equal octets establish retained-corpus copy fidelity
+and the tested reader verdicts, not independent encoder agreement. CI checks
+the vendored hash and comparisons; it does not reproduce this B4a export.
+The separate `identity-issuer-bytes` CI job re-exports identity-interop only.
+Issuer/spec contexts and group membership are not compared, two valid rows
+omit exported payload fields, and no planted divergence control is claimed.
 
 Both files are derived from public specification test data licensed under
 [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/).

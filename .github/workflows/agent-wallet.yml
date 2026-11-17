@@ -21,6 +21,7 @@ on:
       - '.scripts/g1-bench-core-gate.json'
       - '.scripts/g1-bench-guards.py'
       - '.scripts/grantcheck-policy-guards.py'
+      - '.scripts/grantcheck-in-tree-modfile.sh'
       - '.scripts/grantcheck-policy-core-gate.json'
       - '.scripts/w2-newcore-users.go'
       - '.scripts/px1-s5-consumer-gate.json'
@@ -47,6 +48,7 @@ on:
       - '.scripts/g1-bench-core-gate.json'
       - '.scripts/g1-bench-guards.py'
       - '.scripts/grantcheck-policy-guards.py'
+      - '.scripts/grantcheck-in-tree-modfile.sh'
       - '.scripts/grantcheck-policy-core-gate.json'
       - '.scripts/w2-newcore-users.go'
       - '.scripts/px1-s5-consumer-gate.json'
@@ -67,7 +69,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.8'
           check-latest: false
           cache: false
       - name: Require integrated K1 dependency
@@ -76,10 +78,6 @@ jobs:
         run: |
           go mod download
           go mod verify
-          # Grantcheck now consumes published siblings without replacements;
-          # later policy steps enter that module with GOPROXY=off.
-          go -C ../grantcheck mod download
-          go -C ../grantcheck mod verify
       - name: Unit, durable state and protocol checks
         env:
           GOPROXY: 'off'
@@ -123,7 +121,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.8'
           check-latest: false
           cache: false
       - name: Require integrated K1 dependency
@@ -136,6 +134,9 @@ jobs:
           # later policy steps enter that module with GOPROXY=off.
           go -C ../grantcheck mod download
           go -C ../grantcheck mod verify
+          bash ../../.scripts/grantcheck-in-tree-modfile.sh "$RUNNER_TEMP/grantcheck-in-tree.mod"
+          go -C ../grantcheck mod download -modfile="$RUNNER_TEMP/grantcheck-in-tree.mod"
+          go -C ../grantcheck mod verify -modfile="$RUNNER_TEMP/grantcheck-in-tree.mod"
       - name: Gate checker controls (a skipped required T-id must fail the gate)
         working-directory: .
         run: python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v
@@ -227,21 +228,27 @@ jobs:
           GOTOOLCHAIN: local
         run: |
           export CG1_CORE_DAEMON="$W1_CORE_DAEMON" CG1_CORE_CLI="$W1_CORE_CLI"
-          set +e
-          manifest=../../.scripts/grantcheck-policy-core-gate.json
-          checker=../../.scripts/check-px1-core-gate.py
-          env -u CG1_REGTEST go test -count=1 -json -run '^TestCore(Vectors|Freshness|Provisioning|FinalSampleFreshness|AggregateEveryObservation|AggregateFinalDecisionAtomic|IdentityExpired|MalformedRPCEnvelopeRetryable)$' . > "$RUNNER_TEMP/grantcheck-skip.json"
-          control_test=$?
-          python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/grantcheck-skip.json" > "$RUNNER_TEMP/grantcheck-skip.txt"
-          control_gate=$?
-          grep -qx 'SKIPPED TestCoreFreshness' "$RUNNER_TEMP/grantcheck-skip.txt"
-          skip_seen=$?
-          CG1_REGTEST=1 CG1_RUN_ROOT="$RUNNER_TEMP/grantcheck-policy-core" go test -race -count=1 -timeout 10m -json -run '^TestCore(Vectors|Freshness|Provisioning|FinalSampleFreshness|AggregateEveryObservation|AggregateFinalDecisionAtomic|IdentityExpired|MalformedRPCEnvelopeRetryable)$' . > "$RUNNER_TEMP/grantcheck-policy.json"
-          code=$?
-          python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/grantcheck-policy.json"
-          gate=$?
-          echo "GRANTCHECK_POLICY: skip test=$control_test gate=$control_gate seen=$skip_seen; Core test=$code gate=$gate"
-          test "$control_test" = 0 && test "$control_gate" = 1 && test "$skip_seen" = 0 && test "$code" = 0 && test "$gate" = 0
+          for graph in published in-tree; do
+            export GOFLAGS=''
+            if [ "$graph" = in-tree ]; then
+              export GOFLAGS="-modfile=$RUNNER_TEMP/grantcheck-in-tree.mod"
+            fi
+            set +e
+            manifest=../../.scripts/grantcheck-policy-core-gate.json
+            checker=../../.scripts/check-px1-core-gate.py
+            env -u CG1_REGTEST go test -count=1 -json -run '^TestCore(Vectors|Freshness|Provisioning|FinalSampleFreshness|AggregateEveryObservation|AggregateFinalDecisionAtomic|IdentityExpired|MalformedRPCEnvelopeRetryable)$' . > "$RUNNER_TEMP/$graph-grantcheck-skip.json"
+            control_test=$?
+            python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/$graph-grantcheck-skip.json" > "$RUNNER_TEMP/$graph-grantcheck-skip.txt"
+            control_gate=$?
+            grep -qx 'SKIPPED TestCoreFreshness' "$RUNNER_TEMP/$graph-grantcheck-skip.txt"
+            skip_seen=$?
+            CG1_REGTEST=1 CG1_RUN_ROOT="$RUNNER_TEMP/$graph-grantcheck-policy-core" go test -race -count=1 -timeout 10m -json -run '^TestCore(Vectors|Freshness|Provisioning|FinalSampleFreshness|AggregateEveryObservation|AggregateFinalDecisionAtomic|IdentityExpired|MalformedRPCEnvelopeRetryable)$' . > "$RUNNER_TEMP/$graph-grantcheck-policy.json"
+            code=$?
+            python3 -B "$checker" check --manifest "$manifest" "$RUNNER_TEMP/$graph-grantcheck-policy.json"
+            gate=$?
+            echo "GRANTCHECK_POLICY[$graph]: skip test=$control_test gate=$control_gate seen=$skip_seen; Core test=$code gate=$gate"
+            test "$control_test" = 0 && test "$control_gate" = 1 && test "$skip_seen" = 0 && test "$code" = 0 && test "$gate" = 0 || exit 1
+          done
       - name: Grantcheck policy guard-removal overlays
         env:
           GOPROXY: 'off'
@@ -249,7 +256,8 @@ jobs:
           GOTOOLCHAIN: local
         run: |
           export CG1_CORE_DAEMON="$W1_CORE_DAEMON" CG1_CORE_CLI="$W1_CORE_CLI"
-          python3 -B ../../.scripts/grantcheck-policy-guards.py --out "$RUNNER_TEMP/grantcheck-policy-guards" --private-root "$RUNNER_TEMP/grantcheck-policy-private"
+          python3 -B ../../.scripts/grantcheck-policy-guards.py --graph published --out "$RUNNER_TEMP/grantcheck-policy-guards" --private-root "$RUNNER_TEMP/grantcheck-policy-private"
+          python3 -B ../../.scripts/grantcheck-policy-guards.py --graph in-tree --modfile "$RUNNER_TEMP/grantcheck-in-tree.mod" --out "$RUNNER_TEMP/grantcheck-in-tree-policy-guards" --private-root "$RUNNER_TEMP/grantcheck-in-tree-policy-private"
       - name: Envelope grant bench guard-removal controls
         env:
           GOPROXY: 'off'
@@ -400,7 +408,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.8'
           check-latest: false
           cache: false
       - name: Require integrated K1 dependency
@@ -409,10 +417,6 @@ jobs:
         run: |
           go mod download
           go mod verify
-          # Grantcheck now consumes published siblings without replacements;
-          # later policy steps enter that module with GOPROXY=off.
-          go -C ../grantcheck mod download
-          go -C ../grantcheck mod verify
       - name: Gate checker controls (known-bad W2 streams must fail the gate)
         working-directory: .
         run: python3 -B -m unittest discover -s .scripts -p 'test_check_px1_core_gate.py' -v

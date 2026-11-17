@@ -14,6 +14,7 @@ on:
       - '.scripts/check-module-graph.py'
       - '.scripts/test_check_module_graph.py'
       - '.scripts/check-published-consumer.py'
+      - '.scripts/test_check_published_consumer.py'
       - '.scripts/testdata/published_rental_strict_test.go'
       - '.scripts/check-strict-module-snapshots.py'
       - '.scripts/test_check_strict_module_snapshots.py'
@@ -34,9 +35,11 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Release minimum regression controls
+        run: python3 -B -m unittest discover -s .scripts -p 'test_check_published_consumer.py' -v
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.8'
           check-latest: false
           cache: false
       - name: Every internal require edge is at or above the published snapshot
@@ -71,7 +74,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.8'
           check-latest: false
           cache: false
       - name: Published graph regression and offline consumer qualification

@@ -324,7 +324,12 @@ func (f holderFixtureView) ReadHolderSeal(context.Context, HolderSealRequest) (H
 func TestV4HolderView(t *testing.T) {
 	key := "022f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01"
 	tx := bitcoinwire.NewMsgTx(2)
-	tx.AddTxOut(bitcoinwire.NewTxOut(1000, append([]byte{0, 20}, bytes.Repeat([]byte{1}, 20)...)))
+	pin, err := identity.ParsePin(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyHash := pin.Hash160()
+	tx.AddTxOut(bitcoinwire.NewTxOut(1000, append([]byte{0, 20}, keyHash[:]...)))
 	// A funding transaction needs an input to avoid witness-marker ambiguity.
 	tx.AddTxIn(bitcoinwire.NewTxIn(&bitcoinwire.OutPoint{Index: 1}, nil, nil))
 	var funding bytes.Buffer

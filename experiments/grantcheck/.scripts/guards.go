@@ -28,6 +28,11 @@ type plant struct {
 var plants = []plant{
 	// These plants cover the consumer seam. Published wire/identity sources
 	// retain their own guards; this runner never changes a sibling module.
+	{"v4_holder_request_seal", "v4.go", "entry.Seal != request.Seal || ", "", "TestV4HolderRefusals/request-other-vout", "holder refusal:", false},
+	{"v4_holder_script_key", "v4.go", "!bytes.Equal(output.PkScript, script)", "len(output.PkScript) != len(script)", "TestV4HolderRefusals/funding-wrong-key", "holder refusal:", false},
+	{"v4_parent_proposals", "v4.go", "proposed == nil && input.Parent != nil", "proposed == nil && false", "TestV4ParentProposalOutcome", "parent proposal:", false},
+	{"v4_list_unknown_sentinel", "v4.go", "return ErrV4ListUnknown", "return errors.New(\"LIST_UNKNOWN\")", "TestV4HolderRefusals/nil-list", "holder refusal:", false},
+	{"v4_provision_cancelled_first", "provision.go", "if ctx == nil || ctx.Err() != nil {", "if false {", "TestV4ProvisionCancelled", "verifier_unavailable", false},
 	{"v4_missing_holder_view", "v4.go", "if entry.Seal != request.Seal || c.config.HolderSeals == nil {\n\t\treturn ErrV4Unavailable", "if entry.Seal != request.Seal || c.config.HolderSeals == nil {\n\t\treturn nil", "TestV4HolderView/missing", "holder code =", false},
 	{"v4_observe_grade", "v4.go", "!observation.enforcementGrade || ", "", "TestV4HolderView/non-enforcement-grade", "holder code =", false},
 	{"v4_height_end", "v4.go", "tip < end", "tip <= end", "TestV4HeightWindow", "height outside the signed window admitted", false},
@@ -155,11 +160,6 @@ func run() error {
 		return e
 	}
 	defer os.RemoveAll(work)
-	for _, name := range []string{"rental", "rental-gateway", "single-use", "sealwatch", "rental-booking", "payment-chain"} {
-		if e = os.Symlink(filepath.Join(filepath.Dir(root), name), filepath.Join(work, name)); e != nil {
-			return e
-		}
-	}
 	module := filepath.Join(work, "grantcheck")
 	if e = copyModule(root, module); e != nil {
 		return e

@@ -17,6 +17,8 @@ on:
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/grantcheck.yml'
+      - '.scripts/grantcheck-in-tree-modfile.sh'
+      - 'experiments/grant-v4/**'
       - '.scripts/identity-interop/**'
       - '.scripts/regenerate-identity-interop.sh'
   push:
@@ -32,6 +34,8 @@ on:
       - 'experiments/single-use/**'
       - 'experiments/sealwatch/**'
       - '.github/workflows/grantcheck.yml'
+      - '.scripts/grantcheck-in-tree-modfile.sh'
+      - 'experiments/grant-v4/**'
       - '.scripts/identity-interop/**'
       - '.scripts/regenerate-identity-interop.sh'
   workflow_dispatch:
@@ -52,7 +56,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.8'
           check-latest: false
           cache: false
       - name: Fetch and verify pinned modules
@@ -73,6 +77,21 @@ jobs:
           go run .scripts/guards.go -out .temp/guards
           go run .scripts/sender-guards.go -out .temp/sender-guards
 
+      - name: Prepare wallet sibling graph through a temporary modfile
+        run: |
+          bash ../../.scripts/grantcheck-in-tree-modfile.sh "$RUNNER_TEMP/grantcheck-in-tree.mod"
+          go mod download -modfile="$RUNNER_TEMP/grantcheck-in-tree.mod"
+          go mod verify -modfile="$RUNNER_TEMP/grantcheck-in-tree.mod"
+      - name: Vet, race tests and build on in-tree siblings
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          CG1_REGTEST: '0'
+        run: |
+          go vet -modfile="$RUNNER_TEMP/grantcheck-in-tree.mod" ./...
+          go test -modfile="$RUNNER_TEMP/grantcheck-in-tree.mod" -race -count=1 ./...
+          go build -modfile="$RUNNER_TEMP/grantcheck-in-tree.mod" -trimpath ./...
+
   identity-issuer-bytes:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
@@ -82,7 +101,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
-          go-version: '1.26.10'
+          go-version: '1.26.8'
           check-latest: false
           cache: false
       - name: Re-export from pinned public issuer and compare every byte

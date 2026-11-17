@@ -730,3 +730,22 @@ for consumer guard controls. Test/guard logs belong under task-owned `.temp/`;
 fixture hashes, issuer source commit and export command are in
 [fixture provenance](experiments/grantcheck/testdata/V4-PROVENANCE.md).
 Every v4 admission remains unavailable; this is separate from G1.0 qualification.
+
+### Grantcheck dual-graph validation tools
+
+The committed grantcheck manifest consumes published snapshots without replaces.
+`bash .scripts/grantcheck-in-tree-modfile.sh "$PWD/.temp/in-tree.mod"` creates
+a temporary modfile with the wallet's ten legacy sibling replacements; wire
+and identity retain their published pins. Run from `experiments/grantcheck`:
+`go test -modfile="$PWD/../../.temp/in-tree.mod" -race -count=1 ./...` and
+`go vet -modfile="$PWD/../../.temp/in-tree.mod" ./...`.
+The grantcheck workflow also runs vet/race/build on the published graph.
+The wallet Core gate repeats its full policy step (including the skip control)
+on both graphs. For overlay controls from the repository root, use
+`python3 -B .scripts/grantcheck-policy-guards.py --graph published --out .temp/published-guards --private-root <fresh-absolute-regtest-parent>`
+and repeat with `--graph in-tree --modfile "$PWD/.temp/in-tree.mod"`, using
+fresh output/private roots. Results label both logical source and loaded source
+with the graph. Runtime overlays and logs stay in the chosen scratch roots.
+`python3 -B -m unittest discover -s .scripts -p 'test_check_published_consumer.py' -v`
+checks the release-minimum guard; the consumer manifest stays at Go 1.26.0,
+and a consumed minimum above the Go 1.26.8 release pin refuses.

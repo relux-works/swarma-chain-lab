@@ -15,6 +15,7 @@ var (
 	ErrV4Unavailable = errors.New("CLASS_HISTORY_UNAVAILABLE")
 	ErrV4Holder      = errors.New("CLASS_HOLDER")
 	ErrV4SealNotLive = errors.New("HOLDER_SEAL_NOT_LIVE")
+	ErrV4ListUnknown = errors.New("LIST_UNKNOWN")
 	ErrV4Binding     = errors.New("binding_mismatch")
 )
 
@@ -54,6 +55,11 @@ func (c *Checker) VerifyV4Document(raw []byte, input V4DocumentContext) (*V4Docu
 	}
 	ctx.JudgeProposals = true
 	_, proposed := v4wire.VerifyGrant(raw, ctx)
+	// A child's proposal interpretation includes its verified root parent.
+	// The reader permits only one parent level; no attenuation is added here.
+	if proposed == nil && input.Parent != nil {
+		_, proposed = v4wire.VerifyGrant(input.Parent.Bytes(), v4wire.GrantContext{JudgeProposals: true})
+	}
 	outcome := "ok"
 	if proposed != nil {
 		if !errors.Is(proposed, v4wire.GrantDelegate) {
@@ -142,7 +148,7 @@ func (c *Checker) VerifyV4HolderDocument(ctx context.Context, landlordValue, lis
 		return ErrV4Holder
 	}
 	if list == nil {
-		return errors.New("LIST_UNKNOWN")
+		return ErrV4ListUnknown
 	}
 	holders, err := identity.VerifyHoldersList(list, *pin, c.network, landlord)
 	if err != nil {
@@ -176,7 +182,13 @@ func (c *Checker) VerifyV4HolderDocument(ctx context.Context, landlordValue, lis
 		return ErrV4SealNotLive
 	}
 	output := tx.TxOut[entry.Seal.Vout]
-	if output.Value < 0 || len(output.PkScript) != 22 || output.PkScript[0] != 0 || output.PkScript[1] != 20 || !observation.unspent {
+	key, err := identity.ParsePin(entry.Key)
+	if err != nil {
+		return ErrV4SealNotLive
+	}
+	hash := key.Hash160()
+	script := append([]byte{0, 20}, hash[:]...)
+	if output.Value < 0 || !bytes.Equal(output.PkScript, script) || !observation.unspent {
 		return ErrV4SealNotLive
 	}
 	// Spenders/closures need H47 and durable H28 handling, not a boolean.

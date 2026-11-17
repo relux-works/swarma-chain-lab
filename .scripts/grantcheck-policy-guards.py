@@ -78,7 +78,7 @@ PLANTS = [
 ]
 
 
-def selected_source(go, relative, module=MODULE, mode="readonly"):
+def selected_source(go, relative, module=MODULE, mode="readonly", modfile=None):
     """Overlay the source Go actually loads, including published siblings.
 
     Checkout paths are not equivalent once a consumer drops local replaces.
@@ -87,7 +87,7 @@ def selected_source(go, relative, module=MODULE, mode="readonly"):
     """
     package = 'github.com/relux-works/swarma-chain-lab/' + str(Path(relative).parent)
     directory = subprocess.run(
-        [go, 'list', '-mod=' + mode, '-f', '{{.Dir}}', package],
+        [go, 'list', '-mod=' + mode, *(['-modfile=' + str(modfile)] if modfile else []), '-f', '{{.Dir}}', package],
         cwd=module, env=dict(os.environ, GOTOOLCHAIN='local', GOWORK='off'),
         check=True, capture_output=True, text=True).stdout.strip()
     source = Path(directory) / Path(relative).name
@@ -100,7 +100,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--private-root', type=Path, required=True)
+    parser.add_argument('--graph', choices=('published', 'in-tree'), default='published')
+    parser.add_argument('--modfile', type=Path)
     args = parser.parse_args()
+    if (args.graph == 'in-tree') != (args.modfile is not None):
+        parser.error('in-tree graph requires --modfile; published graph forbids it')
+    if args.modfile is not None:
+        args.modfile = args.modfile.resolve(strict=True)
     if not args.private_root.is_absolute():
         parser.error('--private-root must be absolute')
     out = args.out.resolve()
@@ -109,30 +115,47 @@ def main():
     go = shutil.which('go')
     if not go:
         parser.error('go unavailable')
-    # Go forbids overlays under GOMODCACHE. Use the native vendor fixture
-    # pattern already used by check-published-consumer.py, without replacing
-    # any module or changing the tested manifest/source checkout.
-    module = out / 'module'
-    shutil.copytree(MODULE, module, ignore=shutil.ignore_patterns('.temp', '.git', 'vendor'))
-    metadata = {name: (module / name).read_bytes() for name in ('go.mod', 'go.sum')}
-    subprocess.run([go, 'mod', 'verify'], cwd=module, check=True)
-    subprocess.run([go, 'mod', 'vendor'], cwd=module, check=True,
-                   env=dict(os.environ, GOTOOLCHAIN='local', GOWORK='off'))
-    if any((module / name).read_bytes() != raw for name, raw in metadata.items()):
-        raise RuntimeError('native vendor preparation changed module metadata')
-    prepared = {
-        'metadata_sha256': {name: hashlib.sha256(raw).hexdigest() for name, raw in metadata.items()},
-        'vendor_sha256': {str(p.relative_to(module)): hashlib.sha256(p.read_bytes()).hexdigest()
-                          for p in (module / 'vendor').rglob('*') if p.is_file()},
-    }
-    (out / 'prepared.json').write_text(json.dumps(prepared, indent=2) + '\n')
+    if args.graph == 'in-tree':
+        # Local replacements are overlayable directly, preserving the exact
+        # wallet sibling graph and leaving checkout bytes untouched.
+        module, mode = MODULE, 'readonly'
+        metadata = json.loads(subprocess.run(
+            [go, 'mod', 'edit', '-json', str(args.modfile)],
+            check=True, capture_output=True, text=True).stdout)
+        replacements = {r['Old']['Path']: r['New']['Path'] for r in metadata.get('Replace', [])}
+        expected = {}
+        for sibling in ('rental', 'rental-gateway', 'rental-gateway/kernelbind', 'single-use',
+                        'sealwatch', 'rental-booking', 'payment-chain', 'station-lifecycle',
+                        'station-lifecycle/gatewaybind', 'model-proxy'):
+            expected['github.com/relux-works/swarma-chain-lab/experiments/' + sibling] = str(ROOT / 'experiments' / sibling)
+        if replacements != expected:
+            raise RuntimeError('in-tree modfile does not select exactly the wallet siblings')
+    else:
+        # Go forbids overlays under GOMODCACHE. Use the native vendor fixture
+        # pattern already used by check-published-consumer.py, without replacing
+        # any module or changing the tested manifest/source checkout.
+        module = out / 'module'
+        shutil.copytree(MODULE, module, ignore=shutil.ignore_patterns('.temp', '.git', 'vendor'))
+        metadata = {name: (module / name).read_bytes() for name in ('go.mod', 'go.sum')}
+        subprocess.run([go, 'mod', 'verify'], cwd=module, check=True)
+        subprocess.run([go, 'mod', 'vendor'], cwd=module, check=True,
+                       env=dict(os.environ, GOTOOLCHAIN='local', GOWORK='off'))
+        if any((module / name).read_bytes() != raw for name, raw in metadata.items()):
+            raise RuntimeError('native vendor preparation changed module metadata')
+        prepared = {
+            'metadata_sha256': {name: hashlib.sha256(raw).hexdigest() for name, raw in metadata.items()},
+            'vendor_sha256': {str(p.relative_to(module)): hashlib.sha256(p.read_bytes()).hexdigest()
+                              for p in (module / 'vendor').rglob('*') if p.is_file()},
+        }
+        (out / 'prepared.json').write_text(json.dumps(prepared, indent=2) + '\n')
+        mode = 'vendor'
     records = []
     for plant in PLANTS:
         name, test, relative, old, new, bound, *marker = plant
         assertion = marker[0] if marker else 'verdict contract want '
 
-        source = selected_source(go, relative, module, 'vendor')
-        resolved = selected_source(go, relative, module, 'readonly')
+        source = selected_source(go, relative, module, mode, args.modfile)
+        resolved = selected_source(go, relative, module, 'readonly', args.modfile)
         if source.read_bytes() != resolved.read_bytes():
             raise RuntimeError(f'{name}: vendored source differs from the selected graph')
         original = source.read_text()
@@ -147,14 +170,14 @@ def main():
         mutant.write_text(original.replace(old, new, matches))
         overlay = case / 'overlay.json'
         overlay.write_text(json.dumps({'Replace': {str(source): str(mutant)}}) + '\n')
-        record = {'mutant': name, 'test': test, 'bound': bound, 'source': relative,
-                  'loaded_source': str(source),
+        record = {'mutant': name, 'test': test, 'bound': bound, 'graph': args.graph, 'source': args.graph + ':' + relative,
+                  'loaded_source': args.graph + ':' + str(source.relative_to(module if args.graph == 'published' else ROOT)),
                   'source_sha256': hashlib.sha256(original.encode()).hexdigest(),
                   'mutant_sha256': hashlib.sha256(mutant.read_bytes()).hexdigest()}
         for mutated in (False, True):
             label = 'mutant' if mutated else 'baseline'
             selector = '/'.join('^' + part + '$' for part in test.split('/'))
-            command = [go, 'test', '-mod=vendor', '-race', '-count=1', '-timeout=3m', '-json',
+            command = [go, 'test', '-mod=' + mode, *(['-modfile=' + str(args.modfile)] if args.modfile else []), '-race', '-count=1', '-timeout=3m', '-json',
                        '-run=' + selector, '.']
             if mutated:
                 command.insert(2, '-overlay=' + str(overlay))

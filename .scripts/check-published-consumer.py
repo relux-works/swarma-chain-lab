@@ -98,6 +98,15 @@ CASES = (
 )
 
 
+def require_release_minimum(version):
+    """A consumed module may not exceed the Go 1.26.8 release toolchain."""
+    if not re.fullmatch(r"[0-9]+\.[0-9]+(?:\.[0-9]+)?", version):
+        raise RuntimeError('invalid consumed module Go minimum: ' + version)
+    parts = tuple(map(int, version.split('.')))
+    if parts + (0,) * (3 - len(parts)) > (1, 26, 8):
+        raise RuntimeError('consumed module exceeds release pin Go 1.26.8: ' + version)
+
+
 def objects(raw):
     decoder = json.JSONDecoder()
     while raw.strip():
@@ -184,11 +193,10 @@ def main():
             if info.get("Origin", {}).get("Hash") != commit:
                 raise RuntimeError(f"{case.name} {label}: resolved revision mismatch")
             version = info["Version"]
-            # Use the resolved module's declared minimum. A newer published
-            # module can require a patch toolchain; starting below that minimum
-            # makes Go update the go directive during metadata warmup. The
-            # unchanged-manifest assertion below must still catch graph drift.
-            manifest = f"module example.invalid/{case.name}-consumer\n\ngo {info['GoVersion']}\n\nrequire {case.module} {version}\n"
+            # The release gate always starts from the supported consumer
+            # minimum; it must never silently follow a module's raised minimum.
+            require_release_minimum(info['GoVersion'])
+            manifest = f"module example.invalid/{case.name}-consumer\n\ngo 1.26.0\n\nrequire {case.module} {version}\n"
             if case.tool:
                 manifest += f"\ntool {case.tool}\n"
             (cwd / "go.mod").write_text(manifest)

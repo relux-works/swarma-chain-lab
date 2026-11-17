@@ -114,3 +114,9 @@ the 97 rejected and four proposal vectors remain supplied corpus inputs.
 Those 101 rows are rejection/proposal interoperability checks, not a claim
 that the issuer emits invalid grants. Any difference fails as a `FINDING`;
 neither side is normalized or reconciled.
+
+The fixture seam now requires the funding output's exact P2WPKH script to
+match `Hash160` of the hash-pinned holder entry key. This is a narrowing
+fixture check, not a production holder adapter. The adapter unit must still
+establish H45/H46 funding provenance, H47 script/signature validation, H28
+watcher evidence and H23/H38-H44 durable history and rechecks.

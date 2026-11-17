@@ -8,9 +8,10 @@ a matching request ID and a null result. Malformed envelopes remain node failure
 Its own 101 internal requirements select fixed source `1b02659161608036dfa9820167a2dbbbbd983b10`.
 Both source and manifest selections contain the fix by verified ancestry.
 The detached-v2 consumer byte inventory was regenerated and audited unchanged.
-The new wire → identity API edge pins the main-published ParsePin snapshot
-`v0.0.0-20261116164432-80bcaa527f51`, without a local replacement.
-Its explicit `module_provenance` records main commit
+The wire → identity API edge selects the main-published snapshot
+`v0.0.0-20261117003532-d68447f630c8`, without a local replacement.
+The identity floor remains `v0.0.0-20261116164432-80bcaa527f51`; its explicit
+`module_provenance` records main commit
 `80bcaa527f51b1f4910fc84d9f78d51abad4139c` and UTC time `20261116164432`.
 The checker verifies main ancestry, module presence and exact pseudo-version
 provenance. Every other module keeps the global default above.
@@ -94,14 +95,14 @@ The generator queries canonical versions through the public proxy and verifies
 all origin SHAs before writing the snapshot; a failed resolution leaves it intact.
 
 The `grant-v4/wire` module has one internal edge: identity at
-`v0.0.0-20261116164432-80bcaa527f51` (published on main at
-`80bcaa527f51b1f4910fc84d9f78d51abad4139c`). It uses only `ParsePin`.
+`v0.0.0-20261117003532-d68447f630c8` (published on main at
+`d68447f630c8f1bf7617532d8f74ab18efa49502`).
 The identity and chainview modules have no internal require edges; none of
 these three modules uses local replacements or imports an earlier grant module.
 The wire/identity API slice landed at `e56bc61d` before this consumer.
-Grantcheck now requires both wire and identity at the publicly resolved
-`v0.0.0-20261116222636-e56bc61de826` snapshot. These selections exceed the
-unchanged per-module floors above. Grantcheck has no local replacements;
+Grantcheck requires wire at `v0.0.0-20261117003733-ff7688e88b9f` and
+identity at `v0.0.0-20261117003532-d68447f630c8`, both publicly resolved.
+These selections exceed the unchanged per-module floors above. Grantcheck has no local replacements;
 its tests use module-local pinned fixtures. Its eight internal requirements
 include the two new API edges. The wallet's two corresponding indirect API
 requirements and checksums make its existing sibling replacement buildable.
