@@ -49,18 +49,113 @@ func childOpenV4(step int, reason string) error {
 	return &ChildAttenuationFailure{Step: step, Open: reason}
 }
 
-// CheckChildAttenuationV4 compares immutable, already verified documents under
-// spec 0.1.55. The parent supplies the W11.8 ancestry/delegation context: there
-// is no depth member in v4, and a child cannot itself be a parent. The function
-// repeats the parent binding so a child verified against a different parent
-// cannot be substituted. It performs no parsing, normalization, writes or I/O.
+// ParentNameObservation holds the F7.3 facts supplied by the admission/junction
+// caller, never by the child presenter. Genesis and TipHash are lowercase
+// 32-byte hashes in node display order; TipHeight is the observed tip height.
+// ChannelKeys is the complete, nonempty set of channel signing keys yielded by
+// Name in that observation, in the current Nostr profile's x-only BIP-340 form.
+// The caller establishes provenance, completeness, owner control and observation
+// health; this pure evaluator cannot authenticate those claims or read a node.
+// The input and its slice are neither mutated nor retained.
+type ParentNameObservation struct {
+	Name        string
+	Genesis     string
+	TipHash     string
+	TipHeight   uint64
+	ChannelKeys []string
+}
+
+// ParentNameObservationError is an invalid local input contract, not a protocol
+// refusal code or an admission result. The pin assigns no code to malformed
+// caller-supplied facts. KeyIndex is -1 unless Kind identifies a bad set entry.
+type ParentNameObservationError struct {
+	Kind     ParentNameObservationErrorKind
+	KeyIndex int
+}
+
+// ParentNameObservationErrorKind identifies the invalid caller input.
+type ParentNameObservationErrorKind string
+
+const (
+	ParentObservationMissing    ParentNameObservationErrorKind = "missing"
+	ParentObservationUnexpected ParentNameObservationErrorKind = "unexpected"
+	ParentObservationName       ParentNameObservationErrorKind = "name"
+	ParentObservationIdentity   ParentNameObservationErrorKind = "identity"
+	ParentObservationChain      ParentNameObservationErrorKind = "chain"
+	ParentObservationEmpty      ParentNameObservationErrorKind = "empty"
+	ParentObservationDuplicate  ParentNameObservationErrorKind = "duplicate"
+	ParentObservationKey        ParentNameObservationErrorKind = "key"
+)
+
+func (e *ParentNameObservationError) Error() string {
+	return fmt.Sprintf("invalid parent-name observation: %s (key index %d)", e.Kind, e.KeyIndex)
+}
+
+// validate checks all entries before membership, so a forbidden key cannot hide
+// malformed trailing input. Signed-octet refusals are checked before this call.
+func (o *ParentNameObservation) validate(parent *value) error {
+	bad := func(kind ParentNameObservationErrorKind, index int) error {
+		return &ParentNameObservationError{Kind: kind, KeyIndex: index}
+	}
+	name := parent.get("recipient").get("name")
+	if name == nil {
+		if o != nil {
+			return bad(ParentObservationUnexpected, -1)
+		}
+		return nil
+	}
+	if o == nil {
+		return bad(ParentObservationMissing, -1)
+	}
+	if o.Name != name.text {
+		return bad(ParentObservationName, -1)
+	}
+	if !hexForm(o.Genesis, 32) || !hexForm(o.TipHash, 32) {
+		return bad(ParentObservationIdentity, -1)
+	}
+	if o.Genesis != parent.get("genesis").text {
+		return bad(ParentObservationChain, -1)
+	}
+	if len(o.ChannelKeys) == 0 {
+		return bad(ParentObservationEmpty, -1)
+	}
+	seen := make(map[string]bool, len(o.ChannelKeys))
+	for i, key := range o.ChannelKeys {
+		if CheckSigningKey(key) != nil {
+			return bad(ParentObservationKey, i)
+		}
+		if seen[key] {
+			return bad(ParentObservationDuplicate, i)
+		}
+		seen[key] = true
+	}
+	return nil
+}
+
+func childChannelContainsV4(keys []string, delegation string) bool {
+	for _, key := range keys {
+		if key == delegation {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckChildAttenuationV4 compares immutable, already verified documents and
+// caller-supplied F7.3 facts under spec 0.1.55. The parent supplies the W11.8
+// ancestry/delegation context: there is no depth member in v4, and a child
+// cannot itself be a parent. The function repeats the parent binding so a child
+// verified against a different parent cannot be substituted. Observation must
+// be nil for a by-key parent and valid for a by-name parent. Its validation and
+// F11 channel-key comparison follow the earlier signed-octet checks. No input
+// is mutated or retained; the function performs no parsing, writes or I/O.
 //
 // This is NOT the full admission predicate: F3/F6/F7 and node/attestation checks
-// need inputs beyond two documents. At this pin F13's count order awaits an
-// explicit owner decision (LIP-0026 section 8 versus W11.6). Consequently a
+// need independently established inputs. At this pin F13's count order awaits
+// an explicit owner decision (LIP-0026 section 8 versus W11.6). Consequently a
 // pair that reaches that unresolved row refuses with Open and no invented code;
 // no public call currently accepts. See STEPS-B3a-CHILD.md for the exact boundary.
-func CheckChildAttenuationV4(parent, child *SignedGrant) error {
+func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) error {
 	if parent == nil || parent.object == nil {
 		return childRefusalV4(2, WireID)
 	}
@@ -116,8 +211,11 @@ func CheckChildAttenuationV4(parent, child *SignedGrant) error {
 			return childRefusalV4(11, DelegateKeyReuse)
 		}
 	}
-	if p.get("recipient").get("name") != nil {
-		return childOpenV4(11, "F11 requires the current channel keys read by F7.3; documents contain no such facts")
+	if err := observation.validate(p); err != nil {
+		return err
+	}
+	if observation != nil && childChannelContainsV4(observation.ChannelKeys, delegation) {
+		return childRefusalV4(11, DelegateKeyReuse)
 	}
 	if c.get("seal").get("key").text != seal.text {
 		return childRefusalV4(12, ChildSealKey)

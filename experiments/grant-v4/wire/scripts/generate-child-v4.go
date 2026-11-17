@@ -78,15 +78,17 @@ func must(e error) {
 }
 
 type fixture struct {
-	ID        string          `json:"id"`
-	Mode      string          `json:"mode"`
-	Parent    json.RawMessage `json:"parent"`
-	Child     json.RawMessage `json:"child"`
-	Expect    string          `json:"expect"`
-	Step      int             `json:"step"`
-	Neighbour string          `json:"valid_neighbour"`
-	Spec      string          `json:"spec_case"`
-	Ancestor  json.RawMessage `json:"ancestor,omitempty"`
+	ID          string                      `json:"id"`
+	Mode        string                      `json:"mode"`
+	Parent      json.RawMessage             `json:"parent"`
+	Child       json.RawMessage             `json:"child"`
+	Expect      string                      `json:"expect"`
+	Step        int                         `json:"step"`
+	Neighbour   string                      `json:"valid_neighbour"`
+	Spec        string                      `json:"spec_case"`
+	Ancestor    json.RawMessage             `json:"ancestor,omitempty"`
+	Observation *wire.ParentNameObservation `json:"observation,omitempty"`
+	InputIndex  int                         `json:"input_index,omitempty"`
 }
 
 func main() {
@@ -198,7 +200,7 @@ func main() {
 			c["recipient"] = obj{"name": "id/example-agent", "owner": k}
 		})
 	}
-	prefix("parent-name-open", "OPEN", 11, "F11 channel facts", func(p, c obj) { p["recipient"] = obj{"name": "id/example-parent", "owner": output(1)} })
+	prefix("parent-name-open", "input:missing", 11, "F11 missing caller facts", func(p, c obj) { p["recipient"] = obj{"name": "id/example-parent", "owner": output(1)} })
 	prefix("wrong-seal", "CHILD_SEAL_KEY", 12, "step-i-18", func(p, c obj) { c["seal"].(obj)["key"] = output(1) })
 	prefix("seal-parity", "CHILD_SEAL_KEY", 12, "step-i-19", func(p, c obj) { c["seal"].(obj)["key"] = opposite(output(3)) })
 	for _, n := range []int{0, 1, 2, 3, 9007199254740991} {
@@ -239,6 +241,87 @@ func main() {
 	prefix("seal-before-ordinal", "CHILD_SEAL_KEY", 12, "step-c-06", func(p, c obj) { c["seal"].(obj)["key"] = output(1); c["ordinal"] = 0 })
 	prefix("missing-before-ordinal", "CHILD_SEAL_KEY", 10, "step-c-05", func(p, c obj) { delete(p["delegate"].(obj), "child_seal_key"); c["ordinal"] = 0 })
 	prefix("ordinal-before-executor", "CHILD_ORDINAL", 13, "step-c-07", func(p, c obj) { c["ordinal"] = 3; c["executor"].(obj)["name"] = "id/example-other" })
+	// F11 observations are caller facts, never signed grant members. Every
+	// negative is generated beside a by-name valid neighbour, not hand-edited.
+	observe := func(id, want string, step, index int, mutate func(obj, obj, *wire.ParentNameObservation)) {
+		o := &wire.ParentNameObservation{Name: "id/example-parent", Genesis: hash("example-genesis"), TipHash: hash("example-observed-tip"), TipHeight: 12, ChannelKeys: []string{signing(1)}}
+		add(id, "observation", want, step, "F11; F7.3 stated observation", func(p, c obj) {
+			p["recipient"] = obj{"name": o.Name, "owner": output(1)}
+			if mutate != nil {
+				mutate(p, c, o)
+			}
+		})
+		v := &cases[len(cases)-1]
+		v.Observation, v.InputIndex, v.Neighbour = o, index, "name-valid-neighbour"
+	}
+	observe("name-valid-neighbour", "OPEN", 13, -1, nil)
+	observe("delegation-not-in-set", "OPEN", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(3), signing(1)} })
+	observe("child-key-not-in-set", "OPEN", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(3)} })
+	observe("delegation-in-set", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(2)} })
+	observe("delegation-first-in-set", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(2), signing(1)} })
+	observe("delegation-last-in-set", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
+		o.ChannelKeys = []string{signing(1), signing(3), signing(2)}
+	})
+	observe("different-name", "input:name", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.Name = "id/example-other" })
+	observe("different-name-before-member", "input:name", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
+		o.Name = "id/example-other"
+		o.ChannelKeys = []string{signing(2)}
+	})
+	observe("empty-name", "input:name", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.Name = "" })
+	observe("empty-set", "input:empty", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{} })
+	observe("nil-set", "input:empty", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = nil })
+	observe("duplicate-set", "input:duplicate", 11, 1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(1), signing(1)} })
+	observe("duplicate-after-member", "input:duplicate", 11, 2, func(p, c obj, o *wire.ParentNameObservation) {
+		o.ChannelKeys = []string{signing(2), signing(1), signing(1)}
+	})
+	for _, bad := range []struct{ id, key string }{
+		{"empty-key", ""}, {"short-key", "01"}, {"uppercase-key", "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798"},
+		{"compressed-key", output(1)}, {"nonhex-key", fmt.Sprintf("%064s", "z")},
+		{"offcurve-key", fmt.Sprintf("%064x", 0)}, {"out-of-field-key", "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"},
+	} {
+		observe(bad.id, "input:key", 11, 0, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{bad.key} })
+	}
+	observe("malformed-after-member", "input:key", 11, 1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(2), "bad"} })
+	observe("missing-tip", "input:identity", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.TipHash = "" })
+	observe("malformed-tip", "input:identity", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.TipHash = "BAD" })
+	observe("malformed-genesis", "input:identity", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.Genesis = "bad" })
+	observe("different-chain", "input:chain", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.Genesis = hash("other-chain") })
+	observe("genesis-tip-identity", "OPEN", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.TipHeight = 0; o.TipHash = o.Genesis })
+	observe("later-tip-identity", "OPEN", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.TipHeight = 100; o.TipHash = hash("later-tip") })
+	observe("by-key-unexpected-observation", "input:unexpected", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { p["recipient"] = obj{"key": signing(1)} })
+	// Earlier signed-octet rows retain precedence even with invalid facts and a
+	// forbidden channel key; nearby existing cases witness each defect alone.
+	for _, earlier := range []struct {
+		id, want string
+		step     int
+		change   func(obj, obj)
+	}{
+		{"contract-before-observation", "CHILD_CONTRACT_DIFFERS", 5, func(p, c obj) { c["contract"] = hash("other-contract") }},
+		{"genesis-before-observation", "SUBJECT_MISMATCH", 8, func(p, c obj) { c["genesis"] = hash("other-genesis") }},
+		{"parent-key-before-observation", "DELEGATE_KEY_REUSE", 9, func(p, c obj) { p["issuer"].(obj)["grant_key"] = signing(2) }},
+		{"missing-childseal-before-observation", "CHILD_SEAL_KEY", 10, func(p, c obj) { delete(p["delegate"].(obj), "child_seal_key") }},
+		{"childseal-reuse-before-observation", "DELEGATE_KEY_REUSE", 10, func(p, c obj) { p["delegate"].(obj)["child_seal_key"] = output(2) }},
+		{"child-seal-before-observation", "DELEGATE_KEY_REUSE", 11, func(p, c obj) { c["seal"].(obj)["key"] = opposite(output(2)) }},
+		{"child-key-before-observation", "DELEGATE_KEY_REUSE", 11, func(p, c obj) { c["recipient"] = obj{"key": signing(2)} }},
+		{"child-owner-before-observation", "DELEGATE_KEY_REUSE", 11, func(p, c obj) { c["recipient"] = obj{"name": "id/example-child", "owner": opposite(output(2))} }},
+	} {
+		observe(earlier.id, earlier.want, earlier.step, -1, func(p, c obj, o *wire.ParentNameObservation) {
+			o.Name = "id/example-other"
+			o.ChannelKeys = []string{signing(2)}
+			earlier.change(p, c)
+		})
+	}
+	observe("membership-before-f12", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
+		o.ChannelKeys = []string{signing(2)}
+		c["seal"].(obj)["key"] = output(1)
+	})
+	observe("input-before-f12", "input:name", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
+		o.Name = "id/example-other"
+		c["seal"].(obj)["key"] = output(1)
+	})
+	observe("valid-f11-then-f12", "CHILD_SEAL_KEY", 12, -1, func(p, c obj, o *wire.ParentNameObservation) { c["seal"].(obj)["key"] = output(1) })
+	observe("valid-f11-then-f13-bound", "CHILD_ORDINAL", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { c["ordinal"] = 3 })
+
 	row("template-valid", "ok", 0, "F14-F18 no limits, equal window", nil)
 	row("executor-name", "CHILD_AGENT_NOT_ALLOWED", 14, "step-i-22", func(p, c obj) { c["executor"].(obj)["name"] = "id/example-other" })
 	row("executor-key", "CHILD_AGENT_NOT_ALLOWED", 14, "R2.2 pinned key", func(p, c obj) { c["executor"].(obj)["key"] = signing(3) })

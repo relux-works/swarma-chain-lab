@@ -26,11 +26,15 @@
   order binds no reader" until explicit owner acceptance. The draft evaluator
   stops with no invented protocol code. The needed input is an authoritative
   resolution of those sentences, not an implementation-specific order.
-- F11 requires current parent-recipient channel keys from F7.3 when the parent
-  names its recipient. Two verified documents supply none. The API refuses
-  OPEN for such a parent rather than omitting that key-separation duty.
+- F11's input boundary is resolved by the chain-lab owner for this slice:
+  the admission/junction layer supplies a typed parent-name observation with
+  the name, pinned chain, tip hash/height and complete channel-key set read by
+  F7.3. Invalid/missing inputs refuse with a typed input error; a delegation-key
+  member refuses `DELEGATE_KEY_REUSE`. Acquisition, provenance, completeness,
+  name-owner control and observation health remain the caller's duties; this
+  API never reads a name or chain and does not establish F3/F7 admission.
 - F17: no limit kind is defined in 0.1.55 (T9/W11.14). Numeric attenuation
   awaits a real type profile; equality and one-over currently have the same
   `LIMIT_KIND_UNDEFINED` result after the missing-key check.
 - Complete admission needs F6's missing v4 contract profile and independent
-  node/journal facts. This document slice never supplies them or admits a grant.
+  node/journal facts. This document-and-facts slice never supplies them or admits a grant.

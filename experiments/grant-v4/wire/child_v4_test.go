@@ -13,7 +13,9 @@ type childVectorV4 struct {
 	ID, Mode, Expect, SpecCase string
 	Step                       int
 	Parent, Child, Ancestor    json.RawMessage
-	Neighbour                  string `json:"valid_neighbour"`
+	Neighbour                  string                 `json:"valid_neighbour"`
+	Observation                *ParentNameObservation `json:"observation"`
+	InputIndex                 int                    `json:"input_index"`
 }
 
 func childVectorsV4(t *testing.T) []childVectorV4 {
@@ -74,6 +76,16 @@ func childWantV4(t *testing.T, err error, want string, step int) {
 		}
 		return
 	}
+	if strings.HasPrefix(want, "input:") {
+		var input *ParentNameObservationError
+		var protocol Code
+		var failure *ChildAttenuationFailure
+		if !errors.As(err, &input) || string(input.Kind) != strings.TrimPrefix(want, "input:") ||
+			errors.As(err, &protocol) || errors.As(err, &failure) || errors.Unwrap(err) != nil {
+			t.Fatalf("input refusal = %v, want typed %s without protocol code", err, want)
+		}
+		return
+	}
 	var f *ChildAttenuationFailure
 	if !errors.As(err, &f) || f.Step != step {
 		t.Fatalf("refusal = %v, want %s at F%d", err, want, step)
@@ -101,7 +113,7 @@ func runChildPrefixV4(t *testing.T, keep func(string) bool) {
 				t.Fatal("child precondition", err)
 			}
 			pb, cb := p.Bytes(), c.Bytes()
-			childWantV4(t, CheckChildAttenuationV4(p, c), v.Expect, v.Step)
+			childWantV4(t, CheckChildAttenuationV4(p, c, v.Observation), v.Expect, v.Step)
 			if !bytes.Equal(pb, p.Bytes()) || !bytes.Equal(cb, c.Bytes()) {
 				t.Fatal("comparison changed signed documents")
 			}
@@ -139,7 +151,7 @@ func TestChildV4Template(t *testing.T) {
 			template := p.object.payload.root.get("delegate").get("groups").elements[0].get("template")
 			childWantV4(t, checkChildTemplateV4(p.object.payload.root, c.object.payload.root, template), v.Expect, v.Step)
 			// A successful private comparison must never bypass unresolved F13.
-			childWantV4(t, CheckChildAttenuationV4(p, c), "OPEN", 13)
+			childWantV4(t, CheckChildAttenuationV4(p, c, v.Observation), "OPEN", 13)
 			if !bytes.Equal(pb, p.Bytes()) || !bytes.Equal(cb, c.Bytes()) {
 				t.Fatal("template comparison changed signed documents")
 			}
@@ -178,11 +190,46 @@ func TestChildV4Documents(t *testing.T) {
 			}
 		}
 	}
-	childWantV4(t, CheckChildAttenuationV4(baseline, original), "OPEN", 13)
-	childWantV4(t, CheckChildAttenuationV4(other, original), "WIRE_ID", 2)
-	childWantV4(t, CheckChildAttenuationV4(nil, original), "WIRE_ID", 2)
-	childWantV4(t, CheckChildAttenuationV4(&SignedGrant{}, original), "WIRE_ID", 2)
-	childWantV4(t, CheckChildAttenuationV4(baseline, nil), "OPEN", 2)
-	childWantV4(t, CheckChildAttenuationV4(baseline, &SignedGrant{}), "OPEN", 2)
-	childWantV4(t, CheckChildAttenuationV4(baseline, baseline), "OPEN", 2)
+	childWantV4(t, CheckChildAttenuationV4(baseline, original, nil), "OPEN", 13)
+	childWantV4(t, CheckChildAttenuationV4(other, original, nil), "WIRE_ID", 2)
+	childWantV4(t, CheckChildAttenuationV4(nil, original, nil), "WIRE_ID", 2)
+	childWantV4(t, CheckChildAttenuationV4(&SignedGrant{}, original, nil), "WIRE_ID", 2)
+	childWantV4(t, CheckChildAttenuationV4(baseline, nil, nil), "OPEN", 2)
+	childWantV4(t, CheckChildAttenuationV4(baseline, &SignedGrant{}, nil), "OPEN", 2)
+	childWantV4(t, CheckChildAttenuationV4(baseline, baseline, nil), "OPEN", 2)
+}
+
+// F11 separates the delegation key from every supplied channel key. A valid
+// nonmember passes only F11 and still refuses OPEN at F13. Inputs are from the
+// caller's observation; these cases do not prove provenance or node health.
+func TestChildV4ParentNameObservation(t *testing.T) {
+	for _, v := range childVectorsV4(t) {
+		if v.Mode != "observation" {
+			continue
+		}
+		t.Run(v.ID, func(t *testing.T) {
+			p, c, err := childPairV4(t, v)
+			if err != nil {
+				t.Fatal("child precondition", err)
+			}
+			pb, cb := p.Bytes(), c.Bytes()
+			before, err := json.Marshal(v.Observation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			verdict := CheckChildAttenuationV4(p, c, v.Observation)
+			childWantV4(t, verdict, v.Expect, v.Step)
+			var input *ParentNameObservationError
+			if strings.HasPrefix(v.Expect, "input:") && (!errors.As(verdict, &input) || input.KeyIndex != v.InputIndex) {
+				t.Fatalf("wrong input error index: %v, want %d", input, v.InputIndex)
+			}
+			after, err := json.Marshal(v.Observation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(pb, p.Bytes()) || !bytes.Equal(cb, c.Bytes()) || !bytes.Equal(before, after) {
+				t.Fatal("comparison changed documents or observation")
+			}
+		})
+	}
 }

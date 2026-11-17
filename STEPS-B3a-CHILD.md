@@ -1,10 +1,10 @@
 # B3a-CHILD step map — written before implementation
 
-Pinned specification: [1e58a9f91eba35ff19de25388031f0264c01eecc](https://github.com/relux-works/swarma-link-spec/tree/1e58a9f91eba35ff19de25388031f0264c01eecc), version 0.1.55. Quotations below are from LIP-0014 §8.4 unless explicitly marked otherwise. The pure API is a document comparison slice; it grants no authority and does not replace the full admission table.
+Pinned specification: [1e58a9f91eba35ff19de25388031f0264c01eecc](https://github.com/relux-works/swarma-link-spec/tree/1e58a9f91eba35ff19de25388031f0264c01eecc), version 0.1.55. Quotations below are from LIP-0014 §8.4 unless explicitly marked otherwise. The pure API compares documents and caller-supplied F7.3 facts; it grants no authority and does not replace the full admission table.
 
 OPEN count order: W11.6: “The order of `groups` and of the `ranges` of a group in the octets is the signed order in which LIP-0026 R8.3 counts the rows”. LIP-0026 §8: “Until the owner accepts it explicitly, the order binds no reader by the word of this draft”. No owner resolution is assumed. F13 refuses without inventing a protocol code after checking the decidable ordinal bound. Later template rows are implemented and tested in isolation, with no public acceptance claimed.
 
-OPEN F11 channel facts: §8.4 F11 requires “every channel key that the value of that name yields”; a verified document alone contains no current name value. A parent by name therefore refuses without a made-up protocol code after the octet comparisons. Holder and owner-device authority is not invented. F17 T9: “No kind is defined in version 0.1.55”; equal, zero and one-over amounts under an existing row key all refuse LIMIT_KIND_UNDEFINED. Amount comparison waits for a profile; missing keys refuse CHILD_BUDGET_OVER first.
+F11 owner decision for this fix: the admission/junction caller supplies the channel keys from the parent-recipient name value that F7.3 read in this observation. `ParentNameObservation` carries that exact name, pinned genesis, tip hash and tip height, and the nonempty set of channel signing keys. The evaluator reads no chain or name. The caller owns provenance, completeness, healthy-observation checks and all F7.3 owner-control checks; supplying typed facts proves none of these. Missing input, an unexpected input for a by-key parent, a mismatched name/genesis, malformed identity, empty set, duplicate key or malformed key returns `ParentNameObservationError`, never a protocol acceptance or invented protocol refusal. Validation occurs after the F11 signed-octet comparisons and before membership; the whole set is validated before any membership verdict. Keys use the current Nostr channel's x-only signing-key form (LIP-0008 §3.1, LIP-0020 W3.6). A delegation-key member refuses `DELEGATE_KEY_REUSE`; a nonmember passes F11, then later rows still apply. F13 is unchanged. F17 T9: “No kind is defined in version 0.1.55”; equal, zero and one-over amounts under an existing row key all refuse LIMIT_KIND_UNDEFINED. Amount comparison waits for a profile; missing keys refuse CHILD_BUDGET_OVER first.
 
 | Step | Spec sentence quoted | Inputs | Exact refusal / OPEN | Precedence | Function and test / boundary |
 | --- | --- | --- | --- | --- | --- |
@@ -18,7 +18,7 @@ OPEN F11 channel facts: §8.4 F11 requires “every channel key that the value o
 | F8 | “The subject: `genesis` of `C` equals `genesis` of `P`” | P.genesis, C.genesis | SUBJECT_MISMATCH | F5 before F8 before F9 | CheckChildAttenuationV4 / TestChildV4Prefix |
 | F9 | “The keys of the parent, J4.3 (a): the delegation key differs, by x coordinate, from `issuer.grant_key`, from `recipient.key` or `recipient.owner`, from `issuer.owner`, from the `owner` of every entry of `notaries` and from `seal.key` of `P`” | P delegation, issuer grant/owner, recipient, notary owner and own seal keys | DELEGATE_KEY_REUSE | Before F10 | CheckChildAttenuationV4 / TestChildV4RoleKeys |
 | F10 | “The child-seal key of the parent: first `delegate.child_seal_key` is present (CS1); then it differs, by x coordinate, from the delegation key and from the keys of F9 (CS3)” | P child-seal key and every F9 key | CHILD_SEAL_KEY; then DELEGATE_KEY_REUSE | Presence before comparisons, before F11 | CheckChildAttenuationV4 / TestChildV4RoleKeys |
-| F11 | “The keys of the child, J4.3 (b), as far as no attestation is read: the delegation key differs, by x coordinate, from `seal.key` of `C`, from `recipient.key` or `recipient.owner` of `C`, and then, where `P` names its recipient by name, from every channel key that the value of that name yields. That value is the one that part 7.3 of F7 read in this observation, and F11 makes no read of its own. The comparison with the attestation key of the row's notary stands in F23” | P delegation key; C seal and recipient keys; parent recipient channel keys | DELEGATE_KEY_REUSE; OPEN for missing name facts | Octets before channel facts; before F12 | CheckChildAttenuationV4 / TestChildV4RoleKeys; channel-key part OPEN |
+| F11 | “The keys of the child, J4.3 (b), as far as no attestation is read: the delegation key differs, by x coordinate, from `seal.key` of `C`, from `recipient.key` or `recipient.owner` of `C`, and then, where `P` names its recipient by name, from every channel key that the value of that name yields. That value is the one that part 7.3 of F7 read in this observation, and F11 makes no read of its own. The comparison with the attestation key of the row's notary stands in F23” | P delegation key; C seal and recipient keys; typed ParentNameObservation from F7.3 | DELEGATE_KEY_REUSE; typed input error for invalid/missing facts | F5/F8/F9/F10 and F11 octets before observation validation, then channel-key comparison; before F12 | CheckChildAttenuationV4 / TestChildV4RoleKeys, TestChildV4ParentNameObservation; always-in-set and never-in-set plants |
 | F12 | “The seal key of the child, CS2 as far as octets decide it: `seal.key` of `C` equals `delegate.child_seal_key` of `P`, octet for octet, the parity octet included” | C.seal.key, P.delegate.child_seal_key | CHILD_SEAL_KEY | Before ordinal, parity included | CheckChildAttenuationV4 / TestChildV4Prefix |
 | F13 | “The row of the child, in two parts in this order. (a) The ordinal lies between 1 and the number of rows of `P`, the sum of the counts of all its ranges. No template is read before this. The ordinal then selects the group, the range and the coin (LIP-0026 R2.1, R8.3, R8.8). (b) The selected group and the selected range meet rules 4 and 5 of LIP-0020 W11.10: the template of that group, and that range with its `stop`” | C.ordinal, all range counts; selected group/template/range | CHILD_ORDINAL; then GRANT_DELEGATE; OPEN count order/O7 | Bounds before any template; before F14 | CheckChildAttenuationV4 / TestChildV4Ordinal; selection OPEN |
 | F14 | “The executor of `C` is that of the template of its row: the same name and the same key (R2.2)” | C.executor, selected template.executor | CHILD_AGENT_NOT_ALLOWED | Before F15 | checkChildTemplateV4 / TestChildV4Template |
@@ -33,3 +33,62 @@ OPEN F11 channel facts: §8.4 F11 requires “every channel key that the value o
 | F22 | “The coin of the row, in the order of LIP-0026 R6.1: it is no output of the child's seal transaction (R3.4); it is on the active chain as the range states it, at or below the recent block of `P` (R3.2); one input of the confirmed anchor of `C` spends it (R3.3)” | Selected row coin, C seal transaction and issuance anchor | ROW_COIN_IN_SEAL_TRANSACTION → ROW_COIN → ROW_COIN_REQUIRED | Before F23 | Selection OPEN; node/anchor checks outside scope |
 | F23 | “The certifier. A row without a certifier ends the predicate here: F23 and F24 are not made, and an attestation that is presented is not read (J9.1; LIP-0026 R10.4). For a row with a certifier, steps V10 to V17 of section 8 in their order, with the notary of the row in V12 (J2.2, section 10.1), and after V12 the last comparison of J4.3 (b): the delegation key differs from the attestation key that this notary yields” | Selected row certifier, notary pins, attestation, node | CHILD_NOT_CERTIFIED; V11/V12; DELEGATE_KEY_REUSE; V13–V17 | No-certifier ends predicate without reading attestation | J9 template validity already checked by VerifyGrant; attestation and attestation-key separation outside scope |
 | F24 | “The end of the row and of the attestation: the checks of the stop coin in the order of LIP-0027 H2.7, and then step V18” | Selected row stop coin, closure journal and attestation seal | JOURNAL_LOST → JOURNAL_FENCED → ROW_CLOSED_FOR_CAUSE; ROW_STOP_ALIAS; ROW_STOP; NOTARY_WITHDRAWN | After F23, absent for no-certifier row | Outside scope: row stop and certification, not pair attenuation |
+
+
+## F11 fix: pinned sentences and unchanged surrounding contracts
+
+LIP-0014 §8.4 F11 (all three sentences, also in the row above):
+
+> The keys of the child, J4.3 (b), as far as no attestation is read: the delegation key differs, by x coordinate, from `seal.key` of `C`, from `recipient.key` or `recipient.owner` of `C`, and then, where `P` names its recipient by name, from every channel key that the value of that name yields.
+>
+> That value is the one that part 7.3 of F7 read in this observation, and F11 makes no read of its own.
+>
+> The comparison with the attestation key of the row's notary stands in F23.
+
+F7 part 7.3:
+
+> Where `P` names its recipient by name: the current output of that name reads as controlled by the signed owner key (LIP-0021 O7.2)
+
+§8.4 identifies the observation by reference to LIP-0022. Its B1.1 defines the identity:
+
+> An observation is a set of reads of the verifier's own node, the reading node, that begins and ends with a read of its tip: the hash and the height of the last block of its active chain.
+>
+> Where the two reads differ, the observation is void.
+
+B1.3 binds the chain:
+
+> The observation is on the pinned chain: the node gives the pinned genesis hash for the block of height 0 (LIP-0008 section 4).
+
+The typed input records that tip identity and checks the supplied genesis against `P.genesis`; it does not perform F3, reobserve the tip, or equate the tip with either grant's older `recent_block`.
+
+LIP-0020 §11.11 W11.11 introductory sentences:
+
+> A child lies within its parent in four comparisons of signed octets.
+>
+> Each is made by the signing service before it signs a child and by every verifier at admission, at the step that LIP-0014 section 8.4 gives it, and with the same code on both sides: the observation of a side stands before all four at the signing service and at a verifier alike (LIP-0014 section 8.4, pair Q3; section 8.5, I3 before I4).
+
+Its four rules (unchanged):
+
+> The member `contract` of the child equals the member `contract` of the parent. The comparison is of the two values as the two payloads hold them, 64 hexadecimal characters each (W11.2), and of no octet of a contract document
+>
+> Every text of `actions` of the child is a text of `delegate.actions` of the parent. The texts are compared as octets, and an empty list passes
+>
+> `not_before_height` of the parent is at most `not_before_height` of the child, and `not_after_height` of the child is at most `not_after_height` of the parent. The comparison is of heights and of nothing else
+>
+> `genesis` of the child equals `genesis` of the parent
+
+LIP-0020 §11.14 W11.14 rule 2 (all four sentences):
+
+> A limit of an undefined kind is never read as no limit.
+>
+> At the admission of a child, the signing service and a verifier MUST refuse a child where the kind of a limit of the child or of the template of its row has no type profile at that side (LIP-0014 section 8.4, row F17, part (b)).
+>
+> An executor MUST refuse a request that consumes a limit kind for which it has no type profile (row E2).
+>
+> A request that needs `policy` refuses in this way
+
+The registry states: “None is defined. One text is reserved and undefined: `policy` (LIP-0008 section 12.4). The kinds that LIP-0008 section 2 lists are named by their meaning and have no identifier yet”. The concluding bound is unchanged:
+
+> No limit kind is defined: a child that states a limit, and a child of a row whose template states one, refuses as `LIMIT_KIND_UNDEFINED` at every side, and only a pair without limits passes row F17.
+
+There is no new profile, template selection, F23 attestation comparison or ACCEPT path in this fix. No attack-surface table was supplied (brief gap); the F1–F24 row map above remains the coverage boundary. The out-of-contract rows are unchanged: F3, F6, F7, F19, A1 and F20–F24 require their independently established inputs.
