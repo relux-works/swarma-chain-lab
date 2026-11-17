@@ -104,6 +104,8 @@ jobs:
           go-version: '1.26.8'
           check-latest: false
           cache: false
+      - name: Export toolchain admission controls
+        run: python3 -B -m unittest discover -s .scripts -p 'test_regenerate_identity_interop.py' -v
       - name: Re-export from pinned public issuer and compare every byte
         shell: bash
         run: |

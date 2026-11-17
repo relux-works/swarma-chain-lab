@@ -17,8 +17,13 @@ export GOCACHE="$scratch/build" GOMODCACHE="$scratch/mod" GOPATH="$scratch/gopat
 export TMPDIR="$scratch/tmp" GOTMPDIR="$scratch/tmp" TMP="$scratch/tmp" TEMP="$scratch/tmp"
 export GOTOOLCHAIN=local GOMAXPROCS=2 GOWORK=off LC_ALL=C
 unset GOTELEMETRYDIR GOFLAGS
-# Go 1.26.10 must already be selected by PATH; never download a toolchain.
-[[ $(go version) == 'go version go1.26.10 '* ]] || { echo 'Go 1.26.10 required' >&2; exit 2; }
+# The release toolchain and original export toolchain are supported; byte
+# comparison, not a patch-version restriction, qualifies reproduction.
+# Both must already be selected by PATH; never download a toolchain.
+case "$(go version)" in
+  'go version go1.26.8 '*|'go version go1.26.10 '*) ;;
+  *) echo 'Go 1.26.8 or 1.26.10 required' >&2; exit 2 ;;
+esac
 git clone --no-checkout https://github.com/relux-works/swarma-identity.git "$scratch/issuer"
 git -C "$scratch/issuer" checkout --detach 48a32fb05e214bc656c640bfb0dd36edf8ab6293
 [[ $(git -C "$scratch/issuer" rev-parse HEAD) == 48a32fb05e214bc656c640bfb0dd36edf8ab6293 ]]
