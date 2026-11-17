@@ -3,7 +3,8 @@
 Linux-only, separable broker/1 client and request-adapter seam. The module has
 Go floor 1.26.0 and release toolchain 1.26.8, uses only the standard library,
 and imports no other experiment. Move `service/` and its sibling `deploy/`
-together. The parent model-proxy module does not build this nested module.
+together. The parent command depends on this nested module through its
+managed source; this module still imports no parent or other experiment.
 
 `Client` implements the credential-lifecycle interface by speaking the existing
 broker socket. It checks the broker kernel UID before hello and checks the
@@ -27,9 +28,15 @@ dequeue gates, obtains a lease, polls, checks final preparation authority and
 then attaches. A missing guard refuses. External providers are not plugins;
 future adapters retain the same account-kind-agnostic interfaces.
 
+`Source` supplies the parent command's structural credential boundary using
+only standard-library method signatures. It binds one protected caller tuple,
+checks revocation before returning a temporary material copy, renews the same
+lease and releases on close. The parent owns conversion into its opaque
+carrier and erasure of that temporary copy. No parent import is needed.
+
 This module does not submit HTTP, qualify a harness, implement a production
-`UseGuard`, integrate the parent module's private broker marker, or provide a
-runnable daemon. Post-dial submission fences, response/reflection protection,
+`UseGuard` or provide its own daemon. The existing parent command owns wiring.
+Post-dial submission fences, response/reflection protection,
 stream closure, durable restart reconciliation, per-generation listener custody
 and complete version-inventory ownership remain integration gates. Preparation
 is not an outbound-use permit. See [open integration inputs](UNRESOLVED_QUESTIONS.md)
