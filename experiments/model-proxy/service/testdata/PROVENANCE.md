@@ -15,8 +15,8 @@ Upstream: `relux-works/swarma-credential-broker` at
   not an installation/account pin.
 
 Hex files include the original four-byte big-endian length prefix. They carry
-no material. Lease-material replies are deliberately not persisted. Capture
-commands and the small capture harness are retained in the private handoff.
+no material. Lease-material replies are deliberately not persisted. The public
+[capture recipe](CAPTURE.md) includes the hello harness and frame control.
 The fake broker uses the closed service schemas in `internal/wire/service.go`
 and the response envelopes in `internal/server/services.go` at that commit;
 `harness` is `claude_code`, not a provider display name.

@@ -27,7 +27,7 @@ type sourceState struct {
 func (*Source) Format(s fmt.State, _ rune) { _, _ = s.Write([]byte("<broker-source>")) }
 
 func NewSource(client *Client, caller Caller) (*Source, error) {
-	if client == nil || !valid(caller.Account) || !valid(caller.Generation) || !valid(caller.LaunchID) {
+	if client == nil || !validCaller(caller) {
 		return nil, ErrInput
 	}
 	return &Source{sourceState: &sourceState{client: client, caller: caller}}, nil

@@ -45,7 +45,9 @@ def main():
     out.mkdir(parents=True)
     adapter = MODULE / 'adapter_linux.go'
     client = MODULE / 'client_linux.go'
-    original = {p: p.read_text() for p in (adapter, client)}
+    unit = MODULE / 'unit_linux.go'
+    source_api = MODULE / 'source_linux.go'
+    original = {p: p.read_text() for p in (adapter, client, unit, source_api)}
     source = original[adapter]
     start = source.index('\tid, e := OperationID()\n')
     end = source.index('\tfail := func(', start)
@@ -65,6 +67,30 @@ def main():
          replace_once(original[client], 'uid != cfg.BrokerUID', 'uid != uid'),
          'TestIdentityAndRole', 'TestIdentityAndRole/server-uid',
          'Kernel broker UID is verified before hello.'),
+        ('ordinary-refusal-closes-all', client,
+         replace_once(original[client], 'err := refusal(r.Code)',
+                      'c.invalidate()\n\t\terr := refusal(r.Code)'),
+         'TestRefusalScope', 'TestRefusalScope/request-lease_unbound',
+         'An ordinary refusal preserves unrelated leases and the connection epoch.'),
+        ('dot-generation-admitted', unit,
+         replace_once(original[unit], '!generationName.MatchString(in.Generation)',
+                      '!valid(in.Generation)'),
+         'TestInstallTemplateRefusals', 'TestInstallTemplateRefusals/dot-generation',
+         'Listener generations cannot collapse to the parent directory.'),
+        ('source-rejects-broker-label', source_api,
+         replace_once(original[source_api], '!validCaller(caller)',
+                      '!valid(caller.Account) || !valid(caller.Generation) || !valid(caller.LaunchID)'),
+         'TestSourceLifecycle', 'TestSourceLifecycle',
+         'Source accepts the pinned broker slash-label control.'),
+        ('opaque-classification-error', adapter,
+         replace_once(source, 'op, body, e := adapter.Classify(in)\n\tif e != nil {\n\t\treturn nil, nil, sanitized(e)',
+                      'op, body, e := adapter.Classify(in)\n\tif e != nil {\n\t\treturn nil, nil, e'),
+         'TestPrepareErrorSanitization', 'TestPrepareErrorSanitization/classify',
+         'Adapter errors cross only the closed diagnostic seam.'),
+        ('unchecked-hello-generation', client,
+         replace_once(original[client], 'h.Principal.Generation != cfg.Generation', 'false'),
+         'TestIdentityAndRole', 'TestIdentityAndRole/generation',
+         'Hello must match the protected service generation.'),
     ]
     report = []
     code, _ = run(out, 'baseline', ['go', 'test', '-json', '-count=1', './...'])
@@ -89,7 +115,7 @@ def main():
     (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     if any(p.read_text() != s for p, s in original.items()):
         raise RuntimeError('source changed during plants')
-    print('baseline passed; all three named plants killed')
+    print('baseline passed; all ' + str(len(plants)) + ' named plants killed')
 
 
 if __name__ == '__main__':

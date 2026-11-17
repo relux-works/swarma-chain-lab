@@ -14,7 +14,7 @@ func installFixture() Install {
 }
 func unitTemplate(t *testing.T) []byte {
 	t.Helper()
-	b, e := os.ReadFile("../deploy/credential-gateway.service.in")
+	b, e := os.ReadFile("deploy/credential-gateway.service.in")
 	if e != nil {
 		t.Fatal("unit template missing")
 	}
@@ -39,13 +39,20 @@ func TestInstallTemplate(t *testing.T) {
 			t.Fatal("unit widened custody")
 		}
 	}
+	// Claim: the inactive template retains each declared hardening directive;
+	// effective kernel/systemd enforcement still needs installer qualification.
+	for _, line := range []string{"CapabilityBoundingSet=", "PrivateDevices=yes", "ProtectKernelTunables=yes", "ProtectKernelModules=yes", "ProtectKernelLogs=yes", "ProtectControlGroups=yes", "ProtectClock=yes", "ProtectHostname=yes", "RestrictNamespaces=yes", "LockPersonality=yes", "RestrictRealtime=yes", "MemoryDenyWriteExecute=yes", "SystemCallArchitectures=native", "ProtectProc=invisible", "ProcSubset=pid", "PrivateIPC=yes", "RemoveIPC=yes"} {
+		if !bytes.Contains(b, []byte("\n"+line+"\n")) {
+			t.Fatal("unit hardening changed")
+		}
+	}
 }
 
 // Claim: missing parameters, account escalation and path/unit interpolation
 // refuse beside the same valid rendering. A new generation gets a new listener.
 func TestInstallTemplateRefusals(t *testing.T) {
 	raw := unitTemplate(t)
-	for _, mode := range []string{"root", "missing-account", "relative-root", "root-path", "path-space", "path-escape", "path-variable", "path-glob", "generation", "unit-injection", "unresolved", "missing-token"} {
+	for _, mode := range []string{"root", "missing-account", "relative-root", "root-path", "path-space", "path-escape", "path-variable", "path-glob", "generation", "dot-generation", "parent-generation", "hidden-generation", "long-generation", "unit-injection", "unresolved", "missing-token"} {
 		t.Run(mode, func(t *testing.T) {
 			in := installFixture()
 			template := raw
@@ -68,6 +75,14 @@ func TestInstallTemplateRefusals(t *testing.T) {
 				in.PlatformRoot = "/fixture/*"
 			case "generation":
 				in.Generation = "../old"
+			case "dot-generation":
+				in.Generation = "."
+			case "parent-generation":
+				in.Generation = ".."
+			case "hidden-generation":
+				in.Generation = ".hidden"
+			case "long-generation":
+				in.Generation = strings.Repeat("a", 129)
 			case "unit-injection":
 				in.BrokerUnit = "broker.service\nUser=root"
 			case "unresolved":

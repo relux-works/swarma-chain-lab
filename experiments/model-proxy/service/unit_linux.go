@@ -14,6 +14,7 @@ type Install struct{ PlatformRoot, Account, Generation, BrokerUnit, ConfigLocati
 
 var accountName = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
 var unitName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}\.service$`)
+var generationName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 func installPath(p string) bool {
 	if !filepath.IsAbs(p) || filepath.Clean(p) != p || p == "/" {
@@ -30,7 +31,7 @@ func installPath(p string) bool {
 // RenderUnit refuses unresolved substitutions, account widening and unit/path
 // injection. Installation still verifies managed-generation evidence and owners.
 func RenderUnit(template []byte, in Install) ([]byte, error) {
-	if !installPath(in.PlatformRoot) || !installPath(in.ConfigLocation) || !accountName.MatchString(in.Account) || in.Account == "root" || in.Account == "nobody" || !valid(in.Generation) || !unitName.MatchString(in.BrokerUnit) {
+	if !installPath(in.PlatformRoot) || !installPath(in.ConfigLocation) || !accountName.MatchString(in.Account) || in.Account == "root" || in.Account == "nobody" || !generationName.MatchString(in.Generation) || !unitName.MatchString(in.BrokerUnit) {
 		return nil, ErrInput
 	}
 	text := string(template)

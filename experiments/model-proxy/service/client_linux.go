@@ -56,6 +56,15 @@ type Config struct {
 	MaxLifetime time.Duration
 }
 
+type helloResult struct {
+	Version   int `json:"version"`
+	Principal struct {
+		Name       string `json:"service_name"`
+		UID        uint32 `json:"uid"`
+		Generation string `json:"service_generation"`
+	} `json:"principal"`
+}
+
 type Client struct {
 	cfg     Config
 	gate    chan struct{}
@@ -141,6 +150,12 @@ func valid(s string) bool {
 	return true
 }
 
+// Matches internal/service/broker.go validCaller at the pinned broker revision.
+// Account labels are wire identifiers, including slash, rather than path parts.
+func validCaller(c Caller) bool {
+	return wire.ASCII(c.Account, 128) && wire.ASCII(c.Generation, 128) && wire.ASCII(c.LaunchID, 128)
+}
+
 // Dial checks SO_PEERCRED before even sending hello. net's Unix descriptors are
 // close-on-exec; this package neither starts children nor passes descriptors.
 func Dial(ctx context.Context, cfg Config) (*Client, error) {
@@ -163,14 +178,7 @@ func Dial(ctx context.Context, cfg Config) (*Client, error) {
 	}
 	c := &Client{cfg: cfg, conn: conn, gate: make(chan struct{}, 1), leases: make(map[*Lease]bool), blocked: make(map[string]bool)}
 	c.gate <- struct{}{}
-	var h struct {
-		Version   int `json:"version"`
-		Principal struct {
-			Name       string `json:"service_name"`
-			UID        uint32 `json:"uid"`
-			Generation string `json:"service_generation"`
-		} `json:"principal"`
-	}
+	var h helloResult
 	if e = c.call(ctx, "hello", map[string]any{"versions": []int{1}}, &h); e != nil {
 		c.Close()
 		return nil, e
@@ -258,6 +266,7 @@ func (c *Client) call(ctx context.Context, method string, params any, out any) e
 	defer func() { c.gate <- struct{}{} }()
 	deadline, _ := ctx.Deadline()
 	if c.conn.SetDeadline(deadline) != nil {
+		_ = c.Close()
 		return ErrTransport
 	}
 	stopped := make(chan struct{})
@@ -292,6 +301,7 @@ func (c *Client) call(ctx context.Context, method string, params any, out any) e
 		return ErrUnknown
 	}
 	var envelope map[string]json.RawMessage
+	defer func() { clear(envelope["result"]) }()
 	if json.Unmarshal(frame, &envelope) != nil || len(envelope) != 2 {
 		return c.badFrame()
 	}
@@ -308,8 +318,13 @@ func (c *Client) call(ctx context.Context, method string, params any, out any) e
 		if wire.Decode(raw, &r) != nil {
 			return c.badFrame()
 		}
-		c.invalidate()
-		return refusal(r.Code)
+		err := refusal(r.Code)
+		// Ordinary method refusals have no connection-wide effect. Only loss
+		// of this principal's authority or revocation availability closes it.
+		if err == ErrRole || err == Code("principal_ledger_mismatch") || err == ErrUnavailable {
+			_ = c.Close()
+		}
+		return err
 	}
 	raw, ok := envelope["result"]
 	if !ok || wire.Decode(raw, out) != nil {
@@ -362,7 +377,7 @@ func (c *Client) accept(r *leaseResult, caller Caller, started time.Time, epoch 
 	return l, nil
 }
 func (c *Client) Request(ctx context.Context, op string, caller Caller) (*Lease, error) {
-	if !wire.ASCII(op, 128) || !wire.ASCII(caller.Account, 128) || !wire.ASCII(caller.Generation, 128) || !wire.ASCII(caller.LaunchID, 128) {
+	if !wire.ASCII(op, 128) || !validCaller(caller) {
 		return nil, ErrInput
 	}
 	c.mu.Lock()
@@ -382,6 +397,9 @@ func (c *Client) Request(ctx context.Context, op string, caller Caller) (*Lease,
 		Launch     string `json:"launch_id"`
 	}{op, caller.Account, caller.UID, caller.Generation, caller.LaunchID}
 	if e := c.call(ctx, "service.lease.request", p, &r); e != nil {
+		if holdRefusal(e) {
+			c.blockAccount(caller.Account)
+		}
 		return nil, e
 	}
 	return c.accept(&r, caller, started, epoch)
@@ -405,6 +423,9 @@ func (c *Client) Renew(ctx context.Context, op string, l *Lease) error {
 	var r leaseResult
 	if e := c.call(ctx, "service.lease.renew", map[string]any{"operation_id": op, "service_lease_id": id}, &r); e != nil {
 		l.close()
+		if holdRefusal(e) {
+			c.blockAccount(caller.Account)
+		}
 		return e
 	}
 	next, e := c.accept(&r, caller, started, epoch)
@@ -504,19 +525,28 @@ func (c *Client) Poll(ctx context.Context, l *Lease, interval time.Duration) err
 func (c *Client) owns(l *Lease) bool {
 	return l != nil && l.leaseState != nil && l.owner != nil && l.owner.cfg.Socket == c.cfg.Socket && l.owner.cfg.BrokerUID == c.cfg.BrokerUID && l.owner.cfg.ServiceUID == c.cfg.ServiceUID && l.owner.cfg.Generation == c.cfg.Generation
 }
+
+func holdRefusal(err error) bool {
+	return err == Code("account_hold_active") || err == Code("account_hold_unknown")
+}
+
+func (c *Client) blockAccount(account string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.blocked[account] = true
+	for l := range c.leases {
+		if l.caller.Account == account {
+			l.close()
+		}
+	}
+}
+
 func (c *Client) Hold(ctx context.Context, op string, l *Lease) error {
 	if l == nil || !c.owns(l) || !wire.ASCII(op, 128) {
 		return ErrInput
 	}
-	c.mu.Lock()
-	c.blocked[l.caller.Account] = true
+	c.blockAccount(l.caller.Account)
 	l.close()
-	for other := range c.leases {
-		if other.caller.Account == l.caller.Account {
-			other.close()
-		}
-	}
-	c.mu.Unlock()
 	var r struct {
 		ID      string    `json:"hold_id"`
 		Account string    `json:"account"`

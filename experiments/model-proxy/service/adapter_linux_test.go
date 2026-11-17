@@ -329,3 +329,51 @@ func TestPrepareErrorSanitization(t *testing.T) {
 		})
 	}
 }
+
+type fixedLeaseLife struct {
+	Lifecycle
+	lease *Lease
+}
+
+func (l fixedLeaseLife) Request(context.Context, string, Caller) (*Lease, error) {
+	return l.lease, nil
+}
+
+// Claim: Prepare itself rejects a mismatched acquired lease before polling or
+// attachment, even when the pre-acquisition fixture guard accepts the mapping.
+func TestPrepareLeaseMapping(t *testing.T) {
+	for _, mode := range []string{"valid", "generation", "caller"} {
+		t.Run(mode, func(t *testing.T) {
+			f := startFake(t)
+			c := connect(t, f)
+			l := lease(t, c)
+			switch mode {
+			case "generation":
+				c.cfg.Generation = "service-retired"
+			case "caller":
+				l.caller.LaunchID = "other-launch"
+			}
+			f.mu.Lock()
+			before := len(f.calls)
+			f.mu.Unlock()
+			var events []string
+			out, got, err := Prepare(context.Background(), fixedLeaseLife{c, l}, claude, guard{events: &events}, mapping(), incoming(t, inferenceBody))
+			if mode == "valid" {
+				if err != nil || out == nil || got != l {
+					t.Fatal("valid acquired mapping refused")
+				}
+				Drop(out)
+				return
+			}
+			if err != ErrRole || out != nil || got != nil {
+				t.Fatal("mismatched lease reached attachment")
+			}
+			empty(t, l)
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if len(f.calls) != before {
+				t.Fatal("mismatched lease reached poll")
+			}
+		})
+	}
+}

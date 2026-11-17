@@ -2,9 +2,10 @@
 
 Linux-only, separable broker/1 client and request-adapter seam. The module has
 Go floor 1.26.0 and release toolchain 1.26.8, uses only the standard library,
-and imports no other experiment. Move `service/` and its sibling `deploy/`
-together. The parent command depends on this nested module through its
-managed source; this module still imports no parent or other experiment.
+and imports no other experiment. The install template lives under this module's
+`deploy/` directory, so the module can be tested independently. A later wiring
+step may add the parent command's dependency on this module through its managed
+source; this source slice adds no parent dependency edge.
 
 `Client` implements the credential-lifecycle interface by speaking the existing
 broker socket. It checks the broker kernel UID before hello and checks the
@@ -12,6 +13,12 @@ returned service triple. The role is broker-assigned; no role or credential
 travels in hello. Stable operation IDs belong to the holder. Lost outcomes are
 UNKNOWN; only identical operation/argument retries on a fresh, identically
 bound connection can reconcile them. A different generation inherits nothing.
+Ordinary broker refusals preserve unrelated leases and the usable connection.
+Lease-scoped refusals close the affected handle; hold refusals block the account.
+Loss of the service principal or revocation availability closes the connection
+and all its cached use. Caller fields use the pinned broker's nonempty ASCII
+byte grammar (maximum 128 bytes), including `owner/claude/...` account labels;
+installer listener generations separately require a leading alphanumeric.
 
 `Lease` hides material from formatting and JSON. The only adapter is `Claude`,
 which constructs the fixed Anthropic Messages recipient and attaches the leased
@@ -62,4 +69,5 @@ Check `/proc/loadavg` before full tests and race runs; wait at load 10 or higher
 Broker sources and actual frame captures are pinned in
 [wire provenance](internal/wire/PROVENANCE.md) and
 [fixture provenance](testdata/PROVENANCE.md). The copied wire files retain their
-Apache-2.0 license. No real credential or provider call is used by any test.
+Apache-2.0 license, upstream NOTICE and checked source digests. The module also
+runs the adapted upstream codec refusal and erasure tests. No real credential or provider call is used by any test.

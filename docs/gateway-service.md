@@ -1,7 +1,7 @@
 # Credential gateway service boundary
 
 The separable Linux module is `experiments/model-proxy/service`; the installer
-neutral unit template is `experiments/model-proxy/deploy/credential-gateway.service.in`.
+neutral unit template is `experiments/model-proxy/service/deploy/credential-gateway.service.in`.
 It implements a client and adapter seam, not a runnable or qualified gateway.
 The template cannot satisfy installer S-20 until the runtime and A3 release
 inputs in its [open questions](../experiments/model-proxy/service/UNRESOLVED_QUESTIONS.md)
@@ -17,8 +17,20 @@ credentials and an active broker binding, not a hello role field. The unchanged
 hello is `{versions:[1]}`. Request and renewal carry stable operation IDs;
 renewal never retargets a caller/account. The lease ceiling is 900 seconds;
 a larger configured value refuses. Revocation/unavailability/connection loss
-closes cached use. `account.hold` carries only the lease, account, operation ID
+closes cached use at its affected scope. Ordinary method refusals preserve
+unrelated leases and the current socket; lease-scoped refusals close only their
+handle. Principal loss (`role_not_permitted`, `principal_ledger_mismatch`) or
+`revocation_state_unavailable` closes all connection-owned use. This follows
+`internal/server/services.go:95-100` at the pinned broker revision. Caller
+strings follow `internal/service/broker.go:323-324` (`validCaller`) and
+`internal/wire/frame.go:160-169` (`ASCII`): 1–128 ASCII bytes for account,
+generation and launch ID, including slash in `owner/claude/...` labels. These
+wire identifiers are never interpreted as installer path components.
+`account.hold` carries only the lease, account, operation ID
 and closed reason `leak_match`; UNKNOWN acknowledgment keeps local use closed.
+The holder must retain the blocked-account state across redials and reconcile
+with the same hold operation ID before any new request for that account. The
+client's block map alone lasts only for its connection.
 
 The design reuses the Swarma installation book, `install-book/ru/01-chto-stavitsya.md`
 ("Parts and their accounts") and `03-shagi.md` (step 6), for separate service
@@ -62,6 +74,8 @@ and effective caller isolation remain distinct observations.
 
 `RenderUnit` performs pure, bounded substitution and rejects missing inputs,
 root/nobody accounts, relative or interpolated paths, injected unit names and
-unresolved placeholders. It does not verify protected ownership or managed
+unresolved placeholders. Listener generations start with an alphanumeric and
+then contain at most 127 alphanumerics, dots, underscores or hyphens; `.` and
+`..` refuse. It does not verify protected ownership or managed
 ledger records; the installer retains those duties. Tests and narrowing plants
 are described in the [module README](../experiments/model-proxy/service/README.md).

@@ -31,12 +31,16 @@ const fixtureMaterial = "fixture-credential-canary-not-valid"
 var caller = Caller{Account: "account-a", UID: 1234, Generation: "agent-current", LaunchID: "launch-a"}
 
 type fakeBroker struct {
+	leaseID                                      string
 	account, kind, harness, payloadKind          string
 	mu                                           sync.Mutex
 	lifetime                                     time.Duration
 	verdict, requestError, renewError, holdError string
+	checkError, releaseError, badReply           string
+	tokenExpiry                                  *time.Time
 	wrongRole, stale, wrongCorrelation, retarget bool
-	held                                         bool
+	wrongName, wrongUID, wrongVersion            bool
+	heldAccount                                  string
 	calls                                        []string
 	params                                       []json.RawMessage
 	listener                                     *net.UnixListener
@@ -93,10 +97,20 @@ func startFake(t *testing.T) *fakeBroker {
 				if f.wrongRole {
 					code = "role_not_permitted"
 				} else {
-					result = map[string]any{"version": 1, "principal": map[string]any{"service_name": "credential-gateway", "uid": uint32(os.Geteuid()), "service_generation": "service-current"}}
+					name, uid, version := "credential-gateway", uint32(os.Geteuid()), 1
+					if f.wrongName {
+						name = "other-service"
+					}
+					if f.wrongUID {
+						uid++
+					}
+					if f.wrongVersion {
+						version++
+					}
+					result = map[string]any{"version": version, "principal": map[string]any{"service_name": name, "uid": uid, "service_generation": "service-current"}}
 				}
 			case "service.lease.request", "service.lease.renew":
-				if f.held {
+				if f.heldAccount != "" && f.heldAccount == f.account {
 					code = "account_hold_active"
 				} else if req.Method == "service.lease.request" {
 					code = f.requestError
@@ -108,7 +122,14 @@ func startFake(t *testing.T) *fakeBroker {
 					if f.retarget {
 						account = "account-b"
 					}
-					result = map[string]any{"service_lease_id": "lease-a", "account": account, "harness": f.harness, "kind": f.kind, "payload": map[string]any{"kind": f.payloadKind, "value": fixtureMaterial}, "token_expires_at": nil, "authorized_until": time.Now().Add(f.lifetime).UTC().Format(time.RFC3339Nano), "renewable": true}
+					id := "lease-a"
+					if account != caller.Account {
+						id = "lease-b"
+					}
+					if f.leaseID != "" {
+						id = f.leaseID
+					}
+					result = map[string]any{"service_lease_id": id, "account": account, "harness": f.harness, "kind": f.kind, "payload": map[string]any{"kind": f.payloadKind, "value": fixtureMaterial}, "token_expires_at": f.tokenExpiry, "authorized_until": time.Now().Add(f.lifetime).UTC().Format(time.RFC3339Nano), "renewable": true}
 				}
 			case "service.revocation.check":
 				if f.stale {
@@ -116,14 +137,23 @@ func startFake(t *testing.T) *fakeBroker {
 					return
 				}
 				result = map[string]any{"verdict": f.verdict, "revocation_sequence": nil}
+				code = f.checkError
 			case "account.hold":
 				code = f.holdError
 				if code == "" {
-					f.held = true
+					f.heldAccount = f.account
 					result = map[string]any{"hold_id": "hold-a", "account": f.account, "reason_code": "leak_match", "state": "active", "placed_at": time.Now().UTC()}
 				}
 			case "service.lease.release":
-				result = map[string]any{"service_lease_id": "lease-a", "state": "released"}
+				var p struct {
+					ID string `json:"service_lease_id"`
+				}
+				if wire.Decode(req.Params, &p) != nil {
+					f.mu.Unlock()
+					return
+				}
+				code = f.releaseError
+				result = map[string]any{"service_lease_id": p.ID, "state": "released"}
 			default:
 				f.mu.Unlock()
 				return
@@ -132,7 +162,22 @@ func startFake(t *testing.T) *fakeBroker {
 			if f.wrongCorrelation {
 				id = "other-request"
 			}
+			badReply := f.badReply
 			f.mu.Unlock()
+			if badReply != "" {
+				var header [4]byte
+				switch badReply {
+				case "oversize":
+					binary.BigEndian.PutUint32(header[:], wire.MaxPayload+1)
+				case "noncanonical":
+					binary.BigEndian.PutUint32(header[:], 3)
+				}
+				_, _ = c.Write(header[:])
+				if badReply == "noncanonical" {
+					_, _ = c.Write([]byte(" {}"))
+				}
+				return
+			}
 			envelope := map[string]any{"request_id": id}
 			if code != "" {
 				envelope["error"] = map[string]any{"code": code, "message": fixtureMaterial, "details": map[string]any{"opaque": fixtureMaterial}}
@@ -246,7 +291,7 @@ func TestServiceLifecycleFrames(t *testing.T) {
 // Claim: the kernel server UID is checked before hello; a nearby actual UID
 // admits hello, while a wrong role or stale configured generation admits no lease.
 func TestIdentityAndRole(t *testing.T) {
-	for _, mode := range []string{"valid", "server-uid", "role", "generation"} {
+	for _, mode := range []string{"valid", "server-uid", "role", "generation", "service-name", "service-uid", "version"} {
 		t.Run(mode, func(t *testing.T) {
 			f := startFake(t)
 			cfg := f.config()
@@ -259,6 +304,12 @@ func TestIdentityAndRole(t *testing.T) {
 				f.mu.Unlock()
 			case "generation":
 				cfg.Generation = "service-retired"
+			case "service-name", "service-uid", "version":
+				f.mu.Lock()
+				f.wrongName = mode == "service-name"
+				f.wrongUID = mode == "service-uid"
+				f.wrongVersion = mode == "version"
+				f.mu.Unlock()
 			}
 			c, e := Dial(context.Background(), cfg)
 			if mode == "valid" {
@@ -376,7 +427,17 @@ func TestHoldClosesAccount(t *testing.T) {
 			f := startFake(t)
 			c := connect(t, f)
 			a, b := lease(t, c), lease(t, c)
+			other := caller
+			other.Account, other.LaunchID = "account-b", "launch-b"
 			f.mu.Lock()
+			f.account = other.Account
+			f.mu.Unlock()
+			unrelated, err := c.Request(context.Background(), "other-account", other)
+			if err != nil {
+				t.Fatal("second-account hold control failed")
+			}
+			f.mu.Lock()
+			f.account = caller.Account
 			if mode == "unknown" {
 				f.holdError = "account_hold_unknown"
 			}
@@ -387,6 +448,9 @@ func TestHoldClosesAccount(t *testing.T) {
 			}
 			empty(t, a)
 			empty(t, b)
+			if c.Check(context.Background(), unrelated) != nil {
+				t.Fatal("hold closed another account")
+			}
 			if c.Renew(context.Background(), "renew-a", b) != ErrInactive {
 				t.Fatal("hold permitted renewal")
 			}
@@ -564,6 +628,14 @@ func TestLandedServiceHello(t *testing.T) {
 				t.Fatal("hello invented role/profile")
 			}
 		} else {
+			var envelope struct {
+				ID     string          `json:"request_id"`
+				Result json.RawMessage `json:"result"`
+			}
+			var hello helloResult
+			if wire.Decode(raw, &envelope) != nil || wire.Decode(envelope.Result, &hello) != nil || hello.Version != 1 || hello.Principal.Name != "credential-gateway" || hello.Principal.Generation != "socket-service-generation" || hello.Principal.UID != 1001 {
+				t.Fatal("captured hello failed client decoder")
+			}
 			result, ok := m["result"].(map[string]any)
 			if !ok || len(result) != 2 || result["version"] != float64(1) {
 				t.Fatal("hello response changed")
@@ -694,4 +766,204 @@ func TestEmptyHandleRefusals(t *testing.T) {
 		t.Fatal("empty handle gained authority")
 	}
 	l.close()
+}
+
+// Claim: ordinary request refusals preserve every lease and the connection;
+// lease revocation/release refusals close their target, holds close one account,
+// and principal/availability loss closes all cached use. Each case starts with
+// valid leases for two callers and accounts and checks the exact refusal code.
+func TestRefusalScope(t *testing.T) {
+	for _, mode := range []string{"request-lease_unbound", "request-service_operation_conflict", "request-request_malformed", "release-inactive", "renew-revoked", "check-revoked", "verdict-revoked", "request-hold-active", "request-hold-unknown", "renew-hold", "role", "ledger", "unavailable", "unknown-code"} {
+		t.Run(mode, func(t *testing.T) {
+			f := startFake(t)
+			c := connect(t, f)
+			a := lease(t, c)
+			f.mu.Lock()
+			f.leaseID = "lease-peer"
+			f.mu.Unlock()
+			peer, e := c.Request(context.Background(), "same-account-peer", caller)
+			if e != nil {
+				t.Fatal("second lease control failed")
+			}
+			other := caller
+			other.Account, other.LaunchID = "account-b", "launch-b"
+			f.mu.Lock()
+			f.account = other.Account
+			f.leaseID = ""
+			f.mu.Unlock()
+			b, e := c.Request(context.Background(), "second-account", other)
+			if e != nil || a.id == peer.id || a.id == b.id || peer.id == b.id || c.Check(context.Background(), a) != nil || c.Check(context.Background(), b) != nil {
+				t.Fatal("two-account control failed")
+			}
+			c.mu.Lock()
+			epoch := c.epoch
+			c.mu.Unlock()
+			f.mu.Lock()
+			f.account = caller.Account
+			want := Code("lease_unbound")
+			targetClosed, accountClosed, allClosed := false, false, false
+			switch {
+			case strings.HasPrefix(mode, "request-") && !strings.Contains(mode, "hold"):
+				want = Code(strings.TrimPrefix(mode, "request-"))
+				f.requestError = string(want)
+			case mode == "release-inactive":
+				want, targetClosed = ErrInactive, true
+				f.releaseError = string(want)
+			case mode == "renew-revoked":
+				want, targetClosed = Code("lease_caller_revoked"), true
+				f.renewError = string(want)
+			case mode == "check-revoked":
+				want, targetClosed = Code("lease_grant_revoked"), true
+				f.checkError = string(want)
+			case mode == "verdict-revoked":
+				want, targetClosed = ErrRevoked, true
+				f.verdict = "revoked"
+			case mode == "request-hold-active", mode == "request-hold-unknown", mode == "renew-hold":
+				want, accountClosed = Code("account_hold_active"), true
+				if mode == "request-hold-unknown" {
+					want = Code("account_hold_unknown")
+				}
+				if mode == "renew-hold" {
+					f.renewError = string(want)
+				} else {
+					f.requestError = string(want)
+				}
+			case mode == "role", mode == "ledger", mode == "unavailable", mode == "unknown-code":
+				allClosed = true
+				want = ErrUnavailable
+				switch mode {
+				case "role":
+					want = ErrRole
+				case "ledger":
+					want = Code("principal_ledger_mismatch")
+				}
+				f.requestError = string(want)
+				if mode == "unknown-code" {
+					f.requestError = fixtureMaterial
+				}
+			}
+			f.mu.Unlock()
+			switch mode {
+			case "release-inactive":
+				e = c.Release(context.Background(), a)
+			case "renew-revoked", "renew-hold":
+				e = c.Renew(context.Background(), "refused-renew", a)
+			case "check-revoked", "verdict-revoked":
+				e = c.Check(context.Background(), a)
+			default:
+				var refused *Lease
+				refused, e = c.Request(context.Background(), "refused-request", caller)
+				if refused != nil {
+					t.Fatal("refusal returned a lease")
+				}
+			}
+			if e != want {
+				t.Fatal("refusal code changed")
+			}
+			c.mu.Lock()
+			changed, failed := c.epoch != epoch, c.failed
+			c.mu.Unlock()
+			if changed != allClosed || failed != allClosed {
+				t.Fatal("refusal changed connection scope")
+			}
+			if targetClosed || accountClosed || allClosed {
+				empty(t, a)
+			}
+			if accountClosed || allClosed {
+				empty(t, peer)
+			}
+			if allClosed {
+				empty(t, b)
+				if next, e := c.Request(context.Background(), "after-authority-loss", other); next != nil || e != ErrInactive {
+					t.Fatal("lost authority reopened")
+				}
+				return
+			}
+			f.mu.Lock()
+			f.requestError, f.renewError, f.releaseError, f.checkError = "", "", "", ""
+			f.verdict = "not_revoked"
+			f.mu.Unlock()
+			if !targetClosed && !accountClosed && c.Check(context.Background(), a) != nil {
+				t.Fatal("ordinary refusal closed unrelated lease")
+			}
+			if !accountClosed && c.Check(context.Background(), peer) != nil {
+				t.Fatal("lease refusal closed another lease on the same account")
+			}
+			if c.Check(context.Background(), b) != nil {
+				t.Fatal("refusal closed another account")
+			}
+			if accountClosed {
+				if next, e := c.Request(context.Background(), "held-again", caller); next != nil || e != ErrInactive {
+					t.Fatal("hold refusal failed to block account")
+				}
+			}
+			f.mu.Lock()
+			f.account = other.Account
+			f.mu.Unlock()
+			if next, e := c.Request(context.Background(), "after-refusal", other); e != nil || next == nil {
+				t.Fatal("ordinary refusal retired usable connection")
+			}
+		})
+	}
+}
+
+// Claim: malformed frame bounds and canonical encoding close existing leases
+// and prevent retry; the same connection first admits a canonical live lease.
+func TestInvalidBrokerFramesCloseUse(t *testing.T) {
+	for _, mode := range []string{"oversize", "zero", "noncanonical"} {
+		t.Run(mode, func(t *testing.T) {
+			f := startFake(t)
+			c := connect(t, f)
+			l := lease(t, c)
+			f.mu.Lock()
+			f.badReply = mode
+			f.mu.Unlock()
+			if c.Check(context.Background(), l) != ErrUnknown {
+				t.Fatal("invalid frame did not close connection")
+			}
+			empty(t, l)
+			if next, e := c.Request(context.Background(), "after-frame-fault", caller); next != nil || e != ErrInactive {
+				t.Fatal("frame fault permitted retry")
+			}
+		})
+	}
+}
+
+// Claim: non-null token expiry bounds issuance and later use; an expiry after
+// the authorization deadline is valid, while expired or shorter bounds refuse.
+func TestTokenExpiryBounds(t *testing.T) {
+	for _, mode := range []string{"valid", "expired", "before-authorization"} {
+		t.Run(mode, func(t *testing.T) {
+			f := startFake(t)
+			expiry := time.Now().Add(2 * time.Minute)
+			switch mode {
+			case "expired":
+				expiry = time.Now().Add(-time.Second)
+			case "before-authorization":
+				expiry = time.Now().Add(30 * time.Second)
+			}
+			f.mu.Lock()
+			f.tokenExpiry = &expiry
+			f.mu.Unlock()
+			c := connect(t, f)
+			l, e := c.Request(context.Background(), "token-expiry", caller)
+			if mode != "valid" {
+				if l != nil || e != ErrInactive {
+					t.Fatal("invalid token expiry admitted")
+				}
+				return
+			}
+			if e != nil || c.Check(context.Background(), l) != nil {
+				t.Fatal("valid token expiry refused")
+			}
+			past := time.Now().Add(-time.Second)
+			l.mu.Lock()
+			l.tokenExpiry = &past
+			l.mu.Unlock()
+			if c.Check(context.Background(), l) != ErrInactive {
+				t.Fatal("expired token use admitted")
+			}
+			empty(t, l)
+		})
+	}
 }
