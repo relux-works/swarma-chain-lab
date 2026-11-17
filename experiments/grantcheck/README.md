@@ -356,8 +356,9 @@ never queue a live verdict as a reusable permission token.
 
 
 - From this module: `go test -race ./...`, `go vet ./...`, `go build ./...`,
-  `go mod tidy -diff` and `go mod verify`. Go 1.26.10 is required; development
-  commands use `GOTOOLCHAIN=local` with the installed Go 1.26.10 toolchain.
+  `go mod tidy -diff` and `go mod verify`. The module minimum is Go 1.26.0;
+  development commands use `GOTOOLCHAIN=local` with Go 1.26.10.
+  The deploy release path retains its Go 1.26.8 toolchain pin.
 - `go test -run '^TestRecordedVectors$' -v .` validates the 21 offline recorded
   vectors in `testdata/verdicts-v1.json`. They are public historical observations,
   never a production authority source. See [testdata/README.md](testdata/README.md).
@@ -384,7 +385,8 @@ never queue a live verdict as a reusable permission token.
 - `gofmt -l *.go .scripts/*.go` and `git diff --check` check formatting.
 
 This module uses published GitHub pseudo-versions without `replace` directives.
-The v4 wire and identity APIs are pinned to the landed `e56bc61d` snapshot;
+The v4 wire and identity APIs are pinned to the landed `ff7688e8` and
+`d68447f6` module snapshots, respectively;
 see [the v4 document profile](V4-DOCUMENTS.md) for the exact pins and the B4a
 issuer differential. Unit tests use module-local pinned fixtures and do not
 require sibling checkouts. Public-proxy resolution and the external-consumer

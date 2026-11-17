@@ -67,11 +67,18 @@ creating an observation; it must not expose a public grade setter.
 ## Published API boundary and tools
 
 The wire/identity API slice is already on main. This consumer copies none of
-its implementation and pins both modules to
-`v0.0.0-20261116222636-e56bc61de826`, published commit
-`e56bc61de826a99848e7c6946f331997fb424dbe`. Both are above their recorded
-per-module floors; wire's own identity requirement retains its ParsePin floor
-`v0.0.0-20261116164432-80bcaa527f51`. No local replacement is used.
+its implementation. Published pins and per-module provenance are:
+
+| Module | Published version | Source commit |
+| --- | --- | --- |
+| wire | `v0.0.0-20261117003733-ff7688e88b9f` | `ff7688e88b9fc120370dfe8862e76d292a8a29b3` |
+| identity | `v0.0.0-20261117003532-d68447f630c8` | `d68447f630c8f1bf7617532d8f74ab18efa49502` |
+
+Both commits are on main; both modules declare Go 1.26.0. Both selections are
+above their recorded semantic floors. Wire's own identity requirement selects
+the same published `d68447f6` snapshot. No local replacement is used. Grantcheck
+and wallet retain a Go 1.26.0 module minimum, while the deploy release path keeps
+its Go 1.26.8 toolchain pin.
 
 `go test -count=1 -run '^TestV4' -v .` exercises the configured consumer,
 112 grant vectors, height boundaries, holder seam and the B4a differential.
