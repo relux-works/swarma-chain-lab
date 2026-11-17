@@ -56,10 +56,29 @@ jobs:
         env:
           GOPROXY: 'off'
         run: go -C experiments/grant-v4/wire build ./...
+      - name: Child attenuation fixture regeneration
+        env:
+          GOPROXY: 'off'
+        run: |
+          go -C experiments/grant-v4/wire run scripts/generate-child-v4.go > "$RUNNER_TEMP/child-v4.json"
+          cmp experiments/grant-v4/wire/testdata/child-v4.json "$RUNNER_TEMP/child-v4.json"
+      - name: Child attenuation refusal and valid-neighbour controls
+        env:
+          GOPROXY: 'off'
+        run: python3 -B experiments/grant-v4/wire/scripts/check-child-mutants.py --scratch "$RUNNER_TEMP/child-mutants"
       - name: Four narrowing control plants
         env:
           GOPROXY: 'off'
         run: python3 -B experiments/grant-v4/wire/scripts/check-mutants.py --scratch "$RUNNER_TEMP/wire-mutants"
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c
+        with:
+          go-version: '1.26.8'
+          check-latest: false
+          cache: false
+      - name: Build with Go 1.26.8
+        env:
+          GOPROXY: 'off'
+        run: go -C experiments/grant-v4/wire build ./...
       - name: Preserve exact test and control evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -69,4 +88,6 @@ jobs:
             ${{ runner.temp }}/wire-tests.json
             ${{ runner.temp }}/wire-head.txt
             ${{ runner.temp }}/wire-mutants/*.json
+            ${{ runner.temp }}/child-mutants/*.json
+            ${{ runner.temp }}/child-mutants/*.exit
           if-no-files-found: error

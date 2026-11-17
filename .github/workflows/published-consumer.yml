@@ -9,6 +9,7 @@ on:
       - 'experiments/sealwatch/**'
       - 'experiments/MODULE-GRAPH.md'
       - 'experiments/module-graph-snapshot.json'
+      - 'experiments/grant-v4/wire/**'
       - 'deploy/**'
       - 'experiments/station-lifecycle/**'
       - '.scripts/check-module-graph.py'

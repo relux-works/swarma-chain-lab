@@ -642,6 +642,13 @@ The isolated wire module uses Go 1.26.10 for `go test -race`, `go vet`,
 commands, the public fixture pin and `.temp/` evidence locations are documented
 in the [module README](experiments/grant-v4/wire/README.md#tools-and-commands).
 The existing module-graph and public-hygiene scripts cover its registration.
+The [B3a-CHILD draft](experiments/grant-v4/wire/README.md#child-attenuation-at-spec-0155-b3a-child-draft)
+adds pure parent/child comparison checks at spec 0.1.55. It refuses OPEN at
+unresolved ordinal selection; no public acceptance is claimed. Regenerate its
+public fixtures with `go -C experiments/grant-v4/wire run scripts/generate-child-v4.go`
+and run `python3 -B experiments/grant-v4/wire/scripts/check-child-mutants.py
+--scratch .temp/child-mutants` for bounded controls and JSON evidence. The wire
+workflow also builds with Go 1.26.8.
 
 The [primitive vector fixture](experiments/grant-v4/vectors/VECTORS.md) provides
 Go-generated arithmetic and stated-fact cases with independent Python checks.

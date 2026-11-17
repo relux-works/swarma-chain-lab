@@ -18,3 +18,19 @@
   predicates here neither reserve an id nor authorize a signature.
 - LIP-0020 remains Draft. Passing its pinned vectors does not constitute owner
   acceptance, independent cross-language conformance or production activation.
+
+## B3a-CHILD at spec 0.1.55
+
+- F13 ordinal selection is OPEN: W11.6 calls the signed array order "the signed
+  order in which LIP-0026 R8.3 counts the rows"; LIP-0026 section 8 says "the
+  order binds no reader" until explicit owner acceptance. The draft evaluator
+  stops with no invented protocol code. The needed input is an authoritative
+  resolution of those sentences, not an implementation-specific order.
+- F11 requires current parent-recipient channel keys from F7.3 when the parent
+  names its recipient. Two verified documents supply none. The API refuses
+  OPEN for such a parent rather than omitting that key-separation duty.
+- F17: no limit kind is defined in 0.1.55 (T9/W11.14). Numeric attenuation
+  awaits a real type profile; equality and one-over currently have the same
+  `LIMIT_KIND_UNDEFINED` result after the missing-key check.
+- Complete admission needs F6's missing v4 contract profile and independent
+  node/journal facts. This document slice never supplies them or admits a grant.

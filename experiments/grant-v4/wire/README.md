@@ -1,5 +1,58 @@
 # Grant v4 wire primitives
 
+## Child attenuation at spec 0.1.55 (B3a-CHILD, draft)
+
+`CheckChildAttenuationV4(parent, child)` is a pure comparison of already
+verified documents. The verified parent is the ancestry context of W11.8:
+v4 has no numeric `depth` member, a root is the first link and a child is
+the second. The function rechecks the parent identifier before comparisons.
+The API belongs beside `VerifyGrant` because it reads those immutable signed
+trees without reparsing, exposing mutable grant structures or introducing a
+consumer dependency. Grantcheck wiring is a later unit.
+
+This draft is **blocked**, with no public acceptance path. At the exact spec
+[1e58a9f9](https://github.com/relux-works/swarma-link-spec/tree/1e58a9f91eba35ff19de25388031f0264c01eecc),
+F13's ordinal order still awaits owner acceptance in LIP-0026 section 8,
+although W11.6 gives that signed order. The function reports a
+`ChildAttenuationFailure` with an empty `Code` and a nonempty `Open` diagnostic
+at that boundary. It never invents a protocol refusal code. A parent by name
+also needs the current channel keys for F11, which two documents do not supply.
+See the exact quotations and row map in
+[STEPS-B3a-CHILD.md](../../../STEPS-B3a-CHILD.md).
+
+F14–F18 have private, independently tested template comparisons, pending
+resolution of F13. At this pin every stated limit kind is undefined: amount 0,
+equal amounts and one-over amounts under a known template key all refuse
+`LIMIT_KIND_UNDEFINED`; an absent template key refuses `CHILD_BUDGET_OVER`
+first. No ceiling/floor relation or type-profile hook is invented. Class
+recipients pass only the by-name shape check here; ownership, holders,
+certification, liveness and full contract admission require their own inputs
+and remain outside this two-document slice. An ACCEPT from an individual
+private comparison establishes none of those facts.
+
+### Child attenuation tools
+
+From this module, with `GOTOOLCHAIN=local`:
+
+```sh
+go run scripts/generate-child-v4.go > testdata/child-v4.json
+go vet ./...
+go test -count=1 ./...
+go build ./...
+python3 -B scripts/check-child-mutants.py --scratch .temp/child-mutants
+```
+
+The generator uses only public test scalars 1, 2 and 3 and zero auxiliary
+randomness, as declared in the sibling vectors module. The JSON corpus is
+generated and never hand-edited. Section 8.7's planned `v4-steps.json` is
+absent at the pin, so fixtures derive the listed case descriptions; cases
+requiring a stand-in ceiling profile are explicitly replaced by the real
+undefined-kind result. Existing pinned document and J9/J12 vectors remain
+unchanged. Controls retain JSON test streams and real exits in the requested
+scratch. Their bounds, including the absence of public positive acceptance,
+are recorded in the producer report. Hosted wire CI checks regeneration,
+controls, Go 1.26.10 vet/race tests, and a Go 1.26.8 build.
+
 Experimental implementation of the [LIP-0020 wire registry](https://github.com/relux-works/swarma-link-spec/blob/3bef542fc8c0a5dedeeaaa990bd7f93abe194813/lips/LIP-0020-grant-v4-wire-registry.md), with grant documents at version 0.1.53.
 This module grants no authority and performs no node reads, private-key signing,
 persistence or external effects. It has no dependencies on earlier grant modules.
