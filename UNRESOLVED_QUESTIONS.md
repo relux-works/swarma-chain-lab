@@ -73,3 +73,13 @@ limit list cannot be manufactured as a clean numeric control. F14 executor,
 F15 recipient/mode and F18 bounds are scalar checks in this slice; class-list
 membership belongs to F19. These bounds do not waive the generated F9, CS3,
 F11, F16 and F17(a) list-position controls.
+
+## Gateway release adoption
+
+The [gateway release template](docs/releasing.md) lists the pending unit and
+service documentation from service PR #159 explicitly. Main builds refuse until
+those inputs land; fixture tests do not satisfy service adoption or runtime
+qualification. The existing daemon remains a packaging input, not proof of
+managed broker integration. Repository `gateway/v*` tag ruleset administration,
+release publication, dedicated signing-key custody, aggregate set approval and
+runtime qualification remain separate owner/operator gates.

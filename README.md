@@ -257,6 +257,29 @@ retained children receive a named parent allowance only for their exact ledger
 identities; rehearsal restores the baseline entry set. From `deploy/`, validate
 this contract with `go test -race ./g2ledger ./cmd/deploy-kit`.
 
+### Gateway product pre-release
+
+The [per-product release template](docs/releasing.md) uses the distinct
+`gateway/vX.Y.Z` tag namespace and main-only manual dispatch. It produces one
+`gateway` product with purpose `platform-root`, as Linux amd64/arm64 tarballs,
+`SHA256SUMS`, `provenance.json` and a release-set fragment. The tag consistency
+pin and optional bot signature carry the label **agent-held key, proves nothing about origin**. The operator independently rebuilds before signing; the owner
+approves the aggregate set digest in person before any root step.
+
+Service input paths are explicit in `.github/release/gateway-inputs.json`;
+until service PR #159 lands, release builds refuse missing inputs. This
+template does not change the deploy-kit release contract or activate a daemon.
+
+| Tool | Command from repository root | Output |
+| --- | --- | --- |
+| Git/SSH admission | `.scripts/release-admit.sh gateway/v1.2.3` from current main | admitted commit/tag/epoch or refusal |
+| Go 1.26.8 + Python 3 + gzip/USTAR builder | `.scripts/release-build.sh "$ABSOLUTE_NEW_DIST" "$ABSOLUTE_SOURCE"` | gateway tarballs and canonical metadata in the new output directory |
+| Scratch controls | `.scripts/release-test.sh "$ABSOLUTE_NEW_SCRATCH"` | positive/negative logs, isolated fixture repositories and rebuilds |
+| Operator GitHub CLI/SSH signing | `.scripts/release-sign.sh gateway/v1.2.3` | independent rebuild evidence under `.temp/release-sign.*`; optional signature asset |
+| Digest verification | `.scripts/release-verify.sh "$ABSOLUTE_ASSETS" "$EXPECTED_FRAGMENT_SHA256"` | consistency verdict |
+| Shell syntax | `for script in .scripts/release-*.sh; do bash -n "$script" || exit; done` | terminal diagnostics |
+
+
 ## Demo station lifecycle tools
 
 [Station lifecycle](experiments/station-lifecycle/README.md) is a relay-independent

@@ -1,0 +1,10 @@
+{
+  "product": "gateway",
+  "purpose": "platform-root",
+  "targets": ["amd64", "arm64"],
+  "inputs": [
+    {"kind": "go", "source": "experiments/model-proxy", "package": "./cmd/model-proxy", "member": "credential-gateway/bin/credential-gateway", "mode": "0755"},
+    {"kind": "file", "source": "experiments/model-proxy/deploy/credential-gateway.service.in", "member": "credential-gateway/templates/credential-gateway.service.in", "mode": "0644"},
+    {"kind": "file", "source": "docs/gateway-service.md", "member": "credential-gateway/docs/gateway-service.md", "mode": "0644"}
+  ]
+}
