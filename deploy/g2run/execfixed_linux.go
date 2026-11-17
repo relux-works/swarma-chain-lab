@@ -3,6 +3,7 @@
 package g2run
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -281,12 +283,20 @@ func (x *Executor) Run(c Cmd) (Result, error) {
 	if e := markInheritedCloexec(); e != nil {
 		return Result{}, fmt.Errorf("EXEC_FD_CLOEXEC %s: %v", c.Program, e)
 	}
-	devnull, e := os.Open(os.DevNull)
-	if e != nil {
-		return Result{}, fmt.Errorf("EXEC_STDIN %s: %v", c.Program, e)
+	cmd := &exec.Cmd{Path: p.file, Args: argv, Env: FixedEnv, Dir: "/"}
+	if c.Stdin != nil {
+		if len(c.Stdin) > MaxStdin {
+			return Result{}, fmt.Errorf("EXEC_STDIN_TOO_LARGE %s", c.Program)
+		}
+		cmd.Stdin = bytes.NewReader(c.Stdin)
+	} else {
+		devnull, e := os.Open(os.DevNull)
+		if e != nil {
+			return Result{}, fmt.Errorf("EXEC_STDIN %s: %v", c.Program, e)
+		}
+		defer devnull.Close()
+		cmd.Stdin = devnull
 	}
-	defer devnull.Close()
-	cmd := &exec.Cmd{Path: p.file, Args: argv, Env: FixedEnv, Dir: "/", Stdin: devnull}
 	buf := &capped{}
 	if c.Stdout == "" {
 		cmd.Stdout = buf
@@ -307,7 +317,18 @@ func (x *Executor) Run(c Cmd) (Result, error) {
 	if c.Cred != nil {
 		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: c.Cred.UID, Gid: c.Cred.GID, Groups: c.Cred.Groups}
 	}
-	e = cmd.Run()
+	timeout := c.Timeout
+	if timeout <= 0 {
+		timeout = DefaultTimeout
+	}
+	if e := cmd.Start(); e != nil {
+		return Result{}, fmt.Errorf("EXEC_START %s: %v", c.Program, e)
+	}
+	timer := time.AfterFunc(timeout, func() { syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) })
+	e := cmd.Wait()
+	if !timer.Stop() {
+		return Result{}, fmt.Errorf("EXEC_TIMEOUT %s after %v (its process group was killed)", c.Program, timeout)
+	}
 	if buf.over {
 		return Result{}, fmt.Errorf("EXEC_OUTPUT_TOO_LARGE %s", c.Program)
 	}

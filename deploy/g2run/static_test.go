@@ -46,6 +46,13 @@ var forbiddenImports = map[string]bool{"unsafe": true, "C": true, "plugin": true
 // set is a violation, standard library or not: a package that launches processes indirectly (net/http/cgi's Handler,
 // go/build's go-command calls, a module wrapping exec) can enter only by a reviewed change to this list.
 var allowedImports = map[string]string{
+	"io/fs":    "file modes and path errors",
+	"net/http": "RouteCode: one loopback RPC status probe; the client starts no process (net/http/cgi stays out)",
+	"sort":     "ordering",
+	"strconv":  "numeric parsing",
+	// The one indirect launcher admitted on purpose: the attempt ledger runs in-process, and its exec-create starts the
+	// reviewed key and rpcauth tools under g2ledger's own review and tests, never a program named by a plan.
+	"github.com/relux-works/swarma-chain-lab/deploy/g2ledger": "the attempt ledger, in-process (exec-create: g2-keygen, g2-rpcauth)",
 	"archive/tar":           "reads the package archive",
 	"bufio":                 "buffered reads",
 	"bytes":                 "byte buffers",
@@ -203,7 +210,8 @@ func packageSources(t *testing.T, dir string) []string {
 // directory holds Go files only (.s, .c, .syso and subdirectories are reported, with a control); the members of
 // syscall and golang.org/x/sys/unix used outside (*Executor).Run come from a closed allow-list;
 // and the designated function itself is not, so a clean result is not vacuous. Limit: the allow-list's
-// "starts no process" review covers the listed packages as they are in the pinned Go toolchain.
+// "starts no process" review covers the listed packages as they are in the pinned Go toolchain, and g2ledger is
+// the one admitted exception: its exec-create starts the kit's own key and rpcauth tools under that package's review.
 func TestOnlyExecFixedStartsProcesses(t *testing.T) {
 	if v := execViolations(t, packageSources(t, ".")); len(v) != 0 {
 		t.Errorf("exec paths outside (*Executor).Run: %v", v)
@@ -252,6 +260,93 @@ func TestOnlyExecFixedStartsProcesses(t *testing.T) {
 					t.Errorf("CONTROL %s: the designated function itself was flagged: %v", name, v)
 				}
 			}
+		}
+	}
+}
+
+// argsViolations reports every Cmd.Args element that is not a constant: Args must be a []string literal whose
+// elements are string literals or flagValue("-flag", typedValue) with a literal flag (the owner's E2 condition: a
+// typed value never enters Args except through flagValue, which validates it as an operand).
+func argsViolations(t *testing.T, files []string) []string {
+	t.Helper()
+	var out []string
+	fs := token.NewFileSet()
+	okElem := func(e ast.Expr) bool {
+		switch x := e.(type) {
+		case *ast.BasicLit:
+			return x.Kind == token.STRING
+		case *ast.CallExpr:
+			id, ok := x.Fun.(*ast.Ident)
+			if !ok || id.Name != "flagValue" || len(x.Args) != 2 {
+				return false
+			}
+			lit, ok := x.Args[0].(*ast.BasicLit)
+			return ok && lit.Kind == token.STRING
+		}
+		return false
+	}
+	checkValue := func(base string, v ast.Expr) {
+		lit, ok := v.(*ast.CompositeLit)
+		if !ok {
+			out = append(out, base+": Args is not a literal")
+			return
+		}
+		for _, el := range lit.Elts {
+			if !okElem(el) {
+				out = append(out, base+": a non-constant Args element")
+			}
+		}
+	}
+	for _, f := range files {
+		af, e := parser.ParseFile(fs, f, nil, 0)
+		if e != nil {
+			t.Fatal(e)
+		}
+		base := filepath.Base(f)
+		ast.Inspect(af, func(n ast.Node) bool {
+			switch x := n.(type) {
+			case *ast.CompositeLit:
+				if id, ok := x.Type.(*ast.Ident); ok && id.Name == "Cmd" {
+					for _, el := range x.Elts {
+						if kvx, ok := el.(*ast.KeyValueExpr); ok {
+							if k, ok := kvx.Key.(*ast.Ident); ok && k.Name == "Args" {
+								checkValue(base, kvx.Value)
+							}
+						}
+					}
+				}
+			case *ast.AssignStmt:
+				for i, l := range x.Lhs {
+					if sel, ok := l.(*ast.SelectorExpr); ok && sel.Sel.Name == "Args" && i < len(x.Rhs) {
+						checkValue(base, x.Rhs[i])
+					}
+				}
+			}
+			return true
+		})
+	}
+	return out
+}
+
+// Claim: in every non-test source, Cmd.Args holds only constants or flagValue(literal flag, typed value); controls:
+// a concatenated value, a variable, an append, and a computed flag name are each flagged, and a valid literal with
+// flagValue is not.
+func TestArgsHoldOnlyConstants(t *testing.T) {
+	if v := argsViolations(t, packageSources(t, ".")); len(v) != 0 {
+		t.Errorf("non-constant Args: %v", v)
+	}
+	plants := map[string]bool{
+		"package g2run\nfunc a(v string) Cmd { return Cmd{Program: \"x\", Args: []string{\"--file=\" + v}} }\n":               true,
+		"package g2run\nfunc b(args []string) Cmd { return Cmd{Program: \"x\", Args: args} }\n":                               true,
+		"package g2run\nfunc c(x *Cmd, v string) { x.Args = append(x.Args, v) }\n":                                            true,
+		"package g2run\nfunc d(f, v string) Cmd { return Cmd{Program: \"x\", Args: []string{flagValue(f, v)}} }\n":            true,
+		"package g2run\nfunc e(v string) Cmd { return Cmd{Program: \"x\", Args: []string{\"-p\", flagValue(\"--x\", v)}} }\n": false,
+	}
+	for src, bad := range plants {
+		p := filepath.Join(t.TempDir(), "plant.go")
+		os.WriteFile(p, []byte(src), 0600)
+		if got := len(argsViolations(t, []string{p})) != 0; got != bad {
+			t.Errorf("CONTROL %q: flagged=%v want %v", src, got, bad)
 		}
 	}
 }

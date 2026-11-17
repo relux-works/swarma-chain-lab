@@ -1,8 +1,10 @@
 package g2run
 
 import (
+	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
 // FixedEnv is the whole environment of every program the engine runs. Nothing is inherited.
@@ -58,6 +60,27 @@ type Cmd struct {
 	Merge        bool // stderr goes where stdout goes
 	Cred         *Cred
 	WantRC       []int
+	// Stdin, when set, is a BOUNDED in-memory buffer produced by typed code (for example an archive built in memory),
+	// at most MaxStdin bytes; never a path and never a pipe from another program (QA $UP1dms6I). Default /dev/null.
+	Stdin []byte
+	// Timeout ends the program's whole process group with SIGKILL; zero means DefaultTimeout.
+	Timeout time.Duration
+}
+
+// MaxStdin bounds Cmd.Stdin.
+const MaxStdin = 256 << 20
+
+// DefaultTimeout bounds every program the engine runs.
+const DefaultTimeout = 10 * time.Minute
+
+// flagValue builds one "-flag=value" argument from a constant flag and a TYPED value that must be a ValidOperand. It
+// is the only way a value may enter Cmd.Args (the static test refuses any other non-constant element); an invalid
+// payload panics, which the runner records as a STOP.
+func flagValue(flag, value string) string {
+	if !strings.HasPrefix(flag, "-") || !ValidOperand(value) {
+		panic(fmt.Sprintf("g2run: flagValue %s refused value %q", flag, value))
+	}
+	return flag + "=" + value
 }
 
 // Result is a finished run whose status was one of Cmd.WantRC.
