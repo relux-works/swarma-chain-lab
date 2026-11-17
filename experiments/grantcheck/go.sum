@@ -68,10 +68,10 @@ github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7J
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261116222636-e56bc61de826 h1:atzNLqeci9Q6TnLOVUDEhLMqxMzadhkAutOQG2Vn4uc=
-github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261116222636-e56bc61de826/go.mod h1:lqJ7c5Gkle1/8JVzrICe0U//4OnTa0ig8UQfcMLnaYs=
-github.com/relux-works/swarma-chain-lab/experiments/grant-v4/wire v0.0.0-20261116222636-e56bc61de826 h1:2AWfgyaT4s90GA+bTOgvPdDpUtOZB8Ce0GO2JreqyXs=
-github.com/relux-works/swarma-chain-lab/experiments/grant-v4/wire v0.0.0-20261116222636-e56bc61de826/go.mod h1:TAogGDnQKAOT/RkLbJ5fBVBOzTEkCtgGsk3ItzQ1W9A=
+github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261117003532-d68447f630c8 h1:te2LxuufxoYAsvLmB91wLZOC0TY4RreJ60kDp/dyCIQ=
+github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity v0.0.0-20261117003532-d68447f630c8/go.mod h1:TB5D3bQyx5NwSasK28VBkDLFtmBEoXzTLlNCW6lAZys=
+github.com/relux-works/swarma-chain-lab/experiments/grant-v4/wire v0.0.0-20261117003733-ff7688e88b9f h1:gVGmzi8lYke/C6/hp27/MNb8UqotXV38HGhDutKHVw0=
+github.com/relux-works/swarma-chain-lab/experiments/grant-v4/wire v0.0.0-20261117003733-ff7688e88b9f/go.mod h1:GGrmLzcOR+6QvIEArjUZT362ofrJp9pLPEi0+JytuSM=
 github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261115082735-f1936aa1117a h1:ORuouiBNsEzrSOIeKi9S8FnCE7NvzgAhYm5PhK8RyNw=
 github.com/relux-works/swarma-chain-lab/experiments/payment-chain v0.2.1-0.20261115082735-f1936aa1117a/go.mod h1:HMUHqDbysQW+It+HFQhfYknxNy6qA5YJ5H+rOx1+uJ8=
 github.com/relux-works/swarma-chain-lab/experiments/rental v0.5.1-0.20261115082735-f1936aa1117a h1:X7Ob76S5CLbNYyCJG22rFfy0+JGUDPd3PULnlJRTTVk=
