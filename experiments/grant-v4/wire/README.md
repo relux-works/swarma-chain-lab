@@ -44,19 +44,41 @@ presented without its parent. F17 is `no` under this unchanged empty profile
 set. No evaluated row uses `pending`. See STEPS for exact per-row quotations.
 
 For a by-name parent, the admission/junction caller supplies a
-`ParentNameObservation`: the exact parent recipient name, pinned `Genesis`,
-observed `TipHash` and `TipHeight`, and complete nonempty `ChannelKeys` set.
-The hash strings use lowercase node display order. Channel keys use the current
-Nostr profile's x-only BIP-340 form, validated for both encoding and curve point.
-For a by-key parent, pass nil. Missing/unexpected observations, a different name
-or genesis, malformed hash identity, both nil and an empty channel-key set, duplicates and malformed keys
-return a typed `ParentNameObservationError` with no protocol code: neither
-protocol acceptance nor refusal. The no-key value question remains open in
-`UNRESOLVED_QUESTIONS.md` (the owner will take it to the spec owner). Earlier
-octet refusals retain their order; all input entries are validated before the
-membership check. F11 refuses `DELEGATE_KEY_REUSE` when the delegation key is
-in that set. The child's recipient key need not be in the set: it is a
-key-separation check, not a request-key allowlist. Passing F11 still requires all later slice rows. Inputs are neither modified nor retained.
+`ParentNameObservation`: exact recipient name, pinned `Genesis`, observed
+`TipHash` and `TipHeight`, and explicit `ValueState`:
+- `ParentNameValueKeys` (K): complete nonempty `ChannelKeys`, lowercase x-only
+  BIP-340 keys. A different key passes; an equal x coordinate refuses
+  `DELEGATE_KEY_REUSE`, Again=`state`.
+- `ParentNameValueNoKey` (A): the value was read and yielded no key under
+  LIP-0010 section 4. It gives `ChildImplementationFailure`, a typed
+  **IMPLEMENTATION** outcome, no Link code, no closure or revocation,
+  Again=`state`, not `input`. ISSUE must sign nothing.
+- `ParentNameValueRefused` (B): the whole value was refused under section 2 /
+  D5. The same typed outcome preserves B and is permanent. Zero/unset,
+  unknown state and absent by-name observation also fail closed; an omitted
+  state is never A, even with supplied keys.
+
+Per the Lead ruling of 2026-11-19, section 3 (PR #158 description), A is a
+declared deviation pending the clarifying spec sentence: the expected result
+after adoption is **pass**. Switching `childNoKeyPassV4` to `true` is the
+one-line change; B remains closed. The spec pin does not move.
+
+For a by-key parent, pass nil: no channel comparison applies. Child seal and
+recipient-key/owner octet comparisons precede all observation handling;
+matching x coordinates always give `DELEGATE_KEY_REUSE`, Again=`no`, even
+with A, B or unset. Hash identities use lowercase 32-byte node display order.
+Unexpected observations, name/chain/identity mismatch, empty or nil lists
+**declared as K**, duplicate keys and malformed keys remain typed local
+`ParentNameObservationError`s, not representations of A or B. All K entries
+are validated before membership. The child's recipient key need not be in
+the set: this is key separation, not authentication. Inputs are neither
+modified nor retained. Passing F11 still requires all later slice rows.
+
+`identity.ReadR1Value` is already reachable through the unchanged identity
+dependency. `TestChildV4ParentNameValueReader` exercises absent `nostr`, npub,
+uppercase hex, missing `names._`, duplicate `names` (all A), and duplicate
+top-level `nostr` whose second member is the delegation key (B), with a valid
+different-key control for each. No new parser or dependency is introduced.
 
 The caller establishes that these facts are from F7.3 in this observation,
 including completeness, name-owner control, node health and tip rechecks. The
@@ -102,7 +124,8 @@ ordering, invalid bounds and F12–F18 precedence.
 Controls retain JSON test streams and real exits in the requested
 scratch. Their bounds, including positive evaluated-slice outcomes without admission,
 are recorded in the producer report. The controls include always-in-set and never-in-set plants, all-key iteration,
-name/chain/identity validation, empty/duplicate/malformed-set refusal and
+name/chain/identity validation, malformed K-set refusal, A/B/unset distinctions,
+reader-backed classification, A-pass and B-to-A/empty-list plants, and
 precedence plants, reversed groups/ranges/coins, octet-order coin counting,
 zero-based counting and a template-read-before-bound plant. Their required named test failures and actual exits are
 recorded in `results.json`; no survivor is accepted. Hosted wire CI checks regeneration,

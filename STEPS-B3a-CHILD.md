@@ -6,7 +6,25 @@ F13(a) count order RESOLVED: Ivan Oparin explicitly accepted the count order on 
 
 Re-pin audit: every row sentence below is re-quoted from §8.4 at v0.1.61. **CHANGED** marks a row whose full specification row changed from 0.1.55; unmarked row sentences are unchanged. F6 remains outside the slice, including its new seal part (c); the former part (c) is now (d).
 
-F11 retained owner input contract: the admission/junction caller supplies the channel keys from the parent-recipient name value that F7.3 read in this observation. `ParentNameObservation` carries that exact name, pinned genesis, tip hash and tip height, and the nonempty set of channel signing keys. The evaluator reads no chain or name. The caller owns provenance, completeness, healthy-observation checks and all F7.3 owner-control checks; supplying typed facts proves none of these. Missing input, an unexpected input for a by-key parent, a mismatched name/genesis, malformed identity, empty set, duplicate key or malformed key returns `ParentNameObservationError`, never a protocol acceptance or invented protocol refusal. Validation occurs after the F11 signed-octet comparisons and before membership; the whole set is validated before any membership verdict. Keys use the current Nostr channel's x-only signing-key form (LIP-0008 §3.1, LIP-0020 W3.6). A delegation-key member refuses `DELEGATE_KEY_REUSE`; a nonmember passes F11, then later rows still apply. F17: this side adopts no LIP-0031 proposal profile; equal, zero and one-over amounts under an existing row key all refuse LIMIT_KIND_UNDEFINED. Amount comparison waits for a profile; missing keys refuse CHILD_BUDGET_OVER first.
+F11 caller contract follows the Lead ruling of 2026-11-19, Appendix A
+section 3, recorded in PR #158's description (supersedes fix-3 D2).
+`ParentNameObservation` carries the exact F7.3 recipient name, pinned genesis,
+tip identity and explicit `ValueState`: K has a complete nonempty set of
+lowercase x-only signing keys; A is read/no key under LIP-0010 section 4;
+B is whole-value refusal under section 2 / D5. Zero/unset is not A. The pure
+evaluator makes no read; provenance, completeness, owner control and healthy
+observation are caller duties. Child seal and recipient-key/owner octet
+comparisons run first: a matching x coordinate gives DELEGATE_KEY_REUSE,
+Again=no regardless of the value state. A parent by key has no channel
+comparison. For K, all keys are validated before membership: equal gives
+DELEGATE_KEY_REUSE, Again=state; differing keys pass F11. Invalid metadata
+or malformed K sets remain typed local input errors, not A/B classification.
+A, B and unset give typed IMPLEMENTATION outcomes, no Link code, no closure
+or revocation, Again=state, not input. ISSUE must sign nothing.
+
+F17 remains unchanged: no LIP-0031 proposal profile is adopted; equal, zero
+and one-over amounts under an existing row key refuse LIMIT_KIND_UNDEFINED.
+Missing keys refuse CHILD_BUDGET_OVER first.
 
 | Step | Spec sentence quoted | Inputs | Exact refusal / OPEN | Precedence | Function and test / boundary |
 | --- | --- | --- | --- | --- | --- |
@@ -20,7 +38,7 @@ F11 retained owner input contract: the admission/junction caller supplies the ch
 | F8 | “The subject: `genesis` of `C` equals `genesis` of `P`” | P.genesis, C.genesis | SUBJECT_MISMATCH | F5 before F8 before F9 | CheckChildAttenuationV4 / TestChildV4Prefix |
 | F9 | “The keys of the parent, J4.3 (a): the delegation key differs, by x coordinate, from `issuer.grant_key`, from `recipient.key` or `recipient.owner`, from `issuer.owner`, from the `owner` of every entry of `notaries` and from `seal.key` of `P`” | P delegation, issuer grant/owner, recipient, notary owner and own seal keys | DELEGATE_KEY_REUSE | Before F10 | CheckChildAttenuationV4 / TestChildV4RoleKeys |
 | F10 | “The child-seal key of the parent: first `delegate.child_seal_key` is present (CS1); then it differs, by x coordinate, from the delegation key and from the keys of F9 (CS3)” | P child-seal key and every F9 key | CHILD_SEAL_KEY; then DELEGATE_KEY_REUSE | Presence before comparisons, before F11 | CheckChildAttenuationV4 / TestChildV4RoleKeys |
-| F11 | “The keys of the child, J4.3 (b), as far as no attestation is read: the delegation key differs, by x coordinate, from `seal.key` of `C`, from `recipient.key` or `recipient.owner` of `C`, and then, where `P` names its recipient by name, from every channel key that the value of that name yields. That value is the one that part 7.3 of F7 read in this observation, and F11 makes no read of its own. The comparison with the attestation key of the row's notary stands in F23” | P delegation key; C seal and recipient keys; typed ParentNameObservation from F7.3 | DELEGATE_KEY_REUSE; typed input error for invalid/missing facts | F5/F8/F9/F10 and F11 octets before observation validation, then channel-key comparison; before F12 | CheckChildAttenuationV4 / TestChildV4RoleKeys, TestChildV4ParentNameObservation; always-in-set and never-in-set plants |
+| F11 | “The keys of the child, J4.3 (b), as far as no attestation is read: the delegation key differs, by x coordinate, from `seal.key` of `C`, from `recipient.key` or `recipient.owner` of `C`, and then, where `P` names its recipient by name, from every channel key that the value of that name yields. That value is the one that part 7.3 of F7 read in this observation, and F11 makes no read of its own. The comparison with the attestation key of the row's notary stands in F23” | P delegation key; C seal and recipient keys; explicit K/A/B ParentNameObservation from the same F7.3 read | DELEGATE_KEY_REUSE; codeless IMPLEMENTATION for A/B/unset (state, no closure, not input); malformed K facts are input errors | F5/F8/F9/F10 and F11 octets before observation validation, then channel-key comparison; before F12 | CheckChildAttenuationV4 / TestChildV4RoleKeys, TestChildV4ParentNameObservation, TestChildV4ParentNameValueReader; A-pass, B-to-A/empty-list, always/never-in-set plants |
 | F12 | “The seal key of the child, CS2 as far as octets decide it: `seal.key` of `C` equals `delegate.child_seal_key` of `P`, octet for octet, the parity octet included” | C.seal.key, P.delegate.child_seal_key | CHILD_SEAL_KEY | Before ordinal, parity included | CheckChildAttenuationV4 / TestChildV4Prefix |
 | F13 | “The row of the child, in two parts in this order. (a) The ordinal lies between 1 and the number of rows of `P`, the sum of the counts of all its ranges. No template is read before this. The ordinal then selects the group, the range and the coin (LIP-0026 R2.1, R8.3, R8.8). (b) The selected group and the selected range meet rules 4 and 5 of LIP-0020 W11.10: the template of that group, and that range with its `stop`” **CHANGED** | Signed range counts, ordinal, selected group/range/coin | CHILD_ORDINAL for F13(a); F13(b) not evaluated at its place; selected rule 4/5 finding in F1 (parent pipeline step 9) | Bound before all template reads; F12 before F13(a) before F14; known T10/S8-29 (a)/(c) divergence; both O7 outcomes unreachable while an earlier row refuses, pending O7 / LIP-0026 Q1 | CheckChildAttenuationV4 / TestChildV4Ordinal, TestChildV4Selection, TestChildV4BoundBeforeTemplate |
 | F14 | “The executor of `C` is that of the template of its row: the same name and the same key (R2.2)” | C.executor, selected template.executor | CHILD_AGENT_NOT_ALLOWED | Before F15 | checkChildTemplateV4 via selected row / TestChildV4Template, TestChildV4Selection |
@@ -220,7 +238,7 @@ The following cells quote the pin's Again column verbatim.
 | F8 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
 | F9 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
 | F10 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
-| F11 | “no for the octets; state for a channel key” | TestChildV4Again (octets=no, channel=state) |
+| F11 | “no for the octets; state for a channel key”; ruling section 3 adds state for codeless A/B/unset outcomes, not input | TestChildV4Again (octets=no, channel=state); TestChildV4ParentNameObservation and TestChildV4ParentNameValueReader (IMPLEMENTATION/state) |
 | F12 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
 | F13 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
 | F14 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
@@ -243,5 +261,31 @@ The nearby `limit-5` control reaches F17(b); `template-valid` passes.
 Plant `f11-again-mark-conflated` must fail
 `TestChildV4Again/delegation-in-set`; `missing-parent-again-no` must fail
 `TestChildV4InputPrecedence/missing-parent`. Existing plants are retained.
-The unchanged nil/empty set tests pin local input errors, not either answer
-to the LIP-0010 open question.
+The retained nil/empty list tests explicitly declare K: these are malformed
+K sets, not A. Explicit A/B/unset fixtures and reader-backed cases replace
+the old no-key ambiguity.
+
+## Declared F11 deviation and reader coverage (fix 4)
+
+The Lead ruling of 2026-11-19, Appendix A section 3, recorded in PR #158's
+description, keeps A closed pending the clarifying spec sentence. This is a
+declared deviation alongside the unchanged F13(b) divergence above: the
+expected result after adoption is **pass**. Changing `childNoKeyPassV4` to
+`true` is the one-line switch; B remains permanently refused. The pin stays
+v0.1.61. No invented Link code, closure or revocation is reported; state is
+decided anew at a later observation, and ISSUE signs nothing.
+
+Classification belongs to the F7.3 reader (the caller). Search found the
+existing `identity.ReadR1Value` in the wire module's already-pinned dependency;
+there is no new parser, dependency, or F11 read. Tests run these six forms
+through that reader: absent nostr, npub, uppercase hex, missing names._,
+duplicate names (all A), and duplicate top-level nostr with the delegation
+key second (B). Extra controls cover duplicate _ and a non-string nostr as A.
+Each has a valid differing-key control beside its exact typed refusal.
+Generated A/B/unset cases also pair each state with child seal, recipient key
+and recipient owner reuse, including opposite output-key parity: octets win
+with Again=no. Parent-by-key and differing/equal K neighbours are retained.
+
+`f11-no-key-passes` must fail the A reader test; `f11-refused-as-no-key` and
+`f11-refused-as-empty-keys` must fail the duplicate-top-level-nostr B test.
+`f11-unset-as-no-key` must fail value-unset. All old plants remain.

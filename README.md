@@ -650,7 +650,15 @@ evaluated at its place: selected-group rule 4/5 findings report in F1 (parent
 pipeline step 9). This known divergence from T10's last sentence and S8-29
 (a)/(c) makes both O7 outcomes unreachable while an earlier row refuses,
 pending O7 / LIP-0026 Q1; §8.7 plans this post-pipeline slice.
-F3/F6/F7/F19–F24/A1 remain outside it. Regenerate its
+F3/F6/F7/F19–F24/A1 remain outside it.
+F11 observation uses explicit keys/no-key/value-refused states from the same
+F7.3 read. Under the Lead ruling of 2026-11-19 section 3 (PR #158), no-key
+is a declared fail-closed deviation pending a spec sentence (expected after
+adoption: pass); refused-value and unset states stay closed. These yield a
+typed IMPLEMENTATION outcome, no Link code or closure, Again=state, not input;
+ISSUE signs nothing. Octet reuse still wins with DELEGATE_KEY_REUSE, Again=no;
+by-key parents have no channel comparison. The existing identity reader tests
+classify the LIP-0010 A/B cases without a new dependency. Regenerate its
 public fixtures with `go -C experiments/grant-v4/wire run scripts/generate-child-v4.go`
 and run `python3 -B experiments/grant-v4/wire/scripts/check-child-mutants.py
 --scratch .temp/child-mutants` for bounded controls and JSON evidence. The wire

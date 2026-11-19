@@ -12,6 +12,14 @@ from pathlib import Path
 import subprocess
 
 PLANTS = (
+    ('f11-no-key-passes', 'const childNoKeyPassV4 = false', 'const childNoKeyPassV4 = true',
+     'TestChildV4ParentNameValueReader', 'TestChildV4ParentNameValueReader/nostr-absent', 'want typed implementation:no-key'),
+    ('f11-refused-as-no-key', 'return childValueRefusalV4(ParentNameValueRefused)', 'return childValueRefusalV4(ParentNameValueNoKey)',
+     'TestChildV4ParentNameValueReader', 'TestChildV4ParentNameValueReader/duplicate-top-level-nostr', 'want typed implementation:refused'),
+    ('f11-refused-as-empty-keys', 'return childValueRefusalV4(ParentNameValueRefused)', 'o.ChannelKeys = nil',
+     'TestChildV4ParentNameValueReader', 'TestChildV4ParentNameValueReader/duplicate-top-level-nostr', 'want typed implementation:refused'),
+    ('f11-unset-as-no-key', 'return childValueRefusalV4(o.ValueState)', 'return childValueRefusalV4(ParentNameValueNoKey)',
+     'TestChildV4ParentNameObservation', 'TestChildV4ParentNameObservation/value-unset', 'want typed implementation:'),
     ('nil-pair-parent-first', 'if child == nil || child.object == nil {',
      'if parent == nil || parent.object == nil { return ChildAttenuationEvaluation{}, childRefusalV4(2, WireID) }; if child == nil || child.object == nil {',
      'TestChildV4InputPrecedence', 'TestChildV4InputPrecedence/missing', 'input precedence:'),

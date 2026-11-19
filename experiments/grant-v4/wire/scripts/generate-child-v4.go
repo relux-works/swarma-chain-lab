@@ -208,7 +208,7 @@ func main() {
 			c["recipient"] = obj{"name": "id/example-agent", "owner": k}
 		})
 	}
-	prefix("parent-name-open", "input:missing", 11, "F11 missing caller facts", func(p, c obj) { p["recipient"] = obj{"name": "id/example-parent", "owner": output(1)} })
+	prefix("parent-name-open", "implementation:", 11, "F11 missing caller facts, unset not no-key", func(p, c obj) { p["recipient"] = obj{"name": "id/example-parent", "owner": output(1)} })
 	prefix("wrong-seal", "CHILD_SEAL_KEY", 12, "step-i-18", func(p, c obj) { c["seal"].(obj)["key"] = output(1) })
 	prefix("seal-parity", "CHILD_SEAL_KEY", 12, "step-i-19", func(p, c obj) { c["seal"].(obj)["key"] = opposite(output(3)) })
 	for _, n := range []int{0, 1, 2, 3, 9007199254740991} {
@@ -252,7 +252,7 @@ func main() {
 	// F11 observations are caller facts, never signed grant members. Every
 	// negative is generated beside a by-name valid neighbour, not hand-edited.
 	observe := func(id, want string, step, index int, mutate func(obj, obj, *wire.ParentNameObservation)) {
-		o := &wire.ParentNameObservation{Name: "id/example-parent", Genesis: hash("example-genesis"), TipHash: hash("example-observed-tip"), TipHeight: 12, ChannelKeys: []string{signing(1)}}
+		o := &wire.ParentNameObservation{Name: "id/example-parent", Genesis: hash("example-genesis"), TipHash: hash("example-observed-tip"), TipHeight: 12, ValueState: wire.ParentNameValueKeys, ChannelKeys: []string{signing(1)}}
 		add(id, "observation", want, step, "F11; F7.3 stated observation", func(p, c obj) {
 			p["recipient"] = obj{"name": o.Name, "owner": output(1)}
 			if mutate != nil {
@@ -263,7 +263,37 @@ func main() {
 		v.Observation, v.InputIndex, v.Neighbour = o, index, "name-valid-neighbour"
 	}
 	observe("name-valid-neighbour", "ok", 13, -1, nil)
+	for _, state := range []wire.ParentNameValueState{wire.ParentNameValueNoKey, wire.ParentNameValueRefused, ""} {
+		id := string(state)
+		if id == "" {
+			id = "unset"
+		}
+		observe("value-"+id, "implementation:"+string(state), 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
+			o.ValueState, o.ChannelKeys = state, nil
+		})
+		for _, role := range []string{"seal", "key", "owner"} {
+			observe("value-"+id+"-"+role+"-reuse", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
+				o.ValueState, o.ChannelKeys = state, nil
+				switch role {
+				case "seal":
+					c["seal"].(obj)["key"] = opposite(output(2))
+				case "key":
+					c["recipient"] = obj{"key": signing(2)}
+				case "owner":
+					c["recipient"] = obj{"name": "id/example-child", "owner": opposite(output(2))}
+				}
+			})
+		}
+	}
 	observe("delegation-not-in-set", "ok", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(3), signing(1)} })
+	observe("value-unset-with-keys", "implementation:", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ValueState = "" })
+	observe("value-unknown", "implementation:unknown", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ValueState = "unknown" })
+	observe("value-no-key-empty-list", "implementation:no-key", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
+		o.ValueState, o.ChannelKeys = wire.ParentNameValueNoKey, []string{}
+	})
+	observe("value-refused-with-keys", "implementation:refused", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
+		o.ValueState, o.ChannelKeys = wire.ParentNameValueRefused, []string{signing(2)}
+	})
 	observe("child-key-not-in-set", "ok", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(3)} })
 	observe("delegation-in-set", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(2)} })
 	observe("delegation-first-in-set", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(2), signing(1)} })

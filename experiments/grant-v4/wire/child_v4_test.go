@@ -92,6 +92,18 @@ func childWantV4(t *testing.T, err error, want string, step int) {
 		return
 	}
 	var f *ChildAttenuationFailure
+	if strings.HasPrefix(want, "implementation:") {
+		var implementation *ChildImplementationFailure
+		var protocol Code
+		var input *ParentNameObservationError
+		if !errors.As(err, &implementation) || implementation.Step != 11 || implementation.Again != ChildAgainState ||
+			string(implementation.ValueState) != strings.TrimPrefix(want, "implementation:") ||
+			errors.As(err, &protocol) || errors.As(err, &f) || errors.As(err, &input) || errors.Unwrap(err) != nil ||
+			!strings.HasPrefix(err.Error(), "IMPLEMENTATION:") || strings.Contains(strings.ToLower(err.Error()), "input") || !strings.Contains(err.Error(), "no closure") {
+			t.Fatalf("implementation refusal = %v, want typed %s, Again=state, no Link code or closure, not input", err, want)
+		}
+		return
+	}
 	if !errors.As(err, &f) || f.Step != step {
 		t.Fatalf("refusal = %v, want %s at F%d", err, want, step)
 	}
@@ -375,6 +387,9 @@ func TestChildV4CompositionPrecondition(t *testing.T) {
 func TestChildV4Again(t *testing.T) {
 	for _, vector := range childVectorsV4(t) {
 		want, selected := map[string]ChildAgain{"child-seal-before-observation": ChildAgainNo, "delegation-in-set": ChildAgainState}[vector.ID]
+		if strings.HasPrefix(vector.ID, "value-") && strings.HasSuffix(vector.ID, "-reuse") {
+			want, selected = ChildAgainNo, true
+		}
 		if !selected || vector.Mode != "observation" {
 			continue
 		}

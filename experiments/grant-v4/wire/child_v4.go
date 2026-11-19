@@ -69,8 +69,10 @@ type ChildAttenuationEvaluation struct {
 // ParentNameObservation holds the F7.3 facts supplied by the admission/junction
 // caller, never by the child presenter. Genesis and TipHash are lowercase
 // 32-byte hashes in node display order; TipHeight is the observed tip height.
-// ChannelKeys is the complete, nonempty set of channel signing keys yielded by
-// Name in that observation, in the current Nostr profile's x-only BIP-340 form.
+// ValueState distinguishes keys (K), a read value yielding no key under
+// LIP-0010 section 4 (A), and a value refused under section 2 / D5 (B).
+// Its zero value is unset, never A. ChannelKeys is complete and nonempty only
+// for K, using the current Nostr profile's x-only BIP-340 form.
 // The caller establishes provenance, completeness, owner control and observation
 // health; this pure evaluator cannot authenticate those claims or read a node.
 // The input and its slice are neither mutated nor retained.
@@ -79,7 +81,39 @@ type ParentNameObservation struct {
 	Genesis     string
 	TipHash     string
 	TipHeight   uint64
+	ValueState  ParentNameValueState
 	ChannelKeys []string
+}
+
+// ParentNameValueState is the result of the caller's F7.3 value reading.
+type ParentNameValueState string
+
+const (
+	ParentNameValueKeys    ParentNameValueState = "keys"
+	ParentNameValueNoKey   ParentNameValueState = "no-key"
+	ParentNameValueRefused ParentNameValueState = "refused"
+)
+
+// ChildImplementationFailure is a codeless IMPLEMENTATION outcome at F11,
+// not an input error or a Link refusal. It records no closure or revocation;
+// Again=state means decide anew at a later observation. ISSUE must sign nothing.
+// ValueState preserves A versus B versus unset for callers and diagnostics.
+type ChildImplementationFailure struct {
+	Step       int
+	Again      ChildAgain
+	ValueState ParentNameValueState
+}
+
+func (e *ChildImplementationFailure) Error() string {
+	return fmt.Sprintf("IMPLEMENTATION: F%d parent-name value %q (Again=%s; no closure)", e.Step, e.ValueState, e.Again)
+}
+
+// The Lead ruling of 2026-11-19 section 3 keeps A closed pending the spec
+// sentence. Adoption changes only this constant; B remains permanently closed.
+const childNoKeyPassV4 = false
+
+func childValueRefusalV4(state ParentNameValueState) error {
+	return &ChildImplementationFailure{Step: 11, Again: ChildAgainState, ValueState: state}
 }
 
 // ParentNameObservationError is an invalid local input contract, not a protocol
@@ -94,7 +128,6 @@ type ParentNameObservationError struct {
 type ParentNameObservationErrorKind string
 
 const (
-	ParentObservationMissing    ParentNameObservationErrorKind = "missing"
 	ParentObservationUnexpected ParentNameObservationErrorKind = "unexpected"
 	ParentObservationName       ParentNameObservationErrorKind = "name"
 	ParentObservationIdentity   ParentNameObservationErrorKind = "identity"
@@ -122,7 +155,7 @@ func (o *ParentNameObservation) validate(parent *value) error {
 		return nil
 	}
 	if o == nil {
-		return bad(ParentObservationMissing, -1)
+		return childValueRefusalV4("")
 	}
 	if o.Name != name.text {
 		return bad(ParentObservationName, -1)
@@ -132,6 +165,18 @@ func (o *ParentNameObservation) validate(parent *value) error {
 	}
 	if o.Genesis != parent.get("genesis").text {
 		return bad(ParentObservationChain, -1)
+	}
+	switch o.ValueState {
+	case ParentNameValueKeys:
+	case ParentNameValueNoKey:
+		if childNoKeyPassV4 {
+			return nil
+		}
+		return childValueRefusalV4(ParentNameValueNoKey)
+	case ParentNameValueRefused:
+		return childValueRefusalV4(ParentNameValueRefused)
+	default:
+		return childValueRefusalV4(o.ValueState)
 	}
 	if len(o.ChannelKeys) == 0 {
 		return bad(ParentObservationEmpty, -1)
@@ -177,6 +222,12 @@ func childChannelContainsV4(keys []string, delegation string) bool {
 // is adopted. Observation is nil for a by-key parent and valid for a by-name
 // parent. No input is mutated or retained; no parsing, node/seal read, write
 // or I/O occurs. F3, F6, F7, F19-F24 and A1 remain caller/other-layer duties.
+// F11 compares child octets first (reuse: Again=no), then the same F7.3 value
+// (channel reuse: Again=state). By-key parents have no channel comparison.
+// A, B and unset values fail closed as ChildImplementationFailure, without a
+// Link code or closure, Again=state, not input. A is a declared deviation:
+// the expected post-adoption result is pass (Lead ruling 2026-11-19 section 3);
+// B remains refused. The caller must not sign at ISSUE after any such outcome.
 func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) (ChildAttenuationEvaluation, error) {
 	if child == nil || child.object == nil {
 		return ChildAttenuationEvaluation{}, &ChildDocumentInputError{Kind: "missing"}
@@ -237,7 +288,7 @@ func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentName
 	if err := observation.validate(p); err != nil {
 		return ChildAttenuationEvaluation{}, err
 	}
-	if observation != nil && childChannelContainsV4(observation.ChannelKeys, delegation) {
+	if observation != nil && observation.ValueState == ParentNameValueKeys && childChannelContainsV4(observation.ChannelKeys, delegation) {
 		return ChildAttenuationEvaluation{}, &ChildAttenuationFailure{Step: 11, Code: DelegateKeyReuse, Again: ChildAgainState}
 	}
 	if c.get("seal").get("key").text != seal.text {
