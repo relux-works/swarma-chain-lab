@@ -8,8 +8,10 @@ positions. None establishes the full admission predicate.
 """
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
+import time
 
 PLANTS = (
     ('f11-no-key-passes', 'const childNoKeyPassV4 = false', 'const childNoKeyPassV4 = true',
@@ -104,6 +106,107 @@ PLANTS = (
 )
 
 
+OCTETS = '''\tfor _, key := range []string{c.get("seal").get("key").text, childRecipientKeyV4(c.get("recipient"))} {
+\t\tif childKeyXV4(key) == delegation {
+\t\t\treturn ChildAttenuationEvaluation{}, childRefusalV4(11, DelegateKeyReuse)
+\t\t}
+\t}'''
+CS3 = '''\tfor _, key := range append(roles, delegation) {
+\t\tif childKeyXV4(key) == childKeyXV4(seal.text) {
+\t\t\treturn ChildAttenuationEvaluation{}, childRefusalV4(10, DelegateKeyReuse)
+\t\t}
+\t}'''
+LIMIT_KEYS = '''\tfor _, limit := range c.get("limits").elements {
+\t\tif !keys[grantLimitKey(limit)] {
+\t\t\treturn childRefusalV4(17, ChildBudgetOver)
+\t\t}
+\t}'''
+PLANTS += (
+    ('f11-recipient-before-f10', 'seal := d.get("child_seal_key")',
+     'if childKeyXV4(childRecipientKeyV4(c.get("recipient"))) == delegation { return ChildAttenuationEvaluation{}, childRefusalV4(11, DelegateKeyReuse) }; seal := d.get("child_seal_key")',
+     'TestChildV4Precedence', 'TestChildV4Precedence/pair-f10-cs1-before-f11-key', 'want CHILD_SEAL_KEY at F10'),
+    ('f11-octets-before-cs3', CS3+'\n'+OCTETS, OCTETS+'\n'+CS3,
+     'TestChildV4Precedence', 'TestChildV4Precedence/pair-f10-cs3-before-f11-seal-even', 'want DELEGATE_KEY_REUSE at F10'),
+    ('f17a-last-limit-only', 'for _, limit := range c.get("limits").elements {',
+     'for _, limit := range c.get("limits").elements[max(0,len(c.get("limits").elements)-1):] {',
+     'TestChildV4Template', 'TestChildV4Template/limit-missing-position-0-amount-0-true', 'want exact code CHILD_BUDGET_OVER'),
+    ('f17a-flag-overwritten', LIMIT_KEYS,
+     '\tmissingKey := false\n\tfor _, limit := range c.get("limits").elements { missingKey = !keys[grantLimitKey(limit)] }; if missingKey { return childRefusalV4(17, ChildBudgetOver) }',
+     'TestChildV4Template', 'TestChildV4Template/limit-missing-position-0-amount-0-true', 'want exact code CHILD_BUDGET_OVER'),
+    ('f2-chaindepth-again-input', 'childRefusalV4(2, ChainDepth)', '&ChildAttenuationFailure{Step:2,Code:ChainDepth,Again:ChildAgainInput}',
+     'TestChildV4DefensiveF2', 'TestChildV4DefensiveF2/depth', 'want no at F2'),
+    ('f2-notdelegable-again-state', 'childRefusalV4(2, NotDelegable)', '&ChildAttenuationFailure{Step:2,Code:NotDelegable,Again:ChildAgainState}',
+     'TestChildV4DefensiveF2', 'TestChildV4DefensiveF2/not-delegable', 'want no at F2'),
+    ('f2-mismatch-again-input', 'childRefusalV4(2, WireID)', '&ChildAttenuationFailure{Step:2,Code:WireID,Again:ChildAgainInput}',
+     'TestChildV4Documents', 'TestChildV4Documents', 'want no at F2'),
+    ('f11-octet-again-state-bykey', 'childRefusalV4(11, DelegateKeyReuse)',
+     '&ChildAttenuationFailure{Step:11,Code:DelegateKeyReuse,Again:func() ChildAgain { if observation == nil { return ChildAgainState };return ChildAgainNo }()}',
+     'TestChildV4RoleKeys', 'TestChildV4RoleKeys/child-recipient-key-reuse', 'want no at F11'),
+    ('contradictory-key-facts-ignored', 'if o.ValueState != ParentNameValueKeys && len(o.ChannelKeys) != 0 {', 'if false {',
+     'TestChildV4ValuePolicies', 'TestChildV4ValuePolicies/value-no-key-with-delegation-key/adopted-true', 'want typed input:contradictory'),
+    ('adoption-policy-ignored', 'if noKeyPass {', 'if false {',
+     'TestChildV4ValuePolicies', 'TestChildV4ValuePolicies/value-no-key/adopted-true', 'comparison refused valid neighbour'),
+)
+
+
+def quantifier_plants():
+    for position in range(3):
+        for amount in ('0','1'):
+            planted = LIMIT_KEYS.replace('for _, limit :=', 'for index, limit :=').replace('if !keys[grantLimitKey(limit)] {', 'if !keys[grantLimitKey(limit)] && !(index == '+str(position)+' && limit.get("amount").text == "'+amount+'") {')
+            witness = 'TestChildV4Template/limit-missing-position-'+str(position)+'-amount-'+amount+'-true'
+            yield ('f17a-skip-position-'+str(position)+'-amount-'+amount,LIMIT_KEYS,planted,'TestChildV4Template',witness,'want exact code CHILD_BUDGET_OVER')
+
+
+def precedence_plants(module):
+    """Each joint gets a bounded priority-inversion control, not a fixture-ID
+    special case: both semantic defect predicates must hold before reversing
+    that pair. Single-trigger controls therefore retain their normal outcomes.
+    These plants establish only their named overlap, not every input shape.
+    """
+    delegation = 'd.get("key").text'
+    template = 'd.get("groups").elements[0].get("template")'
+    conditions = {
+        'f5': 'c.get("contract").text != p.get("contract").text',
+        'f8': 'c.get("genesis").text != p.get("genesis").text',
+        'f9': 'childKeyXV4(p.get("issuer").get("owner").text) == '+delegation,
+        'f10': 'd.get("child_seal_key") != nil && childKeyXV4(d.get("child_seal_key").text) == '+delegation,
+        'f10-cs1': 'd.get("child_seal_key") == nil',
+        'f11': 'childKeyXV4(childRecipientKeyV4(c.get("recipient"))) == '+delegation,
+        'f12': 'd.get("child_seal_key") != nil && c.get("seal").get("key").text != d.get("child_seal_key").text',
+        'f13a': 'func() bool { var count uint64; for _, group := range d.get("groups").elements { for _, span := range group.get("ranges").elements { count += grantNumber(span.get("count")) } }; ordinal := grantNumber(c.get("ordinal")); return ordinal == 0 || ordinal > count }()',
+        'f14': '!bytes.Equal(serialize(c.get("executor")),serialize('+template+'.get("executor")))',
+        'f15': '!bytes.Equal(serialize(c.get("recipient")),serialize('+template+'.get("recipient")))',
+        'f16': 'func() bool { allowed := map[string]bool{}; for _, action := range d.get("actions").elements { allowed[action.text] = true };for _, action := range c.get("actions").elements { if !allowed[action.text] { return true } }; return false }()',
+        'f17a': 'func() bool { allowed := map[string]bool{};for _, limit := range '+template+'.get("limits").elements { allowed[grantLimitKey(limit)] = true }; for _, limit := range c.get("limits").elements { if !allowed[grantLimitKey(limit)] { return true } }; return false }()',
+        'f17b': 'len(c.get("limits").elements) != 0 || len('+template+'.get("limits").elements) != 0',
+        'f18': 'grantNumber(c.get("not_before_height")) < grantNumber(p.get("not_before_height")) || grantNumber(c.get("not_after_height")) > grantNumber(p.get("not_after_height"))',
+        'channel': 'observation != nil && observation.ValueState == ParentNameValueKeys && childChannelContainsV4(observation.ChannelKeys,'+delegation+')',
+    }
+    conditions['f10-cs3'] = conditions['f10']
+    for role in ('seal-even','seal-odd','key','owner-even','owner-odd'):
+        conditions['f11-'+role] = ('childKeyXV4(c.get("seal").get("key").text) == '+delegation if role.startswith('seal') else conditions['f11'])
+    codes = {'f5':(5,'ChildContractDiffers'),'f8':(8,'SubjectMismatch'),'f9':(9,'DelegateKeyReuse'),
+             'f10':(10,'DelegateKeyReuse'),'f11':(11,'DelegateKeyReuse'),'f12':(12,'ChildSealKey'),
+             'f13a':(13,'ChildOrdinal'),'f14':(14,'ChildAgentNotAllowed'),'f15':(15,'ChildGranteeNotAllowed'),
+             'f16':(16,'ChildActionsWider'),'f17a':(17,'ChildBudgetOver'),'f17b':(17,'LimitKindUndefined'),
+             'f18':(18,'ChildWindowNotNested')}
+    anchor = 'if c.get("contract").text != p.get("contract").text {'
+    vectors = json.loads((module/'testdata/child-v4.json').read_text())['vectors']
+    for vector in vectors:
+        if not vector.get('pair'):
+            continue
+        earlier,later = vector['pair']
+        if later == 'channel':
+            refusal = '&ChildAttenuationFailure{Step:11,Code:DelegateKeyReuse,Again:ChildAgainState}'
+            diagnostic = 'want no at F11'
+        else:
+            step,code = codes.get(later, (11,'DelegateKeyReuse'))
+            refusal = 'childRefusalV4('+str(step)+','+code+')'
+            diagnostic = ('want exact code '+vector['expect'] if vector['step'] == step else 'want '+vector['expect']+' at F'+str(vector['step']))
+        priority = 'if ('+conditions[earlier]+') && ('+conditions[later]+') { return ChildAttenuationEvaluation{}, '+refusal+' }; '+anchor
+        yield ('priority-'+vector['id'],anchor,priority,'TestChildV4Precedence','TestChildV4Precedence/'+vector['id'],diagnostic)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--scratch', required=True, type=Path)
@@ -116,6 +219,10 @@ def main():
     results = []
 
     def run(name, command):
+        while os.getloadavg()[0] >= 10:
+            print('load gate waiting', name, os.getloadavg()[0], flush=True)
+            time.sleep(15)
+        (scratch / (name+'.load')).write_text(str(os.getloadavg()[0])+'\n')
         with (scratch / (name+'.json')).open('wb') as log:
             proc = subprocess.Popen(command, cwd=module, stdout=log, stderr=subprocess.STDOUT)
             (scratch / (name+'.pid')).write_text(str(proc.pid))
@@ -126,7 +233,7 @@ def main():
     code, _ = run('baseline', ['go', 'test', '-count=1', '-json', '-run', '^TestChildV4', '.'])
     if code != 0:
         raise SystemExit('baseline did not pass: exit '+str(code))
-    for name, old, new, group, witness, diagnostic in PLANTS:
+    for name, old, new, group, witness, diagnostic in (*PLANTS, *quantifier_plants(), *precedence_plants(module)):
         if original.count(old) != 1:
             raise SystemExit('non-unique plant anchor: '+name)
         planted = scratch / (name+'.go')
@@ -143,7 +250,7 @@ def main():
         failed = any(e.get('Action') == 'fail' and e.get('Test') == witness for e in events)
         killed = code == 1 and failed and diagnostic in output
         results.append(dict(plant=name, exit=code, test=witness, diagnostic=diagnostic, killed=killed))
-        print(name, 'exit', code, 'killed', killed, flush=True)
+        print(name, 'exit', code, 'killed', killed, 'test', witness, flush=True)
     (scratch/'results.json').write_text(json.dumps(results, indent=2)+'\n')
     if not all(r['killed'] for r in results):
         raise SystemExit(1)

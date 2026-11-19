@@ -58,10 +58,13 @@ For a by-name parent, the admission/junction caller supplies a
   unknown state and absent by-name observation also fail closed; an omitted
   state is never A, even with supplied keys.
 
-Per the Lead ruling of 2026-11-19, section 3 (PR #158 description), A is a
+Per the Lead ruling of 2026-11-19, section 3, recorded in PR #158's description, A is a
 declared deviation pending the clarifying spec sentence: the expected result
 after adoption is **pass**. Switching `childNoKeyPassV4` to `true` is the
-one-line change; B remains closed. The spec pin does not move.
+one-line change; B remains closed. The spec pin does not move. The bool policy
+function is exercised with both values, including every reader A/B case.
+Nonempty `ChannelKeys` under A, B, unset or unknown are contradictory local
+facts: `ParentNameObservationError`, before and after adoption, never a pass.
 
 For a by-key parent, pass nil: no channel comparison applies. Child seal and
 recipient-key/owner octet comparisons precede all observation handling;
@@ -79,6 +82,14 @@ dependency. `TestChildV4ParentNameValueReader` exercises absent `nostr`, npub,
 uppercase hex, missing `names._`, duplicate `names` (all A), and duplicate
 top-level `nostr` whose second member is the delegation key (B), with a valid
 different-key control for each. No new parser or dependency is introduced.
+The error-to-B branch is confined to that test table's section-2 violation:
+`err != nil` is not a general B predicate. Missing `swarma` with a valid
+`nostr` key is the counterexample (section 2 rule 5; section 4 rule 6), pinned
+by `TestChildV4ReaderErrorIsNotB`. The caller must classify section 2 itself.
+`STEPS-B3a-CHILD.md` lists all ordered precedence pairs, their isolated
+controls and named plants. Generate the table with
+`go run scripts/generate-child-v4.go --precedence-table`; it writes Markdown
+to stdout, not the fixture. The ordinary generator command writes JSON.
 
 The caller establishes that these facts are from F7.3 in this observation,
 including completeness, name-owner control, node health and tip rechecks. The

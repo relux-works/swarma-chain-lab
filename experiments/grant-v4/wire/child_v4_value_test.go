@@ -46,6 +46,9 @@ func TestChildV4ParentNameValueReader(t *testing.T) {
 					observation.ChannelKeys = nil
 					switch {
 					case readErr != nil:
+						// Only this table's section-2 violation maps an error to B.
+						// err != nil is NOT a B predicate: missing swarma is a
+						// counterexample (section 2 rule 5; section 4 rule 6).
 						observation.ValueState = ParentNameValueRefused
 					case value.ChannelKey == "":
 						observation.ValueState = ParentNameValueNoKey
@@ -61,6 +64,17 @@ func TestChildV4ParentNameValueReader(t *testing.T) {
 						want = "ok"
 					}
 					childWantV4(t, childEvaluationErrorV4(t, parent, child, &observation), want, 11)
+					for _, adopted := range []bool{false, true} {
+						policyWant := want
+						if adopted && example.state == ParentNameValueNoKey {
+							policyWant = "ok"
+						}
+						result, policyErr := checkChildAttenuationPolicyV4(parent, child, &observation, adopted)
+						childWantV4(t, policyErr, policyWant, 11)
+						if policyErr != nil && result != (ChildAttenuationEvaluation{}) {
+							t.Fatal("reader policy refusal leaked selection")
+						}
+					}
 				}
 			})
 		}

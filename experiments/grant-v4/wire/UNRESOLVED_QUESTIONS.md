@@ -25,10 +25,10 @@
   2026-11-17 (CHANGELOG 0.1.57; LIP-0026 section 8). Signed group/range order,
   ascending coin output indices and counting from 1 are implemented. The
   rest of Q2 remains PROPOSED; success of this slice is never admission.
-- F11 follows the Lead ruling relayed on 2026-11-19, Appendix A section 3,
+- F11 follows the Lead ruling relayed on 2026-11-19, section 3,
   recorded in PR #158's description; it supersedes fix-3 D2. F7.3 supplies
   explicit K (keys), A (read, no key under LIP-0010 section 4), or B (whole
-  value refused under section 2 / D5). A, B and unset give a codeless typed
+  value refused under section 2 / D5). Coherent A, B and unset give a codeless typed
   IMPLEMENTATION outcome, Again=state, no closure/revocation, not input;
   ISSUE signs nothing. Octet reuse still precedes it and gives
   DELEGATE_KEY_REUSE, Again=no. Acquisition, provenance, completeness,
@@ -62,6 +62,10 @@ Again=state, no Link code or closure, not input. B permanently refuses in
 the same typed way and is never converted into A or an empty set. An unset
 state also refuses and never denotes A. Parent by key passes F11 after the
 octet comparisons. This ruling replaces the fix-3 open question, not the pin.
+Nonempty keys under a non-K state are contradictory caller facts and return
+ParentNameObservationError before state handling, under both bool policies.
+Both policies run in TestChildV4ValuePolicies and in the reader-backed cases;
+adoption remains a one-line constant change, not an untested future branch.
 
 LIP-0010 says:
 
@@ -77,5 +81,8 @@ duplicate top-level `nostr` with the delegation key second classifies as B.
 Extra neighbours cover duplicate `_` and a non-string `nostr` as A. Every
 case has a differing-key positive control. `nil-set` and `empty-set` now
 explicitly declare K and test malformed K lists, not no-key classification.
+The test-local `err != nil` mapping is not a caller B predicate. Missing
+`swarma` with a valid `nostr` key is the counterexample (section 2 rule 5,
+section 4 rule 6); ReadR1Value also reports errors outside section 2's B class.
 Exact F13/T10/Q27/S8-29/O7/section 8.7 quotations and composition constraints
 remain in `STEPS-B3a-CHILD.md`. No other deviation is changed.

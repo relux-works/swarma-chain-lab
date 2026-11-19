@@ -6,7 +6,7 @@ F13(a) count order RESOLVED: Ivan Oparin explicitly accepted the count order on 
 
 Re-pin audit: every row sentence below is re-quoted from §8.4 at v0.1.61. **CHANGED** marks a row whose full specification row changed from 0.1.55; unmarked row sentences are unchanged. F6 remains outside the slice, including its new seal part (c); the former part (c) is now (d).
 
-F11 caller contract follows the Lead ruling of 2026-11-19, Appendix A
+F11 caller contract follows the Lead ruling of 2026-11-19,
 section 3, recorded in PR #158's description (supersedes fix-3 D2).
 `ParentNameObservation` carries the exact F7.3 recipient name, pinned genesis,
 tip identity and explicit `ValueState`: K has a complete nonempty set of
@@ -19,7 +19,7 @@ Again=no regardless of the value state. A parent by key has no channel
 comparison. For K, all keys are validated before membership: equal gives
 DELEGATE_KEY_REUSE, Again=state; differing keys pass F11. Invalid metadata
 or malformed K sets remain typed local input errors, not A/B classification.
-A, B and unset give typed IMPLEMENTATION outcomes, no Link code, no closure
+Coherent A, B and unset give typed IMPLEMENTATION outcomes, no Link code, no closure
 or revocation, Again=state, not input. ISSUE must sign nothing.
 
 F17 remains unchanged: no LIP-0031 proposal profile is adopted; equal, zero
@@ -195,7 +195,7 @@ Q27:
 
 S8-29:
 
-> Q27; rule T10
+> A child with the ordinal 0 under a parent whose first group names a `certifier` that is no entry of `notaries`: `CHILD_ORDINAL`, by (a) before (b). A child of that first group with another executor than its template: `GRANT_DELEGATE`, by F13 before F14. A child of that first group that is signed by another key than the delegation key: `CHILD_SIGNER`, by F2 before F13. A parent whose second group has that defect, with a valid child of the first group: no code is stated, because two outcomes conform (open point O7), and this is a note and no code case
 
 O7:
 
@@ -233,7 +233,7 @@ The following cells quote the pin's Again column verbatim.
 
 | Row | Again (quoted) | Executable evidence |
 | --- | --- | --- |
-| F2 | “no; input for a child that is presented without its parent (`WIRE_ID`): the same child, presented with its parent, is decided anew” | TestChildV4InputPrecedence; TestChildV4Documents |
+| F2 | “no; input for a child that is presented without its parent (`WIRE_ID`): the same child, presented with its parent, is decided anew” | TestChildV4InputPrecedence; TestChildV4Documents; TestChildV4DefensiveF2 (explicitly breached verified-input boundary) |
 | F5 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
 | F8 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
 | F9 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
@@ -267,7 +267,7 @@ the old no-key ambiguity.
 
 ## Declared F11 deviation and reader coverage (fix 4)
 
-The Lead ruling of 2026-11-19, Appendix A section 3, recorded in PR #158's
+The Lead ruling of 2026-11-19, section 3, recorded in PR #158's
 description, keeps A closed pending the clarifying spec sentence. This is a
 declared deviation alongside the unchanged F13(b) divergence above: the
 expected result after adoption is **pass**. Changing `childNoKeyPassV4` to
@@ -289,3 +289,205 @@ with Again=no. Parent-by-key and differing/equal K neighbours are retained.
 `f11-no-key-passes` must fail the A reader test; `f11-refused-as-no-key` and
 `f11-refused-as-empty-keys` must fail the duplicate-top-level-nostr B test.
 `f11-unset-as-no-key` must fail value-unset. All old plants remain.
+
+
+## Precedence pair coverage
+
+The evaluated order is F5 > F8 > F9 > F10 > F11 > F12 > F13(a) >
+F14 > F15 > F16 > F17(a) > F17(b) > F18. The table enumerates **all 78
+ordered pairs**, not just adjacent rows, plus all ten F10-CS1/CS3 versus
+F11-octet-role/parity combinations and all five octets-before-channel pairs.
+Each joint holds both named triggers, the earlier one wins, and both
+isolated-trigger controls are generated. "Single-defect control" means
+only that named trigger was introduced; a trigger can imply a masked later
+failure (for example F10-CS3 also makes F12 unequal). A good neighbour is
+`prefix-open` (and `name-valid-neighbour` for the name observation).
+`TestChildV4PairCoverage` independently requires the entire inventory;
+`TestChildV4Precedence` runs every joint and each of its two controls.
+Every table row has its own bounded semantic priority-inversion plant:
+when both defect predicates hold it reverses their priority. The plant is
+not keyed by vector ID. The checker requires its named subtest failure and
+intended diagnostic, never a crash or build failure. These are bounded
+witnesses of each overlap, not universal proofs.
+
+Inside F10, **CS1 > CS3** is a dependency order, not a realizable two-defect
+joint: an absent `child_seal_key` has no x coordinate that can also reuse a
+role. `missing-childseal` pins CS1; `childseal-delegation-parity-false` and
+`childseal-delegation-parity-true` pin CS3. The ten F10/F11 joints below
+independently pin both F10 refusals against each F11 comparison. No invented
+"missing but equal" value or panic is counted as a two-defect witness.
+
+Inside F11, **octets > channel** is pinned separately for seal.key and
+recipient.owner at both output parities, and recipient.key (x-only). Both
+produce DELEGATE_KEY_REUSE; the earlier mark **no**, rather than **state**,
+proves which comparison won. Existing `*-before-observation` joints also
+pin octets before invalid observation metadata.
+
+Inside F17 the contract order is **(a) > (b) > (c)**. The executable slice
+covers (a) > (b), including the transitive order to F18. **(b) > (c)** and
+**(a) > (c)** cannot have an executable numeric-refusal joint under this
+slice's unchanged empty profile set (T9/W11.14): every present limit already
+refuses at (b). `limit-0`, `limit-5`, `limit-6` and
+`kind-before-amount-and-window` give the kind refusal even with equal or
+over-budget amounts; no numeric attenuation or profile adoption is claimed.
+The F17(c) pair is a declared out-of-contract row, not silently "covered" by
+an amount that no adopted profile interprets. No profile or stand-in is added.
+
+Regenerate this exact table with:
+`cd experiments/grant-v4/wire && go run scripts/generate-child-v4.go --precedence-table`.
+The generator's ordinary invocation alone writes the child fixture.
+
+| Ordered claim | Joint vector (both triggers) | Earlier control | Later control | Winner | Narrowing plant |
+| --- | --- | --- | --- | --- | --- |
+| f5 > f8 | `pair-f5-before-f8` | `control-f5` | `control-f8` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f8` |
+| f5 > f9 | `pair-f5-before-f9` | `control-f5` | `control-f9` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f9` |
+| f5 > f10 | `pair-f5-before-f10` | `control-f5` | `control-f10` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f10` |
+| f5 > f11 | `pair-f5-before-f11` | `control-f5` | `control-f11` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f11` |
+| f5 > f12 | `pair-f5-before-f12` | `control-f5` | `control-f12` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f12` |
+| f5 > f13a | `pair-f5-before-f13a` | `control-f5` | `control-f13a` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f13a` |
+| f5 > f14 | `pair-f5-before-f14` | `control-f5` | `control-f14` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f14` |
+| f5 > f15 | `pair-f5-before-f15` | `control-f5` | `control-f15` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f15` |
+| f5 > f16 | `pair-f5-before-f16` | `control-f5` | `control-f16` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f16` |
+| f5 > f17a | `pair-f5-before-f17a` | `control-f5` | `control-f17a` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f17a` |
+| f5 > f17b | `pair-f5-before-f17b` | `control-f5` | `control-f17b` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f17b` |
+| f5 > f18 | `pair-f5-before-f18` | `control-f5` | `control-f18` | CHILD_CONTRACT_DIFFERS at F5 | `priority-pair-f5-before-f18` |
+| f8 > f9 | `pair-f8-before-f9` | `control-f8` | `control-f9` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f9` |
+| f8 > f10 | `pair-f8-before-f10` | `control-f8` | `control-f10` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f10` |
+| f8 > f11 | `pair-f8-before-f11` | `control-f8` | `control-f11` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f11` |
+| f8 > f12 | `pair-f8-before-f12` | `control-f8` | `control-f12` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f12` |
+| f8 > f13a | `pair-f8-before-f13a` | `control-f8` | `control-f13a` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f13a` |
+| f8 > f14 | `pair-f8-before-f14` | `control-f8` | `control-f14` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f14` |
+| f8 > f15 | `pair-f8-before-f15` | `control-f8` | `control-f15` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f15` |
+| f8 > f16 | `pair-f8-before-f16` | `control-f8` | `control-f16` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f16` |
+| f8 > f17a | `pair-f8-before-f17a` | `control-f8` | `control-f17a` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f17a` |
+| f8 > f17b | `pair-f8-before-f17b` | `control-f8` | `control-f17b` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f17b` |
+| f8 > f18 | `pair-f8-before-f18` | `control-f8` | `control-f18` | SUBJECT_MISMATCH at F8 | `priority-pair-f8-before-f18` |
+| f9 > f10 | `pair-f9-before-f10` | `control-f9` | `control-f10` | DELEGATE_KEY_REUSE at F9 | `priority-pair-f9-before-f10` |
+| f9 > f11 | `pair-f9-before-f11` | `control-f9` | `control-f11` | DELEGATE_KEY_REUSE at F9 | `priority-pair-f9-before-f11` |
+| f9 > f12 | `pair-f9-before-f12` | `control-f9` | `control-f12` | DELEGATE_KEY_REUSE at F9 | `priority-pair-f9-before-f12` |
+| f9 > f13a | `pair-f9-before-f13a` | `control-f9` | `control-f13a` | DELEGATE_KEY_REUSE at F9 | `priority-pair-f9-before-f13a` |
+| f9 > f14 | `pair-f9-before-f14` | `control-f9` | `control-f14` | DELEGATE_KEY_REUSE at F9 | `priority-pair-f9-before-f14` |
+| f9 > f15 | `pair-f9-before-f15` | `control-f9` | `control-f15` | DELEGATE_KEY_REUSE at F9 | `priority-pair-f9-before-f15` |
+| f9 > f16 | `pair-f9-before-f16` | `control-f9` | `control-f16` | DELEGATE_KEY_REUSE at F9 | `priority-pair-f9-before-f16` |
+| f9 > f17a | `pair-f9-before-f17a` | `control-f9` | `control-f17a` | DELEGATE_KEY_REUSE at F9 | `priority-pair-f9-before-f17a` |
+| f9 > f17b | `pair-f9-before-f17b` | `control-f9` | `control-f17b` | DELEGATE_KEY_REUSE at F9 | `priority-pair-f9-before-f17b` |
+| f9 > f18 | `pair-f9-before-f18` | `control-f9` | `control-f18` | DELEGATE_KEY_REUSE at F9 | `priority-pair-f9-before-f18` |
+| f10 > f11 | `pair-f10-before-f11` | `control-f10` | `control-f11` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-before-f11` |
+| f10 > f12 | `pair-f10-before-f12` | `control-f10` | `control-f12` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-before-f12` |
+| f10 > f13a | `pair-f10-before-f13a` | `control-f10` | `control-f13a` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-before-f13a` |
+| f10 > f14 | `pair-f10-before-f14` | `control-f10` | `control-f14` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-before-f14` |
+| f10 > f15 | `pair-f10-before-f15` | `control-f10` | `control-f15` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-before-f15` |
+| f10 > f16 | `pair-f10-before-f16` | `control-f10` | `control-f16` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-before-f16` |
+| f10 > f17a | `pair-f10-before-f17a` | `control-f10` | `control-f17a` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-before-f17a` |
+| f10 > f17b | `pair-f10-before-f17b` | `control-f10` | `control-f17b` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-before-f17b` |
+| f10 > f18 | `pair-f10-before-f18` | `control-f10` | `control-f18` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-before-f18` |
+| f11 > f12 | `pair-f11-before-f12` | `control-f11` | `control-f12` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-before-f12` |
+| f11 > f13a | `pair-f11-before-f13a` | `control-f11` | `control-f13a` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-before-f13a` |
+| f11 > f14 | `pair-f11-before-f14` | `control-f11` | `control-f14` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-before-f14` |
+| f11 > f15 | `pair-f11-before-f15` | `control-f11` | `control-f15` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-before-f15` |
+| f11 > f16 | `pair-f11-before-f16` | `control-f11` | `control-f16` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-before-f16` |
+| f11 > f17a | `pair-f11-before-f17a` | `control-f11` | `control-f17a` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-before-f17a` |
+| f11 > f17b | `pair-f11-before-f17b` | `control-f11` | `control-f17b` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-before-f17b` |
+| f11 > f18 | `pair-f11-before-f18` | `control-f11` | `control-f18` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-before-f18` |
+| f12 > f13a | `pair-f12-before-f13a` | `control-f12` | `control-f13a` | CHILD_SEAL_KEY at F12 | `priority-pair-f12-before-f13a` |
+| f12 > f14 | `pair-f12-before-f14` | `control-f12` | `control-f14` | CHILD_SEAL_KEY at F12 | `priority-pair-f12-before-f14` |
+| f12 > f15 | `pair-f12-before-f15` | `control-f12` | `control-f15` | CHILD_SEAL_KEY at F12 | `priority-pair-f12-before-f15` |
+| f12 > f16 | `pair-f12-before-f16` | `control-f12` | `control-f16` | CHILD_SEAL_KEY at F12 | `priority-pair-f12-before-f16` |
+| f12 > f17a | `pair-f12-before-f17a` | `control-f12` | `control-f17a` | CHILD_SEAL_KEY at F12 | `priority-pair-f12-before-f17a` |
+| f12 > f17b | `pair-f12-before-f17b` | `control-f12` | `control-f17b` | CHILD_SEAL_KEY at F12 | `priority-pair-f12-before-f17b` |
+| f12 > f18 | `pair-f12-before-f18` | `control-f12` | `control-f18` | CHILD_SEAL_KEY at F12 | `priority-pair-f12-before-f18` |
+| f13a > f14 | `pair-f13a-before-f14` | `control-f13a` | `control-f14` | CHILD_ORDINAL at F13 | `priority-pair-f13a-before-f14` |
+| f13a > f15 | `pair-f13a-before-f15` | `control-f13a` | `control-f15` | CHILD_ORDINAL at F13 | `priority-pair-f13a-before-f15` |
+| f13a > f16 | `pair-f13a-before-f16` | `control-f13a` | `control-f16` | CHILD_ORDINAL at F13 | `priority-pair-f13a-before-f16` |
+| f13a > f17a | `pair-f13a-before-f17a` | `control-f13a` | `control-f17a` | CHILD_ORDINAL at F13 | `priority-pair-f13a-before-f17a` |
+| f13a > f17b | `pair-f13a-before-f17b` | `control-f13a` | `control-f17b` | CHILD_ORDINAL at F13 | `priority-pair-f13a-before-f17b` |
+| f13a > f18 | `pair-f13a-before-f18` | `control-f13a` | `control-f18` | CHILD_ORDINAL at F13 | `priority-pair-f13a-before-f18` |
+| f14 > f15 | `pair-f14-before-f15` | `control-f14` | `control-f15` | CHILD_AGENT_NOT_ALLOWED at F14 | `priority-pair-f14-before-f15` |
+| f14 > f16 | `pair-f14-before-f16` | `control-f14` | `control-f16` | CHILD_AGENT_NOT_ALLOWED at F14 | `priority-pair-f14-before-f16` |
+| f14 > f17a | `pair-f14-before-f17a` | `control-f14` | `control-f17a` | CHILD_AGENT_NOT_ALLOWED at F14 | `priority-pair-f14-before-f17a` |
+| f14 > f17b | `pair-f14-before-f17b` | `control-f14` | `control-f17b` | CHILD_AGENT_NOT_ALLOWED at F14 | `priority-pair-f14-before-f17b` |
+| f14 > f18 | `pair-f14-before-f18` | `control-f14` | `control-f18` | CHILD_AGENT_NOT_ALLOWED at F14 | `priority-pair-f14-before-f18` |
+| f15 > f16 | `pair-f15-before-f16` | `control-f15` | `control-f16` | CHILD_GRANTEE_NOT_ALLOWED at F15 | `priority-pair-f15-before-f16` |
+| f15 > f17a | `pair-f15-before-f17a` | `control-f15` | `control-f17a` | CHILD_GRANTEE_NOT_ALLOWED at F15 | `priority-pair-f15-before-f17a` |
+| f15 > f17b | `pair-f15-before-f17b` | `control-f15` | `control-f17b` | CHILD_GRANTEE_NOT_ALLOWED at F15 | `priority-pair-f15-before-f17b` |
+| f15 > f18 | `pair-f15-before-f18` | `control-f15` | `control-f18` | CHILD_GRANTEE_NOT_ALLOWED at F15 | `priority-pair-f15-before-f18` |
+| f16 > f17a | `pair-f16-before-f17a` | `control-f16` | `control-f17a` | CHILD_ACTIONS_WIDER at F16 | `priority-pair-f16-before-f17a` |
+| f16 > f17b | `pair-f16-before-f17b` | `control-f16` | `control-f17b` | CHILD_ACTIONS_WIDER at F16 | `priority-pair-f16-before-f17b` |
+| f16 > f18 | `pair-f16-before-f18` | `control-f16` | `control-f18` | CHILD_ACTIONS_WIDER at F16 | `priority-pair-f16-before-f18` |
+| f17a > f17b | `pair-f17a-before-f17b` | `control-f17a` | `control-f17b` | CHILD_BUDGET_OVER at F17 | `priority-pair-f17a-before-f17b` |
+| f17a > f18 | `pair-f17a-before-f18` | `control-f17a` | `control-f18` | CHILD_BUDGET_OVER at F17 | `priority-pair-f17a-before-f18` |
+| f17b > f18 | `pair-f17b-before-f18` | `control-f17b` | `control-f18` | LIMIT_KIND_UNDEFINED at F17 | `priority-pair-f17b-before-f18` |
+| f10-cs1 > f11-seal-even | `pair-f10-cs1-before-f11-seal-even` | `missing-childseal` | `control-f11-seal-even` | CHILD_SEAL_KEY at F10 | `priority-pair-f10-cs1-before-f11-seal-even` |
+| f10-cs3 > f11-seal-even | `pair-f10-cs3-before-f11-seal-even` | `control-f10` | `control-f11-seal-even` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-cs3-before-f11-seal-even` |
+| f11-seal-even > channel | `pair-f11-seal-even-before-channel` | `control-f11-seal-even` | `delegation-in-set` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-seal-even-before-channel` |
+| f10-cs1 > f11-seal-odd | `pair-f10-cs1-before-f11-seal-odd` | `missing-childseal` | `control-f11-seal-odd` | CHILD_SEAL_KEY at F10 | `priority-pair-f10-cs1-before-f11-seal-odd` |
+| f10-cs3 > f11-seal-odd | `pair-f10-cs3-before-f11-seal-odd` | `control-f10` | `control-f11-seal-odd` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-cs3-before-f11-seal-odd` |
+| f11-seal-odd > channel | `pair-f11-seal-odd-before-channel` | `control-f11-seal-odd` | `delegation-in-set` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-seal-odd-before-channel` |
+| f10-cs1 > f11-key | `pair-f10-cs1-before-f11-key` | `missing-childseal` | `control-f11-key` | CHILD_SEAL_KEY at F10 | `priority-pair-f10-cs1-before-f11-key` |
+| f10-cs3 > f11-key | `pair-f10-cs3-before-f11-key` | `control-f10` | `control-f11-key` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-cs3-before-f11-key` |
+| f11-key > channel | `pair-f11-key-before-channel` | `control-f11-key` | `delegation-in-set` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-key-before-channel` |
+| f10-cs1 > f11-owner-even | `pair-f10-cs1-before-f11-owner-even` | `missing-childseal` | `control-f11-owner-even` | CHILD_SEAL_KEY at F10 | `priority-pair-f10-cs1-before-f11-owner-even` |
+| f10-cs3 > f11-owner-even | `pair-f10-cs3-before-f11-owner-even` | `control-f10` | `control-f11-owner-even` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-cs3-before-f11-owner-even` |
+| f11-owner-even > channel | `pair-f11-owner-even-before-channel` | `control-f11-owner-even` | `delegation-in-set` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-owner-even-before-channel` |
+| f10-cs1 > f11-owner-odd | `pair-f10-cs1-before-f11-owner-odd` | `missing-childseal` | `control-f11-owner-odd` | CHILD_SEAL_KEY at F10 | `priority-pair-f10-cs1-before-f11-owner-odd` |
+| f10-cs3 > f11-owner-odd | `pair-f10-cs3-before-f11-owner-odd` | `control-f10` | `control-f11-owner-odd` | DELEGATE_KEY_REUSE at F10 | `priority-pair-f10-cs3-before-f11-owner-odd` |
+| f11-owner-odd > channel | `pair-f11-owner-odd-before-channel` | `control-f11-owner-odd` | `delegation-in-set` | DELEGATE_KEY_REUSE at F11 | `priority-pair-f11-owner-odd-before-channel` |
+
+
+### F17(a) quantifier coverage
+
+Each child has three limits. The template has all three keys in the present
+control; the joint changes exactly the indicated key to a missing key.
+Every present-key control refuses only at F17(b), as no profile is adopted.
+`new-key-zero` and `limit-later-missing-key-false` retain single-limit controls.
+
+| Missing position | Amount | Joint (F17(a) wins over F17(b)) | Present-key control (F17(b)) | Narrowing plant |
+| --- | --- | --- | --- | --- |
+| 0 | 0 | `limit-missing-position-0-amount-0-true` | `limit-missing-position-0-amount-0-false` | `f17a-skip-position-0-amount-0` |
+| 0 | 1 | `limit-missing-position-0-amount-1-true` | `limit-missing-position-0-amount-1-false` | `f17a-skip-position-0-amount-1` |
+| 1 | 0 | `limit-missing-position-1-amount-0-true` | `limit-missing-position-1-amount-0-false` | `f17a-skip-position-1-amount-0` |
+| 1 | 1 | `limit-missing-position-1-amount-1-true` | `limit-missing-position-1-amount-1-false` | `f17a-skip-position-1-amount-1` |
+| 2 | 0 | `limit-missing-position-2-amount-0-true` | `limit-missing-position-2-amount-0-false` | `f17a-skip-position-2-amount-0` |
+| 2 | 1 | `limit-missing-position-2-amount-1-true` | `limit-missing-position-2-amount-1-false` | `f17a-skip-position-2-amount-1` |
+
+`f17a-last-limit-only` and `f17a-flag-overwritten` must both fail
+`TestChildV4Template/limit-missing-position-0-amount-0-true`.
+The existing first-limit-only plant stays; the middle and last positions
+and nonzero amounts have separate narrowing witnesses, not a single example
+standing in for the quantifier class.
+
+### Again and caller obligations
+
+`childWantV4` asserts the expected Again on every protocol refusal, including
+F2 and F11 under by-key parents. F2 is **no** for CHAIN_DEPTH, NOT_DELEGABLE
+and a child presented with another parent; only a missing parent is **input**.
+This is the literal reading of the F2 cell. LIP-0020 W11.8 at the pin says:
+
+> A child that is signed by another key and presented with another parent refuses as `WIRE_ID`.
+
+`TestChildV4DefensiveF2` exercises the depth/not-delegable defensive guards
+on deliberately breached verified-input boundaries; VerifyGrant cannot
+construct these invalid combinations. It is not evidence those documents
+verify. Existing reader regressions still reject the actual invalid inputs.
+The mismatch and missing-parent controls use the public verified inputs.
+
+Before the value-state switch, a nonempty ChannelKeys under A, B, unset or
+unknown is a contradictory observation and yields ParentNameObservationError
+(kind contradictory). The three generated `value-{no-key,refused,unset}-with-delegation-key`
+vectors assert that input error under **both** policies. Empty or nil lists
+under coherent A are allowed facts, not K. A bool policy function drives the
+whole evaluator: false retains the declared typed A refusal; true exercises
+the expected adopted A pass; B and unset remain codeless typed refusals.
+`TestChildV4ValuePolicies` and each reader-backed case exercise both values.
+Only `childNoKeyPassV4` changes upon adoption. The public ruling remains
+recorded in PR #158's description; the sentence is not adopted at this pin.
+
+The reader test's `err != nil` mapping is local to its section-2-invalid
+example and is **not a B predicate** for callers. A valid nostr key with
+**missing swarma** is a counterexample: section 2 rule 5 says no Link
+authority without swarma but the name remains valid for other uses; section
+4 rule 6 keeps the nostr result separate from how swarma is read.
+`TestChildV4ReaderErrorIsNotB` pins this wider reader error set. The F7.3
+caller must classify the actual section-2 refusal class, not every error of
+ReadR1Value; provenance, owner proof and observation health remain outside
+this evaluator. No production reader mapping is introduced here.

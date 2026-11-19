@@ -17,6 +17,8 @@ type childVectorV4 struct {
 	Observation                *ParentNameObservation      `json:"observation"`
 	InputIndex                 int                         `json:"input_index"`
 	Selected                   *ChildAttenuationEvaluation `json:"selected"`
+	Pair                       []string                    `json:"pair"`
+	Controls                   []string                    `json:"controls"`
 }
 
 func childVectorsV4(t *testing.T) []childVectorV4 {
@@ -73,7 +75,7 @@ func childPairV4(t *testing.T, v childVectorV4) (*SignedGrant, *SignedGrant, err
 	return p, c, err
 }
 
-func childWantV4(t *testing.T, err error, want string, step int) {
+func childWantV4(t *testing.T, err error, want string, step int, again ...ChildAgain) {
 	t.Helper()
 	if want == "ok" {
 		if err != nil {
@@ -113,8 +115,12 @@ func childWantV4(t *testing.T, err error, want string, step int) {
 	if f.Again != ChildAgainNo && f.Again != ChildAgainState && f.Again != ChildAgainInput {
 		t.Fatalf("unknown Again mark: %q", f.Again)
 	}
-	if step != 2 && step != 11 && f.Again != ChildAgainNo {
-		t.Fatalf("Again = %q, want no at F%d under the stated profile set", f.Again, step)
+	wantAgain := ChildAgainNo
+	if len(again) != 0 {
+		wantAgain = again[0]
+	}
+	if f.Again != wantAgain {
+		t.Fatalf("Again = %q, want %s at F%d under the stated profile set", f.Again, wantAgain, step)
 	}
 }
 
@@ -210,8 +216,8 @@ func TestChildV4Documents(t *testing.T) {
 	}
 	childWantV4(t, childEvaluationErrorV4(t, baseline, original, nil), "ok", 0)
 	childWantV4(t, childEvaluationErrorV4(t, other, original, nil), "WIRE_ID", 2)
-	childWantV4(t, childEvaluationErrorV4(t, nil, original, nil), "WIRE_ID", 2)
-	childWantV4(t, childEvaluationErrorV4(t, &SignedGrant{}, original, nil), "WIRE_ID", 2)
+	childWantV4(t, childEvaluationErrorV4(t, nil, original, nil), "WIRE_ID", 2, ChildAgainInput)
+	childWantV4(t, childEvaluationErrorV4(t, &SignedGrant{}, original, nil), "WIRE_ID", 2, ChildAgainInput)
 	{
 		result, err := CheckChildAttenuationV4(baseline, nil, nil)
 		var input *ChildDocumentInputError
@@ -257,7 +263,13 @@ func TestChildV4ParentNameObservation(t *testing.T) {
 				t.Fatal(err)
 			}
 			verdict := childEvaluationErrorV4(t, p, c, v.Observation)
-			childWantV4(t, verdict, v.Expect, v.Step)
+			again := ChildAgainNo
+			delegation := p.object.payload.root.get("delegate").get("key").text
+			root := c.object.payload.root
+			if v.Step == 11 && v.Expect == "DELEGATE_KEY_REUSE" && childKeyXV4(root.get("seal").get("key").text) != delegation && childKeyXV4(childRecipientKeyV4(root.get("recipient"))) != delegation {
+				again = ChildAgainState
+			}
+			childWantV4(t, verdict, v.Expect, v.Step, again)
 			var input *ParentNameObservationError
 			if strings.HasPrefix(v.Expect, "input:") && (!errors.As(verdict, &input) || input.KeyIndex != v.InputIndex) {
 				t.Fatalf("wrong input error index: %v, want %d", input, v.InputIndex)
@@ -399,7 +411,7 @@ func TestChildV4Again(t *testing.T) {
 				t.Fatal(err)
 			}
 			err = childEvaluationErrorV4(t, parent, child, vector.Observation)
-			childWantV4(t, err, "DELEGATE_KEY_REUSE", 11)
+			childWantV4(t, err, "DELEGATE_KEY_REUSE", 11, want)
 			var failure *ChildAttenuationFailure
 			if !errors.As(err, &failure) || failure.Again != want {
 				t.Fatalf("Again = %+v, want %s", failure, want)
@@ -435,7 +447,7 @@ func TestChildV4InputPrecedence(t *testing.T) {
 		}
 		t.Run("missing-parent", func(t *testing.T) {
 			err := childEvaluationErrorV4(t, nil, child, nil)
-			childWantV4(t, err, "WIRE_ID", 2)
+			childWantV4(t, err, "WIRE_ID", 2, ChildAgainInput)
 			var failure *ChildAttenuationFailure
 			if !errors.As(err, &failure) || failure.Again != ChildAgainInput {
 				t.Fatalf("missing-parent Again = %+v, want input", failure)

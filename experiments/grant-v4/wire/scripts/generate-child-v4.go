@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
@@ -90,6 +91,8 @@ type fixture struct {
 	Observation *wire.ParentNameObservation      `json:"observation,omitempty"`
 	InputIndex  int                              `json:"input_index,omitempty"`
 	Selected    *wire.ChildAttenuationEvaluation `json:"selected,omitempty"`
+	Pair        []string                         `json:"pair,omitempty"`
+	Controls    []string                         `json:"controls,omitempty"`
 }
 
 func main() {
@@ -128,6 +131,109 @@ func main() {
 		add(id, "template", want, step, spec, f)
 	}
 	prefix("prefix-open", "ok", 13, "F1/F2 preconditions; evaluated F5, F8 to F12, F13(a), F14 to F18 slice", nil)
+	// Every reachable ordered row pair has a joint witness and isolated trigger
+	// controls. F17(childDoc) has no executable refusal under the unchanged profile set.
+	type defect struct {
+		id, code string
+		step     int
+		change   func(obj, obj)
+	}
+	defects := []defect{
+		{"f5", "CHILD_CONTRACT_DIFFERS", 5, func(parentDoc, childDoc obj) { childDoc["contract"] = hash("other-contract") }},
+		{"f8", "SUBJECT_MISMATCH", 8, func(parentDoc, childDoc obj) { childDoc["genesis"] = hash("other-genesis") }},
+		{"f9", "DELEGATE_KEY_REUSE", 9, func(parentDoc, childDoc obj) { parentDoc["issuer"].(obj)["owner"] = output(2) }},
+		{"f10", "DELEGATE_KEY_REUSE", 10, func(parentDoc, childDoc obj) { parentDoc["delegate"].(obj)["child_seal_key"] = output(2) }},
+		{"f11", "DELEGATE_KEY_REUSE", 11, func(parentDoc, childDoc obj) { childDoc["recipient"] = obj{"key": signing(2)} }},
+		{"f12", "CHILD_SEAL_KEY", 12, func(parentDoc, childDoc obj) { childDoc["seal"].(obj)["key"] = opposite(output(3)) }},
+		{"f13a", "CHILD_ORDINAL", 13, func(parentDoc, childDoc obj) { childDoc["ordinal"] = 0 }},
+		{"f14", "CHILD_AGENT_NOT_ALLOWED", 14, func(parentDoc, childDoc obj) { childDoc["executor"].(obj)["name"] = "id/example-other" }},
+		{"f15", "CHILD_GRANTEE_NOT_ALLOWED", 15, func(parentDoc, childDoc obj) { template(parentDoc)["recipient"] = obj{"key": signing(3)} }},
+		{"f16", "CHILD_ACTIONS_WIDER", 16, func(parentDoc, childDoc obj) { childDoc["actions"] = []any{"example/c"} }},
+		{"f17a", "CHILD_BUDGET_OVER", 17, func(parentDoc, childDoc obj) {
+			missing := limit("0")
+			missing["resource"] = "example/missing"
+			childDoc["limits"] = []any{missing}
+		}},
+		{"f17b", "LIMIT_KIND_UNDEFINED", 17, func(parentDoc, childDoc obj) {
+			template(parentDoc)["limits"] = []any{limit("5")}
+			parentDoc["delegate"].(obj)["pools"] = []any{limit("10")}
+		}},
+		{"f18", "CHILD_WINDOW_NOT_NESTED", 18, func(parentDoc, childDoc obj) { childDoc["not_after_height"] = 21 }},
+	}
+	for earlierIndex, earlier := range defects {
+		add("control-"+earlier.id, "pair", earlier.code, earlier.step, "isolated precedence trigger; later failures may be masked", earlier.change)
+		for _, later := range defects[earlierIndex+1:] {
+			add("pair-"+earlier.id+"-before-"+later.id, "pair", earlier.code, earlier.step, "ordered row pair", func(parentDoc, childDoc obj) { earlier.change(parentDoc, childDoc); later.change(parentDoc, childDoc) })
+			cases[len(cases)-1].Pair = []string{earlier.id, later.id}
+			cases[len(cases)-1].Controls = []string{"control-" + earlier.id, "control-" + later.id}
+		}
+	}
+	for _, role := range []string{"seal-even", "seal-odd", "key", "owner-even", "owner-odd"} {
+		octets := func(parentDoc, childDoc obj) {
+			key := output(2)
+			if strings.HasSuffix(role, "odd") {
+				key = opposite(key)
+			}
+			switch {
+			case strings.HasPrefix(role, "seal"):
+				childDoc["seal"].(obj)["key"] = key
+			case role == "key":
+				childDoc["recipient"] = obj{"key": signing(2)}
+			default:
+				childDoc["recipient"] = obj{"name": "id/example-child", "owner": key}
+			}
+		}
+		add("control-f11-"+role, "pair", "DELEGATE_KEY_REUSE", 11, "F11 octet trigger", octets)
+		for _, cs := range []string{"cs1", "cs3"} {
+			csDefect := func(parentDoc, childDoc obj) {
+				if cs == "cs1" {
+					delete(parentDoc["delegate"].(obj), "child_seal_key")
+				} else {
+					parentDoc["delegate"].(obj)["child_seal_key"] = output(2)
+				}
+			}
+			want := "DELEGATE_KEY_REUSE"
+			control := "control-f10"
+			if cs == "cs1" {
+				want, control = "CHILD_SEAL_KEY", "missing-childseal"
+			}
+			add("pair-f10-"+cs+"-before-f11-"+role, "pair", want, 10, "Q9 every octet role against CS1 and CS3", func(parentDoc, childDoc obj) { csDefect(parentDoc, childDoc); octets(parentDoc, childDoc) })
+			cases[len(cases)-1].Pair = []string{"f10-" + cs, "f11-" + role}
+			cases[len(cases)-1].Controls = []string{control, "control-f11-" + role}
+		}
+		add("pair-f11-"+role+"-before-channel", "pair", "DELEGATE_KEY_REUSE", 11, "F11 octets before channel; Again=no", func(parentDoc, childDoc obj) {
+			parentDoc["recipient"] = obj{"name": "id/example-parent", "owner": output(1)}
+			octets(parentDoc, childDoc)
+		})
+		cases[len(cases)-1].Observation = &wire.ParentNameObservation{Name: "id/example-parent", Genesis: hash("example-genesis"), TipHash: hash("example-tip"), TipHeight: 1, ValueState: wire.ParentNameValueKeys, ChannelKeys: []string{signing(2)}}
+		cases[len(cases)-1].Pair = []string{"f11-" + role, "channel"}
+		cases[len(cases)-1].Controls = []string{"control-f11-" + role, "delegation-in-set"}
+	}
+	for _, amount := range []string{"0", "1"} {
+		for position := range 3 {
+			for _, missing := range []bool{false, true} {
+				want := "LIMIT_KIND_UNDEFINED"
+				if missing {
+					want = "CHILD_BUDGET_OVER"
+				}
+				add(fmt.Sprintf("limit-missing-position-%d-amount-%s-%t", position, amount, missing), "template", want, 17, "F17(a) all three positions at zero and nonzero, beside present-key controls", func(parentDoc, childDoc obj) {
+					var allowed, pools, entries []any
+					for index := range 3 {
+						resource := fmt.Sprintf("example/resource-%d", index)
+						ceiling, pool, entry := limit("5"), limit("10"), limit("1")
+						ceiling["resource"], pool["resource"], entry["resource"] = resource, resource, resource
+						allowed, pools, entries = append(allowed, ceiling), append(pools, pool), append(entries, entry)
+					}
+					template(parentDoc)["limits"], parentDoc["delegate"].(obj)["pools"] = allowed, pools
+					entries[position].(obj)["amount"] = amount
+					if missing {
+						entries[position].(obj)["resource"] = "example/missing"
+					}
+					childDoc["limits"] = entries
+				})
+			}
+		}
+	}
 	prefix("contract", "CHILD_CONTRACT_DIFFERS", 5, "step-i-01", func(p, c obj) { c["contract"] = hash("other-contract") })
 	prefix("genesis", "SUBJECT_MISMATCH", 8, "step-i-02", func(p, c obj) { c["genesis"] = hash("other-genesis") })
 	prefix("contract-before-genesis", "CHILD_CONTRACT_DIFFERS", 5, "step-c-01", func(p, c obj) { c["contract"] = hash("other-contract"); c["genesis"] = hash("other-genesis") })
@@ -286,14 +392,23 @@ func main() {
 		}
 	}
 	observe("delegation-not-in-set", "ok", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(3), signing(1)} })
-	observe("value-unset-with-keys", "implementation:", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ValueState = "" })
-	observe("value-unknown", "implementation:unknown", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ValueState = "unknown" })
+	observe("value-unset-with-keys", "input:contradictory", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ValueState = "" })
+	observe("value-unknown", "implementation:unknown", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ValueState, o.ChannelKeys = "unknown", nil })
 	observe("value-no-key-empty-list", "implementation:no-key", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
 		o.ValueState, o.ChannelKeys = wire.ParentNameValueNoKey, []string{}
 	})
-	observe("value-refused-with-keys", "implementation:refused", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
+	observe("value-refused-with-keys", "input:contradictory", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
 		o.ValueState, o.ChannelKeys = wire.ParentNameValueRefused, []string{signing(2)}
 	})
+	for _, state := range []wire.ParentNameValueState{wire.ParentNameValueNoKey, wire.ParentNameValueRefused, ""} {
+		id := string(state)
+		if id == "" {
+			id = "unset"
+		}
+		observe("value-"+id+"-with-delegation-key", "input:contradictory", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
+			o.ValueState, o.ChannelKeys = state, []string{signing(2)}
+		})
+	}
 	observe("child-key-not-in-set", "ok", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(3)} })
 	observe("delegation-in-set", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(2)} })
 	observe("delegation-first-in-set", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(2), signing(1)} })
@@ -604,6 +719,17 @@ func main() {
 	}
 	// Keep compact signed-form objects: the restricted canonical reader does not
 	// accept indentation inside their bytes.
+	if len(os.Args) == 2 && os.Args[1] == "--precedence-table" {
+		fmt.Println("| Ordered claim | Joint vector (both triggers) | Earlier control | Later control | Winner | Narrowing plant |")
+		fmt.Println("| --- | --- | --- | --- | --- | --- |")
+		for _, vector := range cases {
+			if len(vector.Pair) == 0 {
+				continue
+			}
+			fmt.Printf("| %s > %s | `%s` | `%s` | `%s` | %s at F%d | `priority-%s` |\n", vector.Pair[0], vector.Pair[1], vector.ID, vector.Controls[0], vector.Controls[1], vector.Expect, vector.Step, vector.ID)
+		}
+		return
+	}
 	var buf bytes.Buffer
 	e := json.NewEncoder(&buf)
 	e.SetEscapeHTML(false)
