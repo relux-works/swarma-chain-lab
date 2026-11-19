@@ -215,13 +215,17 @@ module graph inventory remains unchanged.
 The only new edge is `model-proxy` to its separable `service` module. The
 command is its sole importing package; service imports no other experiment.
 The requirement now selects signed source checkpoint
-`v0.0.0-20261119140259-48cae0395e06` from this PR. That commit contains
+`v0.0.0-20261119150309-0f98dbbf717c` from this PR. That commit contains
 `Gateway`, `Placeholder` and the generation-metering source contract used by the
 command, including exact intake admission, aggregate body windows and
 progress/authority stall fencing. The service tree is not
 byte-identical to PR #159. This follows the branch-local signed-checkpoint
 pattern recorded by `d760513`, rather than claiming unreleased APIs exist in an
 older landed module. Publication of the checkpoint remains part of PR delivery.
+The new checkpoint also contains the SSE/non-streaming header-timer-scope
+regression and both narrowing plants. Its runtime service source is unchanged
+from the preceding `48cae0395e06` checkpoint; its test, plant and README tree is
+updated. The parent meter adds exact global cache-scope admission separately.
 
 The recorded semantic-version ancestry floor remains the genuinely landed
 `v0.0.0-20261119004354-f239a7e42695` from PR #159. Its explicit

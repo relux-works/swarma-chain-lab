@@ -6,8 +6,8 @@ github.com/decred/dcrd/crypto/blake256 v1.1.0 h1:zPMNGQCm0g4QTY27fOCorQW7EryeQ/U
 github.com/decred/dcrd/crypto/blake256 v1.1.0/go.mod h1:2OfgNZ5wDpcsFmHmCK5gZTPcCXqlm2ArzUIkw9czNJo=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 h1:NMZiJj8QnKe1LgsbDayM4UoHwbvwDRwnI3hwNaAHRnc=
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0/go.mod h1:ZXNYxsqcloTdSy/rNShjYzMhyjf0LaoftYK0p+A3h40=
-github.com/relux-works/swarma-chain-lab/experiments/model-proxy/service v0.0.0-20261119140259-48cae0395e06 h1:kwB/I7eGkZtODeDMDoGnMFkTVlPSMD6Grrf/rPpYkRo=
-github.com/relux-works/swarma-chain-lab/experiments/model-proxy/service v0.0.0-20261119140259-48cae0395e06/go.mod h1:ZYl0lD57K3//P+kcwouxzrCtPFboUG489iZDcLNPUxU=
+github.com/relux-works/swarma-chain-lab/experiments/model-proxy/service v0.0.0-20261119150309-0f98dbbf717c h1:LGbKi7TUh/FquZwsUXYcIThI/gOMUx8gNg9DpJTnn+M=
+github.com/relux-works/swarma-chain-lab/experiments/model-proxy/service v0.0.0-20261119150309-0f98dbbf717c/go.mod h1:ZYl0lD57K3//P+kcwouxzrCtPFboUG489iZDcLNPUxU=
 github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261115082735-f1936aa1117a h1:Do8tJNH4hw58kd6NdevJGionQSx5EX+sNeEHRDB/nhU=
 github.com/relux-works/swarma-chain-lab/experiments/sealwatch v0.2.1-0.20261115082735-f1936aa1117a/go.mod h1:GrPtS+vb6S9DdlyfX9ExD2T/JdsDwAcDCE1D4jLwocA=
 github.com/relux-works/swarma-chain-lab/experiments/single-use v0.3.1-0.20261115113336-4a573e2d22ac h1:+bGJowb4TgXodpoD5HLGnE98tUNSWesoz7AkiKHhyOI=
