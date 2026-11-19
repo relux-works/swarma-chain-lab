@@ -13,6 +13,7 @@ import (
 const (
 	ModeDevelopment   = "development"
 	ModeManaged       = "managed"
+	ManagedUpstream   = "https://api.anthropic.com/v1/messages"
 	SchemeAPIKey      = "api-key"
 	SchemeOAuthBearer = "oauth-bearer"
 	// MaxCredentialVersions bounds the values the tripwire remembers in one
@@ -69,9 +70,9 @@ type CredentialSource interface {
 }
 
 // brokerSource is the allow-list for managed mode. The marker method is
-// unexported, so only a type declared in this package can implement it: no
-// wrapper, file-reading source or static key qualifies from outside. The
-// structural broker seam below is admitted through an in-package adapter.
+// unexported, so external CredentialSource wrappers cannot implement it.
+// AdaptManagedSource admits a structural implementation; the command owns
+// verifying that implementation uses the broker rather than a host file.
 type brokerSource interface {
 	CredentialSource
 	brokerCredentialSource()
@@ -90,6 +91,7 @@ type ManagedSource interface {
 // AdaptManagedSource refuses non-conforming and typed-nil sources before they
 // can receive the private managed marker. Plain CredentialSource wrappers,
 // FileSource and static credentials keep their existing construction refusals.
+// Structural implementations are trusted holder code, not an origin attestation.
 func AdaptManagedSource(source any) (CredentialSource, error) {
 	s, ok := source.(ManagedSource)
 	if !ok {
@@ -116,6 +118,23 @@ func (s managedSource) Credential(ctx context.Context) (UpstreamCredential, erro
 }
 func (s managedSource) Renew(ctx context.Context, rejected string) (UpstreamCredential, error) {
 	return managedCredential(s.source.RenewValue(ctx, rejected))
+}
+func (s managedSource) CredentialContext(ctx context.Context, version string) (context.Context, context.CancelFunc) {
+	if fenced, ok := s.source.(interface {
+		CredentialContext(context.Context, string) (context.Context, context.CancelFunc)
+	}); ok {
+		return fenced.CredentialContext(ctx, version)
+	}
+	return context.WithCancel(ctx)
+}
+
+func (s *Service) credentialContext(ctx context.Context, version string) (context.Context, context.CancelFunc) {
+	if fenced, ok := s.source.(interface {
+		CredentialContext(context.Context, string) (context.Context, context.CancelFunc)
+	}); ok {
+		return fenced.CredentialContext(ctx, version)
+	}
+	return context.WithCancel(ctx)
 }
 func managedCredential(scheme string, material []byte, version string, err error) (UpstreamCredential, error) {
 	defer clear(material)

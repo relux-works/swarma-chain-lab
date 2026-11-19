@@ -102,7 +102,9 @@ only in `experiments/model-proxy/cmd/model-proxy`. The exported `ManagedSource`
 interface has only standard-library method types. `service.Source` satisfies
 it structurally; an in-package adapter retains the existing private marker,
 opaque carriers, tripwire and managed-mode refusals. Existing FileSource and
-plain CredentialSource wrappers remain inadmissible in managed mode.
+plain CredentialSource wrappers remain inadmissible in managed mode. A trusted
+structural implementation can read a file, so the command must attest the
+source origin; the private marker alone is not that attestation.
 
 The command takes the nonsecret installed broker mapping by `-broker-config`
 location, checks the fixed Messages recipient and constructs the source. The
@@ -115,6 +117,10 @@ The worker's binding bearer stays a placeholder. Only the gateway's existing
 provider-authentication boundary replaces it with material obtained through
 the service source. A fake Unix broker and fake HTTP transport exercise the
 managed path, renewal, wrong-placeholder refusal, broker refusal and revocation,
-and check worker output, audits, state, formatting and broker parameters for
-fixture canaries. Provider reflection and final outbound revocation fencing
-remain the integration boundaries listed above.
+and check worker output, audits, state, formatting, environment and broker
+parameters for fixture canaries. The command holder now supervises renewal,
+idle-safe authority checks and source rebuilds, with per-session in-flight
+cancellation inside the documented one-second local freshness bound. The
+service tree and pinned broker protocol remain unchanged. Provider reflection,
+production launch/account reconciliation and system-wide final outbound
+revocation qualification remain the integration boundaries listed above.

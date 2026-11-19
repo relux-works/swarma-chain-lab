@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -161,6 +162,17 @@ func gatewayFixture(t *testing.T, mode string, src CredentialSource, ceiling ...
 		limit = ceiling[0]
 	}
 	g.c = Config{DailyCostCeilingNanoUSD: limit, StateDir: root, Endpoint: Endpoint{URL: "https://proxy.example", CertSHA256: strings.Repeat("a", 64)}, Upstream: up.URL + "/v1/messages", Source: src, Mode: mode, RunMaxWindowSeconds: 7200, Models: map[string]Model{modelID: {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "fixture model bound, not production pricing"}}, Now: func() time.Time { return time.Unix(g.now.Load(), 0) }, Transport: up.Client().Transport, Timeout: time.Second, Audit: func(a Audit) { g.mu.Lock(); defer g.mu.Unlock(); g.audits = append(g.audits, a) }}
+	if mode == ModeManaged {
+		g.c.Upstream = ManagedUpstream
+		transport := up.Client().Transport.(*http.Transport).Clone()
+		transport.TLSClientConfig = transport.TLSClientConfig.Clone()
+		transport.TLSClientConfig.ServerName = up.Certificate().DNSNames[0]
+		transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, up.Listener.Addr().String())
+		}
+		g.c.Transport = transport
+		t.Cleanup(transport.CloseIdleConnections)
+	}
 	if e := InitializeAccounting(g.c); e != nil {
 		t.Fatal(e)
 	}

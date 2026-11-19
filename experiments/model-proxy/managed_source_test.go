@@ -66,3 +66,31 @@ func TestManagedSourceAdmission(t *testing.T) {
 		}
 	}
 }
+
+// Managed credentials cannot be routed to another recipient or a Responses
+// profile, even by a library caller that bypasses command configuration.
+func TestManagedRecipient(t *testing.T) {
+	gateway := gatewayFixture(t, ModeManaged, newFakeSource(sourceMarker))
+	if response := gateway.send(request(false)); response.Code != 200 {
+		t.Fatal("valid pinned recipient refused")
+	}
+	gateway.s.Close()
+	for _, scenario := range []string{"upstream", "profiles"} {
+		t.Run(scenario, func(t *testing.T) {
+			config := gateway.c
+			if scenario == "upstream" {
+				config.Upstream = "https://other-recipient.example/v1/messages"
+			} else {
+				config.ModelProfiles = map[string]ModelProfile{modelID: {Profile: "openai-responses-functions-default-v1", Upstream: "https://other-recipient.example/v1/responses"}}
+			}
+			before := gateway.calls.Load()
+			service, err := New(config)
+			if service != nil {
+				service.Close()
+			}
+			if service != nil || err == nil || err.Error() != "CONFIG_MODE" || gateway.calls.Load() != before {
+				t.Fatal("managed recipient bypass")
+			}
+		})
+	}
+}

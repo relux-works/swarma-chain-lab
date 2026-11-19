@@ -101,11 +101,11 @@ func newService(c Config, initialize bool) (*Service, error) {
 	switch c.Mode {
 	case "", ModeDevelopment:
 	case ModeManaged:
-		// Managed mode allow-lists the broker adapter: the proxy must never be
-		// able to read a provider token from this host. A static key is the
-		// wrong origin for the mode; any other source, wrapped or not, is not
-		// the broker. The structural seam receives this same private marker
-		// only through AdaptManagedSource.
+		if c.Upstream != ManagedUpstream || len(c.ModelProfiles) != 0 {
+			return nil, fail("CONFIG_MODE")
+		}
+		// The command attests the structural source origin. This marker alone
+		// cannot distinguish a broker from trusted code that reads a file.
 		if static {
 			return nil, fail("CONFIG_MODE")
 		}

@@ -27,37 +27,45 @@ const brokerCanary = "fixture-leased-material-not-a-provider-token"
 const renewedCanary = "fixture-renewed-material-not-a-provider-token"
 
 type brokerFixture struct {
-	mu                                   sync.Mutex
-	verdict, refusal                     string
-	requests, renewals, checks, releases int
-	params                               []json.RawMessage
-	listener                             *net.UnixListener
-	conn                                 *net.UnixConn
-	done                                 chan struct{}
-	config                               brokerFile
+	mu                                     sync.Mutex
+	verdict, refusal                       string
+	renewRefusal, checkRefusal, generation string
+	lease, idle, checkDelay                time.Duration
+	requests, renewals, checks, releases   int
+	connections                            int
+	params                                 []json.RawMessage
+	listener                               *net.UnixListener
+	conn                                   *net.UnixConn
+	conns                                  map[*net.UnixConn]bool
+	done                                   chan struct{}
+	config                                 brokerFile
 }
 
 func startBroker(t *testing.T) *brokerFixture {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "broker.sock")
+	dir, e := os.MkdirTemp("", "b")
+	if e != nil {
+		t.Fatal("fake broker directory failed")
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	path := filepath.Join(dir, "broker.sock")
 	ln, e := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if e != nil {
 		t.Fatal("fake broker listen failed")
 	}
-	f := &brokerFixture{verdict: "not_revoked", listener: ln, done: make(chan struct{}), config: brokerFile{Socket: path, BrokerUID: uint32(os.Geteuid()), ServiceGeneration: "service-current", Account: strings.Repeat("a", 64), AgentUID: 1234, AgentGeneration: "worker-current", LaunchID: "launch-current", MaxLifetimeSeconds: 60}}
-	go func() {
-		defer close(f.done)
-		c, e := ln.AcceptUnix()
-		if e != nil {
-			return
-		}
-		f.mu.Lock()
-		f.conn = c
-		f.mu.Unlock()
+	f := &brokerFixture{verdict: "not_revoked", lease: 30 * time.Second, conns: map[*net.UnixConn]bool{}, listener: ln, done: make(chan struct{}), config: brokerFile{Socket: path, BrokerUID: uint32(os.Geteuid()), ServiceGeneration: "service-current", Account: strings.Repeat("a", 64), AgentUID: 1234, AgentGeneration: "worker-current", LaunchID: "launch-current", MaxLifetimeSeconds: 60}}
+	var workers sync.WaitGroup
+	serve := func(c *net.UnixConn) {
 		defer c.Close()
 		for {
+			f.mu.Lock()
+			idle := f.idle
+			f.mu.Unlock()
+			if idle > 0 {
+				_ = c.SetReadDeadline(time.Now().Add(idle))
+			}
 			var size [4]byte
-			if _, e = io.ReadFull(c, size[:]); e != nil {
+			if _, err := io.ReadFull(c, size[:]); err != nil {
 				return
 			}
 			n := binary.BigEndian.Uint32(size[:])
@@ -65,7 +73,7 @@ func startBroker(t *testing.T) *brokerFixture {
 				return
 			}
 			b := make([]byte, n)
-			if _, e = io.ReadFull(c, b); e != nil {
+			if _, err := io.ReadFull(c, b); err != nil {
 				return
 			}
 			var req struct {
@@ -79,6 +87,7 @@ func startBroker(t *testing.T) *brokerFixture {
 			f.mu.Lock()
 			f.params = append(f.params, req.Params)
 			var result any
+			var delay time.Duration
 			code := ""
 			switch req.Method {
 			case "hello":
@@ -86,7 +95,11 @@ func startBroker(t *testing.T) *brokerFixture {
 					f.mu.Unlock()
 					return
 				}
-				result = map[string]any{"version": 1, "principal": map[string]any{"service_name": "credential-gateway", "uid": uint32(os.Geteuid()), "service_generation": f.config.ServiceGeneration}}
+				generation := f.generation
+				if generation == "" {
+					generation = f.config.ServiceGeneration
+				}
+				result = map[string]any{"version": 1, "principal": map[string]any{"service_name": "credential-gateway", "uid": uint32(os.Geteuid()), "service_generation": generation}}
 			case "service.lease.request", "service.lease.renew":
 				if req.Method == "service.lease.request" {
 					f.requests++
@@ -105,13 +118,18 @@ func startBroker(t *testing.T) *brokerFixture {
 					f.renewals++
 				}
 				code = f.refusal
+				if req.Method == "service.lease.renew" && f.renewRefusal != "" {
+					code = f.renewRefusal
+				}
 				value := brokerCanary
 				if f.renewals > 0 {
 					value = renewedCanary
 				}
-				result = map[string]any{"service_lease_id": "lease-current", "account": f.config.Account, "harness": "claude_code", "kind": "claude-oauth-token", "payload": map[string]any{"kind": "claude-oauth-token", "value": value}, "token_expires_at": nil, "authorized_until": time.Now().Add(30 * time.Second).UTC().Format(time.RFC3339Nano), "renewable": true}
+				result = map[string]any{"service_lease_id": "lease-current", "account": f.config.Account, "harness": "claude_code", "kind": "claude-oauth-token", "payload": map[string]any{"kind": "claude-oauth-token", "value": value}, "token_expires_at": nil, "authorized_until": time.Now().Add(f.lease).UTC().Format(time.RFC3339Nano), "renewable": true}
 			case "service.revocation.check":
 				f.checks++
+				code = f.checkRefusal
+				delay, f.checkDelay = f.checkDelay, 0
 				result = map[string]any{"verdict": f.verdict, "revocation_sequence": nil}
 			case "service.lease.release":
 				f.releases++
@@ -121,30 +139,51 @@ func startBroker(t *testing.T) *brokerFixture {
 				return
 			}
 			f.mu.Unlock()
+			time.Sleep(delay)
 			out := map[string]any{"request_id": req.ID}
 			if code != "" {
 				out["error"] = map[string]any{"code": code, "message": brokerCanary, "details": map[string]any{"opaque": brokerCanary}}
 			} else {
 				out["result"] = result
 			}
-			b, e = json.Marshal(out)
-			if e != nil {
+			b, err := json.Marshal(out)
+			if err != nil {
 				return
 			}
 			binary.BigEndian.PutUint32(size[:], uint32(len(b)))
-			if _, e = io.Copy(c, io.MultiReader(bytes.NewReader(size[:]), bytes.NewReader(b))); e != nil {
+			if _, err := io.Copy(c, io.MultiReader(bytes.NewReader(size[:]), bytes.NewReader(b))); err != nil {
 				return
 			}
+		}
+	}
+	go func() {
+		defer close(f.done)
+		for {
+			connection, err := ln.AcceptUnix()
+			if err != nil {
+				return
+			}
+			f.mu.Lock()
+			f.conn = connection
+			f.conns[connection] = true
+			f.connections++
+			f.mu.Unlock()
+			workers.Add(1)
+			go func() {
+				defer workers.Done()
+				serve(connection)
+			}()
 		}
 	}()
 	t.Cleanup(func() {
 		ln.Close()
+		<-f.done
 		f.mu.Lock()
-		if f.conn != nil {
-			f.conn.Close()
+		for connection := range f.conns {
+			connection.Close()
 		}
 		f.mu.Unlock()
-		<-f.done
+		workers.Wait()
 	})
 	return f
 }
@@ -170,6 +209,9 @@ func TestManagedBrokerGateway(t *testing.T) {
 			var calls atomic.Int32
 			var audits bytes.Buffer
 			root := t.TempDir()
+			if e := os.Chmod(root, 0700); e != nil {
+				t.Fatal("private state directory failed")
+			}
 			cfg := proxy.Config{StateDir: root, DailyCostCeilingNanoUSD: 1000000, Endpoint: proxy.Endpoint{URL: "https://gateway.example", CertSHA256: strings.Repeat("b", 64)}, Upstream: "https://api.anthropic.com/v1/messages", Source: source, Mode: proxy.ModeManaged, RunMaxWindowSeconds: 3600, Models: map[string]proxy.Model{"test-model-1": {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "fixture bound"}}, Now: time.Now, Audit: func(a proxy.Audit) { _ = json.NewEncoder(&audits).Encode(a) }}
 			cfg.Transport = providerTransport(func(r *http.Request) (*http.Response, error) {
 				n := calls.Add(1)
@@ -282,6 +324,11 @@ func TestManagedBrokerGateway(t *testing.T) {
 			for _, text := range observed {
 				if strings.Contains(text, brokerCanary) || strings.Contains(text, renewedCanary) {
 					t.Fatal("canary escaped gateway material boundary")
+				}
+			}
+			for _, variable := range os.Environ() {
+				if strings.Contains(variable, brokerCanary) || strings.Contains(variable, renewedCanary) {
+					t.Fatal("canary escaped into environment")
 				}
 			}
 		})

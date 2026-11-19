@@ -54,33 +54,13 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	var key []byte
-	var source proxy.CredentialSource
-	if c.Mode == proxy.ModeManaged {
-		if *brokerPath == "" || c.Upstream != "https://api.anthropic.com/v1/messages" || len(c.ModelProfiles) != 0 {
-			return fmt.Errorf("CREDENTIAL_SOURCE")
-		}
-		raw, err := proxy.ReadInstalledFile(*brokerPath, proxy.MaxBody)
-		if err != nil {
-			return fmt.Errorf("CREDENTIAL_SOURCE")
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		var closeSource func()
-		source, closeSource, e = managedSource(ctx, raw)
-		cancel()
-		if e != nil {
-			return e
-		}
-		defer closeSource()
-	} else {
-		if *brokerPath != "" {
-			return fmt.Errorf("CREDENTIAL_SOURCE")
-		}
-		key, e = proxy.ReadInstalledFile(c.APIKeyFile, 4096)
-		if e != nil {
-			return e
-		}
+	startup, stopStartup := context.WithTimeout(context.Background(), 5*time.Second)
+	key, source, closeSource, e := credentialOrigin(startup, c, *brokerPath, proxy.ReadInstalledFile)
+	stopStartup()
+	if e != nil {
+		return e
 	}
+	defer closeSource()
 	certPEM, e := proxy.ReadInstalledFile(c.TLSCert, 65536)
 	if e != nil {
 		return e
@@ -142,4 +122,23 @@ func run() error {
 	cancel()
 	server.Close()
 	return e
+}
+
+func credentialOrigin(ctx context.Context, c proxy.GatewayFileConfig, brokerPath string, read func(string, int64) ([]byte, error)) ([]byte, proxy.CredentialSource, func(), error) {
+	if c.Mode == proxy.ModeManaged {
+		if brokerPath == "" || c.Upstream != proxy.ManagedUpstream || len(c.ModelProfiles) != 0 {
+			return nil, nil, nil, errors.New("CREDENTIAL_SOURCE")
+		}
+		raw, err := read(brokerPath, proxy.MaxBody)
+		if err != nil {
+			return nil, nil, nil, errors.New("CREDENTIAL_SOURCE")
+		}
+		source, closeSource, err := managedSource(ctx, raw)
+		return nil, source, closeSource, err
+	}
+	if brokerPath != "" {
+		return nil, nil, nil, errors.New("CREDENTIAL_SOURCE")
+	}
+	key, err := read(c.APIKeyFile, 4096)
+	return key, nil, func() {}, err
 }

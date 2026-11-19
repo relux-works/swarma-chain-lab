@@ -52,7 +52,7 @@ jobs:
           for module in model-proxy station-lifecycle/gatewaybind; do
             (cd experiments/"$module" && go mod download && go mod verify)
           done
-      - name: Build CLI with published sibling dependencies
+      - name: Build CLI with published siblings and local service
         env:
           GOTOOLCHAIN: local
         run: |
@@ -64,6 +64,12 @@ jobs:
           go mod download -modfile=.temp/published.mod all
           go mod verify -modfile=.temp/published.mod
           go build -mod=readonly -modfile=.temp/published.mod -o .temp/model-proxy-published ./cmd/model-proxy
+      - name: Vet non-Linux CLI
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          GOTOOLCHAIN: local
+        run: cd experiments/model-proxy && go vet ./cmd/model-proxy
       - name: Vet, race tests, build and guard controls
         env:
           GOPROXY: 'off'

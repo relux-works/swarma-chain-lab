@@ -22,6 +22,24 @@ import (
 type plant struct{ Name, Module, File, Old, New, Package, Test, Witness string }
 
 var plants = []plant{
+	{"managed_material_audit", "proxy", "credential.go", "func (s *Service) issued(c UpstreamCredential, e error) (UpstreamCredential, error) {", "func (s *Service) issued(c UpstreamCredential, e error) (UpstreamCredential, error) { defer func() { s.audit(\"\", 200, string(c.Value.Reveal()), Usage{}) }()", "./cmd/model-proxy", "TestManagedBrokerGateway/mapping", "canary escaped gateway material boundary"},
+	{"managed_placeholder_mapping", "proxy", "gateway.go", "authenticate(req.Header, d, cred)", "req.Header.Set(\"Authorization\", \"Bearer \"+cred.Version)", "./cmd/model-proxy", "TestManagedBrokerGateway/mapping", "provider credential boundary mismatch"},
+	{"managed_generation_pin", "proxy", "cmd/model-proxy/managed_linux.go", "Generation: config.ServiceGeneration, MaxLifetime:", "Generation: \"service-current\", MaxLifetime:", "./cmd/model-proxy", "TestManagedStartupRefusals/generation", "invalid startup authority admitted"},
+	{"managed_non_linux", "proxy", "cmd/model-proxy/managed_other.go", "//go:build !linux", "//go:build ignore", "./cmd/model-proxy", "TestManagedNonLinuxBuild", "non-Linux command build regressed"},
+	{"managed_private_state", "proxy", "cmd/model-proxy/managed_linux_test.go", "if e := os.Chmod(root, 0700); e != nil {", "if e := error(nil); e != nil {", "./cmd/model-proxy", "TestManagedBrokerGateway/mapping", "accounting initialization failed"},
+	{"managed_cli_development", "proxy", "cmd/model-proxy/main.go", "if brokerPath != \"\" {", "if false && brokerPath != \"\" {", "./cmd/model-proxy", "TestManagedCredentialOrigin/development-broker", "invalid credential origin admitted"},
+	{"managed_cli_missing", "proxy", "cmd/model-proxy/main.go", "brokerPath == \"\" || c.Upstream", "false || c.Upstream", "./cmd/model-proxy", "TestManagedCredentialOrigin/missing-broker", "invalid credential origin admitted"},
+	{"managed_cli_recipient", "proxy", "cmd/model-proxy/main.go", "c.Upstream != proxy.ManagedUpstream", "false", "./cmd/model-proxy", "TestManagedCredentialOrigin/upstream", "invalid credential origin admitted"},
+	{"managed_cli_profiles", "proxy", "cmd/model-proxy/main.go", "len(c.ModelProfiles) != 0", "false", "./cmd/model-proxy", "TestManagedCredentialOrigin/profiles", "invalid credential origin admitted"},
+	{"managed_library_recipient", "proxy", "registry.go", "c.Upstream != ManagedUpstream", "false", ".", "TestManagedRecipient/upstream", "managed recipient bypass"},
+	{"managed_library_profiles", "proxy", "registry.go", "if c.Upstream != ManagedUpstream || len(c.ModelProfiles) != 0 {", "if c.Upstream != ManagedUpstream {", ".", "TestManagedRecipient/profiles", "managed recipient bypass"},
+	{"managed_fence", "proxy", "http.go", "authority, cancelAuthority := s.credentialContext(r.Context(), cred.Version)", "authority, cancelAuthority := r.Context(), func() {}", "./cmd/model-proxy", "TestManagedInflightRevocation/revoked", "revoked in-flight request not fenced within poll interval"},
+	{"managed_poll", "proxy", "cmd/model-proxy/managed_linux.go", "time.NewTicker(managedCheckInterval)", "time.NewTicker(time.Hour)", "./cmd/model-proxy", "TestManagedInflightRevocation/healthy", "healthy call fenced"},
+	{"managed_renew", "proxy", "cmd/model-proxy/managed_linux.go", "renew := session.version != \"\" && !time.Now().Before(session.renewAt)", "renew := false", "./cmd/model-proxy", "TestManagedLeaseRenewal", "valid lease starved across two periods"},
+	{"managed_rebuild", "proxy", "cmd/model-proxy/managed_linux.go", "_ = holder.connect(holder.ctx)", "_ = holder.ctx.Err()", "./cmd/model-proxy", "TestManagedSourceRecovery/closed", "managed recovery deadline exceeded"},
+	{"managed_worker_cancel", "proxy", "cmd/model-proxy/managed_linux.go", "holder.value(context.WithoutCancel(ctx), false, \"\")", "holder.value(ctx, false, \"\")", "./cmd/model-proxy", "TestManagedWorkerCancellation/admission", "worker cancellation disabled shared broker session"},
+	{"managed_renew_cancel", "proxy", "cmd/model-proxy/managed_linux.go", "holder.value(context.WithoutCancel(ctx), true, rejected)", "holder.value(ctx, true, rejected)", "./cmd/model-proxy", "TestManagedWorkerCancellation/renewal", "worker cancellation disabled shared broker session"},
+	{"managed_account_hold", "proxy", "cmd/model-proxy/managed_linux.go", "holder.blocked = true", "holder.blocked = false", "./cmd/model-proxy", "TestManagedRenewalRefusal/account_hold_unknown", "account block lost across reconnect"},
 	{"responses_upstream_pair", "proxy", "responses.go", "if !strings.HasSuffix(u.Path, \"/v1/responses\") {", "if false && !strings.HasSuffix(u.Path, \"/v1/responses\") {", ".", "TestResponsesProfileConfiguration/mismatch", "Responses invalid profile accepted"},
 	{"responses_unknown_event", "proxy", "responses_stream.go", "m, e := object(raw)", "if name == \"response.unknown\" { return nil, false, nil }; m, e := object(raw)", ".", "TestResponsesStreamRefusals/unknown", "Responses invalid stream released success"},
 	{"responses_missing_terminal", "proxy", "responses_http.go", "frame, name, data, err := readResponsesFrame(reader)", "frame, name, data, err := readResponsesFrame(reader); if err == io.EOF && terminal == nil { _ = s.settle(id, &Usage{}); settled = true }", ".", "TestResponsesStreamRefusals/missing-terminal", "Responses uncertain exposure refunded"},
@@ -82,7 +100,20 @@ func main() {
 }
 func run() error {
 	out := flag.String("out", ".temp/guards", "evidence directory")
+	prefix := flag.String("prefix", "", "run only plants with this name prefix")
 	flag.Parse()
+	if *prefix != "" {
+		selected := []plant{}
+		for _, candidate := range plants {
+			if strings.HasPrefix(candidate.Name, *prefix) {
+				selected = append(selected, candidate)
+			}
+		}
+		if len(selected) == 0 {
+			return errors.New("no matching plants")
+		}
+		plants = selected
+	}
 	root, e := os.Getwd()
 	if e != nil {
 		return e
@@ -124,7 +155,11 @@ func run() error {
 	runTest := func(name, module, pkg, test string) (int, []byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "go", "test", "-count=1", "-v", "-run", "^"+strings.ReplaceAll(test, "/", "$/^")+"$", pkg)
+		arguments := []string{"test", "-count=1", "-v", "-run", "^" + strings.ReplaceAll(test, "/", "$/^") + "$", pkg}
+		cmd := exec.CommandContext(ctx, "go", arguments...)
+		if strings.HasSuffix(name, "managed_private_state") {
+			cmd = exec.CommandContext(ctx, "sh", append([]string{"-c", `umask 022; exec "$@"`, "private-state-control", "go"}, arguments...)...)
+		}
 		cmd.Dir = modules[module]
 		cmd.Env = append(os.Environ(), "GOWORK=off", "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local")
 		var output bytes.Buffer

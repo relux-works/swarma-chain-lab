@@ -449,7 +449,11 @@ The existing `cmd/model-proxy` command accepts `-config PATH -broker-config PATH
 for managed mode. Both files must pass the existing installed-file boundary.
 Development mode refuses a broker mapping. No token value is a CLI argument,
 environment variable or configuration member. The managed recipient is fixed
-to `https://api.anthropic.com/v1/messages`.
+to `https://api.anthropic.com/v1/messages` in both the command and library;
+managed mode also refuses Responses profiles. Without explicit managed mode
+and a broker mapping, the development key-file path is unchanged. Structural
+source implementations are trusted holder code: the command, not the private
+marker alone, attests that their origin is the broker rather than a file.
 
 The broker mapping is canonical JSON with these members in this exact order:
 `socket`, `broker_uid`, `service_generation`, `account`, `agent_uid`,
@@ -460,16 +464,56 @@ exact bound service generation. The caller tuple is protected configuration,
 never derived from worker headers. One process/source serves that one admitted
 caller mapping; dynamic caller routing is not supplied by this wiring.
 
-`CredentialValue` checks broker revocation on every fetch. `RenewValue` renews
-the same lease after the existing explicit-401 path and advances the local
-version. Release or lost lease authority cannot reopen that source. The worker
-presents the existing binding bearer as a placeholder; the existing gateway
-authentication boundary replaces it with the leased OAuth value. Fixture tests
-cover mapping, renewal, broker refusal, revocation and bounded canary surfaces.
-They do not qualify a production launch registry, post-dial revocation fence,
-provider reflection protection or installer activation. Packaging remains a
-separate release change.
+The command supervises the unchanged service source. After first use, it checks
+authority every 250 ms, well below the broker's 30-second idle retirement, and
+renews every `min(max_lifetime_seconds / 3, 500 ms)` without waiting for a 401.
+The existing explicit-401 path still renews and retries once. Each broker I/O
+has an independent 250 ms budget; a worker's cancellation or deadline never
+becomes the broker connection's deadline. Admissions serialize behind a broker
+round trip, so this draft does not claim parallel broker admission throughput.
 
-Run `go test -run 'TestManagedSourceAdmission|TestManagedBroker' ./...` for the
-new admission and cmd wiring fixtures. Use the existing Tools commands for
-complete tests, vet and build; keep their logs under `.temp/`.
+Each connected session has a revocable request context. Revocation, generation
+loss, a broker failure or a missed one-second freshness deadline cancels its
+in-flight upstream exchanges, including blocked I/O. Successful checks refresh
+that watchdog. The local poll interval/authority bound is one second; tests
+exercise cancellation inside it, not a system-wide propagation or billing-stop
+guarantee. Uncertain exposure stays charged. Lease expiry always refuses; if a
+broker grants a shorter lease that expires before renewal, the holder rebuilds
+instead of reusing it. The 900-second service ceiling is unchanged.
+
+A released or failed service source never reopens. The holder closes it and
+redials the same protected endpoint, UID and generation, constructs a new source
+and checks fresh authority before serving again. Requests refuse in between;
+there is no file-key fallback. Versions include a session epoch so a new source
+cannot reuse an old version. Broker account-hold refusals remain blocked for the
+holder lifetime, and reconnect never clears the gateway's persisted leak blocks.
+No new token is requested until a correctly authenticated binding first uses
+the holder. Shutdown stops the supervisor and releases/closes its source.
+
+The worker presents only the binding placeholder. The existing gateway
+`authenticate` boundary, not the service Claude request adapter, installs the
+leased OAuth value on the upstream request. Temporary material returned by
+background checks/renewals is cleared; it is never logged, persisted or placed
+in an environment. The tripwire remembers at most `MaxCredentialVersions=256`
+distinct values issued to gateway requests per process and refuses additional
+values rather than forgetting old ones. Long-running rotation beyond that bound
+needs an explicitly approved process restart; this change adds no automatic
+tripwire reset. `--initialize-accounting` in managed mode still needs a live
+broker for source construction and never becomes a token-file fallback.
+
+Fixtures cover the pinned recipient, inactive default, healthy/cancelled
+workers, revocation and generation fencing, two lease periods, renewal refusal,
+idle keepalive, closed-source recovery and canary surfaces. They do not qualify
+a production launch registry, provider reflection protection, installer
+activation or live protocol compatibility. Packaging remains separate.
+
+Run `go test -race -count=1 -run 'TestManaged' ./...` for the managed fixtures.
+Run `go run .scripts/guards.go -prefix managed_ -out .temp/managed-guards` for
+narrowing plants and their positive baselines; hashes, named assertion witnesses,
+real exits and owned process IDs go under that evidence directory. The permission
+plant runs in a child shell with umask 022, independently of the parent umask.
+Run `GOOS=darwin GOARCH=arm64 go vet ./cmd/model-proxy` for the Linux-only-source
+cross-build boundary. Use the existing Tools commands for full tests, vet and
+build; keep logs under `.temp/`. The CLI publication check resolves the published
+sibling dependencies but intentionally retains the local service replacement;
+it does not prove public resolution of the service pseudo-version.

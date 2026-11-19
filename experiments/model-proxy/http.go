@@ -76,7 +76,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reject(400, "PROFILE")
 		return
 	}
-	call, cancel, e := s.reserve(r.Context(), id, bearer, p)
+	authority, cancelAuthority := s.credentialContext(r.Context(), cred.Version)
+	defer cancelAuthority()
+	call, cancel, e := s.reserve(authority, id, bearer, p)
 	if e != nil {
 		code := e.Error()
 		if code != "BUSY" && code != "MODEL" && code != "CAP" && code != "DAILY_COST_CEILING" && code != "ACCOUNT_BLOCKED" && code != "RUN_REQUIRES_MANAGED" && code != "RUN_WINDOW" && !accountingCode(code) {

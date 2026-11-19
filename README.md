@@ -768,4 +768,8 @@ The model-proxy command now wires the separable broker service source through
 a standard-library-only structural interface. See its
 [managed wiring contract](experiments/model-proxy/README.md#managed-broker-wiring)
 for installed nonsecret mapping fields and bounded fake-broker evidence. The
-release artifact remains separate.
+inactive default and recipient are tested at the command and library gates;
+the holder now supervises renewal, local revocation fencing and fail-closed
+source recovery. Its focused tests, narrowing plants and non-Linux vet command
+are listed in that module README, with evidence under `.temp/`. The release
+artifact and production qualification remain separate.

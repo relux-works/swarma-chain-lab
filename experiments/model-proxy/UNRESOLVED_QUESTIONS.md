@@ -35,10 +35,22 @@
 - The repository-level credential-output inventory and the package test
   `TestGatewayRevealInventory` both pin the reveal sites in `credential.go` and
   `tripwire.go`; a new reveal must be added to both after review.
-- The broker-backed `CredentialSource` and the managed-mode CLI start are a
-  later slice. Until the adapter type implements the unexported managed-mode
-  marker, `New` refuses managed mode with `CONFIG_MODE_NO_BROKER` and the CLI
-  with `CREDENTIAL_SOURCE`; only the package's test double passes the marker.
+- The command now admits a broker-backed source only with explicit managed
+  configuration and a protected mapping. Structural source code remains trusted
+  holder code, not proof of broker origin. A qualified dynamic launch registry,
+  installer activation and real provider protocol compatibility are not supplied.
+- Leak detection persists a gateway account block but does not yet issue broker
+  `account.hold(leak_match)` or reconcile UNKNOWN hold operations. The binding's
+  run account is not checked against the static broker-mapping account. These
+  remain production integration gates under `docs/gateway-service.md`, not
+  claims closed by fixture source wiring. Broker-origin hold refusals do remain
+  closed across source reconnects, and local leak blocks are not cleared.
+- The one-second local authority fence and 250 ms I/O budget are tested with a
+  fake broker and cancellation-aware HTTP transport. They do not qualify a
+  system-wide revocation propagation bound, real-time scheduling or stopping
+  upstream billing; uncertain reservations remain charged. Per-fetch broker
+  checks serialize admissions, and the 256-value tripwire bound needs a reviewed
+  restart plan for extended rotation without clearing persisted account blocks.
 - Qualification slice (S3c): oauth-bearer traffic needs the provider's oauth
   beta header, which this slice does not add. `authenticate` sends only
   `Authorization: Bearer` and the client's `anthropic-beta` is stripped, so a
