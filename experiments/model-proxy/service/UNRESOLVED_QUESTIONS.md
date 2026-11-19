@@ -47,13 +47,14 @@
     activation. No syscall profile is inferred from fixture-only client tests;
     privileged placement, effective hardening readback and runtime compatibility
     remain installer responsibilities.
-11. The new parent-to-service require edge selects the real signed source
-   checkpoint `f6edf6fa2114930458b98779a4d644eba1fadf28` with a local service
-   replacement. The unchanged graph checker requires a published snapshot
-   floor. The API source has landed, but the accepted floor is still absent
-   from the published-module inventory. Recording that baseline is required
-   before this edge can pass the graph gate. No fabricated floor or checker
-   exception is supplied.
+11. Resolved snapshot-floor gate: the parent-to-service require edge and
+   recorded floor select `v0.0.0-20261119004354-f239a7e42695`, the service
+   source landed on main at `f239a7e426950b2f4965ea2b8c326a4d35cc8333`.
+   The module inventory records that full commit and its UTC committer time
+   `20261119004354` as explicit provenance. The local service replacement
+   remains consistent with the parent module's other internal edges. This
+   records source selection, not public-proxy or release qualification; no
+   checker exception is supplied.
 
 These are delivery/integration gates, not claims of contradictory broker wire
 semantics. No alternative provider, exposed-mode fallback or secret input is

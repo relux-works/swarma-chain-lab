@@ -9,6 +9,7 @@
     "github.com/relux-works/swarma-chain-lab/experiments/grantcheck": "v0.1.2-0.20261115082735-f1936aa1117a",
     "github.com/relux-works/swarma-chain-lab/experiments/m5-host-smoke": "v0.3.1-0.20261115082735-f1936aa1117a",
     "github.com/relux-works/swarma-chain-lab/experiments/model-proxy": "v0.4.1-0.20261115082735-f1936aa1117a",
+    "github.com/relux-works/swarma-chain-lab/experiments/model-proxy/service": "v0.0.0-20261119004354-f239a7e42695",
     "github.com/relux-works/swarma-chain-lab/experiments/payment-chain": "v0.2.1-0.20261115082735-f1936aa1117a",
     "github.com/relux-works/swarma-chain-lab/experiments/rental": "v0.5.1-0.20261115082735-f1936aa1117a",
     "github.com/relux-works/swarma-chain-lab/experiments/rental-booking": "v0.4.1-0.20261115082735-f1936aa1117a",
@@ -25,6 +26,10 @@
     "github.com/relux-works/swarma-chain-lab/experiments/grant-v4/identity": {
       "commit": "80bcaa527f51b1f4910fc84d9f78d51abad4139c",
       "time": "20261116164432"
+    },
+    "github.com/relux-works/swarma-chain-lab/experiments/model-proxy/service": {
+      "commit": "f239a7e426950b2f4965ea2b8c326a4d35cc8333",
+      "time": "20261119004354"
     }
   }
 }

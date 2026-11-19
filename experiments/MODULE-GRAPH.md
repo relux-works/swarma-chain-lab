@@ -14,9 +14,10 @@ The identity floor remains `v0.0.0-20261116164432-80bcaa527f51`; its explicit
 `module_provenance` records main commit
 `80bcaa527f51b1f4910fc84d9f78d51abad4139c` and UTC time `20261116164432`.
 The checker verifies main ancestry, module presence and exact pseudo-version
-provenance. Every other module keeps the global default above.
+provenance. The service module has its own recorded floor below; every other
+module keeps the global default above.
 Existing internal selections are unchanged outside the new wire/identity
-requirements. Grantcheck and its wallet consumer were tidied against that
+and service requirements. Grantcheck and its wallet consumer were tidied against that
 graph; grantcheck has no local replacements.
 
 These selections were regenerated locally from the selected ancestors' Git
@@ -52,9 +53,9 @@ A concrete external consumer of `single-use/configguard` fails because
 `single-use/policy.go` calls `sealwatch.ValidateJSON`, absent from `sealwatch v0.1.0`.
 The new bootstrap/model packages are also absent from `single-use v0.1.0`.
 
-The 108 pre-existing internal requirements, in standalone `require` lines,
+All 109 internal requirements, in standalone `require` lines,
 `require (...)` blocks and `// indirect` entries alike, retain versions at or
-above the published source snapshot. The added service edge is held below.
+above their recorded source snapshot floors, including the landed service edge.
 The first revision of this audit counted 96: it missed the two
 standalone `single-use` requires in `deploy/go.mod` and
 `experiments/station-lifecycle/go.mod`, which left `deploy` and
@@ -73,6 +74,7 @@ before test-only parser instrumentation.
 | `grant-store` | `v0.1.1-0.20261115082735-f1936aa1117a` |
 | `m5-host-smoke` | `v0.3.1-0.20261115082735-f1936aa1117a` |
 | `model-proxy` | `v0.4.1-0.20261115082735-f1936aa1117a` |
+| `model-proxy/service` | `v0.0.0-20261119004354-f239a7e42695` |
 | `payment-chain` | `v0.2.1-0.20261115082735-f1936aa1117a` |
 | `rental` | `v0.5.1-0.20261115082735-f1936aa1117a` |
 | `rental-booking` | `v0.4.1-0.20261115082735-f1936aa1117a` |
@@ -206,14 +208,18 @@ depends only on the existing `btcec/v2 v2.3.5` library; it imports no parent
 `single-use` package or higher-level grant, gateway or wallet package. The
 module graph inventory remains unchanged.
 
-## Gateway service edge awaiting publication
+## Gateway service edge landed snapshot floor
 
 The only new edge is `model-proxy` to its separable `service` module. The
 command is its sole importing package; service imports no other experiment.
-The requirement names signed checkpoint
-`v0.0.0-20261117081059-f6edf6fa2114`, with `replace .../service => ./service`
-for branch-local wiring. This version is not claimed published: the source
-checkpoint supplies the structural Source API now landed on main. The unchanged
-checker refuses the missing published snapshot floor. Baseline recording and
-an accepted service floor are a landing gate; the inventory counts this edge
-even while it is refused. Existing floors and provenance are unchanged.
+The requirement and recorded floor are
+`v0.0.0-20261119004354-f239a7e42695`, selecting the service source landed on
+main in PR #159 at `f239a7e426950b2f4965ea2b8c326a4d35cc8333`.
+Its explicit `module_provenance` records that full commit and its UTC committer
+time `20261119004354`. The unchanged checker verifies main ancestry, module
+presence and exact pseudo-version provenance. Public-proxy resolution and
+checksum verification remain separate publication checks, not claimed here.
+The `replace .../service => ./service` is retained consistently with the
+parent module's existing local internal replacements. The inventory remains
+27 manifests, 21 consumers and 109 internal require edges. All pre-existing
+floors and provenance are unchanged.
