@@ -23,15 +23,25 @@ const (
 // of LIP-0014 section 8.4 at spec 0.1.61, commit 464c445f. Step is its F number.
 // It is not the outcome of the full admission predicate.
 type ChildAttenuationFailure struct {
-	Code Code
-	Step int
+	Code  Code
+	Step  int
+	Again ChildAgain
 }
+
+// ChildAgain carries the pinned row's Again mark, not an admission or cache policy.
+type ChildAgain string
+
+const (
+	ChildAgainNo    ChildAgain = "no"
+	ChildAgainState ChildAgain = "state"
+	ChildAgainInput ChildAgain = "input"
+)
 
 func (e *ChildAttenuationFailure) Error() string { return e.Code.Error() }
 func (e *ChildAttenuationFailure) Unwrap() error { return e.Code }
 
 func childRefusalV4(step int, code Code) error {
-	return &ChildAttenuationFailure{Step: step, Code: code}
+	return &ChildAttenuationFailure{Step: step, Code: code, Again: ChildAgainNo}
 }
 
 // ChildDocumentInputError identifies a missing verified child or a root supplied
@@ -40,9 +50,12 @@ type ChildDocumentInputError struct{ Kind string }
 
 func (e *ChildDocumentInputError) Error() string { return "invalid verified child input: " + e.Kind }
 
-// ChildAttenuationEvaluation records passing F5 and F8-F18, using the caller's
-// F11 observation input and F1/F2 already-verified document preconditions.
-// F13(b) selected-group/range W11.10 rules are also held by that verification.
+// ChildAttenuationEvaluation records passing F5, F8 to F12, F13(a), F14 to F18,
+// using F11 caller facts and F1/F2 verified-document preconditions. F13(b) is
+// not evaluated at its place: VerifyGrant reports selected-group rule 4/5
+// findings in F1 (parent pipeline step 9). This known lab divergence from
+// T10's last sentence and S8-29 (a)/(c) makes both O7 outcomes unreachable
+// while an earlier row refuses, pending O7 / LIP-0026 Q1 (section 8.7).
 // It is NOT admission: F3, F6, F7, F19-F24 and A1 belong to the caller or other
 // layers. GroupIndex and RangeIndex are zero-based signed-array positions;
 // RowCoin is the selected signed outpoint, not evidence of its chain state.
@@ -145,26 +158,37 @@ func childChannelContainsV4(keys []string, delegation string) bool {
 	return false
 }
 
-// CheckChildAttenuationV4 evaluates F5 and F8-F18 of LIP-0014 section 8.4
-// at spec 0.1.61 (464c445f), with F1/F2 held by immutable verified documents
-// and F11 facts supplied by the admission/junction caller. It repeats parent
-// binding, selects the F13 row in the in-force order of LIP-0026 section 8 and
-// W11.6, and compares F14-F18 against that row. No limit profile is adopted.
-// Observation is nil for a by-key parent and valid for a by-name parent.
-// No input is mutated or retained; no parsing, node/seal read, write or I/O
-// occurs. Passing this slice is NOT admission: F3, F6, F7, F19-F24 and A1
-// remain obligations of the caller or other layers, not of this result.
+// CheckChildAttenuationV4 evaluates F5, F8 to F12, F13(a), F14 to F18 of
+// LIP-0014 section 8.4 at spec 0.1.61 (464c445f), on verified documents and
+// caller-supplied F11 facts. F13(b) is not evaluated at its place: VerifyGrant
+// reports selected-group rule 4/5 findings in F1 (parent pipeline step 9).
+// This known divergence from T10's last sentence and S8-29 (a)/(c) leaves
+// both O7 outcomes unreachable while an earlier row refuses, pending O7 /
+// LIP-0026 Q1; section 8.7 plans this post-pipeline document slice.
+//
+// Required composition: F3, then the caller's own F5 (F6 needs its identifier),
+// then F6, then F7 (yielding F11 facts), then this function. Hold any refusal
+// until the observation's closing tip read; then F19, A1 and F20 to F24.
+// A nil error is not admission. At the pin F6(b) ends every predicate without
+// a code (T1, O4), so every result here is a result on stated facts.
+//
+// It repeats parent binding, selects the F13(a) row in the in-force order of
+// LIP-0026 section 8 / W11.6, and compares F14-F18 against it. No limit profile
+// is adopted. Observation is nil for a by-key parent and valid for a by-name
+// parent. No input is mutated or retained; no parsing, node/seal read, write
+// or I/O occurs. F3, F6, F7, F19-F24 and A1 remain caller/other-layer duties.
 func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) (ChildAttenuationEvaluation, error) {
-	if parent == nil || parent.object == nil {
-		return ChildAttenuationEvaluation{}, childRefusalV4(2, WireID)
-	}
 	if child == nil || child.object == nil {
 		return ChildAttenuationEvaluation{}, &ChildDocumentInputError{Kind: "missing"}
 	}
-	p, c := parent.object.payload.root, child.object.payload.root
+	c := child.object.payload.root
 	if c.get("parent") == nil {
 		return ChildAttenuationEvaluation{}, &ChildDocumentInputError{Kind: "root"}
 	}
+	if parent == nil || parent.object == nil {
+		return ChildAttenuationEvaluation{}, &ChildAttenuationFailure{Step: 2, Code: WireID, Again: ChildAgainInput}
+	}
+	p := parent.object.payload.root
 	if c.get("parent").text != parent.ID() {
 		return ChildAttenuationEvaluation{}, childRefusalV4(2, WireID)
 	}
@@ -214,7 +238,7 @@ func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentName
 		return ChildAttenuationEvaluation{}, err
 	}
 	if observation != nil && childChannelContainsV4(observation.ChannelKeys, delegation) {
-		return ChildAttenuationEvaluation{}, childRefusalV4(11, DelegateKeyReuse)
+		return ChildAttenuationEvaluation{}, &ChildAttenuationFailure{Step: 11, Code: DelegateKeyReuse, Again: ChildAgainState}
 	}
 	if c.get("seal").get("key").text != seal.text {
 		return ChildAttenuationEvaluation{}, childRefusalV4(12, ChildSealKey)
@@ -261,8 +285,10 @@ func childRecipientKeyV4(recipient *value) string {
 	return recipient.get("owner").text
 }
 
-// checkChildTemplateV4 evaluates F14-F18 against the signed F13-selected
-// template. VerifyGrant already holds selected-group/range W11.10 rules 4/5.
+// checkChildTemplateV4 evaluates F14-F18 against the signed F13(a)-selected
+// template. F13(b) is not evaluated at its place: selected rule 4/5 findings
+// already refuse in F1 (parent pipeline step 9), the declared T10/S8-29/O7
+// divergence pending O7 / LIP-0026 Q1, not a claim of F13(b) implementation.
 func checkChildTemplateV4(p, c, template *value) error {
 	if !bytes.Equal(serialize(c.get("executor")), serialize(template.get("executor"))) {
 		return childRefusalV4(14, ChildAgentNotAllowed)

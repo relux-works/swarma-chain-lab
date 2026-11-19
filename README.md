@@ -645,7 +645,12 @@ The existing module-graph and public-hygiene scripts cover its registration.
 The [B3a-CHILD draft](experiments/grant-v4/wire/README.md#child-attenuation-at-spec-0161-b3a-child-draft)
 adds pure parent/child comparison checks at spec 0.1.61. It selects the row in
 the owner-accepted F13 order and returns only an evaluated-slice result, never
-full admission. F3/F6/F7/F19–F24/A1 remain outside that slice. Regenerate its
+full admission. It evaluates F5, F8 to F12, F13(a), F14 to F18. F13(b) is not
+evaluated at its place: selected-group rule 4/5 findings report in F1 (parent
+pipeline step 9). This known divergence from T10's last sentence and S8-29
+(a)/(c) makes both O7 outcomes unreachable while an earlier row refuses,
+pending O7 / LIP-0026 Q1; §8.7 plans this post-pipeline slice.
+F3/F6/F7/F19–F24/A1 remain outside it. Regenerate its
 public fixtures with `go -C experiments/grant-v4/wire run scripts/generate-child-v4.go`
 and run `python3 -B experiments/grant-v4/wire/scripts/check-child-mutants.py
 --scratch .temp/child-mutants` for bounded controls and JSON evidence. The wire

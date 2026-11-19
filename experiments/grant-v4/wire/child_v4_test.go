@@ -98,6 +98,12 @@ func childWantV4(t *testing.T, err error, want string, step int) {
 	if f.Code != Code(want) || !errors.Is(err, Code(want)) {
 		t.Fatalf("refusal = %v, want exact code %s", err, want)
 	}
+	if f.Again != ChildAgainNo && f.Again != ChildAgainState && f.Again != ChildAgainInput {
+		t.Fatalf("unknown Again mark: %q", f.Again)
+	}
+	if step != 2 && step != 11 && f.Again != ChildAgainNo {
+		t.Fatalf("Again = %q, want no at F%d under the stated profile set", f.Again, step)
+	}
 }
 
 // These groups prove exact first refusals of the document prefix, including
@@ -324,5 +330,102 @@ func TestChildV4BoundBeforeTemplate(t *testing.T) {
 			}()
 			childWantV4(t, childEvaluationErrorV4(t, parent, child, nil), "CHILD_ORDINAL", 13)
 		})
+	}
+}
+
+// Both JudgeProposals settings retain the verified-parent precondition. The
+// listed-certifier controls reach F13(a) or the child-signature pipeline instead.
+func TestChildV4CompositionPrecondition(t *testing.T) {
+	for _, vector := range childVectorsV4(t) {
+		if vector.Mode != "composition" {
+			continue
+		}
+		for _, judge := range []bool{false, true} {
+			t.Run(vector.ID+"/proposals-"+map[bool]string{false: "off", true: "on"}[judge], func(t *testing.T) {
+				parent, err := VerifyGrant(vector.Parent, GrantContext{JudgeProposals: judge})
+				if vector.Step == 1 {
+					var failure *GrantFailure
+					if parent != nil || !errors.As(err, &failure) || failure.Code != GrantDelegate || failure.Step != 9 || failure.Rule != 4 {
+						t.Fatalf("parent = %v, failure = %+v; want GRANT_DELEGATE at pipeline step 9 rule 4", parent, failure)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal("listed-certifier control", err)
+				}
+				child, err := VerifyGrant(vector.Child, GrantContext{Parent: parent, JudgeProposals: judge})
+				if vector.Expect == "CHILD_SIGNER" {
+					var failure *GrantFailure
+					if child != nil || !errors.As(err, &failure) || failure.Code != ChildSigner || failure.Step != 7 {
+						t.Fatalf("child failure = %+v; want CHILD_SIGNER at pipeline step 7", failure)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				childWantV4(t, childEvaluationErrorV4(t, parent, child, nil), vector.Expect, vector.Step)
+			})
+		}
+	}
+}
+
+// F11 distinguishes immutable octet hits from state-dependent channel hits.
+// The same valid observation control passes; no cache or node policy is proved.
+func TestChildV4Again(t *testing.T) {
+	for _, vector := range childVectorsV4(t) {
+		want, selected := map[string]ChildAgain{"child-seal-before-observation": ChildAgainNo, "delegation-in-set": ChildAgainState}[vector.ID]
+		if !selected || vector.Mode != "observation" {
+			continue
+		}
+		t.Run(vector.ID, func(t *testing.T) {
+			parent, child, err := childPairV4(t, vector)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = childEvaluationErrorV4(t, parent, child, vector.Observation)
+			childWantV4(t, err, "DELEGATE_KEY_REUSE", 11)
+			var failure *ChildAttenuationFailure
+			if !errors.As(err, &failure) || failure.Again != want {
+				t.Fatalf("Again = %+v, want %s", failure, want)
+			}
+		})
+	}
+}
+
+// A missing/root child is an input error even without a parent; only a real
+// child presented without its parent carries WIRE_ID with Again=input.
+func TestChildV4InputPrecedence(t *testing.T) {
+	for _, vector := range childVectorsV4(t) {
+		if vector.ID != "prefix-open" {
+			continue
+		}
+		parent, child, err := childPairV4(t, vector)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, test := range []struct {
+			name  string
+			child *SignedGrant
+			kind  string
+		}{{"missing", nil, "missing"}, {"root", parent, "root"}} {
+			t.Run(test.name, func(t *testing.T) {
+				result, err := CheckChildAttenuationV4(nil, test.child, nil)
+				var input *ChildDocumentInputError
+				var protocol Code
+				if !errors.As(err, &input) || input.Kind != test.kind || errors.As(err, &protocol) || errors.Unwrap(err) != nil || result != (ChildAttenuationEvaluation{}) {
+					t.Fatalf("input precedence: %v, result %+v", err, result)
+				}
+			})
+		}
+		t.Run("missing-parent", func(t *testing.T) {
+			err := childEvaluationErrorV4(t, nil, child, nil)
+			childWantV4(t, err, "WIRE_ID", 2)
+			var failure *ChildAttenuationFailure
+			if !errors.As(err, &failure) || failure.Again != ChildAgainInput {
+				t.Fatalf("missing-parent Again = %+v, want input", failure)
+			}
+		})
+		childWantV4(t, childEvaluationErrorV4(t, parent, child, nil), "ok", 0)
 	}
 }

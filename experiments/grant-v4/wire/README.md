@@ -19,12 +19,29 @@ bound is checked before any template read. F14–F18 use that selected row.
 
 The API returns `(ChildAttenuationEvaluation, error)`. Success records the
 zero-based group/range indices and signed row outpoint, **not admission**.
-It evaluates F5 and F8–F18 with F11 caller facts and F1/F2 verified-document
-preconditions. F3, F6, F7, F19–F24 and A1 belong to the caller/other layers.
-The existing `VerifyGrant` precondition is stricter about whole-parent rules
-than §8.4's deferred outside-group policy; this API is not a replacement
-admission reader. An error returns a zero result; missing/root child input
-uses a typed `ChildDocumentInputError`, not an OPEN or protocol verdict.
+It evaluates F5, F8 to F12, F13(a), F14 to F18 with F11 caller facts and F1/F2
+verified-document preconditions. An error returns a zero result; missing/root
+child input uses a typed `ChildDocumentInputError`, not a protocol verdict.
+
+F13(b) is not evaluated at its place. The composed path reports a
+selected-group rule 4/5 finding in F1 (parent pipeline step 9), not in F13.
+This is a known lab divergence from T10's last sentence and S8-29 (a)/(c).
+Both O7 outcomes are unreachable while an earlier row refuses, pending O7 /
+LIP-0026 Q1. The existing `VerifyGrant` parent precondition is kept; no
+partial parent reader or deferred-parent admission is implemented. Section
+8.7 explicitly plans a second reader after the document pipeline.
+
+Required composition: F3, then F5 in the caller's own copy (F6 needs its
+identifier), then F6, then F7 (yielding the F11 facts), then this function.
+Hold any refusal until the observation's closing tip read; then F19, A1 and
+F20 to F24. A nil error is not admission. At the pin F6(b) ends every
+predicate without a code (T1, O4), so every result here is a result on stated
+facts. F3/F6/F7/F19/A1/F20-F24 remain caller/other-layer obligations.
+
+`ChildAttenuationFailure.Again` is typed: `no` for signed-octet refusals,
+`state` for F11 channel-key hits, and `input` for F2 WIRE_ID when a child is
+presented without its parent. F17 is `no` under this unchanged empty profile
+set. No evaluated row uses `pending`. See STEPS for exact per-row quotations.
 
 For a by-name parent, the admission/junction caller supplies a
 `ParentNameObservation`: the exact parent recipient name, pinned `Genesis`,
@@ -32,8 +49,10 @@ observed `TipHash` and `TipHeight`, and complete nonempty `ChannelKeys` set.
 The hash strings use lowercase node display order. Channel keys use the current
 Nostr profile's x-only BIP-340 form, validated for both encoding and curve point.
 For a by-key parent, pass nil. Missing/unexpected observations, a different name
-or genesis, malformed hash identity, an empty set, duplicates and malformed keys
-return a typed `ParentNameObservationError` with no protocol code. Earlier
+or genesis, malformed hash identity, both nil and an empty channel-key set, duplicates and malformed keys
+return a typed `ParentNameObservationError` with no protocol code: neither
+protocol acceptance nor refusal. The no-key value question remains open in
+`UNRESOLVED_QUESTIONS.md` (the owner will take it to the spec owner). Earlier
 octet refusals retain their order; all input entries are validated before the
 membership check. F11 refuses `DELEGATE_KEY_REUSE` when the delegation key is
 in that set. The child's recipient key need not be in the set: it is a

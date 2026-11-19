@@ -2,7 +2,7 @@
 
 Pinned specification: [464c445fd52ce0ec8bdc52c0ead8a866a7b77f56](https://github.com/relux-works/swarma-link-spec/tree/464c445fd52ce0ec8bdc52c0ead8a866a7b77f56), version 0.1.61. Quotations below are from LIP-0014 §8.4 unless explicitly marked otherwise. The pure API compares documents and caller-supplied F7.3 facts; it grants no authority and does not replace the full admission table.
 
-F13 RESOLVED: Ivan Oparin explicitly accepted the count order on 2026-11-17, in force since 0.1.57 (CHANGELOG 0.1.57; LIP-0026 §8). The rest of Q2 remains PROPOSED. Groups and ranges retain signed order; coins have ascending output index, counted from 1. F13 checks the full ordinal bound before reading any template, then selects the group/range/coin and evaluates F14–F18 in order. No node or seal is read. The exported `ChildAttenuationEvaluation` records only this evaluated slice, not admission.
+F13(a) count order RESOLVED: Ivan Oparin explicitly accepted the count order on 2026-11-17, in force since 0.1.57 (CHANGELOG 0.1.57; LIP-0026 §8). The rest of Q2 remains PROPOSED. Groups and ranges retain signed order; coins have ascending output index, counted from 1. F13(a) checks the full ordinal bound before reading any template, then selects the group/range/coin and evaluates F14–F18 in order. No node or seal is read. The exported `ChildAttenuationEvaluation` records only this evaluated slice, not admission.
 
 Re-pin audit: every row sentence below is re-quoted from §8.4 at v0.1.61. **CHANGED** marks a row whose full specification row changed from 0.1.55; unmarked row sentences are unchanged. F6 remains outside the slice, including its new seal part (c); the former part (c) is now (d).
 
@@ -22,7 +22,7 @@ F11 retained owner input contract: the admission/junction caller supplies the ch
 | F10 | “The child-seal key of the parent: first `delegate.child_seal_key` is present (CS1); then it differs, by x coordinate, from the delegation key and from the keys of F9 (CS3)” | P child-seal key and every F9 key | CHILD_SEAL_KEY; then DELEGATE_KEY_REUSE | Presence before comparisons, before F11 | CheckChildAttenuationV4 / TestChildV4RoleKeys |
 | F11 | “The keys of the child, J4.3 (b), as far as no attestation is read: the delegation key differs, by x coordinate, from `seal.key` of `C`, from `recipient.key` or `recipient.owner` of `C`, and then, where `P` names its recipient by name, from every channel key that the value of that name yields. That value is the one that part 7.3 of F7 read in this observation, and F11 makes no read of its own. The comparison with the attestation key of the row's notary stands in F23” | P delegation key; C seal and recipient keys; typed ParentNameObservation from F7.3 | DELEGATE_KEY_REUSE; typed input error for invalid/missing facts | F5/F8/F9/F10 and F11 octets before observation validation, then channel-key comparison; before F12 | CheckChildAttenuationV4 / TestChildV4RoleKeys, TestChildV4ParentNameObservation; always-in-set and never-in-set plants |
 | F12 | “The seal key of the child, CS2 as far as octets decide it: `seal.key` of `C` equals `delegate.child_seal_key` of `P`, octet for octet, the parity octet included” | C.seal.key, P.delegate.child_seal_key | CHILD_SEAL_KEY | Before ordinal, parity included | CheckChildAttenuationV4 / TestChildV4Prefix |
-| F13 | “The row of the child, in two parts in this order. (a) The ordinal lies between 1 and the number of rows of `P`, the sum of the counts of all its ranges. No template is read before this. The ordinal then selects the group, the range and the coin (LIP-0026 R2.1, R8.3, R8.8). (b) The selected group and the selected range meet rules 4 and 5 of LIP-0020 W11.10: the template of that group, and that range with its `stop`” **CHANGED** | Signed range counts, ordinal, selected group/range/coin | CHILD_ORDINAL, then selected rule 4/5 GRANT_DELEGATE already held by VerifyGrant | Bound before all template reads; F12 before F13 before F14 | CheckChildAttenuationV4 / TestChildV4Ordinal, TestChildV4Selection, TestChildV4BoundBeforeTemplate |
+| F13 | “The row of the child, in two parts in this order. (a) The ordinal lies between 1 and the number of rows of `P`, the sum of the counts of all its ranges. No template is read before this. The ordinal then selects the group, the range and the coin (LIP-0026 R2.1, R8.3, R8.8). (b) The selected group and the selected range meet rules 4 and 5 of LIP-0020 W11.10: the template of that group, and that range with its `stop`” **CHANGED** | Signed range counts, ordinal, selected group/range/coin | CHILD_ORDINAL for F13(a); F13(b) not evaluated at its place; selected rule 4/5 finding in F1 (parent pipeline step 9) | Bound before all template reads; F12 before F13(a) before F14; known T10/S8-29 (a)/(c) divergence; both O7 outcomes unreachable while an earlier row refuses, pending O7 / LIP-0026 Q1 | CheckChildAttenuationV4 / TestChildV4Ordinal, TestChildV4Selection, TestChildV4BoundBeforeTemplate |
 | F14 | “The executor of `C` is that of the template of its row: the same name and the same key (R2.2)” | C.executor, selected template.executor | CHILD_AGENT_NOT_ALLOWED | Before F15 | checkChildTemplateV4 via selected row / TestChildV4Template, TestChildV4Selection |
 | F15 | “The recipient of `C` is that of the template: the same mode, and in it the same request key or the same name with the same owner key; for a class, a recipient by name (R2.3, R9.3). No name is read here” | C.recipient and selected template recipient constraint | CHILD_GRANTEE_NOT_ALLOWED | Before F16; class proves by-name mode only here | checkChildTemplateV4 via selected row / TestChildV4Template, TestChildV4Selection |
 | F16 | “Every entry of `actions` of `C` is an entry of `delegate.actions` of `P`, compared as texts (LIP-0020 W11.11, rule 2). An empty list passes” | C.actions, P.delegate.actions | CHILD_ACTIONS_WIDER | Before F17; empty set passes | checkChildTemplateV4 via selected row / TestChildV4Template, TestChildV4Selection |
@@ -113,7 +113,23 @@ LIP-0020 W11.4 (new proposal qualification):
 
 The nine-row J12 example below is reproduced verbatim from LIP-0026 §8 in the generated corpus metadata; each of its nine positions is exercised with its stated group/range/coin offset. Example labels and relative indices are preserved; signed test grants use public test keys and deterministic transaction hashes, not invented on-chain observations. F14–F18 also run through the selected row, with separate negative neighbours for each exact refusal and precedence. No template is read at an invalid ordinal; the instrumented bound test empties a private template after verification while preserving serializability and rebinding the private child identifier to detect an early read. That isolated test plant is not a public input contract.
 
-The input types and verified documents establish F1/F2 only as existing reader preconditions, stricter than §8.4's deferred outside-group rules: the evaluator does not claim that this existing reader implements deferred-parent admission. `ChildAttenuationEvaluation` directly evaluates F5 and F8–F18 with F11 caller facts, records the selected location, and does not evaluate F3, F6, F7, F19–F24 or A1. These remain caller/other-layer obligations. No exported success is an admission predicate. F6(a) presentation, (b) identifier recomputation, (c) confirmed contract/framework seal and (d) profile terms all stay out of slice. No attack-surface table was supplied (brief gap); this row map and the named generated tests state the boundary.
+The input types establish existing verified-document preconditions, not full
+admission. `ChildAttenuationEvaluation` directly evaluates F5, F8 to F12, F13(a), F14 to F18.
+
+F13(b) is not evaluated at its place. The composed path reports a
+selected-group rule 4/5 finding in F1 (parent pipeline step 9), not in F13.
+This is a known lab divergence from T10's last sentence and S8-29 (a)/(c).
+Both O7 outcomes are unreachable while an earlier row refuses, pending O7 /
+LIP-0026 Q1. The existing `VerifyGrant` parent precondition is kept; no
+partial parent reader or deferred-parent admission is implemented. Section
+8.7 explicitly plans a second reader after the document pipeline.
+
+Required composition: F3, then F5 in the caller's own copy (F6 needs its
+identifier), then F6, then F7 (yielding the F11 facts), then this function.
+Hold any refusal until the observation's closing tip read; then F19, A1 and
+F20 to F24. A nil error is not admission. At the pin F6(b) ends every
+predicate without a code (T1, O4), so every result here is a result on stated
+facts. F3/F6/F7/F19/A1/F20-F24 remain caller/other-layer obligations.
 
 ### F6 remains outside the slice
 
@@ -130,7 +146,102 @@ W11.14's explicit no-profile continuation at this pin is:
 The proposed `swarma/coins`, `swarma/model-cost` and `swarma/model-tokens`
 profiles are not enabled. Named generated cases refuse each as
 `LIMIT_KIND_UNDEFINED` at F17 before the invalid window; missing keys still
-refuse as `CHILD_BUDGET_OVER` before kind lookup. F13(b)'s selected W11.10
-rules remain held by the immutable `VerifyGrant` precondition, which is
-stricter about other groups than the partial-admission F1 wording. No new
-whole-parent or deferred-parent admission policy is introduced.
+refuse as `CHILD_BUDGET_OVER` before kind lookup. F13(b) is not evaluated at its place. The composed path reports a
+selected-group rule 4/5 finding in F1 (parent pipeline step 9), not in F13.
+This is a known lab divergence from T10's last sentence and S8-29 (a)/(c).
+Both O7 outcomes are unreachable while an earlier row refuses, pending O7 /
+LIP-0026 Q1. The existing `VerifyGrant` parent precondition is kept; no
+partial parent reader or deferred-parent admission is implemented. Section
+8.7 explicitly plans a second reader after the document pipeline.
+
+## Fix 3: pinned composition, preconditions and Again
+
+The chain-lab owner's decision for this slice is recorded in the PR #158
+description (2026-11-19): keep the verified-parent precondition; do not change
+`grant.go` or `grant_rules.go`. Generated S8-29 composition vectors pin the
+parent's `GRANT_DELEGATE` at pipeline step 9 rule 4 under both `JudgeProposals`
+values. With the certifier listed in notaries, the valid control passes,
+ordinal 0 yields `CHILD_ORDINAL` at F13(a), and a wrong-signer child yields
+`CHILD_SIGNER` at child pipeline step 7 (F2). These are document-composition
+tests, not admission vectors or implementations of F13(b).
+
+### Exact pin quotations
+
+T10 (last sentence):
+
+> A reader of documents that judged all eight rules in step 9, as LIP-0020 W11.8 has a reader do, knows more than this rule asks, and at the admission of a child it reports a finding of rules 4 and 5 for the selected group and range in F13 and not in F1
+
+Q27:
+
+> Inside F13: (a), then (b)
+
+S8-29:
+
+> Q27; rule T10
+
+O7:
+
+> What a side does, at the admission of a child, with a finding of rules 2 and 6 to 8 of LIP-0020 W11.10, whether or not octets of the group or the range of the child take part in the finding, and with a finding of rules 4 and 5 in another group or range. A finding of rules 2 and 6 to 8 can be caused by the coin of the selected range itself, which is the outpoint of the seal, meets another range or shares its stop coin, and by the pool sum, which is taken over the selected group as well; it is held here all the same, and no row of this table judges it. Two outcomes conform until the owner decides proposal Q1 of LIP-0026: a side that judged the rule refuses in F13, part (b), as `GRANT_DELEGATE`, and a side that judges rules 4 and 5 for the group and the range of its child alone goes on. The two sides of one path may therefore differ on such a parent, a parent whose defect is the child's own coin included. LIP-0020 W11.10 leaves that question to the pending proposal and states two outcomes only for its two proposal points
+
+Section 8.7:
+
+> The vectors on octets need a second reader in the tool, after the pipeline:
+> the steps F5 and F8 to F18 as functions of two grants that were read and,
+> for F17, of a stated set of profiles. It adds a file and a subcommand and
+> leaves the generator of `vectors/LIP-0020/grant-v4.json` and its octets as
+> they are. The vectors on stated facts wait for the forms of an observation
+> and of a presentation, as the admission vectors of LIP-0020 section 12 do.
+>
+> No vector is planned for a defect or a pair that depends on one of the
+> eight open points of section 8.4 (O1 to O8). None is planned for part (b)
+> of F13 either: a parent that breaks rule 4 or 5 of LIP-0020 W11.10 is
+> refused as a document by the pipeline of LIP-0020 section 12, whose
+> vectors hold such parents, and the vectors on octets of this plan hold
+> parents that the pipeline reads without a refusal; a vector of an
+> admission for it waits with O7.
+
+Section 8.4 composition:
+
+> The consumer makes the steps in the order of the rows: F1 to F19, then A1, then F20 to F24
+
+> A side therefore ends its observation before it reports a refusal of F5 to F24 or of A1, and where a code of F3 then applies it reports that code and not the later one (LIP-0022 B6.1)
+
+### Again column and executable claims
+
+`ChildAgain` has the marks used in this slice: `no`, `state`, `input`.
+No evaluated row uses `pending`. F17(b) remains `no` under the stated empty
+profile set, not a claim that a change of profiles cannot change a result.
+The following cells quote the pin's Again column verbatim.
+
+| Row | Again (quoted) | Executable evidence |
+| --- | --- | --- |
+| F2 | “no; input for a child that is presented without its parent (`WIRE_ID`): the same child, presented with its parent, is decided anew” | TestChildV4InputPrecedence; TestChildV4Documents |
+| F5 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+| F8 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+| F9 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+| F10 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+| F11 | “no for the octets; state for a channel key” | TestChildV4Again (octets=no, channel=state) |
+| F12 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+| F13 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+| F14 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+| F15 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+| F16 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+| F17 | “no; for (b) and (c), no under one set of profiles” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+| F18 | “no” | TestChildV4Prefix / TestChildV4Template / TestChildV4Selection; ChildAgainNo |
+
+B1's generated `missing-childseal-before-delegation-reuse` is beside
+`missing-childseal` and `child-seal-reuses-delegation-false`: F10's
+`CHILD_SEAL_KEY` precedes the F11 defect (Q9). Plant `f11-before-f10` must fail
+`TestChildV4RoleKeys/missing-childseal-before-delegation-reuse`.
+
+B2's generated `limit-later-missing-key-true` has a known first key and a
+missing second key at amount 0; its single-limit missing-key control is
+`limit-later-missing-key-false`. Both give `CHILD_BUDGET_OVER` at F17(a),
+before kind lookup. Plant `f17a-first-limit-only` must fail the two-limit case.
+The nearby `limit-5` control reaches F17(b); `template-valid` passes.
+
+Plant `f11-again-mark-conflated` must fail
+`TestChildV4Again/delegation-in-set`; `missing-parent-again-no` must fail
+`TestChildV4InputPrecedence/missing-parent`. Existing plants are retained.
+The unchanged nil/empty set tests pin local input errors, not either answer
+to the LIP-0010 open question.

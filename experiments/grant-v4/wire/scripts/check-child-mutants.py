@@ -12,6 +12,21 @@ from pathlib import Path
 import subprocess
 
 PLANTS = (
+    ('nil-pair-parent-first', 'if child == nil || child.object == nil {',
+     'if parent == nil || parent.object == nil { return ChildAttenuationEvaluation{}, childRefusalV4(2, WireID) }; if child == nil || child.object == nil {',
+     'TestChildV4InputPrecedence', 'TestChildV4InputPrecedence/missing', 'input precedence:'),
+    ('f11-before-f10', 'seal := d.get("child_seal_key")',
+     'if childKeyXV4(c.get("seal").get("key").text) == delegation { return ChildAttenuationEvaluation{}, childRefusalV4(11, DelegateKeyReuse) }; seal := d.get("child_seal_key")',
+     'TestChildV4RoleKeys', 'TestChildV4RoleKeys/missing-childseal-before-delegation-reuse', 'want CHILD_SEAL_KEY at F10'),
+    ('f17a-first-limit-only', 'for _, limit := range c.get("limits").elements {',
+     'for _, limit := range c.get("limits").elements[:min(1, len(c.get("limits").elements))] {',
+     'TestChildV4Template', 'TestChildV4Template/limit-later-missing-key-true', 'want exact code CHILD_BUDGET_OVER'),
+    ('f11-again-mark-conflated', 'Code: DelegateKeyReuse, Again: ChildAgainState',
+     'Code: DelegateKeyReuse, Again: ChildAgainNo',
+     'TestChildV4Again', 'TestChildV4Again/delegation-in-set', 'want state'),
+    ('missing-parent-again-no', 'Code: WireID, Again: ChildAgainInput',
+     'Code: WireID, Again: ChildAgainNo',
+     'TestChildV4InputPrecedence', 'TestChildV4InputPrecedence/missing-parent', 'want input'),
     ('accept-everything', 'func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) (ChildAttenuationEvaluation, error) {',
      'func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) (ChildAttenuationEvaluation, error) {\n return ChildAttenuationEvaluation{}, nil',
      'TestChildV4Prefix', 'TestChildV4Prefix/contract', 'want CHILD_CONTRACT_DIFFERS'),

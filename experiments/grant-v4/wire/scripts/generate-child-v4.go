@@ -127,7 +127,7 @@ func main() {
 	row := func(id, want string, step int, spec string, f func(obj, obj)) {
 		add(id, "template", want, step, spec, f)
 	}
-	prefix("prefix-open", "ok", 13, "F1/F2 preconditions; evaluated F5/F8-F18 slice", nil)
+	prefix("prefix-open", "ok", 13, "F1/F2 preconditions; evaluated F5, F8 to F12, F13(a), F14 to F18 slice", nil)
 	prefix("contract", "CHILD_CONTRACT_DIFFERS", 5, "step-i-01", func(p, c obj) { c["contract"] = hash("other-contract") })
 	prefix("genesis", "SUBJECT_MISMATCH", 8, "step-i-02", func(p, c obj) { c["genesis"] = hash("other-genesis") })
 	prefix("contract-before-genesis", "CHILD_CONTRACT_DIFFERS", 5, "step-c-01", func(p, c obj) { c["contract"] = hash("other-contract"); c["genesis"] = hash("other-genesis") })
@@ -194,6 +194,10 @@ func main() {
 			c["seal"].(obj)["key"] = k
 		})
 	}
+	prefix("missing-childseal-before-delegation-reuse", "CHILD_SEAL_KEY", 10, "Q9: F10 before F11", func(p, c obj) {
+		delete(p["delegate"].(obj), "child_seal_key")
+		c["seal"].(obj)["key"] = output(2)
+	})
 	prefix("child-recipient-key-reuse", "DELEGATE_KEY_REUSE", 11, "step-i-17", func(p, c obj) { c["recipient"] = obj{"key": signing(2)} })
 	for _, odd := range []bool{false, true} {
 		prefix(fmt.Sprintf("child-recipient-owner-reuse-%t", odd), "DELEGATE_KEY_REUSE", 11, "J4.3(b)", func(p, c obj) {
@@ -388,6 +392,18 @@ func main() {
 		p["delegate"].(obj)["pools"] = []any{limit("10")}
 	})
 	row("new-key-zero", "CHILD_BUDGET_OVER", 17, "step-i-27; step-c-12", func(p, c obj) { c["limits"] = []any{limit("0")} })
+	for _, multiple := range []bool{false, true} {
+		row(fmt.Sprintf("limit-later-missing-key-%t", multiple), "CHILD_BUDGET_OVER", 17, "F17(a): every limit before kind lookup", func(p, c obj) {
+			template(p)["limits"] = []any{limit("5")}
+			p["delegate"].(obj)["pools"] = []any{limit("10")}
+			missing := limit("0")
+			missing["resource"] = "example/other"
+			c["limits"] = []any{missing}
+			if multiple {
+				c["limits"] = []any{limit("1"), missing}
+			}
+		})
+	}
 	row("policy", "LIMIT_KIND_UNDEFINED", 17, "step-i-31", func(p, c obj) {
 		a, b := limit("5"), limit("10")
 		a["kind"] = "policy"
@@ -526,6 +542,36 @@ func main() {
 	c["parent"] = pid
 	cb, _ = signed(c, 2)
 	cases = append(cases, fixture{ID: "not-delegable", Mode: "reader", Parent: pb, Child: cb, Expect: "NOT_DELEGABLE", Step: 2, Neighbour: "prefix-open", Spec: "W11.8 step 6"})
+	// These composed vectors pin the declared post-pipeline S8-29 divergence,
+	// not the admission outcomes deferred with O7 / LIP-0026 Q1.
+	for _, listed := range []bool{false, true} {
+		for _, variant := range []string{"valid", "ordinal-zero", "wrong-signer"} {
+			parentDoc, childDoc := parent(), child()
+			template(parentDoc)["certifier"] = "id/example-other-notary"
+			if listed {
+				parentDoc["delegate"].(obj)["notaries"] = []any{pin("id/example-other-notary")}
+			}
+			parentBytes, parentID := signed(parentDoc, 1)
+			childDoc["parent"] = parentID
+			childScalar := 2
+			want, step := "ok", 0
+			if variant == "ordinal-zero" {
+				childDoc["ordinal"] = 0
+				want, step = "CHILD_ORDINAL", 13
+			}
+			if variant == "wrong-signer" {
+				childScalar = 1
+				want, step = "CHILD_SIGNER", 2
+			}
+			if !listed {
+				want, step = "GRANT_DELEGATE", 1
+			}
+			childBytes, _ := signed(childDoc, childScalar)
+			cases = append(cases, fixture{ID: fmt.Sprintf("composition-notary-%t-%s", listed, variant), Mode: "composition",
+				Parent: parentBytes, Child: childBytes, Expect: want, Step: step,
+				Neighbour: "composition-notary-true-valid", Spec: "S8-29; section 8.7 document precondition, not F13(b)"})
+		}
+	}
 	// Keep compact signed-form objects: the restricted canonical reader does not
 	// accept indentation inside their bytes.
 	var buf bytes.Buffer

@@ -25,10 +25,10 @@
   2026-11-17 (CHANGELOG 0.1.57; LIP-0026 section 8). Signed group/range order,
   ascending coin output indices and counting from 1 are implemented. The
   rest of Q2 remains PROPOSED; success of this slice is never admission.
-- F11's input boundary is resolved by the chain-lab owner for this slice:
+- F11's input boundary follows the chain-lab owner's decision for this slice, recorded in the PR #158 description:
   the admission/junction layer supplies a typed parent-name observation with
   the name, pinned chain, tip hash/height and complete channel-key set read by
-  F7.3. Invalid/missing inputs refuse with a typed input error; a delegation-key
+  F7.3. Invalid/missing inputs return a typed input error; a delegation-key
   member refuses `DELEGATE_KEY_REUSE`. Acquisition, provenance, completeness,
   name-owner control and observation health remain the caller's duties; this
   API never reads a name or chain and does not establish F3/F7 admission.
@@ -40,3 +40,34 @@
   CONTRACT_SEAL_UNAVAILABLE). Complete admission needs its contract profile
   and independent node/journal facts. This document-and-facts slice never
   supplies them or admits a grant.
+
+## Declared F13(b) divergence and the no-key question
+
+The evaluated rows are F5, F8 to F12, F13(a), F14 to F18.
+
+F13(b) is not evaluated at its place. The composed path reports a
+selected-group rule 4/5 finding in F1 (parent pipeline step 9), not in F13.
+This is a known lab divergence from T10's last sentence and S8-29 (a)/(c).
+Both O7 outcomes are unreachable while an earlier row refuses, pending O7 /
+LIP-0026 Q1. The existing `VerifyGrant` parent precondition is kept; no
+partial parent reader or deferred-parent admission is implemented. Section
+8.7 explicitly plans a second reader after the document pipeline.
+
+The chain-lab owner's decision for this slice, recorded in the PR #158
+description (2026-11-19), keeps F11 fail-closed: both nil and an empty
+channel-key set are typed input errors, never protocol acceptance or refusal.
+The open question is: does F11 pass vacuously or refuse when the value yields
+no key? The chain-lab owner takes that question to the spec owner. This
+unsupported representation is not a claim that the name state cannot exist.
+
+LIP-0010 says:
+
+> A `nostr` member that yields no key removes the agent's address and no authority.
+
+> When an agent value yields no key, a reader still reads `swarma.agent.landlord`, and the closure rules that depend on the pointer keep working. Every step that needs the agent key refuses. This refusal records no closure.
+
+Those statements do not settle whether F11 needs the agent key. The current
+input boundary does not choose either protocol outcome. The nearby valid
+nonmember control passes, while `nil-set` and `empty-set` keep their typed
+`ParentObservationEmpty` errors. Exact F13/T10/Q27/S8-29/O7/§8.7 quotations
+and composition constraints are in `STEPS-B3a-CHILD.md`.
