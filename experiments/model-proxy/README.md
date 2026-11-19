@@ -541,7 +541,13 @@ Cache writes apply up to 2x input; US geography applies 1.1x to input and output
 with each category rounded up. Fast speed, non-standard tiers, server tools,
 unknown pricing settings and beta flags outside the measured OAuth launch
 profile refuse before forwarding. Custom client-side tools and the measured
-profile are retained byte-for-byte. Parallel
+header profile are retained byte-for-byte. Cache controls admit only `type`,
+`ttl` and exact `scope:"global"`; other scope values, aliases and members
+refuse. Global scope uses the same TTL premium, subject to the explicit owner
+pricing gate in `UNRESOLVED_QUESTIONS.md`. The wire probe measured the header
+profile, not complete request bodies. A structural client-body reconstruction
+in `cmd/model-proxy/testdata` closes the known global-scope regression without
+claiming live-client or provider qualification. Parallel
 calls and restarts share this ceiling; failures and successful replies alike
 retain the conservative reservation. Policy GET books no generation cost.
 There is no per-slot identity/cap or verified-usage settlement on this intake.
@@ -570,7 +576,14 @@ Run `GATEWAY_LONG_STREAM=1 go test -count=1 -run '^TestGatewayLongStream$' ./cmd
 for the 70-second composed production-timeout regression; the ordinary suite
 also exercises multiple shortened idle intervals and a stalled upstream.
 `TestIntakeNonStreamingHeaderDelay` in the service suite drives the real TLS
-transport past 30 seconds. `TestIntakeHeaderStallBoundary`,
+transport past 30 seconds. `TestIntakeHeaderTimerScope` drives SSE and JSON body
+progress beyond an injected header budget; its two timer-scope plants reject
+deferred timer cancellation. `TestGatewayComposedClaudeCodeCacheScope` admits
+the structural client fixture and its plain/global/TTL controls end to end,
+beside unknown scope refusals. `TestIntakeWorstCaseExposure/cache-mixed` and
+`cache-mixed-reversed` repeat exact-cost and ceiling-minus-one checks across
+1h, 5m and default breakpoints; `intake_cache_max` detects last-visited pricing.
+`TestIntakeHeaderStallBoundary`,
 `TestIntakeRequestReadBudget`, `TestIntakeWriteStall` and
 `TestIntakeConcurrentBodyMemory` drive the header/read/write/memory negatives
 beside valid controls; the plant runner kills each corresponding omitted gate.

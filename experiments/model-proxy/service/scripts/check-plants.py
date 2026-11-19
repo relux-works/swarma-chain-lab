@@ -114,6 +114,12 @@ def main():
     ]
     intake_source = original[intake]
     intake_plants = [
+        ('intake-header-timer-scope', 'headers.Stop()', 'defer headers.Stop()',
+         'TestIntakeHeaderTimerScope', 'TestIntakeHeaderTimerScope/streaming',
+         'The header timer must not become a whole-exchange streaming cap.'),
+        ('intake-header-timer-scope-nonstream', 'headers.Stop()', 'defer headers.Stop()',
+         'TestIntakeHeaderTimerScope', 'TestIntakeHeaderTimerScope/non-streaming',
+         'The header timer must not cap a progressing non-streaming response body.'),
         ('intake-header-stall', 'time.AfterFunc(g.headerTimeout, cancel)', 'time.AfterFunc(time.Hour, cancel)',
          'TestIntakeHeaderStallBoundary', 'TestIntakeHeaderStallBoundary/stalled',
          'Header silence must cancel the call at the generation budget.'),

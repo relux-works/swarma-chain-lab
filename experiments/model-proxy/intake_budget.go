@@ -110,9 +110,12 @@ func intakeRates(fields map[string]json.RawMessage) (uint64, uint64, bool) {
 						return false
 					}
 					for field := range control {
-						if field != "type" && field != "ttl" {
+						if field != "type" && field != "ttl" && field != "scope" {
 							return false
 						}
+					}
+					if scope, present := control["scope"]; present && scope != "global" {
+						return false
 					}
 					rate := uint64(125)
 					if ttl, present := control["ttl"]; present {

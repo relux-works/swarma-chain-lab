@@ -10,7 +10,7 @@ import (
 // Claim: exact metering fields reserve the provider-visible values; ASCII and
 // Unicode case aliases, escaped keys and duplicates refuse without spending.
 func TestIntakeMeterExactKeys(t *testing.T) {
-	for _, key := range []string{"model", "Model", "MODEL", "mOdEl", "max_tokens", "Max_Tokens", "MAX_TOKENS", "max_tokenſ", "max_toKens", "maX_toKenS", "stream", "Stream", "ſtream"} {
+	for _, key := range []string{"model", "Model", "MODEL", "mOdEl", "max_tokens", "Max_Tokens", "MAX_TOKENS", "max_tokenſ", "max_toKens", "maX_toKenS", "stream", "Stream", "ſtream", "Speed", "Inference_Geo", "Tools", "Service_Tier"} {
 		t.Run(key, func(t *testing.T) {
 			h := dailyFixture(t, 1000)
 			canonical := key == "model" || key == "max_tokens" || key == "stream"
@@ -55,6 +55,8 @@ func TestIntakeMeterExactKeys(t *testing.T) {
 
 // Claim: input-cache and geographic premiums are rounded up on full context
 // input plus declared maximum output; unpriced features never reserve or forward.
+// Mixed breakpoints repeat both ceiling neighbors across map traversal orders;
+// the 1h maximum must win over default and 5m regardless of its placement.
 func TestIntakeWorstCaseExposure(t *testing.T) {
 	for _, sample := range []struct {
 		name, extra string
@@ -68,15 +70,28 @@ func TestIntakeWorstCaseExposure(t *testing.T) {
 		{"cache-default", `,"cache_control":{"type":"ephemeral"}`, 280},
 		{"cache-5m", `,"system":[{"type":"text","text":"x","cache_control":{"type":"ephemeral","ttl":"5m"}}]`, 280},
 		{"cache-1h", `,"cache_control":{"type":"ephemeral","ttl":"1h"}`, 430},
+		{"cache-global", `,"system":[{"type":"text","text":"x","cache_control":{"type":"ephemeral","scope":"global"}}]`, 280},
+		{"cache-global-5m", `,"system":[{"type":"text","text":"x","cache_control":{"type":"ephemeral","scope":"global","ttl":"5m"}}]`, 280},
+		{"cache-global-1h", `,"system":[{"type":"text","text":"x","cache_control":{"type":"ephemeral","scope":"global","ttl":"1h"}}]`, 430},
+		{"cache-mixed", `,"system":[{"type":"text","text":"x","cache_control":{"type":"ephemeral","ttl":"1h"}}],"messages":[{"role":"user","content":[{"type":"text","text":"x","cache_control":{"type":"ephemeral","ttl":"5m"}}]}],"tools":[{"name":"local","input_schema":{"type":"object"},"cache_control":{"type":"ephemeral"}}]`, 430},
+		{"cache-mixed-reversed", `,"system":[{"type":"text","text":"x","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":[{"type":"text","text":"x","cache_control":{"type":"ephemeral","ttl":"5m"}}]}],"tools":[{"name":"local","input_schema":{"type":"object"},"cache_control":{"type":"ephemeral","scope":"global","ttl":"1h"}}]`, 430},
 		{"geo", `,"inference_geo":"us"`, 253},
 		{"cache-geo", `,"inference_geo":"us","messages":[{"content":[{"cache_control":{"type":"ephemeral","ttl":"1h"}}]}]`, 473},
 		{"cache-rounding", `,"inference_geo":"us","cache_control":{"type":"ephemeral","ttl":"5m"}`, 308},
 		{"fast", `,"speed":"fast"`, 0},
 		{"server-tool", `,"tools":[{"type":"web_search_20250305","name":"web_search"}]`, 0},
 		{"unknown-tool", `,"tools":[{"type":"future_tool"}]`, 0},
+		{"tool-type-alias", `,"tools":[{"Type":"custom","name":"local","input_schema":{"type":"object"}}]`, 0},
+		{"custom-type", `,"tools":[{"type":"custom","name":"local","input_schema":{"type":"object"}}]`, 230},
 		{"geo-unknown", `,"inference_geo":"future"`, 0},
 		{"ttl-unknown", `,"cache_control":{"type":"ephemeral","ttl":"2h"}`, 0},
 		{"cache-alias", `,"Cache_Control":{"type":"ephemeral","ttl":"1h"}`, 0},
+		{"scope-unknown", `,"cache_control":{"type":"ephemeral","scope":"other"}`, 0},
+		{"scope-case", `,"cache_control":{"type":"ephemeral","scope":"Global"}`, 0},
+		{"scope-alias", `,"cache_control":{"type":"ephemeral","Scope":"global"}`, 0},
+		{"scope-null", `,"cache_control":{"type":"ephemeral","scope":null}`, 0},
+		{"scope-object", `,"cache_control":{"type":"ephemeral","scope":{"value":"global"}}`, 0},
+		{"scope-member", `,"cache_control":{"type":"ephemeral","scope":"global","future":true}`, 0},
 		{"tier", `,"service_tier":"priority"`, 0},
 	} {
 		t.Run(sample.name, func(t *testing.T) {
@@ -89,24 +104,30 @@ func TestIntakeWorstCaseExposure(t *testing.T) {
 				assertDaily(t, h, 1000, 0)
 				return
 			}
-			for _, below := range []bool{false, true} {
-				ceiling := sample.cost
-				if below {
-					ceiling--
-				}
-				h := dailyFixture(t, ceiling)
-				err := h.s.ReserveGeneration(body)
-				if below {
-					if err == nil || err.Error() != "DAILY_COST_CEILING" {
-						t.Fatal("modifier escaped worst-case ceiling")
+			trials := 1
+			if strings.HasPrefix(sample.name, "cache-mixed") {
+				trials = 64
+			}
+			for trial := 0; trial < trials; trial++ {
+				for _, below := range []bool{false, true} {
+					ceiling := sample.cost
+					if below {
+						ceiling--
 					}
-					assertDaily(t, h, ceiling, 0)
-				} else {
-					if err != nil {
-						t.Fatal("priced modifier control refused")
+					h := dailyFixture(t, ceiling)
+					err := h.s.ReserveGeneration(body)
+					if below {
+						if err == nil || err.Error() != "DAILY_COST_CEILING" {
+							t.Fatal("daily budget mismatch: modifier escaped worst-case ceiling")
+						}
+						assertDaily(t, h, ceiling, 0)
+					} else {
+						if err != nil {
+							t.Fatal("priced modifier control refused")
+						}
+						h.reopen(t)
+						assertDaily(t, h, ceiling, sample.cost)
 					}
-					h.reopen(t)
-					assertDaily(t, h, ceiling, sample.cost)
 				}
 			}
 		})

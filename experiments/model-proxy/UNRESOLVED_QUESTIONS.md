@@ -18,6 +18,19 @@
   configured context. Cache-write and US-geography premiums are then charged
   separately. Unknown beta flags and server-side tool types are closed, not
   covered by a claimed token-only bound; opening either needs a priced contract.
+- Global cache scope is an owner pricing gate: the exact `scope:"global"`
+  shape reconstructed from Claude Code 2.1.328 is admitted at the ordinary
+  cache-write premium (1.25x default/5-minute, 2x one-hour). Provider price
+  equivalence for this scope is not established by the header measurement or
+  structural fixture. Confirm it before production activation; otherwise close
+  the shape or revise the priced contract, rather than claiming a proven bound.
+- Intake absence semantics require no Priority Tier commitment and a global
+  account-default inference geography. An omitted tier is admitted although
+  explicit `auto` refuses; omitted geography is priced as global. The measured
+  beta header's price neutrality, client concurrency/retry behavior at the
+  eight-call bound and parser limits remain qualification gates. Refused beta
+  requests still consume their non-refundable reservation before any forwarding;
+  settlement work must account for that conservative charge.
 - Linux SO_PEERCRED tests exist, but macOS validation and crossbuilding do not
   prove Linux execution. Hosted Linux checks or a separately authorized fixture
   are required for that platform evidence. No real public host is configured.

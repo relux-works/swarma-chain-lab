@@ -224,7 +224,15 @@ the configured model context, including long-context price tiers. The intake
 adds the request's worst cache-write premium to the entire input window (1.25x
 for default/5-minute caching, 2x for one hour), and US inference multiplies both
 token categories by 1.1. Each category is rounded up to an integer nano-unit;
-overflow refuses. Fast speed, non-standard service tiers, server-side tool types,
+overflow refuses. Cache controls admit only `type`, `ttl` and an optional
+exact `scope:"global"`. Unknown scope values, aliases and other members refuse.
+Global scope uses the ordinary TTL premium under the explicit owner price
+assumption in the model-proxy `UNRESOLVED_QUESTIONS.md`; this is not provider
+pricing qualification. The wire evidence measured the OAuth beta header profile,
+not full Messages bodies. The structural 2.1.328 fixture reconstructs static
+system blocks with global cache control, dynamic text, tools and mixed TTLs from
+the reviewed client builder; all fixture content is synthetic.
+Fast speed, non-standard service tiers, server-side tool types,
 unknown cache/geography settings and unknown beta flags refuse before forwarding.
 Custom client-executed tools remain supported. The allowed beta set is pinned in
 `pricedBetaProfile` to the measured Claude Code 2.1.328 OAuth launch profile,

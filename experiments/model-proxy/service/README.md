@@ -74,6 +74,12 @@ forms refuse. The parent's meter prices supported cache/geo modifiers and closes
 unpriced speed, service tiers and server tools before forwarding.
 Encoded upstream bodies refuse before output, while retry hints are preserved.
 
+`TestIntakeHeaderTimerScope` holds both SSE and non-streaming JSON bodies open
+with regular progress for four injected header budgets. The streaming and
+non-streaming timer-scope plants both defer `headers.Stop()` and must fail at
+their named subtests. `TestIntakeHeaderStallBoundary` retains the opposite bound:
+silence before headers is still cancelled at the generation-header budget.
+
 This is not a qualified harness, production `UseGuard` or standalone daemon.
 Durable restart/UNKNOWN-hold reconciliation, production per-generation listener
 custody, arbitrary encoded reflections and final outbound revocation remain
