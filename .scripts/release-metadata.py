@@ -184,10 +184,16 @@ def run():
         commit, epoch = args
         expected = build_provenance(commit, "go1.26.10", epoch)
         digest(root / "provenance.json")
-        provenance = json.loads((root / "provenance.json").read_bytes())
-        actual = {key: provenance[key] for key in expected}
-        actual["archive"] = {key: provenance["archive"][key] for key in expected["archive"]}
-        if canonical(actual) != canonical(expected):
+        raw = (root / "provenance.json").read_bytes()
+        provenance = json.loads(raw)
+        archive = provenance.get("archive") if isinstance(provenance, dict) else None
+        if not isinstance(archive, dict):
+            raise ValueError("provenance-input-mismatch")
+        labels = ("python_version", "python_implementation", "zlib_version", "zlib_runtime_version")
+        if any(not isinstance(archive.get(key), str) for key in labels):
+            raise ValueError("provenance-input-mismatch")
+        expected["archive"].update({key: archive.get(key) for key in (*labels, "members")})
+        if raw != canonical(provenance) or canonical(provenance) != canonical(expected):
             raise ValueError("provenance-input-mismatch")
     elif mode == "check":
         if args:

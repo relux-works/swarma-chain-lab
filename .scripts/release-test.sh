@@ -463,8 +463,8 @@ expect_refusal rehashed_false_member_provenance archive-member-digest-mismatch "
 cp "$scratch/original-provenance" "$scratch/assets/provenance.json"
 python3 .scripts/release-metadata.py create "$scratch/assets" "$base" go1.26.10 "$(git show -s --format=%ct "$base")"
 expect_ok restored_member_provenance "$verify" "$scratch/assets" "$fragment"
-# Claim: draft binding rejects ancestor or rehashed forged input claims, but
-# accepts admitted inputs and treats compressor labels as recorded build facts.
+# Claim: draft binding rejects ancestor, rehashed forged inputs, open shapes and
+# noncanonical bytes; compressor labels must be strings, not local policy values.
 metadata="$scratch/work/.scripts/release-metadata.py"
 epoch=$(git show -s --format=%ct "$base")
 expect_ok admitted_provenance_binding python3 "$metadata" bind "$scratch/assets" "$base" "$epoch"
@@ -494,10 +494,33 @@ if field == "product":
     parent[key]["inputs"][0]["source"] = "experiments/other-daemon"
 elif field == "epoch_boolean":
     parent["SOURCE_DATE_EPOCH"] = True
-else:
+elif field == "extra_top_level_key":
+    provenance["ldflags_extra"] = "-X main.mode=insecure"
+    provenance["cgo"] = True
+elif field == "extra_archive_key":
+    provenance["archive"]["compressor"] = "pigz -11"
+elif field == "labels_removed":
+    for label in ("python_version", "python_implementation", "zlib_version", "zlib_runtime_version"):
+        del provenance["archive"][label]
+elif field.startswith("missing_label_"):
+    del provenance["archive"][field.removeprefix("missing_label_")]
+elif field.startswith("non_string_label_"):
+    provenance["archive"][field.removeprefix("non_string_label_")] = 1
+elif field == "archive_uid_boolean":
+    provenance["archive"]["uid"] = False
+elif field == "archive_gzip_mtime_boolean":
+    provenance["archive"]["gzip_mtime"] = False
+elif field == "archive_gzip_level_float":
+    provenance["archive"]["gzip_level"] = 9.0
+elif field not in ("duplicate_commit_first", "noncanonical_provenance"):
     value = parent[key]
     parent[key] = value + 1 if isinstance(value, int) else ([] if isinstance(value, list) else "forged")
-(root / "provenance.json").write_bytes(canonical(provenance))
+raw = canonical(provenance)
+if field == "duplicate_commit_first":
+    raw = ("{\"commit\":\"" + "f" * 40 + "\",\"SOURCE_DATE_EPOCH\":1,").encode("ascii") + raw[1:]
+elif field == "noncanonical_provenance":
+    raw = json.dumps(provenance, indent=2).encode("ascii") + b"\n"
+(root / "provenance.json").write_bytes(raw)
 names = ["gateway_linux_amd64.tar.gz", "gateway_linux_arm64.tar.gz", "provenance.json"]
 def digest(name):
     return hashlib.sha256((root / name).read_bytes()).hexdigest()
@@ -506,11 +529,8 @@ def digest(name):
     {"name": name, "sha256": digest(name)} for name in sorted(names + ["SHA256SUMS"])]}))
 FORGE
 }
-for field in commit SOURCE_DATE_EPOCH go_version product flags epoch_boolean \
-  environment.CGO_ENABLED environment.GOOS environment.GOARCH environment.GOAMD64 \
-  environment.GOARM64 environment.GOEXPERIMENT environment.GOTOOLCHAIN environment.GOWORK environment.GOENV \
-  archive.format archive.order archive.mtime archive.uid archive.gid archive.uname \
-  archive.gname archive.directory_mode archive.gzip_mtime archive.gzip_level; do
+draft_provenance_binding_regression() {
+  local field=$1
   forge_provenance "$field"
   expect_ok "rehashed_forged_${field}_consistency" python3 "$metadata" check "$scratch/assets"
   expect_ok "rehashed_forged_${field}_checksums" bash -c 'cd "$1" && sha256sum --strict --check SHA256SUMS' _ "$scratch/assets"
@@ -520,6 +540,17 @@ for field in commit SOURCE_DATE_EPOCH go_version product flags epoch_boolean \
   expect_ok "forged_${field}_unchanged" cmp "$scratch/assets/provenance.json" "$scratch/forged-provenance"
   cp "$scratch/binding-original/"{provenance.json,SHA256SUMS,release-set.json} "$scratch/assets/"
   expect_ok "restored_binding_after_$field" python3 "$metadata" bind "$scratch/assets" "$base" "$epoch"
+}
+for field in commit SOURCE_DATE_EPOCH go_version product flags epoch_boolean \
+  environment.CGO_ENABLED environment.GOOS environment.GOARCH environment.GOAMD64 \
+  environment.GOARM64 environment.GOEXPERIMENT environment.GOTOOLCHAIN environment.GOWORK environment.GOENV \
+  archive.format archive.order archive.mtime archive.uid archive.gid archive.uname \
+  archive.gname archive.directory_mode archive.gzip_mtime archive.gzip_level \
+  extra_top_level_key extra_archive_key labels_removed duplicate_commit_first noncanonical_provenance \
+  missing_label_python_version missing_label_python_implementation missing_label_zlib_version missing_label_zlib_runtime_version \
+  non_string_label_python_version non_string_label_python_implementation non_string_label_zlib_version non_string_label_zlib_runtime_version \
+  archive_uid_boolean archive_gzip_mtime_boolean archive_gzip_level_float; do
+  draft_provenance_binding_regression "$field"
 done
 for field in archive.python_version archive.python_implementation archive.zlib_version archive.zlib_runtime_version; do
   forge_provenance "$field"
@@ -527,6 +558,50 @@ for field in archive.python_version archive.python_implementation archive.zlib_v
   expect_ok "recorded_${field}_binding" python3 "$metadata" bind "$scratch/assets" "$base" "$epoch"
   cp "$scratch/binding-original/"{provenance.json,SHA256SUMS,release-set.json} "$scratch/assets/"
 done
+# Claim: removing shape, raw-byte or numeric-type binding must fail the same
+# regression witness, not an unrelated setup step. Mutants use isolated assets.
+mkdir -p "$scratch/binding-mutants/"{.scripts,.github/release}
+cp .github/release/gateway-inputs.json "$scratch/binding-mutants/.github/release/"
+python3 - "$metadata" "$scratch/binding-mutants/.scripts" <<'MUTANTS'
+import pathlib
+import sys
+path = pathlib.Path(sys.argv[1])
+output = pathlib.Path(sys.argv[2])
+source = path.read_text()
+guard = "        if raw != canonical(provenance) or canonical(provenance) != canonical(expected):"
+assert source.count(guard) == 1
+mutants = {
+    "projection_only": (
+        "        actual = {key: provenance[key] for key in expected}\n"
+        "        actual[\"archive\"] = {key: provenance[\"archive\"][key] for key in expected[\"archive\"]}\n"
+        "        if raw != canonical(provenance) or canonical(actual) != canonical(expected):"),
+    "without_canonical_bytes": "        if canonical(provenance) != canonical(expected):",
+    "dictionary_equality": "        if raw != canonical(provenance) or provenance != expected:",
+}
+for name, replacement in mutants.items():
+    (output / ("release-metadata-mutant-" + name + ".py")).write_text(source.replace(guard, replacement))
+MUTANTS
+binding_mutant_witness() (
+  mutation=$1
+  field=$2
+  metadata="$scratch/binding-mutants/.scripts/release-metadata-mutant-$mutation.py"
+  original_assets="$scratch/assets"
+  scratch="$scratch/mutant-$mutation-$field"
+  mkdir -p "$scratch/assets" "$scratch/binding-original"
+  cp "$original_assets/"{gateway_linux_amd64.tar.gz,gateway_linux_arm64.tar.gz,provenance.json,SHA256SUMS,release-set.json} "$scratch/assets/"
+  cp "$scratch/assets/"{provenance.json,SHA256SUMS,release-set.json} "$scratch/binding-original/"
+  expect_ok admitted_provenance_binding python3 "$metadata" bind "$scratch/assets" "$base" "$epoch"
+  draft_provenance_binding_regression "$field"
+)
+for mutant_case in projection_only:extra_top_level_key projection_only:extra_archive_key \
+  without_canonical_bytes:duplicate_commit_first dictionary_equality:archive_uid_boolean \
+  dictionary_equality:archive_gzip_level_float; do
+  mutation=${mutant_case%%:*}
+  field=${mutant_case#*:}
+  expect_refusal "mutant_${mutation}_${field}_killed" "forged_${field}_input_mismatch: unexpected acceptance" \
+    binding_mutant_witness "$mutation" "$field"
+done
+expect_ok admitted_binding_after_mutants python3 "$metadata" bind "$scratch/assets" "$base" "$epoch"
 cp "$scratch/assets/gateway_linux_arm64.tar.gz" "$scratch/original-arm64"
 printf 'changed\n' >> "$scratch/assets/gateway_linux_arm64.tar.gz"
 expect_refusal changed_arm64_archive artifact-digest-mismatch "$verify" "$scratch/assets" "$fragment"
@@ -654,7 +729,7 @@ assert workflow.count("          ref: main\n") == 2
 build = workflow.split("\n  build:\n", 1)[1].split("\n  draft:\n", 1)[0]
 draft = workflow.split("\n  draft:\n", 1)[1]
 binding = 'python3 .scripts/release-metadata.py bind "$RUNNER_TEMP/dist" "$RELEASE_COMMIT" "$(git show -s --format=%ct "$RELEASE_COMMIT")"'
-assert binding in draft, "draft-provenance-binding-required"
+assert re.search(r"(?m)^ {10}" + re.escape(binding) + r"$", draft), "draft-provenance-binding-required"
 assert draft.index("python3 .scripts/release-metadata.py check") < draft.index(binding) < draft.index("sha256sum --strict --check") < draft.index("gh release create"), "draft-provenance-binding-before-publication-required"
 assert "Not a closure: root use stays blocked" in draft, "draft-not-a-closure-notes-required"
 assert not re.search(r"\bgit\b[^\n;]*\bconfig\b", workflow), "workflow-persistent-git-config-forbidden"
@@ -721,6 +796,17 @@ sed '/Not a closure: root use stays blocked/d' \
 expect_refusal workflow_missing_gate_notes_rejected draft-not-a-closure-notes-required \
   workflow_policy "$scratch/missing-gate-notes-draft.yml"
 expect_ok restored_draft_binding_and_notes_policy workflow_policy
+# Claim: preserving the bind tokens while commenting out or ignoring the command
+# must not satisfy the workflow gate; the unchanged workflow remains valid.
+sed "/python3 .scripts\/release-metadata.py bind/s/$/ || true/" \
+  "$source_root/.github/workflows/release.yml" > "$scratch/ignored-binding-draft.yml"
+expect_refusal workflow_ignored_binding_rejected draft-provenance-binding-required \
+  workflow_policy "$scratch/ignored-binding-draft.yml"
+sed "/python3 .scripts\/release-metadata.py bind/s/^          /          # /" \
+  "$source_root/.github/workflows/release.yml" > "$scratch/commented-binding-draft.yml"
+expect_refusal workflow_commented_binding_rejected draft-provenance-binding-required \
+  workflow_policy "$scratch/commented-binding-draft.yml"
+expect_ok restored_executable_draft_binding_policy workflow_policy
 # Each persistent-write spelling must be rejected in both production surfaces.
 for config_write in '--global --add' '--system --add' '--file "$HOME/.gitconfig" --add' '--add'; do
   case $config_write in

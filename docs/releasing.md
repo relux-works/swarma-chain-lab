@@ -32,9 +32,13 @@ The gateway service contract in [gateway-service.md](gateway-service.md),
 introduced by service PR #159 and wired into model-proxy by PR #161, still
 requires runtime qualification. The actual command now includes the managed
 source from its local `service` module; packaging that command does not qualify
-managed mode or activate a service. The template reuses the broker A3 release
-policy at commit `e295b4c7c0dc397ecdaa89e73c057d53d2e3f533`, including scoped Git
-trust and its persistence controls. The gateway remains pure Go: no native cgo
+managed mode or activate a service. The template ports the broker A3 admission,
+scoped Git trust and persistence controls from commit
+`e295b4c7c0dc397ecdaa89e73c057d53d2e3f533`. Draft collection differs: the broker
+regenerates provenance with `create`; the gateway binds the complete uploaded
+object and requires canonical bytes before publishing those bytes. Python/zlib
+labels are recorded build facts, not values selected by the draft host.
+The gateway remains pure Go: no native cgo
 profile, container toolchain or extra product is introduced. Owner decision 2(a)
 authorizes this per-product port.
 
@@ -213,8 +217,15 @@ python3 .scripts/release-metadata.py bind /absolute/assets "$RELEASE_COMMIT" \
   "$(git show -s --format=%ct "$RELEASE_COMMIT")"
 ```
 
-Ancestor or forged provenance refuses even when every checksum was recomputed.
-Python/zlib labels remain recorded build facts, not the draft host's policy.
+Ancestor or forged provenance, extra top-level or archive keys, missing or
+non-string Python/zlib labels, duplicate JSON keys and noncanonical bytes refuse
+with `provenance-input-mismatch`, even when every checksum was recomputed.
+Binding compares the complete object against the admitted inputs plus the four
+recorded string labels and member hashes; `check` independently verifies those
+hashes against the archives first. Canonical comparison also distinguishes
+booleans and floats from integer policy constants. Python/zlib label values
+remain recorded build facts, not the draft host's policy. This is not an exact
+reuse of the broker's regenerating collector.
 It describes build inputs; it is not an origin attestation.
 `SHA256SUMS` covers both gateway archives and provenance. `release-set.json` lists the
 name and SHA-256 of each archive, provenance and `SHA256SUMS` for incorporation
