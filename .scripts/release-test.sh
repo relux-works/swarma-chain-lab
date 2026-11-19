@@ -400,7 +400,7 @@ expect_refusal duplicate_table_member invalid-input-inventory python3 .scripts/r
 git restore --source="$main" -- .github/release/gateway-inputs.json
 
 # Each widened or malformed table refuses its specific contract beside the valid table.
-for mutation in fourth_row second_go wrong_mode outside_member outside_package parent_child; do
+for mutation in fourth_row second_go wrong_mode outside_member outside_package parent_child non_mapping; do
   python3 - "$mutation" <<'TABLE'
 import json
 import pathlib
@@ -421,12 +421,15 @@ elif mutation == "outside_package":
     rows[0]["package"] = "./other/model-proxy"
 elif mutation == "parent_child":
     rows[1]["member"] = rows[0]["member"] + "/child"
+elif mutation == "non_mapping":
+    rows[1] = None
 path.write_text(json.dumps(value))
 TABLE
   case $mutation in
     fourth_row|second_go|parent_child) reason=invalid-input-inventory ;;
     wrong_mode|outside_member) reason=invalid-input-member-or-mode ;;
     outside_package) reason=invalid-command-package ;;
+    non_mapping) reason=invalid-input-row ;;
   esac
   expect_refusal "table_$mutation" "$reason" python3 .scripts/release-metadata.py inputs "$scratch/build-source"
   git restore --source="$main" -- .github/release/gateway-inputs.json
@@ -460,6 +463,70 @@ expect_refusal rehashed_false_member_provenance archive-member-digest-mismatch "
 cp "$scratch/original-provenance" "$scratch/assets/provenance.json"
 python3 .scripts/release-metadata.py create "$scratch/assets" "$base" go1.26.10 "$(git show -s --format=%ct "$base")"
 expect_ok restored_member_provenance "$verify" "$scratch/assets" "$fragment"
+# Claim: draft binding rejects ancestor or rehashed forged input claims, but
+# accepts admitted inputs and treats compressor labels as recorded build facts.
+metadata="$scratch/work/.scripts/release-metadata.py"
+epoch=$(git show -s --format=%ct "$base")
+expect_ok admitted_provenance_binding python3 "$metadata" bind "$scratch/assets" "$base" "$epoch"
+[[ $base != "$main" ]] || fail ancestor-provenance-fixture-requires-distinct-commits
+expect_ok provenance_ancestor_relationship git merge-base --is-ancestor "$base" "$main"
+expect_refusal ancestor_provenance_input_mismatch provenance-input-mismatch \
+  python3 "$metadata" bind "$scratch/assets" "$main" "$(git show -s --format=%ct "$main")"
+expect_ok admitted_binding_after_ancestor_refusal python3 "$metadata" bind "$scratch/assets" "$base" "$epoch"
+mkdir "$scratch/binding-original"
+cp "$scratch/assets/"{provenance.json,SHA256SUMS,release-set.json} "$scratch/binding-original/"
+forge_provenance() {
+  python3 - "$scratch/assets" "$1" <<'FORGE'
+import hashlib
+import json
+import pathlib
+import sys
+root, field = pathlib.Path(sys.argv[1]), sys.argv[2]
+def canonical(value):
+    return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n").encode("ascii")
+provenance = json.loads((root / "provenance.json").read_bytes())
+parent = provenance
+parts = field.split(".")
+for part in parts[:-1]:
+    parent = parent[part]
+key = parts[-1]
+if field == "product":
+    parent[key]["inputs"][0]["source"] = "experiments/other-daemon"
+elif field == "epoch_boolean":
+    parent["SOURCE_DATE_EPOCH"] = True
+else:
+    value = parent[key]
+    parent[key] = value + 1 if isinstance(value, int) else ([] if isinstance(value, list) else "forged")
+(root / "provenance.json").write_bytes(canonical(provenance))
+names = ["gateway_linux_amd64.tar.gz", "gateway_linux_arm64.tar.gz", "provenance.json"]
+def digest(name):
+    return hashlib.sha256((root / name).read_bytes()).hexdigest()
+(root / "SHA256SUMS").write_text("".join(f"{digest(name)}  {name}\n" for name in names), encoding="ascii")
+(root / "release-set.json").write_bytes(canonical({"schema": "release-set-fragment/1", "artifacts": [
+    {"name": name, "sha256": digest(name)} for name in sorted(names + ["SHA256SUMS"])]}))
+FORGE
+}
+for field in commit SOURCE_DATE_EPOCH go_version product flags epoch_boolean \
+  environment.CGO_ENABLED environment.GOOS environment.GOARCH environment.GOAMD64 \
+  environment.GOARM64 environment.GOEXPERIMENT environment.GOTOOLCHAIN environment.GOWORK environment.GOENV \
+  archive.format archive.order archive.mtime archive.uid archive.gid archive.uname \
+  archive.gname archive.directory_mode archive.gzip_mtime archive.gzip_level; do
+  forge_provenance "$field"
+  expect_ok "rehashed_forged_${field}_consistency" python3 "$metadata" check "$scratch/assets"
+  expect_ok "rehashed_forged_${field}_checksums" bash -c 'cd "$1" && sha256sum --strict --check SHA256SUMS' _ "$scratch/assets"
+  cp "$scratch/assets/provenance.json" "$scratch/forged-provenance"
+  expect_refusal "forged_${field}_input_mismatch" provenance-input-mismatch \
+    python3 "$metadata" bind "$scratch/assets" "$base" "$epoch"
+  expect_ok "forged_${field}_unchanged" cmp "$scratch/assets/provenance.json" "$scratch/forged-provenance"
+  cp "$scratch/binding-original/"{provenance.json,SHA256SUMS,release-set.json} "$scratch/assets/"
+  expect_ok "restored_binding_after_$field" python3 "$metadata" bind "$scratch/assets" "$base" "$epoch"
+done
+for field in archive.python_version archive.python_implementation archive.zlib_version archive.zlib_runtime_version; do
+  forge_provenance "$field"
+  expect_ok "recorded_${field}_consistency" python3 "$metadata" check "$scratch/assets"
+  expect_ok "recorded_${field}_binding" python3 "$metadata" bind "$scratch/assets" "$base" "$epoch"
+  cp "$scratch/binding-original/"{provenance.json,SHA256SUMS,release-set.json} "$scratch/assets/"
+done
 cp "$scratch/assets/gateway_linux_arm64.tar.gz" "$scratch/original-arm64"
 printf 'changed\n' >> "$scratch/assets/gateway_linux_arm64.tar.gz"
 expect_refusal changed_arm64_archive artifact-digest-mismatch "$verify" "$scratch/assets" "$fragment"
@@ -585,6 +652,11 @@ assert "  workflow_dispatch:" in workflow and not re.search(r"^  push:", workflo
 assert workflow.count("if: github.ref == 'refs/heads/main' && github.event.repository.default_branch == 'main'") == 2
 assert workflow.count("          ref: main\n") == 2
 build = workflow.split("\n  build:\n", 1)[1].split("\n  draft:\n", 1)[0]
+draft = workflow.split("\n  draft:\n", 1)[1]
+binding = 'python3 .scripts/release-metadata.py bind "$RUNNER_TEMP/dist" "$RELEASE_COMMIT" "$(git show -s --format=%ct "$RELEASE_COMMIT")"'
+assert binding in draft, "draft-provenance-binding-required"
+assert draft.index("python3 .scripts/release-metadata.py check") < draft.index(binding) < draft.index("sha256sum --strict --check") < draft.index("gh release create"), "draft-provenance-binding-before-publication-required"
+assert "Not a closure: root use stays blocked" in draft, "draft-not-a-closure-notes-required"
 assert not re.search(r"\bgit\b[^\n;]*\bconfig\b", workflow), "workflow-persistent-git-config-forbidden"
 assert "GIT_CONFIG_" not in workflow, "workflow-config-env-forbidden"
 assert not re.search(r"safe\.directory[^\n]*\*", build), "build-wildcard-trust-forbidden"
@@ -626,6 +698,29 @@ print("Default-branch dispatch, pre-release label, action pins, permissions, doc
 POLICY
 }
 expect_ok workflow_default_branch_and_prerelease_policy workflow_policy
+# Claim: draft policy requires binding to the admitted commit and its epoch
+# before publication, and preserves the release notes' no-root-step gate.
+sed '/python3 .scripts\/release-metadata.py bind/d' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/unbound-draft.yml"
+expect_refusal workflow_unbound_draft_rejected draft-provenance-binding-required \
+  workflow_policy "$scratch/unbound-draft.yml"
+sed '/python3 .scripts\/release-metadata.py bind/s/"$RELEASE_COMMIT"/"$POLICY_COMMIT"/g' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/wrong-commit-draft.yml"
+expect_refusal workflow_wrong_commit_draft_rejected draft-provenance-binding-required \
+  workflow_policy "$scratch/wrong-commit-draft.yml"
+sed '/python3 .scripts\/release-metadata.py bind/s/--format=%ct "$RELEASE_COMMIT"/--format=%ct HEAD/' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/wrong-epoch-draft.yml"
+expect_refusal workflow_wrong_epoch_draft_rejected draft-provenance-binding-required \
+  workflow_policy "$scratch/wrong-epoch-draft.yml"
+sed '/python3 .scripts\/release-metadata.py bind/{h;d;}; /--notes-file /{G;}' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/late-binding-draft.yml"
+expect_refusal workflow_late_binding_draft_rejected draft-provenance-binding-before-publication-required \
+  workflow_policy "$scratch/late-binding-draft.yml"
+sed '/Not a closure: root use stays blocked/d' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/missing-gate-notes-draft.yml"
+expect_refusal workflow_missing_gate_notes_rejected draft-not-a-closure-notes-required \
+  workflow_policy "$scratch/missing-gate-notes-draft.yml"
+expect_ok restored_draft_binding_and_notes_policy workflow_policy
 # Each persistent-write spelling must be rejected in both production surfaces.
 for config_write in '--global --add' '--system --add' '--file "$HOME/.gitconfig" --add' '--add'; do
   case $config_write in

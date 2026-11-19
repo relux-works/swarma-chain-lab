@@ -111,6 +111,7 @@ jobs:
           test "$remote" = "$RELEASE_TAG_OBJECT"
           .scripts/release-admit.sh "$RELEASE_TAG"
           python3 .scripts/release-metadata.py check "$RUNNER_TEMP/dist"
+          python3 .scripts/release-metadata.py bind "$RUNNER_TEMP/dist" "$RELEASE_COMMIT" "$(git show -s --format=%ct "$RELEASE_COMMIT")"
           cd "$RUNNER_TEMP/dist"
           sha256sum --strict --check SHA256SUMS
           assets=(gateway_linux_amd64.tar.gz gateway_linux_arm64.tar.gz SHA256SUMS provenance.json release-set.json)

@@ -63,7 +63,9 @@ PR #161's inactive unit at
 `experiments/model-proxy/service/deploy/credential-gateway.service.in` uses
 platform-root placeholders, a credential-loaded config and broker dependency.
 It does not yet reconcile the DK5 anchor, model identities, versioned deploy path
-or `--check-installed` pre-start gate. Its listener/generation environment is
+or `--check-installed` pre-start gate. The unit passes only `-config`, not the
+command's `-broker-config` and `-gateway-socket` flags; the command does not read
+`GATEWAY_LISTENER` or `GATEWAY_SERVICE_GENERATION`. Its listener/generation environment is
 not evidence of a qualified installed command configuration. The remaining S-20
 and live runtime gates are recorded in the service module's open questions.
 
@@ -202,6 +204,17 @@ that that channel was rebuilt, upgraded or qualified by this change.
 `archive` also records Python version/implementation, zlib build/runtime versions
 and each regular member's SHA-256 under each archive name. The metadata checker
 compares those member hashes with the compressed archive contents.
+Before creating the draft, main's metadata helper also binds the recorded
+commit, committer epoch, Go version, product table, flags, environment and archive
+normalization constants to the admitted source and main's policy:
+
+```bash
+python3 .scripts/release-metadata.py bind /absolute/assets "$RELEASE_COMMIT" \
+  "$(git show -s --format=%ct "$RELEASE_COMMIT")"
+```
+
+Ancestor or forged provenance refuses even when every checksum was recomputed.
+Python/zlib labels remain recorded build facts, not the draft host's policy.
 It describes build inputs; it is not an origin attestation.
 `SHA256SUMS` covers both gateway archives and provenance. `release-set.json` lists the
 name and SHA-256 of each archive, provenance and `SHA256SUMS` for incorporation
@@ -244,6 +257,11 @@ Use the trusted current-main checkout, not a downloaded script or the tag tree.
 The operator's GitHub CLI needs release-write access. The helper fetches main
 and the requested tag without forcing a moved tag, then runs main's admission.
 It requires a draft marked pre-release and the exact bot-key label in its body.
+The workflow uses the `ubuntu-24.04` runner image's system `python3`. The rebuild
+must reproduce the draft's recorded `archive.python_version`,
+`archive.python_implementation`, `archive.zlib_version` and
+`archive.zlib_runtime_version` labels as well as compressed bytes. Different
+labels alone cause `rebuild-digest-mismatch`; matching Go inputs is insufficient.
 
 ```bash
 GO=/absolute/path/to/go1.26.10/bin/go .scripts/release-sign.sh gateway/v1.2.3
@@ -298,7 +316,7 @@ owner-approved **aggregate** digest and its entire selected artifact set.
 ```bash
 actionlint .github/workflows/release.yml  # If installed; otherwise report missing.
 for script in .scripts/release-*.sh; do bash -n "$script" || exit; done
-GO=/absolute/path/to/go1.26.8/bin/go .scripts/release-test.sh /absolute/new/scratch
+GO=/absolute/path/to/go1.26.10/bin/go .scripts/release-test.sh /absolute/new/scratch
 ```
 
 The scratch test owns its empty home/config/caches, Git repositories and ephemeral
@@ -311,6 +329,9 @@ traversal, duplicates and symlinks. A local GitHub CLI double exercises off-main
 mismatched-digest, missing-label and non-prerelease refusals, plus rebuild/sign,
 readback and no-overwrite controls. This is not hosted workflow evidence.
 No credential, service activation or live release API is touched by the tests.
+Before the first real `gateway/v*` tag, runtime qualification must also run the
+model-proxy and gateway-service suites with Go 1.26.10: their current CI jobs
+test with Go 1.26.8, not this product's release toolchain.
 
 When copying the template, include `.scripts/release-*` (including the Python 3
 metadata helper), `.github/release/gateway-inputs.json`, workflow and docs. Change the repository default in the signing

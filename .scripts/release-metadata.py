@@ -38,6 +38,8 @@ def table():
     members = []
     go_rows = 0
     for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("invalid-input-row")
         kind = row.get("kind")
         keys = {"kind", "source", "member", "mode"} | ({"package"} if kind == "go" else set())
         if set(row) != keys or kind not in ("go", "file"):
@@ -136,6 +138,22 @@ def member_digests(path):
                 for member in sorted(files, key=lambda member: member.name)}
 
 
+def build_provenance(commit, version, epoch):
+    if not re.fullmatch(r"[0-9a-f]{40,64}", commit) or version != "go1.26.10" or not epoch.isdecimal():
+        raise ValueError("invalid-build-inputs")
+    return {
+        "commit": commit, "go_version": version, "SOURCE_DATE_EPOCH": int(epoch),
+        "product": table(),
+        "archive": {"format": "ustar", "order": "sorted", "mtime": int(epoch),
+                    "uid": 0, "gid": 0, "uname": "", "gname": "",
+                    "directory_mode": "0755", "gzip_mtime": 0, "gzip_level": 9},
+        "flags": ["-mod=readonly", "-p=2", "-trimpath", "-buildvcs=false", "-ldflags=-buildid="],
+        "environment": {"CGO_ENABLED": "0", "GOOS": "linux", "GOARCH": ["amd64", "arm64"],
+                        "GOAMD64": "v1", "GOARM64": "v8.0", "GOEXPERIMENT": "",
+                        "GOTOOLCHAIN": "local", "GOWORK": "off", "GOENV": "off"},
+    }
+
+
 def run():
     mode, directory, *args = sys.argv[1:]
     root = pathlib.Path(directory)
@@ -148,30 +166,29 @@ def run():
         pack(root, pathlib.Path(output), epoch)
     elif mode == "create":
         commit, version, epoch = args
-        if not re.fullmatch(r"[0-9a-f]{40,64}", commit) or version != "go1.26.10" or not epoch.isdecimal():
-            raise ValueError("invalid-build-inputs")
+        provenance = build_provenance(commit, version, epoch)
         for name in ARCHIVES:
             digest(root / name)
-        provenance = {
-            "commit": commit, "go_version": version, "SOURCE_DATE_EPOCH": int(epoch),
-            "product": table(),
-            "archive": {"format": "ustar", "order": "sorted", "mtime": int(epoch),
-                        "uid": 0, "gid": 0, "uname": "", "gname": "",
-                        "directory_mode": "0755", "gzip_mtime": 0, "gzip_level": 9,
-                        "python_version": platform.python_version(),
-                        "python_implementation": platform.python_implementation(),
-                        "zlib_version": zlib.ZLIB_VERSION,
-                        "zlib_runtime_version": zlib.ZLIB_RUNTIME_VERSION,
-                        "members": {name: member_digests(root / name) for name in ARCHIVES}},
-            "flags": ["-mod=readonly", "-p=2", "-trimpath", "-buildvcs=false", "-ldflags=-buildid="],
-            "environment": {"CGO_ENABLED": "0", "GOOS": "linux", "GOARCH": ["amd64", "arm64"],
-                            "GOAMD64": "v1", "GOARM64": "v8.0", "GOEXPERIMENT": "",
-                            "GOTOOLCHAIN": "local", "GOWORK": "off", "GOENV": "off"},
-        }
+        provenance["archive"].update({
+            "python_version": platform.python_version(),
+            "python_implementation": platform.python_implementation(),
+            "zlib_version": zlib.ZLIB_VERSION,
+            "zlib_runtime_version": zlib.ZLIB_RUNTIME_VERSION,
+            "members": {name: member_digests(root / name) for name in ARCHIVES},
+        })
         (root / "provenance.json").write_bytes(canonical(provenance))
         names = ARCHIVES + ["provenance.json"]
         (root / "SHA256SUMS").write_text("".join(f"{digest(root / name)}  {name}\n" for name in sorted(names)), encoding="ascii")
         (root / "release-set.json").write_bytes(fragment(root, names + ["SHA256SUMS"]))
+    elif mode == "bind":
+        commit, epoch = args
+        expected = build_provenance(commit, "go1.26.10", epoch)
+        digest(root / "provenance.json")
+        provenance = json.loads((root / "provenance.json").read_bytes())
+        actual = {key: provenance[key] for key in expected}
+        actual["archive"] = {key: provenance["archive"][key] for key in expected["archive"]}
+        if canonical(actual) != canonical(expected):
+            raise ValueError("provenance-input-mismatch")
     elif mode == "check":
         if args:
             raise ValueError("unexpected-arguments")
