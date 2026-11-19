@@ -14,6 +14,10 @@
   or price is selected. Guarantees depend on the provider honoring those pinned
   bounds and the priced request profile; response validation cannot retroactively
   reverse a bill from a provider that violates its contract.
+  For the Unix intake, standard/global rates must cover every price tier in the
+  configured context. Cache-write and US-geography premiums are then charged
+  separately. Unknown beta flags and server-side tool types are closed, not
+  covered by a claimed token-only bound; opening either needs a priced contract.
 - Linux SO_PEERCRED tests exist, but macOS validation and crossbuilding do not
   prove Linux execution. Hosted Linux checks or a separately authorized fixture
   are required for that platform evidence. No real public host is configured.

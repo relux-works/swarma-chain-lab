@@ -534,7 +534,14 @@ Startup requires a positive configured daily ceiling and an explicitly
 initialized accounting directory. Messages enforce the configured model list
 and a positive `max_tokens` within the model's context bound. Before leasing or
 forwarding, full context input plus maximum requested output is atomically
-charged at configured prices against the same durable daily exposure. Parallel
+charged against the same durable daily exposure. Exact JSON meter keys reject
+case/Unicode aliases and duplicates. Configured prices must upper-bound standard
+token rates over the entire configured context (including long-context tiers).
+Cache writes apply up to 2x input; US geography applies 1.1x to input and output,
+with each category rounded up. Fast speed, non-standard tiers, server tools,
+unknown pricing settings and beta flags outside the measured OAuth launch
+profile refuse before forwarding. Custom client-side tools and the measured
+profile are retained byte-for-byte. Parallel
 calls and restarts share this ceiling; failures and successful replies alike
 retain the conservative reservation. Policy GET books no generation cost.
 There is no per-slot identity/cap or verified-usage settlement on this intake.
@@ -542,8 +549,15 @@ There is no per-slot identity/cap or verified-usage settlement on this intake.
 The body bound is 128 MiB (exact boundary accepted, next byte refused), covering
 the provider's documented 128 MB Messages bound. The launch wire probe measured
 shapes and SSE, not body sizes; it does not justify a 64 KiB body limit. Request
-reads have a two-minute budget. SSE has no 65-second whole-exchange cutoff:
-headers have a 30-second bound and read/write stalls have one-minute idle bounds,
+reads have a two-minute budget. Before allocation, all body-owning calls share a
+128 MiB-plus-one-byte raw window and an eight-call limit; exhaustion gives 503
+without reading or leasing. Exact known lengths allocate once; unknown/chunked
+lengths reserve the entire window. The window remains charged through response
+completion. One maximum request can exclude other requests; this is deliberately
+bounded buffering, not a claim of streaming/spooling input. JSON has a 65,536-value
+and depth-32 structure limit. SSE has no 65-second whole-exchange cutoff:
+headers have a separate ten-minute generation budget, including non-streaming
+calls, and read/write stalls have one-minute idle bounds,
 while per-session lease and revocation fencing continues through renewals.
 Encoded upstream bodies refuse before worker output; retry hints are preserved.
 Neither the flag nor a successful fixture qualifies production launch custody,
@@ -555,6 +569,11 @@ From this module, run `go vet ./...`, `go test -race ./...`,
 Run `GATEWAY_LONG_STREAM=1 go test -count=1 -run '^TestGatewayLongStream$' ./cmd/model-proxy`
 for the 70-second composed production-timeout regression; the ordinary suite
 also exercises multiple shortened idle intervals and a stalled upstream.
+`TestIntakeNonStreamingHeaderDelay` in the service suite drives the real TLS
+transport past 30 seconds. `TestIntakeHeaderStallBoundary`,
+`TestIntakeRequestReadBudget`, `TestIntakeWriteStall` and
+`TestIntakeConcurrentBodyMemory` drive the header/read/write/memory negatives
+beside valid controls; the plant runner kills each corresponding omitted gate.
 From `service`, run `go vet ./...`, `go test -race ./...`, `go build ./...`,
 and `python3 scripts/check-plants.py --out "$ABSOLUTE_NEW_SCRATCH"`.
 Logs, load records, overlays, exact named plant witnesses and reports belong in

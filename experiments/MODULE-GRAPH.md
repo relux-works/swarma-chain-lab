@@ -55,7 +55,8 @@ The new bootstrap/model packages are also absent from `single-use v0.1.0`.
 
 All 109 internal requirements, in standalone `require` lines,
 `require (...)` blocks and `// indirect` entries alike, retain versions at or
-above their recorded source snapshot floors, including the landed service edge.
+above their recorded source snapshot floors, including the service edge whose
+landed ancestry floor and same-PR API checkpoint are distinguished below.
 The first revision of this audit counted 96: it missed the two
 standalone `single-use` requires in `deploy/go.mod` and
 `experiments/station-lifecycle/go.mod`, which left `deploy` and

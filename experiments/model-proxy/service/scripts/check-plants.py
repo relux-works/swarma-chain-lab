@@ -114,6 +114,42 @@ def main():
     ]
     intake_source = original[intake]
     intake_plants = [
+        ('intake-header-stall', 'time.AfterFunc(g.headerTimeout, cancel)', 'time.AfterFunc(time.Hour, cancel)',
+         'TestIntakeHeaderStallBoundary', 'TestIntakeHeaderStallBoundary/stalled',
+         'Header silence must cancel the call at the generation budget.'),
+        ('intake-header-30s', 'headerTimeout: 10 * time.Minute', 'headerTimeout: 30 * time.Second',
+         'TestIntakeNonStreamingHeaderDelay', 'TestIntakeNonStreamingHeaderDelay',
+         'Non-streaming headers must not regress to the former short cap.'),
+        ('intake-transport-header-30s', 'transport.ResponseHeaderTimeout = 0', 'transport.ResponseHeaderTimeout = 30 * time.Second',
+         'TestIntakeNonStreamingHeaderDelay', 'TestIntakeNonStreamingHeaderDelay',
+         'The actual transport must deliver headers arriving later than 30 seconds.'),
+        ('intake-write-stall', '_ = http.NewResponseController(writer).SetWriteDeadline(time.Now())', '_ = writer',
+         'TestIntakeWriteStall', 'TestIntakeWriteStall/stalled',
+         'A stopped worker cannot hold a handler in Write or Flush.'),
+        ('intake-request-read-stall', 'controller.SetReadDeadline(time.Now().Add(g.readTimeout))', 'error(nil)',
+         'TestIntakeRequestReadBudget', 'TestIntakeRequestReadBudget/stalled',
+         'A silent partial request must refuse before acquiring a credential.'),
+        ('intake-body-memory', 'g.bodyBytes+capacity > MaxIntakeMemory', 'g.bodyBytes+capacity > 1<<40',
+         'TestIntakeConcurrentBodyMemory', 'TestIntakeConcurrentBodyMemory',
+         'Concurrent bodies cannot exceed the aggregate input window.'),
+        ('intake-call-bound', 'g.bodyCalls >= 8', 'g.bodyCalls >= 1<<30',
+         'TestIntakeConcurrentCallLimit', 'TestIntakeConcurrentCallLimit',
+         'Concurrent small bodies remain subject to the call count bound.'),
+        ('intake-write-authority-fence', '_ = http.NewResponseController(writer).SetWriteDeadline(time.Now())', '_ = writer',
+         'TestIntakeWriteStall', 'TestIntakeWriteStall/revoked',
+         'Authority loss interrupts a pending worker write before its idle bound.'),
+        ('intake-beta-price', 'strings.EqualFold(key, "Anthropic-Beta") && !pricedBetaProfile(values[0])', 'false && strings.EqualFold(key, "Anthropic-Beta") && !pricedBetaProfile(values[0])',
+         'TestIntakeHeaderCanonicalization', 'TestIntakeHeaderCanonicalization/Anthropic-Beta',
+         'Unpriced beta features refuse regardless of HTTP name casing.'),
+        ('intake-duplicate-protocol-header', 'len(values) != 1', 'len(values) == 0',
+         'TestIntakeHeaderCanonicalization', 'TestIntakeHeaderCanonicalization/beta-duplicate',
+         'Multiple individually priced beta values cannot bypass duplicate refusal.'),
+        ('intake-aliased-header', 'seen[canonical] || ', '',
+         'TestIntakeHeaderCanonicalization', 'TestIntakeHeaderCanonicalization/beta-alias',
+         'Case-aliased protocol header map keys refuse before normalization.'),
+        ('intake-truncated-request', 'request.ContentLength >= 0 && int64(count) != request.ContentLength', 'false && request.ContentLength >= 0 && int64(count) != request.ContentLength',
+         'TestIntakeTruncatedRequestBody', 'TestIntakeTruncatedRequestBody/truncated',
+         'Early EOF cannot silently forward fewer bytes than declared.'),
         ('intake-policy-body', 'request.Method == http.MethodGet && len(body) != 0', 'false',
          'TestIntakeRefusalNeighbours', 'TestIntakeRefusalNeighbours/policy/body',
          'A one-byte policy body is not an admitted credentialless request.'),
@@ -180,9 +216,6 @@ def main():
         ('intake-policy-method', 'request.Method == http.MethodGet && request.URL.EscapedPath()', 'request.Method == http.MethodPost && request.URL.EscapedPath()',
          'TestIntakeRefusals', 'TestIntakeRefusals/policy-method',
          'The credentialless policy shape admits GET only.'),
-        ('intake-duplicate-marker', 'len(authorization) == 1 &&', 'len(authorization) >= 1 &&',
-         'TestIntakeRefusals', 'TestIntakeRefusals/duplicate-authorization',
-         'Duplicate Authorization values are refused even when identical.'),
         ('intake-api-key', 'else if credentialHeader(key) {', 'else if credentialHeader(key) && !strings.EqualFold(key, "X-Api-Key") {',
          'TestIntakeRefusals', 'TestIntakeRefusals/api-key',
          'A second worker credential is not silently accepted or forwarded.'),
@@ -220,6 +253,11 @@ def main():
          'TestIntakeLeakCancelsUse', 'TestIntakeLeakCancelsUse',
          'A worker leak retires already registered upstream use as well as new requests.'),
     ]
+    duplicate_marker = replace_once(intake_source, 'len(authorization) == 1 &&', 'len(authorization) >= 1 &&')
+    duplicate_marker = replace_once(duplicate_marker, 'len(values) != 1', 'len(values) == 0')
+    plants.append(('intake-duplicate-marker', intake, duplicate_marker,
+                   'TestIntakeRefusals', 'TestIntakeRefusals/duplicate-authorization',
+                   'Duplicate Authorization values are refused even when identical; both duplicate guards are removed.'))
     for name, before, after, test, witness, claim in intake_plants:
         try:
             mutated = replace_once(intake_source, before, after)

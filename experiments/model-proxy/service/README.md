@@ -62,8 +62,16 @@ the request's model and output bound against the configured daily ceiling.
 Policy GET never calls that generation meter. The command refuses zero ceilings
 and missing accounting. Messages bodies admit up to 128 MiB; the wire probe
 measured shapes, not body sizes. The pinned provider documents a 128 MB limit.
-Streams use 30-second response-header and one-minute read/write idle bounds,
-not a whole-stream duration cap; lease and revocation fencing still apply.
+The aggregate raw-body window is 128 MiB plus one sentinel byte, with at most
+eight body-owning calls; unknown lengths reserve the full window and exhaustion
+refuses with 503 before allocation. Known lengths allocate once, not by doubling.
+Headers use a separate ten-minute generation budget, including non-streaming
+calls. Streams use a one-minute progress-idle budget, not a whole-stream duration
+cap. Idle or authority cancellation expires the worker write deadline and closes
+the upstream body, interrupting both Write and Flush. The allowed beta flags are
+the measured Claude Code 2.1.328 OAuth profile; unknown flags and duplicate header
+forms refuse. The parent's meter prices supported cache/geo modifiers and closes
+unpriced speed, service tiers and server tools before forwarding.
 Encoded upstream bodies refuse before output, while retry hints are preserved.
 
 This is not a qualified harness, production `UseGuard` or standalone daemon.

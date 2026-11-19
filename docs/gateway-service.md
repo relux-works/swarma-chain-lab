@@ -155,6 +155,15 @@ Only these shapes are admitted:
 Other paths, methods, escaped path variants, credential trailers and HTTP versions
 refuse before leasing. Messages input is bounded to 128 MiB, with a two-minute
 request-read budget; the exact boundary is admitted and one extra byte refuses.
+Admission reserves the input window before allocation: at most 128 MiB plus one
+sentinel byte in aggregate, and at most eight concurrent body-owning calls.
+Known lengths allocate exactly once; unknown/chunked lengths reserve the whole
+window. Exhaustion returns 503 before reading or leasing, and capacity remains
+reserved until the call exits. This is a bounded in-memory intake, not spooling:
+one maximum-sized body can temporarily exclude all other bodies. The JSON meter
+also refuses more than 65,536 values or depth greater than 32, bounding parser
+structure amplification. The concurrent-body test measures the raw buffer heap;
+it does not claim that parsing has no additional bounded allocations.
 This covers the first-party Messages API's documented 128 MB request limit
 ([API errors, request size limits](https://platform.claude.com/docs/en/api/errors#request-size-limits),
 checked 2026-11-19). The launch contract specifies no smaller bound. The wire
@@ -178,8 +187,14 @@ into synthetic success or retried on 401 by this intake.
 Responses stream read by read with a flush after each safe prefix. SSE events,
 JSON and error metadata are otherwise unchanged. There is no whole-exchange
 client timeout or fixed server write timeout: active streams can exceed 65 s
-and continue across renewals. Time to upstream headers is bounded to 30 s;
+and continue across renewals. Time to upstream headers has a separate ten-minute
+generation budget, including non-streaming requests; it is not the body idle
+interval and does not cap an exchange after headers arrive. The budgets are
+injectable for boundary tests;
 each upstream-read stall and downstream-write stall is bounded to one minute.
+One progress timer cancels the call on either stall. Cancellation expires the
+worker write deadline and closes the upstream body, so both blocked Write and
+Flush paths end; authority loss uses the same fence without waiting for idle.
 Lease/session cancellation and the one-second authority freshness fence remain
 effective throughout. Encoded upstream responses refuse before worker output,
 because the byte matcher cannot inspect compressed material. Retry hints,
@@ -199,7 +214,25 @@ omitted daily ceiling and requires the same explicitly initialized accounting
 directory. Before any Messages lease or provider call, the intake enforces the
 configured model allow-list and a positive `max_tokens` no greater than that
 model's context bound. It atomically charges full configured context input plus
-requested maximum output at configured prices against the durable daily ceiling.
+requested maximum output against the durable daily ceiling. JSON meter keys are
+exact and case-sensitive; aliases (including Unicode folds), escaped keys and
+duplicates refuse. HTTP protocol header names are canonicalized, with duplicate
+or case-aliased forms refused rather than resolved by arrival order.
+
+Configured prices must cover the worst standard/global token rates throughout
+the configured model context, including long-context price tiers. The intake
+adds the request's worst cache-write premium to the entire input window (1.25x
+for default/5-minute caching, 2x for one hour), and US inference multiplies both
+token categories by 1.1. Each category is rounded up to an integer nano-unit;
+overflow refuses. Fast speed, non-standard service tiers, server-side tool types,
+unknown cache/geography settings and unknown beta flags refuse before forwarding.
+Custom client-executed tools remain supported. The allowed beta set is pinned in
+`pricedBetaProfile` to the measured Claude Code 2.1.328 OAuth launch profile,
+including its extended-cache-TTL flag; those header bytes are preserved, not
+stripped. Duplicate beta flags refuse. Adding a price-changing beta or server
+tool requires a priced contract and tests first. A first-use beta refusal can
+acquire material only to retain the existing worker-leak tripwire; it never
+forwards, and the reservation is not refunded.
 Parallel calls, restarts, upstream failures and cancellation cannot refund this
 conservative exposure; missing or corrupted accounting refuses. Policy GET does
 not reserve generation spend. The Unix intake is not a per-slot metering API:

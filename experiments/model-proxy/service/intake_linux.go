@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -20,6 +21,7 @@ import (
 const Placeholder = "ssh-placeholder"
 const upstreamOrigin = "https://api.anthropic.com"
 const MaxIntakeBody = 128 << 20
+const MaxIntakeMemory = MaxIntakeBody + 1
 
 type GatewaySource interface {
 	GatewayBinding() (Caller, string)
@@ -29,15 +31,19 @@ type GatewaySource interface {
 }
 
 type Gateway struct {
-	source      GatewaySource
-	mapping     Mapping
-	transport   http.RoundTripper
-	authority   context.Context
-	cancel      context.CancelFunc
-	mu          sync.Mutex
-	values      [][]byte
-	blocked     bool
-	idleTimeout time.Duration
+	source        GatewaySource
+	mapping       Mapping
+	transport     http.RoundTripper
+	authority     context.Context
+	cancel        context.CancelFunc
+	mu            sync.Mutex
+	values        [][]byte
+	blocked       bool
+	idleTimeout   time.Duration
+	headerTimeout time.Duration
+	readTimeout   time.Duration
+	bodyBytes     int64
+	bodyCalls     int
 }
 
 func (*Gateway) Format(state fmt.State, _ rune) {
@@ -55,9 +61,9 @@ func NewGateway(source GatewaySource, mapping Mapping) (*Gateway, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.DisableCompression = true
-	transport.ResponseHeaderTimeout = 30 * time.Second
+	transport.ResponseHeaderTimeout = 0
 	authority, cancel := context.WithCancel(context.Background())
-	return &Gateway{source: source, mapping: mapping, transport: transport, authority: authority, cancel: cancel, idleTimeout: time.Minute}, nil
+	return &Gateway{source: source, mapping: mapping, transport: transport, authority: authority, cancel: cancel, idleTimeout: time.Minute, headerTimeout: 10 * time.Minute, readTimeout: 2 * time.Minute}, nil
 }
 
 func (g *Gateway) Close() {
@@ -92,7 +98,13 @@ func intakeShape(request *http.Request) bool {
 		return false
 	}
 	authorization := []string{}
+	seen := map[string]bool{}
 	for key, values := range request.Header {
+		canonical := strings.ToLower(key)
+		if seen[canonical] || len(values) != 1 {
+			return false
+		}
+		seen[canonical] = true
 		if strings.EqualFold(key, "Authorization") {
 			authorization = append(authorization, values...)
 			if len(values) == 0 {
@@ -109,6 +121,26 @@ func intakeShape(request *http.Request) bool {
 		return len(authorization) == 0
 	}
 	return false
+}
+
+func pricedBetaProfile(value string) bool {
+	if value == "" {
+		return true
+	}
+	seen := map[string]bool{}
+	for _, flag := range strings.Split(value, ",") {
+		flag = strings.TrimSpace(flag)
+		if seen[flag] {
+			return false
+		}
+		seen[flag] = true
+		switch flag {
+		case "claude-code-20250219", "oauth-2025-04-20", "interleaved-thinking-2025-05-14", "context-management-2025-06-27", "prompt-caching-scope-2026-01-05", "per-turn-control-2026-07-01", "mid-conversation-tool-changes-2026-07-01", "tool-provenance-2026-10-26", "thinking-token-count-2026-05-13", "mid-conversation-system-clear-at-2026-08-21", "effort-2025-11-24", "thinking-binding-controls-2026-08-01", "extended-cache-ttl-2025-04-11", "cache-diagnosis-2026-04-07":
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (g *Gateway) remember(material []byte) bool {
@@ -184,8 +216,44 @@ func (g *Gateway) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	}
 	var body []byte
 	var err error
+	capacity := int64(MaxIntakeBody + 1)
+	if request.ContentLength >= 0 && request.ContentLength <= MaxIntakeBody {
+		capacity = request.ContentLength + 1
+	}
+	g.mu.Lock()
+	if g.bodyBytes+capacity > MaxIntakeMemory || g.bodyCalls >= 8 {
+		g.mu.Unlock()
+		refuse(http.StatusServiceUnavailable)
+		return
+	}
+	g.bodyBytes += capacity
+	g.bodyCalls++
+	g.mu.Unlock()
+	defer func() {
+		g.mu.Lock()
+		g.bodyBytes -= capacity
+		g.bodyCalls--
+		g.mu.Unlock()
+	}()
+	controller := http.NewResponseController(writer)
+	if deadlineErr := controller.SetReadDeadline(time.Now().Add(g.readTimeout)); deadlineErr != nil && !errors.Is(deadlineErr, http.ErrNotSupported) {
+		refuse(http.StatusBadRequest)
+		return
+	}
 	if request.Body != nil {
-		body, err = io.ReadAll(io.LimitReader(request.Body, MaxIntakeBody+1))
+		body = make([]byte, capacity)
+		var count int
+		count, err = io.ReadFull(io.LimitReader(request.Body, MaxIntakeBody+1), body)
+		body = body[:count]
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			err = nil
+		}
+		if request.ContentLength >= 0 && int64(count) != request.ContentLength {
+			err = io.ErrUnexpectedEOF
+		}
+	}
+	if err == nil {
+		_ = controller.SetReadDeadline(time.Time{})
 	}
 	if err != nil || len(body) > MaxIntakeBody || len(request.Trailer) != 0 || request.Method == http.MethodGet && len(body) != 0 {
 		refuse(http.StatusBadRequest)
@@ -211,6 +279,12 @@ func (g *Gateway) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		refuse(http.StatusForbidden)
 		return
 	}
+	for key, values := range request.Header {
+		if strings.EqualFold(key, "Anthropic-Beta") && !pricedBetaProfile(values[0]) {
+			refuse(http.StatusForbidden)
+			return
+		}
+	}
 	call, cancel := g.source.CredentialContext(request.Context(), version)
 	defer cancel()
 	stop := context.AfterFunc(g.authority, cancel)
@@ -235,7 +309,9 @@ func (g *Gateway) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	out.Header.Set("Authorization", "Bearer "+string(material))
 	defer Drop(out)
 	client := http.Client{Transport: g.transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	headers := time.AfterFunc(g.headerTimeout, cancel)
 	response, err := client.Do(out)
+	headers.Stop()
 	if err != nil {
 		refuse(http.StatusBadGateway)
 		return
@@ -245,7 +321,10 @@ func (g *Gateway) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		refuse(http.StatusBadGateway)
 		return
 	}
-	stopBody := context.AfterFunc(call, func() { _ = response.Body.Close() })
+	stopBody := context.AfterFunc(call, func() {
+		_ = http.NewResponseController(writer).SetWriteDeadline(time.Now())
+		_ = response.Body.Close()
+	})
 	defer stopBody()
 	idle := time.AfterFunc(g.idleTimeout, cancel)
 	defer idle.Stop()
@@ -256,7 +335,7 @@ func (g *Gateway) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 	writer.WriteHeader(response.StatusCode)
-	if streamFiltered(call, writer, response.Body, g.needles, g.idleTimeout, func() { idle.Reset(g.idleTimeout) }) != nil {
+	if streamFiltered(call, writer, response.Body, g.needles, func() { idle.Reset(g.idleTimeout) }) != nil {
 		panic(http.ErrAbortHandler)
 	}
 }
@@ -277,12 +356,12 @@ func copyProtocolHeaders(destination, source http.Header) {
 	for key, values := range source {
 		lower := strings.ToLower(key)
 		if lower == "content-type" || lower == "accept" || lower == "user-agent" || lower == "cache-control" || lower == "retry-after" || lower == "x-should-retry" || lower == "request-id" || lower == "x-request-id" || lower == "anthropic-version" || lower == "anthropic-beta" || strings.HasPrefix(lower, "anthropic-ratelimit-") || strings.HasPrefix(lower, "x-stainless-") {
-			destination[key] = append([]string(nil), values...)
+			destination[http.CanonicalHeaderKey(key)] = append([]string(nil), values...)
 		}
 	}
 }
 
-func streamFiltered(ctx context.Context, writer http.ResponseWriter, reader io.Reader, needles func() [][]byte, idleTimeout time.Duration, progress func()) error {
+func streamFiltered(ctx context.Context, writer http.ResponseWriter, reader io.Reader, needles func() [][]byte, progress func()) error {
 	buffer := make([]byte, 8192)
 	var pending []byte
 	for {
@@ -309,9 +388,6 @@ func streamFiltered(ctx context.Context, writer http.ResponseWriter, reader io.R
 			}
 		}
 		if ready := len(pending) - keep; ready > 0 {
-			if deadlineErr := http.NewResponseController(writer).SetWriteDeadline(time.Now().Add(idleTimeout)); deadlineErr != nil && deadlineErr != http.ErrNotSupported {
-				return deadlineErr
-			}
 			if _, writeErr := writer.Write(pending[:ready]); writeErr != nil {
 				return writeErr
 			}

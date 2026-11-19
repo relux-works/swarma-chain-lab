@@ -41,9 +41,11 @@ func unique(raw []byte) error {
 	}
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.UseNumber()
+	nodes := 0
 	var value func(int) error
 	value = func(depth int) error {
-		if depth > 32 {
+		nodes++
+		if depth > 32 || nodes > 65536 {
 			return fail("JSON")
 		}
 		t, e := d.Token()

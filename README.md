@@ -285,7 +285,8 @@ The explicit `-gateway-socket` mode implements the
 [Claude Unix intake](docs/gateway-service.md#claude-launch-intake-v1) with the
 same supervised broker holder; omitting the flag preserves the existing mode.
 This opt-in path requires a positive durable daily ceiling, meters conservative
-model exposure before forwarding, admits provider-sized Messages bodies, and
+model exposure including supported pricing modifiers before forwarding, admits
+provider-sized Messages bodies within an aggregate bounded memory window, and
 uses stream idle bounds rather than a short whole-exchange timeout.
 From `experiments/model-proxy/service`, run `go vet ./...`,
 `go test -race ./...`, and `python3 scripts/check-plants.py --out "$ABSOLUTE_NEW_SCRATCH"`.

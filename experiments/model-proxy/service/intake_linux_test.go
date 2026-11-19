@@ -79,7 +79,9 @@ func intakeFixture(t *testing.T, unauthorized bool, transport intakeTransport, c
 	if err != nil {
 		t.Fatal("fixture intake refused")
 	}
-	gateway.transport = transport
+	if transport != nil {
+		gateway.transport = transport
+	}
 	t.Cleanup(gateway.Close)
 	root, err := os.MkdirTemp(os.TempDir(), "gi-")
 	if err != nil {
@@ -132,13 +134,13 @@ func TestIntakeAdmission(t *testing.T) {
 			_, source, client, _, _ := intakeFixture(t, false, func(request *http.Request) (*http.Response, error) {
 				calls.Add(1)
 				body, _ := io.ReadAll(request.Body)
-				if request.Method != shape.method || request.URL.String() != upstreamOrigin+shape.path || request.Host != "api.anthropic.com" || string(body) != shape.body || request.Header.Get("Authorization") != "Bearer "+intakeCanary || request.Header.Get("X-Api-Key") != "" || request.Header.Get("Anthropic-Beta") != "oauth-fixture" || request.Header.Get("Anthropic-Version") != "2023-06-01" {
+				if request.Method != shape.method || request.URL.String() != upstreamOrigin+shape.path || request.Host != "api.anthropic.com" || string(body) != shape.body || request.Header.Get("Authorization") != "Bearer "+intakeCanary || request.Header.Get("X-Api-Key") != "" || request.Header.Get("Anthropic-Beta") != "oauth-2025-04-20" || request.Header.Get("Anthropic-Version") != "2023-06-01" {
 					t.Error("upstream recipient, protocol or injection changed")
 				}
 				return intakeResponse(200, `{"accepted":true}`), nil
 			}, nil)
 			request := intakeRequest(t, shape.method, shape.path, shape.body)
-			request.Header.Set("Anthropic-Beta", "oauth-fixture")
+			request.Header.Set("Anthropic-Beta", "oauth-2025-04-20")
 			request.Header.Set("Anthropic-Version", "2023-06-01")
 			before := request.Header.Clone()
 			response, err := client.Do(request)
