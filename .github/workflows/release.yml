@@ -46,16 +46,18 @@ jobs:
           printf 'policy_commit=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: '1.26.8'
+          go-version: '1.26.10'
           cache: false
       - name: Run isolated positive and negative release controls
         run: .scripts/release-test.sh "$RUNNER_TEMP/release-controls"
       - name: Build admitted source with default-branch tooling in isolated scratch
         env:
           RELEASE_COMMIT: ${{ steps.admit.outputs.commit }}
+          POLICY_COMMIT: ${{ steps.admit.outputs.policy_commit }}
         run: |
           set -euo pipefail
           policy_root=$(pwd -P)
+          test "$(git -c safe.directory="$policy_root" rev-parse HEAD)" = "$POLICY_COMMIT"
           work=$(mktemp -d "$RUNNER_TEMP/release-build.XXXXXX")
           work=$(cd "$work" && pwd -P)
           mkdir -p "$work"/{home,config,cache,tmp,go-build,go-mod,go-path}
@@ -64,7 +66,8 @@ jobs:
           export TMPDIR="$work/tmp" TMP="$work/tmp" TEMP="$work/tmp" GOTMPDIR="$work/tmp"
           export GOCACHE="$work/go-build" GOMODCACHE="$work/go-mod" GOPATH="$work/go-path"
           unset GOTELEMETRYDIR
-          git clone --quiet --no-local --no-checkout "$policy_root" "$work/source"
+          git -c safe.directory="$policy_root" bundle create "$work/source.bundle" --all
+          git clone --quiet --no-checkout "$work/source.bundle" "$work/source"
           git -C "$work/source" checkout --quiet --detach "$RELEASE_COMMIT"
           "$policy_root/.scripts/release-build.sh" "$RUNNER_TEMP/dist" "$work/source"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
@@ -116,6 +119,7 @@ jobs:
             'Test profile PRE-RELEASE. Any bot signature: agent-held key, proves nothing about origin' \
             'Build inputs are recorded in provenance.json; artifact digests in SHA256SUMS and release-set.json.' \
             'Installer v0 trusts only the aggregate release-set digest approved by the owner in person before any root step.' \
+            'Not a closure: root use stays blocked pending channel selection, DK5 unit/prerequisite reconciliation and runtime qualification; see docs/releasing.md.' \
             > "$RUNNER_TEMP/release-notes.txt"
           gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --draft --prerelease \
             --title "$RELEASE_TAG (PRE-RELEASE)" --notes-file "$RUNNER_TEMP/release-notes.txt"

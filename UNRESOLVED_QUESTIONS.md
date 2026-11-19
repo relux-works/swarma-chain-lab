@@ -76,10 +76,30 @@ F11, F16 and F17(a) list-position controls.
 
 ## Gateway release adoption
 
-The [gateway release template](docs/releasing.md) lists the pending unit and
-service documentation from service PR #159 explicitly. Main builds refuse until
-those inputs land; fixture tests do not satisfy service adoption or runtime
-qualification. The existing daemon remains a packaging input, not proof of
-managed broker integration. Repository `gateway/v*` tag ruleset administration,
-release publication, dedicated signing-key custody, aggregate set approval and
-runtime qualification remain separate owner/operator gates.
+PR #161 supplies the managed source wiring and the unit/document inputs for the
+[gateway release template](docs/releasing.md). Fixture controls and actual
+reproducible builds are not installed adoption or runtime qualification.
+Product gateway is the deploy **model** daemon, not the rental deploy service
+gateway. Its DK5 identity remains `model`, with the model anchor, private group
+and sealed `/etc/swarma/model` tree; `swarma-gateway` is only a socket peer.
+
+The product omits root-installed sysusers, tmpfiles, the signed private install
+manifest/signature, DK5 anchor and sealed config. Their existing sources are
+`deploy/templates/model/sysusers.conf.in`,
+`deploy/templates/installed-tmpfiles.conf.in`, the model systemd template and
+`deploy/INSTALL-CONFIG.md`; signing/rendering uses deploy-kit from the flat
+bundle plus private owner custody. The inactive gateway unit has not reconciled
+these with its platform-root placeholders or the model `--check-installed` gate.
+
+**Open owner decision:** choose this product or the flat bundle's `bin/model-proxy`
+as the single authoritative root-install channel, excluding the other from the
+aggregate for that role. The builds have different flags, targets and toolchain
+pins; their digests are not interchangeable. **No root step for this product**
+until the owner-approved plan resolves that choice, reconciles the unit with
+DK5 service `model`, names all omitted prerequisites and provides the required
+runtime qualification evidence. The full prerequisite map and not-a-closure
+gate are in `docs/releasing.md`.
+
+Repository `gateway/v*` tag ruleset administration, release publication,
+dedicated signing-key custody, aggregate set approval and live runtime
+qualification remain separate owner/operator gates.

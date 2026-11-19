@@ -27,7 +27,7 @@ git config gpg.format ssh
 git config user.signingkey "$scratch/key"
 git config commit.gpgsign true
 git config tag.gpgsign true
-mkdir -p .github/release .github/workflows .scripts experiments/model-proxy/cmd/model-proxy experiments/model-proxy/deploy docs
+mkdir -p .github/release .github/workflows .scripts experiments/model-proxy/cmd/model-proxy experiments/model-proxy/service/deploy docs
 read -r kind public_key _ < "$scratch/key.pub"
 printf 'release-tag namespaces="git" %s %s\n' "$kind" "$public_key" > .github/release/allowed_signers
 cp "$source_root"/.scripts/release-* .scripts/
@@ -35,7 +35,7 @@ cp "$source_root/.github/workflows/release.yml" .github/workflows/
 cp "$source_root/.github/release/gateway-inputs.json" .github/release/
 printf 'module example.invalid/releasefixture\n\ngo 1.25\n' > experiments/model-proxy/go.mod
 printf 'package main\nfunc main() { println("inert release fixture") }\n' > experiments/model-proxy/cmd/model-proxy/main.go
-printf '[Service]\nExecStart=@PLATFORM_ROOT@/credential-gateway/bin/credential-gateway\n' > experiments/model-proxy/deploy/credential-gateway.service.in
+printf '[Service]\nExecStart=@PLATFORM_ROOT@/credential-gateway/bin/credential-gateway\n' > experiments/model-proxy/service/deploy/credential-gateway.service.in
 printf '# Inert gateway service fixture\n' > docs/gateway-service.md
 printf 'main fixture\n' > content
 git add .
@@ -112,6 +112,71 @@ admit="$scratch/work/.scripts/release-admit.sh"
 verify="$scratch/work/.scripts/release-verify.sh"
 sign="$scratch/work/.scripts/release-sign.sh"
 
+# The hook exercises policy reads and the workflow's bundle transfer, not a real second UID.
+expect_ok policy_head_scoped_trust env GIT_TEST_ASSUME_DIFFERENT_OWNER=1 \
+  git -c safe.directory="$scratch/work" rev-parse HEAD
+expect_ok policy_admission_scoped_trust env GIT_TEST_ASSUME_DIFFERENT_OWNER=1 "$admit" gateway/v1.0.0
+expect_git_refusal() {
+  local name=$1 reason=$2
+  shift 2
+  if env GIT_TEST_ASSUME_DIFFERENT_OWNER=1 "$@" > "$scratch/$name.log" 2>&1; then
+    fail "$name: unexpected acceptance"
+  else
+    local status=$?
+    [[ $status == 128 ]] || fail "$name: unexpected exit $status"
+    grep -F -- "$reason" "$scratch/$name.log" > /dev/null || fail "$name: wrong refusal"
+    printf 'PASS %s (expected Git refusal exit %s: %s)\n' "$name" "$status" "$reason"
+  fi
+}
+expect_ownership_refusal() {
+  local name=$1
+  shift
+  expect_git_refusal "$name" 'detected dubious ownership' "$@"
+}
+expect_ownership_refusal policy_head_trust_not_persisted \
+  env GIT_CONFIG_GLOBAL="$HOME/.gitconfig" git rev-parse HEAD
+# A planted scratch-home exception must be visible to that same ownership probe.
+git config --file "$HOME/.gitconfig" --add safe.directory "$scratch/work"
+expect_ok policy_head_persisted_trust_visible env GIT_CONFIG_GLOBAL="$HOME/.gitconfig" \
+  GIT_TEST_ASSUME_DIFFERENT_OWNER=1 git rev-parse HEAD
+rm "$HOME/.gitconfig"
+expect_ownership_refusal policy_head_persisted_control_removed \
+  env GIT_CONFIG_GLOBAL="$HOME/.gitconfig" git rev-parse HEAD
+expect_ownership_refusal policy_head_wrong_trust \
+  git -c safe.directory="$scratch/other-source" rev-parse HEAD
+
+# Execute the actual workflow transfer commands so a direct-clone regression is observable.
+mkdir "$scratch/bundle-transfer"
+python3 - "$source_root/.github/workflows/release.yml" > "$scratch/container-source-transfer.sh" <<'TRANSFER'
+import pathlib
+import sys
+workflow = pathlib.Path(sys.argv[1]).read_text()
+build = workflow.split("\n  build:\n", 1)[1].split("\n  draft:\n", 1)[0]
+print("set -euo pipefail")
+for line in build.splitlines():
+    if " bundle create " in line or (" clone " in line and '"$work/source"' in line):
+        print(line.strip())
+TRANSFER
+expect_ok policy_bundle_clone_scoped_trust env GIT_TEST_ASSUME_DIFFERENT_OWNER=1 \
+  policy_root="$scratch/work" work="$scratch/bundle-transfer" bash "$scratch/container-source-transfer.sh"
+expect_ok policy_bundle_clone_head env GIT_TEST_ASSUME_DIFFERENT_OWNER=1 \
+  git -c safe.directory="$scratch/bundle-transfer/source" -C "$scratch/bundle-transfer/source" rev-parse HEAD
+expect_ok policy_bundle_clone_matches_policy cmp \
+  "$scratch/policy_head_scoped_trust.log" "$scratch/policy_bundle_clone_head.log"
+expect_ok policy_bundle_clone_release_commit env GIT_TEST_ASSUME_DIFFERENT_OWNER=1 \
+  git -c safe.directory="$scratch/bundle-transfer/source" -C "$scratch/bundle-transfer/source" rev-parse 'refs/tags/gateway/v1.0.0^{commit}'
+printf '%s\n' "$base" > "$scratch/expected-release-commit"
+expect_ok policy_bundle_clone_preserves_release cmp \
+  "$scratch/expected-release-commit" "$scratch/policy_bundle_clone_release_commit.log"
+# Bundle's gentle setup reports unsafe repositories as unavailable, on both tested Git versions.
+expect_git_refusal policy_bundle_without_trust 'Need a repository to create a bundle.' \
+  git bundle create "$scratch/untrusted.bundle" --all
+expect_git_refusal policy_bundle_wrong_trust 'Need a repository to create a bundle.' \
+  git -c safe.directory="$scratch/other-source" bundle create "$scratch/wrong-trust.bundle" --all
+[[ ! -e $scratch/untrusted.bundle && ! -e $scratch/wrong-trust.bundle ]] || fail refused-bundle-partial-output
+expect_refusal policy_admission_rejects_changed_tree tagged-release-policy-differs \
+  env GIT_TEST_ASSUME_DIFFERENT_OWNER=1 "$admit" gateway/v1.3.0
+
 # Real signed objects prove each distinct admission refusal beside a valid ancestor.
 expect_refusal legacy_tag_namespace invalid-tag "$admit" v1.0.0
 expect_refusal malformed_gateway_version invalid-tag "$admit" gateway/v1.0
@@ -149,10 +214,13 @@ expect_ok fixture_build .scripts/release-build.sh "$scratch/assets" "$scratch/bu
 gateway_archive_layout() {
   python3 - "$scratch" <<'ARCHIVE'
 import json
+import hashlib
 import pathlib
+import platform
 import struct
 import sys
 import tarfile
+import zlib
 root = pathlib.Path(sys.argv[1])
 files = {
     "credential-gateway/bin/credential-gateway": 0o755,
@@ -164,6 +232,11 @@ expected = sorted(set(files) | directories)
 provenance = json.loads((root / "assets/provenance.json").read_bytes())
 assert provenance["product"]["product"] == "gateway"
 assert provenance["product"]["purpose"] == "platform-root"
+assert provenance["go_version"] == "go1.26.10", "toolchain-provenance"
+assert provenance["archive"]["python_version"] == platform.python_version(), "compressor-provenance"
+assert provenance["archive"]["python_implementation"] == platform.python_implementation(), "compressor-provenance"
+assert provenance["archive"]["zlib_version"] == zlib.ZLIB_VERSION, "compressor-provenance"
+assert provenance["archive"]["zlib_runtime_version"] == zlib.ZLIB_RUNTIME_VERSION, "compressor-provenance"
 for arch, machine in (("amd64", 62), ("arm64", 183)):
     path = root / f"assets/gateway_linux_{arch}.tar.gz"
     header = path.read_bytes()[:10]
@@ -182,15 +255,21 @@ for arch, machine in (("amd64", 62), ("arm64", 183)):
         binary = archive.extractfile("credential-gateway/bin/credential-gateway").read()
         assert binary[:4] == b"\x7fELF" and struct.unpack_from("<H", binary, 18)[0] == machine
         for source, member in (
-            ("experiments/model-proxy/deploy/credential-gateway.service.in", "credential-gateway/templates/credential-gateway.service.in"),
+            ("experiments/model-proxy/service/deploy/credential-gateway.service.in", "credential-gateway/templates/credential-gateway.service.in"),
             ("docs/gateway-service.md", "credential-gateway/docs/gateway-service.md"),
         ):
             assert archive.extractfile(member).read() == (root / "build-source" / source).read_bytes()
+        assert provenance["archive"]["members"][path.name] == {
+            member: hashlib.sha256(archive.extractfile(member).read()).hexdigest()
+            for member in files
+        }, "member-provenance"
 fragment = json.loads((root / "assets/release-set.json").read_bytes())
-products = [row for row in fragment["artifacts"] if "purpose" in row]
-assert {row["name"] for row in products} == {f"gateway_linux_{a}.tar.gz" for a in ("amd64", "arm64")}
-assert all(row["purpose"] == "platform-root" for row in products)
-print("Gateway archive inventory, ELF targets, exact service bytes, purpose and normalized headers: OK")
+assert fragment["schema"] == "release-set-fragment/1", "fragment-schema"
+assert all(set(row) == {"name", "sha256"} for row in fragment["artifacts"]), "fragment-row-shape"
+assert {row["name"] for row in fragment["artifacts"]} == {
+    "gateway_linux_amd64.tar.gz", "gateway_linux_arm64.tar.gz", "provenance.json", "SHA256SUMS"
+}, "fragment-inventory"
+print("Gateway inventory, ELF targets, exact service bytes, compressor/member provenance and headers: OK")
 ARCHIVE
 }
 expect_ok gateway_archive_layout gateway_archive_layout
@@ -228,6 +307,37 @@ MUTATE
 done
 expect_ok restored_gateway_archive_layout gateway_archive_layout
 
+# These bounded plants prove the checker rejects missing compressor/member
+# provenance and the old incompatible fragment extension, then accepts restoration.
+cp "$scratch/assets/provenance.json" "$scratch/original-provenance"
+cp "$scratch/assets/release-set.json" "$scratch/layout-fragment"
+for mutation in compressor member fragment_shape; do
+  python3 - "$scratch/assets" "$mutation" <<'PROVENANCE'
+import json
+import pathlib
+import sys
+root, mutation = pathlib.Path(sys.argv[1]), sys.argv[2]
+path = root / ("release-set.json" if mutation == "fragment_shape" else "provenance.json")
+value = json.loads(path.read_bytes())
+if mutation == "compressor":
+    value["archive"]["python_version"] = "unrecorded"
+elif mutation == "member":
+    value["archive"]["members"]["gateway_linux_amd64.tar.gz"]["credential-gateway/bin/credential-gateway"] = "0" * 64
+else:
+    value["artifacts"][0]["purpose"] = "platform-root"
+path.write_text(json.dumps(value))
+PROVENANCE
+  case $mutation in
+    compressor) reason=compressor-provenance ;;
+    member) reason=member-provenance ;;
+    fragment_shape) reason=fragment-row-shape ;;
+  esac
+  expect_refusal "layout_${mutation}_plant" "$reason" gateway_archive_layout
+  cp "$scratch/original-provenance" "$scratch/assets/provenance.json"
+  cp "$scratch/layout-fragment" "$scratch/assets/release-set.json"
+  expect_ok "restored_layout_after_$mutation" gateway_archive_layout
+done
+
 # Claim: absent or symlinked service inputs refuse before output creation;
 # each source state is committed, so dirty-source refusal cannot mask the gate.
 fixture_source_commit() {
@@ -235,20 +345,37 @@ fixture_source_commit() {
     -c user.email=release-fixture@example.invalid -c gpg.format=ssh \
     -c "user.signingkey=$scratch/key" commit -q -S -am "$1"
 }
-for input in docs/gateway-service.md experiments/model-proxy/deploy/credential-gateway.service.in; do
+for input in docs/gateway-service.md experiments/model-proxy/service/deploy/credential-gateway.service.in experiments/model-proxy/go.mod experiments/model-proxy/cmd/model-proxy/main.go; do
   git -C "$scratch/build-source" rm -q "$input"
   fixture_source_commit 'Remove required service fixture'
   expect_refusal "missing_${input##*/}" missing-input .scripts/release-build.sh "$scratch/missing-input-dist" "$scratch/build-source"
   [[ ! -e $scratch/missing-input-dist ]] || fail missing-input-partial-output
   git -C "$scratch/build-source" checkout --quiet --detach "$base"
 done
-rm "$scratch/build-source/docs/gateway-service.md"
-ln -s ../content "$scratch/build-source/docs/gateway-service.md"
-git -C "$scratch/build-source" add docs/gateway-service.md
-fixture_source_commit 'Symlink required service fixture'
-expect_refusal symlinked_service_input symlinked-input .scripts/release-build.sh "$scratch/symlink-input-dist" "$scratch/build-source"
-[[ ! -e $scratch/symlink-input-dist ]] || fail symlink-input-partial-output
-git -C "$scratch/build-source" checkout --quiet --detach "$base"
+for input in docs/gateway-service.md experiments/model-proxy/service/deploy/credential-gateway.service.in; do
+  rm "$scratch/build-source/$input"
+  ln -s "$scratch/build-source/content" "$scratch/build-source/$input"
+  git -C "$scratch/build-source" add "$input"
+  fixture_source_commit 'Symlink required service fixture'
+  case $input in
+    docs/gateway-service.md)
+      expect_refusal symlinked_service_input symlinked-input .scripts/release-build.sh "$scratch/symlink-input-dist" "$scratch/build-source" ;;
+    *)
+      expect_refusal symlinked_unit_input symlinked-input .scripts/release-build.sh "$scratch/symlink-input-dist" "$scratch/build-source" ;;
+  esac
+  [[ ! -e $scratch/symlink-input-dist ]] || fail symlink-input-partial-output
+  git -C "$scratch/build-source" checkout --quiet --detach "$base"
+done
+for directory in experiments/model-proxy/service experiments/model-proxy/cmd/model-proxy; do
+  mv "$scratch/build-source/$directory" "$scratch/build-source/$directory-original"
+  ln -s "${directory##*/}-original" "$scratch/build-source/$directory"
+  git -C "$scratch/build-source" add -A
+  fixture_source_commit 'Symlink required input ancestry'
+  expect_refusal "symlinked_directory_${directory//\//_}" symlinked-input .scripts/release-build.sh "$scratch/symlink-directory-dist" "$scratch/build-source"
+  [[ ! -e $scratch/symlink-directory-dist ]] || fail symlink-directory-partial-output
+  git -C "$scratch/build-source" checkout --quiet --detach "$base"
+done
+expect_ok restored_input_inventory python3 .scripts/release-metadata.py inputs "$scratch/build-source"
 
 # Claim: the policy table cannot select traversal or duplicate archive members.
 python3 - <<'TABLE'
@@ -272,9 +399,72 @@ TABLE
 expect_refusal duplicate_table_member invalid-input-inventory python3 .scripts/release-metadata.py inputs "$scratch/build-source"
 git restore --source="$main" -- .github/release/gateway-inputs.json
 
+# Each widened or malformed table refuses its specific contract beside the valid table.
+for mutation in fourth_row second_go wrong_mode outside_member outside_package parent_child; do
+  python3 - "$mutation" <<'TABLE'
+import json
+import pathlib
+import sys
+path = pathlib.Path(".github/release/gateway-inputs.json")
+value = json.loads(path.read_text())
+rows = value["inputs"]
+mutation = sys.argv[1]
+if mutation == "fourth_row":
+    rows.append(dict(rows[1], member="credential-gateway/extra"))
+elif mutation == "second_go":
+    rows[1] = dict(rows[0], member="credential-gateway/bin/second")
+elif mutation == "wrong_mode":
+    rows[1]["mode"] = "0755"
+elif mutation == "outside_member":
+    rows[1]["member"] = "other/template"
+elif mutation == "outside_package":
+    rows[0]["package"] = "./other/model-proxy"
+elif mutation == "parent_child":
+    rows[1]["member"] = rows[0]["member"] + "/child"
+path.write_text(json.dumps(value))
+TABLE
+  case $mutation in
+    fourth_row|second_go|parent_child) reason=invalid-input-inventory ;;
+    wrong_mode|outside_member) reason=invalid-input-member-or-mode ;;
+    outside_package) reason=invalid-command-package ;;
+  esac
+  expect_refusal "table_$mutation" "$reason" python3 .scripts/release-metadata.py inputs "$scratch/build-source"
+  git restore --source="$main" -- .github/release/gateway-inputs.json
+  expect_ok "valid_table_after_$mutation" python3 .scripts/release-metadata.py inputs "$scratch/build-source"
+done
+
 fragment=$(sha256sum "$scratch/assets/release-set.json")
 fragment=${fragment%% *}
 expect_ok digest_control "$verify" "$scratch/assets" "$fragment"
+# Rehashing a false member claim cannot bypass the archive/provenance binding.
+python3 - "$scratch/assets" <<'PROVENANCE'
+import hashlib
+import json
+import pathlib
+import sys
+root = pathlib.Path(sys.argv[1])
+def canonical(value):
+    return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n").encode("ascii")
+provenance = json.loads((root / "provenance.json").read_bytes())
+provenance["archive"]["members"]["gateway_linux_arm64.tar.gz"]["credential-gateway/bin/credential-gateway"] = "0" * 64
+(root / "provenance.json").write_bytes(canonical(provenance))
+names = ["gateway_linux_amd64.tar.gz", "gateway_linux_arm64.tar.gz", "provenance.json"]
+def digest(name):
+    return hashlib.sha256((root / name).read_bytes()).hexdigest()
+(root / "SHA256SUMS").write_text("".join(f"{digest(name)}  {name}\n" for name in names), encoding="ascii")
+(root / "release-set.json").write_bytes(canonical({"schema": "release-set-fragment/1", "artifacts": [
+    {"name": name, "sha256": digest(name)} for name in sorted(names + ["SHA256SUMS"])]}))
+PROVENANCE
+false_fragment=$(sha256sum "$scratch/assets/release-set.json")
+expect_refusal rehashed_false_member_provenance archive-member-digest-mismatch "$verify" "$scratch/assets" "${false_fragment%% *}"
+cp "$scratch/original-provenance" "$scratch/assets/provenance.json"
+python3 .scripts/release-metadata.py create "$scratch/assets" "$base" go1.26.10 "$(git show -s --format=%ct "$base")"
+expect_ok restored_member_provenance "$verify" "$scratch/assets" "$fragment"
+cp "$scratch/assets/gateway_linux_arm64.tar.gz" "$scratch/original-arm64"
+printf 'changed\n' >> "$scratch/assets/gateway_linux_arm64.tar.gz"
+expect_refusal changed_arm64_archive artifact-digest-mismatch "$verify" "$scratch/assets" "$fragment"
+cp "$scratch/original-arm64" "$scratch/assets/gateway_linux_arm64.tar.gz"
+expect_ok restored_arm64_archive "$verify" "$scratch/assets" "$fragment"
 printf 'changed\n' >> "$scratch/assets/gateway_linux_amd64.tar.gz"
 expect_refusal changed_binary artifact-digest-mismatch "$verify" "$scratch/assets" "$fragment"
 # Restore a single owned fixture artifact by rebuilding it, without replacing policy.
@@ -384,15 +574,32 @@ expect_refusal existing_signature existing-asset "$sign" gateway/v1.0.0
 expect_ok no_signature_overwrite cmp "$scratch/uploaded-signature" "$GH_FIXTURE/SHA256SUMS.sig"
 # Finite template assertions cover the reviewed workflow contract, not hosted execution.
 workflow_policy() {
-  python3 - "$source_root" <<'POLICY'
+  python3 - "$source_root" "${1:-$source_root/.github/workflows/release.yml}" \
+    "${2:-$source_root/.scripts/release-admit.sh}" <<'POLICY'
 import pathlib
 import re
 import sys
 root = pathlib.Path(sys.argv[1])
-workflow = (root / ".github/workflows/release.yml").read_text()
+workflow = pathlib.Path(sys.argv[2]).read_text()
 assert "  workflow_dispatch:" in workflow and not re.search(r"^  push:", workflow, re.M)
 assert workflow.count("if: github.ref == 'refs/heads/main' && github.event.repository.default_branch == 'main'") == 2
 assert workflow.count("          ref: main\n") == 2
+build = workflow.split("\n  build:\n", 1)[1].split("\n  draft:\n", 1)[0]
+assert not re.search(r"\bgit\b[^\n;]*\bconfig\b", workflow), "workflow-persistent-git-config-forbidden"
+assert "GIT_CONFIG_" not in workflow, "workflow-config-env-forbidden"
+assert not re.search(r"safe\.directory[^\n]*\*", build), "build-wildcard-trust-forbidden"
+assert not re.search(r"safe\.directory[^\n]*\*", workflow), "workflow-wildcard-trust-forbidden"
+assert 'git -c safe.directory="$policy_root" bundle create "$work/source.bundle" --all' in build, "build-bundle-scoped-trust-required"
+assert 'git clone --quiet --no-checkout "$work/source.bundle" "$work/source"' in build, "build-bundle-clone-required"
+assert 'git -c safe.directory="$policy_root" rev-parse HEAD' in build, "build-head-scoped-trust-required"
+assert build.index("policy_root=$(pwd -P)") < build.index('safe.directory="$policy_root"'), "build-policy-root-required-before-git"
+assert workflow.count("safe.directory") == build.count('safe.directory="$policy_root"') == 2, "workflow-unexpected-trust-forbidden"
+admission = pathlib.Path(sys.argv[3]).read_text()
+assert not re.search(r"\bgit\b[^\n;]*\bconfig\b", admission), "admission-persistent-git-config-forbidden"
+assert "GIT_CONFIG_" not in admission, "admission-config-env-forbidden"
+assert not re.search(r"safe\.directory[^\n]*\*", admission), "admission-wildcard-trust-forbidden"
+assert 'command git -c safe.directory="$root" -c core.commitGraph=false "$@"' in admission, "admission-scoped-trust-required"
+assert admission.count("safe.directory") == 1, "admission-unexpected-trust-forbidden"
 assert "--draft --prerelease" in workflow
 assert "agent-held key, proves nothing about origin" in workflow
 assert "python3 .scripts/release-metadata.py check" in workflow
@@ -409,8 +616,69 @@ assert "agent-held key, proves nothing about origin" in docs and "agent-held key
 assert "in person before any root" in docs
 assert "not a trust root" in docs
 assert "SOURCE_DATE_EPOCH" in docs and "provenance.json" in readme
+assert "No root step for this product" in docs
+assert "gateway is not deploy service gateway" in docs
+assert "open owner decision" in docs and "authoritative" in docs
+assert "all of `.scripts`" in docs and "__pycache__" in docs
+assert "same" in docs and "deflate implementation" in docs
+assert "go-version: '1.26.10'" in workflow and "go1.26.10-required" in (root / ".scripts/release-build.sh").read_text()
 print("Default-branch dispatch, pre-release label, action pins, permissions, docs and tag-only pin: OK")
 POLICY
 }
 expect_ok workflow_default_branch_and_prerelease_policy workflow_policy
+# Each persistent-write spelling must be rejected in both production surfaces.
+for config_write in '--global --add' '--system --add' '--file "$HOME/.gitconfig" --add' '--add'; do
+  case $config_write in
+    --global*) write_scope=global ;;
+    --system*) write_scope=system ;;
+    --file*) write_scope=file ;;
+    *) write_scope=add ;;
+  esac
+  sed "/safe.directory=\"\$policy_root\" rev-parse HEAD/a\\          git config $config_write safe.directory \"\$policy_root\"" \
+    "$source_root/.github/workflows/release.yml" > "$scratch/persisted-$write_scope-build.yml"
+  expect_refusal "workflow_persisted_${write_scope}_trust_rejected" workflow-persistent-git-config-forbidden \
+    workflow_policy "$scratch/persisted-$write_scope-build.yml"
+  sed "/^git() /a\\command git config $config_write safe.directory \"\$root\"" \
+    "$source_root/.scripts/release-admit.sh" > "$scratch/persisted-$write_scope-admit.sh"
+  expect_refusal "admission_persisted_${write_scope}_trust_rejected" admission-persistent-git-config-forbidden \
+    workflow_policy "$source_root/.github/workflows/release.yml" "$scratch/persisted-$write_scope-admit.sh"
+done
+# Adjacent mutations reject missing, widened and wrong-path bundle/HEAD trust.
+sed 's/git -c safe.directory="$policy_root" bundle/git bundle/' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/untrusted-build.yml"
+expect_refusal workflow_untrusted_build_clone_rejected build-bundle-scoped-trust-required \
+  workflow_policy "$scratch/untrusted-build.yml"
+sed 's/safe.directory="$policy_root"/safe.directory="*"/g' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/wildcard-build.yml"
+expect_refusal workflow_wildcard_build_trust_rejected build-wildcard-trust-forbidden \
+  workflow_policy "$scratch/wildcard-build.yml"
+sed 's/safe.directory="$policy_root"/safe.directory="$work"/g' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/wrong-path-build.yml"
+expect_refusal workflow_wrong_path_build_trust_rejected build-bundle-scoped-trust-required \
+  workflow_policy "$scratch/wrong-path-build.yml"
+sed 's/git -c safe.directory="$policy_root" rev-parse/git rev-parse/' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/untrusted-head-build.yml"
+expect_refusal workflow_untrusted_build_head_rejected build-head-scoped-trust-required \
+  workflow_policy "$scratch/untrusted-head-build.yml"
+sed 's#git clone --quiet --no-checkout "$work/source.bundle"#git clone --quiet --no-checkout "$policy_root"#' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/direct-build-clone.yml"
+expect_refusal workflow_direct_build_clone_rejected build-bundle-clone-required \
+  workflow_policy "$scratch/direct-build-clone.yml"
+# Environment config and other workflow jobs cannot widen the two scoped exceptions.
+sed '/POLICY_COMMIT: /a\          GIT_CONFIG_COUNT: "1"\n          GIT_CONFIG_KEY_0: safe.directory\n          GIT_CONFIG_VALUE_0: "*"' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/env-wildcard-build.yml"
+expect_refusal workflow_env_wildcard_trust_rejected workflow-config-env-forbidden \
+  workflow_policy "$scratch/env-wildcard-build.yml"
+sed 's#git rev-parse refs/remotes/origin/main#git -c safe.directory="*" rev-parse refs/remotes/origin/main#' \
+  "$source_root/.github/workflows/release.yml" > "$scratch/wildcard-draft.yml"
+expect_refusal workflow_other_job_wildcard_rejected workflow-wildcard-trust-forbidden \
+  workflow_policy "$scratch/wildcard-draft.yml"
+sed 's/safe.directory="$root"/safe.directory="*"/' \
+  "$source_root/.scripts/release-admit.sh" > "$scratch/wildcard-admit.sh"
+expect_refusal admission_wildcard_trust_rejected admission-wildcard-trust-forbidden \
+  workflow_policy "$source_root/.github/workflows/release.yml" "$scratch/wildcard-admit.sh"
+sed 's/ -c safe.directory="$root"//' \
+  "$source_root/.scripts/release-admit.sh" > "$scratch/untrusted-admit.sh"
+expect_refusal admission_unscoped_trust_rejected admission-scoped-trust-required \
+  workflow_policy "$source_root/.github/workflows/release.yml" "$scratch/untrusted-admit.sh"
 printf 'Release controls passed; scratch evidence retained at %s\n' "$scratch"

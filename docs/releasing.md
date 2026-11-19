@@ -28,13 +28,58 @@ chapter describes component signers and a manifest selecting artifact digests.
 key cannot supply the book's component trust root; use the owner's in-person
 approval of the aggregate set digest until dedicated custody is decided. This
 interim profile does not implement the book's future update-key roles.
-The gateway service contract in `docs/gateway-service.md` (introduced by
-[service PR #159](https://github.com/relux-works/swarma-chain-lab/pull/159))
-requires separate runtime integration and qualification. Packaging the existing
-`model-proxy` daemon under the product member name does not wire the service
-client into it, qualify managed mode, or activate a service. The template reuses
-the broker A3 release policy at commit `b72677f54ca40c896a26908782799c666179ee62`;
-owner decision 2(a) authorizes this per-product port.
+The gateway service contract in [gateway-service.md](gateway-service.md),
+introduced by service PR #159 and wired into model-proxy by PR #161, still
+requires runtime qualification. The actual command now includes the managed
+source from its local `service` module; packaging that command does not qualify
+managed mode or activate a service. The template reuses the broker A3 release
+policy at commit `e295b4c7c0dc397ecdaa89e73c057d53d2e3f533`, including scoped Git
+trust and its persistence controls. The gateway remains pure Go: no native cgo
+profile, container toolchain or extra product is introduced. Owner decision 2(a)
+authorizes this per-product port.
+
+## Not-a-closure gate: root installation is blocked
+
+Product **gateway is not deploy service gateway**. The latter is the rental
+gateway in `deploy/release.go`; `swarma-gateway` is only a model socket peer.
+The packaged `model-proxy` command is the deploy contract's **model** daemon.
+Its installed admission remains hard-bound to DK5 service `model` in
+`experiments/model-proxy/installed.go`: the anchor is
+`/etc/systemd/system/swarma-model.service.d/10-install.conf`, the private group
+is `swarma-model`, and the sealed tree is `/etc/swarma/model`.
+
+This product contains only the binary, installer-neutral unit and service doc.
+It does **not** provide the following root-installed prerequisites:
+
+| Prerequisite | Existing source and responsibility |
+| --- | --- |
+| Versioned model binary path, `User=swarma-model`, `Group=swarma-model-peer`, and `ExecStartPre=... --check-installed` | `deploy/templates/systemd/swarma-model.service.in`; installer renders and root installs it |
+| Model users, private group and socket peers | `deploy/templates/model/sysusers.conf.in`; installer applies sysusers |
+| `/etc/swarma/model` and its protected layout | `deploy/templates/installed-tmpfiles.conf.in` and `deploy/INSTALL-CONFIG.md`; installer applies tmpfiles |
+| Signed private install manifest, signature and rendered DK5 anchor | `deploy-kit g2-install-sign` and `render-install-anchor`, documented in `deploy/INSTALL-CONFIG.md`; deploy-kit is in the flat deploy bundle |
+| Sealed model config, signing custody, broker/account bindings, listener and service generation | Owner-approved install plan and private custody; never release assets |
+
+PR #161's inactive unit at
+`experiments/model-proxy/service/deploy/credential-gateway.service.in` uses
+platform-root placeholders, a credential-loaded config and broker dependency.
+It does not yet reconcile the DK5 anchor, model identities, versioned deploy path
+or `--check-installed` pre-start gate. Its listener/generation environment is
+not evidence of a qualified installed command configuration. The remaining S-20
+and live runtime gates are recorded in the service module's open questions.
+
+There are two builds of this same daemon: this product's amd64/arm64 tarballs,
+and the flat deploy bundle's amd64 `bin/model-proxy`. Different flags (including
+this product's empty build ID), packaging and toolchain pins mean their digests
+are not interchangeable. **Which channel is authoritative for root install is
+an open owner decision.** The other channel must be excluded from the aggregate
+for that role; do not include both as independent root-installable daemons.
+
+**No root step for this product** is allowed until the owner-approved plan
+selects the authoritative channel, excludes the other for that role, reconciles
+the packaged unit with DK5 service `model`, and names all prerequisites above
+and the required runtime qualification evidence. A green build, reproducible
+archives, signed tag, pre-release draft or aggregate digest alone does not close
+this gate. See [the open decision](../UNRESOLVED_QUESTIONS.md#gateway-release-adoption).
 
 ## Default-branch workflow and admission
 
@@ -90,9 +135,22 @@ set. Existing releases are refused; assets are never overwritten. GitHub cannot
 atomically bind release creation to ref movement; operator rechecks and the
 aggregate owner approval remain required.
 
+The policy scope deliberately includes **all of `.scripts`**, not just release
+helpers. An unrelated script change after tagging therefore refuses with
+`tagged-release-policy-differs`. Untracked files there (for example `__pycache__`
+from Python tests run without `-B`) refuse with `dirty-release-policy`. Keep
+these paths clean and tag immediately before dispatch; retagging does not bypass
+the owner or tag-movement controls. This broad refusal boundary is intentional.
+
+Admission trusts only its physical checkout through command-scoped
+`git -c safe.directory=...`; no global, system, local or file config is written.
+The workflow checks the policy HEAD with the same scope, creates a bundle under
+that scope, and clones the bundle into isolated scratch. This avoids Git's
+upload-pack ownership rejection without persisting or wildcarding trust.
+
 ## Reproducible build and metadata
 
-[release-build.sh](../.scripts/release-build.sh) requires Go **1.26.8** and a clean
+[release-build.sh](../.scripts/release-build.sh) requires Go **1.26.10** and a clean
 source checkout. Its optional second argument is an absolute source checkout;
 the executable builder and metadata helper remain in the default-branch checkout.
 Only the command named in main's
@@ -110,36 +168,54 @@ The table lists exactly one Go command, its module/package, archive member and
 mode, plus the unit template and service document. It is the single build-input
 inventory. The daemon is `experiments/model-proxy` package `./cmd/model-proxy`;
 its archive member is `credential-gateway/bin/credential-gateway` (0755). The
-unit source is `experiments/model-proxy/deploy/credential-gateway.service.in`,
+unit source is `experiments/model-proxy/service/deploy/credential-gateway.service.in`,
 placed at `credential-gateway/templates/credential-gateway.service.in` (0644).
 `docs/gateway-service.md` is placed at
 `credential-gateway/docs/gateway-service.md` (0644). Directories are 0755.
 
-The unit and document are pending service PR #159. Until they land, builds from
-main deliberately refuse `missing-input` before creating output. Scratch controls
-use a committed fixture tree with those exact paths; this is packaging evidence,
-not a claim that the service inputs or runtime have landed. Do not substitute the
-deploy kit's unrelated gateway template or relax the input list.
+After PR #161 the main source contains the command's local `./service`
+replacement, including its managed source. The builder uses that repository
+module, not an unrelated daemon or a fixture binary. Missing command/module,
+unit or doc inputs still refuse before output creation. Scratch controls use a
+committed inert fixture at those same paths; they prove packaging controls only.
+Two independent builds of the actual candidate are required separately. Do not
+substitute the deploy kit's unrelated gateway template or relax the input list.
 
 Archives use sorted USTAR entries, commit-time mtime, uid/gid zero, empty owner
 names, fixed directory/file modes, and gzip level 9 with zero mtime and no source
 filename. No source mtimes, ownership, umask, absolute paths or wall clock enter
-the archive. The deploy kit is separate: `deploy/release.go`, its Go 1.26.8 pin,
+the archive normalization. Compressed digests also depend on Python's tar writer
+and the deflate implementation. Matching compressed digests require the same
+Python and deflate implementation, not just equal Go inputs or a zlib version
+label. Per-member digests permit comparison across compressors, but a member
+match never waives the signing helper's full compressed-digest equality check.
+The deploy kit is separate: `deploy/release.go`, its Go 1.26.8 pin,
 artifact inventory and release tests are unchanged.
+
+Unlike the earlier port's 1.26.8 localization, this per-product template and its
+workflow now pin 1.26.10, matching the broker and model-proxy documentation.
+The independent flat deploy channel retains its own pin; this is not a claim
+that that channel was rebuilt, upgraded or qualified by this change.
 
 `provenance.json` records the source commit, Go version, flags, environment and
 `SOURCE_DATE_EPOCH`, the complete product input table and archive normalization.
+`archive` also records Python version/implementation, zlib build/runtime versions
+and each regular member's SHA-256 under each archive name. The metadata checker
+compares those member hashes with the compressed archive contents.
 It describes build inputs; it is not an origin attestation.
 `SHA256SUMS` covers both gateway archives and provenance. `release-set.json` lists the
 name and SHA-256 of each archive, provenance and `SHA256SUMS` for incorporation
-into the installer's aggregate release-set manifest. Each archive row carries
-`"purpose":"platform-root"`; the metadata rows do not describe installable products. The fragment cannot hash
+into the installer's aggregate release-set manifest. Its
+`release-set-fragment/1` rows retain the broker's exact `{name,sha256}` shape;
+there is no unversioned `purpose` extension. Purpose remains in the product
+table and provenance, and role selection is the owner-gated aggregate decision,
+not an additional field silently consumed under `/1`. The fragment cannot hash
 itself; optional `SHA256SUMS.sig` is ancillary consistency evidence and is not an
 installer input. JSON uses sorted object keys, sorted artifact names, ASCII,
 compact separators and exactly one trailing newline. Example shape:
 
 ```json
-{"artifacts":[{"name":"gateway_linux_amd64.tar.gz","purpose":"platform-root","sha256":"<64 lowercase hex>"}],"schema":"release-set-fragment/1"}
+{"artifacts":[{"name":"gateway_linux_amd64.tar.gz","sha256":"<64 lowercase hex>"}],"schema":"release-set-fragment/1"}
 ```
 
 The fragment is an interchange fragment, not a claim that an installer schema
@@ -153,7 +229,7 @@ commit and toolchain. Resolve absolute scratch paths before launching Go; set
 From a trusted default-branch checkout:
 
 ```bash
-GO=/absolute/path/to/go1.26.8/bin/go .scripts/release-build.sh \
+GO=/absolute/path/to/go1.26.10/bin/go .scripts/release-build.sh \
   /absolute/scratch/dist /absolute/scratch/source
 cmp /absolute/first/dist/SHA256SUMS /absolute/second/dist/SHA256SUMS
 cmp /absolute/first/dist/release-set.json /absolute/second/dist/release-set.json
@@ -170,9 +246,9 @@ and the requested tag without forcing a moved tag, then runs main's admission.
 It requires a draft marked pre-release and the exact bot-key label in its body.
 
 ```bash
-GO=/absolute/path/to/go1.26.8/bin/go .scripts/release-sign.sh gateway/v1.2.3
+GO=/absolute/path/to/go1.26.10/bin/go .scripts/release-sign.sh gateway/v1.2.3
 # Optional repository argument when adopting the template:
-GO=/absolute/path/to/go1.26.8/bin/go .scripts/release-sign.sh gateway/v1.2.3 OWNER/REPO
+GO=/absolute/path/to/go1.26.10/bin/go .scripts/release-sign.sh gateway/v1.2.3 OWNER/REPO
 ```
 
 [release-sign.sh](../.scripts/release-sign.sh) copies the admitted tag to a fresh

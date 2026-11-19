@@ -4,9 +4,11 @@ import gzip
 import hashlib
 import json
 import pathlib
+import platform
 import re
 import sys
 import tarfile
+import zlib
 
 
 POLICY_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -120,9 +122,18 @@ def digest(path):
 
 def fragment(root, names):
     return canonical({"schema": "release-set-fragment/1", "artifacts": [
-        dict({"name": name, "sha256": digest(root / name)},
-             **({"purpose": "platform-root"} if name in ARCHIVES else {}))
+        {"name": name, "sha256": digest(root / name)}
         for name in sorted(names)]})
+
+
+def member_digests(path):
+    expected = sorted(row["member"] for row in table()["inputs"])
+    with tarfile.open(path, mode="r:gz") as archive:
+        files = [member for member in archive if member.isfile()]
+        if sorted(member.name for member in files) != expected:
+            raise ValueError("invalid-archive-members")
+        return {member.name: hashlib.sha256(archive.extractfile(member).read()).hexdigest()
+                for member in sorted(files, key=lambda member: member.name)}
 
 
 def run():
@@ -137,7 +148,7 @@ def run():
         pack(root, pathlib.Path(output), epoch)
     elif mode == "create":
         commit, version, epoch = args
-        if not re.fullmatch(r"[0-9a-f]{40,64}", commit) or version != "go1.26.8" or not epoch.isdecimal():
+        if not re.fullmatch(r"[0-9a-f]{40,64}", commit) or version != "go1.26.10" or not epoch.isdecimal():
             raise ValueError("invalid-build-inputs")
         for name in ARCHIVES:
             digest(root / name)
@@ -146,7 +157,12 @@ def run():
             "product": table(),
             "archive": {"format": "ustar", "order": "sorted", "mtime": int(epoch),
                         "uid": 0, "gid": 0, "uname": "", "gname": "",
-                        "directory_mode": "0755", "gzip_mtime": 0, "gzip_level": 9},
+                        "directory_mode": "0755", "gzip_mtime": 0, "gzip_level": 9,
+                        "python_version": platform.python_version(),
+                        "python_implementation": platform.python_implementation(),
+                        "zlib_version": zlib.ZLIB_VERSION,
+                        "zlib_runtime_version": zlib.ZLIB_RUNTIME_VERSION,
+                        "members": {name: member_digests(root / name) for name in ARCHIVES}},
             "flags": ["-mod=readonly", "-p=2", "-trimpath", "-buildvcs=false", "-ldflags=-buildid="],
             "environment": {"CGO_ENABLED": "0", "GOOS": "linux", "GOARCH": ["amd64", "arm64"],
                             "GOAMD64": "v1", "GOARM64": "v8.0", "GOEXPERIMENT": "",
@@ -180,6 +196,9 @@ def run():
             raise ValueError("noncanonical-checksums")
         if (root / "release-set.json").read_bytes() != fragment(root, names + ["SHA256SUMS"]):
             raise ValueError("release-set-mismatch-or-noncanonical")
+        provenance = json.loads((root / "provenance.json").read_bytes())
+        if provenance["archive"]["members"] != {name: member_digests(root / name) for name in ARCHIVES}:
+            raise ValueError("archive-member-digest-mismatch")
     else:
         raise ValueError("unknown-mode")
 
@@ -187,6 +206,6 @@ def run():
 if __name__ == "__main__":
     try:
         run()
-    except (ValueError, OSError, UnicodeError, KeyError, TypeError) as error:
+    except (ValueError, OSError, UnicodeError, KeyError, TypeError, tarfile.TarError, EOFError) as error:
         print(f"release metadata: {error}", file=sys.stderr)
         sys.exit(1)

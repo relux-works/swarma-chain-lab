@@ -14,7 +14,7 @@ root=${2:-$(git rev-parse --show-toplevel)}
 cd "$root"
 [[ -z $(git status --porcelain --untracked-files=all) ]] || fail dirty-build-source
 commit=$(git rev-parse HEAD)
-[[ $("$go_bin" env GOVERSION) == go1.26.8 ]] || fail go1.26.8-required
+[[ $("$go_bin" env GOVERSION) == go1.26.10 ]] || fail go1.26.10-required
 export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
 [[ $SOURCE_DATE_EPOCH =~ ^[0-9]+$ ]] || fail invalid-source-epoch
 inputs=$(python3 "$policy_root/.scripts/release-metadata.py" inputs "$root")

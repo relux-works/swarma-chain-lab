@@ -266,14 +266,19 @@ The [per-product release template](docs/releasing.md) uses the distinct
 pin and optional bot signature carry the label **agent-held key, proves nothing about origin**. The operator independently rebuilds before signing; the owner
 approves the aggregate set digest in person before any root step.
 
-Service input paths are explicit in `.github/release/gateway-inputs.json`;
-until service PR #159 lands, release builds refuse missing inputs. This
-template does not change the deploy-kit release contract or activate a daemon.
+Service input paths are explicit in `.github/release/gateway-inputs.json`.
+After PR #161 the command builds with the repository's managed source module.
+This is not a closure of runtime or installer qualification: product gateway is
+the deploy model daemon, not deploy service gateway. Root use is blocked until
+the owner selects one authoritative release channel and reconciles the unit,
+DK5 identities, sealed configuration and prerequisites in
+[the not-a-closure gate](docs/releasing.md#not-a-closure-gate-root-installation-is-blocked).
+The deploy-kit release contract and its toolchain pin are unchanged.
 
 | Tool | Command from repository root | Output |
 | --- | --- | --- |
 | Git/SSH admission | `.scripts/release-admit.sh gateway/v1.2.3` from current main | admitted commit/tag/epoch or refusal |
-| Go 1.26.8 + Python 3 + gzip/USTAR builder | `.scripts/release-build.sh "$ABSOLUTE_NEW_DIST" "$ABSOLUTE_SOURCE"` | gateway tarballs and canonical metadata in the new output directory |
+| Go 1.26.10 + Python 3 + gzip/USTAR builder | `.scripts/release-build.sh "$ABSOLUTE_NEW_DIST" "$ABSOLUTE_SOURCE"` | gateway tarballs, member/compressor provenance and canonical metadata in the new output directory |
 | Scratch controls | `.scripts/release-test.sh "$ABSOLUTE_NEW_SCRATCH"` | positive/negative logs, isolated fixture repositories and rebuilds |
 | Operator GitHub CLI/SSH signing | `.scripts/release-sign.sh gateway/v1.2.3` | independent rebuild evidence under `.temp/release-sign.*`; optional signature asset |
 | Digest verification | `.scripts/release-verify.sh "$ABSOLUTE_ASSETS" "$EXPECTED_FRAGMENT_SHA256"` | consistency verdict |

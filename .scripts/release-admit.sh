@@ -8,7 +8,7 @@ tag=$1
 ref="refs/tags/$tag"
 root=$(cd "$(dirname "$0")/.." && pwd -P)
 cd "$root"
-git() { command git -c core.commitGraph=false "$@"; }
+git() { command git -c safe.directory="$root" -c core.commitGraph=false "$@"; }
 [[ $(git rev-parse --is-shallow-repository) == false ]] || fail shallow-history
 grafts=$(git rev-parse --git-path info/grafts)
 [[ ! -e $grafts && ! -L $grafts ]] || fail grafted-history
