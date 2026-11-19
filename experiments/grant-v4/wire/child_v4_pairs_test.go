@@ -9,6 +9,9 @@ import (
 // The pair inventory is independent of the generator's metadata: deleting a
 // joint or a quantifier position must fail rather than shrink the evidence.
 func TestChildV4PairCoverage(t *testing.T) {
+	if err := generatedInventoryV4(childVectorsV4(t)); err != nil {
+		t.Fatal(err)
+	}
 	rows := []string{"f5", "f8", "f9", "f10", "f11", "f12", "f13a", "f14", "f15", "f16", "f17a", "f17b", "f18"}
 	expected := map[string]bool{}
 	for earlierIndex, earlier := range rows {

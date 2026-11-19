@@ -79,20 +79,357 @@ func must(e error) {
 }
 
 type fixture struct {
-	ID          string                           `json:"id"`
-	Mode        string                           `json:"mode"`
-	Parent      json.RawMessage                  `json:"parent"`
-	Child       json.RawMessage                  `json:"child"`
-	Expect      string                           `json:"expect"`
-	Step        int                              `json:"step"`
-	Neighbour   string                           `json:"valid_neighbour"`
-	Spec        string                           `json:"spec_case"`
-	Ancestor    json.RawMessage                  `json:"ancestor,omitempty"`
-	Observation *wire.ParentNameObservation      `json:"observation,omitempty"`
-	InputIndex  int                              `json:"input_index,omitempty"`
-	Selected    *wire.ChildAttenuationEvaluation `json:"selected,omitempty"`
-	Pair        []string                         `json:"pair,omitempty"`
-	Controls    []string                         `json:"controls,omitempty"`
+	ID           string                           `json:"id"`
+	Mode         string                           `json:"mode"`
+	Parent       json.RawMessage                  `json:"parent"`
+	Child        json.RawMessage                  `json:"child"`
+	Expect       string                           `json:"expect"`
+	Step         int                              `json:"step"`
+	Neighbour    string                           `json:"valid_neighbour"`
+	Spec         string                           `json:"spec_case"`
+	Ancestor     json.RawMessage                  `json:"ancestor,omitempty"`
+	Observation  *wire.ParentNameObservation      `json:"observation,omitempty"`
+	InputIndex   int                              `json:"input_index,omitempty"`
+	Selected     *wire.ChildAttenuationEvaluation `json:"selected,omitempty"`
+	Pair         []string                         `json:"pair,omitempty"`
+	Controls     []string                         `json:"controls,omitempty"`
+	TriggerPair  []string                         `json:"trigger_pair,omitempty"`
+	Again        string                           `json:"again,omitempty"`
+	BothPolicies bool                             `json:"both_policies,omitempty"`
+	Probe        string                           `json:"probe,omitempty"`
+	Sources      []string                         `json:"sources,omitempty"`
+}
+
+type scenario struct {
+	parent, child obj
+	observation   *wire.ParentNameObservation
+}
+
+type trigger struct {
+	id, code string
+	step     int
+	again    string
+	change   func(*scenario)
+}
+
+func namedScenario(s *scenario) {
+	s.parent["recipient"] = obj{"name": "id/example-parent", "owner": output(1)}
+	s.observation = &wire.ParentNameObservation{Name: "id/example-parent", Genesis: hash("example-genesis"), TipHash: hash("example-tip"), TipHeight: 10, ValueState: wire.ParentNameValueKeys, ChannelKeys: []string{signing(1)}}
+}
+
+func roleTrigger(s *scenario, role string, scalar int) {
+	switch role {
+	case "grantkey":
+		s.parent["issuer"].(obj)["grant_key"] = signing(scalar)
+	case "iowner":
+		s.parent["issuer"].(obj)["owner"] = output(scalar)
+	case "recipient-key":
+		s.parent["recipient"] = obj{"key": signing(scalar)}
+	case "recipient-owner":
+		s.parent["recipient"] = obj{"name": "id/example-parent", "owner": output(scalar)}
+	case "pseal":
+		s.parent["seal"].(obj)["key"] = output(scalar)
+	case "notary":
+		s.parent["delegate"].(obj)["notaries"].([]any)[0].(obj)["owner"] = output(scalar)
+	}
+}
+
+func triggerRows() [][]trigger {
+	rows := [][]trigger{
+		{{"f5-contract", "CHILD_CONTRACT_DIFFERS", 5, "", func(s *scenario) { s.child["contract"] = hash("other-contract") }}},
+		{{"f8-genesis", "SUBJECT_MISMATCH", 8, "", func(s *scenario) { s.child["genesis"] = hash("other-genesis") }}},
+		{},
+		{{"f10-cs1", "CHILD_SEAL_KEY", 10, "", func(s *scenario) { delete(s.parent["delegate"].(obj), "child_seal_key") }}, {"f10-cs3-delegation", "DELEGATE_KEY_REUSE", 10, "", func(s *scenario) { s.parent["delegate"].(obj)["child_seal_key"] = output(2) }}},
+		{},
+		{{"f12-seal", "CHILD_SEAL_KEY", 12, "", func(s *scenario) { s.child["seal"].(obj)["key"] = opposite(s.child["seal"].(obj)["key"].(string)) }}},
+		{{"f13a-zero", "CHILD_ORDINAL", 13, "", func(s *scenario) { s.child["ordinal"] = 0 }}, {"f13a-overcount", "CHILD_ORDINAL", 13, "", func(s *scenario) { s.child["ordinal"] = 3 }}},
+		{{"f14-name", "CHILD_AGENT_NOT_ALLOWED", 14, "", func(s *scenario) { s.child["executor"].(obj)["name"] = "id/example-other" }}, {"f14-key", "CHILD_AGENT_NOT_ALLOWED", 14, "", func(s *scenario) { s.child["executor"].(obj)["key"] = signing(3) }}},
+		{},
+		{{"f16-action", "CHILD_ACTIONS_WIDER", 16, "", func(s *scenario) { s.child["actions"] = []any{"example/c"} }}},
+		{},
+		{{"f17b-template", "LIMIT_KIND_UNDEFINED", 17, "", func(s *scenario) {
+			template(s.parent)["limits"] = []any{limit("5")}
+			s.parent["delegate"].(obj)["pools"] = []any{limit("10")}
+		}}, {"f17b-child", "LIMIT_KIND_UNDEFINED", 17, "", func(s *scenario) {
+			template(s.parent)["limits"] = []any{limit("5")}
+			s.parent["delegate"].(obj)["pools"] = []any{limit("10")}
+			s.child["limits"] = append(s.child["limits"].([]any), limit("1"))
+		}}},
+		{{"f18-upper", "CHILD_WINDOW_NOT_NESTED", 18, "", func(s *scenario) { s.child["not_after_height"] = 21 }}, {"f18-lower", "CHILD_WINDOW_NOT_NESTED", 18, "", func(s *scenario) { s.child["not_before_height"] = 9 }}},
+	}
+	for _, role := range []string{"grantkey", "iowner", "recipient-key", "recipient-owner", "pseal", "notary"} {
+		rows[2] = append(rows[2], trigger{"f9-" + role, "DELEGATE_KEY_REUSE", 9, "", func(s *scenario) { roleTrigger(s, role, 2) }})
+		rows[3] = append(rows[3], trigger{"f10-cs3-" + role, "DELEGATE_KEY_REUSE", 10, "", func(s *scenario) {
+			var current string
+			switch role {
+			case "grantkey":
+				current = s.parent["issuer"].(obj)["grant_key"].(string)
+			case "iowner":
+				current = s.parent["issuer"].(obj)["owner"].(string)
+			case "recipient-key":
+				if value, ok := s.parent["recipient"].(obj)["key"]; ok {
+					current = value.(string)
+				}
+			case "recipient-owner":
+				if value, ok := s.parent["recipient"].(obj)["owner"]; ok {
+					current = value.(string)
+				}
+			case "pseal":
+				current = s.parent["seal"].(obj)["key"].(string)
+			case "notary":
+				current = s.parent["delegate"].(obj)["notaries"].([]any)[0].(obj)["owner"].(string)
+			}
+			if current == signing(2) || current == output(2) {
+				s.parent["delegate"].(obj)["child_seal_key"] = output(2)
+			} else {
+				roleTrigger(s, role, 3)
+				s.parent["delegate"].(obj)["child_seal_key"] = output(3)
+			}
+		}})
+	}
+	for _, role := range []string{"seal-even", "seal-odd", "key", "owner-even", "owner-odd"} {
+		rows[4] = append(rows[4], trigger{"f11-octet-" + role, "DELEGATE_KEY_REUSE", 11, "", func(s *scenario) {
+			key := output(2)
+			if strings.HasSuffix(role, "odd") {
+				key = opposite(key)
+			}
+			if strings.HasPrefix(role, "seal") {
+				s.child["seal"].(obj)["key"] = key
+			} else if role == "key" {
+				s.child["recipient"] = obj{"key": signing(2)}
+			} else {
+				s.child["recipient"] = obj{"name": "id/example-child", "owner": key}
+			}
+		}})
+	}
+	for _, state := range []wire.ParentNameValueState{wire.ParentNameValueNoKey, wire.ParentNameValueRefused, "", "unknown"} {
+		id := string(state)
+		if id == "" {
+			id = "unset"
+		}
+		rows[4] = append(rows[4], trigger{"f11-value-" + id, "implementation:" + string(state), 11, "", func(s *scenario) { s.observation.ValueState, s.observation.ChannelKeys = state, nil }})
+		rows[4] = append(rows[4], trigger{"f11-contradictory-" + id, "input:contradictory", 11, "", func(s *scenario) { s.observation.ValueState, s.observation.ChannelKeys = state, []string{signing(2)} }})
+	}
+	for _, kind := range []string{"name", "identity", "chain", "empty", "key", "duplicate", "unexpected"} {
+		rows[4] = append(rows[4], trigger{"f11-input-" + kind, "input:" + kind, 11, "", func(s *scenario) {
+			switch kind {
+			case "name":
+				s.observation.Name = "id/example-other"
+			case "identity":
+				s.observation.TipHash = ""
+			case "chain":
+				s.observation.Genesis = hash("other-chain")
+			case "empty":
+				s.observation.ChannelKeys = nil
+			case "key":
+				s.observation.ChannelKeys = []string{"bad"}
+			case "duplicate":
+				s.observation.ChannelKeys = []string{signing(1), signing(1)}
+			case "unexpected":
+				s.parent["recipient"] = obj{"key": signing(1)}
+			}
+		}})
+	}
+	rows[4] = append(rows[4], trigger{"f11-channel", "DELEGATE_KEY_REUSE", 11, "state", func(s *scenario) { s.observation.ChannelKeys = []string{signing(2)} }})
+	for _, form := range []string{"key", "key-mode", "name", "owner", "parity", "name-mode", "class"} {
+		rows[8] = append(rows[8], trigger{"f15-" + form, "CHILD_GRANTEE_NOT_ALLOWED", 15, "", func(s *scenario) {
+			switch form {
+			case "key":
+				template(s.parent)["recipient"] = obj{"key": signing(3)}
+			case "key-mode":
+				s.child["recipient"] = obj{"name": "id/example-child", "owner": output(1)}
+			case "class":
+				template(s.parent)["recipient"] = obj{"class": []any{pin("id/example-landlord")}}
+			default:
+				template(s.parent)["recipient"] = obj{"name": "id/example-agent", "owner": output(1)}
+				s.child["recipient"] = obj{"name": "id/example-agent", "owner": output(1)}
+				switch form {
+				case "name":
+					s.child["recipient"].(obj)["name"] = "id/example-other"
+				case "owner":
+					s.child["recipient"].(obj)["owner"] = output(3)
+				case "parity":
+					s.child["recipient"].(obj)["owner"] = opposite(output(1))
+				case "name-mode":
+					s.child["recipient"] = obj{"key": signing(1)}
+				}
+			}
+		}})
+	}
+	for _, amount := range []string{"0", "1"} {
+		rows[10] = append(rows[10], trigger{"f17a-missing-" + amount, "CHILD_BUDGET_OVER", 17, "", func(s *scenario) {
+			entry := limit(amount)
+			entry["resource"] = "example/missing"
+			s.child["limits"] = []any{entry}
+		}})
+	}
+	return rows
+}
+
+func generatedEvidence(cases []fixture) []fixture {
+	emit := func(id string, first trigger, second *trigger) {
+		s := &scenario{parent: parent(), child: child()}
+		for _, item := range []*trigger{&first, second} {
+			if item != nil && strings.HasPrefix(item.id, "f11-") && !strings.HasPrefix(item.id, "f11-octet-") {
+				namedScenario(s)
+				break
+			}
+		}
+		first.change(s)
+		if second != nil {
+			second.change(s)
+		}
+		parentScalar := 1
+		for scalar := 1; scalar <= 3; scalar++ {
+			if signing(scalar) == s.parent["issuer"].(obj)["grant_key"] {
+				parentScalar = scalar
+			}
+		}
+		parentBytes, parentID := signed(s.parent, parentScalar)
+		s.child["parent"] = parentID
+		childBytes, _ := signed(s.child, 2)
+		vector := fixture{ID: id, Mode: "generated", Parent: parentBytes, Child: childBytes, Expect: first.code, Step: first.step, Neighbour: "prefix-open", Spec: "generated trigger-form inventory at the fixed pin", Observation: s.observation, Again: first.again}
+		if first.code == "ok" {
+			vector.Step = 0
+		}
+		if second != nil {
+			vector.TriggerPair = []string{first.id, second.id}
+			vector.Controls = []string{"form-control-" + first.id, "form-control-" + second.id}
+		}
+		vector.BothPolicies = strings.Contains(first.id, "contradictory") || second != nil && strings.Contains(second.id, "contradictory")
+		cases = append(cases, vector)
+	}
+	rows := triggerRows()
+	for earlierIndex, earlierRow := range rows {
+		for _, form := range earlierRow {
+			emit("form-control-"+form.id, form, nil)
+		}
+		for _, laterRow := range rows[earlierIndex+1:] {
+			for _, form := range earlierRow {
+				later := laterRow[0]
+				emit("form-pair-"+form.id+"-before-"+later.id, form, &later)
+			}
+			for _, form := range laterRow[1:] {
+				emit("form-pair-"+earlierRow[0].id+"-before-"+form.id, earlierRow[0], &form)
+			}
+		}
+	}
+	for _, octet := range rows[4][:5] {
+		for _, later := range rows[4][5:] {
+			emit("form-pair-"+octet.id+"-before-"+later.id, octet, &later)
+		}
+	}
+	for _, roleIndex := range []int{2, 3} {
+		later := rows[4][2]
+		first := rows[3][roleIndex]
+		emit("adopt-"+first.id+"-before-f11-key", first, &later)
+	}
+	unknown := rows[4][12]
+	unknown.change = func(s *scenario) {
+		s.observation.ValueState = "unknown"
+		s.observation.ChannelKeys = []string{signing(1)}
+	}
+	emit("adopt-unknown-with-other-key", unknown, nil)
+	for _, kind := range []string{"notaries", "actions", "channel-member", "channel-key", "channel-duplicate", "limits", "template-keys", "cs3-notaries"} {
+		for position := 0; position < 3; position++ {
+			for _, bad := range []bool{false, true} {
+				code, step, again := "ok", 0, ""
+				if kind == "limits" || kind == "template-keys" {
+					code, step = "LIMIT_KIND_UNDEFINED", 17
+				}
+				if bad {
+					switch kind {
+					case "notaries":
+						code, step = "DELEGATE_KEY_REUSE", 9
+					case "actions":
+						code, step = "CHILD_ACTIONS_WIDER", 16
+					case "channel-member":
+						code, step, again = "DELEGATE_KEY_REUSE", 11, "state"
+					case "channel-key":
+						code, step = "input:key", 11
+					case "channel-duplicate":
+						code, step = "input:duplicate", 11
+					case "limits", "template-keys":
+						code, step = "CHILD_BUDGET_OVER", 17
+					case "cs3-notaries":
+						code, step = "DELEGATE_KEY_REUSE", 10
+					}
+				}
+				id := fmt.Sprintf("quant-%s-position-%d-bad-%t", kind, position, bad)
+				form := trigger{id, code, step, again, func(s *scenario) {
+					switch kind {
+					case "notaries", "cs3-notaries":
+						entries := []any{pin("id/example-notary"), pin("id/example-notary-b"), pin("id/example-notary-c")}
+						if bad {
+							scalar := 2
+							if kind == "cs3-notaries" {
+								scalar = 3
+							}
+							entries[position].(obj)["owner"] = output(scalar)
+						}
+						s.parent["delegate"].(obj)["notaries"] = entries
+					case "actions":
+						allowed := []any{"example/b", "example/d", "example/f"}
+						entries := []any{"example/b", "example/d", "example/f"}
+						if bad {
+							entries[position] = []string{"example/a", "example/c", "example/g"}[position]
+						}
+						s.parent["delegate"].(obj)["actions"], s.child["actions"] = allowed, entries
+					case "channel-member", "channel-key", "channel-duplicate":
+						namedScenario(s)
+						entries := []string{signing(1), signing(3), "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13"}
+						if kind == "channel-member" {
+							if bad {
+								entries[position] = signing(2)
+							}
+						} else if bad {
+							if kind == "channel-key" {
+								entries[position] = "bad"
+							} else {
+								entries = append([]string{"2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4"}, entries...)
+								entries[position+1] = entries[0]
+							}
+						}
+						s.observation.ChannelKeys = entries
+					case "limits", "template-keys":
+						var allowed, pools, entries []any
+						for index := 0; index < 3; index++ {
+							resource := fmt.Sprintf("example/resource-%d", index)
+							ceiling, pool, entry := limit("5"), limit("10"), limit("1")
+							ceiling["resource"], pool["resource"], entry["resource"] = resource, resource, resource
+							allowed = append(allowed, ceiling)
+							pools = append(pools, pool)
+							entries = append(entries, entry)
+						}
+						if bad {
+							entries[position].(obj)["resource"] = "example/missing"
+						}
+						if kind == "template-keys" {
+							entries = []any{entries[position]}
+						}
+						template(s.parent)["limits"], s.parent["delegate"].(obj)["pools"], s.child["limits"] = allowed, pools, entries
+					}
+				}}
+				if strings.HasPrefix(kind, "channel-") {
+					form.id = "f11-" + form.id
+				}
+				emit(id, form, nil)
+			}
+		}
+	}
+	for _, probe := range []struct {
+		id, kind, want string
+		sources        []string
+	}{
+		{"f2-ref-before-depth", "cross-depth", "WIRE_ID", []string{"prefix-open", "seal-before-ordinal"}},
+		{"f2-ref-before-notdelegable", "cross-depth", "WIRE_ID", []string{"prefix-open", "seal-before-ordinal"}},
+		{"f2-depth-before-notdelegable", "breach-depth", "CHAIN_DEPTH", []string{"prefix-open"}},
+		{"f2-ref-before-f5", "cross-root", "WIRE_ID", []string{"missing-childseal", "contract"}},
+		{"f2-ref-before-f8", "cross-root", "WIRE_ID", []string{"missing-childseal", "genesis"}},
+	} {
+		cases = append(cases, fixture{ID: probe.id, Mode: "f2-order", Expect: probe.want, Step: 2, Neighbour: "prefix-open", Spec: "Q1/Q2; breach-depth explicitly crosses the verified-input boundary", Probe: probe.kind, Sources: probe.sources})
+	}
+	return cases
 }
 
 func main() {
@@ -719,10 +1056,41 @@ func main() {
 	}
 	// Keep compact signed-form objects: the restricted canonical reader does not
 	// accept indentation inside their bytes.
+	cases = generatedEvidence(cases)
+	if len(os.Args) == 2 && os.Args[1] == "--quantifier-table" {
+		fmt.Println("| Quantifier | First / middle / last driving vectors | All-clean control | Bound |")
+		fmt.Println("| --- | --- | --- | --- |")
+		for _, kind := range []string{"notaries", "actions", "channel-member", "channel-key", "channel-duplicate", "limits", "template-keys", "cs3-notaries"} {
+			bound := "Three entries; defect at index 0, 1 and 2"
+			switch kind {
+			case "actions":
+				bound = "Three sorted actions; clean child uses every delegable entry"
+			case "channel-duplicate":
+				bound = "First eligible duplicate at index 1, middle 2, last 3 of four; three-key clean control"
+			case "limits":
+				bound = "Three child limits; clean means all keys present, then LIMIT_KIND_UNDEFINED (no profiles)"
+			case "template-keys":
+				bound = "Three template keys; each selected in turn; absent child key is negative, supported arithmetic is not claimed"
+			}
+			fmt.Printf("| %s | `quant-%s-position-{0,1,2}-bad-true` | `quant-%s-position-{0,1,2}-bad-false` | %s |\n", kind, kind, kind, bound)
+		}
+		fmt.Println("| CS3 fixed role kinds | `form-control-f10-cs3-{grantkey,iowner,recipient-key,recipient-owner,pseal,notary}` | `prefix-open` | Every fixed role kind, plus three-position notary list above; not an order between F9 roles |")
+		fmt.Println("| F17(b) any child/template limits | `form-control-f17b-{child,template}` and every limits/template-keys control | `prefix-open` (both empty) | No nonempty all-supported control exists under T9/W11.14; no numeric F17(c) claim |")
+		fmt.Println("| F14 / F15 / F18 scalar checks | `form-control-f14-{name,key}`, `form-control-f15-*`, `form-control-f18-{lower,upper}` | `prefix-open`, `class-by-name-true` | No list quantifier in these slice checks; class membership belongs to F19, outside this slice |")
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "--precedence-table" {
 		fmt.Println("| Ordered claim | Joint vector (both triggers) | Earlier control | Later control | Winner | Narrowing plant |")
 		fmt.Println("| --- | --- | --- | --- | --- | --- |")
 		for _, vector := range cases {
+			if len(vector.TriggerPair) != 0 {
+				fmt.Printf("| %s > %s | `%s` | `%s` | `%s` | %s at F%d | reviewer reorder / generated inventory controls |\n", vector.TriggerPair[0], vector.TriggerPair[1], vector.ID, vector.Controls[0], vector.Controls[1], vector.Expect, vector.Step)
+				continue
+			}
+			if vector.Mode == "f2-order" {
+				fmt.Printf("| Q1/Q2 %s | `%s` | `prefix-open` | defensive single-defect controls | %s at F2 | named Q1/Q2 reorder plant |\n", vector.ID, vector.ID, vector.Expect)
+				continue
+			}
 			if len(vector.Pair) == 0 {
 				continue
 			}

@@ -662,7 +662,12 @@ exercise both bool policies; contradictory nonempty keys under a non-K state
 are typed local input errors before and after adoption. The reader error set
 is wider than whole-value B (missing-swarma counterexample); classification
 remains the caller's duty. The generated precedence table in
-`STEPS-B3a-CHILD.md` names every pair and narrowing witness. These tests
+`STEPS-B3a-CHILD.md` is generated from `--precedence-table`;
+`--quantifier-table` emits its first/middle/last coverage table. The independent
+form inventory and named reviewer-survivor reorder plants cover the tested
+trigger forms, not a universal proof. Unknown-with-keys and all octet-plus-
+contradictory joints run under both policies. Adoption is one line of product
+code plus nine public-path A expectation changes. These tests
 classify the LIP-0010 A/B cases without a new dependency. Regenerate its
 public fixtures with `go -C experiments/grant-v4/wire run scripts/generate-child-v4.go`
 and run `python3 -B experiments/grant-v4/wire/scripts/check-child-mutants.py

@@ -19,6 +19,11 @@ type childVectorV4 struct {
 	Selected                   *ChildAttenuationEvaluation `json:"selected"`
 	Pair                       []string                    `json:"pair"`
 	Controls                   []string                    `json:"controls"`
+	TriggerPair                []string                    `json:"trigger_pair"`
+	Again                      ChildAgain                  `json:"again"`
+	BothPolicies               bool                        `json:"both_policies"`
+	Probe                      string                      `json:"probe"`
+	Sources                    []string                    `json:"sources"`
 }
 
 func childVectorsV4(t *testing.T) []childVectorV4 {

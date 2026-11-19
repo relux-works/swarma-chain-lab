@@ -61,10 +61,15 @@ For a by-name parent, the admission/junction caller supplies a
 Per the Lead ruling of 2026-11-19, section 3, recorded in PR #158's description, A is a
 declared deviation pending the clarifying spec sentence: the expected result
 after adoption is **pass**. Switching `childNoKeyPassV4` to `true` is the
-one-line change; B remains closed. The spec pin does not move. The bool policy
-function is exercised with both values, including every reader A/B case.
+one-line product-code change; B remains closed. Adoption also flips nine
+public-path A expectations (two fixture and seven reader cases). The spec pin
+does not move. The bool policy function is exercised with both values,
+including every reader A/B case.
 Nonempty `ChannelKeys` under A, B, unset or unknown are contradictory local
 facts: `ParentNameObservationError`, before and after adoption, never a pass.
+All four states and octet-plus-contradictory joints run under both policies in
+`TestChildV4Generated`: matching octets win as DELEGATE_KEY_REUSE, Again=no.
+No ordering among local metadata input errors is claimed.
 
 For a by-key parent, pass nil: no channel comparison applies. Child seal and
 recipient-key/owner octet comparisons precede all observation handling;
@@ -116,20 +121,27 @@ From this module, with `GOTOOLCHAIN=local`:
 
 ```sh
 go run scripts/generate-child-v4.go > testdata/child-v4.json
+go run scripts/generate-child-v4.go --precedence-table
+go run scripts/generate-child-v4.go --quantifier-table
 go vet ./...
 go test -count=1 ./...
 go build ./...
 python3 -B scripts/check-child-mutants.py --scratch .temp/child-mutants
 ```
 
-The generator uses only public test scalars 1, 2 and 3 and zero auxiliary
-randomness, as declared in the sibling vectors module. The JSON corpus is
+The generator signs documents using only public test scalars 1, 2 and 3
+and zero auxiliary randomness, as declared in the sibling vectors module.
+Coherent three-entry channel controls additionally use public 4G/5G x
+coordinates, never additional document-signing scalars. The JSON corpus is
 generated and never hand-edited. Section 8.7's planned `v4-steps.json` is
 absent at the pin, so fixtures derive the listed case descriptions; cases
 requiring a stand-in ceiling profile are explicitly replaced by the real
 undefined-kind result. Existing pinned document and J9/J12 vectors remain
-unchanged. The corpus preserves all 135 previous signed-pair IDs and adds selected-row
-positive/negative controls, including every position of the nine-row J12
+unchanged. The corpus preserves all 312 fix-5 IDs and their exact signed octets, and adds
+786 generated trigger/quantifier/probe entries (1098 total). Q1/Q2 entries
+reference independently verified source vectors rather than new signed pairs.
+The generated coverage tables in STEPS describe every added form and position.
+Existing selected-row positive/negative controls include every position of the nine-row J12
 example (quoted exactly in corpus metadata), numeric rather than octet index
 ordering, invalid bounds and F12–F18 precedence.
 Controls retain JSON test streams and real exits in the requested

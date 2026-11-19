@@ -52,3 +52,24 @@ build; tip-time delta acceptance and D29 parser adoption remain separate exact-
 head obligations. Enforcement over the snapshot remains prohibited without a
 separate owner decision. No ordinary RPC bracket satisfies §4's hidden-transition
 witness; The accepted HELPER-B r3 §5 amendment permits bracketed observe-only snapshots; the witness gate remains for (a) and enforcement.
+
+## Hardening follow-up (B3a-CHILD-H)
+
+These non-blocking code notes are deferred, not represented as closed product
+work in the evidence-only fix. The review IDs identify the public record.
+
+| Review | Note | Follow-up / disposition |
+| --- | --- | --- |
+| 5977140834 | N-1 | Add a found-guard to TestChildV4ReaderErrorIsNotB; it can pass vacuously if its named source vector disappears. The vector is preserved here. |
+| 5977141492 | N-2 | Same reader found-guard request; carry into B3a-CHILD-H. |
+| 5977140834 | N-2 | Add a public-wrapper/constant wiring assertion at adoption. public-ignores-constant is equivalent at this head; not counted as a killed survivor. |
+| 5977141492 | N-4 | Remove or use the uncalled ParentNameObservation.validate wrapper. No product-code edit is authorized in this round without a wrong verdict. |
+| 5977141492 | N-1 | Addressed by generated Q1/Q2 compound probes, including depth > no-delegate on a declared breached boundary; retain those controls in hardening. |
+| 5977141492 | N-3 | Documentation corrected: one-line adoption applies to product code only; nine public-path A expectations must flip too. |
+| 5977140834 | N-3 | Out of contract: local input-error ordering is not pinned or claimed; do not invent a semantic gate for it. |
+
+No supported F17(c) profile exists at the fixed pin. A nonempty all-supported
+limit list cannot be manufactured as a clean numeric control. F14 executor,
+F15 recipient/mode and F18 bounds are scalar checks in this slice; class-list
+membership belongs to F19. These bounds do not waive the generated F9, CS3,
+F11, F16 and F17(a) list-position controls.

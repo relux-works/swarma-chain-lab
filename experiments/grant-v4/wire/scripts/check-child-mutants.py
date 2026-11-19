@@ -207,6 +207,155 @@ def precedence_plants(module):
         yield ('priority-'+vector['id'],anchor,priority,'TestChildV4Precedence','TestChildV4Precedence/'+vector['id'],diagnostic)
 
 
+def reviewer_plants(original):
+    """Real sub-check moves, not predicate-conditioned priority inversions.
+
+    Each named reviewer survivor keeps its mechanism and a generated witness.
+    Equivalent and out-of-contract plants are documented, not counted as kills.
+    """
+    def replace(source, old, new):
+        if source.count(old) != 1:
+            raise ValueError('non-unique reviewer anchor: '+old[:90])
+        return source.replace(old, new, 1)
+
+    def plant(name, changed, vector, diagnostic, group='TestChildV4Generated'):
+        witness=group+'/'+vector
+        if group=='TestChildV4Generated':
+            witness+='/policy-false'
+        return name,original,changed,group,witness,diagnostic
+
+    f12='\tif c.get("seal").get("key").text != seal.text {'
+    count='\tvar count uint64'
+    f9loop='\tfor _, key := range roles {\n\t\tif childKeyXV4(key) == delegation {'
+    roles={'grantkey':'index == 0','precipient':'index == 2','pseal':'index == 3','notary':'index >= 4'}
+    for role,condition in roles.items():
+        for boundary,anchor in (('f10',OCTETS),('f11',f12)):
+            changed=replace(original,f9loop,'\tfor index, key := range roles {\n\t\tif ('+condition+') { continue }; if childKeyXV4(key) == delegation {')
+            delayed='\tfor index,key := range roles { if ('+condition+') && childKeyXV4(key)==delegation { return ChildAttenuationEvaluation{},childRefusalV4(9,DelegateKeyReuse) } }\n'
+            changed=replace(changed,anchor,delayed+anchor)
+            form={'precipient':'recipient-key'}.get(role,role)
+            later='f10-cs1' if boundary=='f10' else 'f11-octet-seal-even'
+            yield plant('f9-'+role+'-after-'+boundary,changed,'form-pair-f9-'+form+'-before-'+later,'want DELEGATE_KEY_REUSE at F9')
+    for role,condition in (('pseal','index == 3'),('notaries','index >= 4')):
+        changed=replace(original,f9loop,'\tfor index,key := range roles {\n\t\tif ('+condition+') { continue }; if childKeyXV4(key) == delegation {')
+        delayed='\tfor index,key := range roles { if ('+condition+') && childKeyXV4(key)==delegation { return ChildAttenuationEvaluation{},childRefusalV4(9,DelegateKeyReuse) } }\n'
+        changed=replace(changed,count,delayed+count)
+        form='notary' if role=='notaries' else role
+        yield plant('f9-'+role+'-after-f12',changed,'form-pair-f9-'+form+'-before-f10-cs1','want DELEGATE_KEY_REUSE at F9')
+    for name,anchor in (('cs3-roles-after-f11',f12),('cs3-f9keys-after-f12',count)):
+        changed=replace(original,CS3,CS3.replace('append(roles, delegation)','[]string{delegation}'))
+        delayed=CS3.replace('append(roles, delegation)','roles')+'\n'
+        changed=replace(changed,anchor,delayed+anchor)
+        yield plant(name,changed,'adopt-f10-cs3-grantkey-before-f11-key','want DELEGATE_KEY_REUSE at F10')
+    overcount='''\tif func() bool { var total uint64; for _,group := range d.get("groups").elements { for _,rng := range group.get("ranges").elements { total += grantNumber(rng.get("count")) } }; return grantNumber(c.get("ordinal"))>total }() { return ChildAttenuationEvaluation{},childRefusalV4(13,ChildOrdinal) }\n'''
+    for boundary,anchor,vector,diagnostic in (
+            ('f12',f12,'form-pair-f12-seal-before-f13a-overcount','want CHILD_SEAL_KEY at F12'),
+            ('f9','\troles := []string{','form-pair-f9-grantkey-before-f13a-overcount','want DELEGATE_KEY_REUSE at F9')):
+        changed=replace(original,'ordinal == 0 || ordinal > count','ordinal == 0 || false && ordinal > count')
+        changed=replace(changed,anchor,overcount+anchor)
+        yield plant('f13a-overcount-before-'+boundary,changed,vector,diagnostic)
+    class_block='''\tif r.get("class") != nil {
+\t\tif c.get("recipient").get("name") == nil {
+\t\t\treturn childRefusalV4(15, ChildGranteeNotAllowed)
+\t\t}
+\t} else if !bytes.Equal(serialize(c.get("recipient")), serialize(r)) {'''
+    skip_class='''\tif r.get("class") != nil {
+\t} else if !bytes.Equal(serialize(c.get("recipient")), serialize(r)) {'''
+    class_check='\tif template.get("recipient").get("class")!=nil && c.get("recipient").get("name")==nil { return childRefusalV4(15,ChildGranteeNotAllowed) }\n'
+    changed=replace(original,class_block,skip_class)
+    changed=replace(changed,'\tif !bytes.Equal(serialize(c.get("executor")), serialize(template.get("executor"))) {',class_check+'\tif !bytes.Equal(serialize(c.get("executor")), serialize(template.get("executor"))) {')
+    yield plant('f15-class-before-f14',changed,'form-pair-f14-name-before-f15-class','want CHILD_AGENT_NOT_ALLOWED at F14')
+    changed=replace(original,class_block,skip_class)
+    end='''\t\treturn childRefusalV4(18, ChildWindowNotNested)
+\t}
+\treturn nil'''
+    changed=replace(changed,end,'''\t\treturn childRefusalV4(18, ChildWindowNotNested)
+\t}
+'''+class_check+'\treturn nil')
+    yield plant('f15-class-after-f18',changed,'form-pair-f15-class-before-f16-action','want CHILD_GRANTEE_NOT_ALLOWED at F15')
+    lower='grantNumber(c.get("not_before_height")) < grantNumber(p.get("not_before_height"))'
+    for boundary,anchor,vector,diagnostic,outer in (
+        ('f14','\tif !bytes.Equal(serialize(c.get("executor")), serialize(template.get("executor"))) {','form-pair-f14-name-before-f18-lower','want CHILD_AGENT_NOT_ALLOWED at F14',False),
+        ('f17',LIMIT_KEYS,'form-pair-f17a-missing-0-before-f18-lower','want CHILD_BUDGET_OVER at F17',False),
+        ('f5','\tif c.get("contract").text != p.get("contract").text {','form-pair-f5-contract-before-f18-lower','want CHILD_CONTRACT_DIFFERS at F5',True)):
+        changed=replace(original,lower,'false && '+lower)
+        refusal='ChildAttenuationEvaluation{}, ' if outer else ''
+        changed=replace(changed,anchor,'\tif '+lower+' { return '+refusal+'childRefusalV4(18,ChildWindowNotNested) }\n'+anchor)
+        yield plant('f18-notbefore-before-'+boundary,changed,vector,diagnostic)
+    validate='''\tif err := observation.validateWithPolicy(p, noKeyPass); err != nil {
+\t\treturn ChildAttenuationEvaluation{}, err
+\t}'''
+    changed=replace(original,validate,'')
+    changed=replace(changed,count,validate+'\n'+count)
+    yield plant('value-state-after-f12',changed,'form-pair-f11-value-refused-before-f12-seal','want typed implementation:refused')
+    guard='''\tif o.ValueState != ParentNameValueKeys && len(o.ChannelKeys) != 0 {
+\t\treturn bad(ParentObservationContradictory, -1)
+\t}'''
+    early_guard='\tif observation!=nil && p.get("recipient").get("name")!=nil && observation.ValueState!=ParentNameValueKeys && len(observation.ChannelKeys)!=0 { return ChildAttenuationEvaluation{},&ParentNameObservationError{Kind:ParentObservationContradictory,KeyIndex:-1} }\n'
+    for name,anchor,vector,diagnostic in (
+        ('contradictory-before-octets',OCTETS,'form-pair-f11-octet-key-before-f11-contradictory-no-key','want DELEGATE_KEY_REUSE at F11'),
+        ('contradictory-before-f5','\tif c.get("contract").text != p.get("contract").text {','form-pair-f5-contract-before-f11-contradictory-refused','want CHILD_CONTRACT_DIFFERS at F5')):
+        changed=replace(original,guard,'')
+        changed=replace(changed,anchor,early_guard+anchor)
+        yield plant(name,changed,vector,diagnostic)
+    narrowed=guard.replace('o.ValueState != ParentNameValueKeys','(o.ValueState == ParentNameValueNoKey || o.ValueState == ParentNameValueRefused || o.ValueState == "")')
+    for name in ('contradictory-enumerated','contradictory-known-states-only'):
+        yield plant(name,replace(original,guard,narrowed),'adopt-unknown-with-other-key','want typed input:contradictory')
+    ref='''\tif c.get("parent").text != parent.ID() {
+\t\treturn ChildAttenuationEvaluation{}, childRefusalV4(2, WireID)
+\t}'''
+    depth='''\tif p.get("parent") != nil {
+\t\treturn ChildAttenuationEvaluation{}, childRefusalV4(2, ChainDepth)
+\t}'''
+    notdeleg='''\tif d == nil {
+\t\treturn ChildAttenuationEvaluation{}, childRefusalV4(2, NotDelegable)
+\t}'''
+    depth_early=depth+'\n'+ref
+    changed=replace(original,ref,depth_early)
+    changed=replace(changed,depth+'\n\td :=', '\td :=')
+    yield plant('q2-depth-before-ref',changed,'f2-ref-before-depth','want exact code WIRE_ID','TestChildV4GeneratedF2')
+    for name,anchor,vector,code in (
+        ('q2-notdeleg-before-ref',ref,'f2-ref-before-notdelegable','WIRE_ID'),
+        ('q2-notdeleg-before-depth',depth,'f2-depth-before-notdelegable','CHAIN_DEPTH'),
+        ('f2-notdelegable-before-depth',depth,'f2-depth-before-notdelegable','CHAIN_DEPTH')):
+        moved=notdeleg.replace('d == nil','p.get("delegate") == nil')+'\n'
+        changed=replace(original,notdeleg,'')
+        changed=replace(changed,anchor,moved+anchor)
+        yield plant(name,changed,vector,'want exact code '+code,'TestChildV4GeneratedF2')
+    contract='''\tif c.get("contract").text != p.get("contract").text {
+\t\treturn ChildAttenuationEvaluation{}, childRefusalV4(5, ChildContractDiffers)
+\t}'''
+    for name in ('q1-f5-before-f2-ref','f5-before-f2-mismatch'):
+        changed=replace(original,contract,'')
+        changed=replace(changed,ref,contract+'\n'+ref)
+        yield plant(name,changed,'f2-ref-before-f5','want WIRE_ID at F2','TestChildV4GeneratedF2')
+    for kind,loop,vector,diagnostic in (
+        ('f16','for _, action := range c.get("actions").elements {','quant-actions-position-1-bad-true','want CHILD_ACTIONS_WIDER at F16'),
+        ('f9','for _, n := range d.get("notaries").elements {','quant-notaries-position-1-bad-true','want DELEGATE_KEY_REUSE at F9')):
+        collection='c.get("actions").elements' if kind=='f16' else 'd.get("notaries").elements'
+        for end,slice_expr in (('first',collection+'[:min(1,len('+collection+'))]'),('last',collection+'[max(0,len('+collection+')-1):]')):
+            changed=replace(original,loop,loop.replace(collection,slice_expr))
+            yield plant(kind+'-'+end+('-action-only' if kind=='f16' else '-notary-only'),changed,vector,diagnostic)
+
+
+def generated_quantifier_plants(original):
+    for label,collection,loop,vector,diagnostic in (
+        ('delegable-actions','p.get("delegate").get("actions").elements','for _, action := range p.get("delegate").get("actions").elements {','quant-actions-position-1-bad-false','comparison refused valid neighbour'),
+        ('template-keys','template.get("limits").elements','for _, limit := range template.get("limits").elements {','quant-template-keys-position-1-bad-false','want exact code LIMIT_KIND_UNDEFINED'),
+        ('channel-member','keys','for _, key := range keys {','quant-channel-member-position-1-bad-true','want DELEGATE_KEY_REUSE at F11'),
+        ('channel-validation','o.ChannelKeys','for i, key := range o.ChannelKeys {','quant-channel-key-position-1-bad-true','want typed input:key')):
+        for end,slice_expr in (('first',collection+'[:min(1,len('+collection+'))]'),('last',collection+'[max(0,len('+collection+')-1):]')):
+            if original.count(loop)!=1:
+                raise ValueError('non-unique quantifier anchor '+label)
+            changed=original.replace(loop,loop.replace(collection,slice_expr),1)
+            name='generated-'+label+'-'+end+'-only'
+            yield name,original,changed,'TestChildV4Generated','TestChildV4Generated/'+vector+'/policy-false',diagnostic
+    for end,position in (('first','4'),('last','len(roles)-1')):
+        loop='for _, key := range append(roles, delegation) {'
+        changed=original.replace(loop,'for index, key := range append(roles, delegation) { if index>=4 && index<len(roles) && index!='+position+' { continue };',1)
+        yield 'generated-cs3-notaries-'+end+'-only',original,changed,'TestChildV4Generated','TestChildV4Generated/quant-cs3-notaries-position-1-bad-true/policy-false','want DELEGATE_KEY_REUSE at F10'
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--scratch', required=True, type=Path)
@@ -233,7 +382,7 @@ def main():
     code, _ = run('baseline', ['go', 'test', '-count=1', '-json', '-run', '^TestChildV4', '.'])
     if code != 0:
         raise SystemExit('baseline did not pass: exit '+str(code))
-    for name, old, new, group, witness, diagnostic in (*PLANTS, *quantifier_plants(), *precedence_plants(module)):
+    for name, old, new, group, witness, diagnostic in (*PLANTS, *quantifier_plants(), *precedence_plants(module), *reviewer_plants(original), *generated_quantifier_plants(original)):
         if original.count(old) != 1:
             raise SystemExit('non-unique plant anchor: '+name)
         planted = scratch / (name+'.go')
@@ -252,6 +401,7 @@ def main():
         results.append(dict(plant=name, exit=code, test=witness, diagnostic=diagnostic, killed=killed))
         print(name, 'exit', code, 'killed', killed, 'test', witness, flush=True)
     (scratch/'results.json').write_text(json.dumps(results, indent=2)+'\n')
+    print('plants total',len(results),'killed',sum(result['killed'] for result in results),'survivors',sum(not result['killed'] for result in results),flush=True)
     if not all(r['killed'] for r in results):
         raise SystemExit(1)
 
