@@ -78,22 +78,26 @@ func must(e error) {
 }
 
 type fixture struct {
-	ID          string                      `json:"id"`
-	Mode        string                      `json:"mode"`
-	Parent      json.RawMessage             `json:"parent"`
-	Child       json.RawMessage             `json:"child"`
-	Expect      string                      `json:"expect"`
-	Step        int                         `json:"step"`
-	Neighbour   string                      `json:"valid_neighbour"`
-	Spec        string                      `json:"spec_case"`
-	Ancestor    json.RawMessage             `json:"ancestor,omitempty"`
-	Observation *wire.ParentNameObservation `json:"observation,omitempty"`
-	InputIndex  int                         `json:"input_index,omitempty"`
+	ID          string                           `json:"id"`
+	Mode        string                           `json:"mode"`
+	Parent      json.RawMessage                  `json:"parent"`
+	Child       json.RawMessage                  `json:"child"`
+	Expect      string                           `json:"expect"`
+	Step        int                              `json:"step"`
+	Neighbour   string                           `json:"valid_neighbour"`
+	Spec        string                           `json:"spec_case"`
+	Ancestor    json.RawMessage                  `json:"ancestor,omitempty"`
+	Observation *wire.ParentNameObservation      `json:"observation,omitempty"`
+	InputIndex  int                              `json:"input_index,omitempty"`
+	Selected    *wire.ChildAttenuationEvaluation `json:"selected,omitempty"`
 }
 
 func main() {
 	var cases []fixture
 	add := func(id, mode, want string, step int, spec string, mutate func(obj, obj)) {
+		if want == "ok" {
+			step = 0
+		}
 		p, c := parent(), child()
 		if mutate != nil {
 			mutate(p, c)
@@ -123,7 +127,7 @@ func main() {
 	row := func(id, want string, step int, spec string, f func(obj, obj)) {
 		add(id, "template", want, step, spec, f)
 	}
-	prefix("prefix-open", "OPEN", 13, "F13 count order OPEN", nil)
+	prefix("prefix-open", "ok", 13, "F1/F2 preconditions; evaluated F5/F8-F18 slice", nil)
 	prefix("contract", "CHILD_CONTRACT_DIFFERS", 5, "step-i-01", func(p, c obj) { c["contract"] = hash("other-contract") })
 	prefix("genesis", "SUBJECT_MISMATCH", 8, "step-i-02", func(p, c obj) { c["genesis"] = hash("other-genesis") })
 	prefix("contract-before-genesis", "CHILD_CONTRACT_DIFFERS", 5, "step-c-01", func(p, c obj) { c["contract"] = hash("other-contract"); c["genesis"] = hash("other-genesis") })
@@ -204,7 +208,7 @@ func main() {
 	prefix("wrong-seal", "CHILD_SEAL_KEY", 12, "step-i-18", func(p, c obj) { c["seal"].(obj)["key"] = output(1) })
 	prefix("seal-parity", "CHILD_SEAL_KEY", 12, "step-i-19", func(p, c obj) { c["seal"].(obj)["key"] = opposite(output(3)) })
 	for _, n := range []int{0, 1, 2, 3, 9007199254740991} {
-		want, step := "OPEN", 13
+		want, step := "ok", 13
 		if n == 0 || n > 2 {
 			want = "CHILD_ORDINAL"
 		}
@@ -212,7 +216,7 @@ func main() {
 	}
 
 	for _, n := range []int{4096, 4097} {
-		want := "OPEN"
+		want := "ok"
 		if n > 4096 {
 			want = "CHILD_ORDINAL"
 		}
@@ -222,11 +226,11 @@ func main() {
 		})
 	}
 	for _, n := range []int{5, 9, 10} {
-		want := "OPEN"
+		want := "ok"
 		if n > 9 {
 			want = "CHILD_ORDINAL"
 		}
-		prefix(fmt.Sprintf("ordinal-groups-ranges-%d", n), want, 13, "LIP-0026 section 8 nine-row example (bound only)", func(p, c obj) {
+		prefix(fmt.Sprintf("ordinal-groups-ranges-%d", n), want, 13, "LIP-0026 section 8 nine-row counts", func(p, c obj) {
 			d := p["delegate"].(obj)
 			g := d["groups"].([]any)[0].(obj)
 			g["ranges"].([]any)[0].(obj)["count"] = 3
@@ -254,9 +258,9 @@ func main() {
 		v := &cases[len(cases)-1]
 		v.Observation, v.InputIndex, v.Neighbour = o, index, "name-valid-neighbour"
 	}
-	observe("name-valid-neighbour", "OPEN", 13, -1, nil)
-	observe("delegation-not-in-set", "OPEN", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(3), signing(1)} })
-	observe("child-key-not-in-set", "OPEN", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(3)} })
+	observe("name-valid-neighbour", "ok", 13, -1, nil)
+	observe("delegation-not-in-set", "ok", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(3), signing(1)} })
+	observe("child-key-not-in-set", "ok", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(3)} })
 	observe("delegation-in-set", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(2)} })
 	observe("delegation-first-in-set", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.ChannelKeys = []string{signing(2), signing(1)} })
 	observe("delegation-last-in-set", "DELEGATE_KEY_REUSE", 11, -1, func(p, c obj, o *wire.ParentNameObservation) {
@@ -286,8 +290,8 @@ func main() {
 	observe("malformed-tip", "input:identity", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.TipHash = "BAD" })
 	observe("malformed-genesis", "input:identity", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.Genesis = "bad" })
 	observe("different-chain", "input:chain", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { o.Genesis = hash("other-chain") })
-	observe("genesis-tip-identity", "OPEN", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.TipHeight = 0; o.TipHash = o.Genesis })
-	observe("later-tip-identity", "OPEN", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.TipHeight = 100; o.TipHash = hash("later-tip") })
+	observe("genesis-tip-identity", "ok", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.TipHeight = 0; o.TipHash = o.Genesis })
+	observe("later-tip-identity", "ok", 13, -1, func(p, c obj, o *wire.ParentNameObservation) { o.TipHeight = 100; o.TipHash = hash("later-tip") })
 	observe("by-key-unexpected-observation", "input:unexpected", 11, -1, func(p, c obj, o *wire.ParentNameObservation) { p["recipient"] = obj{"key": signing(1)} })
 	// Earlier signed-octet rows retain precedence even with invalid facts and a
 	// forbidden channel key; nearby existing cases witness each defect alone.
@@ -428,6 +432,82 @@ func main() {
 		c["not_after_height"] = 21
 	})
 	row("key-before-window", "CHILD_BUDGET_OVER", 17, "step-c-11 without stand-in profile", func(p, c obj) { c["limits"] = []any{limit("0")}; c["not_after_height"] = 21 })
+	// J12: the first group has ranges of three and two, the second four.
+	// These signed fixtures instantiate the exact example's relative positions.
+	nineRows := func(parent, child obj) {
+		delegation := parent["delegate"].(obj)
+		firstGroup := delegation["groups"].([]any)[0].(obj)
+		makeRange := func(label string, first, count int) obj {
+			return obj{"txid": hash(label), "first": first, "count": count, "script": "0014" + fmt.Sprintf("%040x", 1),
+				"stop": obj{"txid": hash(label + "-stop"), "first": first, "script": "0014" + fmt.Sprintf("%040x", 2)}}
+		}
+		firstGroup["ranges"] = []any{makeRange("example-j12-first", 9, 3), makeRange("example-j12-second", 20, 2)}
+		secondTemplate := obj{"executor": obj{"name": "id/example-second-executor", "key": signing(3)},
+			"recipient": obj{"key": signing(3)}, "limits": []any{}, "certifier": "id/example-notary"}
+		delegation["groups"] = []any{firstGroup, obj{"template": secondTemplate, "ranges": []any{makeRange("example-j12-third", 30, 4)}}}
+	}
+	positions := []struct {
+		ordinal, group, span, index int
+		label                       string
+	}{
+		{1, 0, 0, 9, "example-j12-first"}, {2, 0, 0, 10, "example-j12-first"}, {3, 0, 0, 11, "example-j12-first"},
+		{4, 0, 1, 20, "example-j12-second"}, {5, 0, 1, 21, "example-j12-second"},
+		{6, 1, 0, 30, "example-j12-third"}, {7, 1, 0, 31, "example-j12-third"}, {8, 1, 0, 32, "example-j12-third"}, {9, 1, 0, 33, "example-j12-third"},
+	}
+	for _, position := range positions {
+		add(fmt.Sprintf("selection-%d", position.ordinal), "selection", "ok", 0, "LIP-0026 section 8 J12 nine-row example; F13", func(parent, child obj) {
+			nineRows(parent, child)
+			child["ordinal"] = position.ordinal
+			if position.group == 1 {
+				child["executor"] = obj{"name": "id/example-second-executor", "key": signing(3)}
+				child["recipient"] = obj{"key": signing(3)}
+			}
+		})
+		cases[len(cases)-1].Selected = &wire.ChildAttenuationEvaluation{GroupIndex: position.group, RangeIndex: position.span,
+			RowCoin: wire.Outpoint{TxID: hash(position.label), Vout: uint64(position.index)}}
+		cases[len(cases)-1].Neighbour = fmt.Sprintf("selection-%d", position.ordinal)
+	}
+	selectCase := func(id, want string, step int, mutate func(obj, obj)) {
+		add(id, "selection", want, step, "F13 selected row; F12-F18 precedence", func(parent, child obj) {
+			nineRows(parent, child)
+			child["ordinal"] = 6
+			child["executor"] = obj{"name": "id/example-second-executor", "key": signing(3)}
+			child["recipient"] = obj{"key": signing(3)}
+			mutate(parent, child)
+		})
+		cases[len(cases)-1].Neighbour = "selection-6"
+	}
+	selectCase("selection-zero", "CHILD_ORDINAL", 13, func(parent, child obj) { child["ordinal"] = 0 })
+	selectCase("selection-ten", "CHILD_ORDINAL", 13, func(parent, child obj) { child["ordinal"] = 10 })
+	selectCase("selection-other-template", "CHILD_AGENT_NOT_ALLOWED", 14, func(parent, child obj) { child["ordinal"] = 1 })
+	selectCase("selection-executor", "CHILD_AGENT_NOT_ALLOWED", 14, func(parent, child obj) { child["executor"].(obj)["key"] = signing(1) })
+	selectCase("selection-recipient", "CHILD_GRANTEE_NOT_ALLOWED", 15, func(parent, child obj) { child["recipient"] = obj{"key": signing(1)} })
+	selectCase("selection-actions", "CHILD_ACTIONS_WIDER", 16, func(parent, child obj) { child["actions"] = []any{"example/c"} })
+	selectCase("selection-budget", "CHILD_BUDGET_OVER", 17, func(parent, child obj) { child["limits"] = []any{limit("0")} })
+	selectCase("selection-window", "CHILD_WINDOW_NOT_NESTED", 18, func(parent, child obj) { child["not_after_height"] = 21 })
+	selectCase("selection-seal-before-bound", "CHILD_SEAL_KEY", 12, func(parent, child obj) { child["seal"].(obj)["key"] = output(1); child["ordinal"] = 0 })
+	selectCase("selection-bound-before-executor", "CHILD_ORDINAL", 13, func(parent, child obj) { child["ordinal"] = 10; child["executor"].(obj)["key"] = signing(1) })
+	selectCase("selection-executor-before-recipient", "CHILD_AGENT_NOT_ALLOWED", 14, func(parent, child obj) {
+		child["executor"].(obj)["key"] = signing(1)
+		child["recipient"] = obj{"key": signing(1)}
+	})
+	selectCase("selection-recipient-before-actions", "CHILD_GRANTEE_NOT_ALLOWED", 15, func(parent, child obj) {
+		child["recipient"] = obj{"key": signing(1)}
+		child["actions"] = []any{"example/c"}
+	})
+	selectCase("selection-actions-before-budget", "CHILD_ACTIONS_WIDER", 16, func(parent, child obj) { child["actions"] = []any{"example/c"}; child["limits"] = []any{limit("0")} })
+	selectCase("selection-budget-before-window", "CHILD_BUDGET_OVER", 17, func(parent, child obj) { child["limits"] = []any{limit("0")}; child["not_after_height"] = 21 })
+	for _, kind := range []string{"swarma/coins", "swarma/model-cost", "swarma/model-tokens"} {
+		selectCase("selection-no-profile-"+kind, "LIMIT_KIND_UNDEFINED", 17, func(parent, child obj) {
+			rowLimit, pool := limit("5"), limit("20")
+			rowLimit["kind"], pool["kind"] = kind, kind
+			delegation := parent["delegate"].(obj)
+			delegation["groups"].([]any)[1].(obj)["template"].(obj)["limits"] = []any{rowLimit}
+			delegation["pools"] = []any{pool}
+			child["limits"] = []any{rowLimit}
+			child["not_after_height"] = 21
+		})
+	}
 	// These pipeline boundaries cannot be reached by two already verified matching
 	// documents: the reader rejects the attempted extra link before returning one.
 	p := parent()
@@ -451,7 +531,7 @@ func main() {
 	var buf bytes.Buffer
 	e := json.NewEncoder(&buf)
 	e.SetEscapeHTML(false)
-	must(e.Encode(obj{"spec_commit": "1e58a9f91eba35ff19de25388031f0264c01eecc", "public_test_scalars": []int{1, 2, 3}, "aux_rand": fmt.Sprintf("%064x", 0), "vectors": cases}))
+	must(e.Encode(obj{"spec_commit": "464c445fd52ce0ec8bdc52c0ead8a866a7b77f56", "public_test_scalars": []int{1, 2, 3}, "aux_rand": fmt.Sprintf("%064x", 0), "j12_example": "Take a parent with two groups. The first has ranges of three and of two coins,\nthe second one range of four. The parent has nine rows. The ordinals 1 to 3 are\nthe coins of the first range in the order of their output indices, 4 and 5\nthose of the second, and 6 to 9 those of the second group. A child with the\nordinal 5 is checked against the template of the first group and against the\nsecond coin of its second range, and a child with the ordinal 10 refuses as\n`CHILD_ORDINAL` before any row is read.", "vectors": cases}))
 	_, err := os.Stdout.Write(buf.Bytes())
 	must(err)
 }

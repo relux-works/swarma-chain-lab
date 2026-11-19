@@ -3,8 +3,8 @@
 
 No source is modified. Go overlays are isolated in --scratch. Full JSON test
 streams, exact process exits and a summary are retained. Public-API plants
-bound refusals/OPEN preservation; private-template plants do not prove public
-acceptance through the unresolved ordinal row.
+bound ordered slice refusals, successful neighbours and exact selected row
+positions. None establishes the full admission predicate.
 """
 import argparse
 import json
@@ -12,11 +12,11 @@ from pathlib import Path
 import subprocess
 
 PLANTS = (
-    ('accept-everything', 'func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) error {',
-     'func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) error {\n return nil',
+    ('accept-everything', 'func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) (ChildAttenuationEvaluation, error) {',
+     'func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) (ChildAttenuationEvaluation, error) {\n return ChildAttenuationEvaluation{}, nil',
      'TestChildV4Prefix', 'TestChildV4Prefix/contract', 'want CHILD_CONTRACT_DIFFERS'),
     ('always-in-set', 'if key == delegation {', 'if true || key == delegation {',
-     'TestChildV4ParentNameObservation', 'TestChildV4ParentNameObservation/name-valid-neighbour', 'refusal = DELEGATE_KEY_REUSE, want OPEN at F13'),
+     'TestChildV4ParentNameObservation', 'TestChildV4ParentNameObservation/name-valid-neighbour', 'comparison refused valid neighbour'),
     ('never-in-set', 'if key == delegation {', 'if false && key == delegation {',
      'TestChildV4ParentNameObservation', 'TestChildV4ParentNameObservation/delegation-in-set', 'want DELEGATE_KEY_REUSE at F11'),
     ('observation-name-ignored', 'if o.Name != name.text {', 'if false && o.Name != name.text {',
@@ -33,14 +33,14 @@ PLANTS = (
      'TestChildV4ParentNameObservation', 'TestChildV4ParentNameObservation/missing-tip', 'want typed input:identity'),
     ('first-channel-only', 'for _, key := range keys {', 'for _, key := range keys[:1] {',
      'TestChildV4ParentNameObservation', 'TestChildV4ParentNameObservation/delegation-last-in-set', 'want DELEGATE_KEY_REUSE at F11'),
-    ('observation-before-octets', 'd := p.get("delegate")', 'if err := observation.validate(p); err != nil { return err }; d := p.get("delegate")',
+    ('observation-before-octets', 'd := p.get("delegate")', 'if err := observation.validate(p); err != nil { return ChildAttenuationEvaluation{}, err }; d := p.get("delegate")',
      'TestChildV4ParentNameObservation', 'TestChildV4ParentNameObservation/contract-before-observation', 'want CHILD_CONTRACT_DIFFERS at F5'),
     ('reject-everything', 'func checkChildTemplateV4(p, c, template *value) error {',
      'func checkChildTemplateV4(p, c, template *value) error {\n return childRefusalV4(14, ChildAgentNotAllowed)',
      'TestChildV4Template', 'TestChildV4Template/template-valid', 'comparison refused valid neighbour'),
-    ('public-reject-everything', 'func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) error {',
-     'func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) error {\n return childRefusalV4(13, ChildOrdinal)',
-     'TestChildV4Prefix', 'TestChildV4Prefix/prefix-open', 'OPEN must refuse without inventing a protocol code'),
+    ('public-reject-everything', 'func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) (ChildAttenuationEvaluation, error) {',
+     'func CheckChildAttenuationV4(parent, child *SignedGrant, observation *ParentNameObservation) (ChildAttenuationEvaluation, error) {\n return ChildAttenuationEvaluation{}, childRefusalV4(13, ChildOrdinal)',
+     'TestChildV4Prefix', 'TestChildV4Prefix/prefix-open', 'comparison refused valid neighbour'),
     ('parity-blind-seal', 'if c.get("seal").get("key").text != seal.text {',
      'if childKeyXV4(c.get("seal").get("key").text) != childKeyXV4(seal.text) {',
      'TestChildV4Prefix', 'TestChildV4Prefix/seal-parity', 'want CHILD_SEAL_KEY at F12'),
@@ -55,12 +55,29 @@ PLANTS = (
      'grantNumber(c.get("not_before_height")) <= grantNumber(p.get("not_before_height"))',
      'TestChildV4Template', 'TestChildV4Template/window-10-20', 'comparison refused valid neighbour'),
     ('ordinal-equality-rejected', 'ordinal == 0 || ordinal > count', 'ordinal == 0 || ordinal >= count',
-     'TestChildV4Ordinal', 'TestChildV4Ordinal/ordinal-2', 'OPEN must refuse without inventing a protocol code'),
+     'TestChildV4Ordinal', 'TestChildV4Ordinal/ordinal-2', 'comparison refused valid neighbour'),
     ('ordinal-count-last-range-only', 'count += grantNumber(rng.get("count"))', 'count = grantNumber(rng.get("count"))',
-     'TestChildV4Ordinal', 'TestChildV4Ordinal/ordinal-groups-ranges-9', 'OPEN must refuse without inventing a protocol code'),
-    ('ordinal-open-bypassed', 'return childOpenV4(13, "ordinal count order:',
-     'return nil\n // return childOpenV4(13, "ordinal count order:',
-     'TestChildV4Prefix', 'TestChildV4Prefix/prefix-open', 'want OPEN'),
+     'TestChildV4Ordinal', 'TestChildV4Ordinal/ordinal-groups-ranges-9', 'comparison refused valid neighbour'),
+    ('selected-row-bypassed', 'if err := checkChildTemplateV4(p, c, template); err != nil {',
+     'if err := checkChildTemplateV4(p, c, template); false && err != nil {',
+     'TestChildV4Selection', 'TestChildV4Selection/selection-other-template', 'want CHILD_AGENT_NOT_ALLOWED at F14'),
+    ('groups-reversed', 'for groupIndex, group := range d.get("groups").elements {',
+     'for groupOffset := range d.get("groups").elements { groupIndex := len(d.get("groups").elements)-1-groupOffset; group := d.get("groups").elements[groupIndex]',
+     'TestChildV4Selection', 'TestChildV4Selection/selection-1', 'comparison refused valid neighbour'),
+    ('ranges-reversed', 'for rangeIndex, rng := range group.get("ranges").elements {',
+     'for rangeOffset := range group.get("ranges").elements { rangeIndex := len(group.get("ranges").elements)-1-rangeOffset; rng := group.get("ranges").elements[rangeIndex]',
+     'TestChildV4Selection', 'TestChildV4Selection/selection-1', 'selected row ='),
+    ('coins-descending', 'Vout: grantNumber(rng.get("first")) + remaining',
+     'Vout: grantNumber(rng.get("first")) + rangeCount - 1 - remaining',
+     'TestChildV4Selection', 'TestChildV4Selection/selection-1', 'selected row ='),
+    ('coins-octet-order', 'Vout: grantNumber(rng.get("first")) + remaining',
+     'Vout: func() uint64 { first := grantNumber(rng.get("first")); for candidate := first; candidate < first+rangeCount; candidate++ { rank := uint64(0); for other := first; other < first+rangeCount; other++ { if fmt.Sprint(other) < fmt.Sprint(candidate) { rank++ } }; if rank == remaining { return candidate } }; return first }()',
+     'TestChildV4Selection', 'TestChildV4Selection/selection-1', 'selected row ='),
+    ('count-from-zero', 'remaining := ordinal - 1', 'remaining := ordinal',
+     'TestChildV4Selection', 'TestChildV4Selection/selection-1', 'selected row ='),
+    ('template-before-bound', 'var count uint64',
+     'checkChildTemplateV4(p, c, d.get("groups").elements[0].get("template"))\n var count uint64',
+     'TestChildV4BoundBeforeTemplate', 'TestChildV4BoundBeforeTemplate/selection-zero', 'template read before ordinal bound'),
 )
 
 

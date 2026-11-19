@@ -642,9 +642,10 @@ The isolated wire module uses Go 1.26.10 for `go test -race`, `go vet`,
 commands, the public fixture pin and `.temp/` evidence locations are documented
 in the [module README](experiments/grant-v4/wire/README.md#tools-and-commands).
 The existing module-graph and public-hygiene scripts cover its registration.
-The [B3a-CHILD draft](experiments/grant-v4/wire/README.md#child-attenuation-at-spec-0155-b3a-child-draft)
-adds pure parent/child comparison checks at spec 0.1.55. It refuses OPEN at
-unresolved ordinal selection; no public acceptance is claimed. Regenerate its
+The [B3a-CHILD draft](experiments/grant-v4/wire/README.md#child-attenuation-at-spec-0161-b3a-child-draft)
+adds pure parent/child comparison checks at spec 0.1.61. It selects the row in
+the owner-accepted F13 order and returns only an evaluated-slice result, never
+full admission. F3/F6/F7/F19–F24/A1 remain outside that slice. Regenerate its
 public fixtures with `go -C experiments/grant-v4/wire run scripts/generate-child-v4.go`
 and run `python3 -B experiments/grant-v4/wire/scripts/check-child-mutants.py
 --scratch .temp/child-mutants` for bounded controls and JSON evidence. The wire

@@ -19,13 +19,12 @@
 - LIP-0020 remains Draft. Passing its pinned vectors does not constitute owner
   acceptance, independent cross-language conformance or production activation.
 
-## B3a-CHILD at spec 0.1.55
+## B3a-CHILD at spec 0.1.61
 
-- F13 ordinal selection is OPEN: W11.6 calls the signed array order "the signed
-  order in which LIP-0026 R8.3 counts the rows"; LIP-0026 section 8 says "the
-  order binds no reader" until explicit owner acceptance. The draft evaluator
-  stops with no invented protocol code. The needed input is an authoritative
-  resolution of those sentences, not an implementation-specific order.
+- F13 ordinal selection is resolved by Ivan Oparin's explicit decision of
+  2026-11-17 (CHANGELOG 0.1.57; LIP-0026 section 8). Signed group/range order,
+  ascending coin output indices and counting from 1 are implemented. The
+  rest of Q2 remains PROPOSED; success of this slice is never admission.
 - F11's input boundary is resolved by the chain-lab owner for this slice:
   the admission/junction layer supplies a typed parent-name observation with
   the name, pinned chain, tip hash/height and complete channel-key set read by
@@ -33,8 +32,11 @@
   member refuses `DELEGATE_KEY_REUSE`. Acquisition, provenance, completeness,
   name-owner control and observation health remain the caller's duties; this
   API never reads a name or chain and does not establish F3/F7 admission.
-- F17: no limit kind is defined in 0.1.55 (T9/W11.14). Numeric attenuation
+- F17: this side adopts no proposed LIP-0031 profile (T9/W11.14). Numeric attenuation
   awaits a real type profile; equality and one-over currently have the same
   `LIMIT_KIND_UNDEFINED` result after the missing-key check.
-- Complete admission needs F6's missing v4 contract profile and independent
-  node/journal facts. This document-and-facts slice never supplies them or admits a grant.
+- F6 stays entirely outside this slice, including 0.1.61 part (c), the
+  confirmed contract/framework seal (CONTRACT_SEAL_MISSING /
+  CONTRACT_SEAL_UNAVAILABLE). Complete admission needs its contract profile
+  and independent node/journal facts. This document-and-facts slice never
+  supplies them or admits a grant.
