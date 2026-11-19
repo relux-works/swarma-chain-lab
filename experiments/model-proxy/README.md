@@ -507,6 +507,36 @@ idle keepalive, closed-source recovery and canary surfaces. They do not qualify
 a production launch registry, provider reflection protection, installer
 activation or live protocol compatibility. Packaging remains separate.
 
+### Opt-in Claude launch intake
+
+The owner-decided launch contract is available only with explicit managed mode,
+the protected broker mapping and `-gateway-socket`. The generation directory must
+already be qualified; this command does not install or enable a service:
+
+```sh
+model-proxy -config "$PROTECTED_CONFIG" -broker-config "$PROTECTED_BROKER_MAPPING" \
+  -gateway-socket "$PLATFORM_ROOT/run/credential-gateway/$SERVICE_GENERATION/gateway.sock"
+```
+
+This path is plaintext HTTP/1.1 over Unix, not the legacy TLS/per-slot API. It
+requires the real kernel peer of the protected caller tuple, admits exactly the
+two [launch intake shapes](../../docs/gateway-service.md#claude-launch-intake-v1),
+and uses the literal public marker `ssh-placeholder` only for Messages. Policy
+GET carries no credential. Material is injected only on the pinned HTTPS upstream
+leg; queries, body bytes, incremental SSE and upstream status/errors are retained.
+Known reflected material is filtered without logging it. The existing supervised
+holder still owns renewal, account holds, reconnect and version cancellation.
+Neither the flag nor a successful fixture qualifies production launch custody,
+durable UNKNOWN reconciliation or installation. No flag means no new listener
+and no change to the existing command mode or its accounting behavior.
+
+From this module, run `go vet ./...`, `go test -race ./...`,
+`go build ./...`, and `go run .scripts/guards.go -prefix intake_ -out .temp/intake-guards`.
+From `service`, run `go vet ./...`, `go test -race ./...`, `go build ./...`,
+and `python3 scripts/check-plants.py --out "$ABSOLUTE_NEW_SCRATCH"`.
+Logs, load records, overlays, exact named plant witnesses and reports belong in
+task-owned `.temp/` scratch. See the service Tools table for entrypoints.
+
 Run `go test -race -count=1 -run 'TestManaged' ./...` for the managed fixtures.
 Run `go run .scripts/guards.go -prefix managed_ -out .temp/managed-guards` for
 narrowing plants and their positive baselines; hashes, named assertion witnesses,

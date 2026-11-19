@@ -23,10 +23,11 @@
    rebuild closed sources while preserving account blocks. A closed source never
    reacquires automatically; `Poll` alone does not enforce an idle-safe interval.
 6. The Claude classifier currently admits only Authorization and Content-Type
-   on the inbound fixture. Real server/harness headers, including Content-Length,
-   User-Agent and Anthropic-Version, require a qualified ingress normalization
-   contract with refusal tests before live integration. The allow-list remains
-   closed in this source slice.
+   on the legacy inbound preparation fixture. The owner-decided launch intake
+   now has a separate protocol-preserving `Gateway` with positive/refusal plants
+   for both measured request shapes. Its static protected tuple, real peer UID,
+   source fencing and exact-byte reflection tests do not qualify a production
+   dynamic launch registry, arbitrary encoded reflections or a live harness.
 7. `Prepare` and `Source` mint operation IDs internally and do not expose a lost
    request/renewal ID. They cannot currently reconcile UNKNOWN issue/renewal
    outcomes. The holder must resolve this API/lifecycle contract before using

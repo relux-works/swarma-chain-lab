@@ -3,9 +3,8 @@
 Linux-only, separable broker/1 client and request-adapter seam. The module has
 Go floor 1.26.0 and release toolchain 1.26.8, uses only the standard library,
 and imports no other experiment. The install template lives under this module's
-`deploy/` directory, so the module can be tested independently. A later wiring
-step may add the parent command's dependency on this module through its managed
-source; this source slice adds no parent dependency edge.
+`deploy/` directory, so the module can be tested independently. The parent command
+uses its managed source and explicitly opt-in Unix intake without a reverse import.
 
 `Client` implements the credential-lifecycle interface by speaking the existing
 broker socket. It checks the broker kernel UID before hello and checks the
@@ -47,13 +46,24 @@ checks revocation before returning a temporary material copy, renews the same
 lease and releases on close. The parent owns conversion into its opaque
 carrier and erasure of that temporary copy. No parent import is needed.
 
-This module does not submit HTTP, qualify a harness, implement a production
-`UseGuard` or provide its own daemon. The existing parent command owns wiring.
-Post-dial submission fences, response/reflection protection,
-stream closure, durable restart reconciliation, per-generation listener custody
-and complete version-inventory ownership remain integration gates. Preparation
-is not an outbound-use permit. See [open integration inputs](UNRESOLVED_QUESTIONS.md)
-and [the service spec](../../../docs/gateway-service.md).
+`Gateway` is the owner-decided Claude launch intake: plaintext HTTP/1.1 on the
+parent command's opt-in generation Unix socket. It checks kernel peer UID against
+the holder-bound caller tuple. It admits only `POST /v1/messages` with one
+`Authorization: Bearer ssh-placeholder` and a credentialless
+`GET /api/claude_code/policy_limits`. The marker is never authority. Worker
+credentials are not copied upstream; only the leased value is attached to the
+fixed `https://api.anthropic.com` recipient. Queries and JSON bytes are preserved
+for Messages, supported protocol headers are retained, and statuses/errors/SSE
+are streamed rather than fabricated or fully buffered. Known material is screened
+on input and redacted from output across read boundaries without logging bytes.
+The holder supplies round-1 per-version cancellation and lifecycle supervision.
+
+This is not a qualified harness, production `UseGuard` or standalone daemon.
+Durable restart/UNKNOWN-hold reconciliation, production per-generation listener
+custody, arbitrary encoded reflections and final outbound revocation remain
+integration gates. The legacy `Prepare` fixture still describes preparation,
+not an outbound-use permit. See [open integration inputs](UNRESOLVED_QUESTIONS.md)
+and [the intake contract](../../../docs/gateway-service.md#claude-launch-intake-v1).
 
 ## Tools and verification
 

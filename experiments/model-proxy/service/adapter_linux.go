@@ -53,7 +53,7 @@ type UseGuard interface {
 // no network I/O and makes no submission/response/stream-closure claim. The next
 // owner must revalidate after dialing/waits before submitting this request.
 func Prepare(ctx context.Context, life Lifecycle, adapter RequestAdapter, guard UseGuard, m Mapping, in *http.Request) (*http.Request, *Lease, error) {
-	if ctx == nil || life == nil || adapter == nil || guard == nil || in == nil || !valid(m.Placeholder) || !valid(m.ServiceGeneration) || !valid(m.Listener) || !valid(m.Policy) {
+	if ctx == nil || life == nil || adapter == nil || guard == nil || in == nil || m.Placeholder != Placeholder || !valid(m.ServiceGeneration) || !valid(m.Listener) || !valid(m.Policy) {
 		return nil, nil, ErrInput
 	}
 	if len(in.Header.Values("Authorization")) != 1 || subtle.ConstantTimeCompare([]byte(in.Header.Get("Authorization")), []byte("Bearer "+m.Placeholder)) != 1 {

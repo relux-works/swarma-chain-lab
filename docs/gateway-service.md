@@ -121,6 +121,64 @@ and check worker output, audits, state, formatting, environment and broker
 parameters for fixture canaries. The command holder now supervises renewal,
 idle-safe authority checks and source rebuilds, with per-session in-flight
 cancellation inside the documented one-second local freshness bound. The
-service tree and pinned broker protocol remain unchanged. Provider reflection,
+pinned broker protocol remains unchanged. Production provider reflection,
 production launch/account reconciliation and system-wide final outbound
 revocation qualification remain the integration boundaries listed above.
+
+## Claude launch intake v1
+
+The owner decision `DECISION-claude-gateway-launch-contract-v1.md`, dated
+2026-11-19, section "Gateway side (A4, the intake)", refines the request adapter
+boundary above. Its evidence is the Claude Code 2.1.328 wire probe, sections
+3, 7 and 8. It retains the installation book chapters and broker specs already
+named here; it neither changes broker/1 nor authorizes installation or activation.
+
+The explicit command flag `-gateway-socket` selects plaintext HTTP/1.1 on
+`<root>/run/credential-gateway/<service-generation>/gateway.sock`. The existing
+protected broker mapping supplies the caller account, UID, generation and launch
+ID; the supervised holder must bind that exact tuple and service generation.
+The listener generation directory must already exist, belong to the service UID,
+be non-writable by group/others and have no symlink components. A pre-existing
+socket is not removed or adopted. The created socket is mode 0660; the installer
+still owns qualified directory/group access and launch custody. The kernel
+SO_PEERCRED UID is required on every request; HTTP fields and the public marker
+cannot supply or override that authority. There is still one protected caller
+tuple per process, not a dynamic launch registry.
+
+Only these shapes are admitted:
+
+| Method and path | Worker credential shape |
+| --- | --- |
+| `POST /v1/messages` with its query bytes preserved | Exactly one `Authorization: Bearer ssh-placeholder`; no `x-api-key` or other credential header |
+| `GET /api/claude_code/policy_limits` without query or body | No credential header, including an empty one |
+
+Other paths, methods, escaped path variants, credential trailers and HTTP versions
+refuse before leasing. Input is bounded to 64 KiB. Model JSON bytes are preserved,
+including the client's streaming options; the earlier closed `Claude` fixture
+classifier is not used to normalize real harness input. Its mapping marker is
+also fixed to `ssh-placeholder`.
+
+The service `Gateway` constructs the upstream target only from
+`https://api.anthropic.com` and the admitted path/query. It copies supported
+end-to-end protocol headers, strips worker credentials, injects the leased OAuth
+value only into the private upstream request, and never follows redirects or
+uses an ambient HTTP proxy. The same holder retains round-1 renewal, reconnect,
+account-hold and per-version cancellation behavior. Source/transport failures
+have constant diagnostics; upstream statuses and error bodies are not changed
+into synthetic success or retried on 401 by this intake.
+
+Responses stream read by read with a flush after each safe prefix. SSE events,
+JSON and error metadata are otherwise unchanged. A bounded suffix matcher keeps
+known token bytes from crossing read boundaries; reflected material is redacted
+and material-bearing response headers are dropped. At most 256 issued values are
+remembered. A worker leak or inventory exhaustion cancels registered upstream
+use and blocks this intake for its remaining lifetime. These process-local
+guards do not claim durable UNKNOWN-hold
+reconciliation or arbitrary encoded-reflection detection. Fixture tests are not
+live harness, broker activation, account/launch reconciliation or final outbound
+revocation qualification.
+
+Omitting `-gateway-socket` preserves the existing TLS/per-slot command path and
+its durable accounting/tripwire behavior. The Unix intake is not a per-slot
+metering API. No listener is inferred from environment variables or mappings,
+and the inactive service template is unchanged.

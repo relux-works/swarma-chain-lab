@@ -48,7 +48,8 @@ def main():
     unit = MODULE / 'unit_linux.go'
     source_api = MODULE / 'source_linux.go'
     refusal_tests = MODULE / 'refusal_linux_test.go'
-    original = {p: p.read_text() for p in (adapter, client, unit, source_api, refusal_tests)}
+    intake = MODULE / 'intake_linux.go'
+    original = {p: p.read_text() for p in (adapter, client, unit, source_api, refusal_tests, intake)}
     source = original[adapter]
     start = source.index('\tid, e := OperationID()\n')
     end = source.index('\tfail := func(', start)
@@ -111,6 +112,81 @@ def main():
          'TestIdentityAndRole', 'TestIdentityAndRole/generation',
          'Hello must match the protected service generation.'),
     ]
+    intake_source = original[intake]
+    intake_plants = [
+        ('intake-peer-uid', 'peer.uid != g.mapping.Caller.UID', 'peer.uid != peer.uid',
+         'TestIntakeRefusals', 'TestIntakeRefusals/policy-unauthorized-peer',
+         'A public marker and policy path cannot replace the qualified kernel UID.'),
+        ('intake-marker', '[]byte("Bearer "+Placeholder)', '[]byte("Bearer other-placeholder")',
+         'TestIntakeRefusals', 'TestIntakeRefusals/wrong-placeholder',
+         'The incoming model marker is exactly the owner-selected literal.'),
+        ('intake-mapping-marker', 'mapping.Placeholder != Placeholder', 'mapping.Placeholder != mapping.Placeholder',
+         'TestIntakeMapping', 'TestIntakeMapping/placeholder',
+         'Protected mapping data cannot choose another marker.'),
+        ('intake-tuple', 'caller != mapping.Caller', 'caller != caller',
+         'TestIntakeMapping', 'TestIntakeMapping/caller',
+         'The holder and listener must name the same caller tuple.'),
+        ('intake-generation', 'generation != mapping.ServiceGeneration', 'generation != generation',
+         'TestIntakeMapping', 'TestIntakeMapping/generation',
+         'The holder and listener must name the same service generation.'),
+        ('intake-message-path', 'request.URL.EscapedPath() == "/v1/messages"', 'request.URL.EscapedPath() == "/v1/complete"',
+         'TestIntakeRefusals', 'TestIntakeRefusals/wrong-path',
+         'Messages are not a general upstream path proxy.'),
+        ('intake-message-method', 'request.Method == http.MethodPost &&', 'request.Method == http.MethodPut &&',
+         'TestIntakeRefusals', 'TestIntakeRefusals/wrong-method',
+         'Possession of the marker does not admit another model method.'),
+        ('intake-policy-path', 'request.URL.EscapedPath() == "/api/claude_code/policy_limits"', 'request.URL.EscapedPath() == "/api/claude_code/settings"',
+         'TestIntakeRefusals', 'TestIntakeRefusals/policy-wrong-path',
+         'Unmeasured policy/bootstrap endpoints remain closed.'),
+        ('intake-policy-method', 'request.Method == http.MethodGet && request.URL.EscapedPath()', 'request.Method == http.MethodPost && request.URL.EscapedPath()',
+         'TestIntakeRefusals', 'TestIntakeRefusals/policy-method',
+         'The credentialless policy shape admits GET only.'),
+        ('intake-duplicate-marker', 'len(authorization) == 1 &&', 'len(authorization) >= 1 &&',
+         'TestIntakeRefusals', 'TestIntakeRefusals/duplicate-authorization',
+         'Duplicate Authorization values are refused even when identical.'),
+        ('intake-api-key', 'else if credentialHeader(key) {', 'else if credentialHeader(key) && !strings.EqualFold(key, "X-Api-Key") {',
+         'TestIntakeRefusals', 'TestIntakeRefusals/api-key',
+         'A second worker credential is not silently accepted or forwarded.'),
+        ('intake-policy-credential', 'return len(authorization) == 0', 'return len(authorization) <= 1',
+         'TestIntakeRefusals', 'TestIntakeRefusals/policy-authorization',
+         'The policy GET is credentialless, not another bearer path.'),
+        ('intake-recipient', 'target := upstreamOrigin +', 'target := "https://untrusted.invalid" +',
+         'TestIntakeAdmission', 'TestIntakeAdmission/messages',
+         'Only the pinned HTTPS origin receives leased material.'),
+        ('intake-query', 'target += "?" + request.URL.RawQuery', 'target += "?discarded=true"',
+         'TestIntakeAdmission', 'TestIntakeAdmission/messages',
+         'The measured model query bytes reach the fixed recipient unchanged.'),
+        ('intake-injection', '"Bearer "+string(material)', '"Bearer "+Placeholder',
+         'TestIntakeAdmission', 'TestIntakeAdmission/messages',
+         'The upstream receives the leased token rather than the marker.'),
+        ('intake-status', 'writer.WriteHeader(response.StatusCode)', 'writer.WriteHeader(http.StatusOK)',
+         'TestIntakeUpstreamErrors', 'TestIntakeUpstreamErrors/401',
+         'A real upstream refusal cannot become synthetic success.'),
+        ('intake-buffering', 'reader.Read(buffer)', 'io.ReadFull(reader, buffer)',
+         'TestIntakeSSEIncremental', 'TestIntakeSSEIncremental',
+         'The first frame must arrive before upstream completion.'),
+        ('intake-body-reflection', 'bytes.ReplaceAll(pending, value, []byte("[redacted]"))', 'bytes.ReplaceAll(pending, value, value)',
+         'TestIntakeSecretBoundary', 'TestIntakeSecretBoundary',
+         'A token split across upstream reads cannot reach worker bytes.'),
+        ('intake-header-reflection', 'if containsMaterial([]byte(key+strings.Join(values, "")), g.needles()) {', 'if len(values) < 0 {',
+         'TestIntakeSecretBoundary', 'TestIntakeSecretBoundary',
+         'Meaningful response headers are still a secret boundary.'),
+        ('intake-lease-fence', 'if call.Err() != nil {', 'if call.Err() != nil && version == "" {',
+         'TestIntakeAuthorityFailures', 'TestIntakeAuthorityFailures/cancelled',
+         'A cancelled lease version cannot submit an upstream request.'),
+        ('intake-worker-body-scan', 'leak := containsMaterial(body, values)', 'leak := false',
+         'TestIntakeWorkerLeak', 'TestIntakeWorkerLeak/body',
+         'Worker bytes are screened against the newly acquired token before injection.'),
+        ('intake-live-leak-fence', 'if leak {\n\t\tg.mu.Lock()\n\t\tg.blocked = true\n\t\tg.cancel()', 'if leak {\n\t\tg.mu.Lock()\n\t\tg.blocked = true',
+         'TestIntakeLeakCancelsUse', 'TestIntakeLeakCancelsUse',
+         'A worker leak retires already registered upstream use as well as new requests.'),
+    ]
+    for name, before, after, test, witness, claim in intake_plants:
+        try:
+            mutated = replace_once(intake_source, before, after)
+        except RuntimeError as exc:
+            raise RuntimeError(name + ': ' + str(exc)) from exc
+        plants.append((name, intake, mutated, test, witness, claim))
     report = []
     code, _ = run(out, 'baseline', ['go', 'test', '-json', '-count=1', './...'])
     report.append({'plant': 'baseline', 'exit': code})

@@ -64,28 +64,40 @@ func (*managedHolder) Format(state fmt.State, _ rune) {
 }
 
 func managedSource(ctx context.Context, raw []byte) (proxy.CredentialSource, func(), error) {
+	holder, e := openManagedHolder(ctx, raw)
+	if e != nil {
+		return nil, nil, e
+	}
+	adapted, e := proxy.AdaptManagedSource(holder)
+	if e != nil {
+		holder.close()
+		return nil, nil, errors.New("CREDENTIAL_SOURCE")
+	}
+	return adapted, holder.close, nil
+}
+
+func openManagedHolder(ctx context.Context, raw []byte) (*managedHolder, error) {
 	var c brokerFile
 	if len(raw) == 0 || len(raw) > proxy.MaxBody || json.Unmarshal(raw, &c) != nil {
-		return nil, nil, errors.New("CREDENTIAL_SOURCE")
+		return nil, errors.New("CREDENTIAL_SOURCE")
 	}
 	canonical, e := json.Marshal(c)
 	if e != nil || !bytes.Equal(bytes.TrimSpace(raw), canonical) || c.MaxLifetimeSeconds == 0 || c.MaxLifetimeSeconds > 900 {
-		return nil, nil, errors.New("CREDENTIAL_SOURCE")
+		return nil, errors.New("CREDENTIAL_SOURCE")
 	}
 	lifetime, stop := context.WithCancel(context.Background())
 	holder := &managedHolder{config: c, ctx: lifetime, stop: stop, done: make(chan struct{})}
 	if e := holder.connect(ctx); e != nil {
 		stop()
-		return nil, nil, errors.New("CREDENTIAL_SOURCE")
-	}
-	adapted, e := proxy.AdaptManagedSource(holder)
-	if e != nil {
-		holder.invalidate(e)
-		stop()
-		return nil, nil, errors.New("CREDENTIAL_SOURCE")
+		return nil, errors.New("CREDENTIAL_SOURCE")
 	}
 	go holder.supervise()
-	return adapted, holder.close, nil
+	return holder, nil
+}
+
+func (holder *managedHolder) GatewayBinding() (service.Caller, string) {
+	config := holder.config
+	return service.Caller{Account: config.Account, UID: config.AgentUID, Generation: config.AgentGeneration, LaunchID: config.LaunchID}, config.ServiceGeneration
 }
 
 func (holder *managedHolder) connect(ctx context.Context) error {

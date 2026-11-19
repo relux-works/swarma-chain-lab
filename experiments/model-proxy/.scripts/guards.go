@@ -22,6 +22,14 @@ import (
 type plant struct{ Name, Module, File, Old, New, Package, Test, Witness string }
 
 var plants = []plant{
+	{"intake_cli_development", "proxy", "cmd/model-proxy/intake_linux.go", "config.Mode != proxy.ModeManaged", "false", "./cmd/model-proxy", "TestGatewayStartupGuards/development", "inactive or invalid configuration touched a credential source"},
+	{"intake_cli_recipient", "proxy", "cmd/model-proxy/intake_linux.go", "config.Upstream != proxy.ManagedUpstream", "false", "./cmd/model-proxy", "TestGatewayStartupGuards/recipient", "inactive or invalid configuration touched a credential source"},
+	{"intake_cli_mapping", "proxy", "cmd/model-proxy/intake_linux.go", "brokerPath == \"\"", "false", "./cmd/model-proxy", "TestGatewayStartupGuards/missing-mapping", "inactive or invalid configuration touched a credential source"},
+	{"intake_cli_peer_context", "proxy", "cmd/model-proxy/intake_linux.go", "ConnContext: gateway.ConnContext", "ConnContext: nil", "./cmd/model-proxy", "TestGatewayCommandUnixPeer/authorized", "command listener peer gate changed"},
+	{"intake_socket_generation", "proxy", "cmd/model-proxy/intake_linux.go", "filepath.Base(directory) != generation", "false", "./cmd/model-proxy", "TestGatewaySocketQualification/stale", "unqualified generation listener path admitted"},
+	{"intake_socket_name", "proxy", "cmd/model-proxy/intake_linux.go", "filepath.Base(socket) != \"gateway.sock\"", "false", "./cmd/model-proxy", "TestGatewaySocketQualification/name", "unqualified generation listener path admitted"},
+	{"intake_socket_mode", "proxy", "cmd/model-proxy/intake_linux.go", "info.Mode().Perm()&0022 != 0", "false", "./cmd/model-proxy", "TestGatewaySocketQualification/writable", "unqualified generation listener path admitted"},
+	{"intake_socket_symlink", "proxy", "cmd/model-proxy/intake_linux.go", "!entry.IsDir()", "entry.Mode().IsRegular()", "./cmd/model-proxy", "TestGatewaySocketQualification/symlink", "unqualified generation listener path admitted"},
 	{"managed_material_audit", "proxy", "credential.go", "func (s *Service) issued(c UpstreamCredential, e error) (UpstreamCredential, error) {", "func (s *Service) issued(c UpstreamCredential, e error) (UpstreamCredential, error) { defer func() { s.audit(\"\", 200, string(c.Value.Reveal()), Usage{}) }()", "./cmd/model-proxy", "TestManagedBrokerGateway/mapping", "canary escaped gateway material boundary"},
 	{"managed_placeholder_mapping", "proxy", "gateway.go", "authenticate(req.Header, d, cred)", "req.Header.Set(\"Authorization\", \"Bearer \"+cred.Version)", "./cmd/model-proxy", "TestManagedBrokerGateway/mapping", "provider credential boundary mismatch"},
 	{"managed_generation_pin", "proxy", "cmd/model-proxy/managed_linux.go", "Generation: config.ServiceGeneration, MaxLifetime:", "Generation: \"service-current\", MaxLifetime:", "./cmd/model-proxy", "TestManagedStartupRefusals/generation", "invalid startup authority admitted"},

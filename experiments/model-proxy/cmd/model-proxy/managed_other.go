@@ -12,3 +12,7 @@ import (
 func managedSource(context.Context, []byte) (proxy.CredentialSource, func(), error) {
 	return nil, nil, errors.New("CREDENTIAL_SOURCE")
 }
+
+func serveGateway(context.Context, proxy.GatewayFileConfig, string, string, func(string, int64) ([]byte, error)) error {
+	return errors.New("CREDENTIAL_SOURCE")
+}

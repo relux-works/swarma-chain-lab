@@ -46,6 +46,7 @@ func run() error {
 	path := flag.String("config", "", "private configuration file")
 	initialize := flag.Bool("initialize-accounting", false, "initialize an empty accounting directory from sealed configuration")
 	brokerPath := flag.String("broker-config", "", "installed nonsecret broker connection and caller mapping file")
+	gatewaySocket := flag.String("gateway-socket", "", "opt-in generation Unix socket for the Claude launch contract")
 	flag.Parse()
 	if *path == "" || flag.NArg() != 0 || runtime.GOOS != "linux" {
 		return fmt.Errorf("CONFIG")
@@ -53,6 +54,14 @@ func run() error {
 	c, e := proxy.LoadGatewayConfig(*path)
 	if e != nil {
 		return e
+	}
+	if *gatewaySocket != "" {
+		if *initialize {
+			return fmt.Errorf("CONFIG")
+		}
+		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer cancel()
+		return serveGateway(ctx, c, *brokerPath, *gatewaySocket, proxy.ReadInstalledFile)
 	}
 	startup, stopStartup := context.WithTimeout(context.Background(), 5*time.Second)
 	key, source, closeSource, e := credentialOrigin(startup, c, *brokerPath, proxy.ReadInstalledFile)

@@ -16,7 +16,7 @@ const inferenceBody = `{"model":"qualified-model","max_tokens":12,"messages":[{"
 var claude = Claude{Model: "qualified-model", APIVersion: "2026-10-21"}
 
 func mapping() Mapping {
-	return Mapping{Caller: caller, ServiceGeneration: "service-current", Listener: "listener-current", Policy: "policy-current", Placeholder: "placeholder-current"}
+	return Mapping{Caller: caller, ServiceGeneration: "service-current", Listener: "listener-current", Policy: "policy-current", Placeholder: Placeholder}
 }
 func incoming(t *testing.T, body string) *http.Request {
 	t.Helper()
@@ -25,7 +25,7 @@ func incoming(t *testing.T, body string) *http.Request {
 		t.Fatal("fixture request unavailable")
 	}
 	r.Header.Set("Content-Type", "application/json")
-	r.Header.Set("Authorization", "Bearer placeholder-current")
+	r.Header.Set("Authorization", "Bearer ssh-placeholder")
 	return r
 }
 
@@ -83,7 +83,7 @@ func TestPrepareOrderingAndMapping(t *testing.T) {
 	if strings.Join(events, ",") != "intake,scan,dequeue,material,poll,attachment" {
 		t.Fatal("material ordering changed")
 	}
-	if out.Header.Get("Authorization") != "Bearer "+fixtureMaterial || out.Header.Get("Authorization") == in.Header.Get("Authorization") || in.Header.Get("Authorization") != "Bearer placeholder-current" {
+	if out.Header.Get("Authorization") != "Bearer "+fixtureMaterial || out.Header.Get("Authorization") == in.Header.Get("Authorization") || in.Header.Get("Authorization") != "Bearer ssh-placeholder" {
 		t.Fatal("placeholder mapping changed")
 	}
 	if out.URL.String() != "https://api.anthropic.com/v1/messages" || out.Header.Get("Anthropic-Version") != claude.APIVersion || out.Header.Get("Content-Type") != "application/json" || len(out.Header) != 3 {

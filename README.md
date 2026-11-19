@@ -281,6 +281,14 @@ decisions. From `experiments/model-proxy`, run `go test -race ./...`,
 `go run .scripts/guards.go -out .temp/guards`; logs/binaries stay in `.temp/`.
 Tests use only a local fake upstream and synthetic keys.
 
+The explicit `-gateway-socket` mode implements the
+[Claude Unix intake](docs/gateway-service.md#claude-launch-intake-v1) with the
+same supervised broker holder; omitting the flag preserves the existing mode.
+From `experiments/model-proxy/service`, run `go vet ./...`,
+`go test -race ./...`, and `python3 scripts/check-plants.py --out "$ABSOLUTE_NEW_SCRATCH"`.
+From the parent module, run `go run .scripts/guards.go -prefix intake_ -out .temp/intake-guards`.
+Plant overlays, named witnesses, command exits and logs remain in task-owned `.temp/` scratch.
+
 ### Scripted station payload
 
 [station-payload](experiments/station-payload/README.md) consumes canonical v1/v2
