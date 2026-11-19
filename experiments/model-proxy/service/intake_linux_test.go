@@ -24,12 +24,14 @@ import (
 const intakeCanary = "canary-intake-material-not-for-worker-729146"
 
 type intakeSource struct {
-	binding   Mapping
-	calls     atomic.Int32
-	err       error
-	scheme    string
-	material  string
-	cancelled bool
+	binding    Mapping
+	calls      atomic.Int32
+	err        error
+	scheme     string
+	material   string
+	cancelled  bool
+	serial     bool
+	reserveErr error
 }
 
 func (source *intakeSource) GatewayBinding() (Caller, string) {
@@ -37,8 +39,15 @@ func (source *intakeSource) GatewayBinding() (Caller, string) {
 }
 
 func (source *intakeSource) CredentialValue(context.Context) (string, []byte, string, error) {
-	source.calls.Add(1)
+	sequence := source.calls.Add(1)
+	if source.serial {
+		return source.scheme, []byte(fmt.Sprintf("inventory-material-%03d", sequence)), "session-1/lease-1", source.err
+	}
 	return source.scheme, []byte(source.material), "session-1/lease-1", source.err
+}
+
+func (source *intakeSource) ReserveGeneration([]byte) error {
+	return source.reserveErr
 }
 
 func (source *intakeSource) CredentialContext(ctx context.Context, _ string) (context.Context, context.CancelFunc) {

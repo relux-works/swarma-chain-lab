@@ -19,7 +19,7 @@ import (
 )
 
 func serveGateway(ctx context.Context, config proxy.GatewayFileConfig, brokerPath, socket string, read func(string, int64) ([]byte, error)) error {
-	if config.Mode != proxy.ModeManaged || config.Upstream != proxy.ManagedUpstream || len(config.ModelProfiles) != 0 || brokerPath == "" {
+	if config.Mode != proxy.ModeManaged || config.Upstream != proxy.ManagedUpstream || len(config.ModelProfiles) != 0 || brokerPath == "" || config.DailyCostCeilingNanoUSD == 0 {
 		return errors.New("CREDENTIAL_SOURCE")
 	}
 	raw, err := read(brokerPath, proxy.MaxBody)
@@ -33,6 +33,15 @@ func serveGateway(ctx context.Context, config proxy.GatewayFileConfig, brokerPat
 		return err
 	}
 	defer holder.close()
+	source, err := proxy.AdaptManagedSource(holder)
+	if err != nil {
+		return errors.New("CREDENTIAL_SOURCE")
+	}
+	holder.meter, err = proxy.New(proxy.Config{DailyCostCeilingNanoUSD: config.DailyCostCeilingNanoUSD, StateDir: config.StateDir, Endpoint: config.Endpoint, Upstream: config.Upstream, Source: source, Mode: config.Mode, Models: config.Models, Now: time.Now})
+	if err != nil {
+		return errors.New("CREDENTIAL_SOURCE")
+	}
+	defer holder.meter.Close()
 	caller, generation := holder.GatewayBinding()
 	if !gatewaySocketPath(socket, generation) {
 		return errors.New("LISTEN")
@@ -50,7 +59,7 @@ func serveGateway(ctx context.Context, config proxy.GatewayFileConfig, brokerPat
 	if os.Chmod(socket, 0660) != nil {
 		return errors.New("LISTEN")
 	}
-	server := &http.Server{Handler: gateway, ConnContext: gateway.ConnContext, ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 65 * time.Second, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 8192, ErrorLog: log.New(io.Discard, "", 0)}
+	server := &http.Server{Handler: gateway, ConnContext: gateway.ConnContext, ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 2 * time.Minute, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 8192, ErrorLog: log.New(io.Discard, "", 0)}
 	stop := context.AfterFunc(ctx, func() { _ = server.Close() })
 	defer stop()
 	defer server.Close()

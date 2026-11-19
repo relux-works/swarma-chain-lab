@@ -284,6 +284,9 @@ Tests use only a local fake upstream and synthetic keys.
 The explicit `-gateway-socket` mode implements the
 [Claude Unix intake](docs/gateway-service.md#claude-launch-intake-v1) with the
 same supervised broker holder; omitting the flag preserves the existing mode.
+This opt-in path requires a positive durable daily ceiling, meters conservative
+model exposure before forwarding, admits provider-sized Messages bodies, and
+uses stream idle bounds rather than a short whole-exchange timeout.
 From `experiments/model-proxy/service`, run `go vet ./...`,
 `go test -race ./...`, and `python3 scripts/check-plants.py --out "$ABSOLUTE_NEW_SCRATCH"`.
 From the parent module, run `go run .scripts/guards.go -prefix intake_ -out .temp/intake-guards`.

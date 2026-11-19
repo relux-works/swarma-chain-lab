@@ -37,14 +37,15 @@ const managedCheckInterval = managedPollInterval / 4
 const managedIOTimeout = managedPollInterval / 4
 
 type managedSession struct {
-	client    *service.Client
-	source    *service.Source
-	authority context.Context
-	cancel    context.CancelFunc
-	watchdog  *time.Timer
-	prefix    string
-	version   string
-	renewAt   time.Time
+	client      *service.Client
+	source      *service.Source
+	authority   context.Context
+	cancel      context.CancelFunc
+	watchdog    *time.Timer
+	prefix      string
+	version     string
+	renewAt     time.Time
+	connectedAt time.Time
 }
 
 type managedHolder struct {
@@ -57,6 +58,7 @@ type managedHolder struct {
 	serial  uint64
 	started bool
 	blocked bool
+	meter   *proxy.Service
 }
 
 func (*managedHolder) Format(state fmt.State, _ rune) {
@@ -115,7 +117,7 @@ func (holder *managedHolder) connect(ctx context.Context) error {
 	}
 	holder.serial++
 	authority, cancelAuthority := context.WithCancel(holder.ctx)
-	holder.session = &managedSession{client: client, source: source, authority: authority, cancel: cancelAuthority, prefix: fmt.Sprintf("session-%d/", holder.serial)}
+	holder.session = &managedSession{client: client, source: source, authority: authority, cancel: cancelAuthority, prefix: fmt.Sprintf("session-%d/", holder.serial), connectedAt: time.Now()}
 	return nil
 }
 
@@ -179,8 +181,22 @@ func (holder *managedHolder) CredentialValue(ctx context.Context) (string, []byt
 	}
 	holder.mu.Lock()
 	defer holder.mu.Unlock()
+	first := !holder.started
 	holder.started = true
+	if first && holder.session != nil && time.Since(holder.session.connectedAt) >= managedCheckInterval {
+		holder.invalidate(service.ErrInactive)
+		if holder.blocked || holder.ctx.Err() != nil || holder.connect(context.WithoutCancel(ctx)) != nil {
+			return "", nil, "", service.ErrInactive
+		}
+	}
 	return holder.value(context.WithoutCancel(ctx), false, "")
+}
+
+func (holder *managedHolder) ReserveGeneration(body []byte) error {
+	if holder.meter == nil {
+		return service.ErrUnavailable
+	}
+	return holder.meter.ReserveGeneration(body)
 }
 
 func (holder *managedHolder) RenewValue(ctx context.Context, rejected string) (string, []byte, string, error) {

@@ -19,22 +19,25 @@ import (
 
 const Placeholder = "ssh-placeholder"
 const upstreamOrigin = "https://api.anthropic.com"
+const MaxIntakeBody = 128 << 20
 
 type GatewaySource interface {
 	GatewayBinding() (Caller, string)
 	CredentialValue(context.Context) (string, []byte, string, error)
 	CredentialContext(context.Context, string) (context.Context, context.CancelFunc)
+	ReserveGeneration([]byte) error
 }
 
 type Gateway struct {
-	source    GatewaySource
-	mapping   Mapping
-	transport http.RoundTripper
-	authority context.Context
-	cancel    context.CancelFunc
-	mu        sync.Mutex
-	values    [][]byte
-	blocked   bool
+	source      GatewaySource
+	mapping     Mapping
+	transport   http.RoundTripper
+	authority   context.Context
+	cancel      context.CancelFunc
+	mu          sync.Mutex
+	values      [][]byte
+	blocked     bool
+	idleTimeout time.Duration
 }
 
 func (*Gateway) Format(state fmt.State, _ rune) {
@@ -52,8 +55,9 @@ func NewGateway(source GatewaySource, mapping Mapping) (*Gateway, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.DisableCompression = true
+	transport.ResponseHeaderTimeout = 30 * time.Second
 	authority, cancel := context.WithCancel(context.Background())
-	return &Gateway{source: source, mapping: mapping, transport: transport, authority: authority, cancel: cancel}, nil
+	return &Gateway{source: source, mapping: mapping, transport: transport, authority: authority, cancel: cancel, idleTimeout: time.Minute}, nil
 }
 
 func (g *Gateway) Close() {
@@ -181,15 +185,21 @@ func (g *Gateway) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	var body []byte
 	var err error
 	if request.Body != nil {
-		body, err = io.ReadAll(io.LimitReader(request.Body, 65537))
+		body, err = io.ReadAll(io.LimitReader(request.Body, MaxIntakeBody+1))
 	}
-	if err != nil || len(body) > 65536 || len(request.Trailer) != 0 || request.Method == http.MethodGet && len(body) != 0 {
+	if err != nil || len(body) > MaxIntakeBody || len(request.Trailer) != 0 || request.Method == http.MethodGet && len(body) != 0 {
 		refuse(http.StatusBadRequest)
 		return
 	}
 	if !g.scan(request, body) {
 		refuse(http.StatusForbidden)
 		return
+	}
+	if request.Method == http.MethodPost {
+		if g.source.ReserveGeneration(body) != nil {
+			refuse(http.StatusForbidden)
+			return
+		}
 	}
 	scheme, material, version, err := g.source.CredentialValue(context.WithoutCancel(request.Context()))
 	defer clear(material)
@@ -224,13 +234,21 @@ func (g *Gateway) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	copyProtocolHeaders(out.Header, request.Header)
 	out.Header.Set("Authorization", "Bearer "+string(material))
 	defer Drop(out)
-	client := http.Client{Transport: g.transport, Timeout: 65 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := http.Client{Transport: g.transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(out)
 	if err != nil {
 		refuse(http.StatusBadGateway)
 		return
 	}
 	defer response.Body.Close()
+	if response.Header.Get("Content-Encoding") != "" {
+		refuse(http.StatusBadGateway)
+		return
+	}
+	stopBody := context.AfterFunc(call, func() { _ = response.Body.Close() })
+	defer stopBody()
+	idle := time.AfterFunc(g.idleTimeout, cancel)
+	defer idle.Stop()
 	copyProtocolHeaders(writer.Header(), response.Header)
 	for key, values := range writer.Header() {
 		if containsMaterial([]byte(key+strings.Join(values, "")), g.needles()) {
@@ -238,7 +256,7 @@ func (g *Gateway) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 	writer.WriteHeader(response.StatusCode)
-	if streamFiltered(call, writer, response.Body, g.needles) != nil {
+	if streamFiltered(call, writer, response.Body, g.needles, g.idleTimeout, func() { idle.Reset(g.idleTimeout) }) != nil {
 		panic(http.ErrAbortHandler)
 	}
 }
@@ -258,17 +276,20 @@ func validMaterial(material []byte) bool {
 func copyProtocolHeaders(destination, source http.Header) {
 	for key, values := range source {
 		lower := strings.ToLower(key)
-		if lower == "content-type" || lower == "accept" || lower == "user-agent" || lower == "cache-control" || lower == "retry-after" || lower == "request-id" || lower == "x-request-id" || lower == "anthropic-version" || lower == "anthropic-beta" || strings.HasPrefix(lower, "anthropic-ratelimit-") || strings.HasPrefix(lower, "x-stainless-") {
+		if lower == "content-type" || lower == "accept" || lower == "user-agent" || lower == "cache-control" || lower == "retry-after" || lower == "x-should-retry" || lower == "request-id" || lower == "x-request-id" || lower == "anthropic-version" || lower == "anthropic-beta" || strings.HasPrefix(lower, "anthropic-ratelimit-") || strings.HasPrefix(lower, "x-stainless-") {
 			destination[key] = append([]string(nil), values...)
 		}
 	}
 }
 
-func streamFiltered(ctx context.Context, writer http.ResponseWriter, reader io.Reader, needles func() [][]byte) error {
+func streamFiltered(ctx context.Context, writer http.ResponseWriter, reader io.Reader, needles func() [][]byte, idleTimeout time.Duration, progress func()) error {
 	buffer := make([]byte, 8192)
 	var pending []byte
 	for {
 		count, err := reader.Read(buffer)
+		if count > 0 {
+			progress()
+		}
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -288,6 +309,9 @@ func streamFiltered(ctx context.Context, writer http.ResponseWriter, reader io.R
 			}
 		}
 		if ready := len(pending) - keep; ready > 0 {
+			if deadlineErr := http.NewResponseController(writer).SetWriteDeadline(time.Now().Add(idleTimeout)); deadlineErr != nil && deadlineErr != http.ErrNotSupported {
+				return deadlineErr
+			}
 			if _, writeErr := writer.Write(pending[:ready]); writeErr != nil {
 				return writeErr
 			}

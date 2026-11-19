@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,13 +33,34 @@ func gatewayDirectory(t *testing.T) string {
 	return filepath.Join(directory, "gateway.sock")
 }
 
+func gatewayConfig(t *testing.T, ceiling ...uint64) proxy.GatewayFileConfig {
+	t.Helper()
+	config := proxy.GatewayFileConfig{Mode: proxy.ModeManaged}
+	config.Upstream = proxy.ManagedUpstream
+	config.StateDir = t.TempDir()
+	if os.Chmod(config.StateDir, 0700) != nil {
+		t.Fatal("private accounting directory unavailable")
+	}
+	config.Endpoint = proxy.Endpoint{URL: "https://gateway.example", CertSHA256: strings.Repeat("b", 64)}
+	config.Models = map[string]proxy.Model{"test-model-1": {ContextTokens: 100, InputNanoUSD: 2, OutputNanoUSD: 3, Source: "fixture bound"}}
+	config.DailyCostCeilingNanoUSD = 1000000000
+	if len(ceiling) > 0 {
+		config.DailyCostCeilingNanoUSD = ceiling[0]
+	}
+	if err := proxy.InitializeAccounting(proxy.Config{StateDir: config.StateDir, DailyCostCeilingNanoUSD: config.DailyCostCeilingNanoUSD, Endpoint: config.Endpoint, Upstream: config.Upstream, Models: config.Models, APIKey: proxy.NewAPIKey("synthetic-initializer"), Now: time.Now}); err != nil {
+		t.Fatal("accounting initialization refused")
+	}
+	return config
+}
+
 // Claim: explicit socket mode still requires managed mode, the protected broker
 // mapping and the fixed recipient; none is inferred from ambient configuration.
 func TestGatewayStartupGuards(t *testing.T) {
-	for _, mode := range []string{"development", "recipient", "missing-mapping", "mapping-read", "broker-unavailable"} {
+	for _, mode := range []string{"development", "recipient", "missing-mapping", "mapping-read", "broker-unavailable", "zero-ceiling"} {
 		t.Run(mode, func(t *testing.T) {
 			config := proxy.GatewayFileConfig{Mode: proxy.ModeManaged}
 			config.Upstream = proxy.ManagedUpstream
+			config.DailyCostCeilingNanoUSD = 1
 			brokerPath := "protected-mapping"
 			var reads atomic.Int32
 			read := func(path string, _ int64) ([]byte, error) {
@@ -59,6 +81,8 @@ func TestGatewayStartupGuards(t *testing.T) {
 				config.Upstream = "https://untrusted.invalid/v1/messages"
 			case "missing-mapping":
 				brokerPath = ""
+			case "zero-ceiling":
+				config.DailyCostCeilingNanoUSD = 0
 			}
 			socket := gatewayDirectory(t)
 			err := serveGateway(context.Background(), config, brokerPath, socket, read)
@@ -90,8 +114,7 @@ func TestGatewayCommandUnixPeer(t *testing.T) {
 				fixture.config.AgentUID++
 			}
 			raw, _ := json.Marshal(fixture.config)
-			config := proxy.GatewayFileConfig{Mode: proxy.ModeManaged}
-			config.Upstream = proxy.ManagedUpstream
+			config := gatewayConfig(t)
 			socket := gatewayDirectory(t)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

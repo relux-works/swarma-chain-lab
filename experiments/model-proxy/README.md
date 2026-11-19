@@ -464,7 +464,11 @@ exact bound service generation. The caller tuple is protected configuration,
 never derived from worker headers. One process/source serves that one admitted
 caller mapping; dynamic caller routing is not supplied by this wiring.
 
-The command supervises the unchanged service source. After first use, it checks
+The command supervises the service source. Before first use, an unused connection
+older than the 250 ms freshness interval is closed and redialed once before any
+lease request. This avoids an idle-retired startup socket without replaying an
+UNKNOWN lease operation. Failed redial refuses without material; background
+recovery then resumes. After first use, it checks
 authority every 250 ms, well below the broker's 30-second idle retirement, and
 renews every `min(max_lifetime_seconds / 3, 500 ms)` without waiting for a 401.
 The existing explicit-401 path still renews and retries once. Each broker I/O
@@ -487,7 +491,7 @@ and checks fresh authority before serving again. Requests refuse in between;
 there is no file-key fallback. Versions include a session epoch so a new source
 cannot reuse an old version. Broker account-hold refusals remain blocked for the
 holder lifetime, and reconnect never clears the gateway's persisted leak blocks.
-No new token is requested until a correctly authenticated binding first uses
+No new token is requested until an authorized request first uses
 the holder. Shutdown stops the supervisor and releases/closes its source.
 
 The worker presents only the binding placeholder. The existing gateway
@@ -526,12 +530,31 @@ GET carries no credential. Material is injected only on the pinned HTTPS upstrea
 leg; queries, body bytes, incremental SSE and upstream status/errors are retained.
 Known reflected material is filtered without logging it. The existing supervised
 holder still owns renewal, account holds, reconnect and version cancellation.
+Startup requires a positive configured daily ceiling and an explicitly
+initialized accounting directory. Messages enforce the configured model list
+and a positive `max_tokens` within the model's context bound. Before leasing or
+forwarding, full context input plus maximum requested output is atomically
+charged at configured prices against the same durable daily exposure. Parallel
+calls and restarts share this ceiling; failures and successful replies alike
+retain the conservative reservation. Policy GET books no generation cost.
+There is no per-slot identity/cap or verified-usage settlement on this intake.
+
+The body bound is 128 MiB (exact boundary accepted, next byte refused), covering
+the provider's documented 128 MB Messages bound. The launch wire probe measured
+shapes and SSE, not body sizes; it does not justify a 64 KiB body limit. Request
+reads have a two-minute budget. SSE has no 65-second whole-exchange cutoff:
+headers have a 30-second bound and read/write stalls have one-minute idle bounds,
+while per-session lease and revocation fencing continues through renewals.
+Encoded upstream bodies refuse before worker output; retry hints are preserved.
 Neither the flag nor a successful fixture qualifies production launch custody,
 durable UNKNOWN reconciliation or installation. No flag means no new listener
 and no change to the existing command mode or its accounting behavior.
 
 From this module, run `go vet ./...`, `go test -race ./...`,
 `go build ./...`, and `go run .scripts/guards.go -prefix intake_ -out .temp/intake-guards`.
+Run `GATEWAY_LONG_STREAM=1 go test -count=1 -run '^TestGatewayLongStream$' ./cmd/model-proxy`
+for the 70-second composed production-timeout regression; the ordinary suite
+also exercises multiple shortened idle intervals and a stalled upstream.
 From `service`, run `go vet ./...`, `go test -race ./...`, `go build ./...`,
 and `python3 scripts/check-plants.py --out "$ABSOLUTE_NEW_SCRATCH"`.
 Logs, load records, overlays, exact named plant witnesses and reports belong in

@@ -153,7 +153,15 @@ Only these shapes are admitted:
 | `GET /api/claude_code/policy_limits` without query or body | No credential header, including an empty one |
 
 Other paths, methods, escaped path variants, credential trailers and HTTP versions
-refuse before leasing. Input is bounded to 64 KiB. Model JSON bytes are preserved,
+refuse before leasing. Messages input is bounded to 128 MiB, with a two-minute
+request-read budget; the exact boundary is admitted and one extra byte refuses.
+This covers the first-party Messages API's documented 128 MB request limit
+([API errors, request size limits](https://platform.claude.com/docs/en/api/errors#request-size-limits),
+checked 2026-11-19). The launch contract specifies no smaller bound. The wire
+probe established the two shapes and streaming, but did not measure body sizes;
+neither 64 KiB nor any claimed measured size can be derived from that probe.
+Synthetic boundary tests are not a measurement of real conversation sizes.
+Model JSON bytes are preserved,
 including the client's streaming options; the earlier closed `Claude` fixture
 classifier is not used to normalize real harness input. Its mapping marker is
 also fixed to `ssh-placeholder`.
@@ -168,7 +176,14 @@ have constant diagnostics; upstream statuses and error bodies are not changed
 into synthetic success or retried on 401 by this intake.
 
 Responses stream read by read with a flush after each safe prefix. SSE events,
-JSON and error metadata are otherwise unchanged. A bounded suffix matcher keeps
+JSON and error metadata are otherwise unchanged. There is no whole-exchange
+client timeout or fixed server write timeout: active streams can exceed 65 s
+and continue across renewals. Time to upstream headers is bounded to 30 s;
+each upstream-read stall and downstream-write stall is bounded to one minute.
+Lease/session cancellation and the one-second authority freshness fence remain
+effective throughout. Encoded upstream responses refuse before worker output,
+because the byte matcher cannot inspect compressed material. Retry hints,
+including `x-should-retry`, are preserved. A bounded suffix matcher keeps
 known token bytes from crossing read boundaries; reflected material is redacted
 and material-bearing response headers are dropped. At most 256 issued values are
 remembered. A worker leak or inventory exhaustion cancels registered upstream
@@ -179,6 +194,17 @@ live harness, broker activation, account/launch reconciliation or final outbound
 revocation qualification.
 
 Omitting `-gateway-socket` preserves the existing TLS/per-slot command path and
-its durable accounting/tripwire behavior. The Unix intake is not a per-slot
-metering API. No listener is inferred from environment variables or mappings,
+its durable accounting/tripwire behavior. Socket startup refuses a zero or
+omitted daily ceiling and requires the same explicitly initialized accounting
+directory. Before any Messages lease or provider call, the intake enforces the
+configured model allow-list and a positive `max_tokens` no greater than that
+model's context bound. It atomically charges full configured context input plus
+requested maximum output at configured prices against the durable daily ceiling.
+Parallel calls, restarts, upstream failures and cancellation cannot refund this
+conservative exposure; missing or corrupted accounting refuses. Policy GET does
+not reserve generation spend. The Unix intake is not a per-slot metering API:
+it has no slot identity/caps or verified-usage settlement, so full reservation
+remains charged even after a successful response. Those are explicit integration
+limits, not an unmetered exception to the ceiling. No listener is inferred from
+environment variables or mappings,
 and the inactive service template is unchanged.

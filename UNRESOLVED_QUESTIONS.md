@@ -1,5 +1,16 @@
 # Unresolved questions
 
+## Claude Unix intake qualification and settlement
+
+PR #161's Unix intake now enforces configured models and durable daily exposure;
+zero or omitted ceilings refuse startup. It conservatively charges full model
+context plus requested maximum output before forwarding, without refunds. It is
+not a per-slot API and does not settle verified usage from arbitrary real-client
+JSON/SSE. Actual-usage settlement, per-launch/slot caps, measured conversation
+sizes, broker renewal-rate capacity, durable UNKNOWN/account-hold reconciliation
+and live outbound revocation qualification remain explicit owner/integration
+gates. None is authorization to activate the service or spend without a ceiling.
+
 ## Grant v4 member encodings
 
 The primitive/stated-fact fixture is available with independent Python checks and

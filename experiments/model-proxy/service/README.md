@@ -57,6 +57,14 @@ for Messages, supported protocol headers are retained, and statuses/errors/SSE
 are streamed rather than fabricated or fully buffered. Known material is screened
 on input and redacted from output across read boundaries without logging bytes.
 The holder supplies round-1 per-version cancellation and lifecycle supervision.
+Before Messages acquisition, its `ReserveGeneration` method must durably admit
+the request's model and output bound against the configured daily ceiling.
+Policy GET never calls that generation meter. The command refuses zero ceilings
+and missing accounting. Messages bodies admit up to 128 MiB; the wire probe
+measured shapes, not body sizes. The pinned provider documents a 128 MB limit.
+Streams use 30-second response-header and one-minute read/write idle bounds,
+not a whole-stream duration cap; lease and revocation fencing still apply.
+Encoded upstream bodies refuse before output, while retry hints are preserved.
 
 This is not a qualified harness, production `UseGuard` or standalone daemon.
 Durable restart/UNKNOWN-hold reconciliation, production per-generation listener

@@ -22,6 +22,12 @@ import (
 type plant struct{ Name, Module, File, Old, New, Package, Test, Witness string }
 
 var plants = []plant{
+	{"intake_cli_ceiling", "proxy", "cmd/model-proxy/intake_linux.go", "config.DailyCostCeilingNanoUSD == 0", "false", "./cmd/model-proxy", "TestGatewayStartupGuards/zero-ceiling", "inactive or invalid configuration touched a credential source"},
+	{"intake_daily_ceiling", "proxy", "intake_budget.go", "next > s.cfg.DailyCostCeilingNanoUSD", "false", ".", "TestIntakeDailyAdmission/ceiling", "intake refusal: want DAILY_COST_CEILING"},
+	{"intake_daily_model", "proxy", "intake_budget.go", "if !allowed {", "if !allowed && request.Model == \"\" {", ".", "TestIntakeDailyAdmission/model", "intake refusal: want MODEL"},
+	{"intake_daily_output", "proxy", "intake_budget.go", "request.MaxTokens > model.ContextTokens", "false", ".", "TestIntakeDailyAdmission/output", "intake refusal: want CAP"},
+	{"intake_daily_persist", "proxy", "intake_budget.go", "return s.save()", "return nil", ".", "TestIntakeDailyAdmission/valid", "daily budget mismatch"},
+	{"managed_startup_idle", "proxy", "cmd/model-proxy/managed_linux.go", "if first && holder.session != nil", "if false && first && holder.session != nil", "./cmd/model-proxy", "TestManagedIdleBeforeFirstUse/idle", "first valid request after startup idle refused"},
 	{"intake_cli_development", "proxy", "cmd/model-proxy/intake_linux.go", "config.Mode != proxy.ModeManaged", "false", "./cmd/model-proxy", "TestGatewayStartupGuards/development", "inactive or invalid configuration touched a credential source"},
 	{"intake_cli_recipient", "proxy", "cmd/model-proxy/intake_linux.go", "config.Upstream != proxy.ManagedUpstream", "false", "./cmd/model-proxy", "TestGatewayStartupGuards/recipient", "inactive or invalid configuration touched a credential source"},
 	{"intake_cli_mapping", "proxy", "cmd/model-proxy/intake_linux.go", "brokerPath == \"\"", "false", "./cmd/model-proxy", "TestGatewayStartupGuards/missing-mapping", "inactive or invalid configuration touched a credential source"},
