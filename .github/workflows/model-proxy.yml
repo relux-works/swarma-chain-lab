@@ -52,7 +52,7 @@ jobs:
           for module in model-proxy station-lifecycle/gatewaybind; do
             (cd experiments/"$module" && go mod download && go mod verify)
           done
-      - name: Build CLI with published siblings and local service
+      - name: Build CLI with exact published service and sibling requirements
         env:
           GOTOOLCHAIN: local
         run: |
@@ -60,10 +60,24 @@ jobs:
           mkdir -p .temp
           cp go.mod .temp/published.mod
           cp go.sum .temp/published.sum
-          go mod edit -modfile=.temp/published.mod -dropreplace=github.com/relux-works/swarma-chain-lab/experiments/single-use -dropreplace=github.com/relux-works/swarma-chain-lab/experiments/sealwatch
+          go mod edit -modfile=.temp/published.mod -dropreplace=github.com/relux-works/swarma-chain-lab/experiments/single-use -dropreplace=github.com/relux-works/swarma-chain-lab/experiments/sealwatch -dropreplace=github.com/relux-works/swarma-chain-lab/experiments/model-proxy/service
           go mod download -modfile=.temp/published.mod all
           go mod verify -modfile=.temp/published.mod
           go build -mod=readonly -modfile=.temp/published.mod -o .temp/model-proxy-published ./cmd/model-proxy
+      - name: Former landed service floor lacks the intake APIs
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          cd experiments/model-proxy
+          cp .temp/published.mod .temp/stale-service.mod
+          cp .temp/published.sum .temp/stale-service.sum
+          go mod edit -modfile=.temp/stale-service.mod -require=github.com/relux-works/swarma-chain-lab/experiments/model-proxy/service@v0.0.0-20261119004354-f239a7e42695
+          go mod download -modfile=.temp/stale-service.mod all
+          status=0
+          go build -mod=readonly -modfile=.temp/stale-service.mod -o .temp/model-proxy-stale ./cmd/model-proxy > .temp/stale-service.log 2>&1 || status=$?
+          cat .temp/stale-service.log
+          test "$status" -eq 1
+          grep -E 'undefined: service\.(NewGateway|Placeholder)' .temp/stale-service.log
       - name: Vet non-Linux CLI
         env:
           GOOS: darwin

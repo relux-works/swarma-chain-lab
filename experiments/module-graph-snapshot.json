@@ -1,5 +1,5 @@
 {
-  "comment": "Semantic-version floors only. Strict-parser preservation additionally requires Git ancestry and selected-source checks in check-strict-module-snapshots.py.",
+  "comment": "Semantic-version floors only. Strict-parser preservation additionally requires Git ancestry and selected-source checks in check-strict-module-snapshots.py. The service floor is its landed ancestry baseline; the model-proxy require selects the newer same-PR API checkpoint documented in MODULE-GRAPH.md.",
   "snapshot_commit": "f1936aa1117aaa97df2802182af966edbacd0d50",
   "snapshot_time": "20261115082735",
   "modules": {

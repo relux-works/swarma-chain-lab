@@ -169,9 +169,10 @@ fixtures qualify these four public entry points and the bounded rental
 pre-parse regression. They do not claim that every
 other exported module/package or downstream slotd runtime was independently
 executed. Existing repository checks remain required. Future cross-module API
-changes must refresh the affected published requirements, raise the floors in
-`module-graph-snapshot.json`, and extend consumer fixtures where their public
-contracts change.
+changes must refresh affected requirements to an API-containing source, advance
+the main-provenance floors in `module-graph-snapshot.json` once that source is
+on main, and extend consumer fixtures where public contracts change. A same-PR
+source checkpoint must be distinguished from the already-landed floor, as below.
 
 The envelope admission bench adds the first wallet consumer edge to `grantcheck`
 and its two gateway dependencies. The previously unconsumed `grantcheck` module
@@ -208,17 +209,34 @@ depends only on the existing `btcec/v2 v2.3.5` library; it imports no parent
 `single-use` package or higher-level grant, gateway or wallet package. The
 module graph inventory remains unchanged.
 
-## Gateway service edge landed snapshot floor
+## Gateway service edge: same-PR API checkpoint and landed ancestry floor
 
 The only new edge is `model-proxy` to its separable `service` module. The
 command is its sole importing package; service imports no other experiment.
-The requirement and recorded floor are
-`v0.0.0-20261119004354-f239a7e42695`, selecting the service source landed on
-main in PR #159 at `f239a7e426950b2f4965ea2b8c326a4d35cc8333`.
-Its explicit `module_provenance` records that full commit and its UTC committer
-time `20261119004354`. The unchanged checker verifies main ancestry, module
-presence and exact pseudo-version provenance. Public-proxy resolution and
-checksum verification remain separate publication checks, not claimed here.
+The requirement now selects signed source checkpoint
+`v0.0.0-20261119121123-b44b4ce81f49` from this PR. That commit contains
+`Gateway`, `Placeholder` and the generation-metering source contract used by the
+command, including the literal-marker adapter change. The service tree is not
+byte-identical to PR #159. This follows the branch-local signed-checkpoint
+pattern recorded by `d760513`, rather than claiming unreleased APIs exist in an
+older landed module. Publication of the checkpoint remains part of PR delivery.
+
+The recorded semantic-version ancestry floor remains the genuinely landed
+`v0.0.0-20261119004354-f239a7e42695` from PR #159. Its explicit
+`module_provenance` records main commit
+`f239a7e426950b2f4965ea2b8c326a4d35cc8333` and UTC time `20261119004354`.
+This is a lower ancestry bound, not an assertion that its APIs build the new
+command. The current require is above that floor. The unchanged checker requires
+floor provenance on `origin/main`, so an unlanded checkpoint must not be labeled
+landed or substituted into that provenance. Advance the floor after the source
+checkpoint lands. No checker is changed or bypassed.
+
+CI drops all three parent replacements and builds the command against its exact
+required service version. A separate negative substitutes the former landed
+floor with no service replacement and must fail specifically at the missing
+intake APIs. Before publication, the same positive can be checked by resolving
+the signed commit from the local Git source; that is source-snapshot evidence,
+not a claim that the public proxy or remote PR checks have passed.
 The `replace .../service => ./service` is retained consistently with the
 parent module's existing local internal replacements. The inventory remains
 27 manifests, 21 consumers and 109 internal require edges. All pre-existing
