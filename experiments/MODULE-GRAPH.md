@@ -215,7 +215,7 @@ module graph inventory remains unchanged.
 The only new edge is `model-proxy` to its separable `service` module. The
 command is its sole importing package; service imports no other experiment.
 The requirement now selects signed source checkpoint
-`v0.0.0-20261119135506-571a4536ff63` from this PR. That commit contains
+`v0.0.0-20261119140259-48cae0395e06` from this PR. That commit contains
 `Gateway`, `Placeholder` and the generation-metering source contract used by the
 command, including exact intake admission, aggregate body windows and
 progress/authority stall fencing. The service tree is not
