@@ -4,14 +4,12 @@ on:
   pull_request:
     paths:
       - 'experiments/model-proxy/service/**'
-      - 'experiments/model-proxy/deploy/**'
       - 'docs/gateway-service.md'
       - '.github/workflows/gateway-service.yml'
   push:
     branches: [main]
     paths:
       - 'experiments/model-proxy/service/**'
-      - 'experiments/model-proxy/deploy/**'
       - 'docs/gateway-service.md'
       - '.github/workflows/gateway-service.yml'
   workflow_dispatch:

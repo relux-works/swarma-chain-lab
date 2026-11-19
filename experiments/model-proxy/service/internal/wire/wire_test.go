@@ -11,8 +11,7 @@ import (
 	"testing"
 )
 
-// Adapted from the pinned broker wire tests: request schemas are local fixtures;
-// the upstream refusal-code test needs types outside this copied codec.
+// Adapted from the pinned broker wire tests; request schemas are local fixtures.
 
 type requestEnvelope struct {
 	Method string         `json:"method"`
@@ -170,6 +169,7 @@ func TestPinnedCodecHashes(t *testing.T) {
 	for name, want := range map[string]string{
 		"canonical.go": "11ef191c1ea85cafd7a95a3d37b0923284c3e6ca31b110136de70321baf02592",
 		"frame.go":     "c7d735b79534d9d1965fcab22fd3444f61d6d1c541bd537a1dfe848aa2c06d47",
+		"types.go":     "4d211115f8610df31c05bfc967c1fe6615ec8f6810bb256fe276d6b4b3c6a3cf",
 	} {
 		data, err := os.ReadFile(name)
 		if err != nil {

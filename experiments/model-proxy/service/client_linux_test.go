@@ -50,7 +50,12 @@ type fakeBroker struct {
 
 func startFake(t *testing.T) *fakeBroker {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "broker.sock")
+	directory, e := os.MkdirTemp("", "broker-")
+	if e != nil {
+		t.Fatal("fake listener scratch unavailable")
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(directory) })
+	path := filepath.Join(directory, "broker.sock")
 	ln, e := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if e != nil {
 		t.Fatal("fake listener unavailable")
@@ -770,10 +775,10 @@ func TestEmptyHandleRefusals(t *testing.T) {
 
 // Claim: ordinary request refusals preserve every lease and the connection;
 // lease revocation/release refusals close their target, holds close one account,
-// and principal/availability loss closes all cached use. Each case starts with
+// and principal loss closes all cached use. Each case starts with
 // valid leases for two callers and accounts and checks the exact refusal code.
 func TestRefusalScope(t *testing.T) {
-	for _, mode := range []string{"request-lease_unbound", "request-service_operation_conflict", "request-request_malformed", "release-inactive", "renew-revoked", "check-revoked", "verdict-revoked", "request-hold-active", "request-hold-unknown", "renew-hold", "role", "ledger", "unavailable", "unknown-code"} {
+	for _, mode := range []string{"request-lease_unbound", "request-service_operation_conflict", "request-request_malformed", "request-grant_expired", "renew-grant_expired", "release-inactive", "renew-revoked", "check-revoked", "verdict-revoked", "request-hold-active", "request-hold-unknown", "renew-hold", "renew-stale", "check-stale", "release-stale", "hold-stale", "role", "ledger", "unavailable", "unknown-code"} {
 		t.Run(mode, func(t *testing.T) {
 			f := startFake(t)
 			c := connect(t, f)
@@ -812,6 +817,21 @@ func TestRefusalScope(t *testing.T) {
 			case mode == "renew-revoked":
 				want, targetClosed = Code("lease_caller_revoked"), true
 				f.renewError = string(want)
+			case mode == "renew-grant_expired":
+				want, targetClosed = Code("grant_expired"), true
+				f.renewError = string(want)
+			case strings.HasSuffix(mode, "-stale"):
+				want, allClosed = Code("lease_not_owner"), true
+				switch mode {
+				case "renew-stale":
+					f.renewError = string(want)
+				case "check-stale":
+					f.checkError = string(want)
+				case "release-stale":
+					f.releaseError = string(want)
+				case "hold-stale":
+					f.holdError, want = string(want), ErrUnknown
+				}
 			case mode == "check-revoked":
 				want, targetClosed = Code("lease_grant_revoked"), true
 				f.checkError = string(want)
@@ -829,7 +849,7 @@ func TestRefusalScope(t *testing.T) {
 					f.requestError = string(want)
 				}
 			case mode == "role", mode == "ledger", mode == "unavailable", mode == "unknown-code":
-				allClosed = true
+				allClosed = mode != "unavailable"
 				want = ErrUnavailable
 				switch mode {
 				case "role":
@@ -844,12 +864,14 @@ func TestRefusalScope(t *testing.T) {
 			}
 			f.mu.Unlock()
 			switch mode {
-			case "release-inactive":
+			case "release-inactive", "release-stale":
 				e = c.Release(context.Background(), a)
-			case "renew-revoked", "renew-hold":
+			case "renew-revoked", "renew-hold", "renew-grant_expired", "renew-stale":
 				e = c.Renew(context.Background(), "refused-renew", a)
-			case "check-revoked", "verdict-revoked":
+			case "check-revoked", "verdict-revoked", "check-stale":
 				e = c.Check(context.Background(), a)
+			case "hold-stale":
+				e = c.Hold(context.Background(), "refused-hold", a)
 			default:
 				var refused *Lease
 				refused, e = c.Request(context.Background(), "refused-request", caller)

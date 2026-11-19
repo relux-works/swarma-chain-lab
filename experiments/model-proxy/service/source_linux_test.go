@@ -72,11 +72,19 @@ func TestSourceCallerGrammar(t *testing.T) {
 	f := startFake(t)
 	c := connect(t, f)
 	for _, field := range []string{"account", "generation", "launch"} {
-		for _, mode := range []string{"slash", "ascii", "boundary", "empty", "overlength", "unicode", "high-byte"} {
+		for _, mode := range []string{"slash", "parent", "empty-segment", "leading-slash", "trailing-slash", "ascii", "boundary", "empty", "overlength", "unicode", "high-byte"} {
 			t.Run(field+"/"+mode, func(t *testing.T) {
 				value := "owner/claude/service-test"
 				valid := true
 				switch mode {
+				case "parent":
+					value = ".."
+				case "empty-segment":
+					value = "a//b"
+				case "leading-slash":
+					value = "/a"
+				case "trailing-slash":
+					value = "a/"
 				case "ascii":
 					value = "label :\x00\x7f"
 				case "boundary":

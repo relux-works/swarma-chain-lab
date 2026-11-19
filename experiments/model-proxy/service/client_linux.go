@@ -223,8 +223,7 @@ func (c *Client) Close() error {
 	return nil
 }
 func refusal(code string) error {
-	switch code {
-	case "role_not_permitted", "lease_not_owner", "lease_not_active", "service_binding_unknown", "service_binding_mismatch", "principal_ledger_mismatch", "account_hold_active", "account_hold_unknown", "hold_reason_unknown", "service_operation_conflict", "lease_unbound", "lease_grant_revoked", "lease_caller_revoked", "lease_not_authorised", "lease_account_unknown", "lease_harness_mismatch", "lease_account_revoked", "lease_reauth_required", "lease_owner_unavailable", "revocation_state_unavailable", "request_malformed", "request_deadline_exceeded", "renew_timeout":
+	if wire.Refuse(code).Code == code {
 		return Code(code)
 	}
 	return ErrUnavailable
@@ -319,9 +318,9 @@ func (c *Client) call(ctx context.Context, method string, params any, out any) e
 			return c.badFrame()
 		}
 		err := refusal(r.Code)
-		// Ordinary method refusals have no connection-wide effect. Only loss
-		// of this principal's authority or revocation availability closes it.
-		if err == ErrRole || err == Code("principal_ledger_mismatch") || err == ErrUnavailable {
+		// Match the pinned server's retirement set for broker-issued handles.
+		// A code outside the pinned wire set is a separate protocol failure.
+		if err != Code(r.Code) || err == ErrRole || err == Code("principal_ledger_mismatch") || err == Code("lease_not_owner") {
 			_ = c.Close()
 		}
 		return err

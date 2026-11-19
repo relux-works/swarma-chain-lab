@@ -14,9 +14,15 @@ travels in hello. Stable operation IDs belong to the holder. Lost outcomes are
 UNKNOWN; only identical operation/argument retries on a fresh, identically
 bound connection can reconcile them. A different generation inherits nothing.
 Ordinary broker refusals preserve unrelated leases and the usable connection.
-Lease-scoped refusals close the affected handle; hold refusals block the account.
-Loss of the service principal or revocation availability closes the connection
-and all its cached use. Caller fields use the pinned broker's nonempty ASCII
+Renew and Check stop their target on every error; Release stops it before the
+call. Hold stops its account before the call, and hold refusals on Request or
+Renew block that account. Only `role_not_permitted`, `principal_ledger_mismatch`
+and owned-handle `lease_not_owner` retire the connection on a known refusal.
+All 12 `grant_*` codes and `revocation_state_unavailable` keep the socket.
+Unknown wire codes are separate protocol failures that close cached use without
+echoing the code. A local account block never clears after an owner lift; redial
+requires holder-managed reconciliation, not an automatic unblock.
+Caller fields use the pinned broker's nonempty ASCII
 byte grammar (maximum 128 bytes), including `owner/claude/...` account labels;
 installer listener generations separately require a leading alphanumeric.
 

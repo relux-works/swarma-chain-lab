@@ -18,10 +18,21 @@ hello is `{versions:[1]}`. Request and renewal carry stable operation IDs;
 renewal never retargets a caller/account. The lease ceiling is 900 seconds;
 a larger configured value refuses. Revocation/unavailability/connection loss
 closes cached use at its affected scope. Ordinary method refusals preserve
-unrelated leases and the current socket; lease-scoped refusals close only their
-handle. Principal loss (`role_not_permitted`, `principal_ledger_mismatch`) or
-`revocation_state_unavailable` closes all connection-owned use. This follows
-`internal/server/services.go:95-100` at the pinned broker revision. Caller
+unrelated leases and the current socket. Renew and Check close their target on
+every error, including ordinary method refusals; Release closes its target
+before calling the broker. Hold closes its account before calling the broker;
+hold refusals on Request or Renew also block that account. Principal loss
+(`role_not_permitted`, `principal_ledger_mismatch`, owned-handle
+`lease_not_owner`) closes all connection-owned use. This matches
+`internal/server/services.go:95-100`, including the stale-principal paths at
+`internal/service/broker.go:478-484,534-536`, at the pinned revision. The client
+only sends broker-issued handles of its own bound principal; an arbitrary
+non-owner id is never an API input. `revocation_state_unavailable` and every
+`grant_*` refusal preserve the socket; a `revoked` or `unavailable` check verdict
+closes only the target (`internal/service/broker.go:1142-1170`). Unknown wire
+codes are protocol failures, not a default broker-code bucket. The complete
+reviewed code set is pinned in `service/internal/wire/types.go` and exhaustively
+checked by `TestBrokerRefusalTable`. Caller
 strings follow `internal/service/broker.go:323-324` (`validCaller`) and
 `internal/wire/frame.go:160-169` (`ASCII`): 1–128 ASCII bytes for account,
 generation and launch ID, including slash in `owner/claude/...` labels. These
@@ -30,7 +41,9 @@ wire identifiers are never interpreted as installer path components.
 and closed reason `leak_match`; UNKNOWN acknowledgment keeps local use closed.
 The holder must retain the blocked-account state across redials and reconcile
 with the same hold operation ID before any new request for that account. The
-client's block map alone lasts only for its connection.
+client's block map alone lasts only for its connection and never clears on an
+owner lift. A fresh client still requires the holder's explicit reconciliation
+of the account block; redial itself grants no use.
 
 The design reuses the Swarma installation book, `install-book/ru/01-chto-stavitsya.md`
 ("Parts and their accounts") and `03-shagi.md` (step 6), for separate service

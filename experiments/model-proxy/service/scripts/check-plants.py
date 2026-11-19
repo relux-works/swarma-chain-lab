@@ -47,7 +47,8 @@ def main():
     client = MODULE / 'client_linux.go'
     unit = MODULE / 'unit_linux.go'
     source_api = MODULE / 'source_linux.go'
-    original = {p: p.read_text() for p in (adapter, client, unit, source_api)}
+    refusal_tests = MODULE / 'refusal_linux_test.go'
+    original = {p: p.read_text() for p in (adapter, client, unit, source_api, refusal_tests)}
     source = original[adapter]
     start = source.index('\tid, e := OperationID()\n')
     end = source.index('\tfail := func(', start)
@@ -72,6 +73,24 @@ def main():
                       'c.invalidate()\n\t\terr := refusal(r.Code)'),
          'TestRefusalScope', 'TestRefusalScope/request-lease_unbound',
          'An ordinary refusal preserves unrelated leases and the connection epoch.'),
+        ('grant-refusal-closes-connection', client,
+         replace_once(original[client], 'err == ErrRole ||',
+                      'err == Code("grant_expired") || err == ErrRole ||'),
+         'TestBrokerRefusalTable', 'TestBrokerRefusalTable/grant_expired/request',
+         'A grant refusal has no connection-wide effect.'),
+        ('stale-principal-keeps-connection', client,
+         replace_once(original[client], ' || err == Code("lease_not_owner")', ''),
+         'TestBrokerRefusalTable', 'TestBrokerRefusalTable/lease_not_owner/renew',
+         'A stale principal immediately closes every cached lease.'),
+        ('refusal-table-code-added', refusal_tests,
+         replace_once(original[refusal_tests], '{"grant_malformed", false},',
+                      '{"fixture_new_refusal", false},\n\t{"grant_malformed", false},'),
+         'TestBrokerRefusalTable', 'TestBrokerRefusalTable',
+         'An extra table row outside the pinned wire set is rejected.'),
+        ('refusal-table-code-removed', refusal_tests,
+         replace_once(original[refusal_tests], '\t{"grant_malformed", false},\n', ''),
+         'TestBrokerRefusalTable', 'TestBrokerRefusalTable',
+         'A missing table row cannot silently omit an accepted wire code.'),
         ('dot-generation-admitted', unit,
          replace_once(original[unit], '!generationName.MatchString(in.Generation)',
                       '!valid(in.Generation)'),
