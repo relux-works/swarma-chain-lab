@@ -1,5 +1,16 @@
 # Unresolved questions
 
+## API-key lab v0 integration
+
+The tagged [gateway slice](experiments/model-proxy/LAB-V0.md) is not a qualified
+assembly. B1 durable hold/replay and finite-plan accounting, B2 trusted time and
+fence/floor custody, B3 authenticated root operations, M1 executor separation,
+B4 integrated/native Q1–Q6 and full lifecycle/encoding scans, and B5/RG exact
+release/install readback remain external. DN-09 C owner decisions are not made
+by this producer. The inert 128000-output fixture is not live spend approval;
+a changed bounded invocation requires a reviewed profile/probe revision. No
+vendor key, privileged service installation or live inference is exercised.
+
 ## Claude Unix intake qualification and settlement
 
 PR #161's Unix intake now enforces configured models and durable daily exposure;

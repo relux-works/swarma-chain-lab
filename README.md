@@ -844,3 +844,8 @@ the holder now supervises renewal, local revocation fencing and fail-closed
 source recovery. Its focused tests, narrowing plants and non-Linux vet command
 are listed in that module README, with evidence under `.temp/`. The release
 artifact and production qualification remain separate.
+
+The separate [API-key lab v0 gateway](experiments/model-proxy/LAB-V0.md) is an
+explicit `gateway_lab` experiment with frozen C0 inputs and a separate command.
+Its tools/verification section lists isolated tests, builds and source-overlay
+controls; no production profile, release or native qualification is implied.
