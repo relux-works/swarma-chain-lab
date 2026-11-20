@@ -34,12 +34,22 @@ func TestLabRunRetiredDispatch(test *testing.T) {
 		test.Fatal("source control")
 	}
 	defer source.Close()
+	if service.PrepareLabAttemptGroup(harness.attempts.Root) != nil {
+		test.Fatal("attempt group")
+	}
+	harness.attempts.PublishStart()
+	attempts, err := service.OpenLabAttempts(context.Background(), harness.attempts.Root, source)
+	if err != nil {
+		test.Fatal("attempt admission", err)
+	}
+	defer attempts.Close()
 	var calls atomic.Int32
 	gateway, err := service.NewLabGateway(source, func([]byte) error { return nil }, service.LabGatewayIO{
-		PeerUID: func(net.Conn) (uint32, error) { return uint32(worker["uid"].(int64)), nil },
+		Attempts: attempts,
+		PeerUID:  func(net.Conn) (uint32, error) { return uint32(worker["uid"].(int64)), nil },
 		Transport: commandTransport(func(*http.Request) (*http.Response, error) {
 			calls.Add(1)
-			return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("control"))}, nil
+			return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}, "Request-Id": {"control-request"}}, Body: io.NopCloser(strings.NewReader(labtest.AttemptSSE()))}, nil
 		}),
 	})
 	if err != nil {

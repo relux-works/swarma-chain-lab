@@ -43,11 +43,64 @@ func main() {
 	for index, name := range []string{"activation", "authority", "fence", "manager-floor", "release-set"} {
 		paths[index] = flag.String(name, "", "")
 	}
+	attemptRoot := flag.String("attempt-root", "", "")
+	prepare := flag.Bool("prepare-attempt-group", false, "")
+	status := flag.Bool("attempt-status", false, "")
+	operation := flag.String("operation", "", "")
+	planDigest := flag.String("plan-sha256", "", "")
+	ordinal := flag.Int64("ordinal", 0, "")
 	flag.Parse()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	if flag.NArg() != 0 || run(ctx, *configPath, *brokerPath, *socket, paths) != nil {
+	if flag.NArg() != 0 {
+		os.Exit(1)
+	}
+	if *status {
+		if *prepare {
+			os.Exit(1)
+		}
+		raw, err := service.ReadLabAttemptStatus(*attemptRoot, *operation, *planDigest, *ordinal)
+		if err != nil {
+			if errors.Is(err, service.ErrIdentity) {
+				os.Exit(1)
+			}
+			os.Exit(2)
+		}
+		if _, err := os.Stdout.Write(raw); err != nil {
+			os.Exit(2)
+		}
+		var record struct {
+			Status   string `json:"status"`
+			Attempts []struct {
+				State string `json:"state"`
+			} `json:"attempts"`
+		}
+		if json.Unmarshal(raw, &record) != nil || record.Status == "unknown" {
+			os.Exit(2)
+		}
+		for _, attempt := range record.Attempts {
+			if attempt.State != "settled" {
+				os.Exit(2)
+			}
+		}
+		return
+	}
+	if *prepare {
+		if err := service.PrepareLabAttemptGroup(*attemptRoot); err != nil {
+			if errors.Is(err, service.ErrUnknown) {
+				os.Exit(2)
+			}
+			os.Exit(1)
+		}
+		return
+	}
+	paths = append(paths, attemptRoot)
+	err := run(ctx, *configPath, *brokerPath, *socket, paths)
+	if flag.NArg() != 0 || err != nil {
 		_, _ = io.WriteString(os.Stderr, "LAB_GATEWAY_REFUSED\n")
+		if errors.Is(err, service.ErrUnknown) {
+			os.Exit(2)
+		}
 		os.Exit(1)
 	}
 }
@@ -57,6 +110,7 @@ type runInputs struct {
 	readInstalled func(string, int64) ([]byte, error)
 	readPrivate   func(string, os.FileMode, int64) ([]byte, error)
 	gatewayIO     service.LabGatewayIO
+	attemptIO     service.LabAttemptIO
 	listen        func(string, string) (net.Listener, error)
 }
 
@@ -69,7 +123,7 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 		inputs = supplied[0]
 	}
 
-	if len(paths) != 5 || inputs.loadConfig == nil || inputs.readInstalled == nil || inputs.readPrivate == nil {
+	if len(paths) != 6 || inputs.loadConfig == nil || inputs.readInstalled == nil || inputs.readPrivate == nil {
 		return errors.New("closed")
 	}
 	if inputs.listen == nil {
@@ -80,7 +134,7 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 		return errors.New("closed")
 	}
 	records := make([][]byte, 5)
-	for index, path := range paths {
+	for index, path := range paths[:5] {
 		records[index], err = inputs.readPrivate(*path, 0400, 262144)
 		if err != nil {
 			return errors.New("closed")
@@ -112,6 +166,15 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 	if caller.Account != mapping.Account || caller.UID != mapping.WorkerUID || caller.Generation != mapping.WorkerGeneration || caller.LaunchID != mapping.LaunchID {
 		return errors.New("closed")
 	}
+	attempts, err := service.OpenLabAttempts(ctx, *paths[5], source, inputs.attemptIO)
+	if err != nil {
+		return err
+	}
+	defer attempts.Close()
+	if err := attempts.Err(); err != nil {
+		return err
+	}
+	inputs.gatewayIO.Attempts = attempts
 	adapted, err := proxy.AdaptManagedSource(source)
 	if err != nil {
 		return errors.New("closed")
@@ -152,8 +215,18 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 	err = server.Serve(listener)
 	_ = server.Close()
 	requests.drain()
-	if source.AwaitHold(ctx) != nil {
+	holdErr := source.AwaitHold(ctx)
+	if attempts.FinalizeBoundary() != nil {
+		return service.ErrUnknown
+	}
+	if errors.Is(attempts.Err(), service.ErrUnknown) {
+		return service.ErrUnknown
+	}
+	if holdErr != nil {
 		return errors.New("closed")
+	}
+	if errors.Is(attempts.Err(), service.ErrInactive) {
+		return nil
 	}
 	if errors.Is(err, http.ErrServerClosed) && ctx.Err() != nil {
 		return nil

@@ -31,7 +31,7 @@ func TestLabBetaCanonicalThroughHTTP(test *testing.T) {
 		test.Run(name, func(test *testing.T) {
 			fixture := labtest.NewFixture(test, "testdata/lab-v0/fixtures.json")
 			source, _ := labComposedSource(test, fixture)
-			gateway, err := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, err := newLabIntake(source, func([]byte) error { return nil })
 			if err != nil {
 				test.Fatal("gateway control refused")
 			}
@@ -66,7 +66,7 @@ func TestLabMultiValueHeadersThroughHTTP(test *testing.T) {
 			test.Run(direction+"/"+mode, func(test *testing.T) {
 				fixture := labtest.NewFixture(test, "testdata/lab-v0/fixtures.json")
 				source, broker := labComposedSource(test, fixture)
-				gateway, err := NewLabGateway(source, func([]byte) error { return nil })
+				gateway, err := newLabIntake(source, func([]byte) error { return nil })
 				if err != nil {
 					test.Fatal("gateway control refused")
 				}
@@ -140,7 +140,7 @@ func TestLabEarlyBodyScanThroughHTTP(test *testing.T) {
 	fixture := labtest.NewFixture(test, "testdata/lab-v0/fixtures.json")
 	source, broker := labComposedSource(test, fixture)
 	reservations, calls := 0, 0
-	gateway, err := NewLabGateway(source, func([]byte) error { reservations++; return nil })
+	gateway, err := newLabIntake(source, func([]byte) error { reservations++; return nil })
 	if err != nil {
 		test.Fatal("gateway control refused")
 	}
@@ -177,7 +177,7 @@ func TestLabColdCheckTimeoutThroughHTTP(test *testing.T) {
 				broker.CheckMode.Store("stall")
 			}
 			calls := 0
-			gateway, err := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, err := newLabIntake(source, func([]byte) error { return nil })
 			if err != nil {
 				test.Fatal("gateway control refused")
 			}
@@ -217,7 +217,7 @@ func TestLabPinnedDeadlineThroughHTTP(test *testing.T) {
 			fixture.Rebuild()
 			source, broker := labComposedSource(test, fixture)
 			calls := 0
-			gateway, err := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, err := newLabIntake(source, func([]byte) error { return nil })
 			if err != nil {
 				test.Fatal("gateway control refused")
 			}

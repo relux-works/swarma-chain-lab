@@ -71,7 +71,7 @@ func TestLabServeHTTPWireCatalogue(test *testing.T) {
 			defer source.cancel()
 			source.scheme = fixture.Request.Scheme
 			calls := 0
-			gateway, err := NewLabGateway(source, func([]byte) error { return nil }, LabGatewayIO{Transport: labRoundTrip(func(request *http.Request) (*http.Response, error) {
+			gateway, err := newLabIntake(source, func([]byte) error { return nil }, LabGatewayIO{Transport: labRoundTrip(func(request *http.Request) (*http.Response, error) {
 				calls++
 				if request.Method == http.MethodPost && (request.Header.Get("Anthropic-Beta") != labBeta || request.Header.Get("X-Api-Key") != labMaterial) {
 					test.Error("canonical API-key emission missing")
@@ -101,7 +101,7 @@ func TestLabServeHTTPWireCatalogue(test *testing.T) {
 			source := newLabHTTPSource()
 			defer source.cancel()
 			calls := 0
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
 				calls++
@@ -144,7 +144,7 @@ func TestLabServeHTTPResponseGates(test *testing.T) {
 			source := newLabHTTPSource()
 			defer source.cancel()
 			calls := 0
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(request *http.Request) (*http.Response, error) {
 				calls++
@@ -199,7 +199,7 @@ func TestLabLeaseBindingsThroughHTTP(test *testing.T) {
 			source, broker := labComposedSource(test, fixture)
 			broker.LeaseMode.Store(mode)
 			calls := 0
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
 				calls++
@@ -240,7 +240,7 @@ func TestLabSequenceThroughHTTP(test *testing.T) {
 				broker.CheckMode.Store("zero")
 			}
 			calls := 0
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
 				calls++
@@ -285,7 +285,7 @@ func TestLabPostLoadHoldThroughHTTP(test *testing.T) {
 				broker.HoldMode.Store(mode)
 			}
 			calls := 0
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
 				calls++
@@ -359,7 +359,7 @@ func TestLabVersionRaceThroughHTTP(test *testing.T) {
 				selected = labRenewRace{source, broker, test}
 			}
 			calls := 0
-			gateway, _ := NewLabGateway(selected, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(selected, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
 				calls++
@@ -403,7 +403,7 @@ func TestLabAuthorityCancellationThroughHTTP(test *testing.T) {
 			body := &labObservedBody{PipeReader: reader, reading: make(chan struct{})}
 			entered := make(chan context.Context, 1)
 			returned := make(chan struct{})
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(request *http.Request) (*http.Response, error) {
 				entered <- request.Context()
@@ -477,7 +477,7 @@ func TestLabBodyOperatorsThroughHTTP(test *testing.T) {
 			case "number":
 				body = bytes.Replace(body, []byte(`128000`), []byte(`128000.000000000001`), 1)
 			}
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
 				calls++
@@ -500,7 +500,7 @@ func TestLabLeakSurfacesThroughHTTP(test *testing.T) {
 			fixture := labtest.NewFixture(test, "testdata/lab-v0/fixtures.json")
 			source, broker := labComposedSource(test, fixture)
 			calls := 0
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
 				calls++
@@ -566,7 +566,7 @@ func TestLabSSEThroughHTTP(test *testing.T) {
 	reader, writer := io.Pipe()
 	defer writer.Close()
 	defer reader.Close()
-	gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+	gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 	defer gateway.Close()
 	gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: reader}, nil
@@ -607,7 +607,7 @@ func TestLabRenewalThroughHTTP(test *testing.T) {
 				broker.LeaseMode.Store(mode)
 			}
 			calls := 0
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
 				calls++
@@ -649,7 +649,7 @@ func TestLabWatchdogAgeThroughHTTP(test *testing.T) {
 	body := &labObservedBody{PipeReader: reader, reading: make(chan struct{})}
 	entered := make(chan context.Context, 1)
 	returned := make(chan struct{})
-	gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+	gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 	defer gateway.Close()
 	gateway.transport = labRoundTrip(func(request *http.Request) (*http.Response, error) {
 		entered <- request.Context()
@@ -712,7 +712,7 @@ func TestLabPayloadThroughHTTP(test *testing.T) {
 			source := newLabHTTPSource()
 			defer source.cancel()
 			calls := 0
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
 				calls++

@@ -109,3 +109,11 @@ Broker sources and actual frame captures are pinned in
 [fixture provenance](testdata/PROVENANCE.md). The copied wire files retain their
 Apache-2.0 license, upstream NOTICE and checked source digests. The module also
 runs the adapted upstream codec refusal and erasure tests. No real credential or provider call is used by any test.
+
+## G1b accounting (Linux lab build only)
+
+[The G1b contract and tool catalogue](../LAB-G1b.md) describe the mandatory
+per-forward gate on the tagged public constructor and command. Use Go 1.26.10
+for this release profile. The existing private intake tests retain their original
+names and exercise the G1 core; the new `TestLabAttempt*ThroughHTTP` and
+`TestLabAttemptRun*` tests exercise the actual bounded public/command paths.

@@ -602,3 +602,10 @@ cross-build boundary. Use the existing Tools commands for full tests, vet and
 build; keep logs under `.temp/`. The CLI publication check resolves the published
 sibling dependencies but intentionally retains the local service replacement;
 it does not prove public resolution of the service pseudo-version.
+
+## Tagged per-attempt lab gate
+
+The separate Linux `gateway_lab` command requires the protected C0b/C0e inputs
+and durable preauthorization group described in [G1b](LAB-G1b.md). Its per-forward
+reservation, usage settlement, crash/status and source-overlay tools are lab-only.
+The production entry point, configuration defaults and release template do not change.

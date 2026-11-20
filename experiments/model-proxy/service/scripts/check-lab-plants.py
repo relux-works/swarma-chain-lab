@@ -33,7 +33,7 @@ mutants = [
     ("A02", "oauth-scheme", "lab_intake_linux.go", 'scheme != "api-key"', 'scheme != "api-key" && scheme != "oauth-bearer"', "TestLabAPIKeyForwarding", "OAuth is not an API-key source"),
     ("A02", "extra-body-field", "lab_contract_linux.go", "len(object) != len(expected)", "len(object) < len(expected)", "TestLabServeHTTPWireCatalogue", "unobserved body aliases cannot be admitted"),
     ("A02", "policy-key-injection", "lab_intake_linux.go", 'if request.Method == http.MethodPost {\n\t\tout.Header.Set', 'if request.Method == http.MethodPost || request.Method == http.MethodGet {\n\t\tout.Header.Set', "TestLabAPIKeyForwarding", "policy GET must stay credential free"),
-    ("A03", "uid-truncation", "lab_source_linux.go", 'gateway["uid"].(int64) > 4294967295 || worker["uid"].(int64) > 4294967295 || ', '', "TestLabRunAdmission", "C0 UIDs cannot truncate into kernel UIDs"),
+    ("A03", "uid-truncation", ["lab_source_linux.go","lab_attempt_admission_linux.go"], ['gateway["uid"].(int64) > 4294967295 || worker["uid"].(int64) > 4294967295 || ','source.pins.worker["uid"] != start["uid"]'], ['','false && source.pins.worker["uid"] != start["uid"]'], "TestLabRunAdmission", "the UID-truncation class disables both source range and native caller binding, not only one redundant rejection"),
     ("A09", "null-current-sequence", "lab_source_linux.go", 'if result.Verdict != "not_revoked"', 'if result.Sequence == nil { zero := uint64(0); result.Sequence = &zero }\n\tif result.Verdict != "not_revoked"', "TestLabSequenceThroughHTTP", "a nullable decoded sequence cannot refresh authority"),
     ("A03", "caller-retarget", "lab_source_linux.go", '!labEqual(record["caller"], pins.worker)', 'false', "TestLabLeaseBindingsThroughHTTP", "a lease cannot retarget the protected caller"),
     ("A03", "wrong-peer", "lab_intake_linux.go", "!ok || peer.uid != gateway.mapping.Caller.UID", "!ok && peer.uid != gateway.mapping.Caller.UID", "TestLabKernelCallerRefusal", "a kernel UID mismatch cannot lease"),
@@ -303,8 +303,8 @@ mutants += [('A01',
  ('A08',
   'main-skip-hold-wait',
   '../cmd/credential-gateway-lab/main_linux.go',
-  'if source.AwaitHold(ctx) != nil {',
-  'if false {',
+  'holdErr := source.AwaitHold(ctx)',
+  'holdErr := error(nil)',
   'TestLabRunHoldBinding',
   'UNKNOWN hold keeps the closed command alive'),
  ('A08',
@@ -368,19 +368,23 @@ results = []
 for row, name, source, before, after, test, claim in mutants:
     if arguments.filter and arguments.filter not in name:
         continue
-    path = (root / source).resolve()
-    original = path.read_text()
-    replacements = list(zip(before, after, strict=True)) if isinstance(before, list) else [(before, after)]
-    candidate = original
-    for old, new in replacements:
-        expected = 2 if name == "pinned-deadline-class-unwired" and "source.pins.deadline" in old else 1
-        if candidate.count(old) != expected:
-            raise SystemExit(f"{name}: overlay target has unexpected occurrence count")
-        candidate = candidate.replace(old, new)
-    planted = output / (name + ".go")
-    planted.write_text(candidate)
-    overlay = output / (name + ".json")
-    overlay.write_text(json.dumps({"Replace": {str(path): str(planted)}}))
+    sources = source if isinstance(source,list) else [source]
+    before_groups = [[value] for value in before] if isinstance(source,list) else [before if isinstance(before,list) else [before]]
+    after_groups = [[value] for value in after] if isinstance(source,list) else [after if isinstance(after,list) else [after]]
+    replace = {}
+    for index,(selected,old_group,new_group) in enumerate(zip(sources,before_groups,after_groups,strict=True)):
+        path=(root/selected).resolve()
+        candidate=path.read_text()
+        for old,new in zip(old_group,new_group,strict=True):
+            expected=2 if name=="pinned-deadline-class-unwired" and "source.pins.deadline" in old else 1
+            if candidate.count(old)!=expected:
+                raise SystemExit(f"{name}: overlay target has unexpected occurrence count")
+            candidate=candidate.replace(old,new)
+        planted=output/(name+"-"+str(index)+".go")
+        planted.write_text(candidate)
+        replace[str(path)]=str(planted)
+    overlay=output/(name+".json")
+    overlay.write_text(json.dumps({"Replace":replace}))
     environment = os.environ.copy()
     environment["LAB_TEST_OVERLAY"] = str(overlay)
     package = "./cmd/credential-gateway-lab" if test.startswith("TestLabRun") else "./cmd/model-proxy" if test.startswith("TestManaged") else "."

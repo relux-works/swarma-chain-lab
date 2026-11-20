@@ -23,11 +23,12 @@ import (
 const Material = "PUBLIC-SYNTHETIC-ONLY-NOT-A-VENDOR-KEY"
 
 type Fixture struct {
-	Test     *testing.T
-	Records  [][]byte
-	Objects  map[string]map[string]any
-	Lifetime time.Duration
-	Deadline time.Time
+	Test         *testing.T
+	Records      [][]byte
+	Objects      map[string]map[string]any
+	Lifetime     time.Duration
+	Deadline     time.Time
+	ReleaseIndex string
 }
 
 func Encode(test *testing.T, value any) []byte {
@@ -99,6 +100,9 @@ func (fixture *Fixture) Rebuild() {
 	release := fixture.Objects["swarma-lab-release-set/1"]
 	release["context"] = scope
 	release["contract_index_sha256"] = "sha256:4f9a81562d391153764b5ae75d7914cf83f03c1bb3d956461211d8eb36f6e7d8"
+	if fixture.ReleaseIndex != "" {
+		release["contract_index_sha256"] = fixture.ReleaseIndex
+	}
 	fixture.Records = [][]byte{nil, Encode(fixture.Test, authority), Encode(fixture.Test, fence), Encode(fixture.Test, floor), Encode(fixture.Test, release)}
 	activation["authority_sha256"], activation["fence_sha256"], activation["release_set_sha256"] = Digest(fixture.Records[1]), Digest(fixture.Records[2]), Digest(fixture.Records[4])
 	fixture.Records[0] = Encode(fixture.Test, activation)

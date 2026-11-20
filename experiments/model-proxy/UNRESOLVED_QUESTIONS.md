@@ -78,3 +78,16 @@
   ceiling. Automatic ledger initialization on startup and state reset are
   deliberately unavailable. Provisioning a provider-key hard limit remains a
   separate operator action; no provider account is changed by this module.
+
+## G1b native assembly limits
+
+- Construction interfaces are specified in `LAB-G1b.md`. B5 must place authenticated
+  approved P/R/access pins and the fresh available-cap integer; B1 must place its
+  accepted final C0d admission-pair response/baseline. A self-written digest/channel
+  string is not approval, and a later periodic single is not the admission pair.
+- Real C opening/NTS/fence/owner-role/native isolation, client/executor/archive
+  measurement, vendor hard-cap/access visibility, lifecycle scan and native timing
+  qualification remain B1/B2/B3/M1/B5/B4/RG/Q release gates. No live activation is
+  supplied here; missing inputs close use. The fixture is not an authority bridge.
+- No automatic UNKNOWN refund/reopening or ledger repair is implemented. Lost
+  persistence remains held/UNKNOWN for separate owner-authoritative recovery.

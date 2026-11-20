@@ -31,23 +31,27 @@ func (transport commandTransport) RoundTrip(request *http.Request) (*http.Respon
 }
 
 type commandHarness struct {
-	mappingEdit  func(*brokerMapping)
-	responseBody func() io.ReadCloser
-	fixture      *labtest.Fixture
-	broker       *labtest.Broker
-	config       proxy.GatewayFileConfig
-	root         string
-	socket       string
-	paths        []*string
-	mapping      []byte
-	ctx          context.Context
-	cancel       context.CancelFunc
-	result       chan error
-	calls        atomic.Int64
-	entered      chan context.Context
-	bodies       sync.Map
-	returned     atomic.Bool
-	listener     net.Listener
+	mappingEdit    func(*brokerMapping)
+	responseBody   func() io.ReadCloser
+	fixture        *labtest.Fixture
+	broker         *labtest.Broker
+	config         proxy.GatewayFileConfig
+	root           string
+	socket         string
+	paths          []*string
+	mapping        []byte
+	ctx            context.Context
+	cancel         context.CancelFunc
+	result         chan error
+	calls          atomic.Int64
+	entered        chan context.Context
+	bodies         sync.Map
+	returned       atomic.Bool
+	listener       net.Listener
+	attempts       *labtest.AttemptFixture
+	afterPrepare   func()
+	responseHeader http.Header
+	attemptIO      service.LabAttemptIO
 }
 
 func commandFixture(test *testing.T) *commandHarness {
@@ -76,10 +80,20 @@ func commandFixture(test *testing.T) *commandHarness {
 	if err := os.MkdirAll(filepath.Dir(harness.socket), 0750); err != nil {
 		test.Fatal(err)
 	}
+	harness.attempts = labtest.NewAttemptFixture(test, "../../service/testdata/lab-v0-c0e", fixture)
 	return harness
 }
 func (harness *commandHarness) start(test *testing.T, leak bool) {
 	test.Helper()
+	harness.fixture.Rebuild()
+	harness.attempts.Rebind()
+	if service.PrepareLabAttemptGroup(harness.attempts.Root) != nil {
+		test.Fatal("attempt preparation")
+	}
+	harness.attempts.PublishStart()
+	if harness.afterPrepare != nil {
+		harness.afterPrepare()
+	}
 	harness.fixture.Rebuild()
 	harness.broker = labtest.StartBroker(test, harness.fixture)
 	authority := harness.fixture.Objects["swarma-broker-lab-authority/1"]
@@ -96,7 +110,9 @@ func (harness *commandHarness) start(test *testing.T, leak bool) {
 		}
 		harness.paths = append(harness.paths, &path)
 	}
+	harness.paths = append(harness.paths, &harness.attempts.Root)
 	inputs := runInputs{
+		attemptIO: harness.attemptIO,
 		listen: func(network, socket string) (net.Listener, error) {
 			listener, err := net.Listen(network, socket)
 			harness.listener = listener
@@ -117,12 +133,12 @@ func (harness *commandHarness) start(test *testing.T, leak bool) {
 		readPrivate: proxy.ReadPrivateFile,
 		gatewayIO: service.LabGatewayIO{PeerUID: func(net.Conn) (uint32, error) { return mapping.WorkerUID, nil }, Transport: commandTransport(func(request *http.Request) (*http.Response, error) {
 			harness.calls.Add(1)
-			if request.URL.Scheme != "https" || request.URL.Host != "api.anthropic.com" || request.Header.Get("X-Api-Key") != labtest.Material {
+			if request.URL.Scheme != "https" || request.URL.Host != "api.anthropic.com" || (request.Method == http.MethodPost && request.Header.Get("X-Api-Key") != labtest.Material) || (request.Method == http.MethodGet && request.Header.Get("X-Api-Key") != "") {
 				test.Error("fixed upstream or key boundary")
 			}
 			harness.entered <- request.Context()
 			if harness.responseBody != nil {
-				return &http.Response{StatusCode: 200, Header: http.Header{}, Body: harness.responseBody()}, nil
+				return &http.Response{StatusCode: 200, Header: harness.responseHeader, Body: harness.responseBody()}, nil
 			}
 			reader, writer := io.Pipe()
 			body := &commandBody{PipeReader: reader}
@@ -168,6 +184,13 @@ func (harness *commandHarness) dial(test *testing.T) net.Conn {
 		time.Sleep(time.Millisecond)
 	}
 }
+func (harness *commandHarness) policy(test *testing.T, conn net.Conn) {
+	test.Helper()
+	if _, err := io.WriteString(conn, "GET /api/claude_code/policy_limits HTTP/1.1\r\nHost: gateway\r\nUser-Agent: claude-code/2.1.328\r\n\r\n"); err != nil {
+		test.Fatal(err)
+	}
+}
+
 func (harness *commandHarness) request(test *testing.T, conn net.Conn) {
 	test.Helper()
 	raw, err := os.ReadFile("../../service/testdata/lab-v0/wire-fixtures.json")
@@ -254,7 +277,7 @@ func TestLabRunAuthorityTeardown(test *testing.T) {
 			if err != nil || response.StatusCode != 200 {
 				test.Fatal("live SSE positive control", err)
 			}
-			harness.request(test, second)
+			harness.policy(test, second)
 			var secondUpstream context.Context
 			select {
 			case secondUpstream = <-harness.entered:

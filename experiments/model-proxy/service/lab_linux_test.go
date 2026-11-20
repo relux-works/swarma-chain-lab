@@ -262,7 +262,7 @@ func (roundTrip labRoundTrip) RoundTrip(request *http.Request) (*http.Response, 
 func TestLabAPIKeyForwarding(test *testing.T) {
 	source := newLabHTTPSource()
 	defer source.cancel()
-	gateway, err := NewLabGateway(source, func([]byte) error { return nil })
+	gateway, err := newLabIntake(source, func([]byte) error { return nil })
 	if err != nil {
 		test.Fatal(err)
 	}
@@ -330,7 +330,7 @@ func TestLabAPIKeyForwarding(test *testing.T) {
 func TestLabKernelCallerRefusal(test *testing.T) {
 	source := newLabHTTPSource()
 	defer source.cancel()
-	gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+	gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 	defer gateway.Close()
 	calls := 0
 	gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
@@ -357,7 +357,7 @@ func TestLabLeakPaths(test *testing.T) {
 		test.Run(surface, func(test *testing.T) {
 			source := newLabHTTPSource()
 			defer source.cancel()
-			gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 			defer gateway.Close()
 			calls := 0
 			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
@@ -762,7 +762,7 @@ func TestLabNativeCaller(test *testing.T) {
 			if !allowed {
 				source.caller.UID++
 			}
-			gateway, err := NewLabGateway(source, func([]byte) error { return nil })
+			gateway, err := newLabIntake(source, func([]byte) error { return nil })
 			if err != nil {
 				test.Fatal(err)
 			}
@@ -998,7 +998,7 @@ func TestLabHoldUnknownResult(test *testing.T) {
 func TestLabReadStall(test *testing.T) {
 	source := newLabHTTPSource()
 	defer source.cancel()
-	gateway, _ := NewLabGateway(source, func([]byte) error { return nil })
+	gateway, _ := newLabIntake(source, func([]byte) error { return nil })
 	defer gateway.Close()
 	gateway.idleTimeout = 15 * time.Millisecond
 	for _, stall := range []bool{false, true} {

@@ -31,15 +31,39 @@ func (adapter labGatewayAdapter) ReserveGeneration(body []byte) error { return a
 type LabGatewayIO struct {
 	Transport http.RoundTripper
 	PeerUID   func(net.Conn) (uint32, error)
+	Attempts  *LabAttemptGate
 }
 
 type LabGateway struct {
 	*Gateway
 	labSource LabGatewaySource
 	peerUID   func(net.Conn) (uint32, error)
+	attempts  *LabAttemptGate
 }
 
 func NewLabGateway(source LabGatewaySource, reserve func([]byte) error, collaborators ...LabGatewayIO) (*LabGateway, error) {
+	if len(collaborators) != 1 || collaborators[0].Attempts == nil || collaborators[0].Attempts.admission == nil {
+		return nil, ErrInput
+	}
+	bound, ok := source.(*LabSource)
+	if !ok || bound != collaborators[0].Attempts.admission.source {
+		return nil, ErrIdentity
+	}
+	gateway, err := newLabIntake(source, reserve, collaborators...)
+	if err != nil {
+		return nil, err
+	}
+	gateway.attempts = collaborators[0].Attempts
+	if transport, ok := gateway.transport.(*http.Transport); ok {
+		transport.Protocols = new(http.Protocols)
+		transport.Protocols.SetHTTP1(true)
+		transport.ForceAttemptHTTP2 = false
+		transport.DisableKeepAlives = true
+	}
+	return gateway, nil
+}
+
+func newLabIntake(source LabGatewaySource, reserve func([]byte) error, collaborators ...LabGatewayIO) (*LabGateway, error) {
 	if source == nil || reserve == nil || len(collaborators) > 1 {
 		return nil, ErrInput
 	}
@@ -217,6 +241,19 @@ func (gateway *LabGateway) ServeHTTP(writer http.ResponseWriter, request *http.R
 		out.Header.Set("X-Api-Key", string(material))
 		out.Header.Set("Anthropic-Beta", labBeta)
 	}
+	var attempt *labAttempt
+	if request.Method == http.MethodPost && gateway.attempts != nil {
+		attempt, err = gateway.attempts.begin(call)
+		if err != nil {
+			refuse(http.StatusForbidden)
+			return
+		}
+		defer attempt.finish(nil, "not-observed", false)
+		out = out.WithContext(attempt.ctx)
+		call = attempt.ctx
+	}
+	out.GetBody = nil
+	out.Close = true
 	client := http.Client{Transport: gateway.transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	headers := time.AfterFunc(gateway.headerTimeout, cancel)
 	response, err := client.Do(out)
@@ -250,7 +287,18 @@ func (gateway *LabGateway) ServeHTTP(writer http.ResponseWriter, request *http.R
 	idle := time.AfterFunc(gateway.idleTimeout, cancel)
 	defer idle.Stop()
 	progress := func() { idle.Reset(gateway.idleTimeout) }
-	if labStream(call, labProgressWriter{writer, progress}, labProgressReader{response.Body, progress}, inventory, gateway.labSource.ReportLeak) != nil {
+	var reader io.Reader = response.Body
+	var usage *labAttemptUsage
+	if attempt != nil {
+		usage = newLabAttemptUsage(response.Body, response, attempt)
+		reader = usage
+	}
+	streamErr := labStream(call, labProgressWriter{writer, progress}, labProgressReader{reader, progress}, inventory, gateway.labSource.ReportLeak)
+	stopBody()
+	if usage != nil {
+		_ = usage.finish(streamErr == nil)
+	}
+	if streamErr != nil {
 		panic(http.ErrAbortHandler)
 	}
 }

@@ -23,6 +23,7 @@ type LabPins struct {
 	activation, authority, fence    string
 	lifetime                        time.Duration
 	deadline                        time.Time
+	release                         string
 }
 
 func NewLabPins(activationRaw, authorityRaw, fenceRaw, floorRaw, releaseRaw []byte) (*LabPins, error) {
@@ -61,7 +62,7 @@ func NewLabPins(activationRaw, authorityRaw, fenceRaw, floorRaw, releaseRaw []by
 	if gateway["uid"].(int64) > 4294967295 || worker["uid"].(int64) > 4294967295 || gateway["kind"] != "service" || gateway["service_name"] != "credential-gateway" || worker["kind"] != "worker" || gateway["uid"] == worker["uid"] || gateway["generation"] == worker["generation"] || gateway["execution_id"] == worker["execution_id"] {
 		return nil, ErrRole
 	}
-	if activation["enabled"] != true || activation["test_api_key"] != true || authority["test_api_key"] != true || floor["persisted_before_release"] != true || len(floor["hold_ids"].([]any)) != 0 || activation["authority_sha256"] != labDigest(authorityRaw) || activation["fence_sha256"] != labDigest(fenceRaw) || activation["release_set_sha256"] != labDigest(releaseRaw) || release["contract_index_sha256"] != labContractIndex || !labEqual(authority["manager_head"], floor["manager_prefix"]) || !labEqual(labObject(fence["heads"])["manager"], floor["manager_prefix"]) {
+	if activation["enabled"] != true || activation["test_api_key"] != true || authority["test_api_key"] != true || floor["persisted_before_release"] != true || len(floor["hold_ids"].([]any)) != 0 || activation["authority_sha256"] != labDigest(authorityRaw) || activation["fence_sha256"] != labDigest(fenceRaw) || activation["release_set_sha256"] != labDigest(releaseRaw) || (release["contract_index_sha256"] != labContractIndex && release["contract_index_sha256"] != labDigest(labAttemptIndex)) || !labEqual(authority["manager_head"], floor["manager_prefix"]) || !labEqual(labObject(fence["heads"])["manager"], floor["manager_prefix"]) {
 		return nil, ErrInactive
 	}
 	deadline := labTime(scope["qualification_expires_at"])
@@ -71,7 +72,7 @@ func NewLabPins(activationRaw, authorityRaw, fenceRaw, floorRaw, releaseRaw []by
 	if !time.Now().Before(deadline) {
 		return nil, ErrInactive
 	}
-	return &LabPins{scope, gateway, worker, labObject(floor["manager_prefix"]), labDigest(activationRaw), labDigest(authorityRaw), labDigest(fenceRaw), time.Duration(activation["service_lease_max_lifetime_seconds"].(int64)) * time.Second, deadline}, nil
+	return &LabPins{scope, gateway, worker, labObject(floor["manager_prefix"]), labDigest(activationRaw), labDigest(authorityRaw), labDigest(fenceRaw), time.Duration(activation["service_lease_max_lifetime_seconds"].(int64)) * time.Second, deadline, labDigest(releaseRaw)}, nil
 }
 
 type LabSource struct{ *labSourceState }
