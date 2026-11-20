@@ -1,4 +1,4 @@
-# G1 fix-round-1 gate coverage
+# G1 fix-round-2 gate coverage
 
 This map is a test-to-overlay index, not native qualification or a substitute
 for the exact-head exit codes in the producer handoff. All overlays are applied
@@ -9,6 +9,7 @@ The runner requires a nonzero exit and the named `--- FAIL: Test...` record.
 The HTTP tables exercise `LabGateway.ServeHTTP`, not just its classifiers.
 Command tests execute shipped `run()` with the real LabSource, LabGateway,
 accounting and Unix HTTP server; only static-file admission collaborators,
+the real Unix listener factory for a listener-failure injection,
 synthetic worker peer identity and non-network upstream transport are injected.
 The broker peer check remains real. Kernel-identity qualification is separate.
 Build-tag gates use tagged/untagged GoFiles/EmbedFiles and command selection.
@@ -53,7 +54,7 @@ at-limit records; the payload overlay here uses the actual HTTP intake ceiling.
 | A02 | the composed handler applies closed wire shape | `TestLabServeHTTPWireCatalogue` | `shape-unwired` |
 | A02 | the composed handler applies the frozen coupled body | `TestLabServeHTTPWireCatalogue` | `post-body-unwired` |
 | A02 | policy GET has no worker body | `TestLabServeHTTPResponseGates` | `get-body-unwired` |
-| A02 | the admitted profile emits the exact eleven-flag header | `TestLabServeHTTPWireCatalogue` | `canonical-beta-unwired` |
+| A02 | the admitted profile emits the exact eleven-flag header | `TestLabBetaCanonicalThroughHTTP` | `canonical-beta-unwired` |
 | A02 | encoded upstream bodies are not passed through | `TestLabServeHTTPResponseGates` | `encoded-response-unwired` |
 | A08 | first-use inventory is rescanned before injection | `TestLabPostLoadHoldThroughHTTP` | `post-load-scan-unwired` |
 | A08 | known material in every inbound surface enters the hold | `TestLabLeakSurfacesThroughHTTP` | `inbound-scan-unwired` |
@@ -95,8 +96,23 @@ at-limit records; the payload overlay here uses the actual HTTP intake ceiling.
 | A01 | untagged graph excludes lab intake | `TestLabBuildTagIsolation` | `untag-intake` |
 | A01 | untagged graph excludes lab command | `TestLabBuildTagIsolation` | `untag-command` |
 | A01 | untagged graph excludes lab testkit | `TestLabBuildTagIsolation` | `untag-testkit` |
+| A02 | canonical beta must exist exactly once | `TestLabBetaCanonicalThroughHTTP` | `canonical-beta-deleted` |
+| A08 | every inbound value is scanned before shape rejection | `TestLabMultiValueHeadersThroughHTTP` | `inbound-header-first-value` |
+| A08 | every value of a forwarded response header is scanned | `TestLabMultiValueHeadersThroughHTTP` | `response-header-first-value` |
+| A08 | split inbound material matches across value boundaries without a separator | `TestLabMultiValueHeadersThroughHTTP` | `inbound-header-delimited-values` |
+| A08 | split response material cannot escape through separate values | `TestLabMultiValueHeadersThroughHTTP` | `response-header-delimited-values` |
+| A08 | known material is held before reservation rather than only at the post-load scan | `TestLabEarlyBodyScanThroughHTTP` | `early-body-scan-unwired` |
+| A09 | gateway closure independently cancels an in-flight request while source authority is live | `TestLabAuthorityCancellationThroughHTTP` | `intake-authority-unbound` |
+| A09 | the initial check is bounded before watchdog initialization | `TestLabColdCheckTimeoutThroughHTTP` | `cold-check-rpc-timeout-off` |
+| A09 | drained dispatch cannot forward to a still-live gateway | `TestLabRunRetiredDispatch` | `main-retired-dispatch-reopened` |
+| A09 | listener failure must close active connections before waiting for handlers | `TestLabRunAuthorityTeardown` | `main-second-close-unwired` |
+| A07 | the composed pinned-deadline class cannot rely on redundant neighbouring checks | `TestLabLeaseBindingsThroughHTTP` | `pinned-deadline-class-unwired` |
+| A07 | cold expired authority cannot even request a lease | `TestLabPinnedDeadlineThroughHTTP` | `value-pinned-deadline-unwired` |
+| A07 | pinned expiry retires authority without acquiring the lease mutex | `TestLabPinnedDeadlineThroughHTTP` | `check-pinned-deadline-unwired` |
+| A01 | startup reconnects must not be misclassified as idle polling failures | `TestManagedSourceRecovery` | `production-idle-absolute-count` |
+| A01 | broker events must detect absent autonomous idle polling | `TestManagedSourceRecovery` | `production-idle-poll-disabled` |
 
-Total: 76 distinct overlays. Exact replacement literals and invocation
+Total: 91 distinct overlays. Exact replacement literals and invocation
 are in `service/scripts/check-lab-plants.py`; `--filter` selects bounded reruns.
 
 ## Review classes
@@ -113,3 +129,28 @@ are in `service/scripts/check-lab-plants.py`; `--filter` selects bounded reruns.
 | F5 | TestLabBuildTagIsolation |
 | Late-read hold race | TestLabRunLateLeak |
 | Conservative observation age | TestLabWatchdogAgeThroughHTTP |
+
+## Round-2 delta verdict closure
+
+| Reviewer survivor | Composed witness | Narrowing overlay |
+| --- | --- | --- |
+| Canonical beta Set-line deletion (repeat F1) | TestLabBetaCanonicalThroughHTTP: canonical, reversed, SP, HTAB, mixed | canonical-beta-unwired (actual line deletion); canonical-beta-deleted (separate missing-field control) |
+| Inbound/response first-value scans | TestLabMultiValueHeadersThroughHTTP: second, split, empty-first/middle; clean controls | inbound-header-first-value; response-header-first-value |
+| Values joined with a delimiter | Same: split needle over allowlisted response Request-Id and inbound diagnostic | inbound-header-delimited-values; response-header-delimited-values |
+| Retired request dispatcher reopened | TestLabRunRetiredDispatch: Unix HTTP, real still-live source/gateway, 200 before drain / 503 after | main-retired-dispatch-reopened |
+| Intake authority unbound | TestLabAuthorityCancellationThroughHTTP/gateway-closed: source stays live | intake-authority-unbound |
+| Early inbound body scan removed | TestLabEarlyBodyScanThroughHTTP: no reservation on known material (post-load scan is too late) | early-body-scan-unwired |
+| RPC timeout removed | TestLabColdCheckTimeoutThroughHTTP: first check, no watchdog initialized | cold-check-rpc-timeout-off |
+| CredentialValue pinned deadline removed | TestLabPinnedDeadlineThroughHTTP/cold-expired: zero lease RPCs | value-pinned-deadline-unwired |
+| check pinned deadline removed | TestLabPinnedDeadlineThroughHTTP/issued-lock: retire at first poll without waiting on blocked lease mutex; watchdog too late | check-pinned-deadline-unwired |
+| Second server.Close removed | TestLabRunAuthorityTeardown/listener-failure: actual listener closes while source remains live | main-second-close-unwired |
+| Command timer-only overlay surviving in command package | Existing TestLabAuthorityCancellationThroughHTTP/watchdog and TestLabWatchdogAgeThroughHTTP use the real source; command stalled-poll subtest renamed accurately | Existing watchdog timer and RPC-age overlays, killed through HTTP |
+| Original production absolute connection count / missing idle polling | TestManagedSourceRecovery/idle-aged and idle: real managedSource, broker events across idle horizon | production-idle-absolute-count; production-idle-poll-disabled |
+
+The combined pinned-deadline-class overlay additionally removes all three
+neighbouring lease/value/check bounds together; it is not substituted for the
+two separate value/check overlays above. A narrower first-value overlay and an
+actual canonical Set-line deletion are required: whole-scan deletion or Set-to-Del
+alone are not credited for these round-2 classes. The production test overlays
+are test-instrument controls, not lab runtime changes. No site is excused merely
+because its earlier overlay survived in the wrong package.

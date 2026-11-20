@@ -42,7 +42,9 @@ Only HTTP/1.1 `POST /v1/messages?beta=true` and
 `GET /api/claude_code/policy_limits` are admitted. POST requires exactly one
 `x-api-key: ssh-placeholder`, the frozen version and user-agent, and exactly the
 eleven non-OAuth flags from C0. Flag order and SP/HTAB separator whitespace may
-vary; absent, unknown, duplicated, case-variant or OAuth flags refuse. Both kinds
+vary; upstream emission is exactly one field containing the frozen canonical
+eleven-flag string, never the admitted worker spelling. Absent, unknown,
+duplicated, case-variant or OAuth flags refuse. Both kinds
 of duplicate header (field instances and case-folded map keys) refuse.
 
 The C0 header projection is not a complete transport-header capture. Ordinary
@@ -74,6 +76,18 @@ full-context/output reservation and positive daily ceiling run before POST
 material acquisition; this intake does not claim arbitrary-client settlement.
 The inert 128000 fixture is **not** permission to run a live invocation: changing
 it for an approved bounded live run requires a reviewed profile/probe revision.
+
+Header leak rule (strict, fail-closed): for each field, scan the field name plus
+all values concatenated in order **without a separator**, without trimming or
+normalizing bytes. This includes every complete value and detects a needle split
+at any value boundary, including empty intervening values. Delimiter insertion
+could hide a split match, so commas/spaces are not inserted. This conservative
+rule may also hold on a synthetic cross-boundary match. Different field names
+are not concatenated with each other. Multi-valued inbound fields still violate
+the closed request shape: a clean duplicate refuses 400 with no hold; a material
+match is detected first and holds with 403. Multi-valued allowlisted response
+fields (Request-Id controls) preserve all clean values; material holds with 502
+before any header or body reaches the worker.
 
 ## Deadlines, holds and shutdown
 
@@ -176,7 +190,7 @@ silently covered by local gateway tests. Production reviewer tests stay intact.
 
 ## Tools and verification
 
-Use Go 1.26.10 for this evidence, Python 3 for source-overlay controls and gofmt
+Use Go 1.26.8 (matching the pinned workflow) for fix-round-2 evidence, Python 3 for source-overlay controls and gofmt
 for the new Go files. Run **in an isolated full checkout** with absolute private
 HOME, USERPROFILE, XDG_CONFIG_HOME, XDG_CACHE_HOME, GOCACHE, GOMODCACHE, GOPATH,
 TMPDIR/TMP/TEMP, unset GOTELEMETRYDIR, and pin GOTOOLCHAIN. Place every directory,
@@ -190,6 +204,7 @@ The only fake broker material is C0's public non-vendor sentinel.
 | Production tests | `go -C experiments/model-proxy/service test -count=1 ./...` and `go -C experiments/model-proxy test -count=1 ./...` | private test logs |
 | Tagged tests | `go -C experiments/model-proxy/service test -tags gateway_lab -count=1 ./...` and `go -C experiments/model-proxy test -tags gateway_lab -count=1 ./...` | private test logs |
 | Race tests | `go -C experiments/model-proxy/service test -race -tags gateway_lab -count=1 ./...` and `go -C experiments/model-proxy test -race -tags gateway_lab -count=1 ./cmd/credential-gateway-lab` | private race logs |
+| Production command repeat race | `go -C experiments/model-proxy test -race -count=3 ./cmd/model-proxy` and the same command with `-tags gateway_lab` | private race logs |
 | Production build | `go -C experiments/model-proxy build -o /absolute/task/.temp/credential-gateway ./cmd/model-proxy` | scratch production binary |
 | Lab build | `go -C experiments/model-proxy build -tags gateway_lab -o /absolute/task/.temp/credential-gateway-lab ./cmd/credential-gateway-lab` | separate scratch lab binary |
 | Overlay controls | `python3 experiments/model-proxy/service/scripts/check-lab-plants.py --output /absolute/task/.temp/lab-plants` | replacement files, overlays, per-mutant logs and results.json; optional `--filter NAME` for a bounded rerun |
@@ -199,3 +214,26 @@ The overlay runner never edits the original source. Only a nonzero test exit
 with its named failing test counts as killed; build errors and panics do not.
 Any survivor is reported as such. See the producer handoff for exact checked
 commits, real exits, surviving bounds if any and unresolved integration gates.
+
+## Production test scheduling regression
+
+Only two existing production **test** files change in fix round 2; production
+runtime, configuration, workflow and release artifacts do not. The old
+`TestManagedSourceRecovery/idle` asserted one broker connection since construction.
+The real managed holder intentionally reconnects before first use when setup
+has aged that connection by at least 250 ms. Accounting setup occurs after
+connecting, so legitimate startup recovery could trip the idle assertion. On
+unchanged main 87e8a7e4, a test-only 500-ms provisioning delay reproduced the
+original failure: one connection/zero checks before first use, then two
+connections/one request/one check immediately after the first admitted response.
+This is not evidence of a lab runtime bypass.
+
+The test now snapshots counts **after** admission and consumes broker check
+notifications across the one-second idle horizon within its existing 1.5-second
+wait budget. The idle-aged control deliberately ages provisioning before first
+use; that setup-only timer induces the race, it is not the fix. The assertion
+path adds no sleeps or wider budget. It still fails if autonomous polling stops
+or if idle recovery replaces the admitted connection. Exact original-count and
+poll-disabled source overlays must fail the named production test. All existing
+production test names remain present. This test-only exception to the tagged
+write scope is required by the round-2 brief.

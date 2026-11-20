@@ -392,9 +392,9 @@ func (body *labObservedBody) Read(buffer []byte) (int, error) {
 
 func (body *labObservedBody) Close() error { body.closed.Store(true); return body.PipeReader.Close() }
 
-// TestLabAuthorityCancellationThroughHTTP proves real source retirement cancels an in-flight LabGateway request/body; a locked supervisor cannot postpone the 500-ms watchdog.
+// TestLabAuthorityCancellationThroughHTTP proves source retirement or gateway closure cancels an in-flight LabGateway request/body; a locked supervisor cannot postpone the 500-ms watchdog.
 func TestLabAuthorityCancellationThroughHTTP(test *testing.T) {
-	for _, mode := range []string{"revoked", "watchdog"} {
+	for _, mode := range []string{"revoked", "watchdog", "gateway-closed"} {
 		test.Run(mode, func(test *testing.T) {
 			fixture := labtest.NewFixture(test, "testdata/lab-v0/fixtures.json")
 			source, broker := labComposedSource(test, fixture)
@@ -431,6 +431,8 @@ func TestLabAuthorityCancellationThroughHTTP(test *testing.T) {
 			if mode == "watchdog" {
 				source.mu.Lock()
 				defer source.mu.Unlock()
+			} else if mode == "gateway-closed" {
+				gateway.Close()
 			} else {
 				broker.CheckMode.Store("revoked")
 			}

@@ -38,6 +38,7 @@ type brokerFixture struct {
 	conn                                   *net.UnixConn
 	conns                                  map[*net.UnixConn]bool
 	done                                   chan struct{}
+	checkObserved                          chan time.Time
 	config                                 brokerFile
 }
 
@@ -53,7 +54,7 @@ func startBroker(t *testing.T) *brokerFixture {
 	if e != nil {
 		t.Fatal("fake broker listen failed")
 	}
-	f := &brokerFixture{verdict: "not_revoked", lease: 30 * time.Second, conns: map[*net.UnixConn]bool{}, listener: ln, done: make(chan struct{}), config: brokerFile{Socket: path, BrokerUID: uint32(os.Geteuid()), ServiceGeneration: "service-current", Account: strings.Repeat("a", 64), AgentUID: 1234, AgentGeneration: "worker-current", LaunchID: "launch-current", MaxLifetimeSeconds: 60}}
+	f := &brokerFixture{verdict: "not_revoked", lease: 30 * time.Second, conns: map[*net.UnixConn]bool{}, listener: ln, done: make(chan struct{}), checkObserved: make(chan time.Time, 1), config: brokerFile{Socket: path, BrokerUID: uint32(os.Geteuid()), ServiceGeneration: "service-current", Account: strings.Repeat("a", 64), AgentUID: 1234, AgentGeneration: "worker-current", LaunchID: "launch-current", MaxLifetimeSeconds: 60}}
 	var workers sync.WaitGroup
 	serve := func(c *net.UnixConn) {
 		defer c.Close()
@@ -128,6 +129,10 @@ func startBroker(t *testing.T) *brokerFixture {
 				result = map[string]any{"service_lease_id": "lease-current", "account": f.config.Account, "harness": "claude_code", "kind": "claude-oauth-token", "payload": map[string]any{"kind": "claude-oauth-token", "value": value}, "token_expires_at": nil, "authorized_until": time.Now().Add(f.lease).UTC().Format(time.RFC3339Nano), "renewable": true}
 			case "service.revocation.check":
 				f.checks++
+				select {
+				case f.checkObserved <- time.Now():
+				default:
+				}
 				code = f.checkRefusal
 				delay, f.checkDelay = f.checkDelay, 0
 				result = map[string]any{"verdict": f.verdict, "revocation_sequence": nil}

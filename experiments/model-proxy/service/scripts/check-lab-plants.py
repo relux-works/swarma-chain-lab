@@ -79,9 +79,9 @@ mutants += [('A01',
  ('A02',
   'canonical-beta-unwired',
   'lab_intake_linux.go',
-  'out.Header.Set("Anthropic-Beta", labBeta)',
-  'out.Header.Del("Anthropic-Beta")',
-  'TestLabServeHTTPWireCatalogue',
+  '\t\tout.Header.Set("Anthropic-Beta", labBeta)\n',
+  '',
+  'TestLabBetaCanonicalThroughHTTP',
   'the admitted profile emits the exact eleven-flag header'),
  ('A02',
   'encoded-response-unwired',
@@ -344,26 +344,50 @@ mutants += [('A03',
   'TestLabRunAdmission',
   'command mapping must join protected caller launch')]
 mutants += [('A01', 'untag-intake', 'lab_intake_linux.go', 'linux && gateway_lab', 'linux', 'TestLabBuildTagIsolation', 'untagged graph excludes lab intake'), ('A01', 'untag-command', '../cmd/credential-gateway-lab/main_linux.go', 'linux && gateway_lab', 'linux', 'TestLabBuildTagIsolation', 'untagged graph excludes lab command'), ('A01', 'untag-testkit', 'labtest/kit_linux.go', 'linux && gateway_lab', 'linux', 'TestLabBuildTagIsolation', 'untagged graph excludes lab testkit')]
+
+mutants += [
+    ("A02", "canonical-beta-deleted", "lab_intake_linux.go", 'out.Header.Set("Anthropic-Beta", labBeta)', 'out.Header.Del("Anthropic-Beta")', "TestLabBetaCanonicalThroughHTTP", "canonical beta must exist exactly once"),
+    ("A08", "inbound-header-first-value", "lab_intake_linux.go", 'leak = leak || containsMaterial([]byte(name+strings.Join(values, "")), inventory)', 'leak = leak || containsMaterial([]byte(name+values[0]), inventory)', "TestLabMultiValueHeadersThroughHTTP", "every inbound value is scanned before shape rejection"),
+    ("A08", "response-header-first-value", "lab_intake_linux.go", 'if containsMaterial([]byte(name+strings.Join(values, "")), inventory) {', 'if containsMaterial([]byte(name+values[0]), inventory) {', "TestLabMultiValueHeadersThroughHTTP", "every value of a forwarded response header is scanned"),
+    ("A08", "inbound-header-delimited-values", "lab_intake_linux.go", 'leak = leak || containsMaterial([]byte(name+strings.Join(values, "")), inventory)', 'leak = leak || containsMaterial([]byte(name+strings.Join(values, ",")), inventory)', "TestLabMultiValueHeadersThroughHTTP", "split inbound material matches across value boundaries without a separator"),
+    ("A08", "response-header-delimited-values", "lab_intake_linux.go", 'if containsMaterial([]byte(name+strings.Join(values, "")), inventory) {', 'if containsMaterial([]byte(name+strings.Join(values, ",")), inventory) {', "TestLabMultiValueHeadersThroughHTTP", "split response material cannot escape through separate values"),
+    ("A08", "early-body-scan-unwired", "lab_intake_linux.go", 'if !gateway.scanLab(request, body) {', 'if false {', "TestLabEarlyBodyScanThroughHTTP", "known material is held before reservation rather than only at the post-load scan"),
+    ("A09", "intake-authority-unbound", "lab_intake_linux.go", 'stop := context.AfterFunc(gateway.authority, cancel)', 'stop := func() bool { return false }', "TestLabAuthorityCancellationThroughHTTP", "gateway closure independently cancels an in-flight request while source authority is live"),
+    ("A09", "cold-check-rpc-timeout-off", "lab_source_linux.go", 'bounded, cancel := context.WithTimeout(source.ctx, LabRPCTimeout)\n\tdefer cancel()\n\tsource.lease.mu.Lock()', 'bounded, cancel := context.WithTimeout(source.ctx, time.Hour)\n\tdefer cancel()\n\tsource.lease.mu.Lock()', "TestLabColdCheckTimeoutThroughHTTP", "the initial check is bounded before watchdog initialization"),
+    ("A09", "main-retired-dispatch-reopened", "../cmd/credential-gateway-lab/main_linux.go", 'if requests.retired {', 'if false {', "TestLabRunRetiredDispatch", "drained dispatch cannot forward to a still-live gateway"),
+    ("A09", "main-second-close-unwired", "../cmd/credential-gateway-lab/main_linux.go", '\t_ = server.Close()\n\trequests.drain()', '\trequests.drain()', "TestLabRunAuthorityTeardown", "listener failure must close active connections before waiting for handlers"),
+    ("A07", "pinned-deadline-class-unwired", "lab_source_linux.go", [' || until.After(pins.deadline)', ' || !time.Now().Before(source.pins.deadline)'], ['', ''], "TestLabLeaseBindingsThroughHTTP", "the composed pinned-deadline class cannot rely on redundant neighbouring checks"),
+]
+mutants += [
+    ("A07", "value-pinned-deadline-unwired", "lab_source_linux.go", 'ctx == nil || ctx.Err() != nil || source.ctx.Err() != nil || !time.Now().Before(source.pins.deadline)', 'ctx == nil || ctx.Err() != nil || source.ctx.Err() != nil', "TestLabPinnedDeadlineThroughHTTP", "cold expired authority cannot even request a lease"),
+    ("A07", "check-pinned-deadline-unwired", "lab_source_linux.go", 'if source.ctx.Err() != nil || !time.Now().Before(source.pins.deadline) {', 'if source.ctx.Err() != nil {', "TestLabPinnedDeadlineThroughHTTP", "pinned expiry retires authority without acquiring the lease mutex"),
+    ("A01", "production-idle-absolute-count", "../cmd/model-proxy/lifecycle_linux_test.go", 'connections, checks, idle := fixture.connections, fixture.checks, fixture.idle', 'connections, checks, idle := 1, fixture.checks, fixture.idle', "TestManagedSourceRecovery", "startup reconnects must not be misclassified as idle polling failures"),
+    ("A01", "production-idle-poll-disabled", "../cmd/model-proxy/managed_linux.go", 'if holder.started && !holder.blocked {', 'if false && holder.started && !holder.blocked {', "TestManagedSourceRecovery", "broker events must detect absent autonomous idle polling"),
+]
 results = []
 for row, name, source, before, after, test, claim in mutants:
     if arguments.filter and arguments.filter not in name:
         continue
     path = (root / source).resolve()
     original = path.read_text()
-    if original.count(before) != 1:
-        raise SystemExit(f"{name}: overlay target is not unique")
+    replacements = list(zip(before, after, strict=True)) if isinstance(before, list) else [(before, after)]
+    candidate = original
+    for old, new in replacements:
+        expected = 2 if name == "pinned-deadline-class-unwired" and "source.pins.deadline" in old else 1
+        if candidate.count(old) != expected:
+            raise SystemExit(f"{name}: overlay target has unexpected occurrence count")
+        candidate = candidate.replace(old, new)
     planted = output / (name + ".go")
-    planted.write_text(original.replace(before, after, 1))
+    planted.write_text(candidate)
     overlay = output / (name + ".json")
     overlay.write_text(json.dumps({"Replace": {str(path): str(planted)}}))
     environment = os.environ.copy()
     environment["LAB_TEST_OVERLAY"] = str(overlay)
-    package = "../cmd/credential-gateway-lab" if test.startswith("TestLabRun") else "."
+    package = "./cmd/credential-gateway-lab" if test.startswith("TestLabRun") else "./cmd/model-proxy" if test.startswith("TestManaged") else "."
     command = ["go", "test", "-p", "2", "-tags", "gateway_lab", "-overlay", str(overlay), "-count=1", "-timeout=90s", "-run", "^" + test + "$", package]
     log = output / (name + ".log")
     with log.open("w") as handle:
         cwd = root.parent if package != "." else root
-        if package != ".": command[-1] = "./cmd/credential-gateway-lab"
         process = subprocess.Popen(command, cwd=cwd, env=environment, stdout=handle, stderr=subprocess.STDOUT)
         process.wait()
     text = log.read_text()

@@ -47,6 +47,7 @@ type commandHarness struct {
 	entered      chan context.Context
 	bodies       sync.Map
 	returned     atomic.Bool
+	listener     net.Listener
 }
 
 func commandFixture(test *testing.T) *commandHarness {
@@ -96,6 +97,11 @@ func (harness *commandHarness) start(test *testing.T, leak bool) {
 		harness.paths = append(harness.paths, &path)
 	}
 	inputs := runInputs{
+		listen: func(network, socket string) (net.Listener, error) {
+			listener, err := net.Listen(network, socket)
+			harness.listener = listener
+			return listener, err
+		},
 		loadConfig: func(path string) (proxy.GatewayFileConfig, error) {
 			if path != "config" {
 				test.Error("config path retargeted")
@@ -223,9 +229,9 @@ type commandBody struct {
 
 func (body *commandBody) Close() error { body.closed.Store(true); return body.PipeReader.Close() }
 
-// TestLabRunAuthorityTeardown proves shipped run closes every live/idle/partial downstream and listener and cancels upstream within one second after revocation, a stalled poll or pinned expiry.
+// TestLabRunAuthorityTeardown proves shipped run closes every live/idle/partial downstream and listener and cancels upstream within one second after revocation, a stalled poll, pinned expiry or listener failure.
 func TestLabRunAuthorityTeardown(test *testing.T) {
-	for _, mode := range []string{"revoke", "watchdog", "deadline"} {
+	for _, mode := range []string{"revoke", "stalled-poll", "deadline", "listener-failure"} {
 		test.Run(mode, func(test *testing.T) {
 			harness := commandFixture(test)
 			if mode == "deadline" {
@@ -266,10 +272,14 @@ func TestLabRunAuthorityTeardown(test *testing.T) {
 			switch mode {
 			case "revoke":
 				harness.broker.CheckMode.Store("revoked")
-			case "watchdog":
+			case "stalled-poll":
 				harness.broker.CheckMode.Store("stall")
 			case "deadline":
 				started = harness.fixture.Deadline
+			case "listener-failure":
+				if harness.listener.Close() != nil {
+					test.Fatal("listener fault injection failed")
+				}
 			}
 			harness.closed(test, []net.Conn{live, second, idle, partial}, started)
 			select {

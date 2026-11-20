@@ -318,35 +318,61 @@ func TestManagedRenewalRefusal(t *testing.T) {
 	}
 }
 
-// Idle-safe polling keeps a healthy socket alive. Explicit closure, an expired
-// short lease and a slow check refuse without provider I/O, then rebuild against
-// the same protected mapping. No persistent gateway account block is cleared.
+// TestManagedSourceRecovery proves idle polling preserves the first admitted session (including an aged startup), while closure, expiry and slow checks refuse before recovery.
 func TestManagedSourceRecovery(t *testing.T) {
-	for _, scenario := range []string{"idle", "closed", "slow-check", "expired"} {
+	for _, scenario := range []string{"idle", "idle-aged", "closed", "slow-check", "expired"} {
 		t.Run(scenario, func(t *testing.T) {
 			fixture := startBroker(t)
 			fixture.mu.Lock()
-			if scenario == "idle" {
+			if strings.HasPrefix(scenario, "idle") {
 				fixture.idle = time.Second
 			} else if scenario == "expired" {
 				fixture.lease = 150 * time.Millisecond
 			}
 			fixture.mu.Unlock()
 			gateway := newManagedGateway(t, fixture, nil)
+			if scenario == "idle-aged" {
+				<-time.NewTimer(managedCheckInterval).C
+			}
 			if gateway.send(context.Background(), nil).Code != 200 {
 				t.Fatal("valid recovery control refused")
 			}
-			if scenario == "idle" {
-				time.Sleep(1500 * time.Millisecond)
-				if gateway.send(context.Background(), nil).Code != 200 {
-					t.Fatal("idle-safe polling did not keep source live")
-				}
+			if strings.HasPrefix(scenario, "idle") {
 				fixture.mu.Lock()
-				defer fixture.mu.Unlock()
-				if fixture.connections != 1 || fixture.checks < 3 {
-					t.Fatal("healthy idle socket was not polled")
+				connections, checks, idle := fixture.connections, fixture.checks, fixture.idle
+				fixture.mu.Unlock()
+				if scenario == "idle-aged" && connections < 2 {
+					t.Fatal("aged first-use control did not reconnect")
 				}
-				return
+				admitted := time.Now()
+				deadline := time.NewTimer(1500 * time.Millisecond)
+				defer deadline.Stop()
+				for {
+					select {
+					case observed := <-fixture.checkObserved:
+						fixture.mu.Lock()
+						stable, polled := fixture.connections == connections, fixture.checks > checks
+						fixture.mu.Unlock()
+						if !stable {
+							t.Fatal("healthy idle socket reconnected after admission")
+						}
+						if polled && observed.Sub(admitted) >= idle {
+							if gateway.send(context.Background(), nil).Code != 200 {
+								t.Fatal("idle-safe polling did not keep source live")
+							}
+							fixture.mu.Lock()
+							stable = fixture.connections == connections
+							fixture.mu.Unlock()
+							if !stable {
+								t.Fatal("second request rebuilt idle source")
+							}
+							t.Logf("idle observation=%s initial connections=%d", observed.Sub(admitted), connections)
+							return
+						}
+					case <-deadline.C:
+						t.Fatal("healthy idle socket was not polled")
+					}
+				}
 			}
 			fixture.mu.Lock()
 			if scenario == "slow-check" {

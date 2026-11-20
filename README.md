@@ -848,4 +848,8 @@ artifact and production qualification remain separate.
 The separate [API-key lab v0 gateway](experiments/model-proxy/LAB-V0.md) is an
 explicit `gateway_lab` experiment with frozen C0 inputs and a separate command.
 Its tools/verification section lists isolated tests, builds and source-overlay
-controls; no production profile, release or native qualification is implied.
+controls, including composed canonical-beta/multi-value header witnesses.
+Production command recovery tests run with `go test -race -count=3 ./cmd/model-proxy`
+from `experiments/model-proxy`, with and without `-tags gateway_lab`; retain logs
+in task-owned `.temp/`. No production profile, release or native qualification
+is implied.

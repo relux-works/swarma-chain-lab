@@ -57,6 +57,7 @@ type runInputs struct {
 	readInstalled func(string, int64) ([]byte, error)
 	readPrivate   func(string, os.FileMode, int64) ([]byte, error)
 	gatewayIO     service.LabGatewayIO
+	listen        func(string, string) (net.Listener, error)
 }
 
 func run(ctx context.Context, configPath, brokerPath, socket string, paths []*string, supplied ...runInputs) error {
@@ -70,6 +71,9 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 
 	if len(paths) != 5 || inputs.loadConfig == nil || inputs.readInstalled == nil || inputs.readPrivate == nil {
 		return errors.New("closed")
+	}
+	if inputs.listen == nil {
+		inputs.listen = net.Listen
 	}
 	config, err := inputs.loadConfig(configPath)
 	if err != nil || config.Mode != proxy.ModeManaged || config.Upstream != proxy.ManagedUpstream || len(config.ModelProfiles) != 0 || config.DailyCostCeilingNanoUSD == 0 {
@@ -122,7 +126,7 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 		return errors.New("closed")
 	}
 	defer gateway.Close()
-	listener, err := net.Listen("unix", socket)
+	listener, err := inputs.listen("unix", socket)
 	if err != nil {
 		return errors.New("closed")
 	}
