@@ -105,6 +105,11 @@ Timeout, disconnect, cancellation, missing/partial/inconsistent usage or uncerta
 settlement charges the full reservation and sticks UNKNOWN. A normal complete
 settlement releases only proved unused exposure. Count equality permits the
 last allocated ordinal to finish; output/cost/wall equality closes active use.
+The current strict output-equality reading cancels at the delta that reaches
+128000, before a terminal message_stop can prove completeness. It therefore
+records full-reservation UNKNOWN, even for an otherwise normal max_tokens stop;
+it does not claim conclusive equality settles. Changing this conservative behavior
+to settle-and-stop requires owner disposition in `UNRESOLVED_QUESTIONS.md`.
 There is no extra cleanup grace or retry beyond a bound. UTC expiry is also
 latched to a local monotonic deadline, so a wall-clock rewind cannot extend it;
 this does not grant NTS authority. Deadline retirement runs independently of the

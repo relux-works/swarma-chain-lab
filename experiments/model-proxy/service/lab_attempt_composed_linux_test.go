@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -262,6 +263,77 @@ func TestLabAttemptUnknownThroughHTTP(test *testing.T) {
 			}
 			if response := labAttemptRequest(test, gateway); response.Code < 400 || *calls != 1 {
 				test.Fatal("retry reopened UNKNOWN")
+			}
+		})
+	}
+}
+
+// TestLabAttemptContextCeilingThroughHTTP proves exact-ceiling usage settles durably while one-over/far responses retain full sticky UNKNOWN and cannot forward a retry.
+func TestLabAttemptContextCeilingThroughHTTP(test *testing.T) {
+	for _, scenario := range []struct {
+		name         string
+		cacheWrite1h int64
+	}{
+		{"context-at", 999400},
+		{"context-over", 999401},
+		{"context-far", 2000000},
+	} {
+		test.Run(scenario.name, func(test *testing.T) {
+			gateway, gate, fixture, calls := labAttemptControl(test, func(fixture *labtest.AttemptFixture) {
+				fixture.Plan["max_total_cost_usd"] = "10.560000"
+			})
+			counter := strconv.FormatInt(scenario.cacheWrite1h, 10)
+			body := strings.Replace(labtest.AttemptSSE(), `"cache_creation_input_tokens":400,"cache_creation_5m_input_tokens":100,"cache_creation_1h_input_tokens":300`, `"cache_creation_input_tokens":`+counter+`,"cache_creation_5m_input_tokens":0,"cache_creation_1h_input_tokens":`+counter, 1)
+			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
+				*calls++
+				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}, "Request-Id": {"context-request"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+			})
+			response := labAttemptRequest(test, gateway)
+			if *calls != 1 {
+				test.Fatal("context response did not traverse the upstream", *calls)
+			}
+			gate.mu.Lock()
+			attempt := labObject(gate.ledger["attempts"].([]any)[0])
+			state, charge, group := attempt["state"], attempt["settled_micro_usd"], gate.ledger["status"]
+			gate.mu.Unlock()
+			if scenario.name == "context-at" {
+				if response.Code != 200 || response.Body.String() != body || state != "settled" || charge != int64(7996020) || group != "open" {
+					test.Fatal("exact-context control not settled at the pinned price", response.Code, state, charge, group)
+				}
+			} else if state != "unknown" || charge != int64(10560000) || group != "unknown" {
+				test.Fatal("over-context response booked clean or above reservation", state, charge, group)
+			}
+			raw, err := gate.Status(fixture.Plan["operation_id"].(string), labAttemptHash(fixture.Plan), 1)
+			if err != nil {
+				test.Fatal("context outcome not durable", err)
+			}
+			ledger, err := labAttemptRecord(raw, labAttemptLedgerFormat)
+			if err != nil {
+				test.Fatal("context ledger outside C0e", err)
+			}
+			persisted := labObject(ledger["attempts"].([]any)[0])
+			if persisted["state"] != state || persisted["settled_micro_usd"] != charge || ledger["status"] != group || persisted["reservation_cost_usd"] != "10.560000" {
+				test.Fatal("durable context outcome differs from settlement")
+			}
+			if scenario.name == "context-at" {
+				if persisted["usage_complete"] != true || labObject(persisted["usage"])["cache_creation_1h_input_tokens"] != scenario.cacheWrite1h || persisted["usage_sha256"] != labAttemptHash(persisted["usage"]) {
+					test.Fatal("valid context usage not retained authoritatively")
+				}
+				return
+			}
+			if persisted["usage_complete"] != false || !labEqual(persisted["usage"], labUsageZero()) || persisted["usage_sha256"] != labUsageUnavailable || persisted["upstream_request_id"] != "not-observed" {
+				test.Fatal("over-context UNKNOWN lost its absence sentinels")
+			}
+			gateway.transport = labRoundTrip(func(*http.Request) (*http.Response, error) {
+				*calls++
+				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}, "Request-Id": {"recovered-request"}}, Body: io.NopCloser(strings.NewReader(labtest.AttemptSSE()))}, nil
+			})
+			if retry := labAttemptRequest(test, gateway); retry.Code < 400 || *calls != 1 {
+				test.Fatal("over-context UNKNOWN admitted a recovered-upstream retry", retry.Code, *calls)
+			}
+			after, err := gate.Status(fixture.Plan["operation_id"].(string), labAttemptHash(fixture.Plan), 1)
+			if err != nil || string(after) != string(raw) {
+				test.Fatal("refused context retry changed durable exposure", err)
 			}
 		})
 	}

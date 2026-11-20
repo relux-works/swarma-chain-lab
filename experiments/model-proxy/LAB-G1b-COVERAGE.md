@@ -19,7 +19,7 @@ supplement the composed tests and are never counted as a forwarding proof.
 | A06 | `TestLabAttemptRunAdmission` independently reseals approval/release/access/launch negatives; `TestLabAttemptRunCurrent` changes protected proof inputs idle and in flight | `approved-*`, `plan-*`, `approval-*`, `release-*`, `access-*`, `current-proof-scan` |
 | A07 | `TestLabAttemptRunDeadlines`, `TestLabAttemptRunStalledFsync`, `TestLabAttemptRunIdleBound`, retained `TestLabRenewalThroughHTTP` and lease deadline tests | `per-deadline`, `per-deadline-stalled-sync`, `group-deadline-startup-sync`, `group-preauth-clock`, retained renewal/watchdog plants |
 | A09 | Real `run()` listener plus live/idle/partial downstream sockets and upstream cancellation in deadline, current-proof, unknown and crash tests; retained `TestLabRunAuthorityTeardown` and `TestLabRunHoldBinding` | new deadline/current/UNKNOWN plants plus retained listener/broker/hold/watchdog plants |
-| A10 | `TestLabAttemptBoundsThroughHTTP`, `TestLabAttemptNoQueueThroughHTTP`, `TestLabAttemptRunBounds`, `TestLabAttemptUnknownThroughHTTP`, `TestLabAttemptRunUnknown`, `TestLabAttemptNonReplayableThroughHTTP`, `TestLabAttemptTransportThroughHTTP`, crash/replay tests | `forward-unwired`, `count-bound`, `cost-bound`, `no-queue`, `sticky-charge`, `unknown-replay`, transport/no-replay plants |
+| A10 | `TestLabAttemptBoundsThroughHTTP`, `TestLabAttemptNoQueueThroughHTTP`, `TestLabAttemptRunBounds`, `TestLabAttemptUnknownThroughHTTP`, `TestLabAttemptContextCeilingThroughHTTP`, `TestLabAttemptRunUnknown`, `TestLabAttemptNonReplayableThroughHTTP`, `TestLabAttemptTransportThroughHTTP`, crash/replay tests | `forward-unwired`, `count-bound`, `cost-bound`, `no-queue`, `sticky-charge`, `unknown-replay`, transport/no-replay plants |
 | A11 | `TestLabAttemptRunAdmission` joins exact client/wire/index/price/executor/release and second-build assertions, alongside unchanged default binary/module graph checks | `profile-pin`, `wire-pin`, `price-pin`, `release-index`, `price-*`, `executor-member`, `second-*` |
 | A12 | `TestLabAttemptRunAdmission` requires protected human-only endpoint/guest/vendor access and cap assertions; retained whole-marker request/response/hold tests remain green | `approved-access`, `access-*`, `cap-*`, retained whole-marker/header/hold plants |
 
@@ -58,6 +58,10 @@ removes. A survivor is uncovered and blocks the local review handoff.
 | `count-range` | `TestLabAttemptRunAdmission/plan-count-over` | C0b invocation count is at most 256 |
 | `usd-scale` | `TestLabAttemptRunAdmission/plan-usd-fraction` | USD is exactly six fractional digits |
 | `usage-partition` | `TestLabAttemptUnknownThroughHTTP/cache-sum` | cache partitions must equal the authoritative creation total |
+| `usage-context-one-over` | `TestLabAttemptContextCeilingThroughHTTP/context-over` | summed ceiling narrowed to 1000001 still must reject a one-token excess as full-reservation sticky UNKNOWN |
+| `usage-context-unwired` | `TestLabAttemptContextCeilingThroughHTTP/context-over` | removing the summed ceiling cannot cleanly settle a one-token excess |
+| `usage-context-backstop-widened` | `TestLabAttemptContextCeilingThroughHTTP/context-far` | exact reviewer class: five ceilings raised to 3000000 plus cost > reservation+labSafeInteger/2; no clean over-reservation settlement |
+| `usage-context-backstop-unwired` | `TestLabAttemptContextCeilingThroughHTTP/context-far` | removing all five context ceilings and the cost backstop cannot charge above the reservation as a clean result |
 | `price-round-up` | `TestLabAttemptUnknownThroughHTTP/round-up` | disjoint exact products round upward once |
 | `rate-input_usd_per_million` | `TestLabAttemptReservationThroughHTTP` | each disjoint pinned rate contributes to settlement |
 | `rate-output_usd_per_million` | `TestLabAttemptReservationThroughHTTP` | each disjoint pinned rate contributes to settlement |

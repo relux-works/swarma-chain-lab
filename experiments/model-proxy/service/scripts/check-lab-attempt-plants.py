@@ -25,6 +25,11 @@ gate('closed-field-set', 'lab_attempt_contract_linux.go', 'len(object) != len(sh
 gate('count-range', 'lab_attempt_contract_linux.go', 'limit := int64(256)', 'limit := int64(257)', 'TestLabAttemptRunAdmission/plan-count-over', 'C0b invocation count is at most 256')
 gate('usd-scale', 'lab_attempt_contract_linux.go', 'len(parts[1]) != 6', 'len(parts[1]) < 5', 'TestLabAttemptRunAdmission/plan-usd-fraction', 'USD is exactly six fractional digits')
 gate('usage-partition', 'lab_attempt_contract_linux.go', 'write5+write1 != usage["cache_creation_input_tokens"]', 'false && (write5+write1 != usage["cache_creation_input_tokens"])', 'TestLabAttemptUnknownThroughHTTP/cache-sum', 'cache partitions must equal the authoritative creation total')
+context_ceilings = 'input > 1000000 || write5 > 1000000 || write1 > 1000000 || read > 1000000 || input+write5+write1+read > 1000000'
+gate('usage-context-one-over', 'lab_attempt_contract_linux.go', 'input+write5+write1+read > 1000000', 'input+write5+write1+read > 1000001', 'TestLabAttemptContextCeilingThroughHTTP/context-over', 'one excess context token is an invariant failure, not a clean settlement below the USD reserve')
+gate('usage-context-unwired', 'lab_attempt_contract_linux.go', 'input+write5+write1+read > 1000000', 'false', 'TestLabAttemptContextCeilingThroughHTTP/context-over', 'removing the summed context ceiling cannot admit a one-token excess')
+gate('usage-context-backstop-widened', ['lab_attempt_contract_linux.go', 'lab_attempt_store_linux.go'], [context_ceilings, 'cost > reservation ||'], [context_ceilings.replace('1000000', '3000000'), 'cost > reservation+labSafeInteger/2 ||'], 'TestLabAttemptContextCeilingThroughHTTP/context-far', 'the exact reviewer class widens all five context ceilings and the USD backstop; over-reservation usage must remain full-reservation UNKNOWN')
+gate('usage-context-backstop-unwired', ['lab_attempt_contract_linux.go', 'lab_attempt_store_linux.go'], [context_ceilings, 'cost > reservation ||'], ['false', 'false && cost > reservation ||'], 'TestLabAttemptContextCeilingThroughHTTP/context-far', 'removing all context ceilings plus the USD backstop cannot book an over-reservation response clean')
 gate('price-round-up', 'lab_attempt_contract_linux.go', 'total.Add(total, big.NewInt(999999))', 'total.Add(total, big.NewInt(0))', 'TestLabAttemptUnknownThroughHTTP/round-up', 'disjoint exact products round upward once')
 gate('rate-input_usd_per_million', 'lab_attempt_contract_linux.go', 'total.Add(total, new(big.Int).Mul(big.NewInt(count), big.NewInt(rate)))', 'if name != "input_usd_per_million" { total.Add(total, new(big.Int).Mul(big.NewInt(count), big.NewInt(rate))) }', 'TestLabAttemptReservationThroughHTTP', 'each disjoint pinned rate contributes to settlement')
 gate('rate-output_usd_per_million', 'lab_attempt_contract_linux.go', 'total.Add(total, new(big.Int).Mul(big.NewInt(count), big.NewInt(rate)))', 'if name != "output_usd_per_million" { total.Add(total, new(big.Int).Mul(big.NewInt(count), big.NewInt(rate))) }', 'TestLabAttemptReservationThroughHTTP', 'each disjoint pinned rate contributes to settlement')
@@ -144,18 +149,22 @@ results=[]
 for name,source,before,after,test,claim in mutants:
     if arguments.filter and arguments.filter not in name:
         continue
-    path=(root/source).resolve()
-    original=path.read_text()
-    replacements=list(zip(before,after,strict=True)) if isinstance(before,list) else [(before,after)]
-    candidate=original
-    for old,new in replacements:
-        if candidate.count(old)!=1:
-            raise SystemExit(f"{name}: target count {candidate.count(old)}")
-        candidate=candidate.replace(old,new)
-    planted=output/(name+".go")
-    planted.write_text(candidate)
+    sources = source if isinstance(source,list) else [source]
+    before_groups = [[value] for value in before] if isinstance(source,list) else [before if isinstance(before,list) else [before]]
+    after_groups = [[value] for value in after] if isinstance(source,list) else [after if isinstance(after,list) else [after]]
+    replace = {}
+    for index,(selected,old_group,new_group) in enumerate(zip(sources,before_groups,after_groups,strict=True)):
+        path=(root/selected).resolve()
+        candidate=path.read_text()
+        for old,new in zip(old_group,new_group,strict=True):
+            if candidate.count(old)!=1:
+                raise SystemExit(f"{name}: target count {candidate.count(old)}")
+            candidate=candidate.replace(old,new)
+        planted=output/(name+"-"+str(index)+".go")
+        planted.write_text(candidate)
+        replace[str(path)]=str(planted)
     overlay=output/(name+".json")
-    overlay.write_text(json.dumps({"Replace":{str(path):str(planted)}}))
+    overlay.write_text(json.dumps({"Replace":replace}))
     package="./cmd/credential-gateway-lab" if test.startswith("TestLabAttemptRun") else "."
     cwd=root.parent if package!="." else root
     environment=os.environ.copy()

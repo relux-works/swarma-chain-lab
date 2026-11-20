@@ -89,5 +89,15 @@
   measurement, vendor hard-cap/access visibility, lifecycle scan and native timing
   qualification remain B1/B2/B3/M1/B5/B4/RG/Q release gates. No live activation is
   supplied here; missing inputs close use. The fixture is not an authority bridge.
+- Owner disposition: the tagged gateway currently cancels as soon as cumulative
+  output reaches 128000, before terminal usage, so even a normal max_tokens stop
+  is full-reservation UNKNOWN rather than conclusive settlement-and-stop. This
+  is the stricter fail-closed reading, not a claim that C0e requires uncertainty
+  at equality. Production is unaffected; no behavior change is included here.
+- B5/M1 must enforce exactly one protected accounting root per operation and
+  consume the protected G digest; B4 must join that head to its accepted start.
+  C0c does not carry group_sha256, so G1b cannot detect duplicate roots prepared
+  for the same plan before one native start. This is native placement ownership,
+  not a locally established uniqueness guarantee.
 - No automatic UNKNOWN refund/reopening or ledger repair is implemented. Lost
   persistence remains held/UNKNOWN for separate owner-authoritative recovery.
