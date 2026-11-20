@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -27,13 +28,19 @@ type labGatewayAdapter struct {
 
 func (adapter labGatewayAdapter) ReserveGeneration(body []byte) error { return adapter.reserve(body) }
 
+type LabGatewayIO struct {
+	Transport http.RoundTripper
+	PeerUID   func(net.Conn) (uint32, error)
+}
+
 type LabGateway struct {
 	*Gateway
 	labSource LabGatewaySource
+	peerUID   func(net.Conn) (uint32, error)
 }
 
-func NewLabGateway(source LabGatewaySource, reserve func([]byte) error) (*LabGateway, error) {
-	if source == nil || reserve == nil {
+func NewLabGateway(source LabGatewaySource, reserve func([]byte) error, collaborators ...LabGatewayIO) (*LabGateway, error) {
+	if source == nil || reserve == nil || len(collaborators) > 1 {
 		return nil, ErrInput
 	}
 	caller, generation := source.GatewayBinding()
@@ -41,7 +48,24 @@ func NewLabGateway(source LabGatewaySource, reserve func([]byte) error) (*LabGat
 	if err != nil {
 		return nil, err
 	}
-	return &LabGateway{gateway, source}, nil
+	lab := &LabGateway{Gateway: gateway, labSource: source}
+	if len(collaborators) == 1 {
+		lab.peerUID = collaborators[0].PeerUID
+		if collaborators[0].Transport != nil {
+			gateway.transport = collaborators[0].Transport
+		}
+	}
+	return lab, nil
+}
+
+func (gateway *LabGateway) ConnContext(ctx context.Context, conn net.Conn) context.Context {
+	if gateway.peerUID == nil {
+		return gateway.Gateway.ConnContext(ctx, conn)
+	}
+	if uid, err := gateway.peerUID(conn); err == nil {
+		return context.WithValue(ctx, gatewayPeerKey{}, gatewayPeer{uid: uid})
+	}
+	return ctx
 }
 
 func labShapeValid(request *http.Request) bool {
@@ -160,8 +184,12 @@ func (gateway *LabGateway) ServeHTTP(writer http.ResponseWriter, request *http.R
 	}
 	scheme, material, version, err := gateway.labSource.CredentialValue(request.Context())
 	defer clear(material)
-	if err != nil || scheme != "api-key" || !validMaterial(material) || !gateway.scanLab(request, body) {
+	if err != nil || !validMaterial(material) {
 		refuse(http.StatusServiceUnavailable)
+		return
+	}
+	if scheme != "api-key" || !gateway.scanLab(request, body) {
+		refuse(http.StatusForbidden)
 		return
 	}
 	call, cancel := gateway.labSource.CredentialContext(request.Context(), version)

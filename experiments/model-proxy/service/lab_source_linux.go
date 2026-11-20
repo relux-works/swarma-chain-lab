@@ -151,16 +151,17 @@ func (source *LabSource) Close() {
 	source.mu.Unlock()
 }
 
-func (source *LabSource) checked() bool {
+func (source *LabSource) checked(started time.Time) bool {
 	source.timerMu.Lock()
 	defer source.timerMu.Unlock()
-	if source.ctx.Err() != nil {
+	remaining := time.Until(started.Add(LabWatchdog))
+	if source.ctx.Err() != nil || remaining <= 0 {
 		return false
 	}
 	if source.watchdog == nil {
-		source.watchdog = time.AfterFunc(LabWatchdog, source.end)
+		source.watchdog = time.AfterFunc(remaining, source.end)
 	} else {
-		source.watchdog.Reset(LabWatchdog)
+		source.watchdog.Reset(remaining)
 	}
 	return true
 }
@@ -283,6 +284,7 @@ func (source *LabSource) check() error {
 		Verdict  string  `json:"verdict"`
 		Sequence *uint64 `json:"revocation_sequence"`
 	}
+	started := time.Now()
 	if err := source.client.call(bounded, "service.revocation.check", map[string]any{"service_lease_id": source.lease.id}, &result); err != nil {
 		return err
 	}
@@ -296,7 +298,7 @@ func (source *LabSource) check() error {
 	if !live {
 		return ErrInactive
 	}
-	if !source.checked() {
+	if !source.checked(started) {
 		return ErrInactive
 	}
 	return nil

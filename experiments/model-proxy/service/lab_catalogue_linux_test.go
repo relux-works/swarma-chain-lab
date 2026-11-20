@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
-	"slices"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -207,19 +207,63 @@ func TestLabBuildTagIsolation(test *testing.T) {
 		if tag {
 			args = append(args, "-tags", "gateway_lab")
 		}
-		args = append(args, ".")
-		command := exec.Command("go", args...)
+		command := exec.Command("go", append(append([]string{}, args...), "./...")...)
 		raw, err := command.Output()
 		if err != nil {
 			test.Fatal("go list failed")
 		}
-		var listing struct{ GoFiles []string }
-		if json.Unmarshal(raw, &listing) != nil {
-			test.Fatal("go list JSON")
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		seen, helper := map[string]bool{}, false
+		for {
+			var listing struct {
+				GoFiles, EmbedFiles []string
+				ImportPath          string
+			}
+			err := decoder.Decode(&listing)
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				test.Fatal(err)
+			}
+			if strings.HasSuffix(listing.ImportPath, "/labtest") {
+				helper = true
+			}
+			for _, name := range listing.GoFiles {
+				if strings.HasPrefix(name, "lab_") {
+					seen[name] = true
+					if !tag {
+						test.Fatal("lab source in untagged graph", name)
+					}
+				}
+			}
+			for _, name := range listing.EmbedFiles {
+				if !tag && strings.Contains(name, "lab-v0/") {
+					test.Fatal("untagged lab embed")
+				}
+			}
 		}
-		included := slices.Contains(listing.GoFiles, "lab_source_linux.go")
-		if included != tag {
-			test.Fatal("lab source selected outside its build tag")
+		for _, name := range []string{"lab_source_linux.go", "lab_contract_linux.go", "lab_intake_linux.go"} {
+			if seen[name] != tag {
+				test.Fatal("lab file selection", name)
+			}
+		}
+		if helper != tag {
+			test.Fatal("lab broker helper selected outside tag")
+		}
+		command = exec.Command("go", append(append([]string{}, args...), "./cmd/credential-gateway-lab")...)
+		cwd, err := os.Getwd()
+		if err != nil {
+			test.Fatal(err)
+		}
+		command.Dir = filepath.Dir(cwd)
+		raw, err = command.CombinedOutput()
+		if tag {
+			if err != nil {
+				test.Fatal("tagged command omitted")
+			}
+		} else if err == nil || !bytes.Contains(raw, []byte("build constraints exclude all Go files")) {
+			test.Fatal("untagged command admitted or unrelated listing failure")
 		}
 	}
 }

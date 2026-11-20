@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -51,14 +52,32 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, configPath, brokerPath, socket string, paths []*string) error {
-	config, err := proxy.LoadGatewayConfig(configPath)
+type runInputs struct {
+	loadConfig    func(string) (proxy.GatewayFileConfig, error)
+	readInstalled func(string, int64) ([]byte, error)
+	readPrivate   func(string, os.FileMode, int64) ([]byte, error)
+	gatewayIO     service.LabGatewayIO
+}
+
+func run(ctx context.Context, configPath, brokerPath, socket string, paths []*string, supplied ...runInputs) error {
+	inputs := runInputs{loadConfig: proxy.LoadGatewayConfig, readInstalled: proxy.ReadInstalledFile, readPrivate: proxy.ReadPrivateFile}
+	if len(supplied) > 1 {
+		return errors.New("closed")
+	}
+	if len(supplied) == 1 {
+		inputs = supplied[0]
+	}
+
+	if len(paths) != 5 || inputs.loadConfig == nil || inputs.readInstalled == nil || inputs.readPrivate == nil {
+		return errors.New("closed")
+	}
+	config, err := inputs.loadConfig(configPath)
 	if err != nil || config.Mode != proxy.ModeManaged || config.Upstream != proxy.ManagedUpstream || len(config.ModelProfiles) != 0 || config.DailyCostCeilingNanoUSD == 0 {
 		return errors.New("closed")
 	}
 	records := make([][]byte, 5)
 	for index, path := range paths {
-		records[index], err = proxy.ReadPrivateFile(*path, 0400, 262144)
+		records[index], err = inputs.readPrivate(*path, 0400, 262144)
 		if err != nil {
 			return errors.New("closed")
 		}
@@ -67,7 +86,7 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 	if err != nil {
 		return errors.New("closed")
 	}
-	raw, err := proxy.ReadInstalledFile(brokerPath, 65536)
+	raw, err := inputs.readInstalled(brokerPath, 65536)
 	if err != nil {
 		return errors.New("closed")
 	}
@@ -98,7 +117,7 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 		return errors.New("closed")
 	}
 	defer meter.Close()
-	gateway, err := service.NewLabGateway(source, meter.ReserveGeneration)
+	gateway, err := service.NewLabGateway(source, meter.ReserveGeneration, inputs.gatewayIO)
 	if err != nil {
 		return errors.New("closed")
 	}
@@ -111,7 +130,8 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 	if os.Chmod(socket, 0660) != nil {
 		return errors.New("closed")
 	}
-	server := &http.Server{Handler: gateway, ConnContext: gateway.ConnContext, ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 2 * time.Minute, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 8192, ErrorLog: log.New(io.Discard, "", 0)}
+	requests := &labRequests{next: gateway}
+	server := &http.Server{Handler: requests, ConnContext: gateway.ConnContext, ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 2 * time.Minute, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 8192, ErrorLog: log.New(io.Discard, "", 0)}
 	defer server.Close()
 	closed := make(chan struct{})
 	defer close(closed)
@@ -126,6 +146,8 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 		_ = listener.Close()
 	}()
 	err = server.Serve(listener)
+	_ = server.Close()
+	requests.drain()
 	if source.AwaitHold(ctx) != nil {
 		return errors.New("closed")
 	}
@@ -133,6 +155,32 @@ func run(ctx context.Context, configPath, brokerPath, socket string, paths []*st
 		return nil
 	}
 	return errors.New("closed")
+}
+
+type labRequests struct {
+	next    http.Handler
+	mu      sync.Mutex
+	retired bool
+	pending sync.WaitGroup
+}
+
+func (requests *labRequests) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	requests.mu.Lock()
+	if requests.retired {
+		requests.mu.Unlock()
+		http.Error(writer, "GATEWAY_REFUSED", http.StatusServiceUnavailable)
+		return
+	}
+	requests.pending.Add(1)
+	requests.mu.Unlock()
+	defer requests.pending.Done()
+	requests.next.ServeHTTP(writer, request)
+}
+func (requests *labRequests) drain() {
+	requests.mu.Lock()
+	requests.retired = true
+	requests.mu.Unlock()
+	requests.pending.Wait()
 }
 
 func socketPath(socket, generation string) bool {

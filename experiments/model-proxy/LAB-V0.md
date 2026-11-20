@@ -99,11 +99,28 @@ A whole issued-needle match in inbound or outbound headers/body immediately
 retires local use and starts `account.hold` reconciliation against the same
 protected broker endpoint. The bridge retains one operation ID and request
 digest across lost acknowledgments, UNKNOWN and reconnects. Only an exact
-committed C0 result completes it. The command stays closed while awaiting that
-acknowledgment; there is no local clear/reopen or lift. Final explicit process
-termination cancels recovery. A recovered source requires a new authorized
+committed C0 result bound to the operation, digest, context and caller completes
+it. The command first drains already-started intake after closing its sockets,
+so a material match returned by an in-flight read during cancellation cannot
+arrive after the hold-wait gate. It stays closed while awaiting acknowledgment;
+there is no local clear/reopen or lift. Final explicit process termination
+cancels recovery. A recovered source requires a new authorized
 start, not reuse of this ended lease. B1 owns the actual durable journal and
 restart/replay semantics; fake-broker tests prove this bridge, not B1 storage.
+
+Strict watchdog reading: the 500-ms observation window begins at current-check
+RPC start, not reply completion. Thus RPC latency consumes this budget; it never
+extends cached authority. The timer remains independent of the source mutex.
+
+The tagged constructor's optional `LabGatewayIO` collaborators and command-local
+`runInputs` permit isolated composition testing. The shipped CLI supplies only
+the original sealed/private readers, default fixed-recipient transport and real
+kernel peer resolver. There are no flags or environment overrides for these
+collaborators. Command tests inject a synthetic disjoint worker UID because an
+ordinary unprivileged process cannot be both kernel principals. They keep the
+real broker peer/hello, LabSource, LabGateway, accounting, listener and server.
+Existing kernel-peer negatives and native caller controls remain unchanged;
+these injected-identity tests are not native isolation qualification.
 
 ## Assembly and runbook boundary
 
@@ -130,14 +147,22 @@ the separately reviewed ACL; this producer does not change host policy.
 
 ## Coverage and exclusions
 
-| Acceptance slice | Positive/negative tests | Source-overlay mutants (named failing test) |
+| Row | Composed controls and negatives | Overlay evidence |
 | --- | --- | --- |
-| A01: disjoint tag and closed frozen records | TestLabBuildTagIsolation; TestLabFrozenContentPins; TestLabFrozenRecordCatalogue; TestLabPayloadBoundaries; TestLabProductionCrossReadLease; TestLabNumberLexemes; TestLabCanonicalCatalogue | untag-source → TestLabBuildTagIsolation; open-object/noncanonical-record → TestLabFrozenRecordCatalogue; payload-overflow → TestLabPayloadBoundaries |
-| A02: API-key profile; errors and SSE | TestLabFrozenWirePairs; TestLabBetaCatalogue; TestLabHeaderCatalogue; TestLabAPIKeyDuplicateBetaFields; TestLabAPIKeyForwarding; TestLabBodyNumberAliases; TestLabBodyDuplicateMembers; TestLabBodyCachePositions; TestLabSSEIncremental; TestLabReadStall | missing-beta/extra-body-field → TestLabFrozenWirePairs; duplicate-beta-field → TestLabAPIKeyDuplicateBetaFields; oauth-scheme/policy-key-injection → TestLabAPIKeyForwarding; header-case-control → TestLabHeaderCatalogue; body-number-rounding → TestLabBodyNumberAliases; sse-buffer-until-eof → TestLabSSEIncremental; duplicate-json-member → TestLabBodyDuplicateMembers; cache-placement-pinned → TestLabBodyCachePositions |
-| A03: protected tuples and native HTTP peer | TestLabActivationJoins; TestLabLeaseBounds; TestLabKernelCallerRefusal; TestLabNativeCaller; TestLabSocketPath; TestLabPrincipalWidth; TestLabRecordFiles | caller-retarget → TestLabLeaseBounds; wrong-peer → TestLabKernelCallerRefusal; uid-truncation → TestLabPrincipalWidth |
-| A07: bounded issue/renew, replay/UNKNOWN refusal | TestLabCeilingAndPrincipalMismatch; TestLabLeaseBounds; TestLabDeadlineRenewal; TestLabLeaseContextExpiry; TestLabLeaseExpiredRenewal; TestLabUnknownIssue | selector-mismatch → TestLabCeilingAndPrincipalMismatch; ignore-caller-deadline → TestLabLeaseBounds; renew-ended → TestLabLeaseExpiredRenewal; half-second-renewal → TestLabDeadlineRenewal |
-| A08: bridge to durable hold, no local reopen | TestLabLeakPaths; TestLabHoldAckLoss; TestLabHoldUnknownResult; TestLabLeaseExpiredRenewal; TestLabSourceRedaction | new-hold-operation → TestLabHoldAckLoss; unknown-hold-success → TestLabHoldUnknownResult; local-only-response/no-cross-read-retention → TestLabLeakPaths |
-| A09: independently observed shutdown | TestLabPollTeardown; TestLabWatchdogTeardown; TestLabWatchdogIndependent; TestLabWatchdogSlowCurrentCheck; TestLabReadStall; TestLabCurrentSequence | one-second-watchdog → TestLabWatchdogIndependent; no-listener-teardown/broker-left-open → TestLabPollTeardown; null-current-sequence → TestLabCurrentSequence; no-body-idle-timeout → TestLabReadStall |
+| A01 | TestLabBuildTagIsolation; TestLabLeaseBindingsThroughHTTP; unchanged C0 reader/cross-read catalogues | untag-source/contract/intake/command/testkit; open-object; noncanonical-record |
+| A02 | TestLabServeHTTPWireCatalogue (all 76 frozen cases plus header controls); TestLabBodyOperatorsThroughHTTP; TestLabServeHTTPResponseGates; TestLabPayloadThroughHTTP; TestLabSSEThroughHTTP | shape/body/GET-body/beta-emission/encoded-response unwiring, exact flags, duplicate fields/members, integer aliases, cache relocation, real intake byte ceiling |
+| A03 | TestLabKernelCallerRefusal; TestLabNativeCaller; TestLabRunAdmission; TestLabLeaseBindingsThroughHTTP | wrong-peer; uid-truncation; main-caller-*; caller-retarget |
+| A07 | TestLabLeaseBindingsThroughHTTP; TestLabSequenceThroughHTTP; TestLabRenewalThroughHTTP; TestLabVersionRaceThroughHTTP | every lease join and deadline class, current/renew sequence regression, expired renewal, selected ceiling, cadence, per-call version binding |
+| A08 | TestLabPostLoadHoldThroughHTTP; TestLabLeakSurfacesThroughHTTP; TestLabRunHoldBinding; TestLabRunStartupFloor; TestLabRunLateLeak | post-load/inbound/response scans; each hold-result binding; UNKNOWN/lost ACK; same ID; active floor; command wait/drain |
+| A09 | TestLabAuthorityCancellationThroughHTTP; TestLabWatchdogAgeThroughHTTP; TestLabRunAuthorityTeardown; existing TestLabReadStall | source-context binding; independent 500-ms watchdog including RPC age; command listener/all connections; broker closure; body cancellation |
+
+[Per-gate coverage map](LAB-V0-COVERAGE.md) lists every executable overlay and its
+named composed HTTP/command test, or the build-graph test for tag gates. A
+classifier-only kill is not credited as composed evidence. C0's exhaustive
+operator/parser tests remain supplemental; their length-counter test is not a
+claim that a padded record is valid at a frozen maximum. The byte-ceiling overlay
+now drives the real HTTP handler at 128 MiB and one byte over, rather than only
+calling the length helper. Every existing test name is retained.
 
 The brief supplies acceptance rows, **not an attack-surface catalogue table**;
 that missing surface-table input is a brief gap, not universal coverage. C0's
@@ -164,10 +189,10 @@ The only fake broker material is C0's public non-vendor sentinel.
 | --- | --- | --- |
 | Production tests | `go -C experiments/model-proxy/service test -count=1 ./...` and `go -C experiments/model-proxy test -count=1 ./...` | private test logs |
 | Tagged tests | `go -C experiments/model-proxy/service test -tags gateway_lab -count=1 ./...` and `go -C experiments/model-proxy test -tags gateway_lab -count=1 ./...` | private test logs |
-| Race tests | `go -C experiments/model-proxy/service test -race -tags gateway_lab -count=1 ./...` | private race log |
+| Race tests | `go -C experiments/model-proxy/service test -race -tags gateway_lab -count=1 ./...` and `go -C experiments/model-proxy test -race -tags gateway_lab -count=1 ./cmd/credential-gateway-lab` | private race logs |
 | Production build | `go -C experiments/model-proxy build -o /absolute/task/.temp/credential-gateway ./cmd/model-proxy` | scratch production binary |
 | Lab build | `go -C experiments/model-proxy build -tags gateway_lab -o /absolute/task/.temp/credential-gateway-lab ./cmd/credential-gateway-lab` | separate scratch lab binary |
-| Overlay controls | `python3 experiments/model-proxy/service/scripts/check-lab-plants.py --output /absolute/task/.temp/lab-plants` | replacement files, overlays, per-mutant logs and results.json |
+| Overlay controls | `python3 experiments/model-proxy/service/scripts/check-lab-plants.py --output /absolute/task/.temp/lab-plants` | replacement files, overlays, per-mutant logs and results.json; optional `--filter NAME` for a bounded rerun |
 | Formatting | `gofmt -l experiments/model-proxy/service/lab*go experiments/model-proxy/cmd/credential-gateway-lab/*.go` | no paths when clean |
 
 The overlay runner never edits the original source. Only a nonzero test exit
