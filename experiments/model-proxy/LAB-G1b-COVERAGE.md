@@ -208,6 +208,7 @@ the pre-accounting G1 test scope without providing a command/runtime bypass.
 | A08 / `unknown-hold-success` | `TestLabRunHoldBinding` | UNKNOWN is never a committed hold |
 | A08 / `local-only-response` | `TestLabLeakSurfacesThroughHTTP` | response matches must enter the hold bridge |
 | A09 / `one-second-watchdog` | `TestLabAuthorityCancellationThroughHTTP` | the watchdog cannot share a one-second budget |
+| A09 / `watchdog-forgets-rpc-age` | `TestLabWatchdogAgeThroughHTTP` | RPC time cannot extend the 500-ms observation budget |
 | A09 / `no-listener-teardown` | `TestLabRunAuthorityTeardown` | authority loss retires the listener and streams |
 | A09 / `broker-left-open` | `TestLabRunAuthorityTeardown` | the stale broker connection closes too |
 | A01 / `untag-contract` | `TestLabBuildTagIsolation` | untagged GoFiles and embeds exclude every lab implementation |
